@@ -65,6 +65,16 @@ def run():
         f32.write_model(model, weights, "{% if false %}x{% endif %}")
         p = common.run_process(["chat", str(model)], input=b"a\n", timeout=30)
         assert p.returncode == 1 and b"empty prompt" in p.stderr, (p.returncode, p.stderr)
+        # A template the renderer refuses stops chat and serve before either takes a turn or listens, while generate, which renders no template, still runs on the file.
+        f32.write_model(model, weights, "{% filter upper %}{{ messages[0]['content'] }}{% endfilter %}")
+        p = common.run_process(["chat", str(model)], input=b"a\n", timeout=30)
+        refusal = b"error: the model's chat template is refused: the tag 'filter' is not supported"
+        assert p.returncode == 1 and refusal in p.stderr and not p.stdout, (p.returncode, p.stderr, p.stdout)
+        p = common.run_process(["serve", str(model), "--host", "127.0.0.1", "--port", str(common.free_port())], timeout=60)
+        assert p.returncode == 1 and refusal in p.stderr and b"serving" not in p.stderr, (p.returncode, p.stderr)
+        p = common.run_process(["generate", str(model), "a", "-n", "2", "--temp", "0"], timeout=30)
+        assert p.returncode == 0, (p.returncode, p.stderr)
+        common.generate_text(p.stdout)
         case = fixture["cases"][0]
         spec = case["spec"]
         f32.write_model(model, weights, spec["template"])
@@ -85,6 +95,6 @@ def run():
             assert p.stderr.index(b"Loading tensor data: 100%") < p.stderr.index(b"Preparing model")
             assert p.stderr.count(b"Processing ") == len(spec["inputs"])
             assert p.stderr.count(b"Generating...") == len(spec["inputs"])
-    print("chat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit  [ok]")
+    print("chat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit; a refused template stops chat and serve, not generate  [ok]")
     print("chat progress: completed loading percentages and per-turn phases stay on stderr  [ok]")
     return True

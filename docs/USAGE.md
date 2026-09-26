@@ -428,11 +428,13 @@ The model's context still bounds the reply: a `-n` up to what the prompt leaves 
 
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`
 
-Interactive chat loop reading lines from stdin. Uses the model's
-`tokenizer.chat_template` (Jinja2-subset renderer) to format the conversation.
-Supports the same sampling flags as `generate`, plus `--system` to set the
-system message (default: `You are a helpful assistant.`).
+Interactive chat loop reading lines from stdin.
+Uses the model's `tokenizer.chat_template` to format the conversation, rendered byte for byte as the Jinja template language defines it (`docs/src/inference-chat.md` lists what the renderer takes).
+Supports the same sampling flags as `generate`, plus `--system` to set the system message (default: `You are a helpful assistant.`).
 Messages come only from stdin, so a positional argument after the model is refused.
+A template that uses a part of the template language the renderer does not take is refused, with the reason, before the first turn; `generate` still runs on that file.
+A template can also refuse a conversation itself, and that ends the command with the template's message.
+Each reply is kept in the history as the model wrote it, except under a template that reads `reasoning_content` and does not split a reply at `</think>` itself, such as the Qwen 3.8 ones: there the reply after its `</think>` is kept as the content and the reasoning before it as `reasoning_content`, which is the only way those templates show earlier reasoning.
 
 Each input line is a follow-up in the same conversation. The runtime renders
 the complete conversation with its assistant-generation header and reuses KV
@@ -499,7 +501,7 @@ to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request
 | Route | Body | Reply |
 |---|---|---|
 | `POST /v1/generate` | `{"prompt": "...", "max_tokens": 64, "temperature": 0.8, "top_k": 40, "top_p": 0.95, "penalty": 1.0, "seed": 0, "stop": ["..."], "ignore_eos": false, "stream": false}` | `{"text", "ids", "finish", "prompt_tokens", "reused_tokens", "tokens"}`, `finish` one of `eos`, `stop`, `length` |
-| `POST /v1/chat` | `{"messages": [{"role": "user", "content": "..."}], ...}` (the same sampling fields) | as above; the prompt is the model's chat template over the messages |
+| `POST /v1/chat` | `{"messages": [{"role": "user", "content": "...", "reasoning_content": "..."}], ...}` (the same sampling fields; `reasoning_content` is optional) | as above; the prompt is the model's chat template over the messages |
 | `POST /v1/tokenize` | `{"text": "..."}`, or `{"messages": [...]}` in place of the text | `{"tokens": [ids], "count": n}` |
 | `POST /v1/detokenize` | `{"tokens": [ids]}` | `{"text": "..."}` |
 | `GET /v1/health` | | `{"status": "ok", "model", "active", "queued", "donors", "prefix_hits", "prefix_tokens", "pauses"}` |
@@ -512,6 +514,12 @@ On the last two an absent `max_tokens`, or `-1`, means no cap, as the standard h
 The last two are the shape the OpenAI clients speak, so a UI, an SDK or a script written for any such server connects to `llmx serve` unchanged: it lists `/v1/models`, sends the `id` it finds there as the model and streams `/v1/chat/completions`.
 Streamed, each `data:` line is a chunk whose first delta carries the role, the last carries `finish_reason` (`stop` for the end of text or a stop string, `length` for the token limit), a usage chunk follows when asked for, then `data: [DONE]`.
 A message's content is a string or an array of `{"type": "text", "text"}` parts; `n` other than 1 and non-text parts are refused with 400 in the clients' error shape, `{"error": {"message", "type"}}`.
+On both chat routes an assistant message may carry its reasoning in `reasoning_content`, a string or null.
+A message with a `reasoning_content` string is taken as sent.
+An assistant message without one, or with null, is kept as `chat` keeps its own replies: under a template that reads `reasoning_content` and does not split a reply at `</think>` itself, such as the Qwen 3.8 ones, the text after its last `</think>` becomes the content and the reasoning before it `reasoning_content`, and under every other template it is rendered whole, as sent.
+So a conversation renders as it does in `chat`, and a model sees earlier reasoning as its template expects it whether a client sends it inline or in `reasoning_content`.
+A conversation the model's template raises on, such as one without a user message for the Qwen 3.5 templates, is refused with 400 and the template's message.
+A model whose template the renderer refuses is refused as `serve` starts, before it listens.
 A stream whose pass fails ends with one `data:` event holding the error in that shape, without `data: [DONE]`, since its 200 head has gone out.
 The native routes carry what the shape cannot: token ids and the `eos` finish.
 On every route `temperature` and `top_k` are at least 0, `top_p` is 0 to 1 and `penalty`, or `repetition_penalty` on the compatible routes, is at least 1, as the CLI's flags are, and a value outside is refused with 400.
@@ -530,7 +538,7 @@ Donors give their blocks up, oldest first, when a request needs them, except tha
 A follow-up turn or a resumed request, which shares every full block of its donor, consumes that donor before any other gives its blocks up.
 
 `/v1/tokenize` gives the ids `llmx tokenize` prints for `text`, the ids a prompt of that text reads: no chat template is applied, and the text of a special token such as `<|im_start|>` reads as that token.
-With `messages` in place of `text`, as `/v1/chat` takes them, the model's chat template renders them first, the assistant's header included, so the ids are the ones a chat request with those messages reads.
+With `messages` in place of `text`, as `/v1/chat` takes them, the model's chat template renders them first, the assistant's header included and an assistant message's `reasoning_content` read as the chat routes read it, so the ids are the ones a chat request with those messages reads, and a conversation the template raises on is refused with 400 as there.
 No start or end token is added, since no route adds one to a prompt, so `add_special`, which clients of other servers send true to count one, is not read.
 Neither route waits in the queue, and a text past the context is counted rather than refused.
 `/v1/detokenize` gives the text `llmx detokenize` prints for the ids, with each byte that starts no UTF-8 character replaced by U+FFFD as in a reply, so the `ids` of a whole reply give back its `text`.

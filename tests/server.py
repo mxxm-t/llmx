@@ -167,8 +167,11 @@ def check_tokenize(srv, model, texts, replies, vocab, chat):
     count = server_load.tokenize_route(server_load.Target("http://127.0.0.1:%d" % srv.port), 30)
     assert count is not None and {text: count(text) for text in counts} == counts, counts
     if chat:
+        # The chat fixture's cases carried over from the Jinja2 goldens, under the template the fixture pins for this file, as transformers renders them.
         with open(os.path.join(os.path.dirname(__file__), "data", "baseline_chat_template.json"), encoding="utf-8") as f:
-            cases = [case for case in json.load(f)["cases"] if case["generate"]]
+            [pinned] = [t for t in json.load(f)["templates"] if any(o.split()[-1] == os.path.basename(model) for o in t["origin"])]
+        cases = [case for case in pinned["cases"] if case["name"].startswith("legacy-") and case["generate"]]
+        assert len(cases) == 6, [case["name"] for case in cases]
         for case in cases:
             want = cli_tokenize(model, case["expected"])
             status, reply = srv.post("/v1/tokenize", {"messages": case["messages"]})
@@ -486,6 +489,128 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         srv.close()
 
 
+# A model whose next token follows from its last alone, since its one layer adds nothing to the embedding: after a line feed it writes "qr</think>o", then its end of text.
+# Its template writes a turn's reasoning in angle brackets apart from its reply, and the reply three times over, so a render tells a turn split into "o" and "qr" from one left whole or split the other way.
+REASONING_CONFIG = {"block_count": 1, "embedding_length": 16, "feed_forward_length": 8, "attention.head_count": 2,
+                    "attention.head_count_kv": 1, "attention.key_length": 8, "context_length": 512}
+REASONING_REPLY = b"qr</think>o"
+REASONING_TEMPLATE = ("{% if messages[-1]['role'] != 'user' %}{{ raise_exception('The last message must be the user\\'s.') }}{% endif %}"
+                      "{{ messages|length }}{% for m in messages %}|{{ m.role }}:"
+                      "{% if m.reasoning_content is defined %}<{{ m.reasoning_content }}>{% endif %}{{ m.content * 3 }}{% endfor %}"
+                      "{% if add_generation_prompt %}|assistant:\n{% endif %}")
+# The same without the reasoning, as a template that knows none is written.
+PLAIN_TEMPLATE = ("{{ messages|length }}{% for m in messages %}|{{ m.role }}:{{ m.content * 3 }}{% endfor %}"
+                  "{% if add_generation_prompt %}|assistant:\n{% endif %}")
+
+
+def reasoning_tensors():
+    """The weights of that model: each token of the chain, from the line feed, is one dimension of the embedding, and the head maps that dimension to the token after it."""
+    cfg, vocab, eos = REASONING_CONFIG, f32.VOCAB, f32.VOCAB - 1
+    width, ff, hd = cfg["embedding_length"], cfg["feed_forward_length"], cfg["attention.key_length"]
+    q, kv = cfg["attention.head_count"] * hd, cfg["attention.head_count_kv"] * hd
+    chain = [ord("\n")] + list(REASONING_REPLY) + [eos]
+    assert len(set(chain)) == len(chain) and len(chain) - 1 <= width
+    embedding, head = [0.0] * (width * vocab), [0.0] * (width * vocab)
+    for dim, (token, following) in enumerate(zip(chain, chain[1:])):
+        embedding[token * width + dim] = 1.0
+        head[following * width + dim] = 1.0
+    tensors = [("token_embd.weight", [width, vocab], embedding), ("output.weight", [width, vocab], head)]
+    tensors += [(name, [size], [1.0] * size) for name, size in (("output_norm.weight", width), ("blk.0.attn_norm.weight", width),
+                                                                ("blk.0.ffn_norm.weight", width), ("blk.0.attn_q_norm.weight", hd),
+                                                                ("blk.0.attn_k_norm.weight", hd))]
+    tensors += [(name, shape, [0.0] * (shape[0] * shape[1]))
+                for name, shape in (("blk.0.attn_q.weight", [width, q]), ("blk.0.attn_k.weight", [width, kv]),
+                                    ("blk.0.attn_v.weight", [width, kv]), ("blk.0.attn_output.weight", [q, width]),
+                                    ("blk.0.ffn_gate.weight", [width, ff]), ("blk.0.ffn_up.weight", [width, ff]),
+                                    ("blk.0.ffn_down.weight", [ff, width]))]
+    return [(name, None, shape, values) for name, shape, values in tensors]
+
+
+def reasoning_render(messages):
+    """What the template renders for `messages`, written out here, with the assistant's header after them."""
+    text = "%d" % len(messages)
+    for m in messages:
+        text += "|%s:%s%s" % (m["role"], "<%s>" % m["reasoning_content"] if "reasoning_content" in m else "", m["content"] * 3)
+    return text + "|assistant:\n"
+
+
+def check_reasoning(model):
+    """chat records its reply as a turn split at </think>, and the server reads an assistant message a client sends back the same way, whether its reasoning stays in the content, comes as reasoning_content or is null: all render the second turn alike.
+    With a template that names no reasoning_content, both keep the turn whole instead.
+    Under the Qwen 3.8 template of the chat fixture, which shows earlier reasoning only from reasoning_content, chat's two turns are the reference's renders with the reply split, the second beginning with the first, and the server's second turn is the same.
+    The render shows in the prompt's token count, a token a byte in this vocabulary: chat's for each turn, which starts no prefix of the last so each is read whole, and the server's for the same conversation, which /v1/tokenize counts alike."""
+    f32.write_model(model, reasoning_tensors(), REASONING_TEMPLATE, f32.VOCAB - 1, config=REASONING_CONFIG)
+    reply = REASONING_REPLY.decode()
+    first = [{"role": "system", "content": ""}, {"role": "user", "content": "a"}]
+    second = first + [{"role": "assistant", "content": "o", "reasoning_content": "qr"}, {"role": "user", "content": "b"}]
+    p = common.run_process(["chat", model, "--system", "", "--temp", "0", "-n", "16", "--verbose"], input=b"a\nb\n", timeout=60)
+    assert p.returncode == 0, p.stderr
+    assert common.cli_stdout(p.stdout).endswith(b"\n" + REASONING_REPLY + b"\n" + REASONING_REPLY + b"\n"), p.stdout
+    counts = [int(x) for x in re.findall(rb"Processing (\d+) prompt tokens", p.stderr)]
+    assert counts == [len(reasoning_render(first)), len(reasoning_render(second))], (counts, reasoning_render(second))
+    srv = Server(model)
+    try:
+        status, got = srv.post("/v1/chat", {"messages": first, "max_tokens": 16, "temperature": 0})
+        assert status == 200 and got["text"] == reply and got["prompt_tokens"] == counts[0], got
+        raw = first + [{"role": "assistant", "content": reply}, {"role": "user", "content": "b"}]
+        null = first + [{"role": "assistant", "content": reply, "reasoning_content": None}, {"role": "user", "content": "b"}]
+        for messages in (raw, null):
+            status, got = srv.post("/v1/chat", {"messages": messages, "max_tokens": 16, "temperature": 0})
+            assert status == 200 and got["text"] == reply and got["prompt_tokens"] == counts[1], (messages, got)
+        status, got = srv.post("/v1/chat/completions", {"messages": second, "max_tokens": 16, "temperature": 0})
+        assert status == 200 and got["choices"][0]["message"]["content"] == reply, got
+        assert got["usage"]["prompt_tokens"] == counts[1], got
+        # /v1/tokenize renders messages as the chat routes do, so it counts the same prompt for each form of the turn.
+        for messages in (raw, null, second):
+            status, got = srv.post("/v1/tokenize", {"messages": messages})
+            assert status == 200 and got["count"] == counts[1], (messages, got)
+        # A reasoning_content that is not a string is refused, and so is a conversation the template raises on, with its message, by the chat routes and by /v1/tokenize.
+        bad = first + [{"role": "assistant", "content": "o", "reasoning_content": 5}, {"role": "user", "content": "b"}]
+        for path in ("/v1/chat", "/v1/tokenize"):
+            status, err = srv.post(path, {"messages": bad, "max_tokens": 4})
+            assert status == 400 and "reasoning_content" in err["error"], (path, err)
+        raised = first + [{"role": "assistant", "content": "o"}]
+        status, err = srv.post("/v1/chat/completions", {"messages": raised, "max_tokens": 4})
+        assert status == 400 and err["error"]["message"].endswith("The last message must be the user's."), err
+        status, err = srv.post("/v1/tokenize", {"messages": raised})
+        assert status == 400 and err["error"].endswith("The last message must be the user's."), err
+    finally:
+        srv.close()
+    f32.write_model(model, reasoning_tensors(), PLAIN_TEMPLATE, f32.VOCAB - 1, config=REASONING_CONFIG)
+    whole = first + [{"role": "assistant", "content": reply}, {"role": "user", "content": "b"}]
+    p = common.run_process(["chat", model, "--system", "", "--temp", "0", "-n", "16", "--verbose"], input=b"a\nb\n", timeout=60)
+    assert p.returncode == 0, p.stderr
+    counts = [int(x) for x in re.findall(rb"Processing (\d+) prompt tokens", p.stderr)]
+    assert counts == [len(reasoning_render(first)), len(reasoning_render(whole))], (counts, reasoning_render(whole))
+    srv = Server(model)
+    try:
+        status, got = srv.post("/v1/chat", {"messages": whole, "max_tokens": 16, "temperature": 0})
+        assert status == 200 and got["text"] == reply and got["prompt_tokens"] == counts[1], got
+    finally:
+        srv.close()
+    with open(os.path.join(os.path.dirname(__file__), "data", "baseline_chat_template.json"), encoding="utf-8") as f:
+        fixture = json.load(f)
+    [qwen38] = [t for t in fixture["templates"] if t["name"] == "Qwen3.8"]
+    assert qwen38["split_turns"] and fixture["turn_before"] == first and fixture["turn_after"] == second[-1:]
+    expected = [qwen38["first"]["expected"], qwen38["turns"][fixture["turn_texts"].index(reply)]["expected"]]
+    assert expected[1].startswith(expected[0]), expected
+    f32.write_model(model, reasoning_tensors(), qwen38["template"], f32.VOCAB - 1, config=REASONING_CONFIG)
+    p = common.run_process(["chat", model, "--system", "", "--temp", "0", "-n", "16", "--verbose"], input=b"a\nb\n", timeout=60)
+    assert p.returncode == 0, p.stderr
+    assert common.cli_stdout(p.stdout).endswith(b"\n" + REASONING_REPLY + b"\n" + REASONING_REPLY + b"\n"), p.stdout
+    counts = [int(x) for x in re.findall(rb"Processing (\d+) prompt tokens", p.stderr)]
+    assert counts == [len(x.encode()) for x in expected], (counts, expected)
+    srv = Server(model)
+    try:
+        for messages in (whole, second):
+            status, got = srv.post("/v1/chat", {"messages": messages, "max_tokens": 16, "temperature": 0})
+            assert status == 200 and got["text"] == reply and got["prompt_tokens"] == counts[1], (messages, got)
+            status, got = srv.post("/v1/tokenize", {"messages": messages})
+            assert status == 200 and got["count"] == counts[1], (messages, got)
+    finally:
+        srv.close()
+
+
 # The ids each prompt gets alone, then four at a time, where a pass holds one request's prompt rows beside another's decode rows.
 # Ids rather than text: a synthetic model's greedy bytes need not be UTF-8.
 def check_mixed(model, prompts, n, flags):
@@ -778,6 +903,10 @@ def run():
               "a seeded repeat, refusals, the tokenize routes, a cancelled stream, the compatible completions, its file name as UTF-8 in every reply  [ok]" % n)
         check_unencodable(directory)
         print("server: synthetic F32 model without the byte token q, a text holding it refused alike by /v1/tokenize, /v1/generate and /v1/chat  [ok]")
+        check_reasoning(os.path.join(directory, "reasoning.gguf"))
+        print("server: an assistant turn with its reasoning in the content, in reasoning_content or null beside it renders as chat renders its own reply, "
+              "and whole in both under a template without reasoning; two chat turns under a Qwen 3.8 template are the reference's renders; "
+              "/v1/tokenize counts each as the chat routes read it; a bad reasoning_content and a conversation the template raises on answer 400  [ok]")
         # The synthetic mixture of experts, each prompt's ids alone equal to its ids four at a time, where a pass routes one request's prompt rows beside another's decode rows.
         # On a device its routed layers run on the host with prompts from extent 3 streamed, so a pass holds streamed prompt rows beside host decode rows; those flags need a device, so the CPU runs the model without them.
         # Experts on the host are a placement of one device, so a list of several skips this.

@@ -339,11 +339,12 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
     return true;
 }
 
-// A model file opened for a command: the file, which the model reads while it lives, its tokenizer, and the model placed over the devices --device lists.
+// A model file opened for a command: the file, which the model reads while it lives, its tokenizer, its chat format, and the model placed over the devices --device lists.
 // Built in place and never moved, since the model keeps the file's address.
 struct Opened {
     gguf::GGUFModel file;
     std::optional<bpe::Tokenizer> tok;
+    chat::ChatFormat chat;  // the file's chat template parsed, or why it is refused, which only chat and serve raise
     std::unique_ptr<infer::Model> model;
     backend::Backend* first = nullptr;   // the first device listed, which bench --profile times
 };
@@ -358,6 +359,7 @@ std::unique_ptr<Opened> open_model(const std::string& path, const ExecOptions& e
     auto opened = std::make_unique<Opened>();
     opened->file = load_model(path, progress);
     opened->tok.emplace(opened->file);
+    opened->chat = chat::chat_format(opened->file, *opened->tok);
     const auto specs = backend::device_specs(exec.device);
     auto backends = backend::make_backends(specs, profile);
     opened->first = backends.front().get();
@@ -494,28 +496,24 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
 int cmd_chat(const std::string& model_path, const std::string& system, const infer::GenParams& gp, const ExecOptions& exec) {
     const bool progress = show_progress(exec);
     const auto opened = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose);
-    const gguf::GGUFModel& m = opened->file;
     bpe::Tokenizer& tok = *opened->tok;
     infer::Model& model = *opened->model;
+    const chat::ChatFormat& format = opened->chat;
+    format.require();
     const int decode_threads = model.threads_available();
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
 
-    const chat::ChatFormat format = chat::chat_format(m, tok);
-    const std::string& tpl = format.tmpl;
-    const std::string& bos = format.bos;
-    const std::string& eos = format.eos;
-
     std::vector<chat::Message> messages;
-    messages.push_back({ "system", system });
+    messages.push_back({ "system", system, std::nullopt });
     std::vector<uint32_t> cached_ids;
 
     std::cout << "Chat ready (type your message; Ctrl+C to quit)\n" << std::flush;
     std::string line;
     while (std::getline(std::cin, line)) {
-        messages.push_back({ "user", line });
+        messages.push_back({ "user", line, std::nullopt });
 
-        std::string gen = chat::render(tpl, messages, true, bos, eos);
+        std::string gen = format.render(messages, true);
         std::vector<uint32_t> gen_ids = tok.encode(gen);
         if (gen_ids.empty()) throw std::runtime_error("chat: template produced an empty prompt");
         // Templates can rewrite previous turns or change token boundaries.
@@ -535,7 +533,7 @@ int cmd_chat(const std::string& model_path, const std::string& system, const inf
         const size_t fed = (size_t)model.n_tokens() - cached_ids.size();
         cached_ids.insert(cached_ids.end(), reply.begin(), reply.begin() + fed);
 
-        messages.push_back({ "assistant", tok.decode(reply) });
+        messages.push_back(format.assistant(tok.decode(reply)));
     }
     return 0;
 }
@@ -732,9 +730,10 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
 // llmx serve: the multi-user server of docs/SERVER.md over one model.
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec) {
     const auto opened = open_model(model_path, exec, true, exec.threads, cfg.max_seqs);
-    const gguf::GGUFModel& m = opened->file;
     bpe::Tokenizer& tok = *opened->tok;
     infer::Model& model = *opened->model;
+    // A template the renderer refuses stops the server before it listens, as it stops chat before a turn.
+    opened->chat.require();
     server::Config c = cfg;
     // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
@@ -742,7 +741,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
               << " (device " << exec.device << ", up to " << c.max_seqs << " sequences over "
               << model.kv_tokens_total() << " KV tokens, queue of " << c.max_queue << ")\n";
-    server::serve(model, tok, m, c, listener);
+    server::serve(model, tok, opened->chat, c, listener);
     return 0;
 }
 

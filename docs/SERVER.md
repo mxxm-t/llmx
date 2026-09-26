@@ -152,7 +152,7 @@ POST /v1/generate    {"prompt": "...", "max_tokens": 64, "temperature": 0.8,
                       "top_k": 40, "top_p": 0.95, "seed": 0, "stop": ["..."],
                       "ignore_eos": false, "stream": true}
 POST /v1/chat        {"messages": [{"role": "user", "content": "..."}], ...}
-                     the model's chat template renders the prompt
+                     the model's chat template renders the prompt; an assistant message may carry "reasoning_content"
 POST /v1/tokenize    {"text": "..."} or {"messages": [...]}
                      -> {"tokens": [ids], "count": n}
 POST /v1/detokenize  {"tokens": [ids]} -> {"text": "..."}
@@ -176,10 +176,14 @@ The model's name in `/v1/health`, `/v1/models` and every compatible reply is its
 Both get the same U+FFFD repair as generated text, so every reply is UTF-8.
 A non-streaming request gets one JSON object with the text, the ids and the counts.
 Errors are JSON with an HTTP status: 400 for a bad request (a text the tokenizer cannot encode and a token id outside the vocabulary included), 413 for a prompt past the context or a body past 64 MiB, 503 when the queue is full.
+A conversation the chat template raises on is a bad request, answered 400 with the template's message; a template the renderer refuses stops `serve` before it listens, since no chat request could be answered.
+A message that carries `reasoning_content` as a string is taken as sent, its content and its reasoning unchanged.
+An assistant message without it, or with it null, is kept as `chat` keeps its own replies (`chat::ChatFormat::assistant`): split by `chat::assistant_turn`, the text after its last `</think>` the content and the reasoning before it `reasoning_content`, only when the template reads `reasoning_content` and does not split a turn at `</think>` itself, as the Qwen 3.8 templates do not, and rendered whole, as sent, under every other template.
+So the server renders a conversation as `chat` does, and each model sees earlier reasoning in the form its template was written for, whichever way a client sends it back ([inference-chat](src/inference-chat.md) states the rule).
 A stream whose pass fails has already sent its 200 head, so it ends with one `data:` event holding the error in the route's error shape, without `data: [DONE]`.
 
 `/v1/tokenize` and `/v1/detokenize` expose the model's tokenizer on the connection thread, without the scheduler, and give the ids and text `llmx tokenize` and `llmx detokenize` give.
-A `text` is tokenized as it is, with no chat template, and the text of a special token such as `<|im_start|>` reads as that token, as it does in a prompt; `messages` in its place are rendered first as `/v1/chat` renders them, so the ids are the ones a chat request with those messages reads.
+A `text` is tokenized as it is, with no chat template, and the text of a special token such as `<|im_start|>` reads as that token, as it does in a prompt; `messages` in its place are rendered first as `/v1/chat` renders them, an assistant message's `reasoning_content` and the template's refusal of a conversation included, so the ids are the ones a chat request with those messages reads.
 No start or end token is added, since no route adds one to a prompt, so `add_special`, which clients of other servers send true to count one, is not read, and the count is always what a generating route reads.
 Neither route passes through the scheduler, so both answer while the queue is full, and a text past the context is counted rather than refused.
 Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole reply give back its text.
@@ -220,4 +224,4 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 | 4 | Prefix reuse: finished requests kept as donors, the longest shared run of full blocks forked on admission (**done**) | The `server` component: a prompt repeating a 247-token excerpt with a different ending reuses the first request's blocks and its greedy text equals the CLI's; a 1995-token prefix on Qwen3-0.6B-Q8_0 costs 1.53 s the first time and 0.16 s with a donor on the device (8B: 8.74 s to 0.72 s; CPU 0.6B: 6.95 s to 0.95 s) |
 | 5 | The second execution context, if measured to help (**measured, not added**) | The host gap between passes is about 25 microseconds at 1, 4, 8 and 16 sequences on the device, against passes of 5 to 31 milliseconds, which a later per-row timing of the sampler does not agree with; see the scheduler loop above |
 | 6 | The compatible routes: `/v1/chat/completions`, `/v1/completions`, `/v1/models` in the OpenAI clients' shape (**done**) | The `server` component: greedy equality with the CLI through `/v1/completions` whole and streamed, usage counts, the role in the first chat chunk and the finish reason in the last, text content parts, the refusals' shape; CPU and device |
-| 7 | `/v1/tokenize` and `/v1/detokenize`, and `messages` rendered by the chat template in place of a text (**done**) | The `server` component against `llmx tokenize` and `llmx detokenize` on the synthetic model and the Q8_0 fixture: text beyond ASCII, special tokens, an empty text, ids ending inside a character, a reply's ids giving back its text, the chat template's Jinja2 goldens and a chat request reading the same count, the refusals |
+| 7 | `/v1/tokenize` and `/v1/detokenize`, and `messages` rendered by the chat template in place of a text (**done**) | The `server` component against `llmx tokenize` and `llmx detokenize` on the synthetic model and the Q8_0 fixture: text beyond ASCII, special tokens, an empty text, ids ending inside a character, a reply's ids giving back its text, the chat fixture's goldens under the file's template and a chat request reading the same count, the refusals |

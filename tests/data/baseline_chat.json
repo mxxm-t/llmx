@@ -1,7 +1,7 @@
 {
-  "source": "HF Qwen3ForCausalLM, full transcript recomputed each turn, Jinja2 rendering",
+  "source": "HF Qwen3ForCausalLM, full transcript recomputed each turn, transformers' chat template renderer",
   "torch_version": "2.5.1+cpu",
-  "transformers_version": "4.55.2",
+  "transformers_version": "5.17.0",
   "jinja2_version": "3.1.6",
   "dtype": "float32",
   "attention": "eager",

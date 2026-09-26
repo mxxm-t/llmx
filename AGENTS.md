@@ -351,13 +351,11 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   scoring oracle checks window boundaries, chunk limits, target counts, file
   and inline input parity and invalid flags.
   On the same model `logits` gives the same output for inline text and `--file` or `-f`, appends `--then-ids` ids separated by commas or whitespace, and refuses any other separator and an id past the vocabulary, 2^32 plus a valid id included.
-- **Chat** (`tests/chat.py`): follow-up replies against independent HF/Jinja2
-  goldens, including changed prefixes, stop/EOS and token-limit endings.
-  CTest also runs `chat-template`, comparing the real Qwen template against
-  Jinja2-rendered conversation fixtures. Regenerate these with
-  `python tools/gen_chat_baseline.py`; running them needs no external libraries.
-  The same test holds `is defined` and `is not defined` cases inline, each
-  beside the text Jinja2 renders for it.
+- **Chat** (`tests/chat.py`): follow-up replies against independent HF goldens, including changed prefixes, stop/EOS and token-limit endings.
+  A template the renderer refuses stops `chat` and `serve` before either takes a turn or listens, while `generate` still runs on the file.
+  CTest also runs `chat-template` on `tests/data/baseline_chat_template.json`: the pinned real Qwen templates (Qwen2.5, the Qwen3 variants, and every Qwen 3.5, 3.6 and 3.8 template found in GGUF files and the official repositories), each held to its SHA-256, over 34 conversations each, tools, tool calls and content given as parts among them, with whether a conversation keeps an assistant turn split under each and a two-turn conversation of seven replies kept that way, and small feature templates, every case byte for byte against transformers' own chat template renderer, a failure where it fails with its message; templates the renderer must refuse; templates past its nesting and value limits, which must be refused or fail without ending the process; and the texts `chat::assistant_turn` must split as the Qwen templates split them.
+  Regenerate both fixtures with `python tools/gen_chat_baseline.py` in the reference environment of `docs/ASSETS.md`; running them needs no external libraries.
+  The same tool's `--extract` and `--scan` check every template on a machine by hand, through the same test binary.
 - **Thread controls** (`tests/threads.py`): actual auto/explicit phase counts,
   restoration after prefill, follow-up chat and HF-golden replies.
   Perplexity also checks batched/per-token counts, both batch-thread aliases
@@ -381,19 +379,10 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   a fresh one fed the same history. This oracle supplements the
   independent HF gate.
   The shared KV storage (`BlockKVStorage`) is held to the doubling rule it replaced, written out in the test: every growth step and the peak, with out-of-order ids and mixed cache types, an overflowing budget refused at allocation, attention over a block no write backed refused, and the growth hooks, each old buffer retired once, the backend drained and the accounting unchanged when a growth fails, and a retry.
-- **Server** (`tests/server.py`): `llmx serve` on a system-chosen port
-  against the CLI on the same file, the synthetic F32 model without a
-  download and the Q8_0 fixture when present: greedy through `/v1/generate`
-  equals `generate --temp 0` alone and four at a time, a stream carries the
-  same ids, a seeded request repeats, refusals, a client leaving mid-stream
-  leaves nothing active, a chat turn, the compatible `/v1/completions`
-  and `/v1/chat/completions` whole and streamed in the OpenAI clients'
-  shape, a prompt repeating a finished request's tokens reuses its
-  blocks with the CLI's greedy text, and the limits: a KV budget below the
-  context bounds a request and a full queue answers 503.
+- **Server** (`tests/server.py`): `llmx serve` on a system-chosen port against the CLI on the same file, the synthetic F32 model without a download and the Q8_0 fixture when present: greedy through `/v1/generate` equals `generate --temp 0` alone and four at a time, a stream carries the same ids, a seeded request repeats, refusals, a client leaving mid-stream leaves nothing active, a chat turn and a follow-up whose assistant turn comes with its reasoning inline, in `reasoning_content` or null, each rendering as `chat` renders its own reply and counted alike by `/v1/tokenize`, kept whole by both under a template without reasoning, and two `chat` turns under a Qwen 3.8 template of the chat fixture as long as the reference's renders with the reply split, the compatible `/v1/completions` and `/v1/chat/completions` whole and streamed in the OpenAI clients' shape, a prompt repeating a finished request's tokens reuses its blocks with the CLI's greedy text, and the limits: a KV budget below the context bounds a request and a full queue answers 503.
   A sampling field outside the range the CLI's flag takes is refused with 400 on every route, `repetition_penalty` on the compatible routes included, and a `top_k` of -1 is refused on the native route and sampled as `top_k` 0 on the compatible one.
   `/v1/tokenize` gives the ids `llmx tokenize` prints, with `add_special` absent, false, true and 1, which it does not read, for text beyond ASCII, a special token's text and an empty text (with the Q8_0 fixture, the tokenizer golden's texts), and `/v1/detokenize` gives those ids back as the text; ids that end or start inside a character, alone, together and reversed, give the bytes `llmx detokenize` prints with the U+FFFD repair.
-  A generating route reads as many tokens as `/v1/tokenize` counts for its prompt, `tools/server_load.py` finds the route and counts each text as the CLI does, and a whole reply's ids detokenize to its text; with the Q8_0 fixture, `messages` give the CLI's ids for the chat template goldens' Jinja2 rendering, and a chat request with them reads that many tokens and replies as that text does through `/v1/generate`; while `--max-seqs 1 --max-queue 1` holds one request and queues another, both routes answer, and a text of more tokens than `--ctx-size 512` is counted.
+  A generating route reads as many tokens as `/v1/tokenize` counts for its prompt, `tools/server_load.py` finds the route and counts each text as the CLI does, and a whole reply's ids detokenize to its text; with the Q8_0 fixture, `messages` give the CLI's ids for the chat fixture's renders of the cases carried over from the Jinja2 goldens under that file's template, and a chat request with them reads that many tokens and replies as that text does through `/v1/generate`; while `--max-seqs 1 --max-queue 1` holds one request and queues another, both routes answer, and a text of more tokens than `--ctx-size 512` is counted.
   Both routes refuse a body that is not a JSON object, a missing or mistyped field, both `text` and `messages`, an id that is not a whole number or lies outside the vocabulary, whose edge the CLI confirms (2^32 past a valid id included), and a body past the size limit, in the native error shape.
   On a synthetic model whose vocabulary lacks the byte token `q`, `/v1/tokenize` refuses a text holding it, as a text and as messages, with the 400 and the message `/v1/generate` and `/v1/chat` give.
   The synthetic model's file name holds a byte that is not UTF-8 on Linux, and elsewhere characters beyond ASCII whose UTF-8 bytes code pages 932, 936, 949, 950 and 1257 cannot map, so a name read in the system code page there fails; `/v1/health` and `/v1/models` must name it as UTF-8, with a U+FFFD for each byte that belongs to no UTF-8 character.

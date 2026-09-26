@@ -23,7 +23,7 @@ scheduler are the runtime's own.
   The donor a request forks is chosen before room is made and the other donors go first; if the pool is still short the chosen one is consumed: only the shared blocks pass to the request and the rest are freed, so shared blocks are reserved once and a follow-up turn keeps the history it repeats.
   A request sharing every full block of its donor, a follow-up turn or a resume, consumes it before any other donor goes, so an unrelated donor stays whenever consuming that one makes room.
   Cancellation is a flag seen at the next iteration, which ends a queued request wherever it waits and drops an active one from the batch; blocks return once the device has retired the pass that read them.
-- `api.hpp`: the routes and `serve()`.
+- `api.hpp`: the routes and `serve(model, tok, format, config, listener)`.
   Native `/v1/generate`, `/v1/chat` and `/v1/health`; the OpenAI-compatible `/v1/chat/completions`, `/v1/completions` and `/v1/models`, one parse, one request and one drain loop shared with the native routes, with the clients' synonyms accepted and errors in their shape.
   Every POST route reads its body through `body_of`, which refuses anything but a JSON object with 400.
   `encode` gives a prompt's ids to the generating routes and `/v1/tokenize` alike, refusing a text the tokenizer cannot encode with 400.
@@ -36,6 +36,9 @@ scheduler are the runtime's own.
   A `top_k` of -1, which clients send for no top-k, is 0 on the compatible routes, which keeps every token, and the native routes refuse it as any other `top_k` below 0.
   `boolean` reads `ignore_eos` on every route, `false` when absent, and refuses with 400 any value other than `true` or `false`, where `stream` and `include_usage` still read anything but `true` as false.
   The routes only map the scheduler's refusals to statuses.
+  `Api` holds the `chat::ChatFormat` that `serve()` is given, the opened model's, whose refusal `cmd_serve` raises before the listener opens.
+  `messages_of` reads a chat request's messages as `chat` records its turns: a message's `reasoning_content` as given when it is a string, and otherwise, absent or null, an assistant message through `chat::ChatFormat::assistant`, the owner `chat` records its replies through; a `reasoning_content` of another type is refused with 400.
+  A render the template itself fails, its `raise_exception` included, is refused with 400 and the template's message.
   The drain loop cancels a request when a write to its client fails, and between writes looks at the socket every 100 ms (`kProbe`), token or not, cancelling once `peer_closed` says the client has gone, so a client that leaves while its request is queued, prefilling or building a whole reply is noticed within about 100 ms as well.
   Either way a `ClientGone` ends the loop, and `handle` answers it with nothing, not even a 500, so the connection just closes.
   The compatible replies carry a `timings` object beside `usage`, and every finished request logs a line on stderr; both take the decode rate from `Request::Timings`.

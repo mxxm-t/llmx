@@ -13,7 +13,6 @@
 #include <vector>
 #include "core/json.hpp"
 #include "core/utf8.hpp"
-#include "format/gguf.hpp"
 #include "inference/chat.hpp"
 #include "server/http.hpp"
 #include "server/scheduler.hpp"
@@ -64,15 +63,11 @@ inline std::string error_json(const std::string& message, bool compat) {
 
 class Api {
 public:
-    Api(infer::Model& model, const bpe::Tokenizer& tok, const gguf::GGUFModel& file, Scheduler& sched,
+    Api(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format, Scheduler& sched,
         const Config& cfg)
-        : model_(model), tok_(tok), sched_(sched), cfg_(cfg), started_((int64_t)std::time(nullptr)) {
+        : model_(model), tok_(tok), format_(format), sched_(sched), cfg_(cfg), started_((int64_t)std::time(nullptr)) {
         // The model's name is its file's, which on Linux can hold bytes that are not UTF-8, and every reply that names the model carries it.
         cfg_.model_name = utf8_sanitize(cfg_.model_name);
-        const chat::ChatFormat format = chat::chat_format(file, tok);
-        template_ = format.tmpl;
-        bos_ = format.bos;
-        eos_ = format.eos;
     }
 
     void handle(http::Connection& c) {
@@ -211,16 +206,28 @@ private:
         return text;
     }
 
-    std::string render_messages(const jmini::Value& body) {
+    // A request's messages as chat records its own turns: a message's reasoning as the client passes it in `reasoning_content`, or else an assistant message as chat::ChatFormat::assistant keeps chat's own replies, so a conversation renders as chat renders it.
+    std::vector<chat::Message> messages_of(const jmini::Value& body) const {
         const jmini::Value* msgs = body.get("messages");
         if (!msgs || !msgs->isArray() || msgs->asArray().empty()) throw BadRequest(400, "messages must be a non-empty array");
         std::vector<chat::Message> messages;
         for (const auto& m : msgs->asArray()) {
             const jmini::Value* role = m.get("role");
             if (!role || !role->isString()) throw BadRequest(400, "every message needs a string role");
-            messages.push_back({role->asString(), content_of(m)});
+            const jmini::Value* reasoning = m.get("reasoning_content");
+            if (reasoning && reasoning->t != jmini::Value::T::Null && !reasoning->isString()) throw BadRequest(400, "reasoning_content must be a string");
+            if (reasoning && reasoning->isString()) messages.push_back({role->asString(), content_of(m), reasoning->asString()});
+            else if (role->asString() == "assistant") messages.push_back(format_.assistant(content_of(m)));
+            else messages.push_back({role->asString(), content_of(m), std::nullopt});
         }
-        return chat::render(template_, messages, true, bos_, eos_);
+        return messages;
+    }
+
+    // A render the template itself fails, such as its raise_exception on a conversation it does not take, is the request's fault.
+    std::string render_messages(const jmini::Value& body) {
+        const std::vector<chat::Message> messages = messages_of(body);
+        try { return format_.render(messages, true); }
+        catch (const chat::TemplateError& e) { throw BadRequest(400, std::string("the chat template refused the messages: ") + e.what()); }
     }
 
     // The prompt text of a request on each route.
@@ -430,18 +437,18 @@ private:
 
     infer::Model& model_;
     const bpe::Tokenizer& tok_;
+    const chat::ChatFormat format_;
     Scheduler& sched_;
     Config cfg_;
     const int64_t started_;
     std::atomic<uint64_t> next_id_{1};
-    std::string template_, bos_, eos_;
 };
 
 // Serve until the listener is closed: the scheduler on its own thread, the accept loop here, one detached thread per connection.
-inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const gguf::GGUFModel& file,
+inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format,
                   const Config& cfg, http::Listener& listener) {
     Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue);
-    Api api(model, tok, file, sched, cfg);
+    Api api(model, tok, format, sched, cfg);
     std::thread runner([&] { sched.run(); });
     std::atomic<int> open{0};
     for (;;) {

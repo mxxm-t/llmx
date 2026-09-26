@@ -19,6 +19,8 @@ unrecognized arguments beginning with a dash.
 
 A usage error prints the command's page on stderr, then `error:` and the reason, and exits with status 2.
 That is a missing or extra argument, an unknown flag, a flag without its value, a number out of its form or range, or a flag or argument the command would ignore or overwrite, and it includes `serve` and `pull` without arguments.
+A flag that takes a value is given once: given again, in the same spelling or its other one (`-n` and `--max-tokens`), it is refused, and so are `--cpu-moe` and `--n-cpu-moe` together; a switch given again changes nothing.
+An empty value that would read as the flag not given is refused as well: `--stop`, `--then-ids`, `--layer-shares`, `bench --model`, `pull --file` and `pull --cache-dir`.
 Numbers are decimal and within the flag's range, and a whole number is digits only, with no sign, space, base prefix or fraction.
 An unknown command prints `unknown command:` and exits with status 2.
 Any other failure, such as a file that cannot be read, prints `error:` and exits with status 1.
@@ -26,6 +28,7 @@ Any other failure, such as a file that cannot be read, prints `error:` and exits
 ## `llmx --version`
 
 Print the release and build identifier, for example `llmx 0.1.0+g0123456789ab`.
+It takes nothing after it.
 Tracked changes add `.dirty`; untracked files are excluded. CMake and the plain
 Windows build refresh this identifier on each build, including after commits
 without reconfiguration. A source archive or unavailable Git reports `+unknown`.
@@ -232,7 +235,7 @@ Flags:
 | `--per-token` | score one token at a time, the decode path, instead of in batched passes |
 | `--verbose` | show scoring phase and actual worker count on stderr |
 | `--threads N`   | worker thread count (0 = auto)                 |
-| `-tb`, `--threads-batch N` | threads for batched passes (omitted or 0: `--threads`); ignored with `--per-token` |
+| `-tb`, `--threads-batch N` | threads for batched passes (omitted or 0: `--threads`); refused with `--per-token`, which scores on `--threads` |
 | `--ubatch N`    | tokens per batched pass (default 512)          |
 | `-ctk`, `--cache-type-k T` / `-ctv`, `--cache-type-v T` | KV cache storage per side, `f16` (default) or `f32` |
 | `--device D`    | backend: `cpu`, or `vulkan:N` in a build with it |
@@ -257,7 +260,7 @@ An omitted or zero `-tb` uses the resolved decode count.
 After every prefill, the runtime restores that count, including automatic selection and follow-up chat turns.
 `--verbose` reports each phase's actual count on stderr.
 `bench` without `--model` prints its resolved count on stdout.
-Perplexity uses the batch count for batched scoring and the decode count with `--per-token`; its `--verbose` output reports the selected phase and actual count on stderr.
+Perplexity uses the batch count for batched scoring and the decode count with `--per-token`, which refuses `-tb`; its `--verbose` output reports the selected phase and actual count on stderr.
 Changing counts recreates the CPU pool.
 
 On supported Windows topology, six-worker prefill automatically places workers

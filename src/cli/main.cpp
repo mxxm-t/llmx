@@ -3,6 +3,8 @@
 #include <cstring>
 #include <cmath>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 #include <iostream>
 #include <fstream>
@@ -92,6 +94,55 @@ std::string flag_value(int argc, char** argv, int& i, const std::string& flag) {
     if (i + 1 >= argc) throw UsageError(flag + " needs a value");
     return argv[++i];
 }
+
+// The value after a flag whose empty value would read as the flag not given; `what` names what the flag needs.
+std::string nonempty_value(int argc, char** argv, int& i, const std::string& flag, const std::string& what) {
+    std::string value = flag_value(argc, argv, i, flag);
+    if (value.empty()) throw UsageError(flag + " needs " + what);
+    return value;
+}
+
+// Each short spelling with the long one it stands for; the parsers compare long_spelling(arg), so a pair is written only here.
+constexpr std::pair<std::string_view, std::string_view> kShortForms[] = {
+    {"-n", "--max-tokens"}, {"-tb", "--threads-batch"}, {"-c", "--ctx-size"}, {"-ctk", "--cache-type-k"}, {"-ctv", "--cache-type-v"}};
+
+// The long spelling of the flag `arg` gives: the one a short form stands for, or `arg` itself.
+std::string_view long_spelling(std::string_view arg) {
+    for (const auto& [short_form, long_form] : kShortForms)
+        if (arg == short_form) return long_form;
+    return arg;
+}
+
+// The flags one command line gives, so a second value for a setting, in one spelling or two, is refused rather than overwriting the first.
+class GivenFlags {
+public:
+    // Records `arg` once its branch has read it, `took_value` when the branch read a value after it; an argument without a dash is no flag.
+    // A setting the line gave before is a usage error, unless this is the same switch again, which changes nothing.
+    void take(const std::string& arg, bool took_value) {
+        if (arg.empty() || arg[0] != '-') return;
+        const std::string_view name = setting(arg);
+        for (const auto& [earlier_name, earlier] : given_) {
+            if (earlier_name != name) continue;
+            if (!took_value && earlier == arg) return;
+            throw UsageError(earlier == arg ? arg + " is given twice" : earlier + " and " + arg + " set the same thing; give one of them");
+        }
+        given_.emplace_back(std::string(name), arg);
+    }
+    // The spelling the line gave `flag`'s setting in, or empty when it gave none; `flag` is the long spelling.
+    std::string spelling(std::string_view flag) const {
+        for (const auto& [name, arg] : given_)
+            if (name == flag) return arg;
+        return {};
+    }
+
+private:
+    // --cpu-moe is --n-cpu-moe for every routed layer, so the two set one setting.
+    static std::string_view setting(std::string_view arg) {
+        const std::string_view flag = long_spelling(arg);
+        return flag == "--cpu-moe" ? "--n-cpu-moe" : flag;
+    }
+    std::vector<std::pair<std::string, std::string>> given_;   // each setting's flag and the spelling that gave it
+};
 
 template <class T>
 std::string range_text(T lo, T hi) {
@@ -338,17 +389,18 @@ infer::LoadMode load_mode_arg(int argc, char** argv, int& i, const std::string& 
 // `batch_threads` adds --threads-batch (-tb), which only the commands that give a prompt's batched passes their own worker count read: generate, chat and perplexity.
 bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_threads) {
     const std::string a = argv[i];
-    if (a == "--device") exec.device = flag_value(argc, argv, i, a);
-    else if (a == "--layer-shares") { exec.layer_shares = flag_value(argc, argv, i, a); layer_shares(exec.layer_shares); }
-    else if (a == "--n-cpu-moe") exec.cpu_moe = int_arg(argc, argv, i, a, 0);
-    else if (a == "--cpu-moe") exec.cpu_moe = -1;
-    else if (a == "--moe-stream-from") exec.moe_stream_from = int_arg(argc, argv, i, a, 0);
-    else if (a == "--threads") exec.threads = int_arg(argc, argv, i, a, 0);
-    else if (batch_threads && (a == "--threads-batch" || a == "-tb")) exec.threads_batch = int_arg(argc, argv, i, a, 0);
-    else if (a == "--ubatch") exec.ubatch = int_arg(argc, argv, i, a, 1);
-    else if (a == "--cache-type-k" || a == "-ctk") exec.cache_type_k = cache_type_arg(argc, argv, i, a);
-    else if (a == "--cache-type-v" || a == "-ctv") exec.cache_type_v = cache_type_arg(argc, argv, i, a);
-    else if (a == "--load-mode") exec.load_mode = load_mode_arg(argc, argv, i, a);
+    const std::string_view f = long_spelling(a);
+    if (f == "--device") exec.device = flag_value(argc, argv, i, a);
+    else if (f == "--layer-shares") { exec.layer_shares = nonempty_value(argc, argv, i, a, "a share for each device"); layer_shares(exec.layer_shares); }
+    else if (f == "--n-cpu-moe") exec.cpu_moe = int_arg(argc, argv, i, a, 0);
+    else if (f == "--cpu-moe") exec.cpu_moe = -1;
+    else if (f == "--moe-stream-from") exec.moe_stream_from = int_arg(argc, argv, i, a, 0);
+    else if (f == "--threads") exec.threads = int_arg(argc, argv, i, a, 0);
+    else if (batch_threads && f == "--threads-batch") exec.threads_batch = int_arg(argc, argv, i, a, 0);
+    else if (f == "--ubatch") exec.ubatch = int_arg(argc, argv, i, a, 1);
+    else if (f == "--cache-type-k") exec.cache_type_k = cache_type_arg(argc, argv, i, a);
+    else if (f == "--cache-type-v") exec.cache_type_v = cache_type_arg(argc, argv, i, a);
+    else if (f == "--load-mode") exec.load_mode = load_mode_arg(argc, argv, i, a);
     else return false;
     return true;
 }
@@ -493,7 +545,7 @@ int cmd_logits(const std::string& model_path, const std::string& text,
 
 int cmd_perplexity(const std::string& model_path, const std::string& text,
                    const ExecOptions& exec, int context_size, int chunks, bool per_token) {
-    const int threads = !per_token && exec.threads_batch > 0 ? exec.threads_batch : exec.threads;
+    const int threads = exec.threads_batch > 0 ? exec.threads_batch : exec.threads;   // main refuses --threads-batch with --per-token
     const auto loaded = open_model(model_path, exec, false, threads, 0, exec.verbose);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
@@ -990,6 +1042,7 @@ int main(int argc, char** argv) {
         }
         if (argc == 3 && (std::string(argv[2]) == "--help" || std::string(argv[2]) == "-h") && print_usage(cmd, std::cout)) return 0;
         if (cmd == "--version") {
+            if (argc > 2) throw UsageError("--version takes nothing after it");
             std::cout << "llmx " << LLMX_VERSION_STRING << "\n";
             return 0;
         }
@@ -1011,16 +1064,17 @@ int main(int argc, char** argv) {
 #else
             if (const char* token = std::getenv("HF_TOKEN")) options.token = token;
 #endif
+            GivenFlags given;
             for (int i = 3; i < argc; ++i) {
+                const int at = i;
                 const std::string flag = argv[i];
-                if (flag == "--revision") options.revision = flag_value(argc, argv, i, flag);
-                else if (flag == "--file") options.filename = flag_value(argc, argv, i, flag);
-                else if (flag == "--cache-dir") {
-                    const std::string value = flag_value(argc, argv, i, flag);
-                    if (value.empty()) throw UsageError("--cache-dir needs a path");
-                    options.cache = std::filesystem::u8path(value);
-                } else if (flag == "--parallel") options.parallel = int_arg(argc, argv, i, flag, 1u, hub::max_parallel_streams);
+                const std::string_view f = long_spelling(flag);
+                if (f == "--revision") options.revision = flag_value(argc, argv, i, flag);
+                else if (f == "--file") options.filename = nonempty_value(argc, argv, i, flag, "a file name");
+                else if (f == "--cache-dir") options.cache = std::filesystem::u8path(nonempty_value(argc, argv, i, flag, "a path"));
+                else if (f == "--parallel") options.parallel = int_arg(argc, argv, i, flag, 1u, hub::max_parallel_streams);
                 else throw UsageError("unknown flag: " + flag);
+                given.take(flag, i > at);
             }
             const auto path = hub::pull(options, [](const std::string& message) { std::cerr << message << '\n'; });
             std::cout << path.u8string() << '\n';
@@ -1035,28 +1089,28 @@ int main(int argc, char** argv) {
             ExecOptions exec;
             std::string system = kChatSystem;
             std::string prompt;
-            bool have_prompt = false, have_stop = false;
+            bool have_prompt = false;
+            GivenFlags given;
             for (int i = 3; i < argc; i++) {
+                const int at = i;
                 const std::string a = argv[i];
-                if (a == "-n" || a == "--max-tokens") gp.max_tokens = int_arg(argc, argv, i, a, 1);
-                else if (a == "--temp") gp.temp = float_arg(argc, argv, i, a, infer::Sampling::temp_range.lo, infer::Sampling::temp_range.hi);
-                else if (a == "--topk") gp.top_k = int_arg(argc, argv, i, a, infer::Sampling::top_k_range.lo, infer::Sampling::top_k_range.hi);
-                else if (a == "--topp") gp.top_p = float_arg(argc, argv, i, a, infer::Sampling::top_p_range.lo, infer::Sampling::top_p_range.hi);
-                else if (a == "--penalty") gp.penalty = float_arg(argc, argv, i, a, infer::Sampling::penalty_range.lo, infer::Sampling::penalty_range.hi);
-                else if (a == "--seed") gp.seed = int_arg<uint64_t>(argc, argv, i, a, 0);
-                else if (a == "--stop") {
-                    if (have_stop) throw UsageError("--stop takes one text, given once");
-                    gp.stop = flag_value(argc, argv, i, a);
-                    have_stop = true;
-                }
-                else if (a == "--ignore-eos") gp.ignore_eos = true;
+                const std::string_view f = long_spelling(a);
+                if (f == "--max-tokens") gp.max_tokens = int_arg(argc, argv, i, a, 1);
+                else if (f == "--temp") gp.temp = float_arg(argc, argv, i, a, infer::Sampling::temp_range.lo, infer::Sampling::temp_range.hi);
+                else if (f == "--topk") gp.top_k = int_arg(argc, argv, i, a, infer::Sampling::top_k_range.lo, infer::Sampling::top_k_range.hi);
+                else if (f == "--topp") gp.top_p = float_arg(argc, argv, i, a, infer::Sampling::top_p_range.lo, infer::Sampling::top_p_range.hi);
+                else if (f == "--penalty") gp.penalty = float_arg(argc, argv, i, a, infer::Sampling::penalty_range.lo, infer::Sampling::penalty_range.hi);
+                else if (f == "--seed") gp.seed = int_arg<uint64_t>(argc, argv, i, a, 0);
+                else if (f == "--stop") gp.stop = nonempty_value(argc, argv, i, a, "a text");
+                else if (f == "--ignore-eos") gp.ignore_eos = true;
                 else if (exec_flag(argc, argv, i, exec, true)) {}
-                else if (a == "--system" && chat) system = flag_value(argc, argv, i, a);
-                else if (a == "--verbose") exec.verbose = true;
+                else if (f == "--system" && chat) system = flag_value(argc, argv, i, a);
+                else if (f == "--verbose") exec.verbose = true;
                 else if (!a.empty() && a[0] == '-') throw UsageError("unknown flag: " + a);
                 else if (chat) throw UsageError("chat reads its messages from standard input, not '" + a + "'");
                 else if (have_prompt) throw UsageError("a second prompt, '" + a + "'; quote the prompt to keep its spaces");
                 else { prompt = a; have_prompt = true; }
+                given.take(a, i > at);
             }
             if (chat) return cmd_chat(argv[2], system, gp, exec);
             if (!have_prompt) throw UsageError("missing the prompt");
@@ -1067,17 +1121,23 @@ int main(int argc, char** argv) {
             ExecOptions exec;
             int context_size = 0, chunks = 0;
             bool per_token = false;
+            GivenFlags given;
             const int first = text_arg(argc, argv);
             for (int i = first; i < argc; i++) {
+                const int at = i;
                 const std::string a = argv[i];
+                const std::string_view f = long_spelling(a);
                 no_second_text(a);
-                if (a == "--ctx-size" || a == "-c") context_size = int_arg(argc, argv, i, a, 1);
-                else if (a == "--chunks") chunks = int_arg(argc, argv, i, a, 1);
-                else if (a == "--per-token") per_token = true;
-                else if (a == "--verbose") exec.verbose = true;
+                if (f == "--ctx-size") context_size = int_arg(argc, argv, i, a, infer::kMinPerplexityWindow);
+                else if (f == "--chunks") chunks = int_arg(argc, argv, i, a, 1);
+                else if (f == "--per-token") per_token = true;
+                else if (f == "--verbose") exec.verbose = true;
                 else if (exec_flag(argc, argv, i, exec, true)) {}
                 else throw UsageError("unknown flag: " + a);
+                given.take(a, i > at);
             }
+            if (const std::string batch = given.spelling("--threads-batch"); per_token && !batch.empty())
+                throw UsageError(batch + " sets the workers of batched passes, which --per-token does not run");
             const std::string text = first == 5 ? read_text_file(argv[4], cmd) : argv[3];
             return cmd_perplexity(argv[2], text, exec, context_size, chunks, per_token);
         }
@@ -1087,15 +1147,19 @@ int main(int argc, char** argv) {
             int topn = kLogitsTop;
             std::string then_ids;
             size_t last = 0;
+            GivenFlags given;
             const int first = text_arg(argc, argv);
             for (int i = first; i < argc; i++) {
+                const int at = i;
                 const std::string a = argv[i];
+                const std::string_view f = long_spelling(a);
                 no_second_text(a);
-                if (a == "--top") topn = int_arg(argc, argv, i, a, 1);
-                else if (a == "--then-ids") then_ids = flag_value(argc, argv, i, a);
-                else if (a == "--last") last = (size_t)int_arg(argc, argv, i, a, 1);
+                if (f == "--top") topn = int_arg(argc, argv, i, a, 1);
+                else if (f == "--then-ids") then_ids = nonempty_value(argc, argv, i, a, "a path");
+                else if (f == "--last") last = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
+                given.take(a, i > at);
             }
             const std::string text = first == 5 ? read_text_file(argv[4], cmd) : argv[3];
             return cmd_logits(argv[2], text, topn, exec, then_ids, last);
@@ -1126,15 +1190,19 @@ int main(int argc, char** argv) {
             if (argc < 3) throw UsageError("missing the model");
             server::Config cfg;
             ExecOptions exec;
+            GivenFlags given;
             for (int i = 3; i < argc; i++) {
+                const int at = i;
                 const std::string a = argv[i];
-                if (a == "--host") cfg.host = flag_value(argc, argv, i, a);
-                else if (a == "--port") cfg.port = (uint16_t)int_arg(argc, argv, i, a, 0, 65535);   // 0 asks the system for a free port
-                else if (a == "--max-seqs") cfg.max_seqs = (size_t)int_arg(argc, argv, i, a, 1);
-                else if (a == "--max-queue") cfg.max_queue = (size_t)int_arg(argc, argv, i, a, 1);
-                else if (a == "--ctx-size" || a == "-c") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
+                const std::string_view f = long_spelling(a);
+                if (f == "--host") cfg.host = flag_value(argc, argv, i, a);
+                else if (f == "--port") cfg.port = (uint16_t)int_arg(argc, argv, i, a, 0, 65535);   // 0 asks the system for a free port
+                else if (f == "--max-seqs") cfg.max_seqs = (size_t)int_arg(argc, argv, i, a, 1);
+                else if (f == "--max-queue") cfg.max_queue = (size_t)int_arg(argc, argv, i, a, 1);
+                else if (f == "--ctx-size") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
+                given.take(a, i > at);
             }
             return cmd_serve(argv[2], cfg, exec);
         }
@@ -1143,19 +1211,23 @@ int main(int argc, char** argv) {
             bool profile = false;
             std::string model_path, model_only, synthetic_only;   // the first flag given that only a model run reads, and the first only the synthetic bench reads
             ExecOptions exec;
+            GivenFlags given;
             for (int i = 2; i < argc; i++) {
+                const int at = i;
                 const std::string a = argv[i];
-                if (a == "--size") { n.size = int_arg(argc, argv, i, a, 32); if (synthetic_only.empty()) synthetic_only = a; }
-                else if (a == "--iters") { n.iters = int_arg(argc, argv, i, a, 1); if (synthetic_only.empty()) synthetic_only = a; }
-                else if (a == "--p") n.prompt = int_arg(argc, argv, i, a, 1);
-                else if (a == "--n") n.decode = int_arg(argc, argv, i, a, 1);
-                else if (a == "--model") model_path = flag_value(argc, argv, i, a);
-                else if (exec_flag(argc, argv, i, exec, false)) { if (a != "--device" && a != "--threads" && model_only.empty()) model_only = a; }
-                else if (a == "--r") { n.repeats = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
-                else if (a == "--seqs") { n.seqs = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
-                else if (a == "--depth") { n.depth = int_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
-                else if (a == "--profile") { profile = true; if (model_only.empty()) model_only = a; }
+                const std::string_view f = long_spelling(a);
+                if (f == "--size") { n.size = int_arg(argc, argv, i, a, 32); if (synthetic_only.empty()) synthetic_only = a; }
+                else if (f == "--iters") { n.iters = int_arg(argc, argv, i, a, 1); if (synthetic_only.empty()) synthetic_only = a; }
+                else if (f == "--p") n.prompt = int_arg(argc, argv, i, a, 1);
+                else if (f == "--n") n.decode = int_arg(argc, argv, i, a, 1);
+                else if (f == "--model") model_path = nonempty_value(argc, argv, i, a, "a path");
+                else if (exec_flag(argc, argv, i, exec, false)) { if (f != "--device" && f != "--threads" && model_only.empty()) model_only = a; }
+                else if (f == "--r") { n.repeats = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
+                else if (f == "--seqs") { n.seqs = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
+                else if (f == "--depth") { n.depth = int_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
+                else if (f == "--profile") { profile = true; if (model_only.empty()) model_only = a; }
                 else throw UsageError("unknown flag: " + a);
+                given.take(a, i > at);
             }
             // The synthetic bench times one backend's kernels and reads only --device, --threads, --size, --iters, --p and --n; a model run reads neither --size nor --iters.
             if (model_path.empty() && !model_only.empty()) throw UsageError(model_only + " takes --model");

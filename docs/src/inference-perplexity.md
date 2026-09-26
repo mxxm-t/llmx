@@ -1,9 +1,9 @@
 # `src/inference/perplexity.hpp` - windowed perplexity
 
 `infer::perplexity(model, ids, context_size=0, max_chunks=0, per_token=false)`
-scores an already tokenized sequence. Zero selects the model context or all chunks, respectively;
-the CLI accepts only positive explicit values. Context must be at least two
-and no larger than the model's context.
+scores an already tokenized sequence. Zero selects the model context or all chunks, respectively.
+A window holds at least `kMinPerplexityWindow` tokens, two, since its first token is only context, and at most the model's context.
+The CLI reads `--ctx-size` against that floor and `--chunks` from one, so a command line below them is refused before the model loads; a text of fewer than two tokens and a window past the model's context are refused here, once it has.
 
 Windows are disjoint, with reset KV cache and positions. Each first token is
 context only; all following tokens are targets. A partial window needs at

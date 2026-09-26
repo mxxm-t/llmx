@@ -11,6 +11,9 @@
 
 namespace infer {
 
+// The fewest tokens a window holds: its first token is only context, so it takes a second to score anything.
+constexpr int kMinPerplexityWindow = 2;
+
 struct PerplexityResult {
     size_t context = 0;   // the window's size in tokens: the one asked for, or the model's context
     size_t used_tokens = 0;
@@ -33,10 +36,11 @@ inline double token_nll(const float* logits, size_t vocab, uint32_t target) {
 // Windows of `context_size` tokens, each from an empty history. By default a window is scored through the batched passes a prompt takes, logits for every position of a microbatch at once, which is the path prompt processing uses and on a device a different set of kernels from decode's. `per_token` scores it one token at a time through step instead, the decode path; the HF gate runs both so each set of kernels meets the reference.
 inline PerplexityResult perplexity(Model& model, const std::vector<uint32_t>& ids,
                                    int context_size = 0, int max_chunks = 0, bool per_token = false) {
-    if (ids.size() < 2) throw std::runtime_error("perplexity: need at least 2 tokens");
+    if (ids.size() < (size_t)kMinPerplexityWindow)
+        throw std::runtime_error("perplexity: need at least " + std::to_string(kMinPerplexityWindow) + " tokens");
     const int context = context_size == 0 ? model.context_length() : context_size;
-    if (context < 2 || context > model.context_length())
-        throw std::runtime_error("perplexity: context size must be between 2 and model context " +
+    if (context < kMinPerplexityWindow || context > model.context_length())
+        throw std::runtime_error("perplexity: context size must be between " + std::to_string(kMinPerplexityWindow) + " and model context " +
                                  std::to_string(model.context_length()));
     if (max_chunks < 0) throw std::runtime_error("perplexity: chunks must be nonnegative");
 
@@ -44,7 +48,7 @@ inline PerplexityResult perplexity(Model& model, const std::vector<uint32_t>& id
     result.context = (size_t)context;
     for (size_t begin = 0; begin < ids.size();) {
         const size_t count = std::min((size_t)context, ids.size() - begin);
-        if (count < 2 || (max_chunks > 0 && result.chunks >= (size_t)max_chunks)) break;
+        if (count < (size_t)kMinPerplexityWindow || (max_chunks > 0 && result.chunks >= (size_t)max_chunks)) break;
         if (!per_token) {
             const std::vector<uint32_t> window(ids.begin() + (std::ptrdiff_t)begin,
                                                ids.begin() + (std::ptrdiff_t)(begin + count));

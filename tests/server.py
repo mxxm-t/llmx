@@ -29,7 +29,8 @@ import server_load  # noqa: E402
 class Server:
     def __init__(self, model, *extra):
         # The device and cache flags go on the command, not the executable path, which device_args would not recognise; the server then runs where the CLI it is compared with runs.
-        args = ["serve", model, "--max-seqs", "8"] + list(extra)
+        # Eight sequences unless the check names its own count, since a flag given twice is refused.
+        args = ["serve", model] + ([] if "--max-seqs" in extra else ["--max-seqs", "8"]) + list(extra)
         self.proc, self.port, self.log = common.start_server([common.exe_path()] + common.device_args(args, "f32"))
 
     def get(self, path):

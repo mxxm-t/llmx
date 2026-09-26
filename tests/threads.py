@@ -25,7 +25,8 @@ def check_perplexity_threads(model, automatic, weights_sha256):
     for count in (None, 0, 1, 4):
         for batch in (None, 0, 1, 3):
             for alias in (("--threads-batch", "-tb") if batch is not None else ("--threads-batch",)):
-                for per_token in (False, True):
+                # Per-token scoring runs on --threads and refuses a batch count, as the cli component checks.
+                for per_token in ((False, True) if batch is None else (False,)):
                     flags = ["--verbose", "--ubatch", "3",
                              "--cache-type-k", "f32", "--cache-type-v", "f32",
                              "-c", str(case["context"])]

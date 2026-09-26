@@ -70,6 +70,33 @@ bool empty_layer_shares() {
     return false;
 }
 
+// A second value for a flag is refused in either spelling, and so are --cpu-moe and --n-cpu-moe together, while a switch given again is taken; an argument without a dash is no flag, and spelling() gives the spelling a line used.
+// long_spelling gives the flag each short form stands for, and any other argument as it is.
+bool given_flags() {
+    // Each flag of a line is taken as its branch would take it, with a value (true) or as a switch (false).
+    auto refused = [](const std::vector<std::pair<std::string, bool>>& line) {
+        GivenFlags given;
+        try {
+            for (const auto& [a, took_value] : line) given.take(a, took_value);
+        } catch (const UsageError&) {
+            return true;
+        }
+        return false;
+    };
+    GivenFlags given;
+    for (const char* a : {"-tb", "text", "text", "--threads"}) given.take(a, a[0] == '-');
+    return refused({{"--temp", true}, {"--temp", true}}) && refused({{"-n", true}, {"--max-tokens", true}}) &&
+           refused({{"--threads-batch", true}, {"-tb", true}}) && refused({{"-c", true}, {"--ctx-size", true}}) &&
+           refused({{"-ctk", true}, {"--cache-type-k", true}}) && refused({{"--cache-type-v", true}, {"-ctv", true}}) &&
+           refused({{"--cpu-moe", false}, {"--n-cpu-moe", true}}) && refused({{"--n-cpu-moe", true}, {"--cpu-moe", false}}) &&
+           !refused({{"--cpu-moe", false}, {"--cpu-moe", false}}) && !refused({{"--verbose", false}, {"--verbose", false}}) &&
+           !refused({{"-n", true}, {"--n", true}}) && !refused({{"--cache-type-k", true}, {"--cache-type-v", true}}) &&
+           given.spelling("--threads-batch") == "-tb" && given.spelling("--threads") == "--threads" && given.spelling("--max-tokens").empty() &&
+           long_spelling("-n") == "--max-tokens" && long_spelling("-tb") == "--threads-batch" && long_spelling("-c") == "--ctx-size" &&
+           long_spelling("-ctk") == "--cache-type-k" && long_spelling("-ctv") == "--cache-type-v" && long_spelling("--n") == "--n" &&
+           long_spelling("text") == "text";
+}
+
 // --threads-batch and -tb are execution flags only where the command asks for them, as generate, chat and perplexity do; elsewhere they are not read, so the command refuses them as unknown.
 bool batch_threads() {
     auto read = [](std::string flag, bool batch_threads, ExecOptions& exec) {
@@ -174,6 +201,10 @@ int main() {
         std::cerr << "CLI --layer-shares with an empty list read as no shares given\n";
         return 1;
     }
+    if (!given_flags()) {
+        std::cerr << "CLI second value for a flag not refused in one spelling or two, a switch given again refused, a line's spelling of a flag not kept, or a short form not read as its long one\n";
+        return 1;
+    }
     if (!batch_threads()) {
         std::cerr << "CLI --threads-batch read where the command does not ask for it, or not read where it does\n";
         return 1;
@@ -186,6 +217,6 @@ int main() {
         std::cerr << "CLI token id lists not read as comma or whitespace separated ids within the vocabulary\n";
         return 1;
     }
-    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types, load modes and an empty share list refused as read; -tb read only where asked; numbers and token ids read strictly\n";
+    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types, load modes and an empty share list refused as read; a second value for a flag refused and a switch given again taken; -tb read only where asked; numbers and token ids read strictly\n";
     return 0;
 }

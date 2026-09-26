@@ -108,6 +108,21 @@ void split_matches_single() {
             require(cs.logits(r)[i] == ct.logits(r)[i], "batched pass differs across the split");
     require(s1.length() == 2 && s2.length() == 1, "batched pass did not commit");
     checked += 1;
+
+    // The embedding alone on A and the rest on B: the residual leaves A only, so A keeps the one handoff buffer of a placement that is not pipelined and B keeps none.
+    infer::Placement embed_apart;
+    embed_apart.attn_device = embed_apart.ffn_device = {1, 1};
+    embed_apart.embed_device = 0;
+    embed_apart.output_device = 1;
+    infer::Model apart(weights, {a, b}, embed_apart);
+    infer::Sequence sa = apart.make_sequence();
+    infer::ExecContext ca;
+    const infer::BatchEntry ea{&sa, x1, 2, true};
+    apart.forward(ca, &ea, 1);
+    require(!std::memcmp(ca.logits(0), ct.logits(0), single.n_vocab() * sizeof(float)), "the embedding apart differs from one device");
+    require(ca.handoff.size() == 2 && ca.handoff[0].size() == 1 && ca.handoff[1].empty(),
+            "handoff buffers not on exactly the devices a crossing leaves");
+    checked += 2;
 }
 
 // The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host device given only what the others cannot hold and taken back when endpoint weights leave no room, tied weights counted once and the output norm always, resident copies counted, unknown and zero budgets kept apart, shares honored and refused when wrong, and the fitted placement exact against one device.
@@ -231,8 +246,8 @@ void layer_split_fits() {
     auto carried = infer::split_layers(logits, {budget("cpu", 2 * GiB, true), budget("a", GiB)}, 4, {1, 2}, 128 * MiB);
     require(refused && carried.host == 4 * 64 * MiB && carried.stages[0].other >= carried.host, "the host's logits not fitted to the host");
     checked += 2;
-    // The host keeps the position tables, two handoff buffers per used device, and each used backend's staging, never an unused one's.
-    // Two devices staging 68 MiB each beside 64 MiB of tables need 204 MiB of the host: with 140 MiB free one device runs every layer, and with 100 MiB none can.
+    // The host keeps the position tables, two handoff buffers on each used device but the last, which sends nothing, and each used backend's staging, never an unused one's.
+    // Two devices staging 68 MiB each beside 64 MiB of tables need 202 MiB of the host: with 140 MiB free one device runs every layer, and with 100 MiB none can.
     infer::Footprint staged = three;
     staged.tables = 64 * MiB;
     staged.handoff_per_row = MiB;
@@ -248,18 +263,21 @@ void layer_split_fits() {
     bool short_host = false;
     try { infer::split_layers(staged, {device("a"), device("b")}, 1, {}, 100 * MiB); } catch (const std::runtime_error&) { short_host = true; }
     auto both = infer::split_layers(staged, {device("a"), device("b")}, 1, {}, GiB);
-    require(short_host && both.stages[0].count && both.stages[1].count && both.host == 64 * MiB + 2 * 68 * MiB + 4 * MiB,
-            "the host's tables, handoff and staging not counted");
-    // A handoff buffer per pass slot and device, two at least: four slots over two devices hold eight rows, one slot four.
+    require(short_host && both.stages[0].count && both.stages[1].count && both.host == 64 * MiB + 2 * 68 * MiB + 2 * MiB,
+            "the host's tables, handoff and staging not counted, or the last stage's handoff counted");
+    // A handoff buffer per pass slot on each device that sends, two at least: four slots over two devices hold four rows, one slot two, and over three devices eight.
     auto four_slots = infer::split_layers(staged, {device("a"), device("b")}, 1, {}, GiB, 4);
     auto one_slot = infer::split_layers(staged, {device("a"), device("b")}, 1, {}, GiB, 1);
-    require(four_slots.host == 64 * MiB + 2 * 68 * MiB + 8 * MiB && one_slot.host == both.host, "the handoff buffers of the pass slots not counted");
+    auto three_four = infer::split_layers(staged, {device("a"), device("b"), device("c")}, 1, {}, GiB, 4);
+    require(four_slots.host == 64 * MiB + 2 * 68 * MiB + 4 * MiB && one_slot.host == both.host &&
+                three_four.host == 64 * MiB + 3 * 68 * MiB + 8 * MiB,
+            "the handoff buffers of the pass slots not counted on the sending devices alone");
     // Shares that leave a device out do not charge its staging.
     auto first_only = infer::split_layers(staged, {device("a"), device("b")}, 1, {1, 0}, 140 * MiB);
     require(first_only.stages[0].count == 3 && first_only.host == 64 * MiB + 68 * MiB, "an unused device's staging charged to the host");
     // A CPU that runs layers reads the host's tables in place: counted once, in the host's needs it carries, not again as its own.
     auto on_cpu = infer::split_layers(staged, {budget("cpu", 2 * GiB, true), device("a")}, 1, {1, 2});
-    require(on_cpu.host == 64 * MiB + 68 * MiB + 4 * MiB && on_cpu.stages[0].other == staged.activations_per_row + on_cpu.host,
+    require(on_cpu.host == 64 * MiB + 68 * MiB + 2 * MiB && on_cpu.stages[0].other == staged.activations_per_row + on_cpu.host,
             "the CPU's alias of the host's tables counted twice");
     checked += 5;
 
@@ -451,6 +469,10 @@ void pipelined_matches_single() {
             single.forward(xc, ec, 2);
             for (size_t r = 0; r < 2; ++r)
                 require(!std::memcmp(xs.logits(r), xc.logits(r), V * sizeof(float)), "a two-sequence pass differs from one device");
+            // Every stage but the last sends, through two handoff buffers; the last sends nothing and keeps none.
+            bool handoffs = xs.handoff.size() == ps.shares.size();
+            for (size_t dev = 0; handoffs && dev < ps.shares.size(); ++dev) handoffs = xs.handoff[dev].size() == (dev + 1 < ps.shares.size() ? 2u : 0u);
+            require(handoffs, "handoff buffers of a pipelined split not two on each stage that sends and none on the last");
             require(a.length() == 5 && b.length() == more.size(), "a two-sequence pass did not commit both");
             ++checked;
         }
@@ -693,6 +715,9 @@ void passes_run(const gguf::GGUFModel& weights, size_t S, size_t P, uint32_t see
     require(split.pipelined() && split.stage_count() == S, "the passes' split is not pipelined over every device");
     infer::ExecContext ctx;
     split.reserve_passes(ctx, P, kPassUbatch + kPassSeqs, kPassLogitRows);
+    bool handoffs = ctx.handoff.size() == S;
+    for (size_t s = 0; handoffs && s < S; ++s) handoffs = ctx.handoff[s].size() == (s + 1 < S ? std::max<size_t>(2, P) : 0);
+    require(handoffs, "reserved handoff buffers not one a slot, two at least, on each stage that sends and none on the last");
 
     // Declared after the model, so their sequences return their blocks before it goes.
     std::vector<PassRequest> reqs(kPassSeqs);

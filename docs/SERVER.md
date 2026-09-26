@@ -133,7 +133,7 @@ of `ubatch`.
 
 Two execution contexts would be the overlap of host sampling with the device's next pass.
 On the device with Qwen3-0.6B-Q8_0 (step 5) a timing build recorded about 25 microseconds of host time between a pass's logits and the next `forward` whatever the batch, against a pass of 5 to 30 milliseconds, so the server runs one context.
-A later per-row timing of the sampler with the scheduler's row copy gave 0.25 ms a row greedy on the EPYC 7262 under load, which does not agree with it; layer split phase 3's step 0 (`docs/STATUS.md`) times both again on a quiet host.
+A later per-row timing of the sampler with the scheduler's row copy gave 0.25 ms a row greedy on the EPYC 7262 at a load average of 36 to 39 and 0.125 ms at 11 to 12, which does not agree with it; layer split phase 3's step 0 (`docs/STATUS.md`) times the host gap again on a quiet host.
 What the host does spend per pass is the recording of the pass itself, 0.7 milliseconds at one sequence and 1.7 at eight, which no second context hides because the next pass's tokens come from this one; only a recorded pass replayed with new inputs would, and that is a backend change noted in STATUS, not a scheduler one.
 
 ### Sampling

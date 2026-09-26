@@ -26,6 +26,7 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(default.revision, "c1899de289a04d12100db370d81485cdf75e47ca")
         self.assertEqual(default.threads, 6)
         self.assertEqual(generator.parse_args(["tokenizer-qwen35"]).output_dir, generator.OUT_DIR)
+        self.assertEqual(generator.parse_args(["qwen35"]).output_dir, generator.OUT_DIR)
         alternate = ["logits", "--repo", "Qwen/Qwen3-8B", "--revision", "a" * 40]
         invalid = [
             ["typo"], ["logits", "--revision", "main"],
@@ -38,6 +39,7 @@ class ReferenceGenerator(unittest.TestCase):
             ["tokenizer-qwen35", "--revision", "c" * 40], ["tokenizer-qwen35", "--threads", "2"],
             ["tokenizer-qwen35", "--repo", "Qwen/Qwen3.5-9B", "--revision", "c" * 40],
             ["tokenizer-qwen35", "--gguf-repo", "a/b", "--gguf-file", "c.gguf"],
+            ["qwen35", "--threads", "2"], ["qwen35", "--revision", "c" * 40],
             ["file-exact"],
         ]
         with contextlib.redirect_stderr(io.StringIO()):
@@ -246,6 +248,95 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual((doc["tokenizer_repo"], doc["tokenizer_revision"]), (generator.QWEN35_REPO, generator.QWEN35_REVISION))
         self.assertEqual({"tokenizer.json": doc["tokenizer_json_sha256"], "tokenizer_config.json": doc["tokenizer_config_json_sha256"]},
                          generator.QWEN35_SHA256)
+
+    def test_qwen35_environment_is_offline_at_its_version_without_replacements(self):
+        # The goldens come from HF's own torch functions at transformers 5.17.0, so another version, or a package HF's qwen3_5 code would run in their place, is refused.
+        modeling = SimpleNamespace()
+
+        def modules(version):
+            return {"torch": SimpleNamespace(__version__="test-torch"), "transformers": SimpleNamespace(__version__=version),
+                    "transformers.models.qwen3_5.modeling_qwen3_5": modeling}
+
+        with patch.dict(os.environ), patch.dict(sys.modules, modules("5.17.0")), \
+             patch.object(generator.importlib.util, "find_spec", return_value=None) as find:
+            os.environ.pop("HF_HUB_OFFLINE", None)
+            os.environ.pop("TRANSFORMERS_OFFLINE", None)
+            self.assertIs(generator.qwen35_environment()[2], modeling)
+            self.assertEqual((os.environ["HF_HUB_OFFLINE"], os.environ["TRANSFORMERS_OFFLINE"]), ("1", "1"))
+            self.assertEqual(sorted(c.args[0] for c in find.call_args_list), ["causal_conv1d", "fla", "kernels"])
+        with patch.dict(os.environ), patch.dict(sys.modules, modules("5.16.0")), \
+             patch.object(generator.importlib.util, "find_spec", return_value=None), self.assertRaisesRegex(SystemExit, "5.17.0"):
+            generator.qwen35_environment()
+        for package in generator.QWEN35_REPLACEMENTS:
+            with self.subTest(package=package), patch.dict(os.environ), patch.dict(sys.modules, modules("5.17.0")), \
+                 patch.object(generator.importlib.util, "find_spec", side_effect=lambda name: object() if name == package else None), \
+                 self.assertRaisesRegex(SystemExit, package):
+                generator.qwen35_environment()
+
+    def test_qwen35_loading_holds_float32_eager_attention_and_the_keys(self):
+        # The model loads from local files in float32 with eager attention, may leave only mtp.* and model.visual.* keys unused, and may miss none.
+        dtype = object()
+        torch = SimpleNamespace(float32=dtype)
+        keys = ["model.norm.weight", "mtp.fc.weight", "model.visual.blocks.0.attn.qkv.weight"]
+
+        def load(keys=keys, attention="eager", param=dtype, **report):
+            model = MagicMock()
+            model.state_dict.return_value = dict.fromkeys(["model.norm.weight", "lm_head.weight"])
+            model.config._attn_implementation = attention
+            model.parameters.return_value = [SimpleNamespace(dtype=dtype), SimpleNamespace(dtype=param)]
+            info = dict({"missing_keys": set(), "unexpected_keys": set(), "mismatched_keys": set(), "error_msgs": []}, **report)
+            loader = MagicMock(return_value=(model, info))
+            got, unused = generator.load_qwen35("checkpoint", keys, torch, SimpleNamespace(Qwen3_5ForCausalLM=SimpleNamespace(from_pretrained=loader)))
+            loader.assert_called_once_with("checkpoint", dtype=dtype, attn_implementation="eager", local_files_only=True, output_loading_info=True)
+            self.assertIs(got, model)
+            model.eval.assert_called_once_with()
+            return unused
+
+        self.assertEqual(load(), ["model.visual.blocks.0.attn.qkv.weight", "mtp.fc.weight"])
+        refused = [({"keys": keys + ["model.layers.0.mlp.bias"]}, "model.layers.0.mlp.bias"),
+                   ({"unexpected_keys": {"model.layers.9.gate"}}, "model.layers.9.gate"),
+                   ({"missing_keys": {"lm_head.weight"}}, "lm_head.weight"),
+                   ({"mismatched_keys": {("model.norm.weight", (37,), (38,))}}, "model.norm.weight"),
+                   ({"error_msgs": ["size mismatch"]}, "size mismatch"),
+                   ({"attention": "sdpa"}, "eager attention"), ({"param": object()}, "float32")]
+        for change, message in refused:
+            with self.subTest(change=change), self.assertRaisesRegex(SystemExit, message):
+                load(**change)
+
+    def test_committed_qwen35_goldens_are_the_generators(self):
+        # The goldens come from HF's recurrence at the pinned version in float32 with eager attention, the full forward, which runs the chunked form, lands elsewhere, and only the MTP block's keys go unused.
+        import qwen35
+        doc = qwen35.golden()
+        self.assertEqual((doc["transformers_version"], doc["dtype"], doc["attention"]), (generator.QWEN35_TRANSFORMERS, "float32", "eager"))
+        bases = [fixture["name"] for fixture in doc["fixtures"] if not fixture["mtp"]]
+        for fixture in doc["fixtures"]:
+            with self.subTest(fixture=fixture["name"]):
+                self.assertGreater(fixture["recurrent_steps"], 0)
+                if fixture["mtp"]:
+                    self.assertTrue(fixture["unused_keys"] and all(key.startswith("mtp.") for key in fixture["unused_keys"]))
+                    self.assertIn(fixture["base"], bases)
+                else:
+                    self.assertEqual(fixture["unused_keys"], [])
+                    self.assertGreater(fixture["full_forward_distance"], 0)
+                    self.assertGreaterEqual(fixture["greedy"]["min_gap"], generator.QWEN35_GREEDY_GAP)
+
+    def test_the_writers_tiled_order_maps_hf_dt_bias_onto_a_4b_gguf(self):
+        # HF's dt_bias of one Qwen3.5-4B layer, put in the tiny qwen35 writer's tiled order, is that layer's ssm_dt.bias in a 4B GGUF bit for bit, and in HF's own order it is not.
+        # So a misreading of the order that the writer and the kernels share fails here.
+        import qwen35
+        doc = json.loads((Path(generator.OUT_DIR) / "qwen35_4b_dt_bias.json").read_text(encoding="utf-8"))
+        hf, gguf = doc["hf"]["values"], doc["gguf"]["values"]
+        k_heads, v_heads = doc["gguf"]["ssm.group_count"], doc["gguf"]["ssm.time_step_rank"]
+        self.assertEqual((len(hf), len(gguf), v_heads % k_heads), (v_heads, v_heads, 0))
+        self.assertGreater(v_heads, k_heads)
+        # HF stores bf16, which widens to float32 exactly.
+        self.assertTrue(all(struct.unpack("<I", struct.pack("<f", value))[0] & 0xffff == 0 for value in hf))
+
+        def packed(values):
+            return struct.pack("<%df" % len(values), *values)
+
+        self.assertEqual(packed(qwen35.tiled(hf, k_heads, v_heads, 1)), packed(gguf))
+        self.assertNotEqual(packed(hf), packed(gguf))
 
 
 def run():

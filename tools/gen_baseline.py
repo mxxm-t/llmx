@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|tokenizer-qwen35]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|tokenizer-qwen35|qwen35]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
 
 Defaults use the pinned Qwen3-0.6B reference.
@@ -14,6 +14,7 @@ file-exact writes the logit and PPL goldens of the reference model holding a qwe
 The independent synthetic f32 and moe fixtures use one thread; only --output-dir applies to those modes.
 all includes both regardless of --repo.
 tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenizer.json and tokenizer_config.json, takes only --output-dir, and is not part of all.
+qwen35 writes the goldens of the tiny qwen35 fixtures of tests/qwen35.py from HF Qwen3_5ForCausalLM's token-by-token cached forward, takes only --output-dir, and is not part of all.
 
 Requires: tokenizers, huggingface_hub (tokenizer goldens) and, for the logit/PPL goldens, torch + transformers.
 Those two segfault together in some environments (any `from transformers import Auto*` dies); an isolated venv with numpy<2.3, torch 2.5.1+cpu and transformers 4.55.2 is known to work.
@@ -22,7 +23,10 @@ The qwen35 goldens come from a second isolated venv, so the first stays as it is
 """
 
 import argparse
+import contextlib
 import hashlib
+import importlib
+import importlib.util
 import io
 import json
 import math
@@ -30,6 +34,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import tempfile
 
 TOKENIZER_REPO = "Qwen/Qwen3-0.6B"
 GGUF_REPO = "Qwen/Qwen3-0.6B-GGUF"
@@ -468,17 +473,240 @@ def gen_moe(output_dir=OUT_DIR):
     print("wrote %s (full logits and windowed NLL; smallest routing gap %.2e)" % (path, min(gaps)))
 
 
+# The qwen35 goldens come from transformers 5.17.0's own torch functions for the linear-attention layers.
+# HF's qwen3_5 code runs a hub kernel, or the linear-attention or conv package, in their place whenever one is installed, so none may be.
+QWEN35_TRANSFORMERS = "5.17.0"
+QWEN35_REPLACEMENTS = ("kernels", "fla", "causal_conv1d")
+# The checkpoint keys Qwen3_5ForCausalLM may leave unused: the MTP block and the vision tower, which it drops at load.
+QWEN35_UNUSED = re.compile(r"(?:mtp|model\.visual)\.")
+# The smallest gap allowed between a greedy step's top two logits, since a nearer tie could turn over under other rounding.
+QWEN35_GREEDY_GAP = 1e-4
+
+
+def qwen35_environment():
+    """torch, transformers and HF's qwen3_5 modeling module, offline, at transformers 5.17.0, with none of the packages that would replace HF's torch functions."""
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    present = [name for name in QWEN35_REPLACEMENTS if importlib.util.find_spec(name) is not None]
+    if present:
+        raise SystemExit("qwen35: %s is installed, and HF's qwen3_5 code would run it in place of its torch functions" % ", ".join(present))
+    import torch
+    import transformers
+    if transformers.__version__ != QWEN35_TRANSFORMERS:
+        raise SystemExit("qwen35: the goldens come from transformers %s, not %s" % (QWEN35_TRANSFORMERS, transformers.__version__))
+    return torch, transformers, importlib.import_module("transformers.models.qwen3_5.modeling_qwen3_5")
+
+
+def qwen35_hf_config(fixture):
+    """The HF text config of a tiny qwen35 fixture, from the metadata tests/qwen35.py writes to its GGUF."""
+    from f32 import VOCAB
+    from qwen35 import CONFIG, LAYERS, V_HEAD, full_attention
+    head = CONFIG["attention.key_length"]
+    return {"architectures": ["Qwen3_5ForCausalLM"], "model_type": "qwen3_5_text", "dtype": "float32",
+            "vocab_size": VOCAB, "hidden_size": CONFIG["embedding_length"], "intermediate_size": CONFIG["feed_forward_length"],
+            "num_hidden_layers": LAYERS, "num_attention_heads": CONFIG["attention.head_count"],
+            "num_key_value_heads": CONFIG["attention.head_count_kv"], "head_dim": head, "hidden_act": "silu",
+            "max_position_embeddings": CONFIG["context_length"], "rms_norm_eps": CONFIG["attention.layer_norm_rms_epsilon"],
+            "tie_word_embeddings": fixture["tied"], "attention_bias": False, "attention_dropout": 0.0,
+            "linear_conv_kernel_dim": CONFIG["ssm.conv_kernel"], "linear_key_head_dim": CONFIG["ssm.state_size"],
+            "linear_value_head_dim": V_HEAD, "linear_num_key_heads": CONFIG["ssm.group_count"],
+            "linear_num_value_heads": fixture["v_heads"],
+            "layer_types": ["full_attention" if full_attention(layer) else "linear_attention" for layer in range(LAYERS)],
+            "rope_parameters": {"rope_type": "default", "rope_theta": CONFIG["rope.freq_base"],
+                                "partial_rotary_factor": CONFIG["rope.dimension_count"] / head,
+                                "mrope_section": CONFIG["rope.dimension_sections"][:3], "mrope_interleaved": True}}
+
+
+def load_qwen35(directory, keys, torch, transformers):
+    """The Qwen3_5ForCausalLM checkpoint in `directory`, whose parameters are named `keys`, loaded from local files in float32 with eager attention.
+    It may leave only mtp.* and model.visual.* keys unused and may miss no key; returns the model and the keys it left unused."""
+    model, info = transformers.Qwen3_5ForCausalLM.from_pretrained(directory, dtype=torch.float32, attn_implementation="eager",
+                                                                  local_files_only=True, output_loading_info=True)
+    # HF leaves out of its report the keys it is told to drop, so the unused keys are the checkpoint's less the model's own.
+    unused = sorted(set(keys) - set(model.state_dict()))
+    stray = sorted(set(info["unexpected_keys"]) | {key for key in unused if not QWEN35_UNUSED.match(key)})
+    if stray:
+        raise SystemExit("qwen35: the model leaves checkpoint keys other than mtp.* and model.visual.* unused: " + ", ".join(stray))
+    missing = sorted(set(info["missing_keys"]) | {mismatch[0] for mismatch in info["mismatched_keys"]})
+    if missing or info["error_msgs"]:
+        raise SystemExit("qwen35: the checkpoint misses or mismatches %s %s" % (", ".join(missing), info["error_msgs"]))
+    if model.config._attn_implementation != "eager" or any(p.dtype != torch.float32 for p in model.parameters()):
+        raise SystemExit("qwen35: the model did not load in float32 with eager attention")
+    model.eval()
+    return model, unused
+
+
+@contextlib.contextmanager
+def counted_delta_rules(modeling):
+    """HF's two delta-rule functions, the per-token recurrence and the chunked form, wrapped to count their calls, with the lowest log-decay the recurrence reads."""
+    calls = {"recurrent": 0, "chunk": 0, "log_decay": 0.0}
+    recurrent, chunk = modeling.torch_recurrent_gated_delta_rule, modeling.torch_chunk_gated_delta_rule
+
+    def count_recurrent(*args, **kwargs):
+        calls["recurrent"] += 1
+        calls["log_decay"] = min(calls["log_decay"], kwargs["g"].min().item())
+        return recurrent(*args, **kwargs)
+
+    def count_chunk(*args, **kwargs):
+        calls["chunk"] += 1
+        return chunk(*args, **kwargs)
+
+    modeling.torch_recurrent_gated_delta_rule, modeling.torch_chunk_gated_delta_rule = count_recurrent, count_chunk
+    try:
+        yield calls
+    finally:
+        modeling.torch_recurrent_gated_delta_rule, modeling.torch_chunk_gated_delta_rule = recurrent, chunk
+
+
+def qwen35_cache(model, torch, transformers):
+    """An HF cache for `model` holding the zero conv rows and state a sequence starts from, so its first token is a cached step too."""
+    config = model.config
+    cache = transformers.DynamicCache(config=config)
+    conv = 2 * config.linear_num_key_heads * config.linear_key_head_dim + config.linear_num_value_heads * config.linear_value_head_dim
+    for layer, kind in enumerate(config.layer_types):
+        if kind == "linear_attention":
+            cache.update_conv_state(torch.zeros(1, conv, config.linear_conv_kernel_dim), layer)
+            cache.update_recurrent_state(torch.zeros(1, config.linear_num_value_heads, config.linear_key_head_dim,
+                                                     config.linear_value_head_dim), layer)
+    return cache
+
+
+def qwen35_steps(model, torch, cache, tokens, calls):
+    """HF's logits after each of `tokens`, fed to `cache` one cached step at a time; every step must run HF's recurrence in every linear layer, and none its chunked form."""
+    linear = model.config.layer_types.count("linear_attention")
+    before = calls["recurrent"], calls["chunk"]
+    rows = [model(input_ids=torch.tensor([[token]]), past_key_values=cache, use_cache=True).logits[0, -1] for token in tokens]
+    if (calls["recurrent"] - before[0], calls["chunk"] - before[1]) != (len(tokens) * linear, 0):
+        raise SystemExit("qwen35: %d cached steps did not each run HF's recurrence in all %d linear layers" % (len(tokens), linear))
+    return torch.stack(rows)
+
+
+def qwen35_full(model, torch, tokens, calls):
+    """HF's logits at every position of `tokens` from one full forward, which runs the chunked form once in every linear layer."""
+    linear = model.config.layer_types.count("linear_attention")
+    before = calls["recurrent"], calls["chunk"]
+    logits = model(input_ids=torch.tensor([tokens]), use_cache=False).logits[0]
+    if (calls["recurrent"] - before[0], calls["chunk"] - before[1]) != (0, linear):
+        raise SystemExit("qwen35: the full forward did not run HF's chunked form once in each linear layer")
+    return logits
+
+
+def qwen35_goldens(model, torch, transformers, calls):
+    """A fixture's goldens from HF's token-by-token cached forward, each text and window from a fresh zero state: all logits at each text's last position, the mean NLL of the longest text in windows of 4 and 16 tokens, and six greedy tokens after the fourth text, the end-of-text token left out.
+    Returns them with the stepwise and full-forward logits over the longest text."""
+    from f32 import TEXTS
+    from qwen35 import EOS
+
+    def steps(tokens, cache=None):
+        return qwen35_steps(model, torch, cache or qwen35_cache(model, torch, transformers), tokens, calls)
+
+    ids = [list(text.encode("ascii")) for text in TEXTS]
+    longest = steps(ids[-1])
+    cases = []
+    for text, tokens in zip(TEXTS, ids):
+        rows = steps(tokens)
+        # Every text is a head of the longest one, so its steps are the same steps.
+        if not torch.equal(rows, longest[:len(tokens)]):
+            raise SystemExit("qwen35: the steps of %r differ from the same steps of the longest text" % text)
+        cases.append({"text": text, "logits": rows[-1].tolist()})
+    perplexity = []
+    for context in (4, 16):
+        total, targets = 0.0, 0
+        for start in range(0, len(ids[-1]), context):
+            window = ids[-1][start:start + context]
+            if len(window) < 2:
+                continue
+            logits = steps(window)[:-1].double()
+            loss = torch.logsumexp(logits, -1) - logits.gather(1, torch.tensor(window[1:])[:, None]).squeeze(1)
+            total += loss.sum().item()
+            targets += loss.numel()
+        perplexity.append({"context": context, "mean_nll": total / targets})
+    cache = qwen35_cache(model, torch, transformers)
+    last = steps(ids[3], cache)[-1]
+    greedy, gap = [], math.inf
+    for step in range(6):
+        scores = last.clone()
+        scores[EOS] = -math.inf
+        top = torch.topk(scores, 2)
+        gap = min(gap, (top.values[0] - top.values[1]).item())
+        greedy.append(int(top.indices[0]))
+        if step < 5:
+            last = steps(greedy[-1:], cache)[-1]
+    if gap < QWEN35_GREEDY_GAP:
+        raise SystemExit("qwen35: a greedy step's top two logits are within %.2e; change the weights" % gap)
+    goldens = {"cases": cases, "perplexity": perplexity, "greedy": {"prompt": TEXTS[3], "ids": greedy, "min_gap": gap}}
+    return goldens, longest, qwen35_full(model, torch, ids[-1], calls)
+
+
+def gen_qwen35(output_dir=OUT_DIR):
+    torch, transformers, modeling = qwen35_environment()
+    from safetensors.torch import save_file
+    import qwen35
+    from f32 import TEXTS, weight_hash
+
+    torch.set_num_threads(1)
+    fixtures, forwards = [], {}
+    with counted_delta_rules(modeling) as calls, torch.no_grad():
+        for spec in qwen35.FIXTURES:
+            raw = qwen35.raw_weights(spec)
+            record = dict(spec, weights_sha256=weight_hash(qwen35.hashed(raw)))
+            with tempfile.TemporaryDirectory(prefix="llmx_qwen35_hf_") as directory:
+                with open(os.path.join(directory, "config.json"), "w", encoding="utf-8") as f:
+                    json.dump(qwen35_hf_config(spec), f)
+                tensors = {name: torch.tensor(values, dtype=torch.float32).reshape(shape) for name, shape, values in raw}
+                save_file(tensors, os.path.join(directory, "model.safetensors"), metadata={"format": "pt"})
+                model, record["unused_keys"] = load_qwen35(directory, list(tensors), torch, transformers)
+                state = model.state_dict()
+                if any(not torch.equal(state[name], tensor) for name, tensor in tensors.items() if name in state) or \
+                        (spec["tied"] and not torch.equal(state["lm_head.weight"], state["model.embed_tokens.weight"])):
+                    raise SystemExit("qwen35: %s holds other values than its checkpoint" % spec["name"])
+                if model.model.rotary_emb.inv_freq.numel() * 2 != qwen35.CONFIG["rope.dimension_count"]:
+                    raise SystemExit("qwen35: %s rotates another width than the fixture's" % spec["name"])
+                calls.update(recurrent=0, chunk=0, log_decay=0.0)
+                if spec["mtp"]:
+                    # HF drops the MTP block, so the file with it must give the logits of the file without it, bit for bit.
+                    base = next(r for r in fixtures if not r["mtp"] and (r["v_heads"], r["tied"]) == (spec["v_heads"], spec["tied"]))
+                    tokens = list(TEXTS[-1].encode("ascii"))
+                    longest = qwen35_steps(model, torch, qwen35_cache(model, torch, transformers), tokens, calls)
+                    full = qwen35_full(model, torch, tokens, calls)
+                    if not (torch.equal(longest, forwards[base["name"]][0]) and torch.equal(full, forwards[base["name"]][1])):
+                        raise SystemExit("qwen35: %s gives other logits than %s" % (spec["name"], base["name"]))
+                    record["base"] = base["name"]
+                else:
+                    goldens, longest, full = qwen35_goldens(model, torch, transformers, calls)
+                    forwards[spec["name"]] = longest, full
+                    # The goldens hold the recurrence's arithmetic only if the chunked form, which the full forward runs, gives other bits.
+                    record["full_forward_distance"] = (full - longest).abs().max().item()
+                    if record["full_forward_distance"] == 0:
+                        raise SystemExit("qwen35: %s's full forward equals its steps bit for bit, so the goldens do not show which form made them" % spec["name"])
+                    record["min_log_decay"] = calls["log_decay"]
+                    record.update(goldens)
+                record["recurrent_steps"] = calls["recurrent"]
+            fixtures.append(record)
+            print("  %s: %d recurrent steps%s" % (spec["name"], record["recurrent_steps"],
+                  ", full forward within %.3g" % record["full_forward_distance"] if "full_forward_distance" in record else ""))
+    path = os.path.join(output_dir, "baseline_qwen35.json")
+    _write(path, {
+        "_comment": "Generated by tools/gen_baseline.py qwen35 using HF Qwen3_5ForCausalLM with deterministic synthetic weights.",
+        "torch_version": torch.__version__, "transformers_version": transformers.__version__,
+        "dtype": "float32", "attention": "eager",
+        "goldens": "HF's token-by-token cached forward from a cache holding a zero state, every step through its recurrent delta rule",
+        "config": qwen35.CONFIG, "layers": qwen35.LAYERS, "v_head_width": qwen35.V_HEAD, "fixtures": fixtures})
+    print("wrote %s (%d fixtures)" % (path, len(fixtures)))
+
+
 # The kinds whose inputs are fixed, so only --output-dir applies to them, each with the reason a refusal gives.
 FIXED_KINDS = {
     "f32": "uses fixed synthetic weights and one thread",
     "moe": "uses fixed synthetic weights and one thread",
     "tokenizer-qwen35": "reads its own pinned tokenizer files",
+    "qwen35": "uses fixed synthetic weights and one thread",
 }
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "tokenizer-qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "tokenizer-qwen35", "qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -545,6 +773,8 @@ def main(argv=None):
         gen_moe(args.output_dir)
     if args.kind == "tokenizer-qwen35":
         gen_tokenizer_qwen35(args.output_dir)
+    if args.kind == "qwen35":
+        gen_qwen35(args.output_dir)
     if args.kind == "file-exact":
         loaded = load_reference(args)
         gen_logits(args, loaded)

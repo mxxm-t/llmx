@@ -1,0 +1,272 @@
+import json
+import math
+import os
+import re
+import struct
+import tempfile
+
+import common
+from common import run_f32_cache as cli
+from f32 import TEXTS, VOCAB, check_logits_input, weight_hash, write_model
+
+
+# Tiny qwen35 models with deterministic weights against HF Qwen3_5ForCausalLM (tools/gen_baseline.py qwen35): all 257 logits and windowed NLL over ubatches, threads, both ways of scoring and greedy decode after a prefill.
+# The weights are made as HF holds them, and the writer applies the converter's transforms to write the GGUF, as docs/QWEN35.md, GGUF conventions, gives them.
+# Four layers, linear attention then full attention twice, so layer 3 holds the second KV cache and layer 2 the second recurrent state, which a cache indexed by layer number would miss.
+# A V head is 10 wide against a K head's 12, so the state is not square, and the rotary width is 8 of 40, with a base of 100 so every rotated pair turns within the context.
+CONFIG = {"embedding_length": 37, "feed_forward_length": 19, "context_length": 16,
+          "attention.head_count": 4, "attention.head_count_kv": 2,
+          "attention.key_length": 40, "attention.value_length": 40,
+          "rope.dimension_count": 8, "rope.dimension_sections": [2, 1, 1, 0], "rope.freq_base": 100.0,
+          "attention.layer_norm_rms_epsilon": 1e-6,
+          "ssm.conv_kernel": 4, "ssm.state_size": 12, "ssm.group_count": 2, "full_attention_interval": 2}
+LAYERS = 4
+V_HEAD = 10
+# Hv = Hk with a tied head, and Hv = 3 Hk with its own head, alone and with one MTP block, whose file must give the logits of the file without it.
+FIXTURES = [
+    {"name": "hv1", "v_heads": 2, "tied": True, "mtp": False},
+    {"name": "hv3", "v_heads": 6, "tied": False, "mtp": False},
+    {"name": "hv3-mtp", "v_heads": 6, "tied": False, "mtp": True},
+]
+# The end-of-text token, which the greedy goldens and the CLI both leave out of every draw.
+EOS = VOCAB - 1
+# Physical batches that cut the texts into passes; under one of them the last row of every text of three or more tokens runs alone after a batched pass, as a decode step after a prefill does.
+UBATCHES = (1, 2, 3, 5, 16)
+# llmx's refusal of an architecture it does not run, which skips this component rather than failing or passing it.
+REFUSAL = "unsupported metadata general.architecture"
+
+
+def full_attention(layer):
+    """Whether decoder layer `layer` is a full-attention layer, which every full_attention_interval-th layer is."""
+    return (layer + 1) % CONFIG["full_attention_interval"] == 0
+
+
+def gguf_config(fixture):
+    """The qwen35 metadata the converter writes for `fixture`, whose MTP block, when it has one, is one more block."""
+    config = dict(CONFIG)
+    config["block_count"] = LAYERS + fixture["mtp"]
+    config["ssm.time_step_rank"] = fixture["v_heads"]
+    config["ssm.inner_size"] = fixture["v_heads"] * V_HEAD
+    if fixture["mtp"]:
+        config["nextn_predict_layers"] = 1
+    return config
+
+
+def raw_weights(fixture):
+    """The fixture's parameters as HF holds them, [(HF name, HF shape, values)], every value exact in float32.
+    One fixed sequence makes them, so the file with an MTP block holds the weights of the one without it, then the block's."""
+    state = 24680
+    result = []
+    width, ff, hd = CONFIG["embedding_length"], CONFIG["feed_forward_length"], CONFIG["attention.key_length"]
+    heads, kv_heads = CONFIG["attention.head_count"], CONFIG["attention.head_count_kv"]
+    k_heads, k_width, v_heads = CONFIG["ssm.group_count"], CONFIG["ssm.state_size"], fixture["v_heads"]
+    conv = 2 * k_heads * k_width + v_heads * V_HEAD
+
+    # A value is a multiple of 1/8192 in [-1/16, 1/16), times `scale`, plus `offset`.
+    def add(name, shape, scale=1.0, offset=0.0):
+        nonlocal state
+        values = []
+        for _ in range(math.prod(shape)):
+            state = (1664525 * state + 1013904223) & 0xffffffff
+            values.append(offset + (((state >> 16) & 1023) - 512) / 8192 * scale)
+        result.append((name, shape, values))
+
+    # HF's norms multiply by 1 + w, so their weights sit near 0, except the gated norm's, which it multiplies by w itself.
+    def layer(prefix, full):
+        add(prefix + "input_layernorm.weight", [width])
+        if full:
+            add(prefix + "self_attn.q_proj.weight", [heads * 2 * hd, width])
+            add(prefix + "self_attn.k_proj.weight", [kv_heads * hd, width])
+            add(prefix + "self_attn.v_proj.weight", [kv_heads * hd, width])
+            add(prefix + "self_attn.q_norm.weight", [hd])
+            add(prefix + "self_attn.k_norm.weight", [hd])
+            add(prefix + "self_attn.o_proj.weight", [width, heads * hd])
+        else:
+            # The conv weights are scaled up so the conv's output, and with it v, is not small against the norms' epsilon.
+            # beta and alpha are scaled up so the heads' gates spread, and A_log and dt_bias span [-2, 2), which keeps every decay factor far above 2^-126.
+            add(prefix + "linear_attn.in_proj_qkv.weight", [conv, width])
+            add(prefix + "linear_attn.in_proj_z.weight", [v_heads * V_HEAD, width])
+            add(prefix + "linear_attn.in_proj_b.weight", [v_heads, width], scale=16.0)
+            add(prefix + "linear_attn.in_proj_a.weight", [v_heads, width], scale=8.0)
+            add(prefix + "linear_attn.conv1d.weight", [conv, 1, CONFIG["ssm.conv_kernel"]], scale=8.0)
+            add(prefix + "linear_attn.dt_bias", [v_heads], scale=32.0)
+            add(prefix + "linear_attn.A_log", [v_heads], scale=32.0)
+            add(prefix + "linear_attn.norm.weight", [V_HEAD], offset=1.0)
+            add(prefix + "linear_attn.out_proj.weight", [width, v_heads * V_HEAD])
+        add(prefix + "post_attention_layernorm.weight", [width])
+        add(prefix + "mlp.gate_proj.weight", [ff, width])
+        add(prefix + "mlp.up_proj.weight", [ff, width])
+        add(prefix + "mlp.down_proj.weight", [width, ff])
+
+    add("model.embed_tokens.weight", [VOCAB, width])
+    for index in range(LAYERS):
+        layer("model.layers.%d." % index, full_attention(index))
+    add("model.norm.weight", [width])
+    if not fixture["tied"]:
+        add("lm_head.weight", [VOCAB, width])
+    if fixture["mtp"]:
+        add("mtp.pre_fc_norm_embedding.weight", [width])
+        add("mtp.pre_fc_norm_hidden.weight", [width])
+        add("mtp.fc.weight", [width, 2 * width])
+        layer("mtp.layers.0.", True)
+        add("mtp.norm.weight", [width])
+    return result
+
+
+def tiled(values, k_heads, v_heads, block):
+    """`values`, `v_heads` blocks of `block` values in HF's order, which groups the V heads by the K head they read, in the converter's tiled order.
+    GGUF V head j = s Hk + h holds HF's V head h r + s, with Hk = `k_heads` and r = `v_heads` / Hk, so it reads K head j mod Hk; with Hv = Hk nothing moves."""
+    r = v_heads // k_heads
+    out = []
+    for j in range(v_heads):
+        source = (j % k_heads) * r + j // k_heads
+        out.extend(values[source * block:(source + 1) * block])
+    return out
+
+
+def float32(value):
+    return struct.unpack("<f", struct.pack("<f", value))[0]
+
+
+# The GGUF name and transform the converter gives the parameter of a decoder layer or of the MTP layer, by its name within the layer.
+# "norm" stores 1 + w, "a" stores -exp(A_log) in the tiled order, "heads" tiles whole rows or entries by V head, "channels" tiles the v rows or channels after the q and k ones, and "columns" tiles each row's input columns.
+BLOCK_TENSORS = {
+    "input_layernorm.weight": ("attn_norm.weight", "norm"),
+    "post_attention_layernorm.weight": ("post_attention_norm.weight", "norm"),
+    "linear_attn.in_proj_qkv.weight": ("attn_qkv.weight", "channels"),
+    "linear_attn.in_proj_z.weight": ("attn_gate.weight", "heads"),
+    "linear_attn.in_proj_b.weight": ("ssm_beta.weight", "heads"),
+    "linear_attn.in_proj_a.weight": ("ssm_alpha.weight", "heads"),
+    "linear_attn.conv1d.weight": ("ssm_conv1d.weight", "channels"),
+    "linear_attn.dt_bias": ("ssm_dt.bias", "heads"),
+    "linear_attn.A_log": ("ssm_a", "a"),
+    "linear_attn.norm.weight": ("ssm_norm.weight", None),
+    "linear_attn.out_proj.weight": ("ssm_out.weight", "columns"),
+    "self_attn.q_proj.weight": ("attn_q.weight", None),
+    "self_attn.k_proj.weight": ("attn_k.weight", None),
+    "self_attn.v_proj.weight": ("attn_v.weight", None),
+    "self_attn.o_proj.weight": ("attn_output.weight", None),
+    "self_attn.q_norm.weight": ("attn_q_norm.weight", "norm"),
+    "self_attn.k_norm.weight": ("attn_k_norm.weight", "norm"),
+    "mlp.gate_proj.weight": ("ffn_gate.weight", None),
+    "mlp.up_proj.weight": ("ffn_up.weight", None),
+    "mlp.down_proj.weight": ("ffn_down.weight", None),
+}
+# The parameters outside the layers; the MTP block's own ones are stored under its block, the one after the decoder layers.
+OTHER_TENSORS = {
+    "model.embed_tokens.weight": ("token_embd.weight", None),
+    "model.norm.weight": ("output_norm.weight", "norm"),
+    "lm_head.weight": ("output.weight", None),
+    "mtp.fc.weight": ("blk.%d.nextn.eh_proj.weight" % LAYERS, None),
+    "mtp.pre_fc_norm_embedding.weight": ("blk.%d.nextn.enorm.weight" % LAYERS, "norm"),
+    "mtp.pre_fc_norm_hidden.weight": ("blk.%d.nextn.hnorm.weight" % LAYERS, "norm"),
+    "mtp.norm.weight": ("blk.%d.nextn.shared_head_norm.weight" % LAYERS, "norm"),
+}
+
+
+def gguf_tensors(fixture, raw):
+    """The GGUF tensors the converter writes from `raw`, as tests/f32.py's writer takes them: (GGUF name, HF name, GGUF shape, values).
+    A GGUF shape lists HF's dimensions fastest first, and the conv kernel drops HF's middle axis, so tap 3 is the one that multiplies the current token."""
+    k_heads, v_heads = CONFIG["ssm.group_count"], fixture["v_heads"]
+    qk = 2 * k_heads * CONFIG["ssm.state_size"]
+    out = []
+    for name, shape, values in raw:
+        match = re.fullmatch(r"(?:model\.layers\.(\d+)|mtp\.layers\.0)\.(.+)", name)
+        if match:
+            target, transform = BLOCK_TENSORS[match[2]]
+            target = "blk.%d.%s" % (int(match[1]) if match[1] is not None else LAYERS, target)
+        else:
+            target, transform = OTHER_TENSORS[name]
+        if transform == "norm":
+            values = [1.0 + w for w in values]
+        elif transform == "a":
+            values = tiled([-float32(math.exp(w)) for w in values], k_heads, v_heads, 1)
+        elif transform == "heads":
+            values = tiled(values, k_heads, v_heads, len(values) // v_heads)
+        elif transform == "channels":
+            cut = len(values) // shape[0] * qk
+            values = values[:cut] + tiled(values[cut:], k_heads, v_heads, (len(values) - cut) // v_heads)
+        elif transform == "columns":
+            row = shape[1]
+            values = [v for start in range(0, len(values), row) for v in tiled(values[start:start + row], k_heads, v_heads, row // v_heads)]
+        out.append((target, name, list(reversed([d for d in shape if d != 1])), values))
+    return out
+
+
+def hashed(raw):
+    """The raw weights in the form tests/f32.py's weight hash reads."""
+    return [(name, name, shape, values) for name, shape, values in raw]
+
+
+def golden():
+    """The committed goldens, checked against CONFIG, FIXTURES and the raw weights each fixture's hash records."""
+    with open(os.path.join(os.path.dirname(__file__), "data", "baseline_qwen35.json"), encoding="utf-8") as f:
+        doc = json.load(f)
+    assert doc["config"] == CONFIG and doc["layers"] == LAYERS and doc["v_head_width"] == V_HEAD, "qwen35 fixture config changed"
+    assert [{key: fixture[key] for key in FIXTURES[0]} for fixture in doc["fixtures"]] == FIXTURES, "qwen35 fixtures changed"
+    for fixture, spec in zip(doc["fixtures"], FIXTURES):
+        assert weight_hash(hashed(raw_weights(spec))) == fixture["weights_sha256"], "qwen35 %s weights changed" % spec["name"]
+    return doc
+
+
+def write_fixture(directory, fixture):
+    path = os.path.join(directory, "tiny-qwen35-%s.gguf" % fixture["name"])
+    return write_model(path, gguf_tensors(fixture, raw_weights(fixture)), eos_id=EOS, config=gguf_config(fixture), arch="qwen35")
+
+
+def check_scores(name, model, perplexity):
+    """The windowed NLL of the longest text within 1e-5 of HF's, scored in batched passes of three tokens and one token at a time, the decode path, at 1 and 4 threads."""
+    for threads in (1, 4):
+        for flags in (["--ubatch", "3"], ["--per-token"]):
+            for case in perplexity:
+                rc, out = cli(["perplexity", model, TEXTS[-1], "--threads", str(threads), "-c", str(case["context"])] + flags)
+                assert rc == 0, "%s PPL %s failed: %s" % (name, flags, out)
+                error = abs(float(common.perplexity_fields(out)["mean NLL"]) - case["mean_nll"])
+                assert math.isfinite(error) and error < 1e-5, "%s/HF NLL error %s: %.8f" % (name, flags, error)
+
+
+def check_greedy(name, model, greedy):
+    """Greedy decode after a prefill gives HF's greedy tokens, the end-of-text token left out of both, whatever the prefill's ubatch and the thread count."""
+    for threads in (1, 4):
+        for ubatch in (1, 3, 16):
+            p = common.run_process(["generate", model, greedy["prompt"], "-n", str(len(greedy["ids"])), "--temp", "0", "--ignore-eos",
+                                    "--threads", str(threads), "--ubatch", str(ubatch)], cache="f32")
+            assert p.returncode == 0, "%s generate failed: %s" % (name, p.stderr.decode("utf-8", "replace"))
+            # A token below 256 is its byte, so the bytes printed are the ids drawn.
+            got = list(common.generate_text(p.stdout))
+            assert got == greedy["ids"], "%s greedy ids %s, HF %s (threads %d, ubatch %d)" % (name, got, greedy["ids"], threads, ubatch)
+
+
+def run():
+    if common.f32_cache_skip("qwen35"):
+        return common.SKIPPED
+    doc = golden()
+    fixtures = {fixture["name"]: fixture for fixture in doc["fixtures"]}
+    worst = 0.0
+    with tempfile.TemporaryDirectory(prefix="llmx_qwen35_") as directory:
+        models = {spec["name"]: write_fixture(directory, spec) for spec in FIXTURES}
+        rc, out = cli(["logits", models["hv1"], TEXTS[0], "--top", str(VOCAB)])
+        if rc != 0 and REFUSAL in out:
+            print("qwen35: SKIP - llmx refuses the qwen35 architecture (%s), so nothing was compared" % REFUSAL)
+            return common.SKIPPED
+        for spec in FIXTURES:
+            name = "qwen35 " + spec["name"]
+            fixture = fixtures[spec["name"]]
+            # The MTP block's file is held to the goldens of the file without it.
+            goldens = fixtures[fixture["base"]] if "base" in fixture else fixture
+            model = models[spec["name"]]
+            error, _ = common.check_hf_fixture(name, model, goldens["cases"], goldens["perplexity"], TEXTS[-1], UBATCHES)
+            worst = max(worst, error, check_logits_input(directory, model, goldens["cases"]))
+            check_scores(name, model, goldens["perplexity"])
+            check_greedy(name, model, goldens["greedy"])
+            if "base" in fixture:
+                for text in TEXTS:
+                    printed = [cli(["logits", models[which], text, "--top", str(VOCAB)]) for which in (fixture["base"], spec["name"])]
+                    assert printed[0] == printed[1], "%s logits differ from %s's on %r" % (name, fixture["base"], text)
+    print("qwen35: all 257 logits vs HF's token-by-token goldens, Hv = Hk tied and Hv = 3 Hk untied, ubatches, threads, --last rows, "
+          "NLL batched and per token, greedy decode after a prefill, and an MTP block that leaves the logits as they were; max error %.8f  [ok]" % worst)
+    return True
+
+
+if __name__ == "__main__":
+    run()

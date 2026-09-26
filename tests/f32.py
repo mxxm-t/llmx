@@ -86,6 +86,15 @@ def golden(name):
     return doc
 
 
+def metadata_value(value):
+    """A config value as the converter types it in a GGUF: an int as uint32, a float as float32, and a list of ints as an int32 array, as rope.dimension_sections is."""
+    if isinstance(value, float):
+        return struct.pack("<If", 6, value)
+    if isinstance(value, list):
+        return struct.pack("<IIQ", 9, 5, len(value)) + struct.pack("<%di" % len(value), *value)
+    return struct.pack("<II", 4, value)
+
+
 def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config=CONFIG, arch="qwen3", tokens=None, quantized=()):
     # `tokens` replaces the VOCAB token strings, one a byte and then <|endoftext|> by default, and `quantized` adds tensors already encoded, as (name, shape, GGUF type, bytes).
     # A 34-byte Q8 tensor exposes unaligned F32 rows if the loader discards file padding without preserving float alignment in its in-memory blob.
@@ -110,7 +119,7 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config
                 w_str(f, arch)
             for name, value in (config.items() if index == 0 else []):
                 w_str(f, arch + "." + name)
-                f.write(struct.pack("<II", 4, value))
+                f.write(metadata_value(value))
             if index == 0 and chat_template is not None:
                 w_str(f, "tokenizer.chat_template")
                 f.write(struct.pack("<I", 8))

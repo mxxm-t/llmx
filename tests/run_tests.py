@@ -17,6 +17,7 @@ import tokenizer
 import perplexity
 import f32
 import moe
+import qwen35
 import split
 import shards
 import server
@@ -79,6 +80,7 @@ def main():
                   ("perplexity", perplexity.run),
                   ("f32", f32.run),
                   ("moe", moe.run),
+                  ("qwen35", qwen35.run),
                   ("split", lambda: split.run(require=args.require_tools)),
                   ("shards", shards.run),
                   ("server", server.run),
@@ -106,7 +108,7 @@ def main():
     print()
     failed = [n for n, ok in results if not ok]
     for n, ok in results:
-        print("  %-10s %s" % (n, "PASS" if ok else "FAIL"))
+        print("  %-10s %s" % (n, "SKIP" if ok == common.SKIPPED else "PASS" if ok else "FAIL"))
     return 1 if failed else 0
 
 

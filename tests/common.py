@@ -16,6 +16,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXE = os.path.join(ROOT, "llmx.exe" if os.name == "nt" else "llmx")
 
 
+# What a component returns when it compared nothing, which tests/run_tests.py reports as SKIP, neither a pass nor a failure.
+SKIPPED = "skipped"
+
+
 def exe_path():
     if not os.path.exists(EXE):
         raise SystemExit("Executable not found: %s. Build first and pass --exe to tests/run_tests.py." % EXE)

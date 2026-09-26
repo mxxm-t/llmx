@@ -211,6 +211,9 @@ int main(int argc, char** argv) {
         rejected(path, "Q8 byte count overflow across rows", one({32, (uint64_t(1) << 59) - 1}, 8, 0, 0), "overflow");
         rejected(path, "large valid size absent payload", one({uint64_t(1) << 40}, 0, 0, 0));
         rejected(path, "unknown tensor type", one({32}, 99, 0, 128));
+        // A type llmx does not read and a row that ends inside a block are refused as such, even when the element count also overflows.
+        rejected(path, "unknown tensor type with an overflowing element count", one({maximum, 2}, 99, 0, 0), "tensor type");
+        rejected(path, "Q8 partial row with an overflowing element count", one({maximum, 2}, 8, 0, 0), "whole");
         struct Type { uint32_t id; uint64_t block; size_t bytes; };
         const Type types[] = {{0, 1, 4}, {2, 32, 18}, {3, 32, 20}, {8, 32, 34},
                               {12, 256, 144}, {13, 256, 176}, {14, 256, 210}};

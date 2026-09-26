@@ -159,7 +159,7 @@ ctest --test-dir build -C Release --output-on-failure
 malformed input, nesting limits and JSON output string escaping. The Q8/Q4 round-trip test also checks
 escaped Unicode tensor names through the actual CLI.
 
-`gguf-validation` checks independent binary fixtures for field lengths/counts, array depth, tensor arithmetic, byte counts that overflow although the element count fits, in one row or across rows, file extents, quantized row widths, custom alignment and a tensor name repeated in one file.
+`gguf-validation` checks independent binary fixtures for field lengths/counts, array depth, tensor arithmetic, byte counts that overflow although the element count fits, in one row or across rows, file extents, tensor types and quantized row widths, each refused as such when the element count also overflows, custom alignment and a tensor name repeated in one file.
 These are format checks; they do not establish model-schema safety.
 `load-progress` reads, maps and reads in a file as the loader does, and checks the progress, each tensor's file span, that reading the headers maps nothing, that a model not mapped is neither written nor read in, early rejection, and a file truncated before loading or whose size changes between reading and mapping, refused before any progress.
 The loader's readers check a file's size against its header with the mapping's own check, so a changed size is refused the same way.

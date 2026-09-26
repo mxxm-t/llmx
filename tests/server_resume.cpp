@@ -349,6 +349,99 @@ void cancel_while_paused_donor(const Make& make, const bpe::Tokenizer& tok, uint
     require(model->kv_used_bytes() == 0, "a pool holds blocks once the scheduler has stopped, after a paused request was cancelled");
 }
 
+// Every request submitted before the scheduler starts, so its first admission takes them in order and their prompts share its first pass.
+std::vector<Reply> started_together(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, const std::vector<Req>& reqs,
+                                    server::Scheduler::Stats& stats) {
+    server::Scheduler sched(model, tok, max_seqs, 64);
+    std::vector<std::shared_ptr<server::Request>> handles;
+    for (const Req& r : reqs) handles.push_back(sched.submit(r.prompt, params_of(r)));
+    std::thread runner([&] { sched.run(); });
+    std::vector<Reply> replies;
+    try {
+        for (auto& h : handles) replies.push_back(drain(*h));
+        stats = sched.stats();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    return replies;
+}
+
+// A resumed request that cannot grow waits for room rather than being paused again, since only requests admitted after it give room up for it.
+// On 16 blocks A's growth pauses B, B takes its donor back once A ends at its stop string, and B's next step at 768 tokens finds the room held by capped K and by L, which started beside it and ends 15 passes later.
+void resumed_short_of_room(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const size_t pool = 16 * kBlock;
+    const Req a = stopping(make, tok, pool, {}, Req{prompt_of(1, 20, vocab)}, 380);
+    const Req b = stopping(make, tok, pool, {}, Req{prompt_of(2, 120, vocab)}, 800);
+    const Req k{prompt_of(3, 20, vocab), 700}, l{prompt_of(4, 20, vocab), 300};
+    const std::vector<Req> reqs = {a, b, k, l};
+    std::vector<Reply> alone;
+    for (const Req& r : reqs) {
+        auto model = make(pool, 0);
+        alone.push_back(serve(*model, tok, 3, {{r}})[0]);
+    }
+    auto model = make(pool, 0);
+    server::Scheduler::Stats s;
+    const std::vector<Reply> together = started_together(*model, tok, 3, reqs, s);
+    for (size_t i = 0; i < reqs.size(); ++i) same(alone[i], together[i], "beside a resumed request short of room, request " + std::to_string(i));
+    require(s.pauses == 1 && s.taken_back == 1 && s.recomputed == 0,
+            "a resumed request short of room for its own growth: " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.taken_back) +
+            " taken back, " + std::to_string(s.recomputed) + " rows recomputed, against 1, 1 and 0");
+}
+
+// A request refused room evicts no donor for it.
+// On 8 blocks the setup leaves a donor of 2 blocks, and N finds no room beside capped K even with that donor gone; K ends at its stop string holding less than a block, so N then starts beside the donor, which a prompt repeating the setup's still forks.
+void refused_evicts_nothing(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const size_t pool = 8 * kBlock;
+    const Req setup{prompt_of(5, 200, vocab), 1};
+    const Req k = stopping(make, tok, pool, {}, Req{prompt_of(1, 10, vocab), 600}, 60);
+    const Req n{prompt_of(2, 10, vocab), 600};
+    auto model = make(pool, 0);
+    server::Scheduler::Stats s;
+    serve(*model, tok, 3, {{setup}, {k, n}, {Req{setup.prompt, 4}}}, &s);
+    require(s.prefix_hits == 1 && s.prefix_tokens == kBlock,
+            "a donor evicted for a request then refused: a prompt repeating it reused " + std::to_string(s.prefix_tokens) + " tokens against " +
+            std::to_string(kBlock));
+}
+
+// Paused requests wait apart from the queue, so they do not fill the queue --max-queue bounds.
+// With a queue of one, A's growth pauses B as in three_uncapped, and B waits for A's end; a request submitted meanwhile is queued, not refused.
+void paused_outside_queue(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    auto model = make(1024, 0);
+    server::Scheduler sched(*model, tok, 3, 1);
+    std::thread runner([&] { sched.run(); });
+    try {
+        const auto until = [&](const std::function<bool(const server::Scheduler::Stats&)>& done, const std::string& what) {
+            const auto limit = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+            while (!done(sched.stats())) {
+                require(std::chrono::steady_clock::now() < limit, "paused requests and the queue: " + what + " in 60 seconds");
+                std::this_thread::yield();
+            }
+        };
+        std::vector<std::shared_ptr<server::Request>> h;
+        h.push_back(sched.submit(prompt_of(1, 40, vocab), params_of(Req{})));
+        until([](const server::Scheduler::Stats& s) { return s.queued == 0; }, "the first request not admitted");
+        h.push_back(sched.submit(prompt_of(2, 9, vocab), params_of(Req{})));
+        until([](const server::Scheduler::Stats& s) { return s.queued == 0; }, "the second request not admitted");
+        until([](const server::Scheduler::Stats& s) { return s.pauses > 0; }, "nothing paused");
+        try {
+            h.push_back(sched.submit(prompt_of(3, 10, vocab), params_of(Req{{}, 4})));
+        } catch (const server::QueueFull&) {
+            require(false, "a request submitted while another was paused was refused as though the queue were full");
+        }
+        for (auto& r : h) drain(*r);
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+}
+
 // A paused request whose client leaves ends where it waits, and once the scheduler stops every pool is empty again.
 void cancelled_while_paused(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     auto model = make(1024, 0);
@@ -405,6 +498,9 @@ int main(int argc, char** argv) {
             take_back_follow_up(one, tok, vocab);
             partial_eviction(one, tok, vocab);
             cancel_while_paused_donor(one, tok, vocab);
+            resumed_short_of_room(one, tok, vocab);
+            refused_evicts_nothing(one, tok, vocab);
+            paused_outside_queue(one, tok, vocab);
             std::printf("server-resume: CPU cases pass\n");
         }
         if (only != "cpu") {

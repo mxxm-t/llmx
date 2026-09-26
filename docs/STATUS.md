@@ -4,6 +4,13 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Experts on the CPU refused alike on every backend (2026-09-26, branch fix/moe-flags-every-backend)
+
+- **Why:** a guidelines audit of main at `007b504` found `--n-cpu-moe` and `--cpu-moe` on a model without routed layers refused on a Vulkan device and silently accepted with `--device cpu`, where USAGE says such a model refuses them and the flag set is honoured identically on every backend or refused. `tests/placement.cpp` required the acceptance, and the refusal named `--n-cpu-moe` when `--cpu-moe` was given.
+  The experts placement also took `Backend::reads_in_place` to mean "is the CPU", which holds for the two backends there are and not for a device that reads host memory in place, and `--moe-stream-from 1` streams the same prompts as 2, since a prompt of one new token never streams, which no page said.
+- **Done:** the tests, which fail on main: `cli` refuses both flags, alone and beside `--moe-stream-from`, on the synthetic dense model with the name of the flag given, from every command that takes them, on the CPU and on the configured device; `placement` refuses them by the flag's name on a dense model on the CPU and on the routed model beside several devices, and places a routed model's experts on the CPU beside a CPU as that one CPU (`tiny_qwen_moe`, which `load-progress` now shares).
+- **Left:** the fix in `place_model`, the placement asking the backend whether it is the CPU, the floor of 2 in the docs, and the gates: CTest on the Vulkan-enabled and CPU builds, `cli`, `moe` and `split` on the CPU build, `cli` and `moe` on one MI50, and the Windows compile check.
+
 ## The sampler selects only what top-k and top-p keep (2026-09-26, branch perf/sampler-select, merged at `edd9c19`)
 
 - **Why:** a `top_k` of 0, which the compatible routes give a client's -1, sorted all 151,936 scores of a row, 12.6 ms a row on the EPYC 7262, and a penalty looked up a hash set for every entry, 1.1 to 1.2 ms a row. Phase 3's step 4 samples on a pool sized from these times (Layer split phase 3, below), and the plan approved this branch to merge before it, greedy unchanged and seeded draws changing once. The sort also left tied tokens in whatever order the standard library leaves them, which a seeded draw could depend on.

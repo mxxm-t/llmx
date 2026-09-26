@@ -49,6 +49,43 @@ inline gguf::GGUFModel tiny_qwen(int layers, uint64_t context, bool tied) {
     return m;
 }
 
+// tiny_qwen as a qwen3moe model with each layer routed over two experts of 12 rows, one used, beside the dense feed-forward tensors a routed layer does not read.
+inline gguf::GGUFModel tiny_qwen_moe(int layers, uint64_t context, bool tied) {
+    gguf::GGUFModel m = tiny_qwen(layers, context, tied);
+    for (auto& kv : m.kv) kv.first.replace(0, 5, "qwen3moe");
+    auto meta = [&](const std::string& key, uint32_t type, uint64_t u, const std::string& s = {}) {
+        gguf::MetaValue v;
+        v.vtype = type;
+        v.u = u;
+        v.s = s;
+        m.kv.push_back({key, v});
+    };
+    meta("general.architecture", gguf::V_STRING, 0, "qwen3moe");
+    meta("qwen3moe.expert_count", gguf::V_UINT32, 2);
+    meta("qwen3moe.expert_used_count", gguf::V_UINT32, 1);
+    meta("qwen3moe.expert_feed_forward_length", gguf::V_UINT32, 12);
+    auto add = [&](const std::string& name, std::vector<uint64_t> shape) {
+        size_t count = 1;
+        for (uint64_t d : shape) count *= size_t(d);
+        const size_t offset = m.blob.size();
+        m.blob.resize(offset + count * sizeof(float));
+        for (size_t i = 0; i < count; ++i) {
+            const float v = float(int((i * 13 + m.tensors.size() * 5) % 31) - 15) / 64.0f;
+            std::memcpy(m.blob.data() + offset + i * sizeof(float), &v, sizeof(v));
+        }
+        m.tensors.push_back({name, std::move(shape), gguf::GGML_TYPE_F32, 0});
+        m.offsets.push_back(offset);
+    };
+    for (int l = 0; l < layers; ++l) {
+        const std::string pre = "blk." + std::to_string(l) + ".";
+        add(pre + "ffn_gate_inp.weight", {8, 2});
+        add(pre + "ffn_gate_exps.weight", {8, 12, 2});
+        add(pre + "ffn_up_exps.weight", {8, 12, 2});
+        add(pre + "ffn_down_exps.weight", {12, 8, 2});
+    }
+    return m;
+}
+
 // A CPU backend that fails once where a test arms it and counts what the passes ask of it, for the tests of a failed pass on these models.
 // `fail_output` fails the next output projection, the only 16-row matmul, after every layer's KV has been written; `fail_attention` fails the Nth attention from now, after its layer's KV has been written.
 // `histories` collects the committed length each attention finds for the pass's first sequence, which is how a test reads back the history of this backend's storage.

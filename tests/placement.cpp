@@ -287,11 +287,17 @@ void layer_split_fits() {
     for (int t : {3, 14, 1}) exact(single.step(t), fitted.step(t), "fitted split step differs from one device");
     ++checked;
 
-    // The one placement entry (infer::place_model): budgets asked of the backends, a split by shares exact against one device, the request's ubatch applied, experts on the CPU refused beside several devices, and a stream point refused without experts on the CPU.
+    // The one placement entry (infer::place_model): budgets asked of the backends, a split by shares exact against one device, the request's ubatch applied, experts on the CPU refused beside several devices and on a model without routed layers, and a stream point refused without experts on the CPU.
     auto cpus = [] {
         std::vector<backend::BackendPtr> v{std::make_shared<backend::CpuBackend>(), std::make_shared<backend::CpuBackend>()};
         for (auto& c : v) c->set_threads(1);
         return v;
+    };
+    // What place_model refuses the request with, or nothing when it places the model.
+    auto refusal = [&](const gguf::GGUFModel& m, std::vector<backend::BackendPtr> backends, const infer::PlacementRequest& r) {
+        try { infer::place_model(infer::gguf_weights(m), std::move(backends), r, options); }
+        catch (const std::runtime_error& e) { return std::string(e.what()); }
+        return std::string();
     };
     const auto asked = infer::budgets_for(cpus(), {"cpu", "cpu"});
     require(asked.size() == 2 && asked[0].host && asked[0].scratch == 0 && asked[0].resident, "a CPU's budget not asked of the backend");
@@ -303,26 +309,40 @@ void layer_split_fits() {
     single.reset();
     exact(single.prefill(prompt), placed_split.model->prefill(prompt), "place_model split prefill differs from one device");
     require(placed_split.model->prefill_batch() == 3 && !placed_split.plan.empty(), "place_model did not apply the ubatch or describe the split");
-    request.cpu_moe = 1;
-    bool experts_refused = false;
-    try { infer::place_model(infer::gguf_weights(weights), cpus(), request, options); } catch (const std::runtime_error&) { experts_refused = true; }
-    require(experts_refused, "experts on the CPU accepted beside several devices");
+    // Experts on the CPU are a placement of one device, so a routed model refuses them beside several, by the name of the flag given.
+    const auto moe = tiny_qwen_moe(2, 2 * 128, true);
+    for (const int cpu_moe : {1, -1}) {
+        request.cpu_moe = cpu_moe;
+        const std::string flag = cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe";
+        require(refusal(moe, cpus(), request).rfind(flag + ": not with several devices", 0) == 0,
+                "experts on the CPU accepted beside several devices, or refused by another flag's name");
+    }
     // A stream point has nothing to stream without experts on the CPU, so place_model refuses it for every caller, whatever the caller checked first.
     infer::PlacementRequest stream_alone;
     stream_alone.names = {"cpu"};
     stream_alone.stream_from = 1;
-    bool stream_refused = false;
-    try { infer::place_model(infer::gguf_weights(weights), {std::make_shared<backend::CpuBackend>()}, stream_alone, options); }
-    catch (const std::runtime_error&) { stream_refused = true; }
-    require(stream_refused, "a stream point accepted without experts on the CPU");
-    // A CPU reads its weights in place, so experts on the CPU beside it are the one device alone.
+    require(!refusal(weights, {std::make_shared<backend::CpuBackend>()}, stream_alone).empty(), "a stream point accepted without experts on the CPU");
+    // A model without routed layers has no experts to put on the CPU, so the CPU refuses the flags as a device does, by the name of the flag given.
+    for (const int cpu_moe : {1, -1}) {
+        infer::PlacementRequest dense;
+        dense.names = {"cpu"};
+        dense.cpu_moe = cpu_moe;
+        const std::string expected = std::string(cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe") + ": the model has no expert layers";
+        require(refusal(weights, {std::make_shared<backend::CpuBackend>()}, dense) == expected,
+                "experts on the CPU accepted on a model without routed layers on the CPU, or refused by another flag's name");
+    }
+    // A CPU runs the experts where they are, so experts on the CPU beside it are that one CPU: nothing crosses, and the logits are those of the model placed without the flag.
+    auto cpu_counted = std::make_shared<CountingCpu>(), cpu_plain = std::make_shared<CountingCpu>();
+    cpu_counted->set_threads(1);
+    cpu_plain->set_threads(1);
     infer::PlacementRequest experts_on_cpu;
     experts_on_cpu.names = {"cpu"};
     experts_on_cpu.cpu_moe = -1;
-    require(infer::place_model(infer::gguf_weights(weights), {std::make_shared<backend::CpuBackend>()}, experts_on_cpu, options).model->prefill_batch() ==
-                (size_t)infer::kDefaultUbatch,
-            "experts on the CPU beside a CPU not taken as one device");
-    checked += 5;
+    const infer::PlacedModel experts_here = infer::place_model(infer::gguf_weights(moe), {cpu_counted}, experts_on_cpu, options);
+    infer::Model routed(moe, cpu_plain);
+    exact(routed.prefill(prompt), experts_here.model->prefill(prompt), "experts on the CPU beside a CPU differ from the model without them");
+    require(cpu_counted->copies == 0 && cpu_counted->writes == 0, "experts on the CPU beside a CPU crossed to another backend");
+    checked += 6;
 }
 
 // Three layers placed by place_model over two CPU backends at shares 1:2 and over three at 1:1:1, prompts chunked at ubatch 3.

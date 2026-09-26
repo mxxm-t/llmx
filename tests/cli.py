@@ -10,7 +10,7 @@ import f32
 import moe
 
 
-# The command-line surface the numerical components do not reach: a device that cannot run, the file listing, the command lines refused as usage errors, and the help pages against the flags each command reads.
+# The command-line surface the numerical components do not reach: a device that cannot run, a model without routed layers refusing experts on the CPU, the file listing, the command lines refused as usage errors, and the help pages against the flags each command reads.
 # It needs no device, so it runs in every job; each command here that takes a device names its own.
 
 
@@ -29,6 +29,23 @@ def check_device(model):
             p = common.run_process(args + ["--device", "vulkan:999999"], text=True, timeout=120)
             messages = ("error: vulkan: no device at index 999999",)
         assert p.returncode == 1 and not p.stdout and any(m in p.stderr for m in messages), (args, p.returncode, p.stdout, p.stderr)
+
+
+def check_expert_flags(model):
+    """A model without routed layers refuses experts on the CPU on the CPU as on a device, with status 1 and the name of the flag given, from every command that takes the flags.
+    The CPU is always tried, and the configured device as well when it is one device other than the CPU; a stream point beside the flag changes nothing in the refusal."""
+    configured = os.environ.get("LLMX_DEVICE", "cpu")
+    devices = ["cpu"] + ([configured] if configured != "cpu" and "," not in configured else [])
+    commands = (["generate", model, "a", "-n", "1"], ["chat", model], ["logits", model, "a"], ["perplexity", model, "a b c d"],
+                ["bench", "--model", model, "--p", "1", "--n", "1", "--r", "1"], ["serve", model, "--port", "0"])
+    for device in devices:
+        for command in commands:
+            for flags in (["--n-cpu-moe", "1"], ["--cpu-moe"],
+                          ["--n-cpu-moe", "1", "--moe-stream-from", "2"], ["--cpu-moe", "--moe-stream-from", "2"]):
+                p = common.run_process(command + flags + ["--device", device], input="", text=True, timeout=120)
+                expected = "error: %s: the model has no expert layers\n" % flags[0]
+                assert p.returncode == 1 and p.stderr.endswith(expected), (command, flags, device, p.returncode, p.stdout, p.stderr)
+    return len(devices)
 
 
 def check_info(directory):
@@ -201,12 +218,14 @@ def run():
     with tempfile.TemporaryDirectory(prefix="llmx_cli_") as directory:
         model = f32.write_model(os.path.join(directory, "tiny-f32.gguf"), f32.tensors(False))
         check_device(model)
+        devices = check_expert_flags(model)
         check_info(directory)
     check_usage_errors()
     taken, refused = check_help()
-    print("cli: a Vulkan device refused without the backend or without the device, info's architecture, layers and tensors, "
+    print("cli: a Vulkan device refused without the backend or without the device, experts on the CPU refused on a model without routed layers "
+          "on %d device(s) by the flag's name, info's architecture, layers and tensors, "
           "usage errors exiting 2 with the command's page, and every help page shown without a model, "
-          "with %d lines of the flags it lists taken and %d of the flags it does not list refused  [ok]" % (taken, refused))
+          "with %d lines of the flags it lists taken and %d of the flags it does not list refused  [ok]" % (devices, taken, refused))
     return True
 
 

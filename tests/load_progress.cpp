@@ -245,42 +245,8 @@ void loader_checks(const std::string& path) {
     }
 }
 
-// A small qwen3moe model with tokenizer metadata: tiny_qwen with each layer routed over two experts of 12 rows, one used.
-gguf::GGUFModel tiny_moe() {
-    gguf::GGUFModel m = tiny_qwen(2, 2 * 128, false);
-    for (auto& kv : m.kv) kv.first.replace(0, 5, "qwen3moe");
-    auto meta = [&](const std::string& key, uint32_t type, uint64_t u, const std::string& s = {}) {
-        gguf::MetaValue v;
-        v.vtype = type;
-        v.u = u;
-        v.s = s;
-        m.kv.push_back({key, v});
-    };
-    meta("general.architecture", gguf::V_STRING, 0, "qwen3moe");
-    meta("qwen3moe.expert_count", gguf::V_UINT32, 2);
-    meta("qwen3moe.expert_used_count", gguf::V_UINT32, 1);
-    meta("qwen3moe.expert_feed_forward_length", gguf::V_UINT32, 12);
-    auto add = [&](const std::string& name, std::vector<uint64_t> shape) {
-        size_t count = 1;
-        for (uint64_t d : shape) count *= size_t(d);
-        const size_t offset = m.blob.size();
-        m.blob.resize(offset + count * sizeof(float));
-        for (size_t i = 0; i < count; ++i) {
-            const float v = float(int((i * 13 + m.tensors.size() * 5) % 31) - 15) / 64.0f;
-            std::memcpy(m.blob.data() + offset + i * sizeof(float), &v, sizeof(v));
-        }
-        m.tensors.push_back({name, std::move(shape), gguf::GGML_TYPE_F32, 0});
-        m.offsets.push_back(offset);
-    };
-    for (int l = 0; l < 2; ++l) {
-        const std::string pre = "blk." + std::to_string(l) + ".";
-        add(pre + "ffn_gate_inp.weight", {8, 2});
-        add(pre + "ffn_gate_exps.weight", {8, 12, 2});
-        add(pre + "ffn_up_exps.weight", {8, 12, 2});
-        add(pre + "ffn_down_exps.weight", {12, 8, 2});
-    }
-    return with_tokens(std::move(m));
-}
+// A small qwen3moe model with tokenizer metadata (tiny_qwen_moe).
+gguf::GGUFModel tiny_moe() { return with_tokens(tiny_qwen_moe(2, 2 * 128, false)); }
 
 // Experts on the CPU beside a device: the placement adds a CPU backend that reads the experts in place, so each load mode maps the file for it even though the device copies, and the model gives the logits of the same model built in memory on the CPU.
 void experts_checks(const std::string& path) {

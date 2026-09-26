@@ -451,7 +451,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 `--seed` is a decimal whole number up to 2^64 - 1, so a leading zero does not make it octal and a `0x` prefix is refused.
 `--temp` and `--topk` are at least 0, `--topp` is 0 to 1 and `--penalty` is at least 1, the ranges the server takes for the same settings.
 A sampled token is drawn from the tokens `--topk` and `--topp` keep, ranked by score with a tie going to the lower id, so a `--seed` gives the same tokens on every run and through the server with the same settings.
-`--topk 0` ranks only as many of the best tokens as the `--topp` nucleus needs, and with `--topp 1` ranks none: the draw walks every token in id order.
+`--topk 0` ranks only the best tokens, 64 at first and more as the `--topp` nucleus needs them, and with `--topp 1` ranks none: the draw walks every token in id order.
 `--ignore-eos` takes the end-of-text token out of every draw, greedy included, so the reply runs to `-n` unless a `--stop` match ends it first; the server's `ignore_eos` is the same rule, and the two give the same tokens for the same settings.
 The model's context still bounds the reply: a `-n` up to what the prompt leaves of it runs to `-n`, and past that the command stops with the context error, as it does without the option, where the server refuses such a request before it starts.
 

@@ -1,0 +1,380 @@
+missing block_count: inference: missing metadata qwen3.block_count
+missing embedding_length: inference: missing metadata qwen3.embedding_length
+missing feed_forward_length: inference: missing metadata qwen3.feed_forward_length
+missing attention.head_count: inference: missing metadata qwen3.attention.head_count
+invalid integer block_count: inference: integer outside supported range qwen3.block_count
+invalid integer block_count: inference: invalid positive integer qwen3.block_count
+invalid integer block_count: inference: invalid positive integer qwen3.block_count
+invalid integer block_count: inference: integer outside supported range qwen3.block_count
+invalid integer block_count: inference: invalid integer type qwen3.block_count
+invalid integer block_count: inference: invalid integer type qwen3.block_count
+invalid integer block_count: inference: invalid integer type qwen3.block_count
+invalid integer block_count: inference: invalid integer type qwen3.block_count
+invalid integer block_count: inference: invalid integer type qwen3.block_count
+invalid integer block_count: inference: invalid integer type qwen3.block_count
+invalid integer block_count: inference: invalid integer type qwen3.block_count
+invalid integer block_count: inference: invalid integer type qwen3.block_count
+invalid integer embedding_length: inference: integer outside supported range qwen3.embedding_length
+invalid integer embedding_length: inference: invalid positive integer qwen3.embedding_length
+invalid integer embedding_length: inference: invalid positive integer qwen3.embedding_length
+invalid integer embedding_length: inference: integer outside supported range qwen3.embedding_length
+invalid integer embedding_length: inference: invalid integer type qwen3.embedding_length
+invalid integer embedding_length: inference: invalid integer type qwen3.embedding_length
+invalid integer embedding_length: inference: invalid integer type qwen3.embedding_length
+invalid integer embedding_length: inference: invalid integer type qwen3.embedding_length
+invalid integer embedding_length: inference: invalid integer type qwen3.embedding_length
+invalid integer embedding_length: inference: invalid integer type qwen3.embedding_length
+invalid integer embedding_length: inference: invalid integer type qwen3.embedding_length
+invalid integer embedding_length: inference: invalid integer type qwen3.embedding_length
+invalid integer feed_forward_length: inference: integer outside supported range qwen3.feed_forward_length
+invalid integer feed_forward_length: inference: invalid positive integer qwen3.feed_forward_length
+invalid integer feed_forward_length: inference: invalid positive integer qwen3.feed_forward_length
+invalid integer feed_forward_length: inference: integer outside supported range qwen3.feed_forward_length
+invalid integer feed_forward_length: inference: invalid integer type qwen3.feed_forward_length
+invalid integer feed_forward_length: inference: invalid integer type qwen3.feed_forward_length
+invalid integer feed_forward_length: inference: invalid integer type qwen3.feed_forward_length
+invalid integer feed_forward_length: inference: invalid integer type qwen3.feed_forward_length
+invalid integer feed_forward_length: inference: invalid integer type qwen3.feed_forward_length
+invalid integer feed_forward_length: inference: invalid integer type qwen3.feed_forward_length
+invalid integer feed_forward_length: inference: invalid integer type qwen3.feed_forward_length
+invalid integer feed_forward_length: inference: invalid integer type qwen3.feed_forward_length
+invalid integer attention.head_count: inference: integer outside supported range qwen3.attention.head_count
+invalid integer attention.head_count: inference: invalid positive integer qwen3.attention.head_count
+invalid integer attention.head_count: inference: invalid positive integer qwen3.attention.head_count
+invalid integer attention.head_count: inference: integer outside supported range qwen3.attention.head_count
+invalid integer attention.head_count: inference: invalid integer type qwen3.attention.head_count
+invalid integer attention.head_count: inference: invalid integer type qwen3.attention.head_count
+invalid integer attention.head_count: inference: invalid integer type qwen3.attention.head_count
+invalid integer attention.head_count: inference: invalid integer type qwen3.attention.head_count
+invalid integer attention.head_count: inference: invalid integer type qwen3.attention.head_count
+invalid integer attention.head_count: inference: invalid integer type qwen3.attention.head_count
+invalid integer attention.head_count: inference: invalid integer type qwen3.attention.head_count
+invalid integer attention.head_count: inference: invalid integer type qwen3.attention.head_count
+invalid integer attention.head_count_kv: inference: integer outside supported range qwen3.attention.head_count_kv
+invalid integer attention.head_count_kv: inference: invalid positive integer qwen3.attention.head_count_kv
+invalid integer attention.head_count_kv: inference: invalid positive integer qwen3.attention.head_count_kv
+invalid integer attention.head_count_kv: inference: integer outside supported range qwen3.attention.head_count_kv
+invalid integer attention.head_count_kv: inference: invalid integer type qwen3.attention.head_count_kv
+invalid integer attention.head_count_kv: inference: invalid integer type qwen3.attention.head_count_kv
+invalid integer attention.head_count_kv: inference: invalid integer type qwen3.attention.head_count_kv
+invalid integer attention.head_count_kv: inference: invalid integer type qwen3.attention.head_count_kv
+invalid integer attention.head_count_kv: inference: invalid integer type qwen3.attention.head_count_kv
+invalid integer attention.head_count_kv: inference: invalid integer type qwen3.attention.head_count_kv
+invalid integer attention.head_count_kv: inference: invalid integer type qwen3.attention.head_count_kv
+invalid integer attention.head_count_kv: inference: invalid integer type qwen3.attention.head_count_kv
+invalid integer attention.key_length: inference: integer outside supported range qwen3.attention.key_length
+invalid integer attention.key_length: inference: invalid positive integer qwen3.attention.key_length
+invalid integer attention.key_length: inference: invalid positive integer qwen3.attention.key_length
+invalid integer attention.key_length: inference: integer outside supported range qwen3.attention.key_length
+invalid integer attention.key_length: inference: invalid integer type qwen3.attention.key_length
+invalid integer attention.key_length: inference: invalid integer type qwen3.attention.key_length
+invalid integer attention.key_length: inference: invalid integer type qwen3.attention.key_length
+invalid integer attention.key_length: inference: invalid integer type qwen3.attention.key_length
+invalid integer attention.key_length: inference: invalid integer type qwen3.attention.key_length
+invalid integer attention.key_length: inference: invalid integer type qwen3.attention.key_length
+invalid integer attention.key_length: inference: invalid integer type qwen3.attention.key_length
+invalid integer attention.key_length: inference: invalid integer type qwen3.attention.key_length
+invalid integer context_length: inference: integer outside supported range qwen3.context_length
+invalid integer context_length: inference: invalid positive integer qwen3.context_length
+invalid integer context_length: inference: invalid positive integer qwen3.context_length
+invalid integer context_length: inference: integer outside supported range qwen3.context_length
+invalid integer context_length: inference: invalid integer type qwen3.context_length
+invalid integer context_length: inference: invalid integer type qwen3.context_length
+invalid integer context_length: inference: invalid integer type qwen3.context_length
+invalid integer context_length: inference: invalid integer type qwen3.context_length
+invalid integer context_length: inference: invalid integer type qwen3.context_length
+invalid integer context_length: inference: invalid integer type qwen3.context_length
+invalid integer context_length: inference: invalid integer type qwen3.context_length
+invalid integer context_length: inference: invalid integer type qwen3.context_length
+invalid integer attention.value_length: inference: integer outside supported range qwen3.attention.value_length
+invalid integer attention.value_length: inference: invalid positive integer qwen3.attention.value_length
+invalid integer attention.value_length: inference: invalid positive integer qwen3.attention.value_length
+invalid integer attention.value_length: inference: integer outside supported range qwen3.attention.value_length
+invalid integer attention.value_length: inference: invalid integer type qwen3.attention.value_length
+invalid integer attention.value_length: inference: invalid integer type qwen3.attention.value_length
+invalid integer attention.value_length: inference: invalid integer type qwen3.attention.value_length
+invalid integer attention.value_length: inference: invalid integer type qwen3.attention.value_length
+invalid integer attention.value_length: inference: invalid integer type qwen3.attention.value_length
+invalid integer attention.value_length: inference: invalid integer type qwen3.attention.value_length
+invalid integer attention.value_length: inference: invalid integer type qwen3.attention.value_length
+invalid integer attention.value_length: inference: invalid integer type qwen3.attention.value_length
+invalid integer rope.dimension_count: inference: integer outside supported range qwen3.rope.dimension_count
+invalid integer rope.dimension_count: inference: invalid positive integer qwen3.rope.dimension_count
+invalid integer rope.dimension_count: inference: invalid positive integer qwen3.rope.dimension_count
+invalid integer rope.dimension_count: inference: integer outside supported range qwen3.rope.dimension_count
+invalid integer rope.dimension_count: inference: invalid integer type qwen3.rope.dimension_count
+invalid integer rope.dimension_count: inference: invalid integer type qwen3.rope.dimension_count
+invalid integer rope.dimension_count: inference: invalid integer type qwen3.rope.dimension_count
+invalid integer rope.dimension_count: inference: invalid integer type qwen3.rope.dimension_count
+invalid integer rope.dimension_count: inference: invalid integer type qwen3.rope.dimension_count
+invalid integer rope.dimension_count: inference: invalid integer type qwen3.rope.dimension_count
+invalid integer rope.dimension_count: inference: invalid integer type qwen3.rope.dimension_count
+invalid integer rope.dimension_count: inference: invalid integer type qwen3.rope.dimension_count
+invalid float qwen3.rope.freq_base: inference: invalid positive float qwen3.rope.freq_base
+invalid float qwen3.rope.freq_base: inference: invalid positive float qwen3.rope.freq_base
+invalid float qwen3.rope.freq_base: inference: invalid positive float qwen3.rope.freq_base
+invalid float qwen3.rope.freq_base: inference: invalid positive float qwen3.rope.freq_base
+invalid float qwen3.rope.freq_base: inference: invalid positive float qwen3.rope.freq_base
+invalid float qwen3.rope.freq_base: inference: float underflow qwen3.rope.freq_base
+invalid float qwen3.rope.freq_base: inference: invalid positive float qwen3.rope.freq_base
+invalid float qwen3.rope.freq_base: inference: invalid positive float qwen3.rope.freq_base
+invalid float qwen3.rope.freq_base: inference: invalid floating-point type qwen3.rope.freq_base
+invalid float qwen3.rope.freq_base: inference: invalid floating-point type qwen3.rope.freq_base
+invalid float qwen3.attention.layer_norm_rms_epsilon: inference: invalid positive float qwen3.attention.layer_norm_rms_epsilon
+invalid float qwen3.attention.layer_norm_rms_epsilon: inference: invalid positive float qwen3.attention.layer_norm_rms_epsilon
+invalid float qwen3.attention.layer_norm_rms_epsilon: inference: invalid positive float qwen3.attention.layer_norm_rms_epsilon
+invalid float qwen3.attention.layer_norm_rms_epsilon: inference: invalid positive float qwen3.attention.layer_norm_rms_epsilon
+invalid float qwen3.attention.layer_norm_rms_epsilon: inference: invalid positive float qwen3.attention.layer_norm_rms_epsilon
+invalid float qwen3.attention.layer_norm_rms_epsilon: inference: float underflow qwen3.attention.layer_norm_rms_epsilon
+invalid float qwen3.attention.layer_norm_rms_epsilon: inference: invalid positive float qwen3.attention.layer_norm_rms_epsilon
+invalid float qwen3.attention.layer_norm_rms_epsilon: inference: invalid positive float qwen3.attention.layer_norm_rms_epsilon
+invalid float qwen3.attention.layer_norm_rms_epsilon: inference: invalid floating-point type qwen3.attention.layer_norm_rms_epsilon
+invalid float qwen3.attention.layer_norm_rms_epsilon: inference: invalid floating-point type qwen3.attention.layer_norm_rms_epsilon
+invalid general.architecture: inference: unsupported metadata general.architecture
+invalid general.architecture: inference: unsupported metadata general.architecture
+invalid general.architecture: inference: unsupported metadata general.architecture
+invalid qwen3.rope.scaling.type: inference: unsupported metadata qwen3.rope.scaling.type
+invalid qwen3.rope.scaling.type: inference: unsupported metadata qwen3.rope.scaling.type
+invalid qwen3.rope.scaling.type: inference: unsupported metadata qwen3.rope.scaling.type
+invalid qwen3.tensor_data_layout: inference: unsupported metadata qwen3.tensor_data_layout
+invalid qwen3.tensor_data_layout: inference: unsupported metadata qwen3.tensor_data_layout
+invalid qwen3.tensor_data_layout: inference: unsupported metadata qwen3.tensor_data_layout
+invalid qwen3.rope.scaling.factor: inference: invalid positive float qwen3.rope.scaling.factor
+invalid qwen3.rope.scaling.factor: inference: scaled RoPE is unsupported
+invalid qwen3.rope.scaling.factor: inference: scaled RoPE is unsupported
+invalid qwen3.rope.scaling.factor: inference: scaled RoPE is unsupported
+invalid qwen3.rope.scaling.factor: inference: invalid positive float qwen3.rope.scaling.factor
+invalid qwen3.rope.scaling.factor: inference: invalid positive float qwen3.rope.scaling.factor
+invalid qwen3.rope.scaling.factor: inference: invalid floating-point type qwen3.rope.scaling.factor
+invalid qwen3.rope.scaling.factor: inference: invalid floating-point type qwen3.rope.scaling.factor
+invalid qwen3.rope.scale_linear: inference: invalid positive float qwen3.rope.scale_linear
+invalid qwen3.rope.scale_linear: inference: scaled RoPE is unsupported
+invalid qwen3.rope.scale_linear: inference: scaled RoPE is unsupported
+invalid qwen3.rope.scale_linear: inference: scaled RoPE is unsupported
+invalid qwen3.rope.scale_linear: inference: invalid positive float qwen3.rope.scale_linear
+invalid qwen3.rope.scale_linear: inference: invalid positive float qwen3.rope.scale_linear
+invalid qwen3.rope.scale_linear: inference: invalid floating-point type qwen3.rope.scale_linear
+invalid qwen3.rope.scale_linear: inference: invalid floating-point type qwen3.rope.scale_linear
+indivisible default head width: inference: embedding width does not determine an integral head width
+incompatible geometry attention.head_count_kv: inference: head count must be divisible by KV head count
+incompatible geometry attention.head_count: inference: head count must be divisible by KV head count
+incompatible geometry attention.key_length: inference: invalid attention projection dimensions
+incompatible geometry attention.value_length: inference: value and rotary widths must equal key width
+incompatible geometry rope.dimension_count: inference: value and rotary widths must equal key width
+incompatible geometry attention.key_length: inference: invalid attention projection dimensions
+null backend: inference: missing backend
+missing token_embd.weight: inference: missing tensor token_embd.weight
+shape token_embd.weight: inference: incompatible tensor layout token_embd.weight
+shape token_embd.weight: inference: invalid vocabulary dimension
+shape token_embd.weight: inference: invalid tensor rank token_embd.weight
+shape token_embd.weight: inference: incompatible tensor layout token_embd.weight
+shape token_embd.weight: inference: incompatible tensor layout token_embd.weight
+matrix rank one token_embd.weight: inference: invalid vocabulary dimension
+matrix output width token_embd.weight: inference: incompatible tensor layout output.weight
+missing output_norm.weight: inference: missing tensor output_norm.weight
+shape output_norm.weight: inference: incompatible tensor layout output_norm.weight
+shape output_norm.weight: inference: incompatible tensor layout output_norm.weight
+shape output_norm.weight: inference: invalid tensor rank output_norm.weight
+shape output_norm.weight: inference: incompatible tensor layout output_norm.weight
+shape output_norm.weight: inference: incompatible tensor layout output_norm.weight
+missing blk.0.attn_norm.weight: inference: missing tensor blk.0.attn_norm.weight
+shape blk.0.attn_norm.weight: inference: incompatible tensor layout blk.0.attn_norm.weight
+shape blk.0.attn_norm.weight: inference: incompatible tensor layout blk.0.attn_norm.weight
+shape blk.0.attn_norm.weight: inference: invalid tensor rank blk.0.attn_norm.weight
+shape blk.0.attn_norm.weight: inference: incompatible tensor layout blk.0.attn_norm.weight
+shape blk.0.attn_norm.weight: inference: incompatible tensor layout blk.0.attn_norm.weight
+missing blk.0.ffn_norm.weight: inference: missing tensor blk.0.ffn_norm.weight
+shape blk.0.ffn_norm.weight: inference: incompatible tensor layout blk.0.ffn_norm.weight
+shape blk.0.ffn_norm.weight: inference: incompatible tensor layout blk.0.ffn_norm.weight
+shape blk.0.ffn_norm.weight: inference: invalid tensor rank blk.0.ffn_norm.weight
+shape blk.0.ffn_norm.weight: inference: incompatible tensor layout blk.0.ffn_norm.weight
+shape blk.0.ffn_norm.weight: inference: incompatible tensor layout blk.0.ffn_norm.weight
+missing blk.0.attn_q_norm.weight: inference: missing tensor blk.0.attn_q_norm.weight
+shape blk.0.attn_q_norm.weight: inference: incompatible tensor layout blk.0.attn_q_norm.weight
+shape blk.0.attn_q_norm.weight: inference: incompatible tensor layout blk.0.attn_q_norm.weight
+shape blk.0.attn_q_norm.weight: inference: invalid tensor rank blk.0.attn_q_norm.weight
+shape blk.0.attn_q_norm.weight: inference: incompatible tensor layout blk.0.attn_q_norm.weight
+shape blk.0.attn_q_norm.weight: inference: incompatible tensor layout blk.0.attn_q_norm.weight
+missing blk.0.attn_k_norm.weight: inference: missing tensor blk.0.attn_k_norm.weight
+shape blk.0.attn_k_norm.weight: inference: incompatible tensor layout blk.0.attn_k_norm.weight
+shape blk.0.attn_k_norm.weight: inference: incompatible tensor layout blk.0.attn_k_norm.weight
+shape blk.0.attn_k_norm.weight: inference: invalid tensor rank blk.0.attn_k_norm.weight
+shape blk.0.attn_k_norm.weight: inference: incompatible tensor layout blk.0.attn_k_norm.weight
+shape blk.0.attn_k_norm.weight: inference: incompatible tensor layout blk.0.attn_k_norm.weight
+missing blk.0.attn_q.weight: inference: missing tensor blk.0.attn_q.weight
+shape blk.0.attn_q.weight: inference: incompatible tensor layout blk.0.attn_q.weight
+shape blk.0.attn_q.weight: inference: incompatible tensor layout blk.0.attn_q.weight
+shape blk.0.attn_q.weight: inference: invalid tensor rank blk.0.attn_q.weight
+shape blk.0.attn_q.weight: inference: incompatible tensor layout blk.0.attn_q.weight
+shape blk.0.attn_q.weight: inference: incompatible tensor layout blk.0.attn_q.weight
+matrix rank one blk.0.attn_q.weight: inference: incompatible tensor layout blk.0.attn_q.weight
+matrix output width blk.0.attn_q.weight: inference: incompatible tensor layout blk.0.attn_q.weight
+missing blk.0.attn_k.weight: inference: missing tensor blk.0.attn_k.weight
+shape blk.0.attn_k.weight: inference: incompatible tensor layout blk.0.attn_k.weight
+shape blk.0.attn_k.weight: inference: incompatible tensor layout blk.0.attn_k.weight
+shape blk.0.attn_k.weight: inference: invalid tensor rank blk.0.attn_k.weight
+shape blk.0.attn_k.weight: inference: incompatible tensor layout blk.0.attn_k.weight
+shape blk.0.attn_k.weight: inference: incompatible tensor layout blk.0.attn_k.weight
+matrix rank one blk.0.attn_k.weight: inference: incompatible tensor layout blk.0.attn_k.weight
+matrix output width blk.0.attn_k.weight: inference: incompatible tensor layout blk.0.attn_k.weight
+missing blk.0.attn_v.weight: inference: missing tensor blk.0.attn_v.weight
+shape blk.0.attn_v.weight: inference: incompatible tensor layout blk.0.attn_v.weight
+shape blk.0.attn_v.weight: inference: incompatible tensor layout blk.0.attn_v.weight
+shape blk.0.attn_v.weight: inference: invalid tensor rank blk.0.attn_v.weight
+shape blk.0.attn_v.weight: inference: incompatible tensor layout blk.0.attn_v.weight
+shape blk.0.attn_v.weight: inference: incompatible tensor layout blk.0.attn_v.weight
+matrix rank one blk.0.attn_v.weight: inference: incompatible tensor layout blk.0.attn_v.weight
+matrix output width blk.0.attn_v.weight: inference: incompatible tensor layout blk.0.attn_v.weight
+missing blk.0.attn_output.weight: inference: missing tensor blk.0.attn_output.weight
+shape blk.0.attn_output.weight: inference: incompatible tensor layout blk.0.attn_output.weight
+shape blk.0.attn_output.weight: inference: incompatible tensor layout blk.0.attn_output.weight
+shape blk.0.attn_output.weight: inference: invalid tensor rank blk.0.attn_output.weight
+shape blk.0.attn_output.weight: inference: incompatible tensor layout blk.0.attn_output.weight
+shape blk.0.attn_output.weight: inference: incompatible tensor layout blk.0.attn_output.weight
+matrix rank one blk.0.attn_output.weight: inference: incompatible tensor layout blk.0.attn_output.weight
+matrix output width blk.0.attn_output.weight: inference: incompatible tensor layout blk.0.attn_output.weight
+missing blk.0.ffn_gate.weight: inference: missing tensor blk.0.ffn_gate.weight
+shape blk.0.ffn_gate.weight: inference: incompatible tensor layout blk.0.ffn_gate.weight
+shape blk.0.ffn_gate.weight: inference: incompatible tensor layout blk.0.ffn_gate.weight
+shape blk.0.ffn_gate.weight: inference: invalid tensor rank blk.0.ffn_gate.weight
+shape blk.0.ffn_gate.weight: inference: incompatible tensor layout blk.0.ffn_gate.weight
+shape blk.0.ffn_gate.weight: inference: incompatible tensor layout blk.0.ffn_gate.weight
+matrix rank one blk.0.ffn_gate.weight: inference: incompatible tensor layout blk.0.ffn_gate.weight
+matrix output width blk.0.ffn_gate.weight: inference: incompatible tensor layout blk.0.ffn_gate.weight
+missing blk.0.ffn_up.weight: inference: missing tensor blk.0.ffn_up.weight
+shape blk.0.ffn_up.weight: inference: incompatible tensor layout blk.0.ffn_up.weight
+shape blk.0.ffn_up.weight: inference: incompatible tensor layout blk.0.ffn_up.weight
+shape blk.0.ffn_up.weight: inference: invalid tensor rank blk.0.ffn_up.weight
+shape blk.0.ffn_up.weight: inference: incompatible tensor layout blk.0.ffn_up.weight
+shape blk.0.ffn_up.weight: inference: incompatible tensor layout blk.0.ffn_up.weight
+matrix rank one blk.0.ffn_up.weight: inference: incompatible tensor layout blk.0.ffn_up.weight
+matrix output width blk.0.ffn_up.weight: inference: incompatible tensor layout blk.0.ffn_up.weight
+missing blk.0.ffn_down.weight: inference: missing tensor blk.0.ffn_down.weight
+shape blk.0.ffn_down.weight: inference: incompatible tensor layout blk.0.ffn_down.weight
+shape blk.0.ffn_down.weight: inference: incompatible tensor layout blk.0.ffn_down.weight
+shape blk.0.ffn_down.weight: inference: invalid tensor rank blk.0.ffn_down.weight
+shape blk.0.ffn_down.weight: inference: invalid tensor storage blk.0.ffn_down.weight
+shape blk.0.ffn_down.weight: inference: incompatible tensor layout blk.0.ffn_down.weight
+matrix rank one blk.0.ffn_down.weight: inference: incompatible tensor layout blk.0.ffn_down.weight
+matrix output width blk.0.ffn_down.weight: inference: incompatible tensor layout blk.0.ffn_down.weight
+shape output.weight: inference: incompatible tensor layout output.weight
+shape output.weight: inference: incompatible tensor layout output.weight
+shape output.weight: inference: invalid tensor rank output.weight
+shape output.weight: inference: invalid tensor storage output.weight
+shape output.weight: inference: incompatible tensor layout output.weight
+matrix rank one output.weight: inference: incompatible tensor layout output.weight
+matrix output width output.weight: inference: incompatible tensor layout output.weight
+quantized norm: inference: incompatible tensor layout output_norm.weight
+partial quantized row: quant: a row of 255 values is not whole Q4_0 blocks
+quantized norm: inference: incompatible tensor layout output_norm.weight
+partial quantized row: quant: a row of 255 values is not whole Q4_1 blocks
+quantized norm: inference: incompatible tensor layout output_norm.weight
+partial quantized row: quant: a row of 255 values is not whole Q8_0 blocks
+quantized norm: inference: incompatible tensor layout output_norm.weight
+partial quantized row: quant: a row of 255 values is not whole Q4_K blocks
+quantized norm: inference: incompatible tensor layout output_norm.weight
+partial quantized row: quant: a row of 255 values is not whole Q5_K blocks
+quantized norm: inference: incompatible tensor layout output_norm.weight
+partial quantized row: quant: a row of 255 values is not whole Q6_K blocks
+duplicate tensor: inference: duplicate tensor token_embd.weight
+duplicate view: inference: duplicate tensor token_embd.weight
+released payload: inference: invalid tensor storage token_embd.weight
+missing offset: inference: tensor storage count mismatch
+extra offset: inference: tensor storage count mismatch
+invalid storage offset: inference: invalid tensor storage token_embd.weight
+invalid storage offset: inference: invalid tensor storage token_embd.weight
+invalid storage offset: inference: invalid tensor storage token_embd.weight
+truncated blob: inference: invalid tensor storage output.weight
+missing second layer: inference: missing tensor blk.1.attn_norm.weight
+unsupported tensor type: quant: unsupported tensor type 1
+oversized vocabulary: inference: invalid tensor storage token_embd.weight
+zero vocabulary: inference: invalid vocabulary dimension
+overflowing tensor extent: GGUF size multiplication overflow
+unsupported unused tensor: quant: unsupported tensor type 1
+missing qwen3moe.block_count: inference: missing metadata qwen3moe.block_count
+missing qwen3moe.embedding_length: inference: missing metadata qwen3moe.embedding_length
+missing qwen3moe.attention.head_count: inference: missing metadata qwen3moe.attention.head_count
+missing qwen3moe.expert_count: inference: missing metadata qwen3moe.expert_count
+missing qwen3moe.expert_used_count: inference: missing metadata qwen3moe.expert_used_count
+missing qwen3moe.expert_feed_forward_length: inference: missing metadata qwen3moe.expert_feed_forward_length
+invalid integer qwen3moe.expert_count: inference: integer outside supported range qwen3moe.expert_count
+invalid integer qwen3moe.expert_count: inference: invalid integer type qwen3moe.expert_count
+invalid integer qwen3moe.expert_used_count: inference: integer outside supported range qwen3moe.expert_used_count
+invalid integer qwen3moe.expert_used_count: inference: invalid integer type qwen3moe.expert_used_count
+invalid integer qwen3moe.expert_feed_forward_length: inference: integer outside supported range qwen3moe.expert_feed_forward_length
+invalid integer qwen3moe.expert_feed_forward_length: inference: invalid integer type qwen3moe.expert_feed_forward_length
+more experts a token than the layer has: inference: more experts per token than the layer has, or above 256
+more than 256 experts a token: inference: more experts per token than the layer has, or above 256
+invalid qwen3moe.expert_weights_norm: inference: invalid boolean type qwen3moe.expert_weights_norm
+invalid qwen3moe.expert_gating_func: inference: unsupported expert gating function
+invalid qwen3moe.expert_gating_func: inference: unsupported expert gating function
+invalid qwen3moe.expert_gating_func: inference: unsupported expert gating function
+present qwen3moe.expert_shared_count: inference: shared experts are unsupported
+present qwen3moe.expert_shared_feed_forward_length: inference: shared experts are unsupported
+invalid qwen3moe.expert_weights_scale: inference: scaled expert weights are unsupported
+invalid qwen3moe.expert_weights_scale: inference: scaled expert weights are unsupported
+invalid qwen3moe.expert_weights_scale: inference: invalid floating-point type qwen3moe.expert_weights_scale
+dense layer without a feed-forward width: inference: dense layer without a feed-forward width blk.0.
+router in a dense architecture: inference: expert tensors in a dense architecture blk.0.
+missing blk.0.ffn_gate_inp.weight: inference: missing tensor blk.0.ffn_gate.weight
+shape blk.0.ffn_gate_inp.weight: inference: incompatible tensor layout blk.0.ffn_gate_inp.weight
+shape blk.0.ffn_gate_inp.weight: inference: incompatible tensor layout blk.0.ffn_gate_inp.weight
+shape blk.0.ffn_gate_inp.weight: inference: invalid tensor rank blk.0.ffn_gate_inp.weight
+shape blk.0.ffn_gate_inp.weight: inference: incompatible tensor layout blk.0.ffn_gate_inp.weight
+shape blk.0.ffn_gate_inp.weight: inference: incompatible tensor layout blk.0.ffn_gate_inp.weight
+output width blk.0.ffn_gate_inp.weight: inference: incompatible tensor layout blk.0.ffn_gate_inp.weight
+an axis short blk.0.ffn_gate_inp.weight: inference: incompatible tensor layout blk.0.ffn_gate_inp.weight
+missing blk.0.ffn_gate_exps.weight: inference: missing tensor blk.0.ffn_gate_exps.weight
+shape blk.0.ffn_gate_exps.weight: inference: incompatible tensor layout blk.0.ffn_gate_exps.weight
+shape blk.0.ffn_gate_exps.weight: inference: incompatible tensor layout blk.0.ffn_gate_exps.weight
+shape blk.0.ffn_gate_exps.weight: inference: invalid tensor rank blk.0.ffn_gate_exps.weight
+shape blk.0.ffn_gate_exps.weight: inference: incompatible tensor layout blk.0.ffn_gate_exps.weight
+shape blk.0.ffn_gate_exps.weight: inference: incompatible tensor layout blk.0.ffn_gate_exps.weight
+output width blk.0.ffn_gate_exps.weight: inference: incompatible tensor layout blk.0.ffn_gate_exps.weight
+an axis short blk.0.ffn_gate_exps.weight: inference: incompatible tensor layout blk.0.ffn_gate_exps.weight
+expert count blk.0.ffn_gate_exps.weight: inference: incompatible tensor layout blk.0.ffn_gate_exps.weight
+a fourth axis of one blk.0.ffn_gate_exps.weight: inference: incompatible tensor layout blk.0.ffn_gate_exps.weight
+missing blk.0.ffn_up_exps.weight: inference: missing tensor blk.0.ffn_up_exps.weight
+shape blk.0.ffn_up_exps.weight: inference: incompatible tensor layout blk.0.ffn_up_exps.weight
+shape blk.0.ffn_up_exps.weight: inference: incompatible tensor layout blk.0.ffn_up_exps.weight
+shape blk.0.ffn_up_exps.weight: inference: invalid tensor rank blk.0.ffn_up_exps.weight
+shape blk.0.ffn_up_exps.weight: inference: incompatible tensor layout blk.0.ffn_up_exps.weight
+shape blk.0.ffn_up_exps.weight: inference: incompatible tensor layout blk.0.ffn_up_exps.weight
+output width blk.0.ffn_up_exps.weight: inference: incompatible tensor layout blk.0.ffn_up_exps.weight
+an axis short blk.0.ffn_up_exps.weight: inference: incompatible tensor layout blk.0.ffn_up_exps.weight
+expert count blk.0.ffn_up_exps.weight: inference: incompatible tensor layout blk.0.ffn_up_exps.weight
+a fourth axis of one blk.0.ffn_up_exps.weight: inference: incompatible tensor layout blk.0.ffn_up_exps.weight
+missing blk.0.ffn_down_exps.weight: inference: missing tensor blk.0.ffn_down_exps.weight
+shape blk.0.ffn_down_exps.weight: inference: incompatible tensor layout blk.0.ffn_down_exps.weight
+shape blk.0.ffn_down_exps.weight: inference: incompatible tensor layout blk.0.ffn_down_exps.weight
+shape blk.0.ffn_down_exps.weight: inference: invalid tensor rank blk.0.ffn_down_exps.weight
+shape blk.0.ffn_down_exps.weight: inference: invalid tensor storage blk.0.ffn_down_exps.weight
+shape blk.0.ffn_down_exps.weight: inference: incompatible tensor layout blk.0.ffn_down_exps.weight
+output width blk.0.ffn_down_exps.weight: inference: incompatible tensor layout blk.0.ffn_down_exps.weight
+an axis short blk.0.ffn_down_exps.weight: inference: incompatible tensor layout blk.0.ffn_down_exps.weight
+expert count blk.0.ffn_down_exps.weight: inference: incompatible tensor layout blk.0.ffn_down_exps.weight
+a fourth axis of one blk.0.ffn_down_exps.weight: inference: incompatible tensor layout blk.0.ffn_down_exps.weight
+no backend: inference: missing backend
+a null second backend: inference: missing backend
+attention placed and feed-forward not: inference: placement does not cover every layer
+a placement past the layers: inference: placement does not cover every layer
+attention on a device the model does not have: inference: placement names a device the model does not have
+attention on a negative device: inference: placement names a device the model does not have
+feed-forward on a device the model does not have: inference: placement names a device the model does not have
+the embedding on a device the model does not have: inference: placement names a device the model does not have
+the head on a negative device: inference: placement names a device the model does not have
+a device's attention layers in two runs: inference: a device's attention layers must be consecutive
+cache blocks that do not nest: inference: cache blocks of 129 and 128 tokens in one model; a split needs one size to divide the other
+place_model without a device: placement: no device
+a stream point without experts on the CPU: --moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe
+histories over a null backend: inference: missing backend
+experts on the CPU beside two devices: --n-cpu-moe: not with several devices; list the CPU as a device to give it layers
+experts on the CPU with layer shares: --cpu-moe: not with several devices; list the CPU as a device to give it layers
+experts on the CPU of a model without routed layers: --n-cpu-moe: the model has no expert layers
+a split without device names: split: a name for every device
+three layer shares for two devices: split: 3 layer shares for 2 devices
+every layer share zero: split: every layer share is zero
+a negative layer share: split: a negative layer share
+a prompt past the context: inference: context length exceeded (8 tokens)
+a step past the context: inference: context length exceeded (8 tokens)
+split loading failure: injected adoption failure

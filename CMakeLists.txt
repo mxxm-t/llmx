@@ -135,7 +135,8 @@ if(BUILD_TESTING)
     add_executable(llmx-model-validation-test tests/model_validation.cpp)
     target_include_directories(llmx-model-validation-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-model-validation-test)
-    add_test(NAME model-validation COMMAND llmx-model-validation-test)
+    add_test(NAME model-validation COMMAND llmx-model-validation-test
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/model_refusals.txt)
     # It builds hundreds of small models, so it gets a longer timeout than the other unit tests.
     set_tests_properties(model-validation PROPERTIES TIMEOUT 120)
     add_executable(llmx-gguf-validation-test tests/gguf_validation.cpp)

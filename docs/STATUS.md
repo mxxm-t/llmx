@@ -306,8 +306,16 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - The refactor yields to phase 3 and lands when no branch in flight edits the Qwen-specific code.
   - The fit changes for a file with unread tensors; none of the gate files has one, and C4 records the comparison.
   - The Qwen 3.x plan says "one model path" until C7 lands, so `feat/qwen35-cpu` does not start before then.
-- **Done:** this block (C0).
-- **Left:** C1 to C7 with their gates; the branch-head gates; then `tests/arch-fixtures`.
+- **Done:**
+  - C0 (23d7f83): this block.
+  - C1 (8a31675): `src/model/arch_qwen.hpp` is `src/model/runtime.hpp` with no change to its text, which Git records as a whole rename, and its includes, the comment in `tests/backend_vulkan.cpp`, `docs/src/model-runtime.md` and every page that named the file follow.
+    - Gates, on the Linux machine in the build image, the base and C1 each built from its own sha in its own tree: both build with and without Vulkan with no warning; CTest passes 23 of 23 without Vulkan and 26 of 26 with Vulkan on one MI50, `backend-vulkan` run rather than skipped, as the base does.
+    - Windows: a Release build with Vulkan of every target, with no error; its only warnings, four C4456 in `tests/backend_vulkan.cpp` and four C4996 in `tests/hub_transport.cpp`, are on lines C1 does not touch.
+  - C2: `model-validation` records every refusal it provokes as "label: message" and holds them, in order, to `tests/data/model_refusals.txt`, 380 refusals written by the test built on the base's own source (5e05a9e) on Linux, which equal those the Windows build of C2 gives.
+    - Beyond the configuration tables and tensor refusals it already made, it now provokes the qwen3moe keys' refusals (missing and malformed counts, more experts a token than the layer has or above 256, the norm flag's type, the gating function, shared experts and scaled expert weights), a router in a dense architecture, a dense layer without a feed-forward width, the router and each expert stack missing and malformed, every placement the model refuses (no backend, a placement short of or past the layers, a device the model does not have, a device's attention layers in two runs, cache blocks that do not nest), `place_model`'s refused requests (no device, a stream point without experts on the CPU, histories over a null backend, experts on the CPU beside two devices, with layer shares or on a model without routed layers, a split without device names, and shares that do not fit the devices), and a prompt and a step past the context.
+    - The context storage refusal is reached only where a vector's limit is below the widths the reader takes, on Linux and not on Windows, so it is held to its text in place rather than in the list every platform shares.
+    - `llmx-model-validation-test --write FILE` writes the refusals it sees, which is how the list was written from the base.
+- **Left:** C2's gates, recorded with C3; C3 to C7 with their gates; the hosted run, which C1 and C2 have not had, since the branch goes to the public repository only as `gate/refactor-arch-modules` at its head; the branch-head gates; then `tests/arch-fixtures`.
 - **Gotchas:**
   - Earlier blocks of this file and `docs/benchmarks/` name `src/model/arch_qwen.hpp` and `docs/src/model-arch_qwen.md` at their commits; from C1 on they are `src/model/runtime.hpp` and `docs/src/model-runtime.md`.
   - Each gate's base arm is its base (Base) built from its own sha in its own tree, never the branch's parent built again in the candidate's tree, since the build identity alone moves 0.6B prefill (AGENTS.md, Principles).

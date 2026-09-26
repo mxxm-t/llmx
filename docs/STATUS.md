@@ -53,7 +53,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - `tools/server_mix_check.py` on Qwen3-0.6B Q8_0: 16 requests of 928 tokens alone, 0 of 16 differ together, 0 of 12 skewed with 4 clients leaving, and the 4 CLI checks equal.
   - MSVC on Windows builds `llmx` and `llmx-chat-template-test` of this tree at /W4 without a warning.
   - The single-commit stack before the audit round passed the same host gates and all six hosted jobs.
-- **Left before merge:** the hosted run on the stack's tip, on `gate/merge-11`. The user approved Decided here on 2026-09-26 and keeps the split rule: it gives every Qwen model the history format it was trained on whichever way a client sends earlier reasoning, and llmx's prompt deliberately differs from other engines' only where a template reads `reasoning_content` and a client sends the reasoning inline. No device, model, kernel or loader code changed, so the merge rules ask for no device suite.
+- **Merged** at `f944091` (2026-09-26), with all six hosted jobs passing on the stack's tip. The user approved Decided here on 2026-09-26 and keeps the split rule: it gives every Qwen model the history format it was trained on whichever way a client sends earlier reasoning, and llmx's prompt deliberately differs from other engines' only where a template reads `reasoning_content` and a client sends the reasoning inline. No device, model, kernel or loader code changed, so the merge rules ask for no device suite.
 
 ## A reply that ends only at its limit: `ignore_eos` (2026-09-26, branch feat/ignore-eos)
 

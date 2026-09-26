@@ -179,6 +179,7 @@ Decode a comma- or whitespace-separated list of token ids back into text and pri
 ## `llmx logits <in.gguf> ("<text>" | --file <path>) [--then-ids F] [--last N] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
 
 Print the top-N next-token logits for `text`, one `id value` pair per line after a `tokens:` header.
+The list is most likely first, a tie going to the lower id.
 `--top` defaults to 10.
 `--file <path>` (`-f`) in place of the text reads it from a UTF-8 file, as `perplexity` does, for a text longer than a command line holds.
 `--then-ids F` appends the token ids in `F`, separated by commas or whitespace, after the text's tokens, so a generated reply is read as the tokens it was.
@@ -359,12 +360,13 @@ over the Radeon VII's, so it pays only for long prompts: on the MI50 with
 twelve Q8_0 layers on the CPU, 512 tokens prefill at 411 tok/s streamed
 against 311 on the CPU, while at 247 the CPU is ahead (268 against 223);
 on the Radeon VII the two meet at about 512. `512` suits a machine that
-mostly reads long documents. The count is the whole prompt's length, a
-reused conversation prefix included, so a prompt takes the same path in
-every slice, alone or beside other requests, and whether or not a server
-had part of it cached: a short follow-up in a long chat streams too, and
-pays the copy. Generated tokens never stream, and neither does a one-token prompt, so `1` streams the prompts `2` does. The device holds one layer's experts for this
-(about 640 MB for Qwen3-30B-A3B Q8_0).
+mostly reads long documents.
+The count is the whole prompt's length, a reused conversation prefix included, so every row a prompt computes takes the same path in every slice, alone or beside other requests, and whether or not a server had part of it cached.
+The rows a server forks from a cached prefix keep the path their own prompt took (`docs/SERVER.md`, Open gaps).
+A short follow-up in a long chat therefore streams too and pays the copy, and `serve` makes that copy inside the pass that carries every other request's next token, so it delays every request sharing that pass, not only the follow-up.
+With `bench --depth` the depth counts toward the length as well.
+Generated tokens never stream, and neither does a one-token prompt, so `1` streams the prompts `2` does.
+The device holds one layer's experts for this (about 640 MB for Qwen3-30B-A3B Q8_0).
 Without `--n-cpu-moe` or `--cpu-moe` there are no experts on the CPU to stream, so a nonzero `--moe-stream-from` is refused.
 
 ## KV cache types (`--cache-type-k`, `--cache-type-v`)
@@ -529,8 +531,10 @@ of a new request's prompt beside them, tokens streamed as they are sampled.
 HTTP/1.1 without dependencies or TLS; put a reverse proxy in front of it
 when it faces a network. Defaults: `127.0.0.1:8080`, 16 sequences, a
 queue of 64. `--max-seqs` is how many requests decode at once, the rest
-wait in the queue, and past `--max-queue` waiting requests a new one is
-refused with 503. `--ctx-size` (`-c`) is the KV pool's total token budget shared
+wait in the queue, and past `--max-queue` queued requests a new one is
+refused with 503.
+Paused requests wait apart and are not counted.
+`--ctx-size` (`-c`) is the KV pool's total token budget shared
 by every request, the model context by default: with 16 sequences over a
 40k-token model that is 2.5k tokens each on average, so a deployment that
 serves long conversations sets it to what its memory holds, rounded up
@@ -673,6 +677,7 @@ The KV pool is the model context, as for `generate`, and grows to hold the `N` s
 timer, the history is filled with `N` tokens, and `pp` and `tg` then run on
 top of it, reported as `pp P @ dN` and `tg G @ dN`, the protocol reference
 bench tools use for the same `-d N`. It takes one sequence.
+With `--moe-stream-from N` the depth counts toward a prompt's length, so `pp` at a depth streams once the depth plus `--p` reaches `N`.
 
 `--profile`, on a device backend, runs one more prompt run and one more
 decode run after the timed runs, each reported on its own as the device

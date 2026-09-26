@@ -79,7 +79,7 @@ to a `backend::Backend`.
   everything on device 0. Per role rather than per layer so expert offload
   puts a layer's experts on the CPU while its attention stays on the device
   (`docs/EXECUTION.md`). `stream_from` is the prompt length (`BatchEntry::extent`) from which such
-  a layer runs on its attention device instead, whatever prefix the history already held, 1 counting as 2 since a one-token prompt never streams: the norm and router get a
+  a layer runs on its attention device instead for every row the prompt computes, whatever prefix the history already held, 1 counting as 2 since a one-token prompt never streams; rows a server forks from a donor keep the path the donor's prompt took (`docs/SERVER.md`, Open gaps). The norm and router get a
   copy there at load, the experts are written into a per-device window
   (one buffer per projection, sized to the largest such layer) once per
   pass that needs them, and `ffn_split` runs a pass's consecutive entries

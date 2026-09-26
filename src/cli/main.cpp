@@ -904,7 +904,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --host H                Listen address (default: " << cfg.host << ")\n"
             << "  --port N                Listen port; 0 picks a free one (default: " << cfg.port << ")\n"
             << "  --max-seqs N            Active request limit (default: " << cfg.max_seqs << ")\n"
-            << "  --max-queue N           Waiting request limit (default: " << cfg.max_queue << ")\n"
+            << "  --max-queue N           Queued request limit, paused requests not counted (default: " << cfg.max_queue << ")\n"
             << "  --ctx-size N, -c        Total KV token budget (default: model context)\n";
         model_options(false);
         out << "\nRoutes:\n"
@@ -961,6 +961,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --r N                   Real-model repetitions (default: " << bench.repeats << ")\n"
             << "  --seqs N                Sequences decoding together, a pass one token of each (default: " << bench.seqs << ")\n"
             << "  --depth N               History of N tokens, filled untimed, that each test runs after (default: " << bench.depth << ")\n"
+            << "                          It counts toward --moe-stream-from's prompt length.\n"
             << "  --profile               Real-model kernel timing and statistics on one Vulkan device\n";
         model_options(false);
         out << "\nExecution options other than --device and --threads apply only with --model.\n"

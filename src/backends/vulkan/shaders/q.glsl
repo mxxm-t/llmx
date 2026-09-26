@@ -26,7 +26,7 @@ const uint Q6_K_BYTES = 210u;
 const uint Q8_0_BLOCK = 32u;
 const uint Q8_0_BYTES = 34u;
 
-// Q4_0: 32 values per block, a half scale then 16 bytes of nibbles, 18 bytes; value j < 16 is byte j's low nibble, j + 16 its high one, and value = nibble * d - 8 * d in the CPU's order.
+// Q4_0: 32 values per block, a half scale then 16 bytes of nibbles, 18 bytes; value j < 16 is byte j's low nibble, j + 16 its high one, and value = (nibble - 8) * d.
 const uint Q4_0_BLOCK = 32u;
 const uint Q4_0_BYTES = 18u;
 

@@ -148,6 +148,8 @@ HF gate measures the cost of it.
   the tile kernel use; the row kernel decodes words in place. Types are
   keyed by the same ids `quant::Registry` uses; the registry says which
   types exist, the shader include says how the device decodes them.
+  Q4_0 has a second decoder for `embed`, `q4_0_exact`, which computes the CPU's `(nibble - 8) * d` and sets a zero's sign as bits: `embed` matches the CPU bit for bit under every finite scale, and a driver need not keep a zero's sign.
+  Every other type's `embed` decode takes a zero's sign from the driver's arithmetic, which the drivers tested keep today; of backend-vulkan's exact embed checks only the Q6_K rows decode a -0, so for Q8_0, Q4_1, Q4_K and Q5_K nothing checks it.
   A type without a kernel is refused at the first matmul or embed over it, the matmul naming the type by its numeric id.
   Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, every type the CPU reads.
 - **matmul, decode** (`nbatch` small): one subgroup per output row, each

@@ -1,13 +1,21 @@
 // Per-value decoders over bytes the including shader reads through QBYTE(i), a macro since GLSL functions cannot take an unsized array.
-// Each returns value j of the block at byte o, in the CPU decoders' arithmetic order (quant/), so embed matches the CPU exactly.
+// Each returns value j of the block at byte o in the CPU decoders' arithmetic order (quant/), so embed matches the CPU exactly, except q4_0_at, which only the float tile uses; embed decodes Q4_0 through q4_0_exact.
 #ifndef LLMX_QDECODE_GLSL
 #define LLMX_QDECODE_GLSL
 
-// Q4_0: (nibble - 8) * d as nibble * d - 8 * d.
+// Q4_0: (nibble - 8) * d as nibble * d - 8 * d, the same value under a finite scale except +0 for the -0 that nibble 8 gives under a negative scale, which the tile's sums never see.
 float q4_0_at(uint o, uint j, float d) {
     uint byte = QBYTE(o + 2u + (j & 15u));
     uint nib = j < 16u ? (byte & 15u) : (byte >> 4u);
     return float(nib) * d - 8.0 * d;
+}
+
+// Q4_0 as the CPU decodes it, (nibble - 8) * d, exact under a finite scale, with the sign set as bits, since a driver need not keep a zero's sign without SignedZeroInfNanPreserve.
+float q4_0_exact(uint o, uint j, float d) {
+    uint byte = QBYTE(o + 2u + (j & 15u));
+    uint nib = j < 16u ? (byte & 15u) : (byte >> 4u);
+    uint sign = (floatBitsToUint(d) ^ (nib < 8u ? 0x80000000u : 0u)) & 0x80000000u;
+    return uintBitsToFloat((floatBitsToUint(float(int(nib) - 8) * d) & 0x7FFFFFFFu) | sign);
 }
 
 // Q4_1: d * nibble + m; d and m are the block's two halves.

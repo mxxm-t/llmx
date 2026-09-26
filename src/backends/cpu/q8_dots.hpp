@@ -10,8 +10,8 @@
 #include <immintrin.h>
 
 #include "core/fp16.hpp"
-#include "format/gguf.hpp"
 #include "quant/k_quants.hpp"
+#include "quant/types.hpp"
 
 namespace backend {
 namespace q8 {
@@ -161,14 +161,14 @@ inline float dot_q8_0(const uint8_t* row, const Rows& x, size_t r) {
     __m256 acc0 = _mm256_setzero_ps(), acc1 = _mm256_setzero_ps();
     size_t b = 0;
     for (; b + 2 <= nb; b += 2) {
-        const uint8_t* p = row + b * gguf::Q8_0_TYPESIZE;
+        const uint8_t* p = row + b * quant::Q8_0_TYPESIZE;
         const __m256i s0 = dot_ss(load(p + 2), load(q + b * 32));
-        const __m256i s1 = dot_ss(load(p + 2 + gguf::Q8_0_TYPESIZE), load(q + b * 32 + 32));
+        const __m256i s1 = dot_ss(load(p + 2 + quant::Q8_0_TYPESIZE), load(q + b * 32 + 32));
         acc0 = _mm256_fmadd_ps(_mm256_set1_ps(half(p) * d[b]), _mm256_cvtepi32_ps(s0), acc0);
-        acc1 = _mm256_fmadd_ps(_mm256_set1_ps(half(p + gguf::Q8_0_TYPESIZE) * d[b + 1]), _mm256_cvtepi32_ps(s1), acc1);
+        acc1 = _mm256_fmadd_ps(_mm256_set1_ps(half(p + quant::Q8_0_TYPESIZE) * d[b + 1]), _mm256_cvtepi32_ps(s1), acc1);
     }
     for (; b < nb; ++b) {
-        const uint8_t* p = row + b * gguf::Q8_0_TYPESIZE;
+        const uint8_t* p = row + b * quant::Q8_0_TYPESIZE;
         acc0 = _mm256_fmadd_ps(_mm256_set1_ps(half(p) * d[b]), _mm256_cvtepi32_ps(dot_ss(load(p + 2), load(q + b * 32))), acc0);
     }
     return hsum(_mm256_add_ps(acc0, acc1));
@@ -193,7 +193,7 @@ inline float dot_q4_0(const uint8_t* row, const Rows16& x, size_t r) {
     const __m256i eight = _mm256_set1_epi8(8);
     __m256 acc = _mm256_setzero_ps();
     for (size_t b = 0; b < nb; ++b) {
-        const uint8_t* p = row + b * gguf::Q4_0_TYPESIZE;
+        const uint8_t* p = row + b * quant::Q4_0_TYPESIZE;
         const __m256i w = _mm256_sub_epi8(nibbles32(p + 2), eight);
         acc = _mm256_fmadd_ps(_mm256_set1_ps(half(p) * d[b]), _mm256_cvtepi32_ps(dot16(w, q + b * 32)), acc);
     }
@@ -207,7 +207,7 @@ inline float dot_q4_1(const uint8_t* row, const Rows16& x, size_t r) {
     __m256 acc = _mm256_setzero_ps();
     float mins = 0.0f;
     for (size_t b = 0; b < nb; ++b) {
-        const uint8_t* p = row + b * gguf::Q4_1_TYPESIZE;
+        const uint8_t* p = row + b * quant::Q4_1_TYPESIZE;
         acc = _mm256_fmadd_ps(_mm256_set1_ps(half(p) * d[b]), _mm256_cvtepi32_ps(dot16(nibbles32(p + 4), q + b * 32)), acc);
         mins += half(p + 2) * d[b] * (float)s[b];
     }
@@ -216,7 +216,7 @@ inline float dot_q4_1(const uint8_t* row, const Rows16& x, size_t r) {
 // Q4_K and Q5_K: a 256-value block of eight groups of 32, each with a 6-bit scale and minimum under the block's two half scales; 32 bytes of nibbles hold groups 2j (low nibbles) and 2j + 1 (high).
 inline float dot_q45_K(const uint8_t* row, const Rows& x, size_t r, bool five) {
     const size_t nb = x.nin / 256;
-    const size_t bytes = five ? gguf::Q5_K_TYPESIZE : gguf::Q4_K_TYPESIZE;
+    const size_t bytes = five ? quant::Q5_K_TYPESIZE : quant::Q4_K_TYPESIZE;
     const int8_t* q = x.qs(r);
     const float* d = x.ds(r);
     const int32_t* s = x.sums(r);
@@ -257,7 +257,7 @@ inline float dot_q6_K(const uint8_t* row, const Rows16& x, size_t r) {
     const __m256i m4 = _mm256_set1_epi8(0x0F), m2 = _mm256_set1_epi8(3), off = _mm256_set1_epi8(32);
     __m256 acc = _mm256_setzero_ps();
     for (size_t b = 0; b < nb; ++b) {
-        const uint8_t* p = row + b * gguf::Q6_K_TYPESIZE;
+        const uint8_t* p = row + b * quant::Q6_K_TYPESIZE;
         const float dd = half(p + 208);
         const int8_t* sc = (const int8_t*)(p + 192);
         for (int n = 0; n < 2; ++n) {
@@ -314,7 +314,7 @@ struct KQ8_0 {
         u.ng = std::min<size_t>(8, nin / 32 - g0);
         alignas(32) float ws[8] = {0.0f};
         for (size_t g = 0; g < u.ng; ++g) {
-            const uint8_t* p = row + (g0 + g) * gguf::Q8_0_TYPESIZE;
+            const uint8_t* p = row + (g0 + g) * quant::Q8_0_TYPESIZE;
             const __m256i v = load(p + 2);
             _mm256_store_si256((__m256i*)(u.w + 32 * g), v);
             _mm256_store_si256((__m256i*)(u.a + 32 * g), _mm256_sign_epi8(v, v));
@@ -349,7 +349,7 @@ struct KQ4 {
     struct U { alignas(32) int16_t w[256]; __m256 ws, mw; __m256i lanes; size_t ng; };
     static size_t steps(size_t nin) { return (nin / 32 + 7) / 8; }
     static void unpack(const uint8_t* row, size_t t, size_t nin, U& u) {
-        const size_t g0 = t * 8, bytes = MIN ? gguf::Q4_1_TYPESIZE : gguf::Q4_0_TYPESIZE;
+        const size_t g0 = t * 8, bytes = MIN ? quant::Q4_1_TYPESIZE : quant::Q4_0_TYPESIZE;
         u.ng = std::min<size_t>(8, nin / 32 - g0);
         const __m256i eight = _mm256_set1_epi8(MIN ? 0 : 8);
         alignas(32) float ws[8] = {0.0f}, mw[8] = {0.0f};
@@ -385,7 +385,7 @@ struct KQ45_K {
     struct U { alignas(32) uint8_t w[256]; __m256 ws, mw; };
     static size_t steps(size_t nin) { return nin / 256; }
     static void unpack(const uint8_t* row, size_t t, size_t, U& u) {
-        const uint8_t* p = row + t * (FIVE ? gguf::Q5_K_TYPESIZE : gguf::Q4_K_TYPESIZE);
+        const uint8_t* p = row + t * (FIVE ? quant::Q5_K_TYPESIZE : quant::Q4_K_TYPESIZE);
         const __m256i m4 = _mm256_set1_epi8(0x0F), one = _mm256_set1_epi8(1);
         const float dd = half(p), dmin = half(p + 2);
         const uint8_t* sc = p + 4;
@@ -430,7 +430,7 @@ struct KQ6_K {
     struct U { alignas(32) int16_t w[256]; __m256 wl, wh; };
     static size_t steps(size_t nin) { return nin / 256; }
     static void unpack(const uint8_t* row, size_t t, size_t, U& u) {
-        const uint8_t* p = row + t * gguf::Q6_K_TYPESIZE;
+        const uint8_t* p = row + t * quant::Q6_K_TYPESIZE;
         const __m256i m4 = _mm256_set1_epi8(0x0F), m2 = _mm256_set1_epi8(3), off = _mm256_set1_epi8(32);
         const float dd = half(p + 208);
         const int8_t* sc = (const int8_t*)(p + 192);
@@ -493,11 +493,11 @@ inline void block_dots(const uint8_t* w, size_t row_bytes, size_t nrows, const t
 }
 // Whether a type has a dot here, which activations it reads, and the dot itself.
 inline bool has_dot(uint32_t type) {
-    return type == gguf::GGML_TYPE_Q8_0 || type == gguf::GGML_TYPE_Q4_0 || type == gguf::GGML_TYPE_Q4_1 ||
-           type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K || type == gguf::GGML_TYPE_Q6_K;
+    return type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 ||
+           type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K;
 }
 inline bool reads16(uint32_t type) {
-    return type == gguf::GGML_TYPE_Q4_0 || type == gguf::GGML_TYPE_Q4_1 || type == gguf::GGML_TYPE_Q6_K;
+    return type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q6_K;
 }
 
 // The activation rows of a call, each precision quantized once when a type first reads it; `par(rows, fn)` runs fn over ranges of rows, from several threads if it likes.
@@ -536,11 +536,11 @@ struct Activations {
 inline void dot_block(uint32_t type, const uint8_t* w, size_t row_bytes, size_t nrows, const Activations& x, const size_t* r, size_t n,
                       float* const* out, size_t o0) {
     switch (type) {
-    case gguf::GGML_TYPE_Q8_0: block_dots<KQ8_0>(w, row_bytes, nrows, x.x8, r, n, out, o0); break;
-    case gguf::GGML_TYPE_Q4_0: block_dots<KQ4<false>>(w, row_bytes, nrows, x.x16, r, n, out, o0); break;
-    case gguf::GGML_TYPE_Q4_1: block_dots<KQ4<true>>(w, row_bytes, nrows, x.x16, r, n, out, o0); break;
-    case gguf::GGML_TYPE_Q4_K: block_dots<KQ45_K<false>>(w, row_bytes, nrows, x.x8, r, n, out, o0); break;
-    case gguf::GGML_TYPE_Q5_K: block_dots<KQ45_K<true>>(w, row_bytes, nrows, x.x8, r, n, out, o0); break;
+    case quant::GGML_TYPE_Q8_0: block_dots<KQ8_0>(w, row_bytes, nrows, x.x8, r, n, out, o0); break;
+    case quant::GGML_TYPE_Q4_0: block_dots<KQ4<false>>(w, row_bytes, nrows, x.x16, r, n, out, o0); break;
+    case quant::GGML_TYPE_Q4_1: block_dots<KQ4<true>>(w, row_bytes, nrows, x.x16, r, n, out, o0); break;
+    case quant::GGML_TYPE_Q4_K: block_dots<KQ45_K<false>>(w, row_bytes, nrows, x.x8, r, n, out, o0); break;
+    case quant::GGML_TYPE_Q5_K: block_dots<KQ45_K<true>>(w, row_bytes, nrows, x.x8, r, n, out, o0); break;
     default: block_dots<KQ6_K>(w, row_bytes, nrows, x.x16, r, n, out, o0); break;
     }
 }
@@ -548,11 +548,11 @@ inline void dot_block(uint32_t type, const uint8_t* w, size_t row_bytes, size_t 
 // A generated token's row: the decode dots.
 inline float dot(uint32_t type, const uint8_t* row, const Activations& x, size_t r) {
     switch (type) {
-    case gguf::GGML_TYPE_Q8_0: return dot_q8_0(row, x.x8, r);
-    case gguf::GGML_TYPE_Q4_0: return dot_q4_0(row, x.x16, r);
-    case gguf::GGML_TYPE_Q4_1: return dot_q4_1(row, x.x16, r);
-    case gguf::GGML_TYPE_Q4_K: return dot_q45_K(row, x.x8, r, false);
-    case gguf::GGML_TYPE_Q5_K: return dot_q45_K(row, x.x8, r, true);
+    case quant::GGML_TYPE_Q8_0: return dot_q8_0(row, x.x8, r);
+    case quant::GGML_TYPE_Q4_0: return dot_q4_0(row, x.x16, r);
+    case quant::GGML_TYPE_Q4_1: return dot_q4_1(row, x.x16, r);
+    case quant::GGML_TYPE_Q4_K: return dot_q45_K(row, x.x8, r, false);
+    case quant::GGML_TYPE_Q5_K: return dot_q45_K(row, x.x8, r, true);
     default: return dot_q6_K(row, x.x16, r);
     }
 }

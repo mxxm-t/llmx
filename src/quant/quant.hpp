@@ -9,22 +9,22 @@
 #include <unordered_map>
 
 #include "core/fp16.hpp"
-#include "format/gguf.hpp"
 #include "quant/k_quants.hpp"
+#include "quant/types.hpp"
 
-// Block quantization: the Q8_0, Q4_0 and Q4_1 row kernels, and the registry naming each GGUF type llmx reads with its block size and kernels (the K-quants' are in k_quants.hpp).
-// A Q8_0 block holds 32 float values as a 2-byte f16 scale and 32 int8 values (gguf::Q8_0_TYPESIZE bytes per block).
+// Block quantization: the Q8_0, Q4_0 and Q4_1 row kernels, and the registry pairing each type llmx reads (types.hpp) with its block size and kernels (the K-quants' are in k_quants.hpp).
+// A Q8_0 block holds 32 float values as a 2-byte f16 scale and 32 int8 values (Q8_0_TYPESIZE bytes per block).
 // The kernels serve the quantize command (float -> block) and the dequantize command and CPU inference path (block -> float).
 
 namespace quant {
 
 inline void quantize_row_q8_0(const float* src, uint8_t* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
-        const float* x = src + b * gguf::Q8_0_BLOCK;
-        uint8_t*      y = dst + b * gguf::Q8_0_TYPESIZE;
+        const float* x = src + b * Q8_0_BLOCK;
+        uint8_t*      y = dst + b * Q8_0_TYPESIZE;
 
         float amax = 0.0f;
-        for (size_t j = 0; j < gguf::Q8_0_BLOCK; j++)
+        for (size_t j = 0; j < Q8_0_BLOCK; j++)
             amax = std::max(amax, std::fabs(x[j]));
 
         const float d = amax / 127.0f;
@@ -32,7 +32,7 @@ inline void quantize_row_q8_0(const float* src, uint8_t* dst, size_t nblocks) {
         y[0] = (uint8_t)(d16 & 0xff);
         y[1] = (uint8_t)(d16 >> 8);
 
-        for (size_t j = 0; j < gguf::Q8_0_BLOCK; j++) {
+        for (size_t j = 0; j < Q8_0_BLOCK; j++) {
             float q = (d > 0.0f) ? std::round(x[j] / d) : 0.0f;
             int v = (int)q;
             if (v > 127)  v = 127;
@@ -44,28 +44,28 @@ inline void quantize_row_q8_0(const float* src, uint8_t* dst, size_t nblocks) {
 
 inline void dequantize_row_q8_0(const uint8_t* src, float* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
-        const uint8_t* y = src + b * gguf::Q8_0_TYPESIZE;
-        float*         x = dst + b * gguf::Q8_0_BLOCK;
+        const uint8_t* y = src + b * Q8_0_TYPESIZE;
+        float*         x = dst + b * Q8_0_BLOCK;
 
         uint16_t d16 = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
         const float d = f16_to_f32(d16);
-        for (size_t j = 0; j < gguf::Q8_0_BLOCK; j++)
+        for (size_t j = 0; j < Q8_0_BLOCK; j++)
             x[j] = (float)(int8_t)y[2 + j] * d;
     }
 }
 
 // Q4_0 block quantization.
-// A block holds 32 floats compressed into a 2-byte f16 scale + 16 bytes of nibbles (gguf::Q4_0_TYPESIZE = 18 bytes per block).
+// A block holds 32 floats compressed into a 2-byte f16 scale + 16 bytes of nibbles (Q4_0_TYPESIZE = 18 bytes per block).
 // The scale is d = amax/7 so the quantized range [-8, 7] maps to [-amax, amax].
 // Each byte holds two values: the low nibble is element j, the high nibble element j+16; the stored nibble is unsigned 0..15 where the true value = nibble - 8.
 // Decoding as d*(nibble - 8) gives the format's -0 at nibble 8 under a negative scale; the product is exact in f32, since |nibble - 8| is at most 8.
 inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
-        const float* x = src + b * gguf::Q4_0_BLOCK;
-        uint8_t*      y = dst + b * gguf::Q4_0_TYPESIZE;
+        const float* x = src + b * Q4_0_BLOCK;
+        uint8_t*      y = dst + b * Q4_0_TYPESIZE;
 
         float amax = 0.0f;
-        for (size_t j = 0; j < gguf::Q4_0_BLOCK; j++)
+        for (size_t j = 0; j < Q4_0_BLOCK; j++)
             amax = std::max(amax, std::fabs(x[j]));
 
         const float d = amax / 7.0f;
@@ -74,9 +74,9 @@ inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {
         y[1] = (uint8_t)(d16 >> 8);
         const float id = (d > 0.0f) ? (1.0f / d) : 0.0f;
 
-        for (size_t j = 0; j < gguf::Q4_0_BLOCK / 2; j++) {
+        for (size_t j = 0; j < Q4_0_BLOCK / 2; j++) {
             int lo = (int)std::round(x[j] * id) + 8;
-            int hi = (int)std::round(x[j + gguf::Q4_0_BLOCK / 2] * id) + 8;
+            int hi = (int)std::round(x[j + Q4_0_BLOCK / 2] * id) + 8;
             lo = std::min(15, std::max(0, lo));
             hi = std::min(15, std::max(0, hi));
             y[2 + j] = (uint8_t)(lo | (hi << 4));
@@ -86,27 +86,27 @@ inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {
 
 inline void dequantize_row_q4_0(const uint8_t* src, float* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
-        const uint8_t* y = src + b * gguf::Q4_0_TYPESIZE;
-        float*         x = dst + b * gguf::Q4_0_BLOCK;
+        const uint8_t* y = src + b * Q4_0_TYPESIZE;
+        float*         x = dst + b * Q4_0_BLOCK;
 
         uint16_t d16 = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
         const float d = f16_to_f32(d16);
-        for (size_t j = 0; j < gguf::Q4_0_BLOCK / 2; j++) {
+        for (size_t j = 0; j < Q4_0_BLOCK / 2; j++) {
             uint8_t byte = y[2 + j];
             x[j] = (float)((int)(byte & 0x0F) - 8) * d;
-            x[j + gguf::Q4_0_BLOCK / 2] = (float)((int)(byte >> 4) - 8) * d;
+            x[j + Q4_0_BLOCK / 2] = (float)((int)(byte >> 4) - 8) * d;
         }
     }
 }
 
-// Q4_1 block: 2-byte f16 scale d, 2-byte f16 min m, then 16 bytes of nibbles (gguf::Q4_1_TYPESIZE = 20).
+// Q4_1 block: 2-byte f16 scale d, 2-byte f16 min m, then 16 bytes of nibbles (Q4_1_TYPESIZE = 20).
 // Unlike Q4_0 the nibble is unsigned and the block carries its own offset, so the value is d*q + m rather than d*(q-8).
 inline void quantize_row_q4_1(const float* src, uint8_t* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
-        const float* x = src + b * gguf::Q4_1_BLOCK;
-        uint8_t*      y = dst + b * gguf::Q4_1_TYPESIZE;
+        const float* x = src + b * Q4_1_BLOCK;
+        uint8_t*      y = dst + b * Q4_1_TYPESIZE;
         float mn = x[0], mx = x[0];
-        for (size_t j = 1; j < gguf::Q4_1_BLOCK; j++) {
+        for (size_t j = 1; j < Q4_1_BLOCK; j++) {
             mn = std::min(mn, x[j]);
             mx = std::max(mx, x[j]);
         }
@@ -115,9 +115,9 @@ inline void quantize_row_q4_1(const float* src, uint8_t* dst, size_t nblocks) {
         const uint16_t d16 = f32_to_f16(d), m16 = f32_to_f16(mn);
         y[0] = (uint8_t)(d16 & 0xff); y[1] = (uint8_t)(d16 >> 8);
         y[2] = (uint8_t)(m16 & 0xff); y[3] = (uint8_t)(m16 >> 8);
-        for (size_t j = 0; j < gguf::Q4_1_BLOCK / 2; j++) {
+        for (size_t j = 0; j < Q4_1_BLOCK / 2; j++) {
             int lo = (int)std::round((x[j] - mn) * id);
-            int hi = (int)std::round((x[j + gguf::Q4_1_BLOCK / 2] - mn) * id);
+            int hi = (int)std::round((x[j + Q4_1_BLOCK / 2] - mn) * id);
             lo = std::min(15, std::max(0, lo));
             hi = std::min(15, std::max(0, hi));
             y[4 + j] = (uint8_t)(lo | (hi << 4));
@@ -127,14 +127,14 @@ inline void quantize_row_q4_1(const float* src, uint8_t* dst, size_t nblocks) {
 
 inline void dequantize_row_q4_1(const uint8_t* src, float* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
-        const uint8_t* y = src + b * gguf::Q4_1_TYPESIZE;
-        float*         x = dst + b * gguf::Q4_1_BLOCK;
+        const uint8_t* y = src + b * Q4_1_TYPESIZE;
+        float*         x = dst + b * Q4_1_BLOCK;
         const float d = f16_to_f32((uint16_t)(y[0] | ((uint16_t)y[1] << 8)));
         const float m = f16_to_f32((uint16_t)(y[2] | ((uint16_t)y[3] << 8)));
-        for (size_t j = 0; j < gguf::Q4_1_BLOCK / 2; j++) {
+        for (size_t j = 0; j < Q4_1_BLOCK / 2; j++) {
             const uint8_t byte = y[4 + j];
             x[j]                              = d * (float)(byte & 0x0F) + m;
-            x[j + gguf::Q4_1_BLOCK / 2]       = d * (float)(byte >> 4)   + m;
+            x[j + Q4_1_BLOCK / 2]       = d * (float)(byte >> 4)   + m;
         }
     }
 }
@@ -164,35 +164,35 @@ public:
 
 private:
     Registry() : types_{
-        { gguf::GGML_TYPE_Q8_0,
-          { "Q8_0", gguf::Q8_0_BLOCK, gguf::Q8_0_TYPESIZE, quantize_row_q8_0, dequantize_row_q8_0 } },
-        { gguf::GGML_TYPE_Q4_0,
-          { "Q4_0", gguf::Q4_0_BLOCK, gguf::Q4_0_TYPESIZE, quantize_row_q4_0, dequantize_row_q4_0 } },
-        { gguf::GGML_TYPE_Q4_1,
-          { "Q4_1", gguf::Q4_1_BLOCK, gguf::Q4_1_TYPESIZE, quantize_row_q4_1, dequantize_row_q4_1 } },
+        { GGML_TYPE_Q8_0,
+          { "Q8_0", Q8_0_BLOCK, Q8_0_TYPESIZE, quantize_row_q8_0, dequantize_row_q8_0 } },
+        { GGML_TYPE_Q4_0,
+          { "Q4_0", Q4_0_BLOCK, Q4_0_TYPESIZE, quantize_row_q4_0, dequantize_row_q4_0 } },
+        { GGML_TYPE_Q4_1,
+          { "Q4_1", Q4_1_BLOCK, Q4_1_TYPESIZE, quantize_row_q4_1, dequantize_row_q4_1 } },
         // The K-quants are read-only: llmx loads files that carry them, including a few Q6_K tensors inside an otherwise Q4_0 file, but produces none, so a quantizer would be unused code.
-        { gguf::GGML_TYPE_Q4_K,
-          { "Q4_K", gguf::Q4_K_BLOCK, gguf::Q4_K_TYPESIZE, nullptr, dequantize_row_q4_K } },
-        { gguf::GGML_TYPE_Q5_K,
-          { "Q5_K", gguf::Q5_K_BLOCK, gguf::Q5_K_TYPESIZE, nullptr, dequantize_row_q5_K } },
-        { gguf::GGML_TYPE_Q6_K,
-          { "Q6_K", gguf::Q6_K_BLOCK, gguf::Q6_K_TYPESIZE, nullptr, dequantize_row_q6_K } },
-        { gguf::GGML_TYPE_F32,
+        { GGML_TYPE_Q4_K,
+          { "Q4_K", Q4_K_BLOCK, Q4_K_TYPESIZE, nullptr, dequantize_row_q4_K } },
+        { GGML_TYPE_Q5_K,
+          { "Q5_K", Q5_K_BLOCK, Q5_K_TYPESIZE, nullptr, dequantize_row_q5_K } },
+        { GGML_TYPE_Q6_K,
+          { "Q6_K", Q6_K_BLOCK, Q6_K_TYPESIZE, nullptr, dequantize_row_q6_K } },
+        { GGML_TYPE_F32,
           { "F32", 1, 4, nullptr, nullptr } },
     } {}
     const std::unordered_map<uint32_t, QuantType> types_;
 };
 
-// Bytes in a row of `nin` values of a registered type.
-// Throws for a type the registry does not name, a row that ends inside a block, or a size that would wrap.
-inline size_t row_bytes(uint32_t type, size_t nin) {
+// Bytes in `rows` rows of `nin` values of a registered type.
+// Throws for a type the registry does not name, a row that ends inside a block, or a size that would wrap; zero rows take zero bytes, however wide a row.
+inline size_t row_bytes(uint32_t type, size_t nin, size_t rows = 1) {
     const QuantType* qt = Registry::instance().get(type);
-    if (!qt) throw std::runtime_error("quant: unknown tensor type " + std::to_string(type));
+    if (!qt) throw std::runtime_error("quant: unsupported tensor type " + std::to_string(type));
     if (nin % qt->block_size)
         throw std::runtime_error("quant: a row of " + std::to_string(nin) + " values is not whole " + qt->name + " blocks");
     const size_t blocks = nin / qt->block_size;
-    if (blocks > std::numeric_limits<size_t>::max() / qt->type_size) throw std::runtime_error("quant: row size overflows");
-    return blocks * qt->type_size;
+    if (rows && blocks > std::numeric_limits<size_t>::max() / rows / qt->type_size) throw std::runtime_error("quant: row size overflows");
+    return blocks * rows * qt->type_size;
 }
 
 } // namespace quant

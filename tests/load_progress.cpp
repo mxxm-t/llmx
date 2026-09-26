@@ -526,10 +526,10 @@ int main(int argc, char** argv) {
     const std::string path = argv[1];
     try {
         gguf::GGUFModel source;
-        source.tensors.push_back({"quant", {32}, gguf::GGML_TYPE_Q8_0, 0});
+        source.tensors.push_back({"quant", {32}, quant::GGML_TYPE_Q8_0, 0});
         source.add_tensor_data(std::vector<uint8_t>(34, 17));
         const size_t bytes = 8 * 1024 * 1024 + 64;
-        source.tensors.push_back({"large", {bytes / 4}, gguf::GGML_TYPE_F32, 0});
+        source.tensors.push_back({"large", {bytes / 4}, quant::GGML_TYPE_F32, 0});
         std::vector<uint8_t> values(bytes);
         for (size_t i = 0; i < values.size(); ++i) values[i] = uint8_t(i * 31);
         source.add_tensor_data(values);
@@ -546,7 +546,7 @@ int main(int argc, char** argv) {
             const auto in_file = std::filesystem::file_size(path);
             auto loaded = gguf::read_gguf(path);
             require(loaded.tensors.size() == 2 && loaded.tensors[0].name == "quant" && loaded.tensors[1].name == "large" &&
-                    loaded.tensors[1].ne == source.tensors[1].ne && loaded.tensors[1].type == gguf::GGML_TYPE_F32,
+                    loaded.tensors[1].ne == source.tensors[1].ne && loaded.tensors[1].type == quant::GGML_TYPE_F32,
                     "reading changed the tensor table");
             std::ifstream in(path, std::ios::binary);
             for (size_t i = 0; i < source.tensors.size(); ++i) {
@@ -629,7 +629,7 @@ int main(int argc, char** argv) {
             os.write((const char*)counts, sizeof(counts));
             for (int i = 0; i < 2; ++i) {
                 gguf::write_string(os, i ? "empty" : "value");
-                const uint32_t nd = 1, type = gguf::GGML_TYPE_F32;
+                const uint32_t nd = 1, type = quant::GGML_TYPE_F32;
                 const uint64_t ne = i ? 0 : 1, offset = i ? (uint64_t(1) << 63) : 0;
                 os.write((const char*)&nd, 4);
                 os.write((const char*)&ne, 8);

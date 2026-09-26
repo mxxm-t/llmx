@@ -51,15 +51,15 @@ inline std::vector<gguf::TensorInfo> raw_tensors(const jmini::Value& root, uint3
 
 // The GGML type a quantize type name selects, or none for any other name: q8_0 and q4_0 are the only types quantize writes.
 inline std::optional<uint32_t> quant_type_of(const std::string& name) {
-    if (name == "q8_0") return gguf::GGML_TYPE_Q8_0;
-    if (name == "q4_0") return gguf::GGML_TYPE_Q4_0;
+    if (name == "q8_0") return quant::GGML_TYPE_Q8_0;
+    if (name == "q4_0") return quant::GGML_TYPE_Q4_0;
     return std::nullopt;
 }
 
 // GGUF's general.file_type for a model whose matrices are all `type`.
 inline uint32_t file_type_of(uint32_t type) {
-    if (type == gguf::GGML_TYPE_Q8_0) return 7;   // MOSTLY_Q8_0
-    if (type == gguf::GGML_TYPE_Q4_0) return 2;   // MOSTLY_Q4_0
+    if (type == quant::GGML_TYPE_Q8_0) return 7;   // MOSTLY_Q8_0
+    if (type == quant::GGML_TYPE_Q4_0) return 2;   // MOSTLY_Q4_0
     throw std::runtime_error("quantize: no file type for this quant type");
 }
 
@@ -148,7 +148,7 @@ inline void dequantize_to_raw(const std::string& in_path, const std::string& out
         const uint8_t* raw = m.tensor_data(i);
         const size_t n = (size_t)t.n_elements();
         std::vector<float> f(n);
-        if (t.type == gguf::GGML_TYPE_F32) {
+        if (t.type == quant::GGML_TYPE_F32) {
             std::memcpy(f.data(), raw, n * 4);
         } else {
             const quant::QuantType* qt = quant::Registry::instance().get(t.type);

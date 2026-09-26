@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <string>
 
-#include "format/gguf.hpp"
+#include "quant/types.hpp"
 
 namespace backend {
 
@@ -125,9 +125,9 @@ inline size_t tile_from_for(const DeviceProfile& profile, bool every_projection_
 // Prompt extent from which a routed projection of this weight type takes the tile kernel: the 4-bit rows, cheap to unpack per entry, stay ahead of the tile's grouping longer.
 inline size_t moe_tile_from_for(const DeviceProfile& profile, uint32_t type) {
     switch (type) {
-    case gguf::GGML_TYPE_Q4_0: case gguf::GGML_TYPE_Q4_1: return profile.moe_tile_from_q4;
-    case gguf::GGML_TYPE_Q4_K: return profile.moe_tile_from_q4k;
-    case gguf::GGML_TYPE_Q5_K: return profile.moe_tile_from_q5k;
+    case quant::GGML_TYPE_Q4_0: case quant::GGML_TYPE_Q4_1: return profile.moe_tile_from_q4;
+    case quant::GGML_TYPE_Q4_K: return profile.moe_tile_from_q4k;
+    case quant::GGML_TYPE_Q5_K: return profile.moe_tile_from_q5k;
     default: return profile.moe_tile_from;
     }
 }

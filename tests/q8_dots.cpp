@@ -154,7 +154,7 @@ std::vector<uint8_t> packed(uint32_t type, size_t rows, size_t nin, std::mt19937
     for (uint8_t& b : out) b = uint8_t(rng());
     for (size_t b = 0; b < blocks; ++b) {
         uint8_t* p = out.data() + b * qt->type_size;
-        if (type == gguf::GGML_TYPE_Q6_K) { p[208] = 0x00; p[209] = 0x14; }
+        if (type == quant::GGML_TYPE_Q6_K) { p[208] = 0x00; p[209] = 0x14; }
         else { p[0] = 0x00; p[1] = 0x14; p[2] = 0x00; p[3] = 0x10; }
     }
     return out;
@@ -228,7 +228,7 @@ size_t check_type(uint32_t type, size_t nin, std::mt19937& rng) {
                 mag += std::fabs(t);
             }
             // A prompt's K-quant rows at least kPromptDotsFrom wide meet these activations through the prompt dots; narrower ones, and the other types, take the float path on the unrounded ones.
-            const bool kquant = type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K || type == gguf::GGML_TYPE_Q6_K;
+            const bool kquant = type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K;
             const bool dots = kquant && nin >= backend::CpuBackend::kPromptDotsFrom;
             for (const float got : dots ? std::vector<float>{alone[c * rows + o], prompt[c * rows + o]} : std::vector<float>{alone[c * rows + o]})
                 require(std::isfinite(got) && std::fabs(got - ref) <= 1e-5 * mag + 1e-30,
@@ -309,12 +309,12 @@ int main() {
                     a8.blocks + a16.blocks, a8.values + a16.values, a8.tiny + a16.tiny, a8.ties + a16.ties);
         std::mt19937 rng(7);
         size_t n = 0;
-        for (uint32_t type : {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
-                              gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K})
+        for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1,
+                              quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K})
             for (size_t nin : {size_t(256), size_t(2048), size_t(4096)}) n += check_type(type, nin, rng);
         size_t routed = 0;
-        for (uint32_t type : {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
-                              gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K})
+        for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1,
+                              quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K})
             routed += check_experts(type, rng);
         std::printf("q8 dots: %zu rows against the reference, alone, beside others and grouped; %zu routed entries against their experts\n",
                     n, routed);

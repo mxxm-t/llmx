@@ -5,7 +5,7 @@ weights, occupying 144, 176 or 210 bytes respectively. Q4_K and Q5_K share the
 6-bit scale/min decoder `get_scale_min_k4`; Q5_K additionally reconstructs high
 weight bits. Q6_K reconstructs signed 6-bit values with per-group signed scales.
 
-`quant.hpp` registers these decoders; `format/gguf.hpp` holds file type IDs and
+`quant.hpp` registers these decoders; `types.hpp` holds the type ids and
 block sizes. The CPU backend uses integer dots for decode, the prompt dots for batched
 rows at least 4096 wide, and the dequantized-row path for narrower ones
 (`docs/src/backends-cpu.md`). No K-quant writer exists.

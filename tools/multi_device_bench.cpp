@@ -28,8 +28,8 @@
 #include <vector>
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "bench_weights.hpp"
-#include "format/gguf.hpp"
 #include "inference/load.hpp"
+#include "quant/types.hpp"
 
 namespace {
 
@@ -52,7 +52,7 @@ double median(std::vector<double> v) {
 }
 
 const size_t kEmbd = 5120, kFF = 25600, kMaxRows = 512;
-const uint32_t kQ8 = gguf::GGML_TYPE_Q8_0;
+const uint32_t kQ8 = quant::GGML_TYPE_Q8_0;
 
 // The split nearest `want` among those that cut both projections into equal slices of at least 80 rows.
 size_t nearest_split(double want) {

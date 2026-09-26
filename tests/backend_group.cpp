@@ -61,8 +61,8 @@ static size_t check_q8_scales(backend::CpuBackend& cpu) {
             // A one-hot input makes every finite f16 scale times int8 exact in f32, independently of the SIMD reduction order.
             const float expected = f16_to_f32(uint16_t(h)) * float(q);
             actual = 0.0f;
-            cpu.matmul(gguf::GGML_TYPE_Q8_0, {row_buf.get(), 0}, {x_buf.get(), 0},
-                       {out_buf.get(), 0}, gguf::Q8_0_BLOCK, 1, 1);
+            cpu.matmul(quant::GGML_TYPE_Q8_0, {row_buf.get(), 0}, {x_buf.get(), 0},
+                       {out_buf.get(), 0}, quant::Q8_0_BLOCK, 1, 1);
             require(std::isfinite(actual) && actual == expected, "Q8 scale or signed weight differs");
             ++count;
         }
@@ -79,18 +79,18 @@ struct Matrix {
     std::vector<float> separate, grouped;
 
     const uint8_t* data() const {
-        return type == gguf::GGML_TYPE_F32
+        return type == quant::GGML_TYPE_F32
             ? reinterpret_cast<const uint8_t*>(weights.data()) : packed.data();
     }
     size_t bytes() const {
-        return type == gguf::GGML_TYPE_F32 ? weights.size() * sizeof(float) : packed.size();
+        return type == quant::GGML_TYPE_F32 ? weights.size() * sizeof(float) : packed.size();
     }
 
     Matrix(uint32_t t, size_t n, size_t width, size_t batch) : type(t), rows(n) {
         weights.resize(rows * width);
         for (size_t i = 0; i < weights.size(); ++i)
             weights[i] = float(int((i * 37 + 13) % 257) - 128) / 128.0f;
-        if (type != gguf::GGML_TYPE_F32) {
+        if (type != quant::GGML_TYPE_F32) {
             const auto* q = quant::Registry::instance().get(type);
             const size_t blocks = weights.size() / q->block_size;
             packed.resize(blocks * q->type_size);
@@ -102,9 +102,9 @@ struct Matrix {
                     uint8_t* p = packed.data() + b * q->type_size;
                     // Finite binary-power scales, including f16 subnormals.
                     const uint16_t scale = b % 3 == 0 ? 1 : 0x2000;
-                    const size_t offset = type == gguf::GGML_TYPE_Q6_K ? 208 : 0;
+                    const size_t offset = type == quant::GGML_TYPE_Q6_K ? 208 : 0;
                     std::memcpy(p + offset, &scale, sizeof(scale));
-                    if (type != gguf::GGML_TYPE_Q6_K)
+                    if (type != quant::GGML_TYPE_Q6_K)
                         std::memcpy(p + 2, &scale, sizeof(scale));
                 }
             }
@@ -185,11 +185,11 @@ static size_t check(backend::CpuBackend& cpu, std::array<uint32_t, 3> types,
 static size_t check_magnitudes(backend::CpuBackend& cpu) {
     size_t values = 0;
     for (float mag : {1e-30f, 1e-8f, 1.0f, 1e8f, 1e30f, 1e36f}) {
-        for (uint32_t type : {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0,
-                              gguf::GGML_TYPE_Q4_1, gguf::GGML_TYPE_Q4_K,
-                              gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K,
-                              gguf::GGML_TYPE_F32}) {
-            const size_t width = type == gguf::GGML_TYPE_F32 ? 37 : 256;
+        for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0,
+                              quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+                              quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K,
+                              quant::GGML_TYPE_F32}) {
+            const size_t width = type == quant::GGML_TYPE_F32 ? 37 : 256;
             Matrix m(type, 17, width, 1);
             std::vector<float> x(width);
             const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
@@ -311,17 +311,17 @@ int main() {
             cpu.matmul_group({}, {}, 0, 1);
             for (size_t rows : {size_t(7), size_t(47), size_t(48), size_t(65)}) {
                 for (size_t batch : {size_t(0), size_t(1), size_t(2), size_t(3), size_t(4)}) {
-                    for (uint32_t type : {gguf::GGML_TYPE_F32, gguf::GGML_TYPE_Q8_0,
-                            gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1, gguf::GGML_TYPE_Q4_K,
-                            gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K}) {
-                        values += check(cpu, {type, type, type}, type == gguf::GGML_TYPE_F32 ? 37 : 256,
+                    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0,
+                            quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+                            quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
+                        values += check(cpu, {type, type, type}, type == quant::GGML_TYPE_F32 ? 37 : 256,
                                         rows, batch);
                         ++cases;
                     }
-                    values += check(cpu, {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_F32, gguf::GGML_TYPE_Q4_K},
+                    values += check(cpu, {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_F32, quant::GGML_TYPE_Q4_K},
                                     256, rows, batch);
                     ++cases;
-                    values += check(cpu, {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q6_K, gguf::GGML_TYPE_Q4_K},
+                    values += check(cpu, {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_K},
                                     256, rows, batch);
                     ++cases;
                 }
@@ -343,8 +343,8 @@ int main() {
         rejected = false;
         try {
             const auto sink2 = cpu.adopt(sink.data(), sink.size() * sizeof(float));
-            cpu.matmul_group({{gguf::GGML_TYPE_Q8_0, {}, {sink2.get(), 0}, 65},
-                              {gguf::GGML_TYPE_Q8_0, {}, {sink2.get(), 0}, 67}},
+            cpu.matmul_group({{quant::GGML_TYPE_Q8_0, {}, {sink2.get(), 0}, 65},
+                              {quant::GGML_TYPE_Q8_0, {}, {sink2.get(), 0}, 67}},
                              {}, 256, 1);
         } catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "projection without storage was accepted");

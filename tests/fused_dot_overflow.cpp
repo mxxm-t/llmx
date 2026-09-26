@@ -26,9 +26,9 @@ void put16(std::vector<uint8_t>& v, size_t at, uint16_t x) {
 // Included to verify that by measurement rather than by reading the kernel, and to catch it if that ever changes.
 // Eight 32-value blocks, every weight 127.
 std::vector<uint8_t> block_q8_0(uint16_t half) {
-    std::vector<uint8_t> b(8 * gguf::Q8_0_TYPESIZE, 0);
+    std::vector<uint8_t> b(8 * quant::Q8_0_TYPESIZE, 0);
     for (int blk = 0; blk < 8; blk++) {
-        uint8_t* p = b.data() + blk * gguf::Q8_0_TYPESIZE;
+        uint8_t* p = b.data() + blk * quant::Q8_0_TYPESIZE;
         p[0] = (uint8_t)(half & 0xFF);
         p[1] = (uint8_t)(half >> 8);
         for (int i = 0; i < 32; i++) p[2 + i] = 127;
@@ -39,7 +39,7 @@ std::vector<uint8_t> block_q8_0(uint16_t half) {
 // Q4_K: every nibble 15, unit group scales, zero mins, so each weight decodes to 15.
 // Same 144-byte layout as the dequantizer expects.
 std::vector<uint8_t> block_q4_K(uint16_t half) {
-    std::vector<uint8_t> b(gguf::Q4_K_TYPESIZE, 0);
+    std::vector<uint8_t> b(quant::Q4_K_TYPESIZE, 0);
     put16(b, 0, half);          // d
     put16(b, 2, 0);             // dmin
     for (int g = 0; g < 8; g++) {   // 6-bit scale 1, min 0, all 8 groups
@@ -51,7 +51,7 @@ std::vector<uint8_t> block_q4_K(uint16_t half) {
 
 // One 256-value super-block whose every decoded weight is 31, with the given half-precision super-block scale.
 std::vector<uint8_t> block_q5_K(uint16_t half) {
-    std::vector<uint8_t> b(gguf::Q5_K_TYPESIZE, 0);
+    std::vector<uint8_t> b(quant::Q5_K_TYPESIZE, 0);
     put16(b, 0, half);          // d
     put16(b, 2, 0);             // dmin: no min contribution
     for (int g = 0; g < 8; g++) {   // 6-bit scale 1, min 0, for all 8 groups
@@ -63,7 +63,7 @@ std::vector<uint8_t> block_q5_K(uint16_t half) {
 }
 
 std::vector<uint8_t> block_q6_K(uint16_t half) {
-    std::vector<uint8_t> b(gguf::Q6_K_TYPESIZE, 0);
+    std::vector<uint8_t> b(quant::Q6_K_TYPESIZE, 0);
     for (int i = 0; i < 128; i++) b[i] = 0xFF;       // low nibbles 15
     for (int i = 0; i < 64; i++) b[128 + i] = 0xFF;  // high 2-bit pairs = 3
     for (int i = 0; i < 16; i++) b[192 + i] = 1;     // group scales 1
@@ -88,11 +88,11 @@ int run_type(uint32_t type, const char* tname, bool eight) {
     };
     int checked = 0;
     for (const auto& c : cases) {
-        const float q = type == gguf::GGML_TYPE_Q8_0 ? 127.0f
-                      : type == gguf::GGML_TYPE_Q4_K ? 15.0f : 31.0f;
-        std::vector<uint8_t> w = type == gguf::GGML_TYPE_Q8_0 ? block_q8_0(c.half)
-                               : type == gguf::GGML_TYPE_Q4_K ? block_q4_K(c.half)
-                               : type == gguf::GGML_TYPE_Q5_K ? block_q5_K(c.half)
+        const float q = type == quant::GGML_TYPE_Q8_0 ? 127.0f
+                      : type == quant::GGML_TYPE_Q4_K ? 15.0f : 31.0f;
+        std::vector<uint8_t> w = type == quant::GGML_TYPE_Q8_0 ? block_q8_0(c.half)
+                               : type == quant::GGML_TYPE_Q4_K ? block_q4_K(c.half)
+                               : type == quant::GGML_TYPE_Q5_K ? block_q5_K(c.half)
                                                               : block_q6_K(c.half);
         std::vector<float> x(nin), y(1, 0.0f);
         for (size_t i = 0; i < nin; i++)
@@ -130,10 +130,10 @@ int main() {
     try {
         int n = 0;
         for (bool eight : {false, true}) {
-            n += run_type(gguf::GGML_TYPE_Q8_0, "Q8_0", eight);
-            n += run_type(gguf::GGML_TYPE_Q4_K, "Q4_K", eight);
-            n += run_type(gguf::GGML_TYPE_Q5_K, "Q5_K", eight);
-            n += run_type(gguf::GGML_TYPE_Q6_K, "Q6_K", eight);
+            n += run_type(quant::GGML_TYPE_Q8_0, "Q8_0", eight);
+            n += run_type(quant::GGML_TYPE_Q4_K, "Q4_K", eight);
+            n += run_type(quant::GGML_TYPE_Q5_K, "Q5_K", eight);
+            n += run_type(quant::GGML_TYPE_Q6_K, "Q6_K", eight);
         }
         printf("fused dot overflow: %d cases finite and exact\n", n);
         return 0;

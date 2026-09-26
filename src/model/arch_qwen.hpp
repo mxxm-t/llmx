@@ -162,7 +162,7 @@ inline QwenConfig load_config(const gguf::GGUFModel& m) {
 struct TensorView {
     std::string name;
     std::vector<uint64_t> shape;   // fastest dimension first
-    uint32_t type = gguf::GGML_TYPE_F32;
+    uint32_t type = quant::GGML_TYPE_F32;
     const uint8_t* data = nullptr;
     size_t bytes = 0;
 };
@@ -393,7 +393,7 @@ inline gguf::GGUFModel synthetic_model(int n_layer, int n_embd, int n_ff, int n_
         gguf::TensorInfo t;
         t.name = name;
         t.ne = { (uint64_t)nin, (uint64_t)nout };
-        t.type = f32 ? gguf::GGML_TYPE_F32 : gguf::GGML_TYPE_Q8_0;
+        t.type = f32 ? quant::GGML_TYPE_F32 : quant::GGML_TYPE_Q8_0;
         t.offset = 0;
         if (f32) {
             std::vector<uint8_t> buf(nin * nout * 4);
@@ -403,12 +403,12 @@ inline gguf::GGUFModel synthetic_model(int n_layer, int n_embd, int n_ff, int n_
             m.tensors.push_back(std::move(t));
             m.add_tensor_data(buf);
         } else {
-            size_t nblocks = nin / gguf::Q8_0_BLOCK;
-            std::vector<uint8_t> buf(nout * nblocks * gguf::Q8_0_TYPESIZE);
+            size_t nblocks = nin / quant::Q8_0_BLOCK;
+            std::vector<uint8_t> buf(nout * nblocks * quant::Q8_0_TYPESIZE);
             std::vector<float> row(nin);
             for (size_t o = 0; o < nout; o++) {
                 for (size_t i = 0; i < nin; i++) row[i] = dist(rng);
-                quant::quantize_row_q8_0(row.data(), buf.data() + o * nblocks * gguf::Q8_0_TYPESIZE, nblocks);
+                quant::quantize_row_q8_0(row.data(), buf.data() + o * nblocks * quant::Q8_0_TYPESIZE, nblocks);
             }
             m.tensors.push_back(std::move(t));
             m.add_tensor_data(buf);
@@ -888,7 +888,7 @@ private:
             const TensorView& t = weights.tensors[i];
             bool valid = !t.shape.empty() && t.shape[0] == input;
             if (norm) {
-                valid = valid && t.type == gguf::GGML_TYPE_F32;
+                valid = valid && t.type == quant::GGML_TYPE_F32;
             } else {
                 valid = valid && t.shape.size() >= 2 && t.shape[1] == output;
             }

@@ -230,46 +230,46 @@ size_t check_kernels(backend::Backend& vk) {
         const uint32_t ids[3] = {3, 9, 0};
         Pair::In t = p.in(table);
         Pair::Out d = p.out(nin * 3);
-        p.cpu.embed(d.cs(), gguf::GGML_TYPE_F32, t.cs(), nin, nrows, ids, 3);
-        p.vk.embed(d.vs(), gguf::GGML_TYPE_F32, t.vs(), nin, nrows, ids, 3);
+        p.cpu.embed(d.cs(), quant::GGML_TYPE_F32, t.cs(), nin, nrows, ids, 3);
+        p.vk.embed(d.vs(), quant::GGML_TYPE_F32, t.vs(), nin, nrows, ids, 3);
         auto r = p.results(d);
         values += exact(r.first, r.second, "embed F32 differs");
 
-        std::vector<uint8_t> q(nrows * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);
+        std::vector<uint8_t> q(nrows * (nin / quant::Q8_0_BLOCK) * quant::Q8_0_TYPESIZE);
         for (size_t row = 0; row < nrows; ++row)
             quant::quantize_row_q8_0(table.data() + row * nin,
-                                     q.data() + row * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE,
-                                     nin / gguf::Q8_0_BLOCK);
+                                     q.data() + row * (nin / quant::Q8_0_BLOCK) * quant::Q8_0_TYPESIZE,
+                                     nin / quant::Q8_0_BLOCK);
         Pair::In tq = p.in(q.data(), q.size());
         Pair::Out dq = p.out(nin * 3);
-        p.cpu.embed(dq.cs(), gguf::GGML_TYPE_Q8_0, tq.cs(), nin, nrows, ids, 3);
-        p.vk.embed(dq.vs(), gguf::GGML_TYPE_Q8_0, tq.vs(), nin, nrows, ids, 3);
+        p.cpu.embed(dq.cs(), quant::GGML_TYPE_Q8_0, tq.cs(), nin, nrows, ids, 3);
+        p.vk.embed(dq.vs(), quant::GGML_TYPE_Q8_0, tq.vs(), nin, nrows, ids, 3);
         auto rq = p.results(dq);
         values += exact(rq.first, rq.second, "embed Q8_0 differs");
 
-        std::vector<uint8_t> q4(nrows * (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE);
+        std::vector<uint8_t> q4(nrows * (nin / quant::Q4_0_BLOCK) * quant::Q4_0_TYPESIZE);
         for (size_t row = 0; row < nrows; ++row)
             quant::quantize_row_q4_0(table.data() + row * nin,
-                                     q4.data() + row * (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE,
-                                     nin / gguf::Q4_0_BLOCK);
+                                     q4.data() + row * (nin / quant::Q4_0_BLOCK) * quant::Q4_0_TYPESIZE,
+                                     nin / quant::Q4_0_BLOCK);
         Pair::In t4 = p.in(q4.data(), q4.size());
         Pair::Out d4 = p.out(nin * 3);
-        p.cpu.embed(d4.cs(), gguf::GGML_TYPE_Q4_0, t4.cs(), nin, nrows, ids, 3);
-        p.vk.embed(d4.vs(), gguf::GGML_TYPE_Q4_0, t4.vs(), nin, nrows, ids, 3);
+        p.cpu.embed(d4.cs(), quant::GGML_TYPE_Q4_0, t4.cs(), nin, nrows, ids, 3);
+        p.vk.embed(d4.vs(), quant::GGML_TYPE_Q4_0, t4.vs(), nin, nrows, ids, 3);
         auto r4 = p.results(d4);
         values += exact(r4.first, r4.second, "embed Q4_0 differs");
         // Raw Q4_0 rows, every second block under a negative scale, which the quantizer never writes: nibble 8 then decodes as -0 on both backends.
         std::vector<uint8_t> raw4(q4.size());
-        for (size_t b = 0; b < raw4.size() / gguf::Q4_0_TYPESIZE; ++b) {
-            uint8_t* blk = raw4.data() + b * gguf::Q4_0_TYPESIZE;
+        for (size_t b = 0; b < raw4.size() / quant::Q4_0_TYPESIZE; ++b) {
+            uint8_t* blk = raw4.data() + b * quant::Q4_0_TYPESIZE;
             blk[0] = 0x00;
             blk[1] = b % 2 ? 0xB8 : 0x38;   // -0.5 or 0.5
             for (size_t j = 0; j < 16; ++j) blk[2 + j] = uint8_t(((j + b) & 15) | (((5 * j + 3 + b) & 15) << 4));
         }
         Pair::In traw4 = p.in(raw4.data(), raw4.size());
         Pair::Out draw4 = p.out(nin * 3);
-        p.cpu.embed(draw4.cs(), gguf::GGML_TYPE_Q4_0, traw4.cs(), nin, nrows, ids, 3);
-        p.vk.embed(draw4.vs(), gguf::GGML_TYPE_Q4_0, traw4.vs(), nin, nrows, ids, 3);
+        p.cpu.embed(draw4.cs(), quant::GGML_TYPE_Q4_0, traw4.cs(), nin, nrows, ids, 3);
+        p.vk.embed(draw4.vs(), quant::GGML_TYPE_Q4_0, traw4.vs(), nin, nrows, ids, 3);
         auto rraw4 = p.results(draw4);
         size_t negative_zeros = 0;
         for (float v : rraw4.first) if (v == 0.0f && std::signbit(v)) ++negative_zeros;
@@ -279,23 +279,23 @@ size_t check_kernels(backend::Backend& vk) {
         // Q6_K rows of 256 from fixed bytes, decoded by both.
         {
             const size_t n6 = 512;
-            std::vector<uint8_t> q6(nrows * (n6 / 256) * gguf::Q6_K_TYPESIZE);
+            std::vector<uint8_t> q6(nrows * (n6 / 256) * quant::Q6_K_TYPESIZE);
             for (size_t i = 0; i < q6.size(); ++i) q6[i] = uint8_t(i * 37 + 11);
             for (size_t b = 0; b < nrows * (n6 / 256); ++b) {
-                q6[b * gguf::Q6_K_TYPESIZE + 208] = 0x00;
-                q6[b * gguf::Q6_K_TYPESIZE + 209] = 0x30;
+                q6[b * quant::Q6_K_TYPESIZE + 208] = 0x00;
+                q6[b * quant::Q6_K_TYPESIZE + 209] = 0x30;
             }
             Pair::In t6 = p.in(q6.data(), q6.size());
             Pair::Out d6 = p.out(n6 * 3);
-            p.cpu.embed(d6.cs(), gguf::GGML_TYPE_Q6_K, t6.cs(), n6, nrows, ids, 3);
-            p.vk.embed(d6.vs(), gguf::GGML_TYPE_Q6_K, t6.vs(), n6, nrows, ids, 3);
+            p.cpu.embed(d6.cs(), quant::GGML_TYPE_Q6_K, t6.cs(), n6, nrows, ids, 3);
+            p.vk.embed(d6.vs(), quant::GGML_TYPE_Q6_K, t6.vs(), n6, nrows, ids, 3);
             auto r6 = p.results(d6);
             values += exact(r6.first, r6.second, "embed Q6_K differs");
         }
         // Q4_K and Q5_K rows of 256 the same way; d and dmin are the first two halves of a block.
         for (int k = 0; k < 2; ++k) {
-            const uint32_t type = k == 0 ? gguf::GGML_TYPE_Q4_K : gguf::GGML_TYPE_Q5_K;
-            const size_t bytes = k == 0 ? gguf::Q4_K_TYPESIZE : gguf::Q5_K_TYPESIZE;
+            const uint32_t type = k == 0 ? quant::GGML_TYPE_Q4_K : quant::GGML_TYPE_Q5_K;
+            const size_t bytes = k == 0 ? quant::Q4_K_TYPESIZE : quant::Q5_K_TYPESIZE;
             const size_t nk = 512;
             std::vector<uint8_t> qk(nrows * (nk / 256) * bytes);
             for (size_t i = 0; i < qk.size(); ++i) qk[i] = uint8_t(i * 53 + 5 + k);
@@ -312,7 +312,7 @@ size_t check_kernels(backend::Backend& vk) {
         }
         const uint32_t beyond[1] = {10};
         bool rejected = false;
-        try { p.vk.embed(d.vs(), gguf::GGML_TYPE_F32, t.vs(), nin, nrows, beyond, 1); }
+        try { p.vk.embed(d.vs(), quant::GGML_TYPE_F32, t.vs(), nin, nrows, beyond, 1); }
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "embedding row beyond the table accepted");
         // A table that holds fewer rows than the call names is refused before any row is read, even when every id is inside the table.
@@ -322,8 +322,8 @@ size_t check_kernels(backend::Backend& vk) {
             catch (const std::runtime_error& e) { return std::string(e.what()).find("outside its allocation") != std::string::npos; }
             return false;
         };
-        require(short_table_refused(gguf::GGML_TYPE_F32, t), "F32 embedding table shorter than its rows accepted");
-        require(short_table_refused(gguf::GGML_TYPE_Q8_0, tq), "Q8_0 embedding table shorter than its rows accepted");
+        require(short_table_refused(quant::GGML_TYPE_F32, t), "F32 embedding table shorter than its rows accepted");
+        require(short_table_refused(quant::GGML_TYPE_Q8_0, tq), "Q8_0 embedding table shorter than its rows accepted");
     }
     // The float tile reads an F32 matrix 256 or more floats wide through a padded copy made on first use; after a write into the weights the next call must read what was written.
     {
@@ -334,10 +334,10 @@ size_t check_kernels(backend::Backend& vk) {
         auto xb = p.vk.adopt(xx.data(), xx.size() * sizeof(float));
         auto y1 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
         auto y2 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
-        p.vk.matmul(gguf::GGML_TYPE_F32, {wb.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
+        p.vk.matmul(quant::GGML_TYPE_F32, {wb.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
         p.vk.write(*wb, 0, w2.data(), w2.size() * sizeof(float));
-        p.vk.matmul(gguf::GGML_TYPE_F32, {wb.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
-        p.vk.matmul(gguf::GGML_TYPE_F32, {fresh.get(), 0}, {xb.get(), 0}, {y2.get(), 0}, nin, nout, cols);
+        p.vk.matmul(quant::GGML_TYPE_F32, {wb.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
+        p.vk.matmul(quant::GGML_TYPE_F32, {fresh.get(), 0}, {xb.get(), 0}, {y2.get(), 0}, nin, nout, cols);
         std::vector<float> a(nout * cols), b(nout * cols);
         p.vk.read(*y1, 0, a.data(), a.size() * sizeof(float));
         p.vk.read(*y2, 0, b.data(), b.size() * sizeof(float));
@@ -355,8 +355,8 @@ size_t check_kernels(backend::Backend& vk) {
         auto xb = p.vk.adopt(xx.data(), xx.size() * sizeof(float));
         auto y1 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
         auto y2 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
-        p.vk.matmul(gguf::GGML_TYPE_F32, {adopted.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
-        p.vk.matmul(gguf::GGML_TYPE_F32, {filled.get(), 0}, {xb.get(), 0}, {y2.get(), 0}, nin, nout, cols);
+        p.vk.matmul(quant::GGML_TYPE_F32, {adopted.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
+        p.vk.matmul(quant::GGML_TYPE_F32, {filled.get(), 0}, {xb.get(), 0}, {y2.get(), 0}, nin, nout, cols);
         std::vector<float> a(nout * cols), b(nout * cols), back(w.size());
         p.vk.read(*y1, 0, a.data(), a.size() * sizeof(float));
         p.vk.read(*y2, 0, b.data(), b.size() * sizeof(float));
@@ -381,8 +381,8 @@ size_t check_kernels(backend::Backend& vk) {
             auto xb = p.vk.adopt(xx.data(), xx.size() * sizeof(float));
             auto y1 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
             auto y2 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
-            p.vk.matmul(gguf::GGML_TYPE_F32, {adopted.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
-            p.vk.matmul(gguf::GGML_TYPE_F32, {filled.get(), 0}, {xb.get(), 0}, {y2.get(), 0}, nin, nout, cols);
+            p.vk.matmul(quant::GGML_TYPE_F32, {adopted.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
+            p.vk.matmul(quant::GGML_TYPE_F32, {filled.get(), 0}, {xb.get(), 0}, {y2.get(), 0}, nin, nout, cols);
             std::vector<float> a(nout * cols), b(nout * cols), back(w.size());
             p.vk.read(*y1, 0, a.data(), a.size() * sizeof(float));
             p.vk.read(*y2, 0, b.data(), b.size() * sizeof(float));
@@ -399,36 +399,36 @@ size_t check_kernels(backend::Backend& vk) {
         // 1024 is sixteen block pairs, the word-wide path; 256 has too few pairs for it and 224 an odd block count, both the 16-bit path.
         const size_t nout = 67;
         const auto wf = uniform(nin * nout, 11);
-        std::vector<uint8_t> wq(nout * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);
+        std::vector<uint8_t> wq(nout * (nin / quant::Q8_0_BLOCK) * quant::Q8_0_TYPESIZE);
         for (size_t row = 0; row < nout; ++row)
             quant::quantize_row_q8_0(wf.data() + row * nin,
-                                     wq.data() + row * (nin / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE,
-                                     nin / gguf::Q8_0_BLOCK);
-        std::vector<uint8_t> w4(nout * (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE);
+                                     wq.data() + row * (nin / quant::Q8_0_BLOCK) * quant::Q8_0_TYPESIZE,
+                                     nin / quant::Q8_0_BLOCK);
+        std::vector<uint8_t> w4(nout * (nin / quant::Q4_0_BLOCK) * quant::Q4_0_TYPESIZE);
         for (size_t row = 0; row < nout; ++row)
             quant::quantize_row_q4_0(wf.data() + row * nin,
-                                     w4.data() + row * (nin / gguf::Q4_0_BLOCK) * gguf::Q4_0_TYPESIZE,
-                                     nin / gguf::Q4_0_BLOCK);
-        std::vector<uint8_t> w41(nout * (nin / gguf::Q4_1_BLOCK) * gguf::Q4_1_TYPESIZE);
+                                     w4.data() + row * (nin / quant::Q4_0_BLOCK) * quant::Q4_0_TYPESIZE,
+                                     nin / quant::Q4_0_BLOCK);
+        std::vector<uint8_t> w41(nout * (nin / quant::Q4_1_BLOCK) * quant::Q4_1_TYPESIZE);
         for (size_t row = 0; row < nout; ++row)
             quant::quantize_row_q4_1(wf.data() + row * nin,
-                                     w41.data() + row * (nin / gguf::Q4_1_BLOCK) * gguf::Q4_1_TYPESIZE,
-                                     nin / gguf::Q4_1_BLOCK);
+                                     w41.data() + row * (nin / quant::Q4_1_BLOCK) * quant::Q4_1_TYPESIZE,
+                                     nin / quant::Q4_1_BLOCK);
         // No Q6_K quantizer is needed: any bytes are a valid block and both backends decode the same bytes.
         // The half scale is 2^-10 so the values sit in the range of the other types; larger scales made reduction-order rounding alone exceed the tolerance.
-        std::vector<uint8_t> w6(nout * (nin / 256) * gguf::Q6_K_TYPESIZE);
+        std::vector<uint8_t> w6(nout * (nin / 256) * quant::Q6_K_TYPESIZE);
         for (size_t i = 0; i < w6.size(); ++i) w6[i] = uint8_t(i * 131 + 7);
         for (size_t row = 0; row < nout * (nin / 256); ++row) {
             // Keep the half scale finite and small.
-            w6[row * gguf::Q6_K_TYPESIZE + 208] = 0x00;
-            w6[row * gguf::Q6_K_TYPESIZE + 209] = 0x14;
+            w6[row * quant::Q6_K_TYPESIZE + 208] = 0x00;
+            w6[row * quant::Q6_K_TYPESIZE + 209] = 0x14;
         }
         // Q4_K and Q5_K likewise, d and dmin at 2^-10 and 2^-11.
-        std::vector<uint8_t> w4k(nout * (nin / 256) * gguf::Q4_K_TYPESIZE), w5k(nout * (nin / 256) * gguf::Q5_K_TYPESIZE);
+        std::vector<uint8_t> w4k(nout * (nin / 256) * quant::Q4_K_TYPESIZE), w5k(nout * (nin / 256) * quant::Q5_K_TYPESIZE);
         for (size_t i = 0; i < w4k.size(); ++i) w4k[i] = uint8_t(i * 61 + 3);
         for (size_t i = 0; i < w5k.size(); ++i) w5k[i] = uint8_t(i * 67 + 9);
         for (size_t row = 0; row < nout * (nin / 256); ++row) {
-            for (uint8_t* blk : {w4k.data() + row * gguf::Q4_K_TYPESIZE, w5k.data() + row * gguf::Q5_K_TYPESIZE}) {
+            for (uint8_t* blk : {w4k.data() + row * quant::Q4_K_TYPESIZE, w5k.data() + row * quant::Q5_K_TYPESIZE}) {
                 blk[0] = 0x00; blk[1] = 0x14; blk[2] = 0x00; blk[3] = 0x10;
             }
         }
@@ -453,10 +453,10 @@ size_t check_kernels(backend::Backend& vk) {
             Pair::In xri8 = p.in(xr8), xri4 = p.in(xr4), xrik = p.in(xrk);
             for (int q = 0; q < 7; ++q) {
                 if (q >= 4 && nin % 256) continue;   // K-quant blocks are 256 wide
-                const uint32_t type = q == 1 ? gguf::GGML_TYPE_Q8_0 : q == 2 ? gguf::GGML_TYPE_Q4_0
-                                    : q == 3 ? gguf::GGML_TYPE_Q4_1 : q == 4 ? gguf::GGML_TYPE_Q6_K
-                                    : q == 5 ? gguf::GGML_TYPE_Q4_K : q == 6 ? gguf::GGML_TYPE_Q5_K
-                                    : gguf::GGML_TYPE_F32;
+                const uint32_t type = q == 1 ? quant::GGML_TYPE_Q8_0 : q == 2 ? quant::GGML_TYPE_Q4_0
+                                    : q == 3 ? quant::GGML_TYPE_Q4_1 : q == 4 ? quant::GGML_TYPE_Q6_K
+                                    : q == 5 ? quant::GGML_TYPE_Q4_K : q == 6 ? quant::GGML_TYPE_Q5_K
+                                    : quant::GGML_TYPE_F32;
                 const Pair::In& wi = q == 1 ? wqi : q == 2 ? w4i : q == 3 ? w41i : q == 4 ? w6i
                                    : q == 5 ? w4ki : q == 6 ? w5ki : wfi;
                 Pair::Out d = p.out(nbatch * nout);
@@ -659,27 +659,27 @@ size_t check_kernels(backend::Backend& vk) {
         for (size_t n_out : {size_t(300), size_t(2048), size_t(6144)}) {
             const size_t n_in = 1024, rows = 249, tail = 9, prompt = 249;
             const auto wi = uniform(n_in * n_out, 70);
-            std::vector<uint8_t> wi8(n_out * (n_in / 32) * gguf::Q8_0_TYPESIZE), wi40(n_out * (n_in / 32) * gguf::Q4_0_TYPESIZE);
+            std::vector<uint8_t> wi8(n_out * (n_in / 32) * quant::Q8_0_TYPESIZE), wi40(n_out * (n_in / 32) * quant::Q4_0_TYPESIZE);
             for (size_t r = 0; r < n_out; ++r) {
-                quant::quantize_row_q8_0(wi.data() + r * n_in, wi8.data() + r * (n_in / 32) * gguf::Q8_0_TYPESIZE, n_in / 32);
-                quant::quantize_row_q4_0(wi.data() + r * n_in, wi40.data() + r * (n_in / 32) * gguf::Q4_0_TYPESIZE, n_in / 32);
+                quant::quantize_row_q8_0(wi.data() + r * n_in, wi8.data() + r * (n_in / 32) * quant::Q8_0_TYPESIZE, n_in / 32);
+                quant::quantize_row_q4_0(wi.data() + r * n_in, wi40.data() + r * (n_in / 32) * quant::Q4_0_TYPESIZE, n_in / 32);
             }
-            std::vector<uint8_t> wi6(n_out * (n_in / 256) * gguf::Q6_K_TYPESIZE), wi4k(n_out * (n_in / 256) * gguf::Q4_K_TYPESIZE);
+            std::vector<uint8_t> wi6(n_out * (n_in / 256) * quant::Q6_K_TYPESIZE), wi4k(n_out * (n_in / 256) * quant::Q4_K_TYPESIZE);
             for (size_t i = 0; i < wi6.size(); ++i) wi6[i] = uint8_t(i * 131 + 7);
             for (size_t i = 0; i < wi4k.size(); ++i) wi4k[i] = uint8_t(i * 61 + 3);
             for (size_t r = 0; r < n_out * (n_in / 256); ++r) {
-                wi6[r * gguf::Q6_K_TYPESIZE + 208] = 0x00;
-                wi6[r * gguf::Q6_K_TYPESIZE + 209] = 0x14;
-                uint8_t* blk = wi4k.data() + r * gguf::Q4_K_TYPESIZE;
+                wi6[r * quant::Q6_K_TYPESIZE + 208] = 0x00;
+                wi6[r * quant::Q6_K_TYPESIZE + 209] = 0x14;
+                uint8_t* blk = wi4k.data() + r * quant::Q4_K_TYPESIZE;
                 blk[0] = 0x00; blk[1] = 0x14; blk[2] = 0x00; blk[3] = 0x10;
             }
             const auto x = uniform(rows * n_in, 71);
             const auto y0 = uniform(rows * n_out, 72);
             const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
             struct W { uint32_t type; const void* data; size_t bytes; };
-            for (const W& t : {W{gguf::GGML_TYPE_F32, wi.data(), wi.size() * sizeof(float)},
-                               W{gguf::GGML_TYPE_Q8_0, wi8.data(), wi8.size()}, W{gguf::GGML_TYPE_Q4_0, wi40.data(), wi40.size()},
-                               W{gguf::GGML_TYPE_Q6_K, wi6.data(), wi6.size()}, W{gguf::GGML_TYPE_Q4_K, wi4k.data(), wi4k.size()}}) {
+            for (const W& t : {W{quant::GGML_TYPE_F32, wi.data(), wi.size() * sizeof(float)},
+                               W{quant::GGML_TYPE_Q8_0, wi8.data(), wi8.size()}, W{quant::GGML_TYPE_Q4_0, wi40.data(), wi40.size()},
+                               W{quant::GGML_TYPE_Q6_K, wi6.data(), wi6.size()}, W{quant::GGML_TYPE_Q4_K, wi4k.data(), wi4k.size()}}) {
                 const auto wb = vk.adopt(t.data, t.bytes);
                 for (bool add : {false, true}) {
                     auto run = [&](size_t first, size_t n, const std::vector<backend::RowRun>& runs) {
@@ -783,9 +783,9 @@ size_t check_kernels(backend::Backend& vk) {
             const std::vector<backend::RowRun> one{{rows, rows}};
             const backend::RowRuns rr{one.data(), one.size()};
             const auto wf = uniform(n_out * n_in, 90);
-            std::vector<uint8_t> w8(n_out * (n_in / 32) * gguf::Q8_0_TYPESIZE);
+            std::vector<uint8_t> w8(n_out * (n_in / 32) * quant::Q8_0_TYPESIZE);
             for (size_t r = 0; r < n_out; ++r)
-                quant::quantize_row_q8_0(wf.data() + r * n_in, w8.data() + r * (n_in / 32) * gguf::Q8_0_TYPESIZE, n_in / 32);
+                quant::quantize_row_q8_0(wf.data() + r * n_in, w8.data() + r * (n_in / 32) * quant::Q8_0_TYPESIZE, n_in / 32);
             const auto wb = vk.adopt(w8.data(), w8.size());
             const auto src = uniform(rows * n_in, 91), wn = uniform(n_in, 92, 0.5f, 1.5f);
             const auto g = uniform(rows * n_in, 93, -6.0f, 6.0f), u = uniform(rows * n_in, 94), other = uniform(rows * n_in, 95);
@@ -800,7 +800,7 @@ size_t check_kernels(backend::Backend& vk) {
             // One output for every matmul, allocated before any producer runs, since a new buffer drops the producer's copy.
             const auto yb = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
             auto matmul_of = [&](const backend::BufferPtr& x) {
-                vk.matmul(gguf::GGML_TYPE_Q8_0, {wb.get(), 0}, {x.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, rr);
+                vk.matmul(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {x.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, rr);
                 std::vector<float> y(rows * n_out);
                 vk.read(*yb, 0, y.data(), y.size() * sizeof(float));
                 return y;
@@ -847,9 +847,9 @@ size_t check_kernels(backend::Backend& vk) {
                     const size_t k = 2, n_expert = 4, entries = rows * k, ebytes = entries * n_in * sizeof(float);
                     const std::vector<backend::RowRun> eruns{{entries, rows}};
                     const auto ef = uniform(n_expert * n_out * n_in, 99);
-                    std::vector<uint8_t> e8(n_expert * n_out * (n_in / 32) * gguf::Q8_0_TYPESIZE);
+                    std::vector<uint8_t> e8(n_expert * n_out * (n_in / 32) * quant::Q8_0_TYPESIZE);
                     for (size_t r = 0; r < n_expert * n_out; ++r)
-                        quant::quantize_row_q8_0(ef.data() + r * n_in, e8.data() + r * (n_in / 32) * gguf::Q8_0_TYPESIZE, n_in / 32);
+                        quant::quantize_row_q8_0(ef.data() + r * n_in, e8.data() + r * (n_in / 32) * quant::Q8_0_TYPESIZE, n_in / 32);
                     const auto eb = vk.adopt(e8.data(), e8.size());
                     const auto scores = uniform(rows * n_expert, 100, -3.0f, 3.0f);
                     const auto scoresb = vk.adopt(scores.data(), scores.size() * sizeof(float));
@@ -864,7 +864,7 @@ size_t check_kernels(backend::Backend& vk) {
                         const auto yb = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
                         vk.silu_mul({f.get(), 0}, {geb.get(), 0}, {ueb.get(), 0}, entries * n_in,
                                     told ? backend::RowRuns{eruns.data(), eruns.size()} : backend::RowRuns{});
-                        vk.matmul_experts_add(gguf::GGML_TYPE_Q8_0, {eb.get(), 0}, {f.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, routing, rr);
+                        vk.matmul_experts_add(quant::GGML_TYPE_Q8_0, {eb.get(), 0}, {f.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, routing, rr);
                         std::vector<float> y(rows * n_out);
                         vk.read(*yb, 0, y.data(), y.size() * sizeof(float));
                         return y;
@@ -899,10 +899,10 @@ size_t check_kernels(backend::Backend& vk) {
                 const auto hk = uniform((hist + nq) * kvw, 60 + (uint32_t)nq), hv = uniform((hist + nq) * kvw, 61 + (uint32_t)nq);
                 const auto qq = uniform(nq * qw, 62 + (uint32_t)hist);
                 const auto wf = uniform(qw * nout, 63);
-                std::vector<uint8_t> wq(nout * (qw / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);
+                std::vector<uint8_t> wq(nout * (qw / quant::Q8_0_BLOCK) * quant::Q8_0_TYPESIZE);
                 for (size_t row = 0; row < nout; ++row)
-                    quant::quantize_row_q8_0(wf.data() + row * qw, wq.data() + row * (qw / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE,
-                                             qw / gguf::Q8_0_BLOCK);
+                    quant::quantize_row_q8_0(wf.data() + row * qw, wq.data() + row * (qw / quant::Q8_0_BLOCK) * quant::Q8_0_TYPESIZE,
+                                             qw / quant::Q8_0_BLOCK);
                 auto run = [&](backend::Backend& b, bool device, std::vector<float>& y) {
                     const size_t bt = b.kv_layout().block_tokens;
                     auto st = b.kv_alloc(1, n_head_kv, head_dim, 512);
@@ -925,13 +925,13 @@ size_t check_kernels(backend::Backend& vk) {
                     const auto yb = b.alloc(nq * nout * sizeof(float), backend::Memory::device);
                     b.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
                     if (device) {
-                        b.matmul(gguf::GGML_TYPE_Q8_0, {Wb.get(), 0}, {ob.get(), 0}, {yb.get(), 0}, qw, nout, nq);
+                        b.matmul(quant::GGML_TYPE_Q8_0, {Wb.get(), 0}, {ob.get(), 0}, {yb.get(), 0}, qw, nout, nq);
                     } else {
                         std::vector<float> att(nq * qw);
                         b.read(*ob, 0, att.data(), att.size() * sizeof(float));
                         const auto ar = twin_activations(att, twin8);
                         const auto Ab = b.adopt(ar.data(), ar.size() * sizeof(float));
-                        b.matmul(gguf::GGML_TYPE_Q8_0, {Wb.get(), 0}, {Ab.get(), 0}, {yb.get(), 0}, qw, nout, nq);
+                        b.matmul(quant::GGML_TYPE_Q8_0, {Wb.get(), 0}, {Ab.get(), 0}, {yb.get(), 0}, qw, nout, nq);
                     }
                     y.resize(nq * nout);
                     b.read(*yb, 0, y.data(), y.size() * sizeof(float));
@@ -1017,8 +1017,8 @@ size_t check_kernels(backend::Backend& vk) {
             Pair::Out d = p.out(nbatch * nout);
             p.cpu.write(*d.c, 0, y0.data(), y0.size() * sizeof(float));
             p.vk.write(*d.v, 0, y0.data(), y0.size() * sizeof(float));
-            p.cpu.matmul_add(gguf::GGML_TYPE_Q8_0, wqi.cs(), xri.cs(), d.cs(), nin, nout, nbatch);
-            p.vk.matmul_add(gguf::GGML_TYPE_Q8_0, wqi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
+            p.cpu.matmul_add(quant::GGML_TYPE_Q8_0, wqi.cs(), xri.cs(), d.cs(), nin, nout, nbatch);
+            p.vk.matmul_add(quant::GGML_TYPE_Q8_0, wqi.vs(), xi.vs(), d.vs(), nin, nout, nbatch);
             auto r = p.results(d);
             values += close(r.first, r.second, twin_tol, "matmul_add differs beyond its bound");
         }
@@ -1031,9 +1031,9 @@ size_t check_kernels(backend::Backend& vk) {
             Pair::Out h = p.out(rows * nin), f = p.out(rows * nin);
             Pair::Out d1 = p.out(rows * nout), d2 = p.out(rows * nout);
             p.vk.rms_norm_rows(h.vs(), si.vs(), wni.vs(), rows, nin, nin, 1e-6f);
-            p.vk.matmul(gguf::GGML_TYPE_Q8_0, wqi.vs(), h.vs(), d1.vs(), nin, nout, rows);
+            p.vk.matmul(quant::GGML_TYPE_Q8_0, wqi.vs(), h.vs(), d1.vs(), nin, nout, rows);
             p.vk.silu_mul(f.vs(), gi.vs(), ui.vs(), rows * nin);
-            p.vk.matmul(gguf::GGML_TYPE_Q4_0, w4i.vs(), f.vs(), d2.vs(), nin, nout, rows);
+            p.vk.matmul(quant::GGML_TYPE_Q4_0, w4i.vs(), f.vs(), d2.vs(), nin, nout, rows);
             p.cpu.rms_norm_rows(h.cs(), si.cs(), wni.cs(), rows, nin, nin, 1e-6f);
             p.cpu.silu_mul(f.cs(), gi.cs(), ui.cs(), rows * nin);
             std::vector<float> hc(rows * nin), fc(rows * nin);
@@ -1041,8 +1041,8 @@ size_t check_kernels(backend::Backend& vk) {
             p.cpu.read(*f.c, 0, fc.data(), fc.size() * sizeof(float));
             const auto hr = twin_activations(hc, twin8), fr = twin_activations(fc, twin8);   // Q8_0 from the norm and Q4_0 from the SiLU, each on the twin its kernel reads
             Pair::In hri = p.in(hr), fri = p.in(fr);
-            p.cpu.matmul(gguf::GGML_TYPE_Q8_0, wqi.cs(), hri.cs(), d1.cs(), nin, nout, rows);
-            p.cpu.matmul(gguf::GGML_TYPE_Q4_0, w4i.cs(), fri.cs(), d2.cs(), nin, nout, rows);
+            p.cpu.matmul(quant::GGML_TYPE_Q8_0, wqi.cs(), hri.cs(), d1.cs(), nin, nout, rows);
+            p.cpu.matmul(quant::GGML_TYPE_Q4_0, w4i.cs(), fri.cs(), d2.cs(), nin, nout, rows);
             auto r1 = p.results(d1), r2 = p.results(d2);
             values += close(r1.first, r1.second, twin_tol, "matmul from the norm's twin differs beyond its bound");
             values += close(r2.first, r2.second, twin_tol, "matmul from the SiLU's twin differs beyond its bound");
@@ -1058,7 +1058,7 @@ size_t check_kernels(backend::Backend& vk) {
             Pair::In xi = p.in(x);
             Pair::Out d = p.out(2 * nout);
             rejected = false;
-            try { p.vk.matmul(gguf::GGML_TYPE_Q8_0, wqi.vs(), xi.vs(), d.vs(), nin, nout, 2, {merged, 2}); }
+            try { p.vk.matmul(quant::GGML_TYPE_Q8_0, wqi.vs(), xi.vs(), d.vs(), nin, nout, 2, {merged, 2}); }
             catch (const std::runtime_error&) { rejected = true; }
             require(rejected, "row runs out of order accepted");
         }
@@ -1070,10 +1070,10 @@ size_t check_kernels(backend::Backend& vk) {
             Pair::Out sep[3] = {p.out(nbatch * rows[0]), p.out(nbatch * rows[1]), p.out(nbatch * rows[2])};
             Pair::Out grp[3] = {p.out(nbatch * rows[0]), p.out(nbatch * rows[1]), p.out(nbatch * rows[2])};
             for (int i = 0; i < 3; ++i)
-                p.vk.matmul(gguf::GGML_TYPE_Q8_0, wqi.vs(), xi.vs(), sep[i].vs(), nin, rows[i], nbatch);
-            p.vk.matmul_group({{gguf::GGML_TYPE_Q8_0, wqi.vs(), grp[0].vs(), rows[0]},
-                               {gguf::GGML_TYPE_Q8_0, wqi.vs(), grp[1].vs(), rows[1]},
-                               {gguf::GGML_TYPE_Q8_0, wqi.vs(), grp[2].vs(), rows[2]}},
+                p.vk.matmul(quant::GGML_TYPE_Q8_0, wqi.vs(), xi.vs(), sep[i].vs(), nin, rows[i], nbatch);
+            p.vk.matmul_group({{quant::GGML_TYPE_Q8_0, wqi.vs(), grp[0].vs(), rows[0]},
+                               {quant::GGML_TYPE_Q8_0, wqi.vs(), grp[1].vs(), rows[1]},
+                               {quant::GGML_TYPE_Q8_0, wqi.vs(), grp[2].vs(), rows[2]}},
                               xi.vs(), nin, nbatch);
             for (int i = 0; i < 3; ++i) {
                 std::vector<float> a(sep[i].n), b(grp[i].n);
@@ -1091,7 +1091,7 @@ size_t check_kernels(backend::Backend& vk) {
             if (!tiled) continue;
             Pair::In xi = p.in(x), xri = p.in(xr);
             const size_t rows[3] = {nout, 5, 33};
-            const uint32_t types[3] = {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q8_0};
+            const uint32_t types[3] = {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q8_0};
             Pair::Out grp[3] = {p.out(nbatch * rows[0]), p.out(nbatch * rows[1]), p.out(nbatch * rows[2])};
             p.vk.matmul_group({{types[0], wqi.vs(), grp[0].vs(), rows[0]},
                                {types[1], w4i.vs(), grp[1].vs(), rows[1]},
@@ -1114,7 +1114,7 @@ size_t check_kernels(backend::Backend& vk) {
             if (nbatch < tile_from_8bit || nbatch >= tile_from_other) continue;
             const auto x = uniform(nbatch * nin, 50 + (uint32_t)nbatch);
             Pair::In xi = p.in(x);
-            const uint32_t types[2] = {gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0};
+            const uint32_t types[2] = {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0};
             Pair::Out grp[2] = {p.out(nbatch * nout), p.out(nbatch * nout)};
             Pair::Out alone[2] = {p.out(nbatch * nout), p.out(nbatch * nout)};
             p.vk.matmul_group({{types[0], wqi.vs(), grp[0].vs(), nout}, {types[1], w4i.vs(), grp[1].vs(), nout}},
@@ -1233,26 +1233,26 @@ size_t check_kernels(backend::Backend& vk) {
     // The row kernel at the projection shapes of Qwen3-0.6B and 8B, one column, reported: the small shapes say whether a decoded token is bound by bandwidth or by per-kernel latency.
     // Every quantized type the kernel decodes, at the shapes the fixtures use it for; the 151936-row Q6_K is the tied head of the Q4_0 fixture.
     struct Timed { uint32_t type; const char* name; size_t nin, nout; };
-    for (const Timed& t : {Timed{gguf::GGML_TYPE_Q8_0, "Q8_0", 1024, 1024}, {gguf::GGML_TYPE_Q8_0, "Q8_0", 1024, 2048},
-                           {gguf::GGML_TYPE_Q8_0, "Q8_0", 1024, 3072}, {gguf::GGML_TYPE_Q8_0, "Q8_0", 3072, 1024},
-                           {gguf::GGML_TYPE_Q8_0, "Q8_0", 4096, 4096}, {gguf::GGML_TYPE_Q8_0, "Q8_0", 4096, 12288},
-                           {gguf::GGML_TYPE_Q8_0, "Q8_0", 12288, 4096},
-                           {gguf::GGML_TYPE_Q4_0, "Q4_0", 1024, 3072}, {gguf::GGML_TYPE_Q4_0, "Q4_0", 4096, 12288},
-                           {gguf::GGML_TYPE_Q4_1, "Q4_1", 3072, 1024}, {gguf::GGML_TYPE_Q4_1, "Q4_1", 12288, 4096},
-                           {gguf::GGML_TYPE_Q6_K, "Q6_K", 1024, 3072}, {gguf::GGML_TYPE_Q6_K, "Q6_K", 4096, 12288},
-                           {gguf::GGML_TYPE_Q6_K, "Q6_K", 1024, 151936},
-                           {gguf::GGML_TYPE_Q4_K, "Q4_K", 1024, 3072}, {gguf::GGML_TYPE_Q4_K, "Q4_K", 4096, 12288},
-                           {gguf::GGML_TYPE_Q5_K, "Q5_K", 1024, 3072}, {gguf::GGML_TYPE_Q5_K, "Q5_K", 4096, 12288},
+    for (const Timed& t : {Timed{quant::GGML_TYPE_Q8_0, "Q8_0", 1024, 1024}, {quant::GGML_TYPE_Q8_0, "Q8_0", 1024, 2048},
+                           {quant::GGML_TYPE_Q8_0, "Q8_0", 1024, 3072}, {quant::GGML_TYPE_Q8_0, "Q8_0", 3072, 1024},
+                           {quant::GGML_TYPE_Q8_0, "Q8_0", 4096, 4096}, {quant::GGML_TYPE_Q8_0, "Q8_0", 4096, 12288},
+                           {quant::GGML_TYPE_Q8_0, "Q8_0", 12288, 4096},
+                           {quant::GGML_TYPE_Q4_0, "Q4_0", 1024, 3072}, {quant::GGML_TYPE_Q4_0, "Q4_0", 4096, 12288},
+                           {quant::GGML_TYPE_Q4_1, "Q4_1", 3072, 1024}, {quant::GGML_TYPE_Q4_1, "Q4_1", 12288, 4096},
+                           {quant::GGML_TYPE_Q6_K, "Q6_K", 1024, 3072}, {quant::GGML_TYPE_Q6_K, "Q6_K", 4096, 12288},
+                           {quant::GGML_TYPE_Q6_K, "Q6_K", 1024, 151936},
+                           {quant::GGML_TYPE_Q4_K, "Q4_K", 1024, 3072}, {quant::GGML_TYPE_Q4_K, "Q4_K", 4096, 12288},
+                           {quant::GGML_TYPE_Q5_K, "Q5_K", 1024, 3072}, {quant::GGML_TYPE_Q5_K, "Q5_K", 4096, 12288},
                            // An 8B feed-forward down projection, the shape per-operation benchmarks of other runtimes report.
-                           {gguf::GGML_TYPE_Q8_0, "Q8_0", 14336, 4096}, {gguf::GGML_TYPE_Q4_K, "Q4_K", 14336, 4096},
-                           {gguf::GGML_TYPE_Q6_K, "Q6_K", 14336, 4096}}) {
+                           {quant::GGML_TYPE_Q8_0, "Q8_0", 14336, 4096}, {quant::GGML_TYPE_Q4_K, "Q4_K", 14336, 4096},
+                           {quant::GGML_TYPE_Q6_K, "Q6_K", 14336, 4096}}) {
         const size_t nin = t.nin, nout = t.nout;
-        const size_t block = t.type >= gguf::GGML_TYPE_Q4_K ? gguf::Q6_K_BLOCK : 32;
-        const size_t bytes = t.type == gguf::GGML_TYPE_Q8_0 ? gguf::Q8_0_TYPESIZE
-                           : t.type == gguf::GGML_TYPE_Q4_0 ? gguf::Q4_0_TYPESIZE
-                           : t.type == gguf::GGML_TYPE_Q4_1 ? gguf::Q4_1_TYPESIZE
-                           : t.type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_TYPESIZE
-                           : t.type == gguf::GGML_TYPE_Q5_K ? gguf::Q5_K_TYPESIZE : gguf::Q6_K_TYPESIZE;
+        const size_t block = t.type >= quant::GGML_TYPE_Q4_K ? quant::Q6_K_BLOCK : 32;
+        const size_t bytes = t.type == quant::GGML_TYPE_Q8_0 ? quant::Q8_0_TYPESIZE
+                           : t.type == quant::GGML_TYPE_Q4_0 ? quant::Q4_0_TYPESIZE
+                           : t.type == quant::GGML_TYPE_Q4_1 ? quant::Q4_1_TYPESIZE
+                           : t.type == quant::GGML_TYPE_Q4_K ? quant::Q4_K_TYPESIZE
+                           : t.type == quant::GGML_TYPE_Q5_K ? quant::Q5_K_TYPESIZE : quant::Q6_K_TYPESIZE;
         std::vector<uint8_t> wq(nout * (nin / block) * bytes);
         for (size_t i = 0; i < wq.size(); ++i) wq[i] = uint8_t(i * 7 + 3);
         const auto x = uniform(nin, 15);
@@ -1271,12 +1271,12 @@ size_t check_kernels(backend::Backend& vk) {
                   << (double)wq.size() / us / 1e3 << " GB/s\n";
     }
     // The prefill tile at one feed-forward projection of an 8B model over a 512-row pass, reported and not asserted, in operations per second so it reads against a per-operation benchmark of any other runtime at the same shape.
-    for (const Timed& t : {Timed{gguf::GGML_TYPE_Q8_0, "Q8_0", 14336, 4096}, {gguf::GGML_TYPE_Q4_K, "Q4_K", 14336, 4096},
-                           {gguf::GGML_TYPE_Q6_K, "Q6_K", 14336, 4096}}) {
+    for (const Timed& t : {Timed{quant::GGML_TYPE_Q8_0, "Q8_0", 14336, 4096}, {quant::GGML_TYPE_Q4_K, "Q4_K", 14336, 4096},
+                           {quant::GGML_TYPE_Q6_K, "Q6_K", 14336, 4096}}) {
         const size_t nin = t.nin, nout = t.nout, nbatch = 512;
-        const size_t block = t.type == gguf::GGML_TYPE_Q8_0 ? 32 : gguf::Q6_K_BLOCK;
-        const size_t bytes = t.type == gguf::GGML_TYPE_Q8_0 ? gguf::Q8_0_TYPESIZE
-                           : t.type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_TYPESIZE : gguf::Q6_K_TYPESIZE;
+        const size_t block = t.type == quant::GGML_TYPE_Q8_0 ? 32 : quant::Q6_K_BLOCK;
+        const size_t bytes = t.type == quant::GGML_TYPE_Q8_0 ? quant::Q8_0_TYPESIZE
+                           : t.type == quant::GGML_TYPE_Q4_K ? quant::Q4_K_TYPESIZE : quant::Q6_K_TYPESIZE;
         std::vector<uint8_t> wq(nout * (nin / block) * bytes);
         for (size_t i = 0; i < wq.size(); ++i) wq[i] = uint8_t(i * 7 + 3);
         const auto x = uniform(nin * nbatch, 23);
@@ -1343,18 +1343,18 @@ size_t check_kernels(backend::Backend& vk) {
     // Decode bandwidth of the row kernel on a Qwen3-8B-sized projection, reported and not asserted: 4096 x 4096 Q8_0 is 17 MiB per column.
     {
         const size_t n = 4096;
-        std::vector<uint8_t> wq(n * (n / gguf::Q8_0_BLOCK) * gguf::Q8_0_TYPESIZE);
+        std::vector<uint8_t> wq(n * (n / quant::Q8_0_BLOCK) * quant::Q8_0_TYPESIZE);
         for (size_t i = 0; i < wq.size(); ++i) wq[i] = uint8_t(i * 7 + 3);
         const auto x = uniform(n, 13);
         const auto w = vk.adopt(wq.data(), wq.size());
         const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
         const auto y = vk.alloc(n * sizeof(float), backend::Memory::device);
-        vk.matmul(gguf::GGML_TYPE_Q8_0, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, n, n, 1);
+        vk.matmul(quant::GGML_TYPE_Q8_0, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, n, n, 1);
         vk.sync();
         const int iters = 50;
         const auto t0 = std::chrono::steady_clock::now();
         for (int i = 0; i < iters; ++i)
-            vk.matmul(gguf::GGML_TYPE_Q8_0, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, n, n, 1);
+            vk.matmul(quant::GGML_TYPE_Q8_0, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, n, n, 1);
         vk.sync();
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / iters;
         std::cout << "backend-vulkan: Q8_0 matvec 4096x4096 " << ms << " ms, "
@@ -1372,25 +1372,25 @@ size_t check_kernels(backend::Backend& vk) {
             const size_t n_rows = n_expert * out;
             const auto f = uniform(n_rows * in, seed);
             std::vector<uint8_t> bytes;
-            if (type == gguf::GGML_TYPE_F32) {
+            if (type == quant::GGML_TYPE_F32) {
                 bytes.resize(f.size() * sizeof(float));
                 std::memcpy(bytes.data(), f.data(), bytes.size());
-            } else if (type == gguf::GGML_TYPE_Q8_0 || type == gguf::GGML_TYPE_Q4_0 || type == gguf::GGML_TYPE_Q4_1) {
-                const size_t ts = type == gguf::GGML_TYPE_Q8_0 ? gguf::Q8_0_TYPESIZE : type == gguf::GGML_TYPE_Q4_0 ? gguf::Q4_0_TYPESIZE : gguf::Q4_1_TYPESIZE;
+            } else if (type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1) {
+                const size_t ts = type == quant::GGML_TYPE_Q8_0 ? quant::Q8_0_TYPESIZE : type == quant::GGML_TYPE_Q4_0 ? quant::Q4_0_TYPESIZE : quant::Q4_1_TYPESIZE;
                 bytes.resize(n_rows * (in / 32) * ts);
                 for (size_t r = 0; r < n_rows; ++r) {
                     uint8_t* dst = bytes.data() + r * (in / 32) * ts;
-                    if (type == gguf::GGML_TYPE_Q8_0) quant::quantize_row_q8_0(f.data() + r * in, dst, in / 32);
-                    else if (type == gguf::GGML_TYPE_Q4_0) quant::quantize_row_q4_0(f.data() + r * in, dst, in / 32);
+                    if (type == quant::GGML_TYPE_Q8_0) quant::quantize_row_q8_0(f.data() + r * in, dst, in / 32);
+                    else if (type == quant::GGML_TYPE_Q4_0) quant::quantize_row_q4_0(f.data() + r * in, dst, in / 32);
                     else quant::quantize_row_q4_1(f.data() + r * in, dst, in / 32);
                 }
             } else {
-                const size_t ts = type == gguf::GGML_TYPE_Q6_K ? gguf::Q6_K_TYPESIZE : type == gguf::GGML_TYPE_Q4_K ? gguf::Q4_K_TYPESIZE : gguf::Q5_K_TYPESIZE;
+                const size_t ts = type == quant::GGML_TYPE_Q6_K ? quant::Q6_K_TYPESIZE : type == quant::GGML_TYPE_Q4_K ? quant::Q4_K_TYPESIZE : quant::Q5_K_TYPESIZE;
                 bytes.resize(n_rows * (in / 256) * ts);
                 for (size_t i = 0; i < bytes.size(); ++i) bytes[i] = uint8_t(i * (61 + seed % 7) + 3);
                 for (size_t b = 0; b < n_rows * (in / 256); ++b) {
                     uint8_t* blk = bytes.data() + b * ts;
-                    if (type == gguf::GGML_TYPE_Q6_K) { blk[208] = 0x00; blk[209] = 0x14; }
+                    if (type == quant::GGML_TYPE_Q6_K) { blk[208] = 0x00; blk[209] = 0x14; }
                     else { blk[0] = 0x00; blk[1] = 0x14; blk[2] = 0x00; blk[3] = 0x10; }
                 }
             }
@@ -1423,10 +1423,10 @@ size_t check_kernels(backend::Backend& vk) {
             const backend::Backend::Routing rc{ids.cs(), wts.cs(), k, n_expert}, rv{ids.vs(), wts.vs(), k, n_expert};
             const auto x = uniform(rows * nin, 91), x2 = uniform(entries * nin, 92), y0 = uniform(rows * nout, 93);
             Pair::In xi = p.in(x), x2i = p.in(x2);
-            for (uint32_t type : {gguf::GGML_TYPE_F32, gguf::GGML_TYPE_Q8_0, gguf::GGML_TYPE_Q4_0, gguf::GGML_TYPE_Q4_1,
-                                  gguf::GGML_TYPE_Q4_K, gguf::GGML_TYPE_Q5_K, gguf::GGML_TYPE_Q6_K}) {
+            for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1,
+                                  quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
                 from = backend::moe_tile_from_for(prof, type);
-                const bool f32 = type == gguf::GGML_TYPE_F32;
+                const bool f32 = type == quant::GGML_TYPE_F32;
                 const bool reads8 = twin8 && !f32;
                 // The row kernel reads a twin, 8-bit or 16-bit by family; the tile reads 8-bit activations where the integer dot takes quantized types, else floats.
                 const bool tile8 = twin8 && !f32;
@@ -1509,13 +1509,13 @@ std::vector<uint8_t> pattern(size_t bytes, uint32_t seed) {
 size_t check_refusals(backend::Backend& vk) {
     const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
     const bool twin8 = prof.prefer_integer_dot;
-    const uint32_t q8 = gguf::GGML_TYPE_Q8_0, f32 = gguf::GGML_TYPE_F32, f16 = 1;   // F16 has no kernel
+    const uint32_t q8 = quant::GGML_TYPE_Q8_0, f32 = quant::GGML_TYPE_F32, f16 = 1;   // F16 has no kernel
     const size_t nin = 64, nout = 8, rows = 3, n_expert = 4, k = 2, entries = rows * k, nrows = 4, partial = 48;
-    const size_t row_bytes = nin / gguf::Q8_0_BLOCK * gguf::Q8_0_TYPESIZE;
+    const size_t row_bytes = nin / quant::Q8_0_BLOCK * quant::Q8_0_TYPESIZE;
     auto quantized = [&](size_t n, uint32_t seed) {
         const auto f = uniform(n * nin, seed);
         std::vector<uint8_t> q(n * row_bytes);
-        for (size_t r = 0; r < n; ++r) quant::quantize_row_q8_0(f.data() + r * nin, q.data() + r * row_bytes, nin / gguf::Q8_0_BLOCK);
+        for (size_t r = 0; r < n; ++r) quant::quantize_row_q8_0(f.data() + r * nin, q.data() + r * row_bytes, nin / quant::Q8_0_BLOCK);
         return q;
     };
     const auto wq = quantized(nout, 101), stack = quantized(n_expert * nout, 102), tq = quantized(nrows, 103);

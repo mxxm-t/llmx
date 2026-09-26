@@ -9,7 +9,7 @@ themselves are the quant layer's, reached through `quant::Registry`.
 - `raw_tensors(root, type)`: the tensors `model.json` describes, each to be
   written as `type`; a missing array, name or shape, a rank outside 1 to 4, or
   a dimension that is not an integer from 1 to 2^53-1 throws.
-- `quant_type_of(name)`: the GGML type of `q8_0` or `q4_0`, the only types quantize writes, and none for any other name.
+- `quant_type_of(name)`: the type id (`quant/types.hpp`) of `q8_0` or `q4_0`, the only types quantize writes, and none for any other name.
 - `file_type_of(type)`: GGUF's `general.file_type` for a model whose matrices
   are all Q8_0 (7) or Q4_0 (2).
 - `quantize_raw(json, bin, out, type) -> tensor count`: the model as a GGUF file with every tensor quantized to `type` through the registry (`quant/quant.hpp`), written by `gguf::write_gguf`.

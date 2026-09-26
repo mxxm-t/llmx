@@ -13,7 +13,7 @@
 #include <vector>
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "bench_weights.hpp"
-#include "format/gguf.hpp"
+#include "quant/types.hpp"
 
 namespace {
 
@@ -28,7 +28,7 @@ struct Case {
 int main(int argc, char** argv) {
     const int device = argc > 1 ? std::atoi(argv[1]) : 0;
     const int iters = argc > 2 ? std::atoi(argv[2]) : 200;
-    const uint32_t gt = argc > 3 ? (uint32_t)std::atoi(argv[3]) : gguf::GGML_TYPE_Q4_K;
+    const uint32_t gt = argc > 3 ? (uint32_t)std::atoi(argv[3]) : quant::GGML_TYPE_Q4_K;
     const uint32_t dt = argc > 4 ? (uint32_t)std::atoi(argv[4]) : gt;
     const size_t E = 2048, F = 768, NE = 128, K = 8, TMAX = 32;
 
@@ -94,19 +94,19 @@ int main(int argc, char** argv) {
     for (size_t T : {size_t(64), size_t(512)})
         for (size_t w : {E, E + 32})
             cases.push_back({"f32 tile 4096x" + std::to_string(w) + " T=" + std::to_string(T), 4096.0 * E * 4, [&, T, w] {
-                b.matmul(gguf::GGML_TYPE_F32, {fw.get(), 0}, {h.get(), 0}, {fy.get(), 0}, w, 4096, T);
+                b.matmul(quant::GGML_TYPE_F32, {fw.get(), 0}, {h.get(), 0}, {fy.get(), 0}, w, 4096, T);
             }});
     for (size_t T : {size_t(1), size_t(32), size_t(128), size_t(512)}) {
         const std::string t = " T=" + std::to_string(T);
         cases.push_back({"rms_norm" + t, 0.0, [&, T] { b.rms_norm_rows({h.get(), 0}, {hx.get(), 0}, {nw.get(), 0}, T, E, E, 1e-6f); }});
         cases.push_back({"router f32" + t, (double)E * NE * 4, [&, T] {
-            b.matmul(gguf::GGML_TYPE_F32, {rw.get(), 0}, {h.get(), 0}, {scores.get(), 0}, E, NE, T);
+            b.matmul(quant::GGML_TYPE_F32, {rw.get(), 0}, {h.get(), 0}, {scores.get(), 0}, E, NE, T);
         }});
         if (T > 1) {
             // The same rows through the row kernel: one run of generated tokens, which takes it at any width.
             cases.push_back({"router f32 rows" + t, (double)E * NE * 4, [&, T] {
                 const backend::RowRun run{T, 1};
-                b.matmul(gguf::GGML_TYPE_F32, {rw.get(), 0}, {h.get(), 0}, {scores.get(), 0}, E, NE, T, {&run, 1});
+                b.matmul(quant::GGML_TYPE_F32, {rw.get(), 0}, {h.get(), 0}, {scores.get(), 0}, E, NE, T, {&run, 1});
             }});
         }
         cases.push_back({"route" + t, 0.0, [&, T] {

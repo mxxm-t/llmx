@@ -37,7 +37,8 @@ format/        GGUF reader/writer (headers read, payload mapped and read
                built from QwenWeights, the CLI still consumes GGUFModel
    |
    v
-quant/         QuantType registry; Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K kernels
+quant/         type ids and block sizes, QuantType registry;
+               Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K kernels
    |
    v
 core/          fp16 <-> f32, minimal JSON parser, UTF-8, file hashes, available
@@ -71,10 +72,13 @@ model asks the loader for each weight's storage, and the commands and tools
 turn flags into a request. Code that nothing reaches any more is removed in
 the change that leaves it unreached.
 
-This is the intended dependency rule. The current quant registry imports GGUF
-type constants from `format/gguf.hpp`; this existing exception needs resolving
-when adding another format. Dense F32 and supported block-quant matrices
-share the CPU float dot kernels; F32 rows need no dequantization buffer.
+The quant layer names the storage types and sizes their rows
+(`quant/types.hpp`, `quant::row_bytes`), and the format layer reads both: a
+GGUF tensor's bytes are `row_bytes` of its rows, and converting raw F32
+tensors to and from GGUF (`format/raw_convert.hpp`) opens files in the
+format layer and reaches the blocks through the registry. Dense F32 and
+supported block-quant matrices share the CPU float dot kernels; F32 rows
+need no dequantization buffer.
 
 ## What lives where
 
@@ -83,7 +87,7 @@ share the CPU float dot kernels; F32 rows need no dequantization buffer.
 | `src/` root     | `config.hpp` (build configuration: version and the `LLMX_HAS_BACKEND_*` switches) |
 | `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `utf8.hpp` (UTF-8 encoding and validation), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory, the page size, `HostPages`: owned page-aligned memory, and address space reserved and committed by range), `list.hpp` (comma-separated values) |
 | `hub/`          | `manifest.hpp` (Hub metadata/quant selection), `transport.hpp` (curl HTTPS transport), `pull.hpp` (verified download cache) |
-| `quant/`        | `quant.hpp` (registry + block quants), `k_quants.hpp` (K-quants) |
+| `quant/`        | `types.hpp` (the type ids and block sizes), `quant.hpp` (registry + block quants, `row_bytes`), `k_quants.hpp` (K-quants) |
 | `format/`       | `format.hpp` (`FileSpan`, where a tensor lies in its file, and `LoadProgress`), `file_reader.hpp` (a file read at given offsets by several threads, through the file cache or around it, which the loader streams weights through), `gguf.hpp` (GGUF v3: `read_gguf` reads the headers, `map_payload` maps the payload, `warm` reads it in), `mapped_file.hpp` (read-only mapping), `raw_convert.hpp` (raw F32 tensors to and from GGUF, for `quantize` and `dequantize`) |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer)     |
 | `model/`        | `arch_qwen.hpp` (Qwen3 config + the format-neutral weights a model is built from, `QwenWeights` and `gguf_weights` + forward pass + its memory footprint, `Placement` of each tensor role, and `place_model`, which places a model over its backends), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |

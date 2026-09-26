@@ -5,17 +5,17 @@ From-scratch implementation of the GGUF file format (v3) for `Q8_0`, `Q4_0`,
 arbitrary set: real GGUF files mix types. The pinned Q4_0 fixture requires
 Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
 
-- Constants: `MAGIC` (`'GGUF'`), `VERSION=3`, `ALIGNMENT=32`, GGML type ids
-  (`GGML_TYPE_F32=0`, `Q4_0=2`, `Q4_1=3`, `Q8_0=8`, `Q4_K=12`, `Q5_K=13`, `Q6_K=14`) and the block
-  size / bytes-per-block for each: 32/18 (Q4_0), 32/20 (Q4_1), 32/34 (Q8_0),
-  256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K).
-- `TensorInfo::data_size()` switches on the type here rather than reading
-  `quant::Registry`, because `quant/` includes `format/` and not the reverse.
-  A new type therefore needs an entry in BOTH places.
+- Constants: `MAGIC` (`'GGUF'`), `VERSION=3`, `ALIGNMENT=32`. The type ids a
+  tensor's `type` holds and their block sizes are the quant layer's
+  (`quant/types.hpp`, [quant-types](quant-types.md)).
 - `MetaValue`: typed metadata value (all GGUF value types incl. arrays).
 - `TensorInfo`: name, dims (`ne[0]` fastest), type, offset; `n_elements()` and
-  `data_size()` use checked arithmetic. Quantized rows must contain a whole
-  number of blocks, even when the total element count would be divisible.
+  `data_size()` use checked arithmetic. `data_size()` sizes the tensor's rows
+  of `ne[0]` values through `quant::row_bytes`, so a type the registry names
+  is read with no change here and any other type is refused. Quantized rows
+  must contain a whole number of blocks, even when the total element count
+  would be divisible; a tensor with a zero dimension holds no bytes, however
+  wide its rows.
 - `GGUFModel`: metadata KVs, tensor infos, and all tensor data addressed by
   per-tensor `offsets`: an in-memory model's in one `blob`, a file's data
   section in that file, one `Segment {path, file, start, base, size, first}` per

@@ -28,7 +28,7 @@ inline gguf::GGUFModel tiny_qwen(int layers, uint64_t context, bool tied) {
             const float v = norm ? 1.0f : float(int((i * 17 + m.tensors.size() * 3) % 29) - 14) / 64.0f;
             std::memcpy(m.blob.data() + offset + i * sizeof(float), &v, sizeof(v));
         }
-        m.tensors.push_back({name, std::move(shape), gguf::GGML_TYPE_F32, 0});
+        m.tensors.push_back({name, std::move(shape), quant::GGML_TYPE_F32, 0});
         m.offsets.push_back(offset);
     };
     add("token_embd.weight", {8, 16});
@@ -73,7 +73,7 @@ inline gguf::GGUFModel tiny_qwen_moe(int layers, uint64_t context, bool tied) {
             const float v = float(int((i * 13 + m.tensors.size() * 5) % 31) - 15) / 64.0f;
             std::memcpy(m.blob.data() + offset + i * sizeof(float), &v, sizeof(v));
         }
-        m.tensors.push_back({name, std::move(shape), gguf::GGML_TYPE_F32, 0});
+        m.tensors.push_back({name, std::move(shape), quant::GGML_TYPE_F32, 0});
         m.offsets.push_back(offset);
     };
     for (int l = 0; l < layers; ++l) {

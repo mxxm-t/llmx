@@ -20,7 +20,6 @@
 #include "backends/cpu/q8_dots.hpp"
 #include "core/fp16.hpp"
 #include "core/host_memory.hpp"
-#include "format/gguf.hpp"
 #include "quant/quant.hpp"
 
 #include <immintrin.h>
@@ -196,9 +195,9 @@ public:
                size_t nrows, const uint32_t* ids, size_t count) override {
         float* dst = at(dst_s);
         const uint8_t* rows = (const uint8_t*)bytes_at(table);
-        const quant::QuantType* qt = type == gguf::GGML_TYPE_F32
+        const quant::QuantType* qt = type == quant::GGML_TYPE_F32
                                    ? nullptr : quant::Registry::instance().get(type);
-        if (type != gguf::GGML_TYPE_F32 && (!qt || !qt->dequantize))
+        if (type != quant::GGML_TYPE_F32 && (!qt || !qt->dequantize))
             throw std::runtime_error("backend: unsupported embedding type");
         const size_t stride = quant::row_bytes(type, nin);
         for (size_t i = 0; i < count; ++i) {
@@ -337,10 +336,10 @@ public:
             return;
         }
         const size_t rowbytes = quant::row_bytes(type, nin);
-        const bool f32 = type == gguf::GGML_TYPE_F32;
+        const bool f32 = type == quant::GGML_TYPE_F32;
         // A decode row of a type with a float row dot takes it with no dequantized scratch, streaming each resident row once; prefill keeps the fused kernels that reuse weights across batch columns.
         // F32 splits its rows as the batched float path below does, from DOT_ROWS rows per worker in whole DOT_ROWS chunks.
-        if (decode && (f32 || type == gguf::GGML_TYPE_Q8_0 || is_kquant(type))) {
+        if (decode && (f32 || type == quant::GGML_TYPE_Q8_0 || is_kquant(type))) {
             const auto dots = [&](size_t o0, size_t o1) {
                 for (size_t o = o0; o < o1; ++o) Y[o] = row_dot(type, data + o * rowbytes, X, nin);
             };
@@ -1008,7 +1007,7 @@ private:
     }
 
     static bool is_kquant(uint32_t type) {
-        return type == gguf::GGML_TYPE_Q4_K || type == gguf::GGML_TYPE_Q5_K || type == gguf::GGML_TYPE_Q6_K;
+        return type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K;
     }
 
     // Whether a type's rows meet quantized activations: the decode dots for a generated token's rows, the prompt dots for a prompt's.
@@ -1116,14 +1115,14 @@ private:
     // Types without one, routed Q4_0 and Q4_1 decode among them, take the dequantized dot in double, where their dense decode keeps the batched float path.
     float row_dot(uint32_t type, const uint8_t* row, const float* x, size_t nin) {
         switch (type) {
-        case gguf::GGML_TYPE_F32: return dot_f32((const float*)row, x, nin);
-        case gguf::GGML_TYPE_Q8_0: return dot_row_impl(row, x, nin / gguf::Q8_0_BLOCK);
-        case gguf::GGML_TYPE_Q4_K: case gguf::GGML_TYPE_Q5_K: case gguf::GGML_TYPE_Q6_K: {
+        case quant::GGML_TYPE_F32: return dot_f32((const float*)row, x, nin);
+        case quant::GGML_TYPE_Q8_0: return dot_row_impl(row, x, nin / quant::Q8_0_BLOCK);
+        case quant::GGML_TYPE_Q4_K: case quant::GGML_TYPE_Q5_K: case quant::GGML_TYPE_Q6_K: {
             // A fused dot applies the block scale after sum(q*x), so a large activation can overflow the inner sum where dequantizing first stays finite (then d*Inf is Inf, and 0*Inf NaN).
             // Once any partial overflows the row result is Inf or NaN, never a plausible finite number, so a finite fused result needs no fallback.
-            const size_t nb = nin / gguf::Q4_K_BLOCK;
-            const float v = type == gguf::GGML_TYPE_Q4_K ? dot_row_q4_K(row, x, nb)
-                          : type == gguf::GGML_TYPE_Q5_K ? dot_row_q5_K(row, x, nb) : dot_row_q6_K(row, x, nb);
+            const size_t nb = nin / quant::Q4_K_BLOCK;
+            const float v = type == quant::GGML_TYPE_Q4_K ? dot_row_q4_K(row, x, nb)
+                          : type == quant::GGML_TYPE_Q5_K ? dot_row_q5_K(row, x, nb) : dot_row_q6_K(row, x, nb);
             return std::isfinite(v) ? v : dot_row_dequant(type, row, x, nin, nb);
         }
         default: {
@@ -1293,14 +1292,14 @@ private:
     float dot_row_q6_K(const uint8_t* row, const float* x, size_t nblocks) {
         float acc = 0.0f;
         for (size_t b = 0; b < nblocks; b++) {
-            const uint8_t* p = row + b * gguf::Q6_K_TYPESIZE;
+            const uint8_t* p = row + b * quant::Q6_K_TYPESIZE;
             const uint8_t* ql = p;
             const uint8_t* qh = p + 128;
             const int8_t*  sc = (const int8_t*)(p + 192);
             const float d = half_to_float((uint16_t)(p[208] | ((uint16_t)p[209] << 8)));
-            const float* xp = x + b * gguf::Q6_K_BLOCK;
+            const float* xp = x + b * quant::Q6_K_BLOCK;
 
-            for (int n = 0; n < (int)gguf::Q6_K_BLOCK; n += 128) {
+            for (int n = 0; n < (int)quant::Q6_K_BLOCK; n += 128) {
                 for (int k = 0; k < 4; k++) {
                     const uint8_t* qlk = ql + ((k & 1) ? 32 : 0);
                     const bool high = k >= 2;
@@ -1342,17 +1341,17 @@ private:
     float dot_row_q5_K(const uint8_t* row, const float* x, size_t nblocks) {
         float acc = 0.0f;
         for (size_t b = 0; b < nblocks; b++) {
-            const uint8_t* p = row + b * gguf::Q5_K_TYPESIZE;
+            const uint8_t* p = row + b * quant::Q5_K_TYPESIZE;
             const float d    = half_to_float((uint16_t)(p[0] | ((uint16_t)p[1] << 8)));
             const float dmin = half_to_float((uint16_t)(p[2] | ((uint16_t)p[3] << 8)));
             const uint8_t* sc = p + 4;
             const uint8_t* qh = p + 16;
             const uint8_t* ql = p + 48;
-            const float* xp = x + b * gguf::Q5_K_BLOCK;
+            const float* xp = x + b * quant::Q5_K_BLOCK;
 
             int is = 0;
             uint8_t u1 = 1, u2 = 2;
-            for (int j = 0; j < (int)gguf::Q5_K_BLOCK; j += 64) {
+            for (int j = 0; j < (int)quant::Q5_K_BLOCK; j += 64) {
                 uint8_t s, mm;
                 quant::get_scale_min_k4(is + 0, sc, &s, &mm);
                 const float d1 = d * (float)s, m1 = dmin * (float)mm;
@@ -1420,15 +1419,15 @@ private:
     float dot_row_q4_K(const uint8_t* row, const float* x, size_t nblocks) {
         float acc = 0.0f;
         for (size_t b = 0; b < nblocks; b++) {
-            const uint8_t* p = row + b * gguf::Q4_K_TYPESIZE;
+            const uint8_t* p = row + b * quant::Q4_K_TYPESIZE;
             const float d    = half_to_float((uint16_t)(p[0] | ((uint16_t)p[1] << 8)));
             const float dmin = half_to_float((uint16_t)(p[2] | ((uint16_t)p[3] << 8)));
             const uint8_t* sc = p + 4;
             const uint8_t* qs = p + 16;
-            const float* xp = x + b * gguf::Q4_K_BLOCK;
+            const float* xp = x + b * quant::Q4_K_BLOCK;
 
             int is = 0;
-            for (int j = 0; j < (int)gguf::Q4_K_BLOCK; j += 64) {
+            for (int j = 0; j < (int)quant::Q4_K_BLOCK; j += 64) {
                 uint8_t s, mm;
                 quant::get_scale_min_k4(is + 0, sc, &s, &mm);
                 const float d1 = d * (float)s, m1 = dmin * (float)mm;
@@ -1492,14 +1491,14 @@ private:
         __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
         __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
         for (size_t b = 0; b < nblocks; b++) {
-            const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
+            const uint8_t* y = row + b * quant::Q8_0_TYPESIZE;
             // The half scale is broadcast from memory and widened by F16C.
             const __m256 dv = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y)));
             __m256 f0 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 2))));
             __m256 f1 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 10))));
             __m256 f2 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 18))));
             __m256 f3 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 26))));
-            const float* xp = x + b * gguf::Q8_0_BLOCK;
+            const float* xp = x + b * quant::Q8_0_BLOCK;
             s0 = _mm256_fmadd_ps(_mm256_mul_ps(f0, dv), _mm256_loadu_ps(xp), s0);
             s1 = _mm256_fmadd_ps(_mm256_mul_ps(f1, dv), _mm256_loadu_ps(xp + 8), s1);
             s2 = _mm256_fmadd_ps(_mm256_mul_ps(f2, dv), _mm256_loadu_ps(xp + 16), s2);

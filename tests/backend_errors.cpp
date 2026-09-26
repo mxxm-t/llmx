@@ -103,36 +103,36 @@ static void check_contracts(backend::CpuBackend& cpu) {
         require(rejected, label);
         ++refused;
     };
-    require(quant::row_bytes(gguf::GGML_TYPE_F32, 37) == 148 && quant::row_bytes(gguf::GGML_TYPE_Q8_0, 64) == 68 &&
-            quant::row_bytes(gguf::GGML_TYPE_Q6_K, 512) == 420, "row bytes differ from the block layout");
-    rejects([] { quant::row_bytes(gguf::GGML_TYPE_Q4_K, 128); }, "a row inside one K-quant block was sized");
+    require(quant::row_bytes(quant::GGML_TYPE_F32, 37) == 148 && quant::row_bytes(quant::GGML_TYPE_Q8_0, 64) == 68 &&
+            quant::row_bytes(quant::GGML_TYPE_Q6_K, 512) == 420, "row bytes differ from the block layout");
+    rejects([] { quant::row_bytes(quant::GGML_TYPE_Q4_K, 128); }, "a row inside one K-quant block was sized");
     rejects([] { quant::row_bytes(9999, 32); }, "an unknown type was sized");
-    rejects([] { quant::row_bytes(gguf::GGML_TYPE_Q8_0, std::numeric_limits<size_t>::max() / 32 * 32); },
+    rejects([] { quant::row_bytes(quant::GGML_TYPE_Q8_0, std::numeric_limits<size_t>::max() / 32 * 32); },
             "a row size that wraps was returned");
 
     // Q8_0 rows of 48 values, a block and a half, with storage for two whole blocks a row so a truncating op would run.
     // One column takes the decode path and two the batched one.
     const size_t nin = 48, nout = 2;
-    std::vector<uint8_t> w(nout * 2 * gguf::Q8_0_TYPESIZE, 0);
+    std::vector<uint8_t> w(nout * 2 * quant::Q8_0_TYPESIZE, 0);
     std::vector<float> x(3 * 64, 1.0f), wf(nout * 64, 1.0f), y(4 * 64, 7.0f);
     const auto wb = cpu.adopt(w.data(), w.size()), wfb = cpu.adopt(wf.data(), wf.size() * sizeof(float));
     const auto xb = cpu.adopt(x.data(), x.size() * sizeof(float)), yb = cpu.adopt(y.data(), y.size() * sizeof(float));
     for (size_t nbatch : {size_t(1), size_t(2)})
-        rejects([&] { cpu.matmul(gguf::GGML_TYPE_Q8_0, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, nbatch); },
+        rejects([&] { cpu.matmul(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, nbatch); },
                 "matmul computed a row that ends inside a block");
     const uint32_t id = 1;
-    rejects([&] { cpu.embed({yb.get(), 0}, gguf::GGML_TYPE_Q8_0, {wb.get(), 0}, nin, nout, &id, 1); },
+    rejects([&] { cpu.embed({yb.get(), 0}, quant::GGML_TYPE_Q8_0, {wb.get(), 0}, nin, nout, &id, 1); },
             "embed gathered a row that ends inside a block");
 
     // Runs that reach past the call, runs out of order that would take one path, and runs short of the call.
     // The grouped projections are Q8_0 rows of 64 values, so all-decode runs would take the grouped 8-bit dots.
     const backend::RowRun past[2] = {{3, 1}, {2, 2}}, merged[2] = {{3, 1}, {2, 1}}, short_of[1] = {{1, 1}};
     for (const backend::RowRuns runs : {backend::RowRuns{past, 2}, backend::RowRuns{merged, 2}, backend::RowRuns{short_of, 1}}) {
-        rejects([&] { cpu.matmul(gguf::GGML_TYPE_F32, {wfb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, 64, nout, 2, runs); },
+        rejects([&] { cpu.matmul(quant::GGML_TYPE_F32, {wfb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, 64, nout, 2, runs); },
                 "matmul accepted malformed row runs");
         rejects([&] {
-            cpu.matmul_group({{gguf::GGML_TYPE_Q8_0, {wb.get(), 0}, {yb.get(), 0}, 1},
-                              {gguf::GGML_TYPE_Q8_0, {wb.get(), 0}, {yb.get(), 2}, 1}},
+            cpu.matmul_group({{quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {yb.get(), 0}, 1},
+                              {quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {yb.get(), 2}, 1}},
                              {xb.get(), 0}, 64, 2, runs);
         }, "matmul_group accepted malformed row runs");
     }

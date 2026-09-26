@@ -622,9 +622,9 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     std::cout << "bench: threads " << b->threads_available() << "\n";
 
     // Square matmul: mat is [nin, nout] = [size, size]. x is the input (length nin), out the result (length nout). nout rows, each nin/32 blocks.
-    const size_t nblocks = (size_t)size / gguf::Q8_0_BLOCK;
+    const size_t nblocks = (size_t)size / quant::Q8_0_BLOCK;
     std::vector<float> x(size, 0.5f);
-    std::vector<uint8_t> mat((size_t)size * nblocks * gguf::Q8_0_TYPESIZE);
+    std::vector<uint8_t> mat((size_t)size * nblocks * quant::Q8_0_TYPESIZE);
     std::vector<float> src(size), w(size), dst(size);
     for (int i = 0; i < size; i++) { src[i] = std::sin((float)i * 0.01f); w[i] = 0.1f; }
     std::vector<float> cos(size / 2), sin(size / 2);
@@ -635,13 +635,13 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     const auto dst_buf = b->adopt(dst.data(), dst.size() * sizeof(float));
 
     // One untimed pass, drained, so the timed loop leaves out one-time setup such as the CPU backend starting its workers on its first parallel dispatch.
-    b->matmul(gguf::GGML_TYPE_Q8_0, {weights.get(), 0}, {x_buf.get(), 0},
+    b->matmul(quant::GGML_TYPE_Q8_0, {weights.get(), 0}, {x_buf.get(), 0},
               {dst_buf.get(), 0}, (size_t)size, (size_t)size, 1);
     b->sync();
     using clock = std::chrono::steady_clock;
     auto t0 = clock::now();
     for (int it = 0; it < iters; it++)
-        b->matmul(gguf::GGML_TYPE_Q8_0, {weights.get(), 0}, {x_buf.get(), 0},
+        b->matmul(quant::GGML_TYPE_Q8_0, {weights.get(), 0}, {x_buf.get(), 0},
                   {dst_buf.get(), 0}, (size_t)size, (size_t)size, 1);
     double mm_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
 

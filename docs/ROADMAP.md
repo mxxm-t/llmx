@@ -10,8 +10,9 @@ specified in `docs/ARCHITECTURE.md` but not yet implemented.
 
 ## 1. More quantization formats
 `quant::Registry` supplies the generic CPU path through block kernels and a
-registry entry; the GGUF reader also needs type sizing. Vendor backends need
-their own kernels and validation for each new type. Block kernels and the registry live in
+registry entry, and the GGUF reader sizes tensors through it. What a new type
+takes on each layer and backend is listed once, in `docs/src/quant-types.md`. The type ids and block sizes live in
+`quant/types.hpp`, block kernels and the registry in
 `quant/quant.hpp`; shared K-quant kernels live in `quant/k_quants.hpp`.
 - Done: `Q8_0`, `Q4_0`, `Q4_1`, plus `Q4_K` and `Q6_K` read-only. Real files
   are MIXED: Qwen3-0.6B-Q4_0 is 193 Q4_0 / 113 F32 / 3 Q4_1 / 1 Q6_K, and
@@ -36,9 +37,8 @@ their own kernels and validation for each new type. Block kernels and the regist
   `IQ3_S` is proposed as the first candidate after it, a question not yet asked (`docs/STATUS.md`, Quantization coverage, question 11).
   `Q5_0` and `Q5_1` are not planned; whether they join is an open question of the Qwen 3.x plan in `docs/STATUS.md`.
 - K-quants are what most GGUF on the Hub actually uses; see #9b
-- `TensorInfo::data_size()` still switches on type in `format/gguf.hpp` rather than reading the registry, because `quant/` includes `format/` and not the other way round.
-  Adding a type means touching both, plus the sizes in the Vulkan shaders' `q.glsl`.
-  The quantization plan's first step moves the type ids and sizes into one table in `core/storage.hpp`, which the reader and the registry read and a test holds `q.glsl` to.
+- `TensorInfo::data_size()` sizes a tensor through `quant::row_bytes`, so the type ids and block sizes are written once in C++, in `quant/types.hpp`, and again in the Vulkan shaders' `q.glsl`.
+  The quantization plan's first step makes them one table over every type id, which a test holds `q.glsl` to.
 - `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1 and Q4_K from raw blocks that reach every scale, min and nibble bit, each against a decoder written from the format description.
   Each new type joins it from raw blocks, since the planned types stay read-only, with no quantizer.
 
@@ -260,7 +260,7 @@ make a model usable: its architecture and tokenizer must also be implemented.
   schema, integer-range, tensor-extent and dtype checks before exposing data.
   No new dependency; see #3.
 - **BF16 / F16 tensors**: most HF safetensors are BF16.
-  `core/fp16.hpp` covers f16 <-> f32, but there is no bf16 path and no F16 case in `gguf::TensorInfo::data_size()`.
+  `core/fp16.hpp` covers f16 <-> f32, but there is no bf16 path and no F16 or BF16 entry in the quant registry, which `gguf::TensorInfo::data_size()` sizes tensors through.
   Both are the first types of the quantization plan (#1), widened exactly to F32 inside the kernels on every backend, and the native safetensors path takes the same kernels.
 - **`tokenizer.json`**: the HF tokenizer format. `bpe::Tokenizer` reads only
   GGUF-embedded `tokenizer.ggml.*`, so safetensors repos have no tokenizer path

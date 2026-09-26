@@ -2,7 +2,6 @@
 #include "backends/device_profile.hpp"
 #include "backends/kv_storage.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
-#include "format/gguf.hpp"
 #include "quant/quant.hpp"
 
 #include <algorithm>
@@ -327,7 +326,7 @@ const int kVariants = 3;   // a kernel's pipelines: the wide build, then the one
 const size_t kF32Pad = 32;   // floats after each row of a padded F32 matrix (padded_f32)
 // The matrix shapes that get a copy with kF32Pad floats after each row, one rule for padded_f32, which makes the copy, and resident_bytes, which counts it.
 // F32 rows a multiple of 256 floats wide would otherwise all read the same memory channel (docs/VULKAN.md).
-static bool pads_f32(uint32_t type, size_t nin) { return type == gguf::GGML_TYPE_F32 && nin && nin % 256 == 0; }
+static bool pads_f32(uint32_t type, size_t nin) { return type == quant::GGML_TYPE_F32 && nin && nin % 256 == 0; }
 
 // The tile kernel's row count, specialization constant 0: the shorter heights fill a device a taller tile would leave idle, the taller reads less shared memory per product.
 const uint32_t kTileRowsSmall = 32, kTileRowsShort = 64, kTileRowsTall = 128;   // the small height is variant 1 of the short kernels
@@ -1451,7 +1450,7 @@ public:
         bool eight_bit_or_float = true;
         for (size_t i = 0; i < count; ++i) {
             const Projection& pr = projections[i];
-            if (pr.rows && pr.type != gguf::GGML_TYPE_Q8_0 && pr.type != gguf::GGML_TYPE_F32) eight_bit_or_float = false;
+            if (pr.rows && pr.type != quant::GGML_TYPE_Q8_0 && pr.type != quant::GGML_TYPE_F32) eight_bit_or_float = false;
         }
         return tile_from_for(dev_->profile, eight_bit_or_float, nin);
     }
@@ -1632,28 +1631,28 @@ public:
         size_t units = nin;
         KernelId kernel = K_MATMUL_ROW;
         switch (type) {
-        case gguf::GGML_TYPE_Q8_0:
+        case quant::GGML_TYPE_Q8_0:
             wide = nblocks % 2 == 0 && nblocks / 2 >= kQ8LanesPerPair;
             lanes = wide ? kQ8LanesPerPair : 1;
             units = wide ? nblocks / 2 * lanes : nblocks;
             if (wide) kernel = K_MATMUL_ROW_Q8W;
             break;
-        case gguf::GGML_TYPE_Q4_0:
+        case quant::GGML_TYPE_Q4_0:
             wide = nblocks % 2 == 0;
             lanes = wide ? 2 : 1;
             units = wide ? nblocks / 2 * lanes : nblocks;
             kernel = K_MATMUL_ROW_Q4;
             break;
-        case gguf::GGML_TYPE_Q4_1:
+        case quant::GGML_TYPE_Q4_1:
             units = nblocks;
             kernel = K_MATMUL_ROW_Q4;
             break;
-        case gguf::GGML_TYPE_Q4_K:
-        case gguf::GGML_TYPE_Q5_K:
-        case gguf::GGML_TYPE_Q6_K:
+        case quant::GGML_TYPE_Q4_K:
+        case quant::GGML_TYPE_Q5_K:
+        case quant::GGML_TYPE_Q6_K:
             lanes = kKQuantLanes;
             units = nblocks * lanes;
-            kernel = type == gguf::GGML_TYPE_Q6_K ? K_MATMUL_ROW_K : type == gguf::GGML_TYPE_Q5_K ? K_MATMUL_ROW_K5 : K_MATMUL_ROW_K4;
+            kernel = type == quant::GGML_TYPE_Q6_K ? K_MATMUL_ROW_K : type == quant::GGML_TYPE_Q5_K ? K_MATMUL_ROW_K5 : K_MATMUL_ROW_K4;
             break;
         default: break;
         }
@@ -1668,7 +1667,7 @@ public:
         if (kernel == K_MATMUL_ROW_K4_DOT || kernel == K_MATMUL_ROW_K5_DOT)
             cluster = std::min(cluster, std::max(lanes, dev_->profile.k45_row_lanes));
         // Where the integer dot is native, Q8_0 rows take the four-wide dot over the 8-bit twin (shaders/matmul_vec_q8.comp).
-        if (type == gguf::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot) {
+        if (type == quant::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot) {
             kernel = K_MATMUL_VEC_Q8;
             cluster = dev_->caps.subgroup_size / 2;
         }
@@ -1679,7 +1678,7 @@ public:
     // What a row kernel reads X through: the floats for F32 rows, else the activations' twin (shaders/xquant.glsl), which the norm, SiLU and attention kernels write beside their output and tag.
     // An input without one gets a quantize dispatch here; the scratch is reused stream-ordered.
     VkDescriptorBufferInfo row_twin(CSlice X, uint32_t type, KernelId kernel, size_t n) {
-        if (type == gguf::GGML_TYPE_F32) return bind(X);
+        if (type == quant::GGML_TYPE_F32) return bind(X);
         const VkDescriptorBufferInfo xf = bind(X);
         VkDescriptorBufferInfo xqi = xq_for(n);
         const bool x8 = reads_x8(kernel);
@@ -1881,7 +1880,7 @@ public:
     // Throws unless the kernels decode `type` and `data` holds `rows` rows of `nin` values of it, each whole blocks.
     // `what` names the operand in the errors; tests/common.py matches the unsupported-type one to skip a model the device has no kernel for.
     static void check_matrix(uint32_t type, CSlice data, size_t nin, size_t rows, const char* what = "matrix") {
-        if (type != gguf::GGML_TYPE_F32 && !decoded_blocks(type))
+        if (type != quant::GGML_TYPE_F32 && !decoded_blocks(type))
             throw std::runtime_error(std::string("vulkan: unsupported ") + what + " type " + std::to_string(type) +
                                      " (docs/VULKAN.md lists the types the kernels decode)");
         if (bytes_from(data) < size_mul(rows, quant::row_bytes(type, nin)))
@@ -1908,7 +1907,7 @@ public:
 
     // Whether a type's wide matmul goes through the integer-dot tile on this device; profile_for prefers the integer dot only where the device has it.
     bool integer_dot_tile(uint32_t type) const {
-        return dev_->profile.prefer_integer_dot && type != gguf::GGML_TYPE_F32;
+        return dev_->profile.prefer_integer_dot && type != quant::GGML_TYPE_F32;
     }
 
     // An integer-dot tile call over up to three projections of one type: the height their rows and `column_groups` call for, its module, and each projection's first workgroup and rows.
@@ -1925,8 +1924,8 @@ public:
         for (const Projection* pr : ps) t.rows += pr->rows;
         t.height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin);
         const bool tall = t.height == kTileRowsTall;
-        t.kernel = ps[0]->type == gguf::GGML_TYPE_Q6_K ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6)
-                 : ps[0]->type == gguf::GGML_TYPE_Q8_0 ? (tall ? K_MATMUL_TILE_Q8_TALL : K_MATMUL_TILE_Q8)
+        t.kernel = ps[0]->type == quant::GGML_TYPE_Q6_K ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6)
+                 : ps[0]->type == quant::GGML_TYPE_Q8_0 ? (tall ? K_MATMUL_TILE_Q8_TALL : K_MATMUL_TILE_Q8)
                                                        : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q);
         for (size_t i = 0; i < 3; ++i) {
             t.p[i] = i < ps.size() ? ps[i] : ps[0];
@@ -2230,8 +2229,8 @@ private:
     // The registry's entry for a block type the kernels decode, null for any other type.
     static const quant::QuantType* decoded_blocks(uint32_t type) {
         switch (type) {
-        case gguf::GGML_TYPE_Q8_0: case gguf::GGML_TYPE_Q4_0: case gguf::GGML_TYPE_Q4_1:
-        case gguf::GGML_TYPE_Q4_K: case gguf::GGML_TYPE_Q5_K: case gguf::GGML_TYPE_Q6_K:
+        case quant::GGML_TYPE_Q8_0: case quant::GGML_TYPE_Q4_0: case quant::GGML_TYPE_Q4_1:
+        case quant::GGML_TYPE_Q4_K: case quant::GGML_TYPE_Q5_K: case quant::GGML_TYPE_Q6_K:
             return quant::Registry::instance().get(type);
         default: return nullptr;
         }

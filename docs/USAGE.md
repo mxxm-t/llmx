@@ -327,8 +327,9 @@ layers on the CPU, `--cpu-moe` that of every routed layer. Attention, dense
 feed-forward blocks, the embedding table and the output head stay on the
 `--device`, and the residual stream crosses to the CPU and back once per
 offloaded layer. `--threads` then sets the CPU's workers. With
-`--device cpu` the flags change nothing, and on a model without routed
-layers they are refused. `generate`, `chat`, `logits`, `perplexity`,
+`--device cpu` the flags change nothing, and a model without routed
+layers refuses them on every device, the CPU included, naming the flag
+given. `generate`, `chat`, `logits`, `perplexity`,
 `serve` and `bench --model` take them. For example, Qwen3-30B-A3B Q4_K_M
 fits a 16 GB card with twelve layers' experts on the CPU:
 

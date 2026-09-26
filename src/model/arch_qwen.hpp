@@ -1372,6 +1372,13 @@ inline PlacedModel place_model(const QwenWeights& weights, std::vector<backend::
     if (backends.empty()) throw std::runtime_error("placement: no device");
     if (request.stream_from && !request.cpu_moe)
         throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
+    // A model without routed layers has no experts to put on the CPU, so every placement refuses the flags, on the CPU as beside a device.
+    const std::string experts_flag = request.cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe";
+    if (request.cpu_moe) {
+        const std::vector<bool> routed = routed_layers(weights);
+        if (std::none_of(routed.begin(), routed.end(), [](bool r) { return r; }))
+            throw std::runtime_error(experts_flag + ": the model has no expert layers");
+    }
     // A storage has the blocks the budget fills at its backend's block size, and each history takes whole ones, so the request's histories are counted in each backend's blocks.
     // Where any storage would fall short, the budget becomes what they take in the largest blocks, which every other size divides, so every storage holds them and the fit counts them.
     // No history holds more than the model's context, so one that asks for more is counted at the context: the pool does not grow for tokens no run can hold, and the run is refused where it passes the context.
@@ -1392,7 +1399,7 @@ inline PlacedModel place_model(const QwenWeights& weights, std::vector<backend::
     PlacedModel placed;
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)
-            throw std::runtime_error("--n-cpu-moe and --cpu-moe: not with several devices; list the CPU as a device to give it layers");
+            throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
         const std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
         const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
         const LayerSplit split = split_layers(footprint(weights, options), budgets, rows, request.shares, core::host_memory_available());
@@ -1413,7 +1420,6 @@ inline PlacedModel place_model(const QwenWeights& weights, std::vector<backend::
             if (request.cpu_moe < 0 || seen < request.cpu_moe) place.ffn_device[(size_t)l] = 0;
             ++seen;
         }
-        if (!seen) throw std::runtime_error("--n-cpu-moe: the model has no expert layers");
         std::vector<backend::BackendPtr> both{backend::make_cpu_backend(), std::move(backends[0])};
         placed.model = std::make_unique<Model>(weights, std::move(both), place, options, adopt);
     }

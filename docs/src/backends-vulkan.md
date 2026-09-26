@@ -88,6 +88,9 @@ kernel notes and measurements are `docs/VULKAN.md`.
   8-bit dot build, whose rows take at most `k45_row_lanes`. There Q8_0 rows
   take `shaders/matmul_vec_q8.comp`, the four-wide dot over the 8-bit twin,
   and F32 rows the plain build.
+  The Q8_0 decode kernel is built for 1, 2, 4, 8 and 16 columns, with the rows a subgroup takes and the steps of weights a lane loads ahead as specialization constants 9 and 11 (`kVecBuilds`), and a dispatch's rows per workgroup follow the build.
+  `for_each_column_chunk` splits a pass's columns: chunks of the widest build the kernel has on the device (the profile's `q8_decode_cols` for this kernel) while more columns remain than it holds, then the rest in the narrowest build that holds them.
+  Every build computes a column as the one-column build does, so the split changes only the time; `backend-vulkan` checks each column against the same column alone.
   The lanes that share a wide Q8_0 block pair (four) and a K-quant block (eight) are fixed by `matmul_row.comp`, and the host mirrors them in constants beside the tile heights rather than in the profile.
 - Wide batches take a tile kernel. Where the profile sets
   `prefer_integer_dot`, every quantized type goes through the 8-bit

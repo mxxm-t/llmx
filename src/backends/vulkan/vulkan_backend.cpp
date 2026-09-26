@@ -315,13 +315,30 @@ inline bool is_row_kernel(KernelId id) {
 }
 
 // Whether a row kernel has a one-column build for one-column chunks, which frees the registers of seven unused accumulators.
-// Q8_0 keeps the wide build; its variant selection is documented in docs/VULKAN.md.
+// The wide Q8_0 row kernel keeps its wide build (docs/VULKAN.md, Kernel notes).
 inline bool row_kernel_builds_one_column(KernelId id) {
     return is_row_kernel(id) && id != K_MATMUL_ROW_Q8W;
 }
 
 const uint32_t kRowColsWide = 8, kRowColsOne = 1;
-const int kVariants = 3;   // a kernel's pipelines: the wide build, then the one-column, then for the row kernels the wide build grouped by expert
+// A kernel's pipelines: the wide build, then the one-column, then for the row kernels the wide build grouped by expert, then the Q8_0 decode kernel's further builds.
+const int kVariants = 6;
+
+// The Q8_0 decode kernel's builds (shaders/matmul_vec_q8.comp) by pipeline variant: the columns a lane keeps, the rows a subgroup takes and the steps whose weights a lane loads before using any (specialization constants 0, 9 and 11).
+// Variants 0 to 2 are every row kernel's wide, one-column and grouped builds, and 3 to 5 this kernel's 2-, 4- and 16-column builds.
+// Every build gives a column the same bits, so the builds differ only in time (docs/VULKAN.md).
+struct VecBuild {
+    uint32_t cols, rows, steps;
+};
+const VecBuild kVecBuilds[kVariants] = {{kRowColsWide, 4, 1}, {kRowColsOne, 2, 1}, {kRowColsWide, 4, 1}, {2, 2, 1}, {4, 4, 1}, {16, 4, 2}};
+// Its builds for plain columns, narrowest first.
+const int kVecByWidth[] = {1, 3, 4, 0, 5};
+
+// The columns a row kernel's build keeps, by pipeline variant.
+inline uint32_t build_cols(KernelId id, int variant) {
+    if (id == K_MATMUL_VEC_Q8) return kVecBuilds[variant].cols;
+    return variant == 1 ? kRowColsOne : kRowColsWide;
+}
 
 const size_t kF32Pad = 32;   // floats after each row of a padded F32 matrix (padded_f32)
 // The matrix shapes that get a copy with kF32Pad floats after each row, one rule for padded_f32, which makes the copy, and resident_bytes, which counts it.
@@ -960,11 +977,12 @@ public:
         if (pool_) d.fn.vkDestroyCommandPool(d.device, pool_, nullptr);
     }
 
-    // A compiled kernel's name, the one-column build of a row kernel marked.
+    // A compiled kernel's name, a row kernel's builds other than the wide one marked by their columns or as grouped.
     static std::string kernel_variant_name(int id, int variant) {
         const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_Q || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q8;
         if (variant == 2) return std::string(kKernelNames[id]) + "_grouped";
-        return std::string(kKernelNames[id]) + (!variant ? "" : is_row_kernel((KernelId)id) ? "_1col" : tile ? "_small" : "_x8");
+        if (variant && is_row_kernel((KernelId)id)) return std::string(kKernelNames[id]) + "_" + std::to_string(build_cols((KernelId)id, variant)) + "col";
+        return std::string(kKernelNames[id]) + (!variant ? "" : tile ? "_small" : "_x8");
     }
 
     const std::string& name() const { return dev_->caps.device; }
@@ -1615,12 +1633,42 @@ public:
             }
         const RowPlan plan = row_plan(live[0]->type, nin);
         const VkDescriptorBufferInfo xqi = row_twin(X, live[0]->type, plan.kernel, nbatch * nin);
-        for (size_t col0 = 0; col0 < nbatch; col0 += 8)
-            row_dispatch(plan, live, X, xqi, nin, nbatch, col0, std::min<size_t>(8, nbatch - col0), accumulate);
+        for_each_column_chunk(plan.kernel, nbatch, [&](size_t col0, size_t ncols, int variant) {
+            row_dispatch(plan, live, X, xqi, nin, nbatch, col0, ncols, accumulate, variant);
+        });
+    }
+
+    // The builds a row kernel's plain columns take on this device, narrowest first, as pipeline variants; returns their count.
+    // The Q8_0 decode kernel takes its builds up to the profile's q8_decode_cols, every other row kernel its one-column build where it has one and its wide build.
+    size_t column_builds(KernelId id, int (&out)[kVariants]) const {
+        size_t n = 0;
+        if (id == K_MATMUL_VEC_Q8) {
+            for (int v : kVecByWidth)
+                if (kVecBuilds[v].cols <= dev_->profile.q8_decode_cols) out[n++] = v;
+            return n;
+        }
+        if (row_kernel_builds_one_column(id)) out[n++] = 1;
+        out[n++] = 0;
+        return n;
+    }
+
+    // Calls `each(col0, ncols, variant)` over a pass's columns: chunks of the widest build while more columns remain than it holds, then the rest in the narrowest build that holds them.
+    // Every build gives a column the same bits, so how a pass is chunked changes only its time.
+    template <typename Fn>
+    void for_each_column_chunk(KernelId id, size_t nbatch, const Fn& each) const {
+        int builds[kVariants];
+        const size_t n = column_builds(id, builds);
+        const size_t wide = build_cols(id, builds[n - 1]);
+        size_t col0 = 0;
+        for (; nbatch - col0 > wide; col0 += wide) each(col0, wide, builds[n - 1]);
+        size_t i = 0;
+        while (build_cols(id, builds[i]) < nbatch - col0) ++i;
+        each(col0, nbatch - col0, builds[i]);
     }
 
     // The row kernel for a type at a width (matmul_row.comp): its module, whether rows take the wide layout, and how a subgroup's lanes split over rows.
     // Q8_0 pairs go over four lanes and Q4_0 pairs over two when the block count is even, Q4_1 blocks over one, the K-quant blocks over eight, else one unit per block or value.
+    // The Q8_0 decode kernel reads no cluster, and its rows follow its build (kVecBuilds).
     struct RowPlan {
         KernelId kernel;
         uint32_t type, wide, cluster, rows_per_sg, rows_per_group;
@@ -1667,10 +1715,7 @@ public:
         if (kernel == K_MATMUL_ROW_K4_DOT || kernel == K_MATMUL_ROW_K5_DOT)
             cluster = std::min(cluster, std::max(lanes, dev_->profile.k45_row_lanes));
         // Where the integer dot is native, Q8_0 rows take the four-wide dot over the 8-bit twin (shaders/matmul_vec_q8.comp).
-        if (type == quant::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot) {
-            kernel = K_MATMUL_VEC_Q8;
-            cluster = dev_->caps.subgroup_size / 2;
-        }
+        if (type == quant::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot) kernel = K_MATMUL_VEC_Q8;
         const uint32_t rows_per_sg = dev_->caps.subgroup_size / cluster;
         return RowPlan{kernel, type, wide, cluster, rows_per_sg, (256 / dev_->caps.subgroup_size) * rows_per_sg};
     }
@@ -1693,18 +1738,19 @@ public:
         return xqi;
     }
 
-    // One row kernel dispatch over up to three projections of one type and columns col0 .. col0 + ncols of X, which has nbatch columns.
+    // One row kernel dispatch through the build `variant` over up to three projections of one type and columns col0 .. col0 + ncols of X, which has nbatch columns.
     // A routed dispatch (`per` nonzero) instead runs one entry per workgroup row, `entries` of them, through the expert ids in `ids`.
     void row_dispatch(const RowPlan& plan, const std::vector<const Projection*>& live, CSlice X, VkDescriptorBufferInfo xqi,
-                      size_t nin, size_t nbatch, size_t col0, size_t ncols, bool accumulate,
+                      size_t nin, size_t nbatch, size_t col0, size_t ncols, bool accumulate, int variant,
                       uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
                       uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0) {
+        const uint32_t per_group = plan.kernel == K_MATMUL_VEC_Q8 ? (256 / dev_->caps.subgroup_size) * kVecBuilds[variant].rows : plan.rows_per_group;
         uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
         uint32_t total = 0;
         for (size_t i = 0; i < live.size(); ++i) {
             nout[i] = u32(live[i]->rows);
             start[i] = total;
-            total += groups(live[i]->rows, plan.rows_per_group);
+            total += groups(live[i]->rows, per_group);
         }
         if (total > dev_->props.limits.maxComputeWorkGroupCount[0] || entries > dev_->props.limits.maxComputeWorkGroupCount[1])
             throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
@@ -1726,8 +1772,7 @@ public:
                   bind(X),
                   bind(a.data), bind(b.data), bind(c.data),
                   xqi, xqi, xqi, xqi, ids.buffer ? ids : bind(X), tab.buffer ? tab : bind(X)},
-                 pc, sizeof(pc), total, u32(entries),
-                 tab.buffer ? 2 : ncols == 1 && row_kernel_builds_one_column(plan.kernel) ? 1 : 0);
+                 pc, sizeof(pc), total, u32(entries), variant);
         // The outputs may overlap what the twin describes; a router's scores beside its input do not, so the experts read the same twin.
         for (const Projection* pr : live)
             if (overlaps_twin(bind(pr->out), (routed ? routed : per ? entries : nbatch) * pr->rows)) xq_tag_ = XqTag{};
@@ -1811,7 +1856,9 @@ public:
             // Generated tokens whose entries average fewer than two an expert: each entry its own workgroup row, through the one-column build, since grouping them would save few reads and costs a dispatch.
             const RowPlan plan = row_plan(type, nin);
             const VkDescriptorBufferInfo xqi = row_twin(X, type, plan.kernel, xcols * nin);
-            row_dispatch(plan, live, X, xqi, nin, xcols, 0, 1, false, u32(per), entries, bind(ids));
+            for_each_column_chunk(plan.kernel, 1, [&](size_t, size_t, int variant) {
+                row_dispatch(plan, live, X, xqi, nin, xcols, 0, 1, false, variant, u32(per), entries, bind(ids));
+            });
             return;
         }
         // Grouped by expert: the tiles in runs of 64, the row kernels in runs of their column count, so an expert's rows are read once per run rather than once per entry; at most one partial run per expert that has any.
@@ -1839,7 +1886,7 @@ public:
             // A column computes the same in either build and as it would alone, so an entry does not depend on what else is routed beside it.
             const RowPlan plan = row_plan(type, nin);
             const VkDescriptorBufferInfo xqi = row_twin(X, type, plan.kernel, xcols * nin);
-            row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, u32(per), max_tiles, bind(ids), order0, tab, entries);
+            row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, 2, u32(per), max_tiles, bind(ids), order0, tab, entries);
             return;
         }
         if (integer_dot_tile(type)) {
@@ -2366,13 +2413,15 @@ private:
             const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL ||
                                    id == K_MATMUL_TILE_Q8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
-                                             : (variant == 1 ? kRowColsOne : kRowColsWide);
-            // Constant 7 selects a producer's build that also writes the 8-bit twin, and constant 8 a row kernel's grouped build; every pipeline gets all three entries, and a module that declares none ignores them.
-            const uint32_t spec_data[3] = {spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u};
-            const VkSpecializationMapEntry entries[3] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)},
-                                                         {8, 2 * sizeof(uint32_t), sizeof(uint32_t)}};
+                                             : build_cols(id, variant);
+            // Constant 7 selects a producer's build that also writes the 8-bit twin, constant 8 a row kernel's grouped build, and constants 9 and 11 are the Q8_0 decode kernel's rows and steps (kVecBuilds).
+            // Every pipeline gets all five entries, and a module that declares none ignores them.
+            const uint32_t spec_data[5] = {spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u, kVecBuilds[variant].rows, kVecBuilds[variant].steps};
+            const VkSpecializationMapEntry entries[5] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)},
+                                                         {8, 2 * sizeof(uint32_t), sizeof(uint32_t)}, {9, 3 * sizeof(uint32_t), sizeof(uint32_t)},
+                                                         {11, 4 * sizeof(uint32_t), sizeof(uint32_t)}};
             VkSpecializationInfo spec{};
-            spec.mapEntryCount = 3;
+            spec.mapEntryCount = 5;
             spec.pMapEntries = entries;
             spec.dataSize = sizeof(spec_data);
             spec.pData = spec_data;

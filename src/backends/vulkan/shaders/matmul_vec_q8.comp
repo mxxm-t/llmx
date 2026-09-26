@@ -1,14 +1,19 @@
 #version 450
 // Y[b*nout + o] = dot(row o, X column b) for Q8_0 rows through the four-wide 8-bit integer dot: the Q8_0 decode kernel on integer-dot devices, with the row kernel's bindings and push constants (matmul_row.comp).
 // A subgroup takes ROWS rows; lane l covers quarter l % 4 of blocks l / 4, l / 4 + S / 4 and on, so a step reads S / 4 consecutive blocks of a row.
-// A lane loads its eight 8-bit activation values per column once for all the subgroup's rows.
+// A lane keeps MAX_COLS columns and loads each column's eight 8-bit activation values once for all the subgroup's rows.
 // Every other block's quants start two bytes into a word, so a lane loads the words its eight bytes touch and shifts.
 // The lanes' sums meet in one subgroup reduction per row and column.
+// A build changes only how many columns and rows share a weight read: a column's lanes, their block order, its products and sums and its reduction are the same in every build, so it computes the same bits in all of them (docs/VULKAN.md).
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_EXT_integer_dot_product : require
+#extension GL_EXT_control_flow_attributes : require
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint MAX_COLS = 8;
+// Rows a subgroup takes (specialization constant 9), and steps whose weights a lane loads before using any (11), so STEPS steps of every row are in flight at once; the backend dispatches by the same rows (kVecBuilds).
+layout(constant_id = 9) const uint ROWS = 2;
+layout(constant_id = 11) const uint STEPS = 1;
 // The row kernel's push layout, which row_dispatch fills for every row kernel; cluster, rows_per_sg, the types and the wide flags go unread here.
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint col0; uint ncols; uint cluster; uint rows_per_sg; uint nproj;
@@ -31,7 +36,8 @@ layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
 layout(constant_id = 8) const bool GROUPED = false;
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 
-const uint ROWS = 2u;
+// Columns whose activations a lane loads together: their loads issue back to back, and a group past the pushed count is skipped whole.
+const uint GROUP = MAX_COLS < 4u ? MAX_COLS : 4u;
 
 void main() {
     uint wg = gl_WorkGroupID.x;
@@ -55,6 +61,8 @@ void main() {
         out0 = e;
         wrow0 = ids[e] * nout;
     }
+    // A subgroup past the last row returns whole; one that holds a row reads the rows past the end as the last row and writes none of them.
+    if (row0 >= nout) return;
     const uint ncols = MAX_COLS == 1u ? 1u : GROUPED ? g_cnt : p.ncols;
 // Column c's X column and output row, as in matmul_row.comp.
 #define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (c))
@@ -62,40 +70,55 @@ void main() {
     uint nblk = p.nin / 32u;
     uint q = lane & 3u;
     uint xtab = p.nbatch * p.nin / 8u;
+    // The third word a lane reads is clamped to the buffer, since an aligned last quarter of the matrix ends at its end; it is used only where the bytes straddle.
+    uint wlast = w32s[pi].w32.length() - 1u;
+    const uint SB = S >> 2u;
     float acc[ROWS][MAX_COLS];
-    for (uint r = 0u; r < ROWS; ++r) for (uint c = 0u; c < MAX_COLS; ++c) acc[r][c] = 0.0;
-    for (uint b = lane >> 2u; b < nblk; b += S >> 2u) {
-        uvec2 xa[MAX_COLS];
-        float dx[MAX_COLS];
-        // Column loops run to MAX_COLS with the pushed count as a guard, so the arrays are indexed by constants and stay in registers.
-        for (uint c = 0u; c < MAX_COLS; ++c) {
-            uint col = XCOL(min(c, ncols - 1u));
-            xa[c] = xq4[(col * p.nin + b * 32u + q * 8u) / 8u];
-            dx[c] = xt2[xtab + col * nblk + b].x;
-        }
-        for (uint r = 0u; r < ROWS; ++r) {
-            uint row = row0 + r;
-            if (row >= nout) continue;
-            uint ob = ((wrow0 + row) * nblk + b) * 34u;
-            uint qb = ob + 2u + q * 8u;
-            uint i = qb >> 2u;
-            bool odd = (qb & 2u) != 0u;
-            // The third word only where the bytes straddle, since an aligned last quarter of the matrix ends at the buffer's end.
-            uint t0 = w32s[pi].w32[i], t1 = w32s[pi].w32[i + 1u], t2 = odd ? w32s[pi].w32[i + 2u] : 0u;
-            uint w0 = odd ? (t0 >> 16u) | (t1 << 16u) : t0;
-            uint w1 = odd ? (t1 >> 16u) | (t2 << 16u) : t1;
-            uint sw = w32s[pi].w32[ob >> 2u];
-            float dw = unpackHalf2x16((ob & 2u) != 0u ? sw >> 16u : sw).x;
-            for (uint c = 0u; c < MAX_COLS; ++c) {
-                if (c >= ncols) break;
-                int s = dotPacked4x8EXT(int(w0), int(xa[c].x)) + dotPacked4x8EXT(int(w1), int(xa[c].y));
-                acc[r][c] += dw * dx[c] * float(s);
-            }
-        }
+    [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) acc[r][c] = 0.0;
+// NS steps of a lane from block b: every row's words for all NS steps first, then per group of columns the NS steps in order, so each column still adds its blocks in order.
+// No branch separates the loads, so every weight load of the batch is issued before the first product.
+#define QUARTER_STEPS(NS) { \
+        uint w0[NS][ROWS], w1[NS][ROWS]; \
+        float dw[NS][ROWS]; \
+        [[unroll]] for (uint d = 0u; d < NS; ++d) \
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
+                uint ob = ((wrow0 + min(row0 + r, nout - 1u)) * nblk + b + d * SB) * 34u; \
+                uint qb = ob + 2u + q * 8u; \
+                uint i = qb >> 2u; \
+                bool odd = (qb & 2u) != 0u; \
+                uint t0 = w32s[pi].w32[i], t1 = w32s[pi].w32[i + 1u], t2 = w32s[pi].w32[min(i + 2u, wlast)]; \
+                w0[d][r] = odd ? (t0 >> 16u) | (t1 << 16u) : t0; \
+                w1[d][r] = odd ? (t1 >> 16u) | (t2 << 16u) : t1; \
+                uint sw = w32s[pi].w32[ob >> 2u]; \
+                dw[d][r] = unpackHalf2x16((ob & 2u) != 0u ? sw >> 16u : sw).x; \
+            } \
+        [[unroll]] for (uint g = 0u; g < MAX_COLS; g += GROUP) { \
+            if (g > 0u && g >= ncols) break; \
+            [[unroll]] for (uint d = 0u; d < NS; ++d) { \
+                uint bd = b + d * SB; \
+                uvec2 xa[GROUP]; \
+                float dx[GROUP]; \
+                [[unroll]] for (uint j = 0u; j < GROUP; ++j) { \
+                    uint col = XCOL(min(g + j, ncols - 1u)); \
+                    xa[j] = xq4[(col * p.nin + bd * 32u + q * 8u) / 8u]; \
+                    dx[j] = xt2[xtab + col * nblk + bd].x; \
+                } \
+                [[unroll]] for (uint j = 0u; j < GROUP; ++j) \
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
+                        int s = dotPacked4x8EXT(int(w0[d][r]), int(xa[j].x)) + dotPacked4x8EXT(int(w1[d][r]), int(xa[j].y)); \
+                        acc[r][g + j] += dw[d][r] * dx[j] * float(s); \
+                    } \
+            } \
+        } \
     }
-    for (uint r = 0u; r < ROWS; ++r) {
+    // A lane's steps are blocks b, b + SB and on: STEPS at a time while that many remain, then one at a time.
+    uint b = lane >> 2u;
+    for (; b + (STEPS - 1u) * SB < nblk; b += STEPS * SB) QUARTER_STEPS(STEPS)
+    if (STEPS > 1u)
+        for (; b < nblk; b += SB) QUARTER_STEPS(1u)
+    [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
         uint row = row0 + r;
-        for (uint c = 0u; c < MAX_COLS; ++c) {
+        [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
             if (c >= ncols) break;
             float s = subgroupAdd(acc[r][c]);
             if (lane == 0u && row < nout) {

@@ -7,10 +7,7 @@
 #include "core/sha.hpp"
 #include "inference/chat.hpp"
 
-// Checks chat templates against what the HF reference renderer gives for them, from a fixture tools/gen_chat_baseline.py writes: tests/data/baseline_chat_template.json, or a --scan of GGUF files.
-// Each pinned template must match its SHA-256, parse, and render every case byte for byte, or fail where the reference fails, with the same message where Python's message is one the renderer gives.
-// Each also keeps an assistant turn split or whole as the rule read from Jinja's parse of it says, and as the reference's renders say where they decide it, and renders a two-turn conversation with the turn kept that way as the reference renders it.
-// The feature templates are checked the same way, the refused ones must be refused, and chat::assistant_turn must split each text as the Qwen templates split it.
+// Checks chat templates against the HF reference renderer's output in a fixture tools/gen_chat_baseline.py writes (tests/data/baseline_chat_template.json, or a --scan of GGUF files), and the renderer's own limits; docs/src/inference-chat.md lists the checks.
 // Every failure is printed before the exit status says whether there was one.
 
 using chat::jj::Value;

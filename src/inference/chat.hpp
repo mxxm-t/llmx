@@ -22,10 +22,8 @@
 #include "format/gguf.hpp"
 #include "tokenizer/tokenizer.hpp"
 
-// Chat templates: a GGUF file's `tokenizer.chat_template`, written in the Jinja template language and rendered byte for byte as the reference renderer named in docs/src/inference-chat.md renders it.
-// That renderer runs Jinja in an immutable sandbox with trim_blocks, lstrip_blocks and the loop controls, a `tojson` that keeps key order and escapes no HTML, and the globals `raise_exception` and `strftime_now`; values behave as Python's do.
-// This one takes the part of that language chat templates use, listed in docs/src/inference-chat.md.
-// A template outside that part, or one Jinja would not compile, is refused when it is parsed: `ChatFormat` records the refusal, and only `chat` and `serve` raise it.
+// Chat templates, a GGUF file's `tokenizer.chat_template` in the Jinja language, rendered byte for byte as the reference renderer of docs/src/inference-chat.md renders them.
+// A template outside the part of Jinja that page lists is refused when it is parsed, and only `chat` and `serve` raise the refusal.
 
 namespace chat {
 

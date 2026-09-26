@@ -109,6 +109,16 @@ static void check_contracts(backend::CpuBackend& cpu) {
     rejects([] { quant::row_bytes(9999, 32); }, "an unknown type was sized");
     rejects([] { quant::row_bytes(quant::GGML_TYPE_Q8_0, std::numeric_limits<size_t>::max() / 32 * 32); },
             "a row size that wraps was returned");
+    // Several rows, and none: zero rows take zero bytes however wide a whole-block row, and the type and the block are checked all the same.
+    require(quant::row_bytes(quant::GGML_TYPE_Q8_0, 64, 3) == 204 &&
+            quant::row_bytes(quant::GGML_TYPE_Q8_0, std::numeric_limits<size_t>::max() / 32 * 32, 0) == 0,
+            "rows of whole blocks differ from the block layout");
+    rejects([] { quant::row_bytes(9999, 32, 0); }, "an unknown type was sized with no rows");
+    rejects([] { quant::row_bytes(quant::GGML_TYPE_Q8_0, 48, 0); }, "a row inside a block was sized with no rows");
+    rejects([] { quant::row_bytes(quant::GGML_TYPE_F32, size_t(1) << 31, size_t(1) << 31); },
+            "a size that wraps across rows was returned");
+    rejects([] { quant::row_bytes(quant::GGML_TYPE_Q8_0, 32, (size_t(1) << 59) - 1); },
+            "a size that wraps across rows of one block was returned");
 
     // Q8_0 rows of 48 values, a block and a half, with storage for two whole blocks a row so a truncating op would run.
     // One column takes the decode path and two the batched one.

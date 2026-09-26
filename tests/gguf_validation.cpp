@@ -205,6 +205,10 @@ int main(int argc, char** argv) {
         rejected(path, "dimension product overflow", one({maximum, 2}, 0, 0, 0));
         rejected(path, "F32 byte count overflow", one({uint64_t(1) << 62}, 0, 0, 0));
         rejected(path, "Q8 byte count overflow", one({maximum - 31}, 8, 0, 0));
+        // Element counts that fit whose bytes over several rows do not, each refused as an overflow, since a wrapped size can pass the extent check or fail it for another reason.
+        rejected(path, "F32 byte count overflow across rows", one({uint64_t(1) << 31, uint64_t(1) << 31}, 0, 0, 0), "overflow");
+        rejected(path, "F32 byte count overflow across wider rows", one({uint64_t(1) << 31, uint64_t(1) << 32}, 0, 0, 0), "overflow");
+        rejected(path, "Q8 byte count overflow across rows", one({32, (uint64_t(1) << 59) - 1}, 8, 0, 0), "overflow");
         rejected(path, "large valid size absent payload", one({uint64_t(1) << 40}, 0, 0, 0));
         rejected(path, "unknown tensor type", one({32}, 99, 0, 128));
         struct Type { uint32_t id; uint64_t block; size_t bytes; };

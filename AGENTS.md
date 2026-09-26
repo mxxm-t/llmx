@@ -159,9 +159,8 @@ ctest --test-dir build -C Release --output-on-failure
 malformed input, nesting limits and JSON output string escaping. The Q8/Q4 round-trip test also checks
 escaped Unicode tensor names through the actual CLI.
 
-`gguf-validation` checks independent binary fixtures for field lengths/counts,
-array depth, tensor arithmetic, file extents, quantized row widths, custom
-alignment and a tensor name repeated in one file. These are format checks; they do not establish model-schema safety.
+`gguf-validation` checks independent binary fixtures for field lengths/counts, array depth, tensor arithmetic, byte counts that overflow although the element count fits, in one row or across rows, file extents, quantized row widths, custom alignment and a tensor name repeated in one file.
+These are format checks; they do not establish model-schema safety.
 `load-progress` reads, maps and reads in a file as the loader does, and checks the progress, each tensor's file span, that reading the headers maps nothing, that a model not mapped is neither written nor read in, early rejection, and a file truncated before loading or whose size changes between reading and mapping, refused before any progress.
 The loader's readers check a file's size against its header with the mapping's own check, so a changed size is refused the same way.
 It then writes a tiny Qwen model with tokenizer metadata and loads it through `infer::load_model` in each load mode: on the CPU the payload is kept, and on a CPU backend that copies what it adopts and reports `reads_in_place()` false the host copy is released (`payload_size()` is 0), streamed from one file in `auto`; a direct load on the CPU maps nothing and its copy holds each weight where the file does.
@@ -253,7 +252,7 @@ It also checks valid empty CPU transfers, rejected offsets/null sources,
 unchanged storage and a zero thread hint preserving the current pool.
 It pins that construction and count changes start no threads, and that the first dispatch at a count starts one pool of that size, which later dispatches reuse.
 A start that fails partway fails its dispatch and keeps the count, and the next dispatch starts the whole pool without a new count.
-It checks `quant::row_bytes` against the block layouts and its refusals of an unknown type, a partial block and a wrapping size.
+It checks `quant::row_bytes` against the block layouts over one row and over several, zero rows taking zero bytes however wide a whole-block row, and its refusals of an unknown type and a partial block, with rows or with none, and of a size that wraps in one row or across rows.
 Decode and batched `matmul` and `embed` must refuse a Q8_0 row that ends inside a block, and `matmul` and `matmul_group` must refuse row runs that reach past the call, are out of order or fall short of it, all before writing any output.
 It does not establish recovery of partially executed model sessions.
 

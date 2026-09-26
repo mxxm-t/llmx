@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <functional>
 #include <iostream>
@@ -913,12 +914,23 @@ void passes_match_alone() {
     }
 }
 
+// A CPU backend whose allocations above `limit` bytes fail, as a device's do when its memory runs out.
+struct TightCpu : backend::CpuBackend {
+    size_t limit = SIZE_MAX;
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+        if (bytes > limit) throw std::runtime_error("out of memory");
+        return backend::CpuBackend::alloc(bytes, where);
+    }
+};
+
 // What the pass API refuses, each before any work and with nothing changed: a context not reserved, reserved twice, used before or on a placement that is not pipelined for more than one slot; forward through a reserved context; a slot beyond the reservation or in use; more rows or logits rows than reserved; a sequence listed twice or already in flight, and reset, fork and forward of one; stages out of order or twice, and logits or an end before the last stage.
+// A reservation the devices cannot hold fails with their error and leaves the context fresh, so a smaller one on it succeeds.
 // A pass ended, one aborted after its first stage, and the aborted one run again must each leave the histories and rows of the sequences run alone.
 void passes_refused() {
     const auto weights = tiny_qwen(4, 2 * 128, true);
-    auto cpus = [] {
-        std::vector<backend::BackendPtr> v{std::make_shared<backend::CpuBackend>(), std::make_shared<backend::CpuBackend>()};
+    std::vector<std::shared_ptr<TightCpu>> tight{std::make_shared<TightCpu>(), std::make_shared<TightCpu>()};
+    auto cpus = [&] {
+        std::vector<backend::BackendPtr> v(tight.begin(), tight.end());
         for (auto& c : v) c->set_threads(1);
         return v;
     };
@@ -958,6 +970,13 @@ void passes_refused() {
     const infer::BatchEntry ec{&c, ids.data(), 1, true};
     m.forward(used, &ec, 1);
     refused([&] { m.reserve_passes(used, 2, 4, 2); }, "a context a forward used reserved for passes");
+    for (auto& t : tight) t->limit = size_t(1) << 20;
+    bool short_memory = false;
+    try { m.reserve_passes(ctx, 2, size_t(1) << 16, 2); } catch (const std::runtime_error&) { short_memory = true; }
+    for (auto& t : tight) t->limit = SIZE_MAX;
+    require(short_memory && !ctx.slots && ctx.scratch.empty() && ctx.handoff.empty() && !ctx.logits_buf && ctx.passes.empty(),
+            "a reservation the devices cannot hold did not fail, or left the context changed");
+    ++checked;
     m.reserve_passes(ctx, 2, 4, 2);
     refused([&] { m.reserve_passes(ctx, 2, 4, 2); }, "a context reserved twice");
     refused([&] { m.forward(ctx, &ea, 1); }, "forward through a context reserved for passes");

@@ -1,7 +1,7 @@
 # The findings of the dead-code and docs checks (tests/dead_code.py, tests/docs_check.py) that the tree still has, and why each is still here.
 # One per line: check | file | name | times | reason, where times is how often the finding occurs.
 # A finding not listed here fails its check, and so do one that occurs another number of times than its line says and a line here whose finding no longer occurs, so the change that removes a finding removes its line (AGENTS.md, Dead code and stale docs).
-# Every line below goes with cleanup/known-findings, planned in docs/STATUS.md to follow refactor/arch-modules, but the qwen35 lines, which go with the steps of the Qwen 3.5, 3.6 and 3.8 plan they name; the line for src/model/arch_qwen.hpp waits for that refactor, which moves the file.
+# Every line below goes with cleanup/known-findings, planned in docs/STATUS.md to follow refactor/arch-modules, but the qwen35 lines, which go with the steps of the Qwen 3.5, 3.6 and 3.8 plan they name.
 
 # Functions only the tests reach, found by name.
 test-only | src/backends/cpu/cpu_backend.hpp | CpuBackend::workers_started | 1 | the pool's start count, a probe backend-errors and model-validation read to pin when workers start; kept until the tests take the count another way, with cleanup/known-findings
@@ -46,9 +46,9 @@ linked-test-only | src/backends/kv_storage.hpp | backend::BlockKVStorage::block_
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::kernel_representations() const | 1 | what vulkan_kernel_representations returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::name() const | 1 | what vulkan_device_name returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::profile() const | 1 | what vulkan_device_profile returns; goes with it
-linked-test-only | src/model/arch_qwen.hpp | infer::Model::Model(gguf::GGUFModel const&, std::vector, infer::Placement, infer::ModelOptions) | 1 | a constructor from a file and a placement that only tests use; waits for refactor/arch-modules, which moves this file, then goes with cleanup/known-findings
+linked-test-only | src/model/runtime.hpp | infer::Model::Model(gguf::GGUFModel const&, std::vector, infer::Placement, infer::ModelOptions) | 1 | a constructor from a file and a placement that only tests use; waits for refactor/arch-modules, which moves this file, then goes with cleanup/known-findings
 linked-test-only | src/model/kv_cache.hpp | infer::BlockPool::BlockPool(unsigned long) | 1 | a sizing constructor only tests use; goes with cleanup/known-findings
-linked-test-only | src/model/arch_qwen.hpp | infer::Model::pipelined() const | 1 | whether a placement takes several passes in flight, which only the placement tests read until the server refuses --passes above 1 on a placement that is not pipelined in layer split phase 3, step 3; goes in that step
+linked-test-only | src/model/runtime.hpp | infer::Model::pipelined() const | 1 | whether a placement takes several passes in flight, which only the placement tests read until the server refuses --passes above 1 on a placement that is not pipelined in layer split phase 3, step 3; goes in that step
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::n_blocks() const | 1 | the block count, which only tests read; goes with cleanup/known-findings
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::operator=(infer::KVSequence&&) | 1 | a move assignment only tests use; goes with cleanup/known-findings
 linked-test-only | src/server/http.hpp | http::fetch(std::string const&, unsigned short, std::string const&, std::string const&, std::string const&, std::string&, std::vector*, std::string const&) | 1 | the HTTP layer's client, written for its test; moves into the tests with cleanup/known-findings
@@ -67,7 +67,6 @@ line-pin | docs/STATUS.md | main.cpp:264 | 1 | the loader plan's steps; pinned t
 line-pin | docs/STATUS.md | docs/EXECUTION.md:234 | 1 | the loader plan's steps; pinned to their commit with cleanup/known-findings
 
 # Names in live text that the code no longer has.
-name | docs/DEVICE-EXECUTION.md | Model::matvec | 1 | history in The problem, which describes the interface as it stood; the section moves under a dated heading with cleanup/known-findings
 name | docs/src/backends-backend.md | matmul(ggml_type, data, X, Y, nin, nout, nbatch, runs) | 1 | the parameter has been type since the ggml_type name left the code; corrected with cleanup/known-findings
 
 # Commands a live doc names that the binary lacks.

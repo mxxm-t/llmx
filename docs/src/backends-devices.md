@@ -7,4 +7,4 @@ Where a device spec becomes a backend, for every caller: the CLI's `--device`, t
 - `make_backend(spec, diagnostics)`: the backend a spec names; `diagnostics` asks a device backend to time its kernels (`bench --profile`). A Vulkan spec in a build without the Vulkan backend throws.
 - `make_backends(specs, diagnostics)`: one backend per spec, in the list's order.
 
-How the model is placed over those backends is the model layer's (`infer::place_model`, `model/arch_qwen.hpp`).
+How the model is placed over those backends is the model layer's (`infer::place_model`, `model/runtime.hpp`).

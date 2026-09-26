@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <functional>
 
-#include "model/arch_qwen.hpp"
+#include "model/runtime.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "inference/sampler.hpp"
 

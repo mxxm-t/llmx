@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "backends/cpu/cpu_backend.hpp"
-#include "model/arch_qwen.hpp"
+#include "model/runtime.hpp"
 #include "model/kv_cache.hpp"
 #include "tiny_qwen.hpp"
 

@@ -1,4 +1,4 @@
-# `src/model/arch_qwen.hpp` - Qwen3 forward pass
+# `src/model/runtime.hpp` - the model runtime, with the Qwen3 forward pass
 
 Qwen3-style transformer forward pass, from scratch, in namespace `infer`:
 dense Qwen3 and its mixture-of-experts form, `qwen3moe`. The compute

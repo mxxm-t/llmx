@@ -97,5 +97,5 @@ They show processing before prefill and generating before sampling.
 `emit_text` writes and flushes inference text chunks to stdout; the caller appends a newline per reply.
 
 The synthetic bench's model comes from `infer::synthetic_model`
-(`model/arch_qwen.hpp`). Also holds `print_usage`. See `docs/USAGE.md` for
+(`model/runtime.hpp`). Also holds `print_usage`. See `docs/USAGE.md` for
 the full command reference.

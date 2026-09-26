@@ -46,4 +46,4 @@ The caller also renders the progress: the CLI prints "Reading model metadata..."
 Worker counts stay the caller's (`Model::set_threads`).
 
 A failure anywhere in the sequence throws and frees what was built.
-A model whose construction failed has already drained its backends (`model/arch_qwen.hpp`), and one whose stream failed drains them as it is destroyed, before any buffer is freed; `load-progress` checks both a failed write and a failed progress callback on a backend whose uploads stay outstanding until it drains.
+A model whose construction failed has already drained its backends (`model/runtime.hpp`), and one whose stream failed drains them as it is destroyed, before any buffer is freed; `load-progress` checks both a failed write and a failed progress callback on a backend whose uploads stay outstanding until it drains.

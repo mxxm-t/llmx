@@ -19,7 +19,7 @@
 #include "format/gguf.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "inference/chat.hpp"
-#include "model/arch_qwen.hpp"
+#include "model/runtime.hpp"
 
 // Loading a model file, the one sequence every command and tool opens a model through (docs/src/inference-load.md).
 

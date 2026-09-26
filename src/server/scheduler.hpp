@@ -16,7 +16,7 @@
 #include <vector>
 #include "inference/logprobs.hpp"
 #include "inference/sampler.hpp"
-#include "model/arch_qwen.hpp"
+#include "model/runtime.hpp"
 #include "server/policy.hpp"
 #include "tokenizer/tokenizer.hpp"
 

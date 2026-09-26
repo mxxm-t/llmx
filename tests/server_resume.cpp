@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "backends/devices.hpp"
-#include "model/arch_qwen.hpp"
+#include "model/runtime.hpp"
 #include "server/scheduler.hpp"
 
 namespace {

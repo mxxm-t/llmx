@@ -5,7 +5,7 @@
 #include <new>
 #include <stdexcept>
 #include <thread>
-#include "model/arch_qwen.hpp"
+#include "model/runtime.hpp"
 #include "tiny_qwen.hpp"
 
 static thread_local bool before_scope = false, fail_body_allocation = false;

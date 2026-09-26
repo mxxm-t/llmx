@@ -45,7 +45,7 @@
 #include "inference/perplexity.hpp"
 #include "inference/chat.hpp"
 #include "inference/load.hpp"
-#include "model/arch_qwen.hpp"
+#include "model/runtime.hpp"
 #include "server/api.hpp"
 
 // CLI argument parsing and dispatch; format, quantization, inference and model logic stay in their own layers.

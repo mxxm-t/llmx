@@ -12,7 +12,7 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
-#include "model/arch_qwen.hpp"
+#include "model/runtime.hpp"
 #include "model/layer_split.hpp"
 #include "tiny_qwen.hpp"
 

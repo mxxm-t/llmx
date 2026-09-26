@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "inference/logprobs.hpp"
-#include "model/arch_qwen.hpp"
+#include "model/runtime.hpp"
 
 namespace infer {
 

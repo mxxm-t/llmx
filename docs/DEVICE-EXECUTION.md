@@ -13,7 +13,7 @@ correctness and performance reference throughout.** It is the A/B baseline for
 every GPU claim (#8), so no step may make it slower. Each step below is
 independently benchmarkable, and several are CPU wins on their own.
 
-## The problem
+## The problem (as of 2026-09-20)
 
 This section describes the interface as it stood when the design was written,
 and is kept because the migration order below is answering it point by point.
@@ -47,11 +47,11 @@ dispatching is worth it. Both are consequences of (2): because elementwise work
 lives in model code, the model needs host parallelism to run it. Fix (2) and
 both leaks close.
 
-Verified caller counts on the current tree:
+Caller counts on the tree of that date:
 
 | Method | Callers outside `cpu_backend.hpp` |
 |---|---|
-| `parallel_for` | 1 - the `for_rows` helper in `arch_qwen.hpp` |
+| `parallel_for` | 1 - the model's `for_rows` helper |
 | `threads_available` | 1 compute use (`for_rows`); the rest are CLI reporting |
 | `dot_q8_0` | 1 test |
 | `matvec_q8_0` | 1 - the `bench` CLI command |

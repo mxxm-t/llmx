@@ -15,7 +15,7 @@ the container, for the loader to use without knowing it.
   one counts each piece it writes itself.
 
 A second format is a reader that produces the model's input,
-`infer::QwenWeights` (`model/arch_qwen.hpp`), as `infer::gguf_weights` does
+`infer::QwenWeights` (`model/runtime.hpp`), as `infer::gguf_weights` does
 for GGUF, and a `FileSpan` for each tensor, plus one branch in
 `infer::load_model`. The tokenizer and the chat format still read
 `gguf::GGUFModel`.

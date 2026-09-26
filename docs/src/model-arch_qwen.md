@@ -107,9 +107,10 @@ to a `backend::Backend`.
 - `ExecContext`: where a context's passes run, plain data the model fills:
   per device an activation arena (twelve slots at 64-byte offsets in one
   backend allocation), which each device's passes use in turn, and the
-  host-visible handoff buffers a crossing goes through, per device one, two
-  when a prompt's chunks are pipelined, and in a context reserved for
-  passes those of its slots (`reserve_passes`); the host-visible
+  host-visible handoff buffers on each device the residual leaves, one,
+  two when a prompt's chunks are pipelined, and in a context reserved for
+  passes those of its slots (`reserve_passes`), while a device it never
+  leaves, such as a pipelined split's last, keeps none; the host-visible
   logits rows; the tickets; and a `Pass` per pass in flight, the entries,
   rows, positions, head rows and cache views its stages read as they are
   recorded, the handoff buffer its crossings use, its first logits row and
@@ -163,11 +164,11 @@ to a `backend::Backend`.
     the first stage's device, the head on the last's and every feed-forward
     block beside its attention. `reserve_passes(ctx, slots, rows,
     logit_rows)` sizes a fresh context once: the arena for `rows` rows,
-    which every pass shares, a handoff buffer per slot and device, two at
-    least on a pipelined split and one for the single slot of a placement
-    that is not pipelined, and `logit_rows` rows of logits the caller hands
-    out. The context
-    is frozen from then on. More than one slot needs a pipelined placement.
+    which every pass shares, a handoff buffer per slot on each device the
+    residual leaves, two at least on a pipelined split and one for the
+    single slot of a placement that is not pipelined, and `logit_rows` rows
+    of logits the caller hands out. The context is frozen from then on. More
+    than one slot needs a pipelined placement.
     `begin_pass(ctx, slot, entries, n, logits_base)` plans a pass in a free
     slot, copying its tokens, and puts its sequences in flight; a sequence
     in flight or listed twice, a slot in use or beyond the reservation, and

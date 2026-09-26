@@ -301,7 +301,7 @@ struct Pass {
     size_t ran = 0;                                    // the stages run_pass_stage has recorded
 };
 
-// Where a context's passes run: an activation arena per device, which each device's passes use in turn, host-visible handoff buffers per device a crossing goes through, the host-visible logits rows on the output device, and the tickets of the submissions.
+// Where a context's passes run: an activation arena per device, which each device's passes use in turn, host-visible handoff buffers on each device a crossing leaves, the host-visible logits rows on the output device, and the tickets of the submissions.
 // A forward grows it to the largest pass seen; Model::reserve_passes instead sizes it once for passes in flight, each slot with its own handoff buffers and logits rows, and replaces nothing after that.
 // The CLI has one context, and a scheduler that keeps passes in flight reserves one.
 // Plain data that Model fills.
@@ -579,6 +579,16 @@ public:
             for (int l = stages_[s].first; l < stages_[s].end; ++l)
                 pipelined_ = pipelined_ && place_.ffn_device[(size_t)l] == (int)stages_[s].device;
         }
+        // The residual leaves a device wherever the next role on its path (the embedding, each layer's attention and feed-forward block, the head) sits on another.
+        // A feed-forward block away from its attention sends too, since a streamed layer's host rows cross back from it to the attention's device.
+        size_t at = (size_t)place_.embed_device;
+        for (int l = 0; l < cfg.n_layer; ++l) {
+            const size_t a = (size_t)place_.attn_device[(size_t)l], f = (size_t)place_.ffn_device[(size_t)l];
+            if (a != at) devices_[at]->sends = true;
+            if (f != a) devices_[a]->sends = devices_[f]->sends = true;
+            at = f;
+        }
+        if ((size_t)place_.output_device != at) devices_[at]->sends = true;
 
         try {
             resolve_tensors(weights, adopt);
@@ -912,6 +922,7 @@ private:
     struct Device {
         backend::BackendPtr b;
         bool used = false;
+        bool sends = false;                      // the residual leaves it, so it keeps handoff buffers
         int attn_layers = 0;
         int storage_index = -1;
         std::vector<int> local_layer;            // model layer -> layer in storage
@@ -1212,7 +1223,7 @@ private:
         p.in_flight = false;
     }
 
-    // Handoff buffers per device for `slots` passes in flight: one where crossings run inside a stage, and on a pipelined split one per slot, two at least, so a prompt's chunk goes out through one while the chunk before it still waits in the other.
+    // Handoff buffers on each device a crossing leaves (Device::sends) for `slots` passes in flight: one where crossings run inside a stage, and on a pipelined split one per slot, two at least, so a prompt's chunk goes out through one while the chunk before it still waits in the other.
     size_t handoffs(size_t slots) const { return pipelined_ ? std::max<size_t>(2, slots) : 1; }
 
     // The CPU prefill scope is per backend, so a prompt enters one on every device it runs on, nested.
@@ -1240,7 +1251,7 @@ private:
         return b.alloc(total);
     }
 
-    // Storage for a pass of `rows` rows with `want` logits rows, on every device the placement uses, with `buffers` handoff buffers per device (handoffs): grown when a pass needs more rows than the context holds, never shrunk.
+    // Storage for a pass of `rows` rows with `want` logits rows, on every device the placement uses, with `buffers` handoff buffers on each device a crossing leaves (handoffs): grown when a pass needs more rows than the context holds, never shrunk.
     // Each is allocated whole before it replaces what the context had.
     void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers) {
         auto mul = [](size_t a, size_t b) {
@@ -1264,14 +1275,14 @@ private:
             std::copy(offsets, offsets + ExecContext::kSlots, sc.offset);
             sc.rows = rows;
         }
-        // The host-visible buffers per used device a crossing leaves through, when more than one device is used.
+        // The host-visible buffers a crossing leaves each sending device through.
         size_t used = 0;
         for (const auto& d : devices_) used += d->used;
         if (used > 1 && ctx.handoff_rows < rows) {
             std::vector<std::vector<backend::BufferPtr>> handoff(devices_.size());
             const size_t bytes = mul(mul(rows, (size_t)cfg.n_embd), sizeof(float));
             for (size_t d = 0; d < devices_.size(); ++d)
-                for (size_t i = 0; devices_[d]->used && i < buffers; ++i)
+                for (size_t i = 0; devices_[d]->sends && i < buffers; ++i)
                     handoff[d].push_back(devices_[d]->b->alloc(bytes, backend::Memory::host_visible));
             for (size_t d = 0; d < ctx.handoff.size(); ++d)
                 if (devices_[d]->used) devices_[d]->b->wait(ctx.tickets[d]);
@@ -1449,7 +1460,7 @@ struct PlacementRequest {
     size_t stream_from = 0;           // with experts on the CPU, the prompt length from which they are copied to the device (Placement::stream_from)
     int ubatch = 0;                   // prompt tokens a pass takes, kDefaultUbatch when 0
     size_t decode_rows = 0;           // generated tokens a pass may carry beside a prompt's: a server's decoding requests
-    size_t slots = 0;                 // passes the caller keeps in flight (Model::reserve_passes), each with a handoff buffer per device that a split's fit counts, two at least on the pipelined split it fits
+    size_t slots = 0;                 // passes the caller keeps in flight (Model::reserve_passes), each with a handoff buffer on every stage but the last, two at least, which a split's fit counts
     // Histories the caller holds at once and the tokens each reaches, when it knows them, as bench does its sequences; zero leaves the options' budget as it is.
     // Each history takes whole blocks, up to the model's context, so the budget grows to hold them all where it would not.
     size_t histories = 0, history_tokens = 0;

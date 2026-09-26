@@ -185,10 +185,11 @@ Sequence      one request's history: a KVSequence per storage, the
               host several storages (one per attention kind), which is why
               the table is per storage and not per device.
 ExecContext   where passes run: an activation arena per device, a
-              host-visible handoff buffer per device (two on a pipelined
-              split, or one per pass slot where a context reserved for
-              passes in flight has more), the logits buffer, the
-              tickets, and the plan of each pass in flight.
+              host-visible handoff buffer per device the residual leaves
+              (two on a pipelined split, or one per pass slot where a
+              context reserved for passes in flight has more), the
+              logits buffer, the tickets, and the plan of each pass in
+              flight.
 Batch         entries of (Sequence*, token ids, want_logits).
 ```
 

@@ -402,7 +402,7 @@ void layer_split_fits() {
 }
 
 // Three layers placed by place_model over two CPU backends at shares 1:2 and over three at 1:1:1, prompts chunked at ubatch 3.
-// A 13-token prompt is five chunks, more than the stages, so the pipelined prefill reuses its pass slots and both handoff buffers of every device.
+// A 13-token prompt is five chunks, more than the stages, so the pipelined prefill reuses its pass slots and both handoff buffers of every stage but the last.
 struct PipelinedSplit {
     std::vector<int> shares;
     int last_layers;   // the layers the last stage runs

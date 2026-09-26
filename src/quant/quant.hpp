@@ -58,6 +58,7 @@ inline void dequantize_row_q8_0(const uint8_t* src, float* dst, size_t nblocks) 
 // A block holds 32 floats compressed into a 2-byte f16 scale + 16 bytes of nibbles (gguf::Q4_0_TYPESIZE = 18 bytes per block).
 // The scale is d = amax/7 so the quantized range [-8, 7] maps to [-amax, amax].
 // Each byte holds two values: the low nibble is element j, the high nibble element j+16; the stored nibble is unsigned 0..15 where the true value = nibble - 8.
+// Decoding as d*(nibble - 8) gives the format's -0 at nibble 8 under a negative scale; the product is exact in f32, since |nibble - 8| is at most 8.
 inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
         const float* x = src + b * gguf::Q4_0_BLOCK;
@@ -92,8 +93,8 @@ inline void dequantize_row_q4_0(const uint8_t* src, float* dst, size_t nblocks) 
         const float d = f16_to_f32(d16);
         for (size_t j = 0; j < gguf::Q4_0_BLOCK / 2; j++) {
             uint8_t byte = y[2 + j];
-            x[j] = (float)(int)(byte & 0x0F) * d - 8.0f * d;
-            x[j + gguf::Q4_0_BLOCK / 2] = (float)(int)(byte >> 4) * d - 8.0f * d;
+            x[j] = (float)((int)(byte & 0x0F) - 8) * d;
+            x[j + gguf::Q4_0_BLOCK / 2] = (float)((int)(byte >> 4) - 8) * d;
         }
     }
 }

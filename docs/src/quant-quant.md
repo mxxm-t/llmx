@@ -5,10 +5,8 @@ Block quantization kernels, in namespace `quant`.
 - `quantize_row_q8_0(src, dst, nblocks)`: compress 32 floats into a 2-byte f16
   scale + 32 int8 values per block (clamped to [-127, 127]).
 - `dequantize_row_q8_0(src, dst, nblocks)`: reverse.
-- `quantize_row_q4_0` / `dequantize_row_q4_0`: Q4_0 block = 2-byte f16 scale
-  (`d = amax/7`) + 16 bytes of nibbles; each byte holds value `j` in the low
-  nibble and `j+16` in the high nibble, stored unsigned 0..15 where the true
-  value is `nibble - 8`.
+- `quantize_row_q4_0` / `dequantize_row_q4_0`: Q4_0 block = 2-byte f16 scale (`d = amax/7`) + 16 bytes of nibbles; each byte holds value `j` in the low nibble and `j+16` in the high nibble, stored unsigned 0..15 where the true value is `nibble - 8`.
+  The decode computes `d*(nibble - 8)`, so under a negative scale, which `quantize` never writes but other files carry, nibble 8 gives -0 as the format does.
 - `quantize_row_q4_1` / `dequantize_row_q4_1`: Q4_1 block = f16 scale + f16
   min + 16 bytes of nibbles (20 bytes). The nibble is unsigned and the block
   carries its own offset, so the value is `d*q + m`, not `d*(q-8)`.

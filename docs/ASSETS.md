@@ -408,15 +408,16 @@ On the real files:
 | Pure form against numpy form, 128 blocks of each of the first four tensors of each type in those files, Windows | all equal |
 | Numpy form against the separate reader on the Linux host (numpy 2.2.6), every tensor of those nine files, of Q8_0 and of the MXFP4 writer's file, with the pure form on the first and last 8 blocks of every tensor | 3,410 tensors, all equal |
 | MXFP4 against the separate reader on 20,000 random blocks, the first 256 with every E8M0 byte from 0 to 255 | all 640,000 values equal |
-| Numpy form against `llmx dequantize` on every tensor of Q8_0, Q4_0, Q5_K_M and Q4_K_M, Linux host | every value equal, and every bit but the sign of zero in the 193 Q4_0 tensors of the Q4_0 file |
+| Numpy form against `llmx dequantize` on every tensor of Q8_0, Q4_0, Q5_K_M and Q4_K_M, Linux host | every value equal, and every bit but the sign of zero in the 193 Q4_0 tensors of the Q4_0 file; every bit, the sign of zero included, since the Q4_0 decode below |
 | The BF16 file's 310 tensors, widened by the spec decoder, against `Qwen/Qwen3-0.6B` at `c1899de289a04d12100db370d81485cdf75e47ca` | 310/310 bit for bit equal; the tied head is not in the file |
 
-In those Q4_0 tensors, where the scale d is negative and the nibble is 8, llmx writes +0: it computes nibble·d − 8d, and the format's d·(nibble − 8) gives −0.
-That is 26,631,920 values, and no sum changes.
+In those Q4_0 tensors, where the scale d is negative and the nibble is 8, llmx wrote +0: it computed nibble·d − 8d, and the format's d·(nibble − 8) gives −0.
+That was 26,631,920 values, and no sum changed.
 llmx's own Q4_0 quantizer never writes a negative d, so `tests/roundtrip.py` sees it only on raw Q4_0 blocks under every scale of its set, negatives included, which it compares with the spec decoder bit for bit, the sign of zero included.
 The spec decoder keeps the format's -0, and `tests/raw_blocks.py` holds both of its forms to it.
-llmx's decode is to compute d·(nibble − 8) instead.
-On the Linux host's CPU they fail on today's decode at 8 of their 512 values, each +0 where the spec decoder gives -0, and pass with the fix.
+llmx's decode now computes d·(nibble − 8).
+On the Linux host's CPU those raw blocks fail on the old decode at 8 of their 512 values, each +0 where the spec decoder gives -0, and pass with the new one.
+With it, `llmx dequantize` gives the numpy form's bits on every tensor of Q8_0, Q4_0, Q5_K_M and Q4_K_M, 596,049,920 values each; a binary with the old decode, measured beside it, differs in the sign of those 26,631,920 zeros and nothing else.
 
 #### MXFP4 writer
 

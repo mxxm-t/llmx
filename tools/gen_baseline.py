@@ -474,7 +474,7 @@ def gen_moe(output_dir=OUT_DIR):
 
 
 # The qwen35 goldens come from transformers 5.17.0's own torch functions for the linear-attention layers.
-# HF's qwen3_5 code runs a hub kernel, or the linear-attention or conv package, in their place whenever one is installed, so none may be.
+# HF's qwen3_5 code runs the linear-attention or conv package in their place whenever one is installed, and a hub kernel whenever a load asks the kernels package for one, so none may be installed.
 QWEN35_TRANSFORMERS = "5.17.0"
 QWEN35_REPLACEMENTS = ("kernels", "fla", "causal_conv1d")
 # The checkpoint keys Qwen3_5ForCausalLM may leave unused: the MTP block and the vision tower, which it drops at load.

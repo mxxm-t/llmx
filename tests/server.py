@@ -948,7 +948,7 @@ def check_uncapped(model):
         health = srv.get("/v1/health")
         assert health["active"] == 0 and health["pauses"] > before, health
         # Nothing waits paused once every request has ended, and the resumes took their donors back or recomputed what their caches lacked.
-        assert health["paused"] == 0 and (health["recomputed"] > 0 or health["taken_back"] > 0) and health["stalls"] >= 0, health
+        assert health["paused"] == 0 and (health["recomputed"] > 0 or health["taken_back"] > 0), health
     finally:
         srv.close()
 

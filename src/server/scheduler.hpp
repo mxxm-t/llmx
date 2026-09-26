@@ -292,11 +292,14 @@ public:
         size_t stalls = 0;       // passes a request sat out, unable to grow
         size_t recomputed = 0;   // rows resumes computed again
         size_t taken_back = 0;   // resumes that took their own donor back whole
+        std::vector<size_t> reserved, donor_blocks;   // per cache pool, the blocks the ledger holds reserved and those the donors hold
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
-        return Stats{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_, (size_t)pauses_,
-                     paused_count_.load(), stalls_, recomputed_, taken_back_};
+        Stats s{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_, (size_t)pauses_,
+                paused_count_.load(), stalls_, recomputed_, taken_back_, reserved_, std::vector<size_t>(reserved_.size(), 0)};
+        for (const Donor& d : donors_) add(s.donor_blocks, d.blocks);
+        return s;
     }
 
     // The loop, in the caller's thread, until stop().
@@ -747,6 +750,7 @@ private:
     // reset waits for the last pass that touched the sequence, so its blocks return to the pool only once the device is done with them.
     void release(Request& r) {
         try { model_.reset(r.seq_); } catch (const std::exception&) {}
+        std::lock_guard<std::mutex> lk(m_);
         sub(reserved_, r.need_);
         r.need_.clear();
     }

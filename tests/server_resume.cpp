@@ -105,6 +105,15 @@ std::string stop_at(const bpe::Tokenizer& tok, const std::vector<uint32_t>& ids,
     throw std::runtime_error("no stop string ends the reply at its token " + std::to_string(at));
 }
 
+// Once every request has ended, the blocks the scheduler holds reserved are the donors' blocks, never more than a pool has.
+void ledger(const server::Scheduler::Stats& s, const infer::Model& model, const std::string& what) {
+    require(s.reserved.size() == model.kv_pools() && s.donor_blocks.size() == model.kv_pools(), what + ": the ledger does not name every pool");
+    for (size_t p = 0; p < s.reserved.size(); ++p)
+        require(s.reserved[p] <= model.kv_pool_blocks(p) && s.reserved[p] == s.donor_blocks[p],
+                what + ": pool " + std::to_string(p) + " holds " + std::to_string(s.reserved[p]) + " blocks reserved and its donors " +
+                std::to_string(s.donor_blocks[p]) + ", of " + std::to_string(model.kv_pool_blocks(p)));
+}
+
 // Runs `waves` through one scheduler over `model`: a wave's requests are submitted together and every one drained before the next wave starts.
 // The replies come in submission order; the scheduler's counters at the end go to `stats`.
 std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs,
@@ -117,6 +126,7 @@ std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, size_t 
             std::vector<std::shared_ptr<server::Request>> handles;
             for (const Req& r : wave) handles.push_back(sched.submit(r.prompt, params_of(r)));
             for (auto& h : handles) replies.push_back(drain(*h));
+            ledger(sched.stats(), model, "after a wave");
         }
         if (stats) *stats = sched.stats();
     } catch (...) {
@@ -195,6 +205,9 @@ server::Scheduler::Stats alone_then_together(const Make& make, const bpe::Tokeni
     return stats;
 }
 
+// The CPU's 128-token blocks, of which a case's pool holds a given number.
+constexpr size_t kBlock = 128;
+
 // Three uncapped requests whose prompts differ in their first token, so none forks another, on 8 blocks of 128 tokens.
 // Two fit at first; the first reaches its reservation's end ahead of the second, which is paused with generated tokens in its partial block and, its donor taken for the first's growth, recomputes its whole history; the third then runs beside the first and is paused in turn.
 void three_uncapped(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
@@ -207,12 +220,13 @@ void three_uncapped(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab,
 // A prompt read one token a pass is still prefilling when the request beside it has to grow and the pool is short, so it is paused part-way through its prompt, its donor then going to the one that grew.
 void prefilling_victim(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::vector<Req> reqs = {{prompt_of(1, 4, vocab)}, {prompt_of(2, 384, vocab)}};
-    alone_then_together(make, tok, 1024, 1, 3, {}, reqs, "a victim still prefilling");
+    const auto s = alone_then_together(make, tok, 1024, 1, 3, {}, reqs, "a victim still prefilling");
+    require(s.taken_back == 0 && s.recomputed >= 2 * kBlock, "a victim still prefilling: " + std::to_string(s.taken_back) + " taken back and " +
+            std::to_string(s.recomputed) + " rows recomputed, against 0 and at least the two blocks of its prompt it had read");
 }
 
 // A follow-up turn forks the whole blocks of the previous turn's history, its reply rows among them, computed as generated tokens.
-// Admitted after an uncapped request with a short prompt, it reaches its reservation's end first and is paused; the other's growth then takes its donor, so it recomputes all it holds.
-// Its forked reply rows must be recomputed as generated tokens again, which recomputing them as rows of its own prompt would get wrong.
+// Paused beside an uncapped request with a short prompt, which then takes its donor, it must recompute those reply rows as generated tokens again, not as rows of its own prompt.
 void follow_up(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const Req first{prompt_of(5, 20, vocab), 200};
     auto model = make(1024, 0);
@@ -221,7 +235,10 @@ void follow_up(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     for (const auto& t : turn) again.push_back(t.id);
     const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
     again.insert(again.end(), more.begin(), more.end());
-    alone_then_together(make, tok, 1024, 0, 3, {first}, {{prompt_of(1, 9, vocab)}, {again}}, "a follow-up turn paused");
+    const auto s = alone_then_together(make, tok, 1024, 0, 3, {first}, {{prompt_of(1, 9, vocab)}, {again}}, "a follow-up turn paused");
+    // It sat out passes at the end of its 512-token reservation and was paused there, so a resume that forked nothing recomputes those 512 rows, the forked reply rows among them.
+    require(s.taken_back == 0 && s.recomputed >= 4 * kBlock, "a follow-up turn paused: " + std::to_string(s.taken_back) + " taken back and " +
+            std::to_string(s.recomputed) + " rows recomputed, against 0 and at least 512");
 }
 
 // On a device, a 100-token prompt that forks the first block of a 600-token prompt's history: those rows were computed at the longer prompt's extent, whose tile splits its sums another way than a prompt under 449 tokens.
@@ -231,7 +248,10 @@ void device_classes(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
     std::vector<uint32_t> forked(donor.prompt.begin(), donor.prompt.begin() + 64);
     const std::vector<uint32_t> own = prompt_of(10, 36, vocab);
     forked.insert(forked.end(), own.begin(), own.end());
-    alone_then_together(make, tok, 1024, 0, 3, {donor}, {{prompt_of(1, 9, vocab)}, {forked}}, "on a device, a forked prefix of another extent");
+    const auto s = alone_then_together(make, tok, 1024, 0, 3, {donor}, {{prompt_of(1, 9, vocab)}, {forked}}, "on a device, a forked prefix of another extent");
+    // It had grown past its first 384-token reservation when it was paused, so a resume that recomputed at least that much forked nothing and computed the forked prefix again.
+    require(s.taken_back == 0 && s.recomputed >= 384, "on a device, a forked prefix of another extent: " + std::to_string(s.taken_back) + " taken back and " +
+            std::to_string(s.recomputed) + " rows recomputed, against 0 and at least 384");
     three_uncapped(make, tok, vocab, "on a device, three uncapped requests");
 }
 
@@ -252,12 +272,8 @@ Req stopping(const Make& make, const bpe::Tokenizer& tok, size_t pool, const std
     return victim;
 }
 
-// The CPU's 128-token blocks, of which a take-back case's pool holds a given number.
-constexpr size_t kBlock = 128;
-
-// Three requests on 13 blocks: an uncapped one with a 40-token prompt (A), an uncapped one with 60 (B) and a capped one (C, 380 tokens in all), which leave 4 blocks free.
-// B takes its first growth step, 3 blocks, at 384 tokens; A takes its own 20 passes later, and with one block free pauses B, whose step leaves 2 of its blocks unused, so B's donor stays.
-// C ends 16 passes later and B takes its donor back whole: it recomputes nothing, and its stop string ends it before either needs room again.
+// On 13 blocks uncapped A (40 tokens), uncapped B (60) and capped C (380 in all) leave 4 free; B takes its step of 3 blocks at 384 tokens, and A's step 20 passes later pauses B, whose unused headroom covers it, so B's donor stays.
+// C ends 16 passes later and B takes its donor back whole, recomputing nothing, and its stop string ends it before either needs room again.
 void take_back(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 13 * kBlock;
     const Req a{prompt_of(1, 40, vocab)}, c{prompt_of(3, 20, vocab), 360};
@@ -285,9 +301,8 @@ void take_back_follow_up(const Make& make, const bpe::Tokenizer& tok, uint32_t v
             std::to_string(s.recomputed) + " rows recomputed, against 1, 1 and 0");
 }
 
-// Part of a paused request's history outlives its own donor: B and the capped C forked the first block of the setup's 200-token prompt at their first admissions, so both hold it as that prompt's rows.
-// On 14 blocks B cannot take its growth step at 512 tokens beside A and C, and is paused, its donor then going to A's step; C ends and leaves the shared block in a donor of its own.
-// B cannot take its donor back and forks that block, computed as its own was, recomputing the other 384 rows in their classes.
+// B and capped C fork the first block of the setup's 200-token prompt; on 14 blocks B cannot take its step at 512 tokens beside A and C, and A's step pauses B and takes its donor, so once C ends only C's donor holds that block.
+// B forks that block, computed as its own was, and recomputes the other 384 rows in their classes.
 void partial_eviction(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 14 * kBlock;
     const Req setup{prompt_of(7, 200, vocab), 4};
@@ -303,6 +318,27 @@ void partial_eviction(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
     require(s.pauses == 1 && s.taken_back == 0 && s.recomputed == 512 - kBlock,
             "a paused request with part of its history kept: " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.taken_back) + " taken back, " +
             std::to_string(s.recomputed) + " rows recomputed, against 1, 0 and 384");
+}
+
+// A donor that matches a paused request's history by tokens further than by how it was computed: C's prompt is B's prompt and B's first 80 tokens alone, so C's donor holds B's generated rows 188 to 268 as prompt rows.
+// Paused as in partial_eviction, B must fork only the first block, which both computed as the setup's prompt, and recompute the other 384 rows.
+void fork_within_class(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const size_t pool = 14 * kBlock;
+    const Req setup{prompt_of(7, 200, vocab), 4};
+    std::vector<uint32_t> prompt(setup.prompt.begin(), setup.prompt.begin() + kBlock);
+    const std::vector<uint32_t> own = prompt_of(2, 60, vocab);
+    prompt.insert(prompt.end(), own.begin(), own.end());
+    auto model = make(pool, 0);
+    const std::vector<uint32_t> reply = ids_of(serve(*model, tok, 3, {{setup}, {Req{prompt}}}).back());
+    Req b{prompt};
+    b.stop = stop_at(tok, reply, 420);
+    std::vector<uint32_t> longer = prompt;
+    longer.insert(longer.end(), reply.begin(), reply.begin() + 80);
+    const Req a{prompt_of(1, 40, vocab)}, c{longer, 370};
+    const auto s = alone_then_together(make, tok, pool, 0, 3, {setup}, {a, b, c}, "a paused request beside a donor holding its reply as prompt rows");
+    require(s.pauses == 1 && s.taken_back == 0 && s.recomputed == 512 - kBlock,
+            "a paused request beside a donor holding its reply as prompt rows: " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.taken_back) +
+            " taken back, " + std::to_string(s.recomputed) + " rows recomputed, against 1, 0 and 384");
 }
 
 // B paused as in take_back, its donor intact, and cancelled before it resumes, which C's longer reply (720 tokens in all, on 16 blocks) leaves time for: it ends where it waits, taking nothing back, A and C finish as they do alone, and once the scheduler stops every pool is empty.
@@ -336,6 +372,7 @@ void cancel_while_paused_donor(const Make& make, const bpe::Tokenizer& tok, uint
             require(s.pauses == 1 && s.taken_back == 0 && s.active == 0 && s.queued == 0,
                     "a paused request cancelled: " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.taken_back) + " taken back, " +
                     std::to_string(s.active) + " active and " + std::to_string(s.queued) + " queued, against 1, 0, 0 and 0");
+            ledger(s, *model, "after a paused request with its donor was cancelled");
         } catch (...) {
             sched.stop();
             runner.join();
@@ -358,6 +395,7 @@ std::vector<Reply> started_together(infer::Model& model, const bpe::Tokenizer& t
     try {
         for (auto& h : handles) replies.push_back(drain(*h));
         stats = sched.stats();
+        ledger(stats, model, "after requests started together");
     } catch (...) {
         sched.stop();
         runner.join();
@@ -385,9 +423,51 @@ void resumed_short_of_room(const Make& make, const bpe::Tokenizer& tok, uint32_t
     server::Scheduler::Stats s;
     const std::vector<Reply> together = started_together(*model, tok, 3, reqs, s);
     for (size_t i = 0; i < reqs.size(); ++i) same(alone[i], together[i], "beside a resumed request short of room, request " + std::to_string(i));
-    require(s.pauses == 1 && s.taken_back == 1 && s.recomputed == 0,
+    require(s.pauses == 1 && s.taken_back == 1 && s.recomputed == 0 && s.stalls > 0,
             "a resumed request short of room for its own growth: " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.taken_back) +
-            " taken back, " + std::to_string(s.recomputed) + " rows recomputed, against 1, 1 and 0");
+            " taken back, " + std::to_string(s.recomputed) + " rows recomputed and " + std::to_string(s.stalls) + " passes sat out, against 1, 1, 0 and some");
+}
+
+// A request that cannot grow sits out passes for longer than a block while a capped request holds the room it needs, and nothing is admitted meanwhile.
+// On 10 blocks uncapped A and capped E (128 tokens and 300) start together and capped D (138 and 600) takes the room E leaves, so A's step at 384 tokens waits for D's end, and capped F, submitted meanwhile, starts only after it.
+void stall_holds_room(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const size_t pool = 10 * kBlock;
+    const Req a{prompt_of(1, 40, vocab)}, e{prompt_of(3, 128, vocab), 300}, d{prompt_of(4, 138, vocab), 600}, f{prompt_of(5, 10, vocab), 20};
+    std::vector<Reply> alone;
+    for (const Req& r : {a, e, d, f}) {
+        auto model = make(pool, 0);
+        alone.push_back(serve(*model, tok, 3, {{r}})[0]);
+    }
+    auto model = make(pool, 0);
+    server::Scheduler sched(*model, tok, 3, 64);
+    std::vector<std::shared_ptr<server::Request>> h;
+    for (const Req& r : {a, e, d}) h.push_back(sched.submit(r.prompt, params_of(r)));
+    std::thread runner([&] { sched.run(); });
+    try {
+        const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+        while (sched.stats().stalls == 0) {
+            require(std::chrono::steady_clock::now() < until, "a request short of room: nothing sat out a pass in 60 seconds");
+            std::this_thread::yield();
+        }
+        h.push_back(sched.submit(f.prompt, params_of(f)));
+        server::Request::Token t;
+        require(h[3]->next(t, server::Request::Clock::now() + std::chrono::seconds(120)) == server::Request::Next::id, "a request submitted during a stall gave nothing");
+        require(h[2]->finish() == "length", "a request submitted while another sat out passes started before the capped request holding its room ended");
+        Reply late = {t};
+        for (const auto& rest : drain(*h[3])) late.push_back(rest);
+        same(alone[3], late, "a request submitted during a stall");
+        for (size_t i = 0; i < 3; ++i) same(alone[i], drain(*h[i]), "beside a stall, request " + std::to_string(i));
+        const auto s = sched.stats();
+        require(s.stalls > kBlock && s.pauses == 0, "a stall held by a capped request: " + std::to_string(s.stalls) + " passes sat out and " +
+                std::to_string(s.pauses) + " pauses, against more than a block and 0");
+        ledger(s, *model, "after a stall");
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
 }
 
 // An older request's growth step that falls due in the iteration a newer request could first be admitted takes the room first.
@@ -442,6 +522,7 @@ void cancelled_short_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t
         require(s.pauses == 1 && s.taken_back == 0 && s.paused == 0 && s.donors == 1,
                 "a paused request with a short donor cancelled: " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.taken_back) + " taken back, " +
                 std::to_string(s.paused) + " paused and " + std::to_string(s.donors) + " donors, against 1, 0, 0 and 1");
+        ledger(s, *model, "after a paused request with a short donor was cancelled");
     } catch (...) {
         sched.stop();
         runner.join();
@@ -459,11 +540,29 @@ void refused_evicts_nothing(const Make& make, const bpe::Tokenizer& tok, uint32_
     const Req k = stopping(make, tok, pool, {}, Req{prompt_of(1, 10, vocab), 600}, 60);
     const Req n{prompt_of(2, 10, vocab), 600};
     auto model = make(pool, 0);
-    server::Scheduler::Stats s;
-    serve(*model, tok, 3, {{setup}, {k, n}, {Req{setup.prompt, 4}}}, &s);
-    require(s.prefix_hits == 1 && s.prefix_tokens == kBlock,
-            "a donor evicted for a request then refused: a prompt repeating it reused " + std::to_string(s.prefix_tokens) + " tokens against " +
-            std::to_string(kBlock));
+    server::Scheduler sched(*model, tok, 3, 64);
+    std::thread runner([&] { sched.run(); });
+    try {
+        drain(*sched.submit(setup.prompt, params_of(setup)));
+        const auto hk = sched.submit(k.prompt, params_of(k)), hn = sched.submit(n.prompt, params_of(n));
+        server::Request::Token t;
+        require(hn->next(t, server::Request::Clock::now() + std::chrono::seconds(120)) == server::Request::Next::id, "a request refused room gave nothing");
+        require(!hk->finish().empty(), "a request that finds no room beside a capped request started before that request ended");
+        drain(*hk);
+        drain(*hn);
+        drain(*sched.submit(setup.prompt, params_of(Req{setup.prompt, 4})));
+        const auto s = sched.stats();
+        require(s.prefix_hits == 1 && s.prefix_tokens == kBlock,
+                "a donor evicted for a request then refused: a prompt repeating it reused " + std::to_string(s.prefix_tokens) + " tokens against " +
+                std::to_string(kBlock));
+        ledger(s, *model, "after a request refused room");
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
 }
 
 // Paused requests wait apart from the queue, so they do not fill the queue --max-queue bounds.
@@ -491,6 +590,10 @@ void paused_outside_queue(const Make& make, const bpe::Tokenizer& tok, uint32_t 
         } catch (const server::QueueFull&) {
             require(false, "a request submitted while another was paused was refused as though the queue were full");
         }
+        // New requests wait until no request is paused, so the queued one starts only once B has resumed.
+        server::Request::Token t;
+        require(h[2]->next(t, server::Request::Clock::now() + std::chrono::seconds(120)) == server::Request::Next::id, "a request queued while another was paused gave nothing");
+        require(sched.stats().paused == 0, "a request queued while another was paused started before the paused request resumed");
         for (auto& r : h) drain(*r);
     } catch (...) {
         sched.stop();
@@ -523,6 +626,7 @@ void cancelled_while_paused(const Make& make, const bpe::Tokenizer& tok, uint32_
             }
             const auto s = sched.stats();
             require(s.active == 0 && s.queued == 0, "cancelled requests left active or queued");
+            ledger(s, *model, "after paused requests were cancelled");
         } catch (...) {
             sched.stop();
             runner.join();
@@ -556,11 +660,13 @@ int main(int argc, char** argv) {
             take_back(one, tok, vocab);
             take_back_follow_up(one, tok, vocab);
             partial_eviction(one, tok, vocab);
+            fork_within_class(one, tok, vocab);
             cancel_while_paused_donor(one, tok, vocab);
             resumed_short_of_room(one, tok, vocab);
             refused_evicts_nothing(one, tok, vocab);
             paused_outside_queue(one, tok, vocab);
             growth_before_admission(one, tok, vocab);
+            stall_holds_room(one, tok, vocab);
             cancelled_short_donor(one, tok, vocab);
             std::printf("server-resume: CPU cases pass\n");
         }

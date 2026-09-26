@@ -926,7 +926,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "Options:\n"
             << "  --revision REF          Branch, tag or commit SHA (default: " << pull.revision << ")\n"
             << "  --file NAME             Choose a file when several match the quant\n"
-            << "  --cache-dir PATH        Cache root (default: <home>/.cache/llmx)\n"
+            << "  --cache-dir PATH        Cache root (default: <home>/" << hub::cache_in_home << ")\n"
             << "  --parallel N            Streams per file, 1.." << hub::max_parallel_streams << " (default: " << pull.parallel << ")\n\n"
             << "Requires curl 8.4+. HF_TOKEN supplies gated-repo credentials.\n"
             << "The verified local path goes to stdout; progress goes to stderr.\n\n"

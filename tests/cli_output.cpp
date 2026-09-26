@@ -97,6 +97,12 @@ bool given_flags() {
            long_spelling("text") == "text";
 }
 
+// pull's page prints --cache-dir's default from hub, where the cache root inside the home directory is kept.
+bool pull_cache_default() {
+    std::ostringstream page;
+    return print_usage("pull", page) && page.str().find(std::string("Cache root (default: <home>/") + hub::cache_in_home + ")\n") != std::string::npos;
+}
+
 // --threads-batch and -tb are execution flags only where the command asks for them, as generate, chat and perplexity do; elsewhere they are not read, so the command refuses them as unknown.
 bool batch_threads() {
     auto read = [](std::string flag, bool batch_threads, ExecOptions& exec) {
@@ -205,6 +211,10 @@ int main() {
         std::cerr << "CLI second value for a flag not refused in one spelling or two, a switch given again refused, a line's spelling of a flag not kept, or a short form not read as its long one\n";
         return 1;
     }
+    if (!pull_cache_default()) {
+        std::cerr << "CLI pull help does not print hub's cache root as --cache-dir's default\n";
+        return 1;
+    }
     if (!batch_threads()) {
         std::cerr << "CLI --threads-batch read where the command does not ask for it, or not read where it does\n";
         return 1;
@@ -217,6 +227,6 @@ int main() {
         std::cerr << "CLI token id lists not read as comma or whitespace separated ids within the vocabulary\n";
         return 1;
     }
-    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types, load modes and an empty share list refused as read; a second value for a flag refused and a switch given again taken; -tb read only where asked; numbers and token ids read strictly\n";
+    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types, load modes and an empty share list refused as read; a second value for a flag refused and a switch given again taken; pull's cache default from hub; -tb read only where asked; numbers and token ids read strictly\n";
     return 0;
 }

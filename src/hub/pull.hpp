@@ -16,6 +16,9 @@ namespace hub {
 // The most byte-range streams one file is downloaded over, the top of --parallel's range, which the CLI reads and pull checks.
 constexpr unsigned max_parallel_streams = 16;
 
+// The cache root inside the home directory, where pull keeps its files when PullOptions::cache is empty, which the CLI's help prints as --cache-dir's default.
+constexpr const char* cache_in_home = ".cache/llmx";
+
 struct PullOptions {
     std::string repo, quant, revision = "main", filename, token;
     std::filesystem::path cache;
@@ -36,12 +39,12 @@ inline std::filesystem::path default_cache() {
         const DWORD copied = GetEnvironmentVariableW(L"USERPROFILE", home.data(), count);
         if (copied && copied < count) {
             home.resize(copied);
-            return std::filesystem::path(home) / L".cache" / L"llmx";
+            return (std::filesystem::path(home) / cache_in_home).make_preferred();
         }
     }
 #else
     const char* home = std::getenv("HOME");
-    if (home && *home) return std::filesystem::path(home) / ".cache" / "llmx";
+    if (home && *home) return std::filesystem::path(home) / cache_in_home;
 #endif
     throw std::runtime_error("pull: home directory unavailable; use --cache-dir");
 }

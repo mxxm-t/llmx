@@ -31,6 +31,11 @@ struct CountingCpu : backend::CpuBackend {
     backend::Ticket submit() override { ++submits; return backend::CpuBackend::submit(); }
 };
 
+// A device that reads host memory in place, as one sharing the host's memory would, and is not the CPU.
+struct HostMemoryDevice : CountingCpu {
+    bool is_cpu() const override { return false; }
+};
+
 void exact(const std::vector<float>& a, const std::vector<float>& b, const char* what) {
     require(a.size() == b.size() && !std::memcmp(a.data(), b.data(), a.size() * sizeof(float)), what);
     for (float v : a) require(std::isfinite(v), "nonfinite logits");
@@ -322,7 +327,7 @@ void layer_split_fits() {
     stream_alone.names = {"cpu"};
     stream_alone.stream_from = 1;
     require(!refusal(weights, {std::make_shared<backend::CpuBackend>()}, stream_alone).empty(), "a stream point accepted without experts on the CPU");
-    // A model without routed layers has no experts to put on the CPU, so the CPU refuses the flags as a device does, by the name of the flag given.
+    // A model without routed layers has no experts to put on the CPU, so the CPU and a device that reads host memory in place refuse the flags alike, by the name of the flag given.
     for (const int cpu_moe : {1, -1}) {
         infer::PlacementRequest dense;
         dense.names = {"cpu"};
@@ -330,6 +335,8 @@ void layer_split_fits() {
         const std::string expected = std::string(cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe") + ": the model has no expert layers";
         require(refusal(weights, {std::make_shared<backend::CpuBackend>()}, dense) == expected,
                 "experts on the CPU accepted on a model without routed layers on the CPU, or refused by another flag's name");
+        require(refusal(weights, {std::make_shared<HostMemoryDevice>()}, dense) == expected,
+                "experts on the CPU accepted on a model without routed layers beside a device, or refused by another flag's name");
     }
     // A CPU runs the experts where they are, so experts on the CPU beside it are that one CPU: nothing crosses, and the logits are those of the model placed without the flag.
     auto cpu_counted = std::make_shared<CountingCpu>(), cpu_plain = std::make_shared<CountingCpu>();
@@ -339,10 +346,16 @@ void layer_split_fits() {
     experts_on_cpu.names = {"cpu"};
     experts_on_cpu.cpu_moe = -1;
     const infer::PlacedModel experts_here = infer::place_model(infer::gguf_weights(moe), {cpu_counted}, experts_on_cpu, options);
-    infer::Model routed(moe, cpu_plain);
-    exact(routed.prefill(prompt), experts_here.model->prefill(prompt), "experts on the CPU beside a CPU differ from the model without them");
+    const std::vector<float> routed = infer::Model(moe, cpu_plain).prefill(prompt);
+    exact(routed, experts_here.model->prefill(prompt), "experts on the CPU beside a CPU differ from the model without them");
     require(cpu_counted->copies == 0 && cpu_counted->writes == 0, "experts on the CPU beside a CPU crossed to another backend");
-    checked += 6;
+    // Reading weights in place does not make a backend the CPU: experts on the CPU beside such a device run on a CPU placed beside it, the residual crossing each way, with the same logits.
+    auto host_device = std::make_shared<HostMemoryDevice>();
+    host_device->set_threads(1);
+    const infer::PlacedModel experts_beside = infer::place_model(infer::gguf_weights(moe), {host_device}, experts_on_cpu, options);
+    exact(routed, experts_beside.model->prefill(prompt), "experts on a CPU beside a device differ from the model on one CPU");
+    require(host_device->copies > 0 && host_device->writes > 0, "experts on the CPU stayed on a device that reads in place");
+    checked += 7;
 }
 
 // Three layers placed by place_model over two CPU backends at shares 1:2 and over three at 1:1:1, prompts chunked at ubatch 3.

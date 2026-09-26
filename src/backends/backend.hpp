@@ -178,6 +178,9 @@ public:
     // Whether adopt() reads the caller's memory in place rather than copying it into the backend's own, so weights placed here cost no memory of this backend.
     virtual bool reads_in_place() const { return false; }
 
+    // Whether this backend is the CPU itself, so experts placed on the CPU beside it are already where they run; a device may read in place and still not be the CPU.
+    virtual bool is_cpu() const { return false; }
+
     // Memory the backend's kernels take for themselves beside weights, caches and activations, such as split partials and merge state, out of `free` bytes; a fit keeps it back.
     virtual size_t scratch_reserve(size_t free) const { (void)free; return 0; }
 

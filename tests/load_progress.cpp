@@ -38,6 +38,7 @@ struct CopyingBackend : backend::CpuBackend {
     std::vector<backend::BufferPtr> weights;
     std::vector<std::pair<const backend::Buffer*, size_t>> written;
     bool reads_in_place() const override { return false; }
+    bool is_cpu() const override { return false; }
     backend::BufferPtr adopt(const void* src, size_t bytes) override {
         auto buffer = alloc(bytes, backend::Memory::device);
         backend::CpuBackend::write(*buffer, 0, src, bytes);

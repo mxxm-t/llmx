@@ -541,7 +541,7 @@ It refuses a transformers version other than 5.17.0, and an installed `kernels`,
 Generation took 11 s on the Linux machine at a load average of 38 on 2026-09-26.
 An independent float64 reading of each written GGUF, the forward pass of [QWEN35](QWEN35.md) run token by token on the stored tensors, matched the goldens within 7.9e-7 per logit and 5.5e-8 in NLL, with the greedy tokens equal.
 The same reading with one misreading at a time missed `hv3`'s goldens by 0.11 to 1.31 in some logit and changed its greedy tokens: V heads read in HF's grouped order, 1 added again to the norms or to `ssm_norm`, exp applied to `ssm_a`, the conv taps reversed, the query and gate rows swapped, rope frequencies over the head width, the decay after the recall, and no query scale.
-Put in the CLI's place, printing what `logits`, `perplexity` and `generate` print, the reading passed the whole `qwen35` component, with a largest logit error of 7.9e-7 in 54 s.
+Put in the CLI's place, printing what `logits`, `perplexity` and `generate` print, the reading passed the whole `qwen35` component, with a largest logit error of 7.9e-7, in 81 s at a load average of 56 on 2026-09-27.
 With V heads read in the grouped order it failed on `hv3` (0.30), after passing `hv1`, whose Hv = Hk cannot show the order, and with the decay after the recall it failed on `hv1` (0.012).
 
 `tests/data/qwen35_4b_dt_bias.json` holds the input of the hosted check of the writer's tiled order.

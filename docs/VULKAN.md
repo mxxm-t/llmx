@@ -93,9 +93,11 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   count can end two bytes into a word its 32-bit view reads.
 - **Adopt copies.** The contract lets it: a backend that copies has consumed
   `src` when `adopt` returns. Weights arrive through `adopt` in a mapped load
-  and through `alloc_weight` storage filled by `write` in a streamed one, and
-  both upload through two halves of staging, each upload carrying on from the
-  half the last one left. Device copies may remain queued ahead of later work
+  and through `alloc_weight` storage filled in a streamed one, by a copy
+  straight out of the loader's read ring, which the device imports as host
+  memory (`VK_EXT_external_memory_host`), or by `write` where it cannot import
+  it. `adopt` and `write` upload through two halves of staging, each upload
+  carrying on from the half the last one left. Device copies may remain queued ahead of later work
   on the same backend.
   If an upload fails, adoption drains before releasing its local destination.
   This answers the alignment question left open

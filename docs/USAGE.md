@@ -388,7 +388,7 @@ Every command that runs a model takes `--load-mode`, which says how the weights 
 - `direct` reads every weight around the file cache and maps nothing: those a device copies as `auto` streams them, and those the CPU reads into memory of its own laid out as the file, in the same pass.
   It is refused, before the model is built, where a file's file system does not take direct reads, with the reason: on Linux that needs 6.1 or later and a file system that reports the alignment, on Windows a volume that reports its sector sizes and takes an unbuffered read, and macOS and other systems have no direct reads. After the model is built, before a byte is read, it is refused when the weights the CPU reads are more than the host's available memory, or when the system will not commit the memory for them.
 
-All three give the same model, bit for bit. With `--verbose`, and always with `bench --model`, a line after the split's plan gives the mode and where the load's time went: building the model, and for a streamed load the files read through the cache and around it, the reads, the uploads and the uploads' waits for a read.
+All three give the same model, bit for bit. With `--verbose`, and always with `bench --model`, a line after the split's plan gives the mode and where the load's time went: building the model, and for a streamed load the files read through the cache and around it, the reads, the uploads, the bytes the devices copied straight out of the reads where they can read host memory in place, and the uploads' waits for a read.
 
 ## Physical batch (`--ubatch`)
 

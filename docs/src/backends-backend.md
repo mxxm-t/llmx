@@ -26,10 +26,18 @@ placement contracts in `docs/EXECUTION.md`.
   The loader's streamed load allocates every weight a copying backend takes
   this way while the model is built and streams them in after, so a model that
   cannot be placed fails before any weight is uploaded ([load](inference-load.md)).
+- `wrap_host(memory, bytes)`: a buffer over the caller's page-aligned memory
+  that `copy` reads in place, or null where the backend cannot read it so,
+  which is the default. The caller keeps the memory for the buffer's life and
+  leaves it unchanged until the copies out of it retire. The CPU aliases the
+  memory; Vulkan imports it (`VK_EXT_external_memory_host`). The loader's
+  stream wraps each slot of its read ring once, so a device copies each part
+  straight out of the slot rather than through its staging.
 - `write(dst, off, src, bytes)`: host to storage, enqueued, the source
   consumed before it returns. Callers include residual transfers at placement
   boundaries, uploads of streamed expert weights, and the loader's streamed
-  load of every weight a copying backend took (`infer::detail::stream`).
+  load of every weight a copying backend took, where the backend cannot wrap
+  the read ring (`infer::detail::stream`).
 - `submit()` returns a monotonic `Ticket` for everything enqueued so far;
   `wait(t)` blocks until that submission has retired. The model submits
   once per forward pass, waits on that ticket for the logits, and waits on

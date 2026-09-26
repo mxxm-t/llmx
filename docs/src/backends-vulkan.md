@@ -51,6 +51,13 @@ kernel notes and measurements are `docs/VULKAN.md`.
   its eligibility for padded F32 copies as an adopted one does.
   An upload carries on from the staging half the last one left, so consecutive
   writes of one weight overlap host and device copies as one long upload does.
+- `wrap_host` imports the caller's host memory as device memory
+  (`VK_EXT_external_memory_host`, enabled where the device offers it with an
+  import alignment) into a buffer that is only a copy source. Memory whose
+  address or size is off that alignment, and an import the driver refuses,
+  give null, so the caller writes through staging instead. The Radeon VII
+  and the MI50s take it at 4096 bytes, one page, so a streamed load's ring
+  slots import as they are.
   Padded copies enter their owning cache before their copy command is recorded;
   a replaced copy is retained by the command-buffer slot first.
   A buffer `alloc` zero-fills or `adopt` copies into is held by each command-buffer slot that names it until the slot retires, so a caller may drop it before anything is submitted.

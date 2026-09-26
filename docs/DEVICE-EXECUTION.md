@@ -115,6 +115,10 @@ stream every such weight from the file in file order with `write`. So every
 weight has storage, and a model that cannot be placed has failed, before any
 weight is read, and a model whose every weight a copying backend took releases
 the host's copy of the file once the writes are made (`inference/load.hpp`).
+A backend that can read host memory in place (`wrap_host`, which Vulkan does
+by importing it) takes those weights as `copy`s straight out of the loader's
+read ring instead of `write`s through its staging; the loader holds each slot
+until the copies out of it retire.
 `direct` maps nothing: it reads around the file cache, and the weights a host
 reads in place go into its own copy of each file (`LoadedModel::host`), from
 which a device that also takes one is written. The mapped load adopts each

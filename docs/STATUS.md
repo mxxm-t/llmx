@@ -4,7 +4,7 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## The sampler selects only what top-k and top-p keep (2026-09-26, branch perf/sampler-select)
+## The sampler selects only what top-k and top-p keep (2026-09-26, branch perf/sampler-select, merged at `edd9c19`)
 
 - **Why:** a `top_k` of 0, which the compatible routes give a client's -1, sorted all 151,936 scores of a row, 12.6 ms a row on the EPYC 7262, and a penalty looked up a hash set for every entry, 1.1 to 1.2 ms a row. Phase 3's step 4 samples on a pool sized from these times (Layer split phase 3, below), and the plan approved this branch to merge before it, greedy unchanged and seeded draws changing once. The sort also left tied tokens in whatever order the standard library leaves them, which a seeded draw could depend on.
 - **Done:**
@@ -50,9 +50,10 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - `tools/server_mix_check.py` on Qwen3-0.6B Q8_0: 0 of 16 differ together, 0 of 12 skewed with 4 clients leaving, and the 4 CLI checks equal.
   - The suite with `--no-perf-floor --require-tools --require-baseline --device cpu` on the Vulkan-enabled build: 18 of 18, `server` with its seeded check on four paths included.
   - The 2000 seeded server requests of the changed-draw count give the reviewed commit's ids and texts, 2000 of 2000.
-- **Left:** the hosted jobs on this commit, then the merge; phase 3's step 4 builds on it.
+- **Merged** at `edd9c19` on main `31532c0` above the CPU kernel cleanup, rebased with no change to its code: the gates above rerun on the Linux machine's CPU against main `31532c0` (builds, CTest, CLI and server identity, the mix check, the suite with its server component passing on its own, 2000 seeded ids, and the stress run against the reviewed sampler), and a green hosted run on the two commits together.
+- **Left:** phase 3's step 4 builds on it.
 
-## CPU kernels without runtime CPU checks, with one decode row dot and one row split (2026-09-26, branch cleanup/cpu-kernels)
+## CPU kernels without runtime CPU checks, with one decode row dot and one row split (2026-09-26, branch cleanup/cpu-kernels, merged at `25113e2`)
 
 - **Why:** item 16 of the second audit's cleanup (below). Every build compiles for AVX2, FMA and F16C (CMake and `build.bat`), so the CPU backend's runtime AVX2 and F16C checks always passed and the scalar branches they guarded never ran. The float decode row dot was written three times beside `row_dot` (`matvec_q8_0`, the K-quant lambda in `matmul_raw` and the F32 branch of its batched path), and the split of the row dots over the pool five times.
 - **Done:**
@@ -91,7 +92,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
     Windows, the quieter machine, is level: every median within 2.6% and every best within 4.3%, in both directions. On Linux other jobs spread each arm widely (a 0.6B arm's tg128 ran from 9.4 to 22.7 tok/s), and the branch's medians are level or higher; its lowest cell is 30B-A3B pp64 at one thread, -8.6% best and -3.5% median over six pairs, whose tg16 is 5% higher in both.
 - **Rebased onto main `04e85b3`** after these gates, past the loader's steps 1 to 3, which change no file of this commit's code: on Linux both CPU builds without a warning, the harness's 11,017 outputs the same, CTest 22 of 22, and `generate`, `logits` and per-token `perplexity` on the five fixtures 15 of 15 the same as `04e85b3`; MSVC builds it and CTest passes 23 of 23.
 - **Left:**
-  - The Radeon VII device suite on this commit, which the merge rules ask of a change under `src/backends` and which runs one gate at a time on that card, and the hosted run.
+  - The Radeon VII device suite on main `edd9c19`, which the merge rules ask of a change under `src/backends`; the branch merged at `25113e2` on its CPU and MI50 gates, its rebased CPU identity against main `31532c0` (12 of 12 on 0.6B, 8B and 30B-A3B) and a green hosted run on it with the sampler above it.
   - `fix/float-ranges` (the cleanup plan below).
 - **Gotchas:**
   - There is no scalar fallback: a kernel that needs more than AVX2, FMA and F16C needs its own runtime dispatch.

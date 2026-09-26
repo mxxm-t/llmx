@@ -599,153 +599,50 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Left before merge:** on the Radeon VII, CTest and the suites, `server.py` (whose device checks include each prompt's values alone against four at once), `server_load.py` level with main beside the reference server, and the `logprobs` 20 cost. The hosted run.
 - **Suites:** CTest 23/23 and the suite on the CPU pass on Windows, where the Vulkan tree builds. On the MI50s, CTest 25/25 and `server.py` on one card pass.
 
-## Exact resume of a paused request (planned 2026-09-25, branch fix/server-exact-resume)
+## Exact resume of a paused request (2026-09-26, branch fix/server-exact-resume)
 
-- **Goal:** a paused and resumed request gives the same logits, bit for bit, that it gives when never paused. This holds on the CPU, on a device and on a layer split. Its server reply then equals its reply alone, and without a forked prefix it equals the CLI's.
-- **Constraints:** requests that never pause keep main's outputs byte for byte. No model or backend code changes, apart from one comment. The only memory added is a few words per request and donor. A paused request holds nothing except an evictable donor, and admission already counts donors. Each rule has one owner.
-- **Decided (2026-09-25):** the user chose exact reuse only.
-  - Whether first admissions stop forking rows across row classes: yes, in the branch after `fix/server-exact-resume`. It reads the row classes this branch records. A follow-up turn recomputes the previous reply as prompt rows, about 1.3 s per 1000 reply tokens on 8B on one MI50, and a short prompt's donor is shared only within its class.
-  - Whether logprobs go on the public routes: yes, in `feat/server-logprobs` below.
-  - Whether a host tier for paused caches goes on top of the exact recompute: decided on step 3's numbers.
-  - Whether a resumed request whose own donor survived takes it back whole: yes, as a step of its own after step 2, decided with the Qwen 3.5 plan, whose hybrid models need it.
-  - Whether `--moe-stream-from` may depend on what the cache holds (decided 2026-09-26): no. The streamed path follows the whole prompt's length, its extent, never the tokens left to read after a reused prefix, so streamed and host rows are different row classes and a resume or a reused prefix computes rows in the class that first computed them. `BatchEntry::fresh` is gone, and a short follow-up in a long chat pays the copy.
-- **Found**, read at 34bebc3, with measured results on main where stated:
-  - Measured on one MI50 with Qwen3-8B Q8_0: 12 uncapped greedy requests with `--max-seqs 6 --ctx-size 4096` pause 24 times. 3 of the 12 replies differ from the same request run alone, first differing 1400 to 2900 characters in.
-  - The same run gives 2 of 12 differing on a 3-card split and 1 of 12 with Qwen3-0.6B.
-  - No test catches it. `check_uncapped` counts pauses without comparing output, and `check_paused_prefill` pauses before the first token.
-  - A pause rewrites the request: its prompt becomes the prompt plus the generated tokens (`scheduler.hpp` 327-338). The resume forks whole blocks and prefills the rest with the whole history as the extent (244).
-  - So on a resume the generated tokens get their cache from the prompt path. On the CPU that is the float prompt matmuls instead of the 8-bit decode dots (`cpu_backend.hpp` 336, 394). On a device it is the tile instead of the row kernel (`vulkan_backend.cpp` 1389), and the attention tile instead of the per-row kernel (1982).
-  - Prompt rows recomputed on a resume take the history's extent instead of the prompt's. On a device that changes the tile's split below 449 tokens (1375) and can cross the tile and attention thresholds. So even a pause right after the first token is inexact.
-  - `fresh_` is recomputed on every admission (384). That can move a streamed expert layer between the host and the device (`arch_qwen.hpp` 1211-1213).
-  - The resume forks whichever donor shares the most tokens (200, 351-364). That donor may hold rows computed at another extent or by decode.
-  - A resume is usually a full recompute. `grow` drops every donor before it pauses (301), and the same loop then drops the victim's new donor too, unless the victim's unused step covered the need.
-  - The admission number is renewed on every admission (214), so a resumed request is the next one paused (310-312).
-  - Paused requests go back into the queue, where they count against `--max-queue` (163-164, 337). Only the front of the queue is checked for cancellation (196).
-  - Not caused by pauses, and not fixed here: a first admission forks a donor by tokens alone. A follow-up turn therefore takes the previous reply's rows, which decode computed, as prompt rows. A prompt forking a donor of another extent class takes rows the CLI would compute differently.
-  - SERVER.md's correctness gate says a forked prefix continues exactly as a fresh sequence would. That holds only within one class. `check_conversation` passes only because the greedy text agrees on its fixture.
-- **Design:** a paused request keeps its history as tokens, plus a record of how each stretch of the history was computed: its extent (its row classes). A resume recomputes whatever its cache lacks the same way it was first computed. This needs no model or backend change:
-  - An entry with extent 1 already takes the decode kernels however many rows it carries. `begin` gives the entry's extent to its run (`arch_qwen.hpp` 1011).
-  - On the CPU, extent 1 goes to the 8-bit decode dots one column at a time (`cpu_backend.hpp` 336, 351).
-  - On a device, extent 1 takes the row kernel below the tile threshold (1389), the per-row attention below 32 (1982) and the per-row expert path (1691). Such an entry never streams (`arch_qwen.hpp` 1211-1213).
-  - A prompt's rows given their prompt's extent compute the same however they are sliced (`BatchEntry::extent`, 232-238).
-  - A sequence appears in a pass at most once (224). So each stretch is its own entry, and a stretch boundary costs at most one extra pass.
-- **Owners:**
-  - How a row is computed: the request's row classes, read only by batch assembly.
-  - Who gives up blocks for whom: `make_room`.
-  - Which donor a request may fork: `best_donor`.
-  - How far a request has progressed: its cache's length.
-- **Before it, `feat/server-logprobs`** (implemented, see its section), on its own branch with its own gate:
-  - `logprobs` and `top_logprobs` (up to 20) on `/v1/completions` and `/v1/chat/completions` in the compatible shapes, and on `/v1/generate`.
-  - Each value is the log-softmax of the logits row the sampler reads. It is computed only when asked and printed so the float round-trips.
-  - The channel a request's tokens come through carries these values, so the C++ tests read them without a test-only seam.
-  - This is the detector. Ids fail only when a greedy token flips, and today's server check passes because the fixtures' greedy text agrees.
-  - Gate: replies without logprobs are byte-identical to main (`server.py` on the CPU and both cards, and `server_mix_check.py` ids on one MI50 and on a 3-card split).
-  - Gate: with logprobs, ids are unchanged and the values repeat from run to run.
-  - Gate: `server_load.py` is level with main on both cards, with the reference server beside.
-- **Sequencing:** `feat/server-logprobs` goes first, since the tests read it. `fix/server-cancel` and this branch both edit `scheduler.hpp`, so whichever starts second rebases on the first.
-- **Plan:** each step is one commit. Every request that never pauses must give main's ids and logprobs before the next step starts.
-  0. **Measure on main, no code.**
-     - The uncapped mix (12 uncapped greedy requests, `--max-seqs 6 --ctx-size 4096`) in five setups: one MI50 with 8B Q8_0 and with 0.6B Q8_0, a 3-card split with 8B, the Radeon VII with 0.6B and with 8B, and the Radeon VII with the CPU. Record the replies differing from alone, the pauses, the wall time, and the inter-token p50 and p99 of the requests running beside a resume.
-     - The cost of a generated row in a wide pass: `llmx bench --model` batched decode at 1, 8, 16 and 64 sequences on one MI50 and on the Radeon VII, for 8B Q8_0 and 0.6B Q8_0, beside pp512. This sets `kReplayRows` in step 2.
-     - `tools/server_load.py` at 1, 4, 8, 16 and 32 concurrent on both cards, beside the reference server in the same minutes. This is the baseline for every later step.
-  1. **Tests and guards (below).** The failing tests must fail on main plus `feat/server-logprobs`, and each records its first differing token. The guards pass on main.
-  2. **Exact resume.**
-     - `Request` keeps `prompt_` and `gen_` and never rewrites them. Its history is the prompt followed by the generated tokens, and its cache holds the first `seq_.length()` of them.
-     - Removed: `resumed_`, `resumed_gen_`, the history splice, `prompt_done_`, `fresh_` and `ubatch_slice`. The cache's length is the one record of progress.
-     - `rows_` holds the history's row classes as a short list of stretches `{end, extent, fresh}`. At the first admission it holds the forked prefix's stretches as their donor recorded them, then the rest of the prompt at the prompt's extent and the count it prefills, then the generated tokens at extent 1. A donor keeps the stretches of the history it holds.
-     - Assembly gives each request what its cache lacks, one stretch per pass. A request whose only missing row is its last generated token takes a decode entry, exactly as today.
-     - Any other request takes a slice of its next stretch, with that stretch's extent. Prompt rows come out of the pass's ubatch budget.
-     - Generated rows go at most `kReplayRows` to a pass, each counting `ubatch / kReplayRows` against the budget. A request gets at least one row when the budget is untouched, so `--ubatch 1` still progresses, and a pass never holds more than ubatch plus `max_seqs` rows.
-     - The entry that ends at the end of the history wants logits. This is the only sampling rule.
-     - A pause parks the history and its row classes as a donor, as today, and queues the request unchanged.
-     - A resume forks the donor that shares the most whole blocks and whose row classes over those blocks equal its own: its own donor, or the donor of an identical request. It never forks rows that were computed another way.
-     - A first admission has no rows yet, so it matches donors by tokens alone, as today.
-     - `kReplayRows` comes from step 0: the largest number of generated rows whose pass costs no more than a pass with a full prompt slice on one MI50 with 8B Q8_0, capped at 64. At 64 rows plus six decoders on 8B, the per-row attention scratch is 74.5 MB, inside the 256 MiB the fit reserves for scratch (`vulkan_backend.cpp` 1061, 2010-2016).
-     - Measured on one MI50 with Qwen3-8B Q8_0: 64 generated rows cost a pass of 294 ms (batched decode 218 tok/s at 16 and at 64 sequences) against 559 ms for a 512-token prompt slice (916 tok/s), so `kReplayRows` is 64.
-     - The comment on `BatchEntry::extent` now says a generated token's extent is 1 however many tokens an entry carries.
-     - Gate: the failing tests pass on the CPU, the Radeon VII, one MI50, a 3-card split and the Radeon VII with the CPU.
-     - Gate: every request that never pauses gives main's ids and logprobs.
-     - Gate: `git diff main -- src/model src/backends` is that one comment.
-     - **Then take-back resume**, one commit of its own after step 2:
-       - A pause leaves the request's history as a donor whose id the request keeps, even when it holds less than a full block.
-       - A resumed request whose own donor survived, because nothing evicted it while the request was paused, takes it back whole, its partial last block included, and recomputes nothing. The rows it continues from are the ones it computed itself, so the output stays exact.
-       - Hybrid recurrent models need it, since their state cannot be forked at a block boundary, and it removes the recompute of dense models whenever the donor survives.
-       - Otherwise the resume falls back to the exact replay of step 2, forking whatever rows of its own classes survive in other donors.
-       - Tests: `server-resume` cases for a take-back with the donor intact, a follow-up turn's take-back, a partial eviction falling back to exact replay, and cancellation while paused.
-       - Gate: as step 2.
-  3. **Room by first admission.**
-     - The admission number is set once, at the first admission.
-     - `make_room(r, need, preempt)` is the one owner of who gives up blocks for whom. It takes donors first, oldest first. Then, and only for growth, it pauses uncapped requests admitted after `r`, latest first.
-     - `make_room` takes nothing unless what it may take is enough. So donors are no longer evicted for a request that still cannot start.
-     - It replaces the donor loops at 203-207 and 301 and the victim loop at 309-314. It is a free function over the ledger, so a test can drive it.
-     - A running request that cannot get room sits out the pass with its cache intact (a stall) and asks again at the next pass. It is never paused for its own growth.
-     - While a request is stalled, only capped requests or requests admitted before it hold the room it needs, so the stall ends when one of them ends or is paused.
-     - Paused requests leave the queue for their own list, kept in admission order. They no longer count against `--max-queue`, every one is checked for cancellation each iteration, and `stop()` ends them as it ends queued requests.
-     - Room goes by first admission. Stalled requests grow before any paused request resumes. Paused requests resume oldest first and stop at the first that does not fit. New requests are admitted only when nothing is stalled or paused.
-     - `/v1/health` adds `paused`, `stalls` and `recomputed` (the tokens resumes recomputed).
-     - Gate: every output is byte-identical to step 2, since when a row runs cannot change what it computes.
-     - Gate: the uncapped mix's pauses, recomputed tokens, wall time and inter-token p50 and p99 are reported against step 2 and main on both cards.
-     - Gate: `server_load.py` is level with main on both cards, with the reference server beside.
-  4. **Growth by one block, measured.**
-     - An uncapped request reserves its prompt plus one block at admission, and one more block each time it fills one.
-     - Today `kGrowTokens` reserves 256 tokens: up to 4 unused 64-token blocks per request, or 24 of 64 blocks with six requests in a 4096-token pool.
-     - The change is kept only if the uncapped mix pauses less often with a wall time no worse, and `server_load.py` stays level on both cards. Otherwise it is dropped and the numbers are recorded.
-  - **Docs** change in the commit that changes what they describe:
-    - SERVER.md: admission and pausing, the grow and assemble steps, and the gate's claim about forked prefixes, which becomes "within one row class".
-    - KV-CACHE.md on resuming, MULTI-DEVICE.md's scheduler bullet and risk 6, and the health fields in USAGE.md.
-    - The scheduler page under `docs/src`, and the test descriptions in AGENTS.md.
-    - The Open item in the second audit block points here.
-- **Composes with:**
-  - Donors and forks: a donor keeps its row classes. A first admission forks as today and inherits the donor's classes. A resume forks only rows that were computed the way its own were.
-  - Cancellation: a paused request holds nothing but an evictable donor, so cancelling it only ends it.
-  - The layer split: row classes belong to the request, not to a storage. Each stage builds its views from its own storage, and reservations are made per pool, as now.
-  - Phase 3 (passes in flight): a sequence is parked only between its passes (MULTI-DEVICE.md, risk 6). A recompute is shaped like a prompt, with one pass in flight per sequence.
-  - Phase 3, continued: the classes of a recompute's rows depend on the request alone, so the predicted-time assembly may size its slices freely. It costs generated rows as decode rows, which replaces `kReplayRows`.
-  - Phase 4 (per-storage progress): the point a request catches up from is its committed history, and stretch ends bound chunks the same way a prompt's end does.
-- **Tests that fail on main** (with `feat/server-logprobs`):
-  1. `server-resume`, a new CTest (`tests/server_resume.cpp`, CPU, every job, UBSan included).
-     - Setup: the scheduler over the synthetic Q8_0 model with a tokenizer that never ends a reply, a 1024-token pool (8 CPU blocks) and `max_seqs` 3.
-     - Three uncapped greedy requests whose prompts differ in their first token run alone first, then together, with `top_logprobs` 5.
-     - Every request's ids and logprobs must equal its run alone. The test asserts at least one pause whose victim held generated tokens in its partial block.
-     - Why it fails on main: the first logprob after a resume differs, because the float prompt path replaces the 8-bit decode dots.
-     - Case: a victim still prefilling (`ubatch` 1).
-     - Case: a victim whose donor is evicted before it resumes, which forces a full recompute.
-     - Case: a follow-up turn that forked the previous reply's blocks, paused with every donor evicted. Its reply rows must be recomputed at extent 1, which a plain recompute at the prompt's extent would get wrong.
-     - Case: a two-CPU layer split.
-     - Case: the same on a device when one is present, with prompts under 449 tokens so that the extent's split shows. It also covers a victim whose first admission forked another prompt's prefix, and whose donors are all gone before it resumes.
-     - Case: a paused request cancelled. The ledger and every pool must be back to zero after `stop`.
-     - With step 3: a CTest drives `make_room` through random admissions, growth, pauses, cancellations and ends over two pools of different block sizes. After every operation: no pool is over-reserved, the oldest request is never refused room that younger requests or donors hold, and no iteration has active requests with an empty pass.
-  2. `tests/server.py`: `check_uncapped` compares each request's ids and logprobs with the same request run alone, and `check_paused_prefill` compares its logprobs too. This runs on 0.6B Q8_0 in the HF job, and by hand on both cards.
-  3. `tools/server_mix_check.py --uncapped`: 12 uncapped greedy requests through the compatible route with `--max-seqs 6 --ctx-size 4096`, ids and top logprobs compared against each request alone.
-     - Measured on main: 3 of 12 replies differ on one MI50 with 8B Q8_0, 2 of 12 on a 3-card split, and 1 of 12 with 0.6B.
-     - Requirement: 0 of 12, with every logprob equal.
-- **Guards**, which pass on main and must keep passing, since the plan relies on them:
-  - `kv-cache` reference: a prompt of 40 at its extent in slices of 16, then its 199 generated ids as extent-1 entries of up to 64 rows, with logits only on the last.
-  - `kv-cache` variants: a fork at the first CPU block that replays the rest, and the replay run beside another sequence's decode row and a third sequence's prompt slice. Each must be `memcmp`-equal to the prompt followed by 199 single decode steps.
-  - `placement`: the same over two CPU stages.
-  - `backend-vulkan`: one sequence's view of 40 rows at extent 1 beside a prompt view, compared bitwise against the same 40 rows one decode call at a time, for both matmul and attention.
-  - `llmx-split-check` gains a replay phase. After the greedy steps, the prompt and the steps are replayed in ubatch slices at their classes, and a forked tail is replayed. Each must equal the decode's logits, on one device and on the split.
-- **Gates on both device platforms**, for each step as stated above, and as the merge gate:
-  - CTest and the Python suites on the CPU on Windows and Linux, on the Radeon VII and on an MI50, plus a green hosted run.
-  - `server-resume`, and `server_mix_check.py --uncapped` at 0 of 12, on the Linux MI50s (one card with 8B Q8_0 and 0.6B Q8_0, and a 3-card split with 8B). The same on the Windows Radeon VII (0.6B and 8B) and on the Radeon VII with the CPU.
-  - `server_mix_check.py` in its alone, together and skewed phases gives ids byte-equal to main on one MI50 and on a 3-card split.
-  - `generate`, `logits` and `perplexity` are byte-identical to main on 0.6B Q8_0, Q4_0 and Q5_K_M, 8B Q8_0 and 30B-A3B, on the CPU and on both cards. `llmx-split-check` stays bit-identical.
-  - `server_load.py` at 1, 4, 8, 16 and 32 concurrent is level with main on both cards, with the reference server beside in the same minutes, runs interleaved and cards pinned.
-  - The uncapped mix's wall time, pauses, recomputed tokens, and inter-token p50 and p99 are reported against main.
+- **Goal:** a paused and resumed request gives the same logits, bit for bit, that it gives when never paused, on the CPU, on a device and on a layer split, so its server reply equals its reply alone and, without a forked prefix, the CLI's. Requests that never pause keep main's outputs byte for byte, and room in the KV pool goes by first admission.
+- **Why:** on main 12 uncapped greedy requests with `--max-seqs 6 --ctx-size 4096` pause 24 times on one MI50 with Qwen3-8B Q8_0, and 3 of the 12 replies differ from the same request run alone, first 1400 to 2900 characters in; 2 of 12 differ on a split over three MI50s and 1 of 12 with Qwen3-0.6B. A pause rewrote the request's prompt as its history and re-prefilled its generated tokens through the prompt path at the history's extent, and the checks compared pause counts or greedy text.
+- **Depends on:** `feat/server-logprobs` (the block above), whose values are this branch's detector; the branch carries its commits and merges after it or with it.
+- **Decided:**
+  - 2026-09-25, exact reuse only: first admissions stop forking rows across row classes in the branch after this one, which reads the row classes recorded here (a follow-up turn then recomputes the previous reply as prompt rows, about 1.3 s per 1000 reply tokens on 8B on one MI50); logprobs go on the public routes first; a host tier for paused caches is decided on step 3's numbers.
+  - 2026-09-25, with the Qwen 3.x plan: a resumed request whose own donor survived takes it back whole, as a step after step 2, since hybrid models cannot fork their state at a block.
+  - 2026-09-26, `--moe-stream-from` may not depend on what the cache holds: the streamed path follows the whole prompt's length, its extent, never the tokens left to read after a reused prefix, so streamed and host rows are different row classes and a resume or a reused prefix computes rows in the class that first computed them. A short follow-up in a long chat now pays the copy, which is to be reported rather than traded for invariance.
+- **Done:**
+  - Step 1, the tests first (`b239ea2`): `server-resume` (a new CTest over the scheduler and the synthetic Q8_0 model), the `server` component's uncapped and paused-prefill checks and `server_mix_check.py --uncapped` compare every id and log-probability of a paused request with its run alone and fail there; the guards in `kv-cache`, `placement`, `backend-vulkan` and `llmx-split-check` hold the recompute by class and pass there.
+  - Step 2, the exact resume (`1e0d254`): a request keeps its prompt and generated tokens unrewritten, its cache's length is its progress, and `RowClass` records each stretch of its history; a pass gives each request a slice of the next stretch its cache lacks at that stretch's extent, generated tokens as entries of extent 1, at most `kReplayRows` (64) a pass each counting `ubatch / 64` of the budget. On one MI50 with Qwen3-8B Q8_0, 64 generated rows cost a pass of 294 ms (batched decode 218 tok/s at 16 and at 64 sequences) against 559 ms for a 512-token prompt slice (916 tok/s). `src/model` and `src/backends` changed by one comment.
+  - Take-back (`58d2656`): a pause leaves the request's history as a donor, even short of a full block, which the request takes back whole when it resumes and nothing evicted it, recomputing nothing; otherwise it forks only rows of its own classes and recomputes the rest.
+  - Step 3, room by first admission (`ee9c13c`), after its failing cases (`48b5766`): `make_room` is the one owner of who gives up blocks for whom; the admission number is set once; a request that cannot grow sits the pass out (a stall) rather than pausing itself; nothing is taken unless it is enough; paused requests wait apart from the queue, outside `--max-queue`; `/v1/health` counts `paused`, `stalls`, `recomputed` and `taken_back`; the `server-room` CTest drives `make_room` by hand and through a simulation of the scheduler's rules.
+  - The stream path by the whole prompt (`0ba812c`), after its failing check (`a94c24b`): `Placement::stream_from` compares the entry's extent, `BatchEntry::fresh` and the fresh count in `RowClass` are gone, and USAGE drops its caveat that a reused prefix can change a streamed reply.
+  - The audit's list (`b7797d1`, `65522df`, `8fdb7cc`): `room_for` removed; the scheduler's and the test headers' comment walls cut and the `kReplayRows` timing moved here; the fork across row classes listed in SERVER.md as an open gap beside the gate, and in USAGE; `server_mix_check.py`'s docstring one sentence a line; the `server.py` header cut; `logits --top` ranks through `infer::top_logprobs`, which keeps its best k in a heap; `server-resume` builds without its 34 missing-initializer warnings.
+- **Failing first, each on the commit before its fix:**
+  - `b239ea2` on itself: `server-resume`'s three uncapped requests, request 1's token 345 of 1015 differs from the request alone (logprob -0.516920805 against -0.525012314).
+  - `48b5766` on `58d2656`, each case run alone: a resumed request short of room for its own growth paused 2 times and took back 2 donors against 1 and 1; a prompt repeating a donor's reused 0 tokens against 128, the donor evicted for a request then refused; a request submitted while another was paused was refused with QueueFull at a queue of one. On the fix (`ee9c13c`) the CPU cases pass.
+  - `a94c24b` on itself, one MI50: a 120-token prompt forking a finished prompt's 64-token block, 56 tokens of its own read on the host where its run alone streamed them, gave other `top_logprobs` than its run alone on a server of its own.
+- **Gates so far** (`8fdb7cc`, on the Linux machine with the MI50s, one MI50 (rocm-smi GPU[3]), in the development image, the machine at a load average of 26 to 59):
+  - CTest: 26 of 26 in the CPU build and 29 of 29 in the Vulkan build, `server-resume` with its device cases, `server-room` and `backend-vulkan` among them; both builds without a warning.
+  - The suite on the CPU (the CPU build, `--no-perf-floor`): `cli`, `moe`, `server`, `chat`, `threads` and `baseline` pass, the real Qwen3-0.6B Q8_0 server checks among them (uncapped requests paused and resumed with their values alone, a prompt paused while prefilling, prefix reuse over a conversation), and the four gate models' tokenizer 20 of 20, top-1 6 of 6 each and 32 perplexity cells inside their HF bounds.
+  - The suite on the MI50 (`--device vulkan:0`): `server` and `moe` pass, the stream reuse check and the real Q8_0 server checks among them.
+  - The Windows build with Vulkan (MSVC, from clean) compiles every target without an error; nothing is run there.
+- **Left before merge:**
+  - On the Radeon VII (Windows): CTest and the suites on the CPU and the device, the `server-resume` device cases, and `server_mix_check.py --uncapped` at 0 of 12 differing on 0.6B and 8B, on the Radeon VII alone and beside the CPU.
+  - On the MI50s: `server_mix_check.py --uncapped` at 0 of 12 on one MI50 with 8B Q8_0 and 0.6B Q8_0 and on a split over three MI50s with 8B; its alone, together and skewed phases byte-equal to main on one MI50 and on the three; `generate`, `logits` and `perplexity` byte-identical to main for 0.6B Q8_0, Q4_0 and Q5_K_M, 8B Q8_0 and 30B-A3B on the CPU and one MI50; `llmx-split-check` bit-identical to one MI50.
+  - `server_load.py` at 1, 4, 8, 16 and 32 concurrent level with main on an MI50 and on the Radeon VII, the reference server beside in the same minutes, and the uncapped mix's wall time, pauses, recomputed tokens and inter-token p50 and p99 against main.
+  - The cost the stream decision puts on a short follow-up in a long chat, 30B-A3B with twelve routed layers on the CPU and `--moe-stream-from 512`, against the host path it took before.
+  - The host tier for paused caches, decided on step 3's numbers above, and a green hosted run.
+- **Gotchas:**
+  - The scenarios of `server-resume` and `check_paused_prefill` are tuned to `kGrowTokens` (256) and the CPU's 128-token blocks. Growth by one block (plan step 4) lives on `xs-step4-exp`, off this branch, and breaks `take_back`, `partial_eviction`, `prefilling_victim`, `three_uncapped` and `check_paused_prefill` until they, their AGENTS descriptions and this block are retuned and the step is measured.
+  - `serve` in `server-resume` starts the scheduler before a wave is submitted, so a wave's requests can start a few passes apart; the room cases that need one first admission for all submit before the scheduler starts (`started_together`).
+  - On the synthetic MoE model with f32 caches the host's and the device's expert products are often bitwise equal: a 16-token tail read on the host gave the same values as streamed, and the stream check needs 56 tokens to see the paths differ.
+  - Under the renewed admission number the latest admitted uncapped request was always the one paused, so the renewal showed only as a request pausing itself for its own growth, which a stall now replaces; its failing case is built on that.
+  - A first admission still forks a donor by tokens alone (SERVER.md, Open gaps), so a follow-up turn continues from the previous reply's decode rows.
+- **Owners:** how a row is computed, the request's row classes, read only by batch assembly; who gives up blocks for whom, `make_room`; which donor a request may fork, `best_donor`; how far a request has progressed, its cache's length; which path a streamed layer takes, `Placement::stream_from` against the entry's extent.
 - **Not doing, with reasons:**
-  - **A host tier for paused caches** (copied out to host memory and back, byte for byte).
-    - For: it is fast. The estimate is 13 to 32 ms each way for an 1100-token 8B history, against about 2 to 14 s to recompute its generated rows.
-    - Against: it is a second mechanism, with new backend calls, a host tier in both KV storages and host memory in the fit.
-    - Against: it still needs a recompute floor. Staying live without one takes 2.81 GiB of host memory in the measured setup and 84 GiB for 8B at the defaults.
-    - Decision: made on step 3's numbers, as decided above.
-  - **Never taking blocks back from a request that has generated.**
-    - For: it is exact with no recompute.
-    - Against: it halves an uncapped reply whenever the pool is under twice the context, which is the default.
-    - Against: it makes requests wait behind the oldest request's reach even where nothing would pause today, which slows batched serving.
-  - **Splitting an entry's rows by class inside `begin` and `run_stage`:** not needed, since an extent-1 entry of many rows already takes the decode kernels. It would also make the extent contract implicit.
-  - **Copying a partial tail block on a fork** (`kv_copy`, removed in 17c7628): it would save at most 63 recomputed rows per resume on a device.
-  - **Generated rows sharing weight reads on the CPU** (`matvec_q8x` with the columns inside): it would make CPU recomputes and CPU batched decode cheaper. It is a decode kernel change that needs its own A/B, so it goes in its own branch.
-  - **First admissions forking across row classes** (follow-up turns, and donors of another extent class): found here and fixed in its own branch, the one after this, as decided above. It will read the row classes this branch records.
+  - A host tier for paused caches (copied to host memory and back): an estimated 13 to 32 ms each way for an 1100-token 8B history against about 2 to 14 s of recompute, but a second mechanism with new backend calls and a host tier in both KV storages, which still needs a recompute floor (2.81 GiB of host memory in the measured setup, 84 GiB for 8B at the defaults). Decided on step 3's numbers.
+  - Never taking blocks back from a request that has generated: exact with no recompute, but it halves an uncapped reply whenever the pool is under twice the context, the default, and makes requests wait behind the oldest one's reach.
+  - Splitting an entry's rows by class inside `begin` and `run_stage`: an extent-1 entry of many rows already takes the decode kernels.
+  - Copying a partial tail block on a fork (`kv_copy`, removed in 17c7628): at most 63 recomputed rows saved per resume on a device.
+  - Generated rows sharing weight reads on the CPU (`matvec_q8x` with the columns inside): a decode kernel change with its own A/B, on its own branch.
 
 ## One owner for the default cache type (2026-09-25, branch fix/kv-cache-default)
 
@@ -3092,7 +2989,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Approved (2026-09-25):** 18 `test/reference-8b-per-token`. Since perplexity became batched by default, the 8B HF check scores only the batched path, so the 8B decode kernels have no reference check; the per-token mode is added, bounds unchanged, and the 0.6B check takes the 8B check's stricter validators.
 - **Sequencing:** 3, 4, 5, 7 and 12 touch files the layer split branch still has open and start after it merges; branches sharing a file land in order (1, 2, 4 on `scheduler.hpp`; 5, 10, 11 on `main.cpp`; 7, 14 on the registry; 4, 15 on `kv_copy`; 14, 16 on `matmul_raw`).
 - **Done (2026-09-25):** 8, 9 and 17 at `60f4799`; 1, 2 and 18 at `a2b732f`; 4 and then 3 at `80d53a1`, where 3 and 4 also gave greedy text and logits byte-identical to main for 0.6B, 8B and 30B-A3B on an MI50, and `llmx-split-check` bit-identical to one card at f16 and f32. Their gates: CTest and the suites on one card and on a split on the MI50s and on the Radeon VII; many users through the server on one MI50 and on a 3-card split (16 requests, together, then skewed with four clients leaving) matching their text alone and through the CLI; the 8B HF check 41 of 41 on one MI50.
-- **Open, found while gating 1:** a request paused and resumed is not exact against the CLI. It resumes by forking its own full cache blocks and prefilling the rest of its history, so the tokens it generated in its last, partial block get their cache from the prompt path, not the decode path that first computed them. Whether a request is paused depends on the other requests, so its later tokens can depend on the batch, which the batch-invariance rule forbids. The server check compares paused requests' ids with the same request alone and passes because the greedy text agrees on the fixtures, not by construction. The fix makes a resumed cache identical to the one it replaces. It is planned in "Exact resume of a paused request" above: a resume recomputes what its cache lacks the way it was first computed, and a host tier for paused caches is decided on that plan's step 3 numbers.
+- **Found while gating 1, fixed on `fix/server-exact-resume`:** a request paused and resumed was not exact against the CLI, since its resume prefilled its generated tokens through the prompt path, so its later tokens depended on the batch. A resume now takes its own cache back or recomputes what it lacks the way it was first computed ("Exact resume of a paused request" above); what stays open is a first admission forking rows another class computed (`docs/SERVER.md`, Open gaps).
 - **Not acting on, with reasons recorded in the audit:** the KV growth peak in the fit (the loader plan's), one generation state for the CLI and server (a design change: they already share `sample` and `is_eos` and give the same ids), a float-scratch dot for routed Q4_0 and Q4_1 decode on the CPU (changes outputs), and helpers that would only carry differences as parameters.
 
 ## Cleanup from the code audit (2026-09-25, branches refactor/split-tight and cleanup/audit)

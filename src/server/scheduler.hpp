@@ -1,7 +1,6 @@
 #pragma once
-// The scheduler of docs/SERVER.md: one thread drives the model, one Model::forward per iteration carrying every decoding request's next token and a slice of a prefilling prompt, sampling each request's logits into its channel.
-// Admission is by the KV pool's budget, in queue order. A capped request reserves its whole reach up front and is never paused; an uncapped one reserves its prompt and grows as it generates. Room goes by first admission (make_room): a request that cannot grow takes donors, then pauses uncapped requests admitted after it, and otherwise sits out passes until room frees; paused requests wait apart from the queue and resume oldest first, where they stopped. Finished requests stay as prefix donors, whose full blocks a repeating prompt forks.
-// A request records how each stretch of its history was computed (RowClass), and a resume recomputes what its cache lacks the same way, so a paused request gives the logits it gives when never paused.
+// The scheduler of docs/SERVER.md: one thread drives the model, one Model::forward per iteration carrying every decoding request's next token and slices of what other requests' caches lack, sampling each request's logits into its channel.
+// Room in the KV pool goes by first admission (make_room), and a request records how each stretch of its history was computed (RowClass), so a paused request resumes to the logits it gives when never paused.
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -52,10 +51,8 @@ struct Taken {
     std::vector<std::pair<size_t, bool>> paused;
 };
 
-// Who gives up blocks for whom: the one owner of that rule (docs/SERVER.md, room by first admission).
-// A request needing `need` more blocks in each pool, beside `reserved` of `pool`, takes donors first, oldest first, the donor it forks (`keep`) last, or first when it shares every full block of it (`keep_first`).
-// Only a request that grows (`preempt`) then pauses uncapped requests admitted after its own first admission (`after`), latest first, taking what each frees and then, if that is short, the donor its history becomes.
-// Nothing is taken unless what may be taken is enough, so a request refused waits with nothing evicted for it: to be admitted later, or to grow at a later pass.
+// Who gives up blocks for whom, the one owner of that rule (docs/SERVER.md, room by first admission): for `need` more blocks per pool, donors go first, oldest first, the one the request forks (`keep`) last or, with `keep_first`, first.
+// Only growth (`preempt`) then pauses uncapped requests admitted after `after`, latest first, each giving its headroom and, if still short, its donor; nothing is taken unless the whole is enough.
 inline Taken make_room(const std::vector<size_t>& pool, const std::vector<size_t>& reserved, const std::vector<std::vector<size_t>>& donors,
                        size_t keep, bool keep_first, const std::vector<Holder>& active, uint64_t after, bool preempt,
                        const std::vector<size_t>& need) {
@@ -103,9 +100,7 @@ inline Taken make_room(const std::vector<size_t>& pool, const std::vector<size_t
     return t;
 }
 
-// One request from submission to completion.
-// The connection thread reads the channel: `next` waits for a token or the end until a deadline, so the thread can look at its client between tokens.
-// Everything below the channel belongs to the scheduler thread.
+// One request from submission to completion: the connection thread reads its channel, and everything below the channel belongs to the scheduler thread.
 class Request {
 public:
     using Clock = std::chrono::steady_clock;
@@ -124,9 +119,8 @@ public:
     // The most tokens of a request that wait on its channel with their rows.
     // A reader this far behind gets the next tokens' values computed by the scheduler instead, so however slowly a client reads, a request holds this many rows and two more.
     static constexpr size_t kRowsWaiting = 8;
-    // What a wait on the channel found: a sampled token, the end of the request with `finish` set ("eos", "stop", "length", "cancel" or "error"), or neither by the deadline.
-    // A token that comes with its row gets its log-probabilities here, in the thread that reads the channel, so no pass waits for their walk over the vocabulary.
-    // The row then goes back to the request for a later pass to fill, and a cancelled request's rows are dropped unread.
+    // What a wait on the channel until `until` found: a sampled token, the end of the request with `finish` set ("eos", "stop", "length", "cancel" or "error"), or neither.
+    // A token's row becomes its log-probabilities here, in the reader's thread, so no pass waits for a walk over the vocabulary, and goes back for a later pass to fill.
     enum class Next { id, end, timeout };
     Next next(Token& t, Clock::time_point until) {
         {
@@ -400,7 +394,7 @@ public:
                     step(*r);
                 }
             } catch (const std::exception& e) {
-                // A failed pass leaves every history as it was; the requests in it end with the error rather than the loop.
+                // A failed pass leaves every history as it was; every active request ends with the error rather than the loop.
                 for (size_t i = 0; i < active.size();) finish(active, i, "error", e.what());
                 continue;
             }
@@ -431,7 +425,7 @@ public:
 private:
     // Tokens an uncapped request reserves beyond what it holds, at admission and each time it grows.
     static constexpr size_t kGrowTokens = 256;
-    // The most generated tokens a pass recomputes for one resume, and the budget each takes, ubatch / kReplayRows, since a generated token takes the decode kernels: on one MI50 with Qwen3-8B Q8_0, 64 of them cost a pass of 294 ms (batched decode 218 tok/s at 16 and at 64 sequences) against 559 ms for a 512-token prompt slice (916 tok/s).
+    // The most generated tokens a pass recomputes for one resume, each taking ubatch / kReplayRows of the budget since it takes the decode kernels; docs/STATUS.md (Exact resume) records the timing that sets it.
     static constexpr size_t kReplayRows = 64;
 
     // The tokens of r's history, prompt then generated: what a resume holds its cache to.
@@ -493,10 +487,8 @@ private:
         }
     }
 
-    // Admits r, a queued request or a paused one, if make_room finds it room without pausing anyone: it reserves its history and max_tokens, or an uncapped one its history and a growth step, and takes back its own donor, forks the donor best_donor found or starts a fresh sequence.
-    // The donor it forks goes last, or first when the request shares every full block of it, a follow-up turn or its own history, since that donor then holds nothing the request does not keep but a partial last block; a donor it takes is consumed, the blocks they share counted once.
-    // Its own donor, taken back whole, goes first in the same way, and leaves the donors whether make_room needed its blocks or not.
-    // Under the lock.
+    // Admits a queued or paused request if make_room finds room without pausing anyone, reserving its history and max_tokens, or uncapped a growth step: its own donor taken back whole, a fork of the donor best_donor found, or a fresh sequence.
+    // A donor it takes back or shares every full block of goes first, one it forks otherwise last, and a forked donor make_room takes is consumed, the shared blocks counted once. Under the lock.
     bool enter(const std::shared_ptr<Request>& r, std::vector<std::shared_ptr<Request>>& active) {
         const size_t tokens = history_tokens(*r) + (r->params_.until_limit ? kGrowTokens : (size_t)r->params_.max_tokens - r->gen_.size());
         std::vector<size_t> need = blocks_for(tokens);
@@ -551,9 +543,7 @@ private:
         return h;
     }
 
-    // A paused request's history and its record go to the donors and the request, unchanged, to the paused requests, which are kept in order of first admission and hold nothing else.
-    // The request remembers that donor, which it takes back whole when it resumes unless something evicted it meanwhile; its history goes there even short of a full block, which only it can take.
-    // Whether it left a donor.
+    // A paused request's history goes to a donor, even short of a full block, which it takes back whole on resuming unless something evicted it, and the request to the paused requests in order of first admission; whether it left a donor.
     bool pause(std::vector<std::shared_ptr<Request>>& active, size_t i) {
         auto r = active[i];
         r->donor_ = park(active, i, history(*r), 1);
@@ -605,10 +595,8 @@ private:
         return donors_.size();
     }
 
-    // The donor sharing the longest run of full blocks with r's history, and the token count of that run; zero when no donor shares a block.
-    // Tokens are compared, not hashed.
-    // A request admitted before, which has a record of its rows, shares only rows its donor computed the way its own were: its own donor's, or an identical request's.
-    // Only whole blocks are shared since a fork appends only into fresh blocks, and the last history token is always computed in a pass so the request has logits to sample from.
+    // The donor sharing the longest run of whole blocks with r's history by tokens, and for a request with a record of its rows only over rows computed as its own were; the run's length goes to `tokens`, zero when none shares a block.
+    // The last history token is never shared, since a pass must compute it to give logits.
     size_t best_donor(const Request& r, size_t& tokens) const {
         const size_t bt = model_.kv_block_tokens(), h = history_tokens(r);
         size_t best = donors_.size();
@@ -625,10 +613,8 @@ private:
         return best;
     }
 
-    // A history for an admitted request: its own donor `d` taken back whole (`take`), which leaves the donors, or a fork of donor `d` holding the `shared` tokens best_donor found, or a fresh sequence when it found none.
-    // The donor taken back holds exactly the rows the request computed before its pause, so it continues as if never paused.
-    // A first admission records its rows: a forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent, then the generated tokens at extent 1.
-    // Under the lock.
+    // A history for an admitted request: its own donor `d` taken back whole (`take`), a fork of donor `d` at `shared` tokens, or a fresh sequence.
+    // A first admission records its rows: a forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent, then the generated tokens at extent 1. Under the lock.
     void admit(Request& r, size_t d, size_t shared, bool take = false) {
         {
             std::lock_guard<std::mutex> lk(r.m_);
@@ -759,12 +745,6 @@ private:
         for (size_t s = 0; s < b.size(); ++s)
             b[s] = std::min(backend::blocks_for(tokens, model_.kv_pool_block_tokens(s)), model_.kv_pool_blocks(s));
         return b;
-    }
-    // Whether every pool can take `more` beside what is reserved, once the `freed` blocks of a reservation that ends are returned.
-    bool room_for(const std::vector<size_t>& more, const std::vector<size_t>& freed = {}) const {
-        for (size_t s = 0; s < more.size(); ++s)
-            if (reserved_[s] - (s < freed.size() ? freed[s] : 0) + more[s] > model_.kv_pool_blocks(s)) return false;
-        return true;
     }
     // Whether `want` needs more than `held` in any pool; an empty `held` holds nothing.
     static bool beyond(const std::vector<size_t>& want, const std::vector<size_t>& held) {

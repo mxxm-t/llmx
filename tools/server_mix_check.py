@@ -1,33 +1,23 @@
-"""Many users at once through `llmx serve`, every request checked against
-what it gives alone: the check that a placement, a layer split above all,
-holds under whatever mix of prompts and decodes a server meets.
+"""Many users at once through `llmx serve`, every request checked against what it gives alone: the check that a placement, a layer split above all, holds under whatever mix of prompts and decodes a server meets.
 
-Standard library only. Every request is greedy. The requests mix short and
-long prompts, cut from a text file, with short and long replies. Phases:
+Standard library only.
+Every request is greedy.
+The requests mix short and long prompts, cut from a text file, with short and long replies.
+Phases:
 
     alone     each request by itself, one after another: its reference ids
     together  every request at once, so prompts and decodes share passes
-    skewed    the same requests arriving at staggered times, long prompts
-              landing while others decode, and some clients leaving
-              mid-stream
-    cli       the first requests through `llmx generate --temp 0` on the
-              same devices, whose prompt runs as one transaction and, on a
-              split, pipelined over the stages
+    skewed    the same requests arriving at staggered times, long prompts landing while others decode, and some clients leaving mid-stream
+    cli       the first requests through `llmx generate --temp 0` on the same devices, whose prompt runs as one transaction and, on a split, pipelined over the stages
 
-Every request that runs to its end must give its ids alone, the CLI its
-text; a client that left must leave nothing active.
+Every request that runs to its end must give its ids alone, the CLI its text; a client that left must leave nothing active.
 --ids writes every phase's ids, so two builds can be compared byte for byte.
 
---uncapped runs other phases on a pool too small for its requests: 12
-uncapped greedy requests through /v1/completions, streamed with logprobs 5,
-with --max-seqs 6 and --ctx-size 4096 unless given. Each runs alone, where
-it never pauses, then all at once, where requests are paused and resumed;
-each must give its tokens and every log-probability alone. It reports the
-pauses, the tokens resumes recomputed, the wall time of the run together and
-its inter-token p50 and p99.
+--uncapped runs other phases on a pool too small for its requests: 12 uncapped greedy requests through /v1/completions, streamed with logprobs 5, with --max-seqs 6 and --ctx-size 4096 unless given.
+Each runs alone, where it never pauses, then all at once, where requests are paused and resumed; each must give its tokens and every log-probability alone.
+It reports the pauses, the tokens resumes recomputed, the wall time of the run together and its inter-token p50 and p99.
 
-    python tools/server_mix_check.py --model M.gguf --text wiki.txt \\
-        --device vulkan:0,vulkan:1,vulkan:2 --layer-shares 1,1,1
+    python tools/server_mix_check.py --model M.gguf --text wiki.txt --device vulkan:0,vulkan:1,vulkan:2 --layer-shares 1,1,1
 """
 import argparse
 import http.client

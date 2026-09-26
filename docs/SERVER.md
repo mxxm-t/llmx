@@ -245,6 +245,13 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 - Speculative decoding, grammars, logit bias, embeddings endpoints.
 - TLS, authentication, rate limiting: the reverse proxy's job.
 
+### Open gaps
+
+- **Forks across row classes.** A first admission forks a donor by tokens alone, so a prompt that forks rows another prompt's extent computed, or a follow-up turn that forks the previous reply's rows, which decode computed, continues from rows a fresh sequence would compute another way.
+  Its reply can then differ from the CLI's by rounding, where the correctness gate below asks for the same ids.
+  With `--moe-stream-from` the same holds for a donor whose prompt took the other side of the stream length.
+  Planned in `docs/STATUS.md` (Exact resume of a paused request): a first admission forks only rows of its own classes, which the row classes the exact resume records already tell apart, and recomputes the rest.
+
 ## Gates
 
 - **Correctness.** A greedy request through the server gives the same
@@ -252,7 +259,7 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
   backend, alone and while three other requests decode beside it; the
   kv-cache test already holds a two-entry `forward` to the entries run
   alone. A forked prefix continues exactly as a fresh sequence fed the
-  same history within one row class; rows another prompt's extent computed, or a previous reply's rows computed as generated tokens, stay as they were computed, so a follow-up turn continues as its first turn left it rather than as the CLI would compute its whole prompt.
+  same history; forks across row classes do not yet (Open gaps below).
   A cancelled request returns its blocks and the others
   finish unchanged. All on the CPU and on the device.
   With log-probabilities, a request's values repeat from run to run, and a request run alone gets the values it gets while three others run beside it.

@@ -1,7 +1,5 @@
-// make_room, the one owner of who gives up blocks for whom (docs/SERVER.md, room by first admission), driven through random admissions, growth, pauses, cancellations and ends over two pools of different block sizes.
-// The simulation keeps the scheduler's rules around it: a request that cannot grow sits the pass out; nothing resumes or is admitted while one does; paused requests resume oldest first and new ones come only once none is paused.
-// A paused request's history stays a donor however short, and resumed it takes that donor back first, with what it held, when nothing evicted it.
-// After every operation: no pool is over-reserved and the ledger adds up, the oldest request is never refused room that younger requests or donors hold, no pass is empty while requests are active, and once submissions stop every request ends.
+// make_room, the one owner of who gives up blocks for whom (docs/SERVER.md, room by first admission), by hand and through random runs of a simulation of the scheduler's rules over two pools of different block sizes.
+// After every operation no pool is over-reserved, the ledger adds up, the oldest request is refused room only when capped requests hold it, no pass is empty while requests are active, and once submissions stop every request ends.
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>

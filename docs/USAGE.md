@@ -584,6 +584,7 @@ A greedy request gives the ids `generate --temp 0` gives for the same prompt, al
 A finished request's cache stays a while as a donor: a new prompt that repeats its tokens shares those KV blocks read-only and prefills only what follows, `reused_tokens` in the reply, whole blocks only and never the last prompt token.
 Donors give their blocks up, oldest first, when a request needs them, except that the donor a request forks is kept and, if the pool is still short, consumed by it: the blocks it shares pass to the request and the rest are freed.
 A follow-up turn or a resumed request, which shares every full block of its donor, consumes that donor before any other gives its blocks up.
+A new prompt that forks rows another prompt's extent computed, or a follow-up turn that forks the previous reply, continues from those rows as they were computed, so its reply can differ from `generate`'s by rounding until first admissions fork only rows of their own class (`docs/SERVER.md`, Open gaps).
 
 `/v1/tokenize` gives the ids `llmx tokenize` prints for `text`, the ids a prompt of that text reads: no chat template is applied, and the text of a special token such as `<|im_start|>` reads as that token.
 With `messages` in place of `text`, as `/v1/chat` takes them, the model's chat template renders them first, the assistant's header included and an assistant message's `reasoning_content` read as the chat routes read it, so the ids are the ones a chat request with those messages reads, and a conversation the template raises on is refused with 400 as there.

@@ -1,7 +1,5 @@
-// A request the scheduler pauses and resumes must give, token for token, the ids and log-probabilities it gives run alone, where it never pauses (docs/SERVER.md, pausing).
-// Uncapped greedy requests share a pool too small for all of them, through the scheduler over the synthetic Q8_0 model, whose decode rows take the CPU's 8-bit dots and whose prompt rows take the float path, so a generated token recomputed as a prompt row shows in its values.
-// Each case runs its requests alone first, then together, and compares every channel's ids, logprobs and top five; a difference names its first token.
-// Usage: llmx-server-resume-test [cpu|device]; both by default, the device cases on Vulkan device 0 when the build has the backend and the device opens.
+// Requests the scheduler pauses and resumes give, token for token, the ids and log-probabilities they give alone, over the synthetic Q8_0 model whose prompt and decode rows take different CPU paths, and room goes by first admission (docs/SERVER.md).
+// Usage: llmx-server-resume-test [cpu|device]; both by default, the device cases on Vulkan device 0 when it opens.
 #include <chrono>
 #include <cstdint>
 #include <cstdio>

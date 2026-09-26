@@ -19,11 +19,7 @@ from tokenizer import build_byte_vocab
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 import server_load  # noqa: E402
 
-# The server of docs/SERVER.md against the CLI on the same file: a greedy request through /v1/generate gives the text `generate --temp 0` gives, alone and while three other requests decode beside it; a streamed request arrives as events with the same ids; a seeded request repeats, and a compatible request's seed of -1 samples as no seed; logprobs come in each route's shape, whole and streamed, repeat byte for byte, leave the reply's ids and text as they were and change no byte of a reply that does not ask for them; on the real fixture, seeded requests on the sampler's four paths, four at a time, give the text `generate` gives alone with the same settings and seed; a bad body, a number its field cannot hold, a sampling field outside the CLI's range and a request past the context are refused; a client that goes away mid-stream, during a whole reply, while its prompt is read or while it waits in the queue leaves the server with nothing active and its blocks free, and one that shuts only its sending side gets no answer; a chat turn renders; /v1/tokenize and /v1/detokenize give the ids and text `llmx tokenize` and `llmx detokenize` give, while the queue is full too, and a text the tokenizer cannot encode is refused there as the generating routes refuse it; a conversation growing past half a small pool reuses its history on every follow-up; a follow-up short of room consumes the turn it repeats and leaves an unrelated donor in place.
-# The synthetic F32 model (16-token context) needs no download; the real Q8_0 fixture, when it is on disk, repeats the checks with room to stream.
-# The synthetic model's file name holds a byte that is not UTF-8 on Linux and characters beyond ASCII that several Windows code pages cannot map elsewhere, and every reply naming the model must still be UTF-8.
-# The synthetic MoE model gives each prompt the same ids alone and four at a time, on the CPU as it is and on a device with its experts on the host.
-# With ignore_eos a reply that would end at the model's end token runs to its limit, through the CLI and the server alike, on the synthetic model given an end token and on the real fixture.
+# The server of docs/SERVER.md against the CLI on the same file, on synthetic dense and MoE models that need no download and on the real Q8_0 fixture when it is on disk; AGENTS.md (Tests, Server) lists what each check holds.
 
 
 class Server:

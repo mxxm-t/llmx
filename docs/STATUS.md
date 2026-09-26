@@ -661,6 +661,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
      - A resume forks the donor that shares the most whole blocks and whose row classes over those blocks equal its own: its own donor, or the donor of an identical request. It never forks rows that were computed another way.
      - A first admission has no rows yet, so it matches donors by tokens alone, as today.
      - `kReplayRows` comes from step 0: the largest number of generated rows whose pass costs no more than a pass with a full prompt slice on one MI50 with 8B Q8_0, capped at 64. At 64 rows plus six decoders on 8B, the per-row attention scratch is 74.5 MB, inside the 256 MiB the fit reserves for scratch (`vulkan_backend.cpp` 1061, 2010-2016).
+     - Measured on one MI50 with Qwen3-8B Q8_0: 64 generated rows cost a pass of 294 ms (batched decode 218 tok/s at 16 and at 64 sequences) against 559 ms for a 512-token prompt slice (916 tok/s), so `kReplayRows` is 64.
      - The comment on `BatchEntry::extent` now says a generated token's extent is 1 however many tokens an entry carries.
      - Gate: the failing tests pass on the CPU, the Radeon VII, one MI50, a 3-card split and the Radeon VII with the CPU.
      - Gate: every request that never pauses gives main's ids and logprobs.

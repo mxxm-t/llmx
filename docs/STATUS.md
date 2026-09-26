@@ -4,6 +4,55 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Raw conversion in the format layer, type ids in the quant layer (2026-09-26, branch refactor/raw-convert-to-format)
+
+- **Goal:** each layer depends only on those below it and a type's sizes are written once, with behaviour and output unchanged but for the three refusal texts below; found by a guidelines audit on 2026-09-26.
+  `quant/convert.hpp` opened `model.json` and `model.bin` and called `gguf::read_gguf` and `gguf::write_gguf` from below the format layer, against ARCHITECTURE's rule that nothing below the format layer knows what a file is.
+  Block and row sizes were written twice, in the switch of `gguf::TensorInfo::data_size` and in the quant registry, and `quant.hpp` and `k_quants.hpp` included `format/gguf.hpp` for the type ids, the exception ARCHITECTURE documented.
+  No behaviour change is intended, so no failing test comes first, but for the check order the review found (Review fixes).
+- **Done:**
+  - `src/quant/convert.hpp` is `src/format/raw_convert.hpp`, in namespace `format`, its code unchanged but for naming the registry `quant::`; the CLI calls `format::quant_type_of`, `format::quantize_raw` and `format::dequantize_to_raw`, and the page is `docs/src/format-raw_convert.md`.
+  - The type ids and block sizes (`GGML_TYPE_*`, `*_BLOCK`, `*_TYPESIZE`) moved from `format/gguf.hpp` to the new `src/quant/types.hpp` (namespace `quant`, page `docs/src/quant-types.md`), and every use in `src/`, the tests and the tools names them `quant::`.
+  - `quant.hpp` and `k_quants.hpp` include nothing above the quant layer; the CPU and Vulkan backends, `device_profile.hpp` and the two Vulkan bench tools include `quant/` headers where they included `format/gguf.hpp` for the ids alone, so no backend includes the format layer.
+  - `TensorInfo::data_size` is `quant::row_bytes(type, ne[0], rows)`, a rank-zero tensor being one value, and `row_bytes` takes a row count that defaults to one, so the backends' calls are unchanged.
+    Zero rows take zero bytes, however wide a row, so a tensor with a zero dimension still holds no bytes, as `gguf-validation` requires, while its type and whole-block rows are still checked.
+  - `gguf-validation` refuses three tensors whose element count fits and whose bytes do not across rows, F32 `{2^31, 2^31}` and `{2^31, 2^32}` and Q8_0 `{32, 2^59 - 1}`, each by the overflow check and not the extent check, which a wrapped size can pass; `backend-errors` sizes several rows and zero rows through `row_bytes` and holds its refusals with no rows and across rows.
+  - ARCHITECTURE's layer diagram, table and the paragraph that held the exception, the AGENTS table, ROADMAP #1 and #9b, and the `quant-quant`, `quant-k_quants`, `format-gguf` and `cli-main` pages say where each part lives now; what a new type takes, its `q.glsl` entry included, is listed once, on the `quant-types` page, which `quant-quant` and ROADMAP #1 point to.
+- **Review fixes (2026-09-27):**
+  - `data_size` counted the elements before `row_bytes` checked the type and the row, so a tensor of a type llmx does not read, or of rows that end inside a block, whose dimensions also overflow the element count (type 99 or Q8_0 at `{2^64 - 1, 2}`) was refused as an overflow, where main refuses it for its type or row.
+    It now calls `row_bytes` over zero rows first, which checks both and sizes nothing, so the type and row rules keep their one owner; `gguf-validation` holds both refusals to their own texts and fails at the first on the commit before the fix.
+  - `data_size` hands a file's 64-bit dimensions to `row_bytes` as `size_t`, which a 32-bit build would cut short before the overflow check, and nothing refused such a build; `quant/types.hpp` now asserts that `size_t` holds 64 bits.
+  - ROADMAP #1 names `core/storage.hpp` as the quantization plan's table again, as the plan below decided, and points to the Gotcha here for the open question; the loader's follow-up list names `quant/types.hpp` as the ids' one owner.
+  - Rebased onto main `a9195e4`, past the sampler, the CPU kernel cleanup, the experts flags fix and the layer split's step 0 bench: the rewritten `cpu_backend.hpp` takes the same renames and no longer includes `format/gguf.hpp`, `tiny_qwen_moe` in `tests/tiny_qwen.hpp` and the rewritten `tools/multi_device_bench.cpp` name their types `quant::`, and no `gguf::` type id or size is left in `src/`, the tests or the tools.
+- **Refusal texts:** every file and shape main refuses is refused with the same exit status, and the texts the tests match are kept.
+  Three texts are now `row_bytes`' own: a type the registry does not name reads `quant: unsupported tensor type N`, where `data_size` said `unsupported tensor type in data_size` and `row_bytes` said `unknown`; a row that ends inside a block reads `quant: a row of N values is not whole T blocks`, where it read `GGUF quantized row is not a whole number of blocks`; and a byte count past 64 bits reads `quant: row size overflows`, where it read `GGUF size multiplication overflow`, unless the element count overflows first, which keeps its text.
+  The checks run in main's order, the type, then the row, then the element count, then the bytes, so every file is refused for the reason main gives.
+- **Gates** (2026-09-27, on the Linux machine in the build image with 6 CPUs, the CPU and one MI50, against main `c17d043` built beside it, at a load average of 20 to 45 on 16 threads; the tree gated is `12e90c2`, and the rebase after it is the last item):
+  - Builds with Vulkan on and off, of the branch, of main and of `536090a`, the conversion move alone, with no warning.
+    The Windows Visual Studio build (MSVC 14.50) with Vulkan on, built clean, compiles all 32 targets; its warnings are C4456 at four declarations in `tests/backend_vulkan.cpp`, shadowing that main has, one of them on a line where this branch renames a type's namespace, C4996 at four `getenv` calls in `tests/hub_transport.cpp`, which the branch does not change, and a standard-library C4244 reached from lines of the `q8-dots` test that the branch does not change.
+  - CTest 23 of 23 with Vulkan off and 26 of 26 with it on, `backend-vulkan` and `vulkan-lifetime` running on an MI50; `gguf-validation` passes 128 file cases and `backend-errors` 16 refusals.
+  - The new cases hold their checks. Main's tree with the branch's `gguf-validation` passes all 128, since main refuses those files too, with the texts the cases match.
+    `eb9365f`, the check-order test before its fix, fails at the type-99 case and, with that case taken out, at the Q8_0 one, each file refused as an overflow.
+    With the row count dropped from `row_bytes`' overflow check, `gguf-validation` fails at the F32 case across rows (the file accepted) and `backend-errors` at the F32 size across rows.
+  - `run_tests.py --no-perf-floor --require-tools --require-baseline --device vulkan:0` passes 18 of 18 on the MI50.
+    The same suite without `--device` on the CPU build passes 18 of 18, `server` run on its own after the other 17, since at a load average of 47 to 60, on the branch before its last rebase, its request without a token cap outlasted the client's 600 s.
+    `roundtrip` and `cli` pass at `536090a`.
+  - Greedy text and logits against main's build, exit status and stdout without the timing lines, byte for byte: `generate -n 64 --temp 0`, `logits --top 20` and `logits --last 4 --top 10`, on three prompts, for Qwen3-0.6B Q8_0, Q4_0, Q5_K_M and Q4_K_M, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M, 54 of 54 the same on the CPU and 54 of 54 on the MI50.
+  - On the ten files `tests/data/fixtures.json` pins, `info`, `dequantize` and `quantize` against main's build: for 0.6B Q8_0, Q4_0, Q4_K_M and Q5_K_M, `info`'s and `dequantize`'s exit status, stdout and stderr, both `model.json` and `model.bin`, and `quantize` to q8_0 and to q4_0 from the same raw model, status, stderr and the written file, 32 of 32 byte-identical.
+    The six files of types llmx does not read (BF16, UD-Q8_K_XL, IQ4_NL, IQ4_XS, Q2_K, Q3_K_S) are refused by both, `info` and `dequantize` alike, with exit status 1 and only the refusal text above differing, 12 of 12.
+  - Markdown: the pages that name the moved files, the type ids or `data_size` were read against the code; nothing else changes.
+  - Rebased onto main `a9195e4` after these: its commits since `c17d043` change `tools/multi_device_bench.cpp`, a comment in `CMakeLists.txt` and docs, so `src/` and the tests are the ones gated above.
+    On the rebased tree, at a load average of 9 to 12, both builds pass without a warning, CTest passes 23 of 23 and 26 of 26 on the MI50, and the Windows build compiles every target, the bench without a warning.
+- **Left:**
+  - The owner's acceptance of the three refusal texts above, before any merge, since output is to stay byte-identical to main.
+    If main's file texts are kept instead, `row_bytes` words them, as their one owner, with no second type or row check in `data_size`, and the backends' refusals then change from their texts on main; either way one path's texts change, so the owner picks one wording for both.
+  - The Radeon VII gate, which the merge rules set for a branch that changes the backends, the model and the loader's size check: CTest and the suites on that card, and greedy text and logits against main on the pinned fixtures there.
+  - pp and tg against main on an MI50 and on the Radeon VII, with a layout-perturbed control, since the include and definition order of the one translation unit changes (AGENTS, Code layout is part of the measurement); the MI50 the branch is tested on is shared with another test lane, which allows tests but no timing.
+  - The merge.
+- **Gotchas:**
+  - A branch that still names `gguf::GGML_TYPE_*`, `gguf::Q*_BLOCK` or `gguf::Q*_TYPESIZE`, or includes `quant/convert.hpp`, needs the same renames when it rebases onto this: `sed 's/gguf::\(GGML_TYPE_\|Q[0-9]_[0-9K]_\(BLOCK\|TYPESIZE\)\)/quant::\1/g'` for the ids, and `format/raw_convert.hpp` with `format::` for the conversion.
+  - The quantization plan's step 0 (`refactor/storage-types`, below) puts its table over every type id in `core/storage.hpp`; the ids and sizes now sit in `quant/types.hpp`, which the format layer already reads, so whether that step grows its table there instead is that plan's to settle, and ROADMAP #1 and the loader's follow-ups point here.
+
 ## Usage errors for what a command would ignore or overwrite (2026-09-26, branch fix/cli-usage-refusals, merged at `a45782c`)
 
 - **Why:** USAGE says a flag or argument a command would ignore or overwrite is a usage error, refused before any model file is opened, and main at 007b504 ran several such lines instead.
@@ -2768,7 +2817,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - **Converting bytes at load, and row-range adoption for tensor groups and expert tiers.** An upload entry (a file span mapped to a buffer offset) is where either would go.
   - **Checking every tensor through a table of roles.** Plan, then fill already checks every role before any byte moves.
   - **The other follow-ups:**
-    - type ids and sizes in `core/storage.hpp`, which the safetensors branch brings;
+    - type ids and sizes: one owner in `quant/types.hpp` since `refactor/raw-convert-to-format`, and the table over every id is the quantization plan's step 0, whose location is open (Raw conversion in the format layer, Gotchas);
     - the shard filename rule, written in both `format/gguf.hpp` and `hub/manifest.hpp:shard_name`;
     - parsing the header from the mapping;
     - `PlacementRequest` fields a path ignores silently;
@@ -5711,7 +5760,7 @@ Three things are worth carrying forward rather than rediscovering.
   leading unary minus, so `{{ -1 }}` renders `1`; `{% for k, v in x %}` binds
   one variable literally named "k, v" rather than unpacking; `quant/` includes
   `format/gguf.hpp`, which reaches up one layer and is already recorded in
-  ARCHITECTURE as a known exception; `quantize_row_q4_1` has no production
+  ARCHITECTURE as a known exception (resolved 2026-09-26 by `refactor/raw-convert-to-format`, which moved the type ids into `quant/types.hpp`, so `quant/` includes nothing above it and ARCHITECTURE no longer records an exception); `quantize_row_q4_1` has no production
   path, since the CLI writes only q8_0 and q4_0; `metadata_u64`,
   `Tokenizer::token_id` and `pad_id` have no callers.
 

@@ -615,8 +615,8 @@ reports the embedded value, with `unknown` for builds without Git metadata.
   commit as its file whenever what it says changes; a new file comes with its
   description, and a removed file takes it with it.
 - No comments in code unless they explain a non-obvious decision or algorithm (e.g. the fp16 rounding, the GGUF padding rules, the AVX2 dequant+FMA path).
-- Cross-platform (Windows / Linux / macOS): guard MSVC-vs-GCC intrinsics with
-  `#if defined(_MSC_VER)`; use `<intrin.h>`/`<cpuid.h>` appropriately.
+- Cross-platform (Windows / Linux / macOS): guard MSVC-vs-GCC intrinsics with `#if defined(_MSC_VER)`.
+  AVX2, FMA and F16C are the build baseline (`docs/BUILD.md`), so the x86 kernels include `<immintrin.h>` and use them with no runtime check; a kernel beyond that set, such as the deferred AVX-512 path (`docs/src/backends-cpu.md`), needs its own runtime dispatch.
 - Don't overengineer. Add a seam (interface) only when a second implementation
   is actually on the roadmap. Empty stubs are discouraged.
 

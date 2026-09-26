@@ -1,0 +1,121 @@
+cb 130ea53b269acb8d llmx 0.1.0+g27130f771588
+cf 747062e989d635d1 llmx 0.1.0+g79fc5e86261f
+Sat Sep 26 13:22:16 UTC 2026
+06 1 cb rc 0 pp 133.38 tg 20.53 load 25.33 -> 24.06
+06 1 cf rc 0 pp 142.29 tg 16.88 load 24.06 -> 26.45
+06 2 cf rc 0 pp 137.11 tg 15.85 load 26.45 -> 26.43
+06 2 cb rc 0 pp 149.50 tg 20.10 load 26.43 -> 26.57
+06 3 cb rc 0 pp 122.75 tg 13.07 load 26.57 -> 26.37
+06 3 cf rc 0 pp 148.77 tg 22.73 load 26.37 -> 24.46
+06 4 cf rc 0 pp 118.47 tg 16.07 load 24.46 -> 24.51
+06 4 cb rc 0 pp 124.06 tg 14.01 load 24.51 -> 24.57
+06 5 cb rc 0 pp 102.38 tg 13.43 load 24.57 -> 29.78
+06 5 cf rc 0 pp 114.68 tg 12.52 load 29.78 -> 31.45
+06 6 cf rc 0 pp 115.51 tg 13.70 load 31.45 -> 30.62
+06 6 cb rc 0 pp 114.33 tg 15.25 load 30.62 -> 31.81
+06 7 cb rc 0 pp 118.38 tg 14.20 load 31.81 -> 30.80
+06 7 cf rc 0 pp 122.74 tg 13.85 load 30.80 -> 31.54
+06 8 cf rc 0 pp 151.20 tg 19.07 load 31.54 -> 28.45
+06 8 cb rc 0 pp 152.26 tg 15.51 load 28.45 -> 27.14
+06 9 cb rc 0 pp 120.20 tg 13.87 load 27.14 -> 26.65
+06 9 cf rc 0 pp 142.05 tg 18.42 load 26.65 -> 26.80
+06 10 cf rc 0 pp 74.88 tg 9.44 load 26.80 -> 29.33
+06 10 cb rc 0 pp 149.05 tg 15.10 load 29.33 -> 30.91
+06 11 cb rc 0 pp 75.16 tg 9.86 load 30.91 -> 32.25
+06 11 cf rc 0 pp 141.00 tg 16.54 load 32.25 -> 28.97
+06 12 cf rc 0 pp 139.19 tg 13.69 load 28.97 -> 28.16
+06 12 cb rc 0 pp 148.00 tg 20.86 load 28.16 -> 27.74
+06t1 1 cb rc 0 pp 58.21 tg 12.17 load 27.74 -> 26.13
+06t1 1 cf rc 0 pp 58.04 tg 12.40 load 26.13 -> 24.41
+06t1 2 cf rc 0 pp 60.14 tg 12.31 load 24.41 -> 22.94
+06t1 2 cb rc 0 pp 60.07 tg 10.90 load 22.94 -> 27.72
+06t1 3 cb rc 0 pp 65.25 tg 11.24 load 27.72 -> 26.89
+06t1 3 cf rc 0 pp 62.58 tg 11.67 load 26.89 -> 26.23
+06t1 4 cf rc 0 pp 53.37 tg 11.98 load 26.23 -> 52.90
+06t1 4 cb rc 0 pp 60.09 tg 11.32 load 52.90 -> 46.66
+06t1 5 cb rc 0 pp 58.65 tg 10.21 load 46.66 -> 40.01
+06t1 5 cf rc 0 pp 53.57 tg 12.26 load 40.01 -> 35.70
+06t1 6 cf rc 0 pp 58.97 tg 11.71 load 35.70 -> 32.55
+06t1 6 cb rc 0 pp 63.12 tg 9.86 load 32.55 -> 29.58
+06t1 7 cb rc 0 pp 55.77 tg 10.70 load 29.58 -> 28.34
+06t1 7 cf rc 0 pp 58.06 tg 10.94 load 28.34 -> 26.74
+06t1 8 cf rc 0 pp 74.49 tg 16.22 load 26.74 -> 23.29
+06t1 8 cb rc 0 pp 66.73 tg 15.14 load 23.29 -> 22.62
+06t1 9 cb rc 0 pp 50.30 tg 10.96 load 22.62 -> 22.68
+06t1 9 cf rc 0 pp 55.77 tg 11.26 load 22.68 -> 21.43
+06t1 10 cf rc 0 pp 58.38 tg 11.65 load 21.43 -> 21.00
+06t1 10 cb rc 0 pp 64.22 tg 11.37 load 21.00 -> 20.40
+06t1 11 cb rc 0 pp 58.03 tg 10.05 load 20.40 -> 20.46
+06t1 11 cf rc 0 pp 46.08 tg 6.59 load 20.46 -> 20.82
+06t1 12 cf rc 0 pp 51.33 tg 6.60 load 20.82 -> 20.49
+06t1 12 cb rc 0 pp 33.10 tg 7.86 load 20.49 -> 19.58
+8b 1 cb rc 0 pp 12.66 tg 1.27 load 19.58 -> 23.91
+8b 1 cf rc 0 pp 13.30 tg 1.34 load 23.91 -> 25.68
+8b 2 cf rc 0 pp 13.47 tg 1.65 load 25.68 -> 22.67
+8b 2 cb rc 0 pp 9.24 tg 1.15 load 22.67 -> 21.23
+8b 3 cb rc 0 pp 12.98 tg 1.47 load 21.23 -> 23.03
+8b 3 cf rc 0 pp 15.11 tg 1.71 load 23.03 -> 19.81
+8b 4 cf rc 0 pp 15.16 tg 1.73 load 19.81 -> 17.54
+8b 4 cb rc 0 pp 13.86 tg 1.56 load 17.54 -> 19.40
+8b 5 cb rc 0 pp 15.14 tg 1.76 load 19.40 -> 18.16
+8b 5 cf rc 0 pp 14.12 tg 1.46 load 18.16 -> 18.81
+8b 6 cf rc 0 pp 14.77 tg 1.69 load 18.81 -> 17.63
+8b 6 cb rc 0 pp 13.63 tg 1.68 load 17.63 -> 17.41
+8b 7 cb rc 0 pp 15.16 tg 1.75 load 17.41 -> 17.39
+8b 7 cf rc 0 pp 15.05 tg 1.70 load 17.39 -> 16.90
+8b 8 cf rc 0 pp 14.32 tg 1.18 load 16.90 -> 18.11
+8b 8 cb rc 0 pp 13.68 tg 1.49 load 18.11 -> 18.67
+8bt1 1 cb rc 0 pp 4.49 tg 0.77 load 18.67 -> 15.15
+8bt1 1 cf rc 0 pp 4.49 tg 0.96 load 15.15 -> 13.98
+8bt1 2 cf rc 0 pp 4.73 tg 0.86 load 13.98 -> 13.25
+8bt1 2 cb rc 0 pp 4.60 tg 0.92 load 13.25 -> 14.09
+8bt1 3 cb rc 0 pp 4.78 tg 0.83 load 14.09 -> 13.65
+8bt1 3 cf rc 0 pp 4.54 tg 0.86 load 13.65 -> 13.86
+8bt1 4 cf rc 0 pp 4.64 tg 0.86 load 13.86 -> 13.84
+8bt1 4 cb rc 0 pp 4.52 tg 0.82 load 13.84 -> 15.51
+8bt1 5 cb rc 0 pp 4.45 tg 0.79 load 15.51 -> 13.92
+8bt1 5 cf rc 0 pp 4.80 tg 0.82 load 13.92 -> 13.25
+8bt1 6 cf rc 0 pp 4.70 tg 0.92 load 13.25 -> 13.10
+8bt1 6 cb rc 0 pp 4.72 tg 0.81 load 13.10 -> 13.00
+30 1 cb rc 0 pp 25.19 tg 5.03 load 13.00 -> 16.97
+30 1 cf rc 0 pp 26.63 tg 6.02 load 16.97 -> 16.80
+30 2 cf rc 0 pp 26.14 tg 6.09 load 16.80 -> 16.81
+30 2 cb rc 0 pp 25.38 tg 6.29 load 16.81 -> 16.74
+30 3 cb rc 0 pp 26.74 tg 6.35 load 16.74 -> 16.61
+30 3 cf rc 0 pp 26.13 tg 6.42 load 16.61 -> 16.71
+30 4 cf rc 0 pp 26.21 tg 6.27 load 16.71 -> 16.84
+30 4 cb rc 0 pp 27.43 tg 5.84 load 16.84 -> 17.06
+30 5 cb rc 0 pp 30.44 tg 6.70 load 17.06 -> 16.08
+30 5 cf rc 0 pp 29.52 tg 7.80 load 16.08 -> 15.85
+30 6 cf rc 0 pp 29.40 tg 7.51 load 15.85 -> 15.14
+30 6 cb rc 0 pp 30.72 tg 7.66 load 15.14 -> 14.90
+30 7 cb rc 0 pp 29.00 tg 7.36 load 14.90 -> 14.95
+30 7 cf rc 0 pp 30.23 tg 8.09 load 14.95 -> 15.34
+30 8 cf rc 0 pp 30.73 tg 7.44 load 15.34 -> 16.20
+30 8 cb rc 0 pp 30.13 tg 7.26 load 16.20 -> 15.49
+30t1 1 cb rc 0 pp 7.03 tg 3.14 load 15.49 -> 18.15
+30t1 1 cf rc 0 pp 5.61 tg 2.98 load 18.15 -> 18.95
+30t1 2 cf rc 0 pp 6.88 tg 3.30 load 18.95 -> 16.74
+30t1 2 cb rc 0 pp 7.78 tg 2.98 load 16.74 -> 15.49
+30t1 3 cb rc 0 pp 5.39 tg 2.14 load 15.49 -> 17.53
+30t1 3 cf rc 0 pp 7.11 tg 2.78 load 17.53 -> 16.67
+30t1 4 cf rc 0 pp 6.87 tg 2.85 load 16.67 -> 16.72
+30t1 4 cb rc 0 pp 6.23 tg 2.97 load 16.72 -> 17.44
+30t1 5 cb rc 0 pp 6.70 tg 2.35 load 17.44 -> 17.18
+30t1 5 cf rc 0 pp 5.09 tg 2.22 load 17.18 -> 17.39
+30t1 6 cf rc 0 pp 5.01 tg 2.87 load 17.39 -> 17.10
+30t1 6 cb rc 0 pp 4.58 tg 2.44 load 17.10 -> 20.01
+Sat Sep 26 14:24:16 UTC 2026
+06    pp  main best 152.26 median 123.41 (n 12)  branch best 151.20 median 138.15 (n 12)  best -0.7% median +11.9%  load median 27.5/28.3
+06    tg  main best 20.86 median 14.65 (n 12)  branch best 22.73 median 15.96 (n 12)  best +9.0% median +8.9%  load median 27.5/28.3
+06t1  pp  main best 66.73 median 59.36 (n 12)  branch best 74.49 median 58.05 (n 12)  best +11.6% median -2.2%  load median 26.1/25.1
+06t1  tg  main best 15.14 median 10.93 (n 12)  branch best 16.22 median 11.69 (n 12)  best +7.1% median +7.0%  load median 26.1/25.1
+8b    pp  main best 15.16 median 13.66 (n 8)  branch best 15.16 median 14.54 (n 8)  best +0.0% median +6.5%  load median 18.6/18.6
+8b    tg  main best 1.76 median 1.52 (n 8)  branch best 1.73 median 1.67 (n 8)  best -1.7% median +9.5%  load median 18.6/18.6
+8bt1  pp  main best 4.78 median 4.56 (n 6)  branch best 4.80 median 4.67 (n 6)  best +0.4% median +2.4%  load median 14.3/13.7
+8bt1  tg  main best 0.92 median 0.81 (n 6)  branch best 0.96 median 0.86 (n 6)  best +4.3% median +5.5%  load median 14.3/13.7
+30    pp  main best 30.72 median 28.21 (n 8)  branch best 30.73 median 28.02 (n 8)  best +0.0% median -0.7%  load median 16.2/16.3
+30    tg  main best 7.66 median 6.53 (n 8)  branch best 8.09 median 6.93 (n 8)  best +5.6% median +6.2%  load median 16.2/16.3
+30t1  pp  main best 7.78 median 6.46 (n 6)  branch best 7.11 median 6.24 (n 6)  best -8.6% median -3.5%  load median 16.9/17.3
+30t1  tg  main best 3.14 median 2.71 (n 6)  branch best 3.30 median 2.86 (n 6)  best +5.1% median +5.7%  load median 16.9/17.3
+container exit 0

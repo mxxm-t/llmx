@@ -1,0 +1,36 @@
+06 1 main pp 13265.71 tg 330.28 load 25.72 -> 25.72
+06 1 branch pp 13274.10 tg 299.59 load 25.72 -> 25.72
+06 2 branch pp 13257.71 tg 312.13 load 25.72 -> 26.47
+06 2 main pp 13181.96 tg 314.30 load 26.47 -> 26.47
+06 3 main pp 13208.15 tg 326.98 load 26.47 -> 26.47
+06 3 branch pp 13276.50 tg 319.01 load 26.47 -> 26.43
+06 4 branch pp 13204.59 tg 304.80 load 26.43 -> 26.43
+06 4 main pp 13318.94 tg 308.62 load 26.43 -> 26.43
+06 5 main pp 13307.06 tg 311.83 load 26.43 -> 26.56
+06 5 branch pp 13064.55 tg 294.02 load 26.56 -> 26.56
+06 6 branch pp 13202.71 tg 325.20 load 26.56 -> 26.59
+06 6 main pp 13215.16 tg 318.16 load 26.59 -> 26.59
+06 7 main pp 13184.48 tg 335.33 load 26.59 -> 26.59
+06 7 branch pp 13269.03 tg 327.36 load 26.59 -> 26.59
+06 8 branch pp 13184.35 tg 331.79 load 26.59 -> 26.86
+06 8 main pp 13234.49 tg 336.16 load 26.86 -> 26.86
+30 1 main pp 881.09 tg 130.57 load 26.86 -> 22.92
+30 1 branch pp 882.78 tg 132.80 load 22.92 -> 23.84
+30 2 branch pp 884.68 tg 128.76 load 23.84 -> 24.04
+30 2 main pp 885.36 tg 125.61 load 24.04 -> 24.39
+30 3 main pp 883.67 tg 127.52 load 24.39 -> 23.63
+30 3 branch pp 883.71 tg 126.71 load 23.63 -> 23.85
+30 4 branch pp 883.93 tg 124.38 load 23.85 -> 24.28
+30 4 main pp 883.19 tg 128.49 load 24.28 -> 24.02
+30 5 main pp 883.51 tg 128.96 load 24.02 -> 25.38
+30 5 branch pp 884.31 tg 133.37 load 25.38 -> 24.54
+30 6 branch pp 882.73 tg 130.68 load 24.54 -> 24.42
+30 6 main pp 879.37 tg 127.64 load 24.42 -> 23.64
+30 7 main pp 882.59 tg 125.56 load 23.64 -> 24.18
+30 7 branch pp 883.45 tg 135.76 load 24.18 -> 25.59
+30 8 branch pp 882.65 tg 134.57 load 25.59 -> 24.07
+30 8 main pp 885.17 tg 135.18 load 24.07 -> 21.94
+06  pp  main best 13318.94 median 13224.83 (n 8)  branch best 13276.50 median 13231.15 (n 8)  best -0.3% median +0.0%
+06  tg  main best 336.16 median 322.57 (n 8)  branch best 331.79 median 315.57 (n 8)  best -1.3% median -2.2%
+30  pp  main best 885.36 median 883.35 (n 8)  branch best 884.68 median 883.58 (n 8)  best -0.1% median +0.0%
+30  tg  main best 135.18 median 128.06 (n 8)  branch best 135.76 median 131.74 (n 8)  best +0.4% median +2.9%

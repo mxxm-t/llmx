@@ -40,7 +40,7 @@ Local Windows MSVC and WSL Linux GCC CMake builds of `ec74308` also passed the s
 Workflow lint and negative checks for corrupt downloads, missing fixtures and invalid throughput passed at that commit.
 
 The CPU backend currently uses x86 intrinsics, and CMake enables AVX2/FMA/F16C.
-Runtime checks inside some kernels do not make that binary safe on older CPUs.
+The kernels use them with no runtime check, so that binary does not run on older CPUs.
 Intel macOS is intentional; ARM and a portable scalar build are not covered.
 The Vulkan backend has its build job above; a job that runs its kernels
 needs a device, which hosted runners do not have. Actual GPU numerical and

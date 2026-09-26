@@ -10,7 +10,7 @@ The [README](../README.md#build) keeps a short quick start.
 
 - **An x86-64 CPU with AVX2, FMA and F16C.**
   The whole binary is compiled for them: `build.bat` and CMake with MSVC pass `/arch:AVX2`, and CMake with GCC or Clang passes `-mavx2 -mfma -mf16c` on x86-64.
-  The runtime checks inside some kernels do not make that binary run on an older CPU.
+  The kernels use them with no runtime check, so the binary does not run on an older CPU, and a compile without them stops at one error in `src/backends/cpu/cpu_backend.hpp`.
   The CPU backend is written with x86 intrinsics, so ARM, Apple Silicon included, is not supported.
 - **A C++17 compiler.**
   MSVC from Visual Studio 2022 or later on Windows, GCC or Clang on Linux, and Apple Clang on macOS.

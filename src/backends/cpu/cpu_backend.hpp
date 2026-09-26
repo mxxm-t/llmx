@@ -1,4 +1,8 @@
 #pragma once
+// The kernels use AVX2, FMA and F16C with no runtime check, so a build without them stops here with one error.
+#if !defined(__AVX2__) || (!defined(_MSC_VER) && (!defined(__FMA__) || !defined(__F16C__)))
+#error "the CPU backend needs AVX2, FMA and F16C: build with /arch:AVX2 on MSVC or -mavx2 -mfma -mf16c elsewhere (docs/BUILD.md)"
+#endif
 #include <algorithm>
 #include <cmath>
 #include <thread>
@@ -19,12 +23,6 @@
 #include "format/gguf.hpp"
 #include "quant/quant.hpp"
 
-// MSVC declares __cpuid in <intrin.h>; GCC/Clang declare __get_cpuid in <cpuid.h>.
-#if defined(_MSC_VER)
-#include <intrin.h>
-#else
-#include <cpuid.h>
-#endif
 #include <immintrin.h>
 
 namespace backend {
@@ -93,7 +91,7 @@ private:
 };
 
 // CPU implementation of the Backend interface.
-// Uses AVX2 fused dequant+FMA for quantized matmuls where the host supports it, otherwise a scalar fallback.
+// Uses AVX2 fused dequant+FMA for quantized matmuls with no scalar fallback; its scalar loops cover the tails of lengths that are not a multiple of 8.
 class CpuBackend : public Backend {
 public:
     // No worker starts here: the pool starts on the first dispatch that needs it, so a count set before any work costs no pool at the automatic size.
@@ -101,8 +99,6 @@ public:
         unsigned hw = std::thread::hardware_concurrency();
         threads_ = (hw > 0) ? (int)hw : 4;
         if (threads_ > 64) threads_ = 64;
-        avx2_ = has_avx2();   // detect once, not per row dot
-        f16c_ = has_f16c();
         rowbuf_.resize((size_t)threads_);
     }
 
@@ -163,25 +159,6 @@ public:
         }
     }
 
-    // CPU-only Q8_0 single-column path; the backend interface batches complete matrices.
-    void matvec_q8_0(const uint8_t* data, const float* x, float* out,
-                     size_t nblocks, size_t nout) {
-        const int nt = threads_;
-        // Small problems are not worth waking the pool.
-        if (nt <= 1 || nout < (size_t)nt * 8) {
-            for (size_t o = 0; o < nout; o++)
-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);
-            return;
-        }
-        const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;
-        run_parallel([&](int w) {
-            size_t start = (size_t)w * chunk;
-            size_t end = std::min(nout, start + chunk);
-            for (size_t o = start; o < end; o++)
-                out[o] = dot_row_impl(data + o * nblocks * gguf::Q8_0_TYPESIZE, x, nblocks);
-        });
-    }
-
     // Run fn(0..threads_-1) across the pool: worker 0 is the calling thread, so a single-threaded backend never touches the pool at all.
     // The first dispatch at a count starts the pool; a failed start fails this dispatch before any participant runs, and the next dispatch tries again.
     // Blocks until every participant has returned, which is what lets the job be referenced rather than copied.
@@ -203,7 +180,8 @@ public:
         for (int i = 0; i < SPIN_LIMIT && pending_.load(std::memory_order_acquire); i++)
             _mm_pause();
         std::unique_lock<std::mutex> lk(m_);
-        // Acquire, not relaxed: only the last worker takes the mutex to notify, so the waiter must acquire on pending_ itself to see a non-last worker's results. This is the path after the spin budget ran out.
+        // Acquire, not relaxed: only the last worker takes the mutex to notify, so the waiter must acquire on pending_ itself to see a non-last worker's results.
+        // This is the path after the spin budget ran out.
         cv_done_.wait(lk, [&] { return pending_.load(std::memory_order_acquire) == 0; });
         job_ = nullptr;
         if (!error) error = worker_error_;
@@ -307,17 +285,13 @@ public:
     void matvec_q8x(uint32_t type, const uint8_t* data, const float* X, float* Y, size_t nin, size_t nout, size_t ncols) {
         xq8_.reset(X, ncols, nin);
         prepare_x(type);
-        const size_t rb = quant::row_bytes(type, nin), rows = ncols * nout;
-        auto work = [&](size_t r0, size_t r1) {
+        const size_t rb = quant::row_bytes(type, nin);
+        split_rows(ncols * nout, [&](size_t r0, size_t r1) {
             for (size_t r = r0; r < r1; ++r) {
                 const size_t c = r / nout, o = r - c * nout;
                 Y[r] = q8::dot(type, data + o * rb, xq8_, c);
             }
-        };
-        const size_t nt = (size_t)std::max(threads_, 1);
-        if (nt <= 1 || rows < nt * 8) { work(0, rows); return; }
-        const size_t chunk = (rows + nt - 1) / nt;
-        run_parallel([&](int w) { work(std::min(rows, (size_t)w * chunk), std::min(rows, (size_t)(w + 1) * chunk)); });
+        });
     }
 
     static constexpr size_t kPromptDotsFrom = 4096;   // the narrowest K-quant row a prompt meets through the prompt dots (matmul_raw)
@@ -362,42 +336,18 @@ public:
             return;
         }
         const size_t rowbytes = quant::row_bytes(type, nin);
-        // Single-column Q8_0 fuses dequantization into the row dot, avoiding a scratch copy.
-        if (decode && type == gguf::GGML_TYPE_Q8_0) {
-            matvec_q8_0(data, X, Y, nin / gguf::Q8_0_BLOCK, nout);
-            return;
-        }
-        // K-quants whose dot factorises so no dequantized value is materialised: Q4_K/Q5_K give d*sum(q*x) - m*sum(x), Q6_K has signed group scales and no min, so it is sum over groups of d_g*sum(q*x).
-        if (decode && is_kquant(type)) {
-            const size_t nb = nin / gguf::Q4_K_BLOCK;
-            // A fused dot applies the block scale after sum(q*x), so a large activation can overflow the inner sum where dequantizing first stays finite (then d*Inf is Inf, and 0*Inf NaN).
-            // Once any partial overflows the row result is Inf or NaN, never a plausible finite number, so a finite fused result needs no fallback.
-            const auto dot = [&](const uint8_t* r) {
-                float v;
-                switch (type) {
-                    case gguf::GGML_TYPE_Q4_K: v = dot_row_q4_K(r, X, nb); break;
-                    case gguf::GGML_TYPE_Q5_K: v = dot_row_q5_K(r, X, nb); break;
-                    default:                   v = dot_row_q6_K(r, X, nb); break;
-                }
-                return std::isfinite(v) ? v : dot_row_dequant(type, r, X, nin, nb);
+        const bool f32 = type == gguf::GGML_TYPE_F32;
+        // A decode row of a type with a float row dot takes it with no dequantized scratch, streaming each resident row once; prefill keeps the fused kernels that reuse weights across batch columns.
+        // F32 splits its rows as the batched float path below does, from DOT_ROWS rows per worker in whole DOT_ROWS chunks.
+        if (decode && (f32 || type == gguf::GGML_TYPE_Q8_0 || is_kquant(type))) {
+            const auto dots = [&](size_t o0, size_t o1) {
+                for (size_t o = o0; o < o1; ++o) Y[o] = row_dot(type, data + o * rowbytes, X, nin);
             };
-            const int nt = threads_;
-            if (nt <= 1 || nout < (size_t)nt * 8) {
-                for (size_t o = 0; o < nout; o++)
-                    Y[o] = dot(data + o * rowbytes);
-                return;
-            }
-            const size_t chunk = (nout + (size_t)nt - 1) / (size_t)nt;
-            run_parallel([&](int w) {
-                const size_t s0 = (size_t)w * chunk;
-                const size_t e0 = std::min(nout, s0 + chunk);
-                for (size_t o = s0; o < e0; o++)
-                    Y[o] = dot(data + o * rowbytes);
-            });
+            if (f32) split_rows(nout, dots, DOT_ROWS, DOT_ROWS);
+            else split_rows(nout, dots);
             return;
         }
         const quant::QuantType* qt = quant::Registry::instance().get(type);
-        const bool f32 = type == gguf::GGML_TYPE_F32;
         if (!f32 && !qt->dequantize) throw std::runtime_error("backend: no dequantizer for tensor type");
         const size_t nblocks = f32 ? 0 : nin / qt->block_size;
 
@@ -405,12 +355,6 @@ public:
         const size_t RB = (size_t)DOT_ROWS;
 
         auto do_rows = [&](int w, size_t o0, size_t o1) {
-            if (f32 && decode) {
-                // Decode streams each resident row contiguously; prefill keeps the fused kernels that reuse weights across batch columns.
-                for (size_t o = o0; o < o1; ++o)
-                    Y[o] = dot_f32((const float*)(data + o * rowbytes), X, nin);
-                return;
-            }
             std::vector<float>& buf = rowbuf_[(size_t)w];
             if (!f32 && buf.size() < RB * nin) buf.assign(RB * nin, 0.0f);
             for (size_t o = o0; o < o1; o += RB) {
@@ -468,8 +412,8 @@ public:
             if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
         bool decode = nbatch > 0;
         each_run(nbatch, runs, [&](size_t, size_t, bool d) { decode = decode && d; });
-        bool q8 = decode && decode8_ && avx2_ && nin % 32 == 0 && projections.size() > 1;
-        for (const auto& p : projections) q8 = q8 && q8::has_dot(p.type);
+        bool q8 = decode && projections.size() > 1;
+        for (const auto& p : projections) q8 = q8 && quantized_dots(p.type, nin);
         if (!q8) { Backend::matmul_group(projections, X_s, nin, nbatch, runs); return; }
         // One quantized X for every projection, and one pool dispatch over all their rows.
         xq8_.reset(at(X_s), nbatch, nin);
@@ -481,7 +425,7 @@ public:
             parts.push_back({p.type, (const uint8_t*)bytes_at(p.data), at(p.out), p.rows, quant::row_bytes(p.type, nin), total});
             total += nbatch * p.rows;
         }
-        auto work = [&](size_t r0, size_t r1) {
+        split_rows(total, [&](size_t r0, size_t r1) {
             for (const Part& p : parts) {
                 const size_t lo = std::max(r0, p.first), hi = std::min(r1, p.first + nbatch * p.rows);
                 for (size_t r = lo; r < hi; ++r) {
@@ -489,16 +433,11 @@ public:
                     p.out[c * p.rows + o] = q8::dot(p.type, p.data + o * p.row_bytes, xq8_, c);
                 }
             }
-        };
-        const size_t nt = (size_t)std::max(threads_, 1);
-        if (nt <= 1 || total < nt * 8) { work(0, total); return; }
-        const size_t chunk = (total + nt - 1) / nt;
-        run_parallel([&](int w) { work(std::min(total, (size_t)w * chunk), std::min(total, (size_t)(w + 1) * chunk)); });
+        });
     }
 
     // Rows fused per activation load: the width dot_f32_x4 handles.
     static constexpr int DOT_ROWS = 4;
-
 
     // Four rows against three columns reuse seven loads across twelve FMAs, with twelve accumulators and three activation registers.
     static void dot_f32_x4x3(const float* r, size_t stride,
@@ -669,29 +608,26 @@ public:
         return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type);
     }
 
-    // A row of floats into a cache side of either type; f16 rounds to nearest, eight at a time where F16C is present.
+    // A row of floats into a cache side of either type; f16 rounds to nearest, eight at a time through F16C.
     void kv_store(uint8_t* dst, KVType type, const float* src, size_t n) const {
         if (type == KVType::f32) { std::copy_n(src, n, (float*)dst); return; }
         uint16_t* d = (uint16_t*)dst;
         size_t i = 0;
-        if (avx2_)
-            for (; i + 8 <= n; i += 8)
-                _mm_storeu_si128((__m128i*)(d + i), _mm256_cvtps_ph(_mm256_loadu_ps(src + i), _MM_FROUND_TO_NEAREST_INT));
+        for (; i + 8 <= n; i += 8)
+            _mm_storeu_si128((__m128i*)(d + i), _mm256_cvtps_ph(_mm256_loadu_ps(src + i), _MM_FROUND_TO_NEAREST_INT));
         for (; i < n; ++i) d[i] = f32_to_f16(src[i]);
     }
     // dot(q, k) over an f16 key row.
     float dot_f32_f16(const float* q, const uint16_t* k, size_t n) const {
         float sum = 0.0f;
         size_t i = 0;
-        if (avx2_) {
-            __m256 acc = _mm256_setzero_ps();
-            for (; i + 8 <= n; i += 8)
-                acc = _mm256_fmadd_ps(_mm256_loadu_ps(q + i),
-                                      _mm256_cvtph_ps(_mm_loadu_si128((const __m128i*)(k + i))), acc);
-            float lanes[8];
-            _mm256_storeu_ps(lanes, acc);
-            for (float x : lanes) sum += x;
-        }
+        __m256 acc = _mm256_setzero_ps();
+        for (; i + 8 <= n; i += 8)
+            acc = _mm256_fmadd_ps(_mm256_loadu_ps(q + i),
+                                  _mm256_cvtph_ps(_mm_loadu_si128((const __m128i*)(k + i))), acc);
+        float lanes[8];
+        _mm256_storeu_ps(lanes, acc);
+        for (float x : lanes) sum += x;
         for (; i < n; ++i) sum += q[i] * f16_to_f32(k[i]);
         return sum;
     }
@@ -769,11 +705,7 @@ public:
                         }
                         const float* kb = s.k(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
                         for (size_t j = 0; j < n; ++j) {
-                            const float* k = kb + j * hd;
-                            float score = 0.0f;
-                            if (avx2_) score = dot_f32(q, k, hd);
-                            else for (size_t d = 0; d < hd; ++d) score += q[d] * k[d];
-                            scores[t0 + j] = score * scale;
+                            scores[t0 + j] = dot_f32(q, kb + j * hd, hd) * scale;
                             max_score = std::max(max_score, scores[t0 + j]);
                         }
                     }
@@ -789,23 +721,21 @@ public:
                         return s.v(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
                     };
                     if (s.v_type() == KVType::f16) {
-                        // Eight halves widened per load where F16C is present.
+                        // Eight halves widened per load through F16C.
                         const auto vblock16 = [&](size_t t0) {
                             return s.vh(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
                         };
                         size_t d = 0;
-                        if (avx2_) {
-                            for (; d + 8 <= hd; d += 8) {
-                                __m256 acc = _mm256_setzero_ps();
-                                for (size_t t0 = 0; t0 < end; t0 += bt) {
-                                    const uint16_t* vb = vblock16(t0) + d;
-                                    const size_t n = std::min(bt, end - t0);
-                                    for (size_t j = 0; j < n; ++j)
-                                        acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
-                                                                               _mm256_cvtph_ps(_mm_loadu_si128((const __m128i*)(vb + j * hd)))));
-                                }
-                                _mm256_storeu_ps(dst + d, acc);
+                        for (; d + 8 <= hd; d += 8) {
+                            __m256 acc = _mm256_setzero_ps();
+                            for (size_t t0 = 0; t0 < end; t0 += bt) {
+                                const uint16_t* vb = vblock16(t0) + d;
+                                const size_t n = std::min(bt, end - t0);
+                                for (size_t j = 0; j < n; ++j)
+                                    acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
+                                                                           _mm256_cvtph_ps(_mm_loadu_si128((const __m128i*)(vb + j * hd)))));
                             }
+                            _mm256_storeu_ps(dst + d, acc);
                         }
                         for (; d < hd; ++d) {
                             float acc = 0.0f;
@@ -819,36 +749,34 @@ public:
                         continue;
                     }
                     size_t d = 0;
-                    if (avx2_) {
-                        for (; d + 32 <= hd; d += 32) {
-                            __m256 a0 = _mm256_setzero_ps(), a1 = _mm256_setzero_ps();
-                            __m256 a2 = _mm256_setzero_ps(), a3 = _mm256_setzero_ps();
-                            for (size_t t0 = 0; t0 < end; t0 += bt) {
-                                const float* vb = vblock(t0) + d;
-                                const size_t n = std::min(bt, end - t0);
-                                for (size_t j = 0; j < n; ++j) {
-                                    const float* v = vb + j * hd;
-                                    const __m256 sw = _mm256_set1_ps(scores[t0 + j]);
-                                    a0 = _mm256_add_ps(a0, _mm256_mul_ps(sw, _mm256_loadu_ps(v)));
-                                    a1 = _mm256_add_ps(a1, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 8)));
-                                    a2 = _mm256_add_ps(a2, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 16)));
-                                    a3 = _mm256_add_ps(a3, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 24)));
-                                }
+                    for (; d + 32 <= hd; d += 32) {
+                        __m256 a0 = _mm256_setzero_ps(), a1 = _mm256_setzero_ps();
+                        __m256 a2 = _mm256_setzero_ps(), a3 = _mm256_setzero_ps();
+                        for (size_t t0 = 0; t0 < end; t0 += bt) {
+                            const float* vb = vblock(t0) + d;
+                            const size_t n = std::min(bt, end - t0);
+                            for (size_t j = 0; j < n; ++j) {
+                                const float* v = vb + j * hd;
+                                const __m256 sw = _mm256_set1_ps(scores[t0 + j]);
+                                a0 = _mm256_add_ps(a0, _mm256_mul_ps(sw, _mm256_loadu_ps(v)));
+                                a1 = _mm256_add_ps(a1, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 8)));
+                                a2 = _mm256_add_ps(a2, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 16)));
+                                a3 = _mm256_add_ps(a3, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 24)));
                             }
-                            _mm256_storeu_ps(dst + d, a0); _mm256_storeu_ps(dst + d + 8, a1);
-                            _mm256_storeu_ps(dst + d + 16, a2); _mm256_storeu_ps(dst + d + 24, a3);
                         }
-                        for (; d + 8 <= hd; d += 8) {
-                            __m256 acc = _mm256_setzero_ps();
-                            for (size_t t0 = 0; t0 < end; t0 += bt) {
-                                const float* vb = vblock(t0) + d;
-                                const size_t n = std::min(bt, end - t0);
-                                for (size_t j = 0; j < n; ++j)
-                                    acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
-                                                                           _mm256_loadu_ps(vb + j * hd)));
-                            }
-                            _mm256_storeu_ps(dst + d, acc);
+                        _mm256_storeu_ps(dst + d, a0); _mm256_storeu_ps(dst + d + 8, a1);
+                        _mm256_storeu_ps(dst + d + 16, a2); _mm256_storeu_ps(dst + d + 24, a3);
+                    }
+                    for (; d + 8 <= hd; d += 8) {
+                        __m256 acc = _mm256_setzero_ps();
+                        for (size_t t0 = 0; t0 < end; t0 += bt) {
+                            const float* vb = vblock(t0) + d;
+                            const size_t n = std::min(bt, end - t0);
+                            for (size_t j = 0; j < n; ++j)
+                                acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
+                                                                       _mm256_loadu_ps(vb + j * hd)));
                         }
+                        _mm256_storeu_ps(dst + d, acc);
                     }
                     for (; d < hd; ++d) {
                         float acc = 0.0f;
@@ -866,58 +794,42 @@ public:
     }
 
     void rms_norm_raw(float* dst, const float* src, const float* w, size_t n, float eps) {
-        if (avx2_) {
-            // Sum of squares (vectorized), then a vectorized weighted scale.
-            __m256 acc = _mm256_setzero_ps();
-            size_t i = 0;
-            for (; i + 8 <= n; i += 8) {
-                __m256 x = _mm256_loadu_ps(src + i);
-                acc = _mm256_fmadd_ps(x, x, acc);
-            }
-            __m256 h = _mm256_hadd_ps(acc, acc);
-            h = _mm256_hadd_ps(h, h);
-            float s = _mm256_cvtss_f32(h);
-            s += _mm_cvtss_f32(_mm256_extractf128_ps(h, 1));
-            for (; i < n; i++) s += src[i] * src[i];
-            float r = 1.0f / std::sqrt(s / (float)n + eps);
-            __m256 rv = _mm256_set1_ps(r);
-            i = 0;
-            for (; i + 8 <= n; i += 8) {
-                __m256 x = _mm256_loadu_ps(src + i);
-                __m256 wv = _mm256_loadu_ps(w + i);
-                _mm256_storeu_ps(dst + i, _mm256_mul_ps(x, _mm256_mul_ps(rv, wv)));
-            }
-            for (; i < n; i++) dst[i] = src[i] * r * w[i];
-            return;
+        // Sum of squares (vectorized), then a vectorized weighted scale.
+        __m256 acc = _mm256_setzero_ps();
+        size_t i = 0;
+        for (; i + 8 <= n; i += 8) {
+            __m256 x = _mm256_loadu_ps(src + i);
+            acc = _mm256_fmadd_ps(x, x, acc);
         }
-        float s = 0.0f;
-        for (size_t i = 0; i < n; i++) s += src[i] * src[i];
+        __m256 h = _mm256_hadd_ps(acc, acc);
+        h = _mm256_hadd_ps(h, h);
+        float s = _mm256_cvtss_f32(h);
+        s += _mm_cvtss_f32(_mm256_extractf128_ps(h, 1));
+        for (; i < n; i++) s += src[i] * src[i];
         float r = 1.0f / std::sqrt(s / (float)n + eps);
-        for (size_t i = 0; i < n; i++) dst[i] = src[i] * r * w[i];
+        __m256 rv = _mm256_set1_ps(r);
+        i = 0;
+        for (; i + 8 <= n; i += 8) {
+            __m256 x = _mm256_loadu_ps(src + i);
+            __m256 wv = _mm256_loadu_ps(w + i);
+            _mm256_storeu_ps(dst + i, _mm256_mul_ps(x, _mm256_mul_ps(rv, wv)));
+        }
+        for (; i < n; i++) dst[i] = src[i] * r * w[i];
     }
 
     void rope_raw(float* x, const float* cos, const float* sin, int half) const {
-        if (avx2_) {
-            int i = 0;
-            for (; i + 8 <= half; i += 8) {
-                __m256 xa = _mm256_loadu_ps(x + i);
-                __m256 xb = _mm256_loadu_ps(x + i + half);
-                __m256 c = _mm256_loadu_ps(cos + i);
-                __m256 s = _mm256_loadu_ps(sin + i);
-                __m256 na = _mm256_fnmadd_ps(xb, s, _mm256_mul_ps(xa, c));
-                __m256 nb = _mm256_fmadd_ps(xa, s, _mm256_mul_ps(xb, c));
-                _mm256_storeu_ps(x + i, na);
-                _mm256_storeu_ps(x + i + half, nb);
-            }
-            for (; i < half; i++) {
-                int a = i, b = i + half;
-                float xa = x[a], xb = x[b];
-                x[a] = xa * cos[i] - xb * sin[i];
-                x[b] = xa * sin[i] + xb * cos[i];
-            }
-            return;
+        int i = 0;
+        for (; i + 8 <= half; i += 8) {
+            __m256 xa = _mm256_loadu_ps(x + i);
+            __m256 xb = _mm256_loadu_ps(x + i + half);
+            __m256 c = _mm256_loadu_ps(cos + i);
+            __m256 s = _mm256_loadu_ps(sin + i);
+            __m256 na = _mm256_fnmadd_ps(xb, s, _mm256_mul_ps(xa, c));
+            __m256 nb = _mm256_fmadd_ps(xa, s, _mm256_mul_ps(xb, c));
+            _mm256_storeu_ps(x + i, na);
+            _mm256_storeu_ps(x + i + half, nb);
         }
-        for (int i = 0; i < half; i++) {
+        for (; i < half; i++) {
             int a = i, b = i + half;
             float xa = x[a], xb = x[b];
             x[a] = xa * cos[i] - xb * sin[i];
@@ -976,7 +888,7 @@ public:
         float* dst = at(dst_s);
         const float* gate = at(gate_s);
         const float* up = at(up_s);
-        // std::exp per element, matching the scalar form this replaced: a vectorized approximation would shift logits and is a separate change with its own correctness gate.
+        // std::exp per element, since a vectorized approximation would shift the logits (docs/src/backends-cpu.md).
         chunk(n, [&](size_t begin, size_t end) {
             for (size_t i = begin; i < end; i++)
                 dst[i] = gate[i] / (1.0f + std::exp(-gate[i])) * up[i];
@@ -988,11 +900,9 @@ public:
         const float* src = at(src_s);
         chunk(n, [&](size_t begin, size_t end) {
             size_t i = begin;
-            if (avx2_) {
-                for (; i + 8 <= end; i += 8)
-                    _mm256_storeu_ps(dst + i, _mm256_add_ps(_mm256_loadu_ps(dst + i),
-                                                            _mm256_loadu_ps(src + i)));
-            }
+            for (; i + 8 <= end; i += 8)
+                _mm256_storeu_ps(dst + i, _mm256_add_ps(_mm256_loadu_ps(dst + i),
+                                                        _mm256_loadu_ps(src + i)));
             for (; i < end; i++) dst[i] += src[i];
         });
     }
@@ -1101,7 +1011,7 @@ private:
     }
 
     // Whether a type's rows meet quantized activations: the decode dots for a generated token's rows, the prompt dots for a prompt's.
-    bool quantized_dots(uint32_t type, size_t nin) const { return decode8_ && avx2_ && q8::has_dot(type) && nin % 32 == 0; }
+    bool quantized_dots(uint32_t type, size_t nin) const { return decode8_ && q8::has_dot(type) && nin % 32 == 0; }
 
     // The quantized activations for a type, the rows split across the pool when there are enough of them.
     void prepare_x(uint32_t type) {
@@ -1157,20 +1067,13 @@ private:
         }
         first[n_expert] = expert_rows_.size();
         if (!single.empty()) {
-            const size_t rows = single.size() * nout;
-            auto work = [&](size_t r0, size_t r1) {
+            split_rows(single.size() * nout, [&](size_t r0, size_t r1) {
                 for (size_t r = r0; r < r1; ++r) {
                     const size_t s = r / nout, o = r - s * nout, i = single[s];
                     const uint8_t* w = data + expert_of[s] * stride + o * row_bytes;
                     out[i * nout + o] = q8 ? q8::dot(type, w, xq8_, i / per) : row_dot(type, w, X + (i / per) * nin, nin);
                 }
-            };
-            const size_t nt = (size_t)std::max(threads_, 1);
-            if (nt <= 1 || rows < nt * 8) work(0, rows);
-            else {
-                const size_t chunk = (rows + nt - 1) / nt;
-                run_parallel([&](int w) { work(std::min(rows, (size_t)w * chunk), std::min(rows, (size_t)(w + 1) * chunk)); });
-            }
+            });
         }
         if (q8) {
             // Stretches of an expert's rows, handed out as workers free up, since experts carry different numbers of entries.
@@ -1208,12 +1111,15 @@ private:
         }
     }
 
-    // One weight row against one activation row: the fused dots where a type has one, and for the K-quants the dequantized dot when a fused sum overflows.
+    // One weight row against one activation row in float: a dense decode row of F32, Q8_0 or a K-quant, and a routed decode entry of any type, each through its fused dot where it has one.
+    // Types without one, routed Q4_0 and Q4_1 decode among them, take the dequantized dot in double, where their dense decode keeps the batched float path.
     float row_dot(uint32_t type, const uint8_t* row, const float* x, size_t nin) {
         switch (type) {
         case gguf::GGML_TYPE_F32: return dot_f32((const float*)row, x, nin);
         case gguf::GGML_TYPE_Q8_0: return dot_row_impl(row, x, nin / gguf::Q8_0_BLOCK);
         case gguf::GGML_TYPE_Q4_K: case gguf::GGML_TYPE_Q5_K: case gguf::GGML_TYPE_Q6_K: {
+            // A fused dot applies the block scale after sum(q*x), so a large activation can overflow the inner sum where dequantizing first stays finite (then d*Inf is Inf, and 0*Inf NaN).
+            // Once any partial overflows the row result is Inf or NaN, never a plausible finite number, so a finite fused result needs no fallback.
             const size_t nb = nin / gguf::Q4_K_BLOCK;
             const float v = type == gguf::GGML_TYPE_Q4_K ? dot_row_q4_K(row, x, nb)
                           : type == gguf::GGML_TYPE_Q5_K ? dot_row_q5_K(row, x, nb) : dot_row_q6_K(row, x, nb);
@@ -1228,9 +1134,9 @@ private:
 
     std::vector<float> expert_x_, expert_y_, expert_out_;
     std::vector<size_t> expert_rows_;   // each grouped entry's activation row
-    std::vector<float*> expert_outs_;   // and where its products go
+    std::vector<float*> expert_outs_;   // where each grouped entry's products go
     std::vector<size_t> prompt_rows_;   // a prompt matmul's columns
-    std::vector<float*> prompt_outs_;   // and where each column's products go
+    std::vector<float*> prompt_outs_;   // where each prompt column's products go
     q8::Activations xq8_;      // the quantized activations of the last decode call
     bool decode8_ = true;
     // Resolve a slice once per op so the kernels receive plain float arrays.
@@ -1294,10 +1200,18 @@ private:
         });
     }
 
+    // Row-range dispatch for the row dots: `work(r0, r1)` over one contiguous range per participant, each a whole number of `grain` rows.
+    // Below `min_rows` rows per worker the dispatch costs more than it saves.
+    template <typename Fn>
+    void split_rows(size_t n, const Fn& work, size_t min_rows = 8, size_t grain = 1) {
+        const size_t nt = (size_t)std::max(threads_, 1);
+        if (nt <= 1 || n < nt * min_rows) { work(size_t(0), n); return; }
+        const size_t chunk = ((n + nt - 1) / nt + grain - 1) / grain * grain;
+        run_parallel([&](int w) { work(std::min(n, (size_t)w * chunk), std::min(n, (size_t)(w + 1) * chunk)); });
+    }
+
     int threads_ = 1;
-    bool avx2_ = false;
     Ticket ticket_ = 0;
-    bool f16c_ = false;
     bool prefill_active_ = false;
 
     // Persistent worker pool, empty until a dispatch needs it and again after a count change or a failed start.
@@ -1318,7 +1232,7 @@ private:
     std::atomic<bool> stop_{false};
 
     // A partial start joins the threads it created and keeps the count, so the dispatch that asked fails and the next one starts the pool again.
-    // Falling back to one thread instead would let a server that outlives the failed request run every later one serially without a word.
+    // Keeping the count means a server that outlives the failed request never runs every later one on one thread without a word.
     void start_pool() {
         try {
             stop_.store(false);
@@ -1373,41 +1287,6 @@ private:
         }
     }
 
-    // F16C (hardware half<->float).
-    // Present on every AVX2 part in practice, but detected separately because the ISA bits are independent.
-    static bool has_f16c() {
-#if defined(_MSC_VER)
-        int info[4];
-        __cpuid(info, 1);
-        return (info[2] & (1 << 29)) != 0;   // ECX bit 29 = F16C
-#elif defined(__GNUC__) || defined(__clang__)
-        unsigned eax, ebx, ecx, edx;
-        if (!__get_cpuid(1, &eax, &ebx, &ecx, &edx)) return false;
-        return (ecx & (1u << 29)) != 0;
-#else
-        return false;
-#endif
-    }
-
-    static bool has_avx2() {
-#if defined(_MSC_VER)
-        int info[4];
-        __cpuid(info, 0);
-        int maxid = info[0];
-        if (maxid < 7) return false;
-        __cpuid(info, 7);
-        return (info[1] & (1 << 5)) != 0; // EBX bit 5 = AVX2
-#elif defined(__GNUC__) || defined(__clang__)
-        unsigned eax, ebx, ecx, edx;
-        if (!__get_cpuid(0, &eax, &ebx, &ecx, &edx)) return false;
-        if (eax < 7) return false;
-        __get_cpuid_count(7, 0, &eax, &ebx, &ecx, &edx);
-        return (ebx & (1u << 5)) != 0; // EBX bit 5 = AVX2
-#else
-        return false;
-#endif
-    }
-
     // Fused Q4_K dots factor sum((d*q - m)*x) into d*sum(q*x) - m*sum(x); Q6_K sums (d*sc_g)*sum(q*x) per signed group.
     // Each Q6_K 32-value sub-block has two 16-value groups with scales sc[2k] and sc[2k+1].
     float dot_row_q6_K(const uint8_t* row, const float* x, size_t nblocks) {
@@ -1427,36 +1306,28 @@ private:
                     const int shift = 2 * k;
                     const float* xk = xp + k * 32;
                     for (int is = 0; is < 2; is++) {
-                        float s;
-                        if (avx2_) {
-                            // Shifting 16-bit lanes leaks neighbouring bits into the high half of each byte; the mask drops them, so the kept bits are this byte's own.
-                            const __m128i cnt = _mm_cvtsi32_si128(shift);
-                            const __m128i rawl = _mm_loadu_si128((const __m128i*)(qlk + is * 16));
-                            const __m128i rawh = _mm_loadu_si128((const __m128i*)(qh + is * 16));
-                            const __m128i lo = high
-                                ? _mm_and_si128(_mm_srli_epi16(rawl, 4), _mm_set1_epi8(0x0F))
-                                : _mm_and_si128(rawl, _mm_set1_epi8(0x0F));
-                            const __m128i hb = _mm_slli_epi16(
-                                _mm_and_si128(_mm_srl_epi16(rawh, cnt), _mm_set1_epi8(3)), 4);
-                            const __m128i q = _mm_sub_epi8(
-                                _mm_or_si128(lo, _mm_and_si128(hb, _mm_set1_epi8((char)0x30))),
-                                _mm_set1_epi8(32));
-                            __m256 a = _mm256_mul_ps(
-                                _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(q)),
-                                _mm256_loadu_ps(xk + is * 16));
-                            a = _mm256_fmadd_ps(
-                                _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(q, 8))),
-                                _mm256_loadu_ps(xk + is * 16 + 8), a);
-                            s = hsum256(a);
-                        } else {
-                            s = 0.0f;
-                            for (int l = is * 16; l < is * 16 + 16; l++) {
-                                const int nib = high ? (qlk[l] >> 4) : (qlk[l] & 0xF);
-                                const int qv = (nib | (((qh[l] >> shift) & 3) << 4)) - 32;
-                                s += (float)qv * xk[l];
-                            }
-                        }
-                        acc += d * (float)sc[k * 2 + is] * s;
+                        // Shifting 16-bit lanes leaks neighbouring bits into the high half of each byte; the mask drops them, so the kept bits are this byte's own.
+                        const __m128i cnt = _mm_cvtsi32_si128(shift);
+                        const __m128i rawl = _mm_loadu_si128((const __m128i*)(qlk + is * 16));
+                        const __m128i rawh = _mm_loadu_si128((const __m128i*)(qh + is * 16));
+                        const __m128i lo = high
+                            ? _mm_and_si128(_mm_srli_epi16(rawl, 4), _mm_set1_epi8(0x0F))
+                            : _mm_and_si128(rawl, _mm_set1_epi8(0x0F));
+                        const __m128i hb = _mm_slli_epi16(
+                            _mm_and_si128(_mm_srl_epi16(rawh, cnt), _mm_set1_epi8(3)), 4);
+                        const __m128i q = _mm_sub_epi8(
+                            _mm_or_si128(lo, _mm_and_si128(hb, _mm_set1_epi8((char)0x30))),
+                            _mm_set1_epi8(32));
+                        __m256 a = _mm256_mul_ps(
+                            _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(q)),
+                            _mm256_loadu_ps(xk + is * 16));
+                        a = _mm256_fmadd_ps(
+                            _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(q, 8))),
+                            _mm256_loadu_ps(xk + is * 16 + 8), a);
+                        // The scaled sum is rounded before it is accumulated, through separate intrinsics, since compilers fused the plain expression into one FMA or not by the code around it and their contraction rules.
+                        // The build's flags leave these unfused, though a Clang build with -ffp-contract=fast would fuse them.
+                        const __m128 scaled = _mm_mul_ss(_mm_set_ss(d * (float)sc[k * 2 + is]), _mm_set_ss(hsum256(a)));
+                        acc = _mm_cvtss_f32(_mm_add_ss(_mm_set_ss(acc), scaled));
                     }
                 }
                 ql += 64; qh += 32; sc += 8; xp += 128;
@@ -1487,55 +1358,42 @@ private:
                 quant::get_scale_min_k4(is + 1, sc, &s, &mm);
                 const float d2 = d * (float)s, m2 = dmin * (float)mm;
 
-                if (avx2_) {
-                    const __m128i lo_mask = _mm_set1_epi8(0x0F);
-                    const __m128i sixteen = _mm_set1_epi8(16);
-                    const __m128i b1 = _mm_set1_epi8((char)u1);
-                    const __m128i b2 = _mm_set1_epi8((char)u2);
-                    __m128i rawl[2] = { _mm_loadu_si128((const __m128i*)(ql +  0)),
-                                        _mm_loadu_si128((const __m128i*)(ql + 16)) };
-                    __m128i rawh[2] = { _mm_loadu_si128((const __m128i*)(qh +  0)),
-                                        _mm_loadu_si128((const __m128i*)(qh + 16)) };
-                    __m256 qx_lo = _mm256_setzero_ps(), sx_lo = _mm256_setzero_ps();
-                    __m256 qx_hi = _mm256_setzero_ps(), sx_hi = _mm256_setzero_ps();
-                    for (int h = 0; h < 2; h++) {
-                        // A set bit contributes exactly 16 to the value, so compare-then-mask gives the addend without a branch.
-                        const __m128i hb = rawh[h];
-                        const __m128i add_lo = _mm_and_si128(
-                            _mm_cmpeq_epi8(_mm_and_si128(hb, b1), b1), sixteen);
-                        const __m128i add_hi = _mm_and_si128(
-                            _mm_cmpeq_epi8(_mm_and_si128(hb, b2), b2), sixteen);
-                        const __m128i L = _mm_add_epi8(
-                            _mm_and_si128(rawl[h], lo_mask), add_lo);
-                        const __m128i H = _mm_add_epi8(
-                            _mm_and_si128(_mm_srli_epi16(rawl[h], 4), lo_mask), add_hi);
-                        for (int q = 0; q < 2; q++) {
-                            const __m128i Lp = q ? _mm_srli_si128(L, 8) : L;
-                            const __m128i Hp = q ? _mm_srli_si128(H, 8) : H;
-                            const __m256 fl = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Lp));
-                            const __m256 fh = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Hp));
-                            const __m256 xl = _mm256_loadu_ps(xp + h * 16 + q * 8);
-                            const __m256 xh = _mm256_loadu_ps(xp + 32 + h * 16 + q * 8);
-                            qx_lo = _mm256_fmadd_ps(fl, xl, qx_lo);
-                            sx_lo = _mm256_add_ps(xl, sx_lo);
-                            qx_hi = _mm256_fmadd_ps(fh, xh, qx_hi);
-                            sx_hi = _mm256_add_ps(xh, sx_hi);
-                        }
+                const __m128i lo_mask = _mm_set1_epi8(0x0F);
+                const __m128i sixteen = _mm_set1_epi8(16);
+                const __m128i b1 = _mm_set1_epi8((char)u1);
+                const __m128i b2 = _mm_set1_epi8((char)u2);
+                __m128i rawl[2] = { _mm_loadu_si128((const __m128i*)(ql +  0)),
+                                    _mm_loadu_si128((const __m128i*)(ql + 16)) };
+                __m128i rawh[2] = { _mm_loadu_si128((const __m128i*)(qh +  0)),
+                                    _mm_loadu_si128((const __m128i*)(qh + 16)) };
+                __m256 qx_lo = _mm256_setzero_ps(), sx_lo = _mm256_setzero_ps();
+                __m256 qx_hi = _mm256_setzero_ps(), sx_hi = _mm256_setzero_ps();
+                for (int h = 0; h < 2; h++) {
+                    // A set bit contributes exactly 16 to the value, so compare-then-mask gives the addend without a branch.
+                    const __m128i hb = rawh[h];
+                    const __m128i add_lo = _mm_and_si128(
+                        _mm_cmpeq_epi8(_mm_and_si128(hb, b1), b1), sixteen);
+                    const __m128i add_hi = _mm_and_si128(
+                        _mm_cmpeq_epi8(_mm_and_si128(hb, b2), b2), sixteen);
+                    const __m128i L = _mm_add_epi8(
+                        _mm_and_si128(rawl[h], lo_mask), add_lo);
+                    const __m128i H = _mm_add_epi8(
+                        _mm_and_si128(_mm_srli_epi16(rawl[h], 4), lo_mask), add_hi);
+                    for (int q = 0; q < 2; q++) {
+                        const __m128i Lp = q ? _mm_srli_si128(L, 8) : L;
+                        const __m128i Hp = q ? _mm_srli_si128(H, 8) : H;
+                        const __m256 fl = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Lp));
+                        const __m256 fh = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Hp));
+                        const __m256 xl = _mm256_loadu_ps(xp + h * 16 + q * 8);
+                        const __m256 xh = _mm256_loadu_ps(xp + 32 + h * 16 + q * 8);
+                        qx_lo = _mm256_fmadd_ps(fl, xl, qx_lo);
+                        sx_lo = _mm256_add_ps(xl, sx_lo);
+                        qx_hi = _mm256_fmadd_ps(fh, xh, qx_hi);
+                        sx_hi = _mm256_add_ps(xh, sx_hi);
                     }
-                    acc += d1 * hsum256(qx_lo) - m1 * hsum256(sx_lo);
-                    acc += d2 * hsum256(qx_hi) - m2 * hsum256(sx_hi);
-                } else {
-                    float qx1 = 0, sx1 = 0, qx2 = 0, sx2 = 0;
-                    for (int l = 0; l < 32; l++) {
-                        const float xa = xp[l], xb = xp[l + 32];
-                        qx1 += (float)((ql[l] & 0xF) + ((qh[l] & u1) ? 16 : 0)) * xa;
-                        sx1 += xa;
-                        qx2 += (float)((ql[l] >> 4)  + ((qh[l] & u2) ? 16 : 0)) * xb;
-                        sx2 += xb;
-                    }
-                    acc += d1 * qx1 - m1 * sx1;
-                    acc += d2 * qx2 - m2 * sx2;
                 }
+                acc += d1 * hsum256(qx_lo) - m1 * hsum256(sx_lo);
+                acc += d2 * hsum256(qx_hi) - m2 * hsum256(sx_hi);
                 xp += 64; ql += 32; is += 2;
                 u1 = (uint8_t)(u1 << 2);
                 u2 = (uint8_t)(u2 << 2);
@@ -1544,8 +1402,8 @@ private:
         return acc;
     }
 
-    // On fused overflow, apply each scale before multiplying by the activation and accumulate in double.
-    // Local scratch avoids reserving a buffer per worker for this exceptional path.
+    // Applies each scale before multiplying by the activation and accumulates in double: a K-quant row whose fused dot overflowed, and a routed decode row of a type without a fused dot.
+    // Local scratch avoids reserving a buffer per worker for paths the default decode, over quantized activations, does not take.
     float dot_row_dequant(uint32_t type, const uint8_t* row, const float* x,
                           size_t nin, size_t nb) {
         const quant::QuantType* qt = quant::Registry::instance().get(type);
@@ -1576,48 +1434,37 @@ private:
                 quant::get_scale_min_k4(is + 1, sc, &s, &mm);
                 const float d2 = d * (float)s, m2 = dmin * (float)mm;
 
-                if (avx2_) {
-                    const __m128i lo_mask = _mm_set1_epi8(0x0F);
-                    __m128i raw0 = _mm_loadu_si128((const __m128i*)(qs +  0));
-                    __m128i raw1 = _mm_loadu_si128((const __m128i*)(qs + 16));
-                    // low nibbles -> first 32 values, high nibbles -> next 32
-                    __m128i lo0 = _mm_and_si128(raw0, lo_mask);
-                    __m128i lo1 = _mm_and_si128(raw1, lo_mask);
-                    __m128i hi0 = _mm_and_si128(_mm_srli_epi16(raw0, 4), lo_mask);
-                    __m128i hi1 = _mm_and_si128(_mm_srli_epi16(raw1, 4), lo_mask);
+                const __m128i lo_mask = _mm_set1_epi8(0x0F);
+                __m128i raw0 = _mm_loadu_si128((const __m128i*)(qs +  0));
+                __m128i raw1 = _mm_loadu_si128((const __m128i*)(qs + 16));
+                // Low nibbles are the first 32 values, high nibbles the next 32.
+                __m128i lo0 = _mm_and_si128(raw0, lo_mask);
+                __m128i lo1 = _mm_and_si128(raw1, lo_mask);
+                __m128i hi0 = _mm_and_si128(_mm_srli_epi16(raw0, 4), lo_mask);
+                __m128i hi1 = _mm_and_si128(_mm_srli_epi16(raw1, 4), lo_mask);
 
-                    __m256 qx_lo = _mm256_setzero_ps(), sx_lo = _mm256_setzero_ps();
-                    __m256 qx_hi = _mm256_setzero_ps(), sx_hi = _mm256_setzero_ps();
-                    const __m128i* lohalves[2] = { &lo0, &lo1 };
-                    const __m128i* hihalves[2] = { &hi0, &hi1 };
-                    for (int h = 0; h < 2; h++) {
-                        const __m128i L = *lohalves[h];
-                        const __m128i H = *hihalves[h];
-                        for (int q = 0; q < 2; q++) {
-                            const __m128i Lp = q ? _mm_srli_si128(L, 8) : L;
-                            const __m128i Hp = q ? _mm_srli_si128(H, 8) : H;
-                            const __m256 fl = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Lp));
-                            const __m256 fh = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Hp));
-                            const __m256 xl = _mm256_loadu_ps(xp + h * 16 + q * 8);
-                            const __m256 xh = _mm256_loadu_ps(xp + 32 + h * 16 + q * 8);
-                            qx_lo = _mm256_fmadd_ps(fl, xl, qx_lo);
-                            sx_lo = _mm256_add_ps(xl, sx_lo);
-                            qx_hi = _mm256_fmadd_ps(fh, xh, qx_hi);
-                            sx_hi = _mm256_add_ps(xh, sx_hi);
-                        }
+                __m256 qx_lo = _mm256_setzero_ps(), sx_lo = _mm256_setzero_ps();
+                __m256 qx_hi = _mm256_setzero_ps(), sx_hi = _mm256_setzero_ps();
+                const __m128i* lohalves[2] = { &lo0, &lo1 };
+                const __m128i* hihalves[2] = { &hi0, &hi1 };
+                for (int h = 0; h < 2; h++) {
+                    const __m128i L = *lohalves[h];
+                    const __m128i H = *hihalves[h];
+                    for (int q = 0; q < 2; q++) {
+                        const __m128i Lp = q ? _mm_srli_si128(L, 8) : L;
+                        const __m128i Hp = q ? _mm_srli_si128(H, 8) : H;
+                        const __m256 fl = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Lp));
+                        const __m256 fh = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(Hp));
+                        const __m256 xl = _mm256_loadu_ps(xp + h * 16 + q * 8);
+                        const __m256 xh = _mm256_loadu_ps(xp + 32 + h * 16 + q * 8);
+                        qx_lo = _mm256_fmadd_ps(fl, xl, qx_lo);
+                        sx_lo = _mm256_add_ps(xl, sx_lo);
+                        qx_hi = _mm256_fmadd_ps(fh, xh, qx_hi);
+                        sx_hi = _mm256_add_ps(xh, sx_hi);
                     }
-                    acc += d1 * hsum256(qx_lo) - m1 * hsum256(sx_lo);
-                    acc += d2 * hsum256(qx_hi) - m2 * hsum256(sx_hi);
-                } else {
-                    float qx1 = 0, sx1 = 0, qx2 = 0, sx2 = 0;
-                    for (int l = 0; l < 32; l++) {
-                        const float xa = xp[l], xb = xp[l + 32];
-                        qx1 += (float)(qs[l] & 0xF) * xa; sx1 += xa;
-                        qx2 += (float)(qs[l] >> 4)  * xb; sx2 += xb;
-                    }
-                    acc += d1 * qx1 - m1 * sx1;
-                    acc += d2 * qx2 - m2 * sx2;
                 }
+                acc += d1 * hsum256(qx_lo) - m1 * hsum256(sx_lo);
+                acc += d2 * hsum256(qx_hi) - m2 * hsum256(sx_hi);
                 xp += 64; qs += 32; is += 2;
             }
         }
@@ -1633,58 +1480,37 @@ private:
         return _mm_cvtss_f32(s);
     }
 
-    // f16 -> f32 using hardware F16C where present.
+    // f16 -> f32 through F16C.
     float half_to_float(uint16_t h) const {
-        if (f16c_) return _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128((int)h)));
-        return f16_to_f32(h);
+        return _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128((int)h)));
     }
 
-    // Dot product of one Q8_0 row (nblocks blocks, nin = nblocks*32) with x.
-    // Uses an AVX2 fused dequant+FMA path when available, else scalar.
+    // Dot product of one Q8_0 row (nblocks blocks, nin = nblocks*32) with x, AVX2 fused dequant+FMA.
     float dot_row_impl(const uint8_t* row, const float* x, size_t nblocks) {
-        if (avx2_) {
-            // Four independent accumulators let multiple loads and FMAs proceed without one serial dependency chain.
-            __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
-            __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
-            // No software prefetch: the hardware prefetcher already keeps up with these sequential streams.
-            for (size_t b = 0; b < nblocks; b++) {
-                const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
-                // Hardware f16 convert.
-                // The scalar f16_to_f32 is a branchy function (zero, subnormal, inf/nan cases) called once per 34 bytes of weights, which is a lot of unpredictable control flow in a loop whose job is to keep loads in flight.
-                __m256 dv;
-                if (f16c_) {
-                    dv = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y)));
-                } else {
-                    const uint16_t h = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
-                    dv = _mm256_set1_ps(f16_to_f32(h));
-                }
-                __m256 f0 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 2))));
-                __m256 f1 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 10))));
-                __m256 f2 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 18))));
-                __m256 f3 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 26))));
-                const float* xp = x + b * gguf::Q8_0_BLOCK;
-                s0 = _mm256_fmadd_ps(_mm256_mul_ps(f0, dv), _mm256_loadu_ps(xp), s0);
-                s1 = _mm256_fmadd_ps(_mm256_mul_ps(f1, dv), _mm256_loadu_ps(xp + 8), s1);
-                s2 = _mm256_fmadd_ps(_mm256_mul_ps(f2, dv), _mm256_loadu_ps(xp + 16), s2);
-                s3 = _mm256_fmadd_ps(_mm256_mul_ps(f3, dv), _mm256_loadu_ps(xp + 24), s3);
-            }
-            __m256 acc = _mm256_add_ps(_mm256_add_ps(s0, s1), _mm256_add_ps(s2, s3));
-            __m128 lo = _mm256_castps256_ps128(acc);
-            __m128 hi = _mm256_extractf128_ps(acc, 1);
-            __m128 s = _mm_add_ps(lo, hi);
-            s = _mm_hadd_ps(s, s);
-            s = _mm_hadd_ps(s, s);
-            return _mm_cvtss_f32(s);
-        }
-        float acc = 0.0f;
+        // Four independent accumulators let multiple loads and FMAs proceed without one serial dependency chain.
+        __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
+        __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
         for (size_t b = 0; b < nblocks; b++) {
             const uint8_t* y = row + b * gguf::Q8_0_TYPESIZE;
-            uint16_t d16 = (uint16_t)(y[0] | ((uint16_t)y[1] << 8));
-            float d = f16_to_f32(d16);
-            for (size_t j = 0; j < gguf::Q8_0_BLOCK; j++)
-                acc += (float)(int8_t)y[2 + j] * d * x[b * gguf::Q8_0_BLOCK + j];
+            // The half scale is broadcast from memory and widened by F16C.
+            const __m256 dv = _mm256_cvtph_ps(_mm_broadcastw_epi16(_mm_loadu_si128((const __m128i*)y)));
+            __m256 f0 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 2))));
+            __m256 f1 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 10))));
+            __m256 f2 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 18))));
+            __m256 f3 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_loadl_epi64((const __m128i*)(y + 26))));
+            const float* xp = x + b * gguf::Q8_0_BLOCK;
+            s0 = _mm256_fmadd_ps(_mm256_mul_ps(f0, dv), _mm256_loadu_ps(xp), s0);
+            s1 = _mm256_fmadd_ps(_mm256_mul_ps(f1, dv), _mm256_loadu_ps(xp + 8), s1);
+            s2 = _mm256_fmadd_ps(_mm256_mul_ps(f2, dv), _mm256_loadu_ps(xp + 16), s2);
+            s3 = _mm256_fmadd_ps(_mm256_mul_ps(f3, dv), _mm256_loadu_ps(xp + 24), s3);
         }
-        return acc;
+        __m256 acc = _mm256_add_ps(_mm256_add_ps(s0, s1), _mm256_add_ps(s2, s3));
+        __m128 lo = _mm256_castps256_ps128(acc);
+        __m128 hi = _mm256_extractf128_ps(acc, 1);
+        __m128 s = _mm_add_ps(lo, hi);
+        s = _mm_hadd_ps(s, s);
+        s = _mm_hadd_ps(s, s);
+        return _mm_cvtss_f32(s);
     }
 };
 

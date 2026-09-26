@@ -1,0 +1,87 @@
+Sat Sep 26 12:54:12 UTC 2026
+21.58 21.71 19.80 8/1631 10
+== builds
+cb build rc 0, warnings 0, errors 0
+/cb 27130f7 docs: STATUS records the chat template renderer as m dirty 0 src fa00ae36467d CMAKE_HOME_DIRECTORY:INTERNAL=/cb 130ea53b269acb8d llmx 0.1.0+g27130f771588
+cf build rc 0, warnings 0, errors 0
+/cf 79fc5e8 cpu: the runtime AVX2 and F16C checks go, and the de dirty 0 src 407d7e0013f4 CMAKE_HOME_DIRECTORY:INTERNAL=/cf 747062e989d635d1 llmx 0.1.0+g79fc5e86261f
+== kernel harness: every matmul, group, expert and gather output hashed at 1, 6 and 16 threads, decode dots on and off
+1
+cb harness build rc 0, warnings 0
+cb harness rc 0, 11017 cases, 9 s, threw 0
+cf harness build rc 0, warnings 0
+cf harness rc 0, 11017 cases, 8 s, threw 0
+harness IDENTICAL: 11018 lines
+gather 3212055f237fe0ac
+gather-beyond refused
+== build-time requirement: a unit including the CPU backend, compiled without the ISA flags
+cf flags []: rc 1, error lines 2
+src/backends/cpu/cpu_backend.hpp:4:2: error: #error "the CPU backend needs AVX2, FMA and F16C: build with /arch:AVX2 on MSVC or -mavx2 -mfma -mf16c elsewhere (docs/BUILD.md)"
+cf flags [-mavx2 -mfma]: rc 1, error lines 2
+src/backends/cpu/cpu_backend.hpp:4:2: error: #error "the CPU backend needs AVX2, FMA and F16C: build with /arch:AVX2 on MSVC or -mavx2 -mfma -mf16c elsewhere (docs/BUILD.md)"
+cf flags [-mavx2 -mfma -mf16c]: rc 0, error lines 0
+cf flags [-march=haswell]: rc 0, error lines 0
+== CTest on the branch
+ctest rc 0
+100% tests passed, 0 tests failed out of 22
+== CLI identity on the CPU, name rc(main,branch) hash(main) hash(branch)
+18556685824 /c/models--Qwen--Qwen3-30B-A3B-GGUF/snapshots/e4d4bafdfb96a411a163846265362aceb0b9c63a/Qwen3-30B-A3B-Q4_K_M.gguf
+639446688 /m/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf
+8709518112 /m/models--Qwen--Qwen3-8B-GGUF/snapshots/7c41481f57cb95916b40956ab2f0b139b296d974/Qwen3-8B-Q8_0.gguf
+382156480 /m/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf
+444415680 /m/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf
+06q8.generate rc 0,0 f65b7c5864c26ed2 f65b7c5864c26ed2 same 380B
+06q8.logits rc 0,0 51498e9dddb595ce 51498e9dddb595ce same 298B
+06q8.ppl rc 0,0 053b6b6306b333f2 053b6b6306b333f2 same 114B
+06q8.ppl_tok rc 0,0 26349ac69758d3bd 26349ac69758d3bd same 114B
+06q4.generate rc 0,0 a3694738ebec7af7 a3694738ebec7af7 same 374B
+06q4.logits rc 0,0 79183d2f800ee3fe 79183d2f800ee3fe same 296B
+06q4.ppl rc 0,0 f1b25c482d0bc554 f1b25c482d0bc554 same 114B
+06q4.ppl_tok rc 0,0 716c66947fdbd154 716c66947fdbd154 same 113B
+06q5.generate rc 0,0 f65b7c5864c26ed2 f65b7c5864c26ed2 same 380B
+06q5.logits rc 0,0 c2f4dfacbc2d47d4 c2f4dfacbc2d47d4 same 297B
+06q5.ppl rc 0,0 0f23a1db91293c7a 0f23a1db91293c7a same 114B
+06q5.ppl_tok rc 0,0 7a4e793a8a916de1 7a4e793a8a916de1 same 114B
+06q8f32.generate rc 0,0 f65b7c5864c26ed2 f65b7c5864c26ed2 same 379B
+06q8f32.logits rc 0,0 b1b5c9b6f74e7c0d b1b5c9b6f74e7c0d same 298B
+06q8f32.ppl rc 0,0 85da7ab4370174e9 85da7ab4370174e9 same 114B
+06q8f32.ppl_tok rc 0,0 2bd268ca2b1a8395 2bd268ca2b1a8395 same 113B
+06q8.t1.generate rc 0,0 a4eb1e3f1e15796d a4eb1e3f1e15796d same 221B
+06q5.t1.logits rc 0,0 c2f4dfacbc2d47d4 c2f4dfacbc2d47d4 same 297B
+8q8.generate rc 0,0 a9ef32c5fe808a51 a9ef32c5fe808a51 same 378B
+8q8.logits rc 0,0 cc5df3725355d6c0 cc5df3725355d6c0 same 298B
+8q8.ppl rc 0,0 5a28d1cde267e812 5a28d1cde267e812 same 113B
+8q8.ppl_tok rc 0,0 a3c03c5f393ca7fc a3c03c5f393ca7fc same 114B
+30.generate rc 0,0 49e1b2c27da27144 49e1b2c27da27144 same 361B
+30.logits rc 0,0 2e02e08e230a1c24 2e02e08e230a1c24 same 298B
+30.ppl rc 0,0 9c3c3a65a1ed4dd8 9c3c3a65a1ed4dd8 same 113B
+30.ppl_tok rc 0,0 8d230b052e90dd35 8d230b052e90dd35 same 114B
+30.t16.generate rc 0,0 6a5ab1b1b9a6889d 6a5ab1b1b9a6889d same 211B
+Sat Sep 26 13:11:34 UTC 2026
+22.30 21.05 20.87 16/1843 7305
+== Python suite on the branch, CPU, every component but the server
+suite rc 0, 216 s
+  version    PASS
+  cli        PASS
+  reference-generator PASS
+  reference-consumer PASS
+  roundtrip  PASS
+  raw-blocks PASS
+  perf       PASS
+  tokenizer  PASS
+  perplexity PASS
+  f32        PASS
+  moe        PASS
+  split      PASS
+  shards     PASS
+  server-load PASS
+  chat       PASS
+  threads    PASS
+  baseline   PASS
+Sat Sep 26 13:15:10 UTC 2026
+16.34 20.18 20.69 9/1921 11953
+== the suite's server component on the branch, servers at --threads 6
+/cf server component PASS in 426 s
+Sat Sep 26 13:22:15 UTC 2026
+25.33 21.40 20.86 24/2546 13907
+container exit 0

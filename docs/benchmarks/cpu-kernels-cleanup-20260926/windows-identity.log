@@ -1,0 +1,25 @@
+Sat Sep 26 15:58:09 2026
+06q8.generate rc 0,0 f65b7c5864c26ed2 f65b7c5864c26ed2 same 383B
+06q8.logits rc 0,0 7b72b7871e93844c 7b72b7871e93844c same 326B
+06q8.ppl rc 0,0 4ab799c35377b514 4ab799c35377b514 same 121B
+06q8.ppl_tok rc 0,0 1d189b8084524b53 1d189b8084524b53 same 121B
+06q4.generate rc 0,0 a3694738ebec7af7 a3694738ebec7af7 same 377B
+06q4.logits rc 0,0 a2bc18ee45deafed a2bc18ee45deafed same 324B
+06q4.ppl rc 0,0 b574b42e0ba93fc4 b574b42e0ba93fc4 same 120B
+06q4.ppl_tok rc 0,0 853c99e2f0a76710 853c99e2f0a76710 same 121B
+06q5.generate rc 0,0 f65b7c5864c26ed2 f65b7c5864c26ed2 same 382B
+06q5.logits rc 0,0 dd34f07a70502ccc dd34f07a70502ccc same 326B
+06q5.ppl rc 0,0 8e33ed18c2b50fb8 8e33ed18c2b50fb8 same 121B
+06q5.ppl_tok rc 0,0 8a727dd2be02f3b0 8a727dd2be02f3b0 same 121B
+06q8f32.generate rc 0,0 f65b7c5864c26ed2 f65b7c5864c26ed2 same 383B
+06q8f32.logits rc 0,0 7c4eebcedcae53eb 7c4eebcedcae53eb same 326B
+06q8f32.ppl rc 0,0 042ce8a7178ca4e3 042ce8a7178ca4e3 same 120B
+06q8f32.ppl_tok rc 0,0 5b69030a369a1730 5b69030a369a1730 same 121B
+06q8.t1.generate rc 0,0 a4eb1e3f1e15796d a4eb1e3f1e15796d same 223B
+06q5.t1.logits rc 0,0 dd34f07a70502ccc dd34f07a70502ccc same 326B
+30.generate rc 0,0 49e1b2c27da27144 49e1b2c27da27144 same 366B
+30.logits rc 0,0 da43f065b61d1f7d da43f065b61d1f7d same 322B
+30.ppl rc 0,0 6ca927ce2bef5a84 6ca927ce2bef5a84 same 121B
+30.ppl_tok rc 0,0 a52caa44aa00c027 a52caa44aa00c027 same 120B
+30.t12.generate rc 0,0 6a5ab1b1b9a6889d 6a5ab1b1b9a6889d same 215B
+Sat Sep 26 16:02:04 2026

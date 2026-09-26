@@ -1,0 +1,112 @@
+version: release/build identifier and usage banner agree  [ok]
+cli: a Vulkan device refused without the backend or without the device, info's architecture, layers and tensors, usage errors exiting 2 with the command's page, and every help page shown without a model, with 136 lines of the flags it lists taken and 476 of the flags it does not list refused  [ok]
+........s
+----------------------------------------------------------------------
+Ran 9 tests in 0.086s
+
+OK (skipped=1)
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.069s
+
+OK
+roundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]
+roundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]
+roundtrip: q8_0 decode matches the format description on 4096 values, format loss 0.016750  [ok]
+roundtrip: q4_0 decode matches the format description on 4096 values, format loss 0.304348  [ok]
+roundtrip: q8_0 decode matches the format description on 2048 values from 64 raw blocks  [ok]
+roundtrip: q4_0 decode matches the format description on 512 values from 16 raw blocks  [ok]
+roundtrip: q4_1 decode matches the format description on 2048 values from 64 raw blocks  [ok]
+roundtrip: q4_k decode matches the format description on 40960 values from 160 raw blocks  [ok]
+roundtrip: q5_k decode matches the format description on 40960 values from 160 raw blocks  [ok]
+roundtrip: q6_k decode matches the format description on 6144 values from 24 raw blocks  [ok]
+roundtrip: q8_0 under a non-ASCII directory writes the same files  [ok]
+roundtrip: q4_0 under a non-ASCII directory writes the same files  [ok]
+roundtrip: type names quantize does not write are refused with status 2  [ok]
+roundtrip: q8_0, 32 invalid extents preserve output; ranks 1..4, integral spellings and empty model [ok]
+roundtrip: q4_0, 32 invalid extents preserve output; ranks 1..4, integral spellings and empty model [ok]
+raw-blocks: F16 and BF16 decode all 65536 bit patterns to their sign, exponent and mantissa, F32 as it is  [ok]
+raw-blocks: IQ4_NL 5632 and IQ4_XS 16384 values over every code, scale bit and edge scale  [ok]
+raw-blocks: MXFP4 exponents 0 to 255 against every code in every position, 8192 values, 48 infinities, -0 as +0  [ok]
+raw-blocks: Q3_K 28672 values over every scale bit, address-keyed high bits and edge scales  [ok]
+raw-blocks: Q2_K 35072 values over every scale and min byte and every pairing of d and dmin  [ok]
+raw-blocks: Q4_0 5632 and Q8_0 2816 values over every code and scale, -0 where a negative scale meets a zero code  [ok]
+raw-blocks: SKIP - the numpy form's checks and the writer's file need numpy
+raw-blocks: the MXFP4 writer rounds ties to even, saturates at 6, writes no -0, and 307 blocks decode to its values  [ok]
+perf: matmul 2256.22 GFLOPS (0.004 ms), prefill 1335 tok/s, decode 2452 tok/s, rms_norm 0.057 ms, norm_rope 0.673 ms  [ok]
+perf: hardware-specific floors disabled; timings are diagnostic only
+tokenizer: encode->decode round-trip 'hello' -> hello, unicode and special token, other tokenizers refused, qwen35 37/37 texts match HF and its 7 file-only control tokens are one id each  [ok]
+perplexity: analytic NLL, window boundaries, file parity and invalid flags; logits text from a file and appended ids  [ok]
+f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids rows, the same bytes over passes, bench --seqs 2; max error 0.00000067  [ok]
+moe: all 257 logits vs HF over routed and dense layers, batch widths, threads, expert placement and PPL; max error 0.00000070  [ok]
+split: 24 runs of the tiny F32 (tied, untied) and MoE models over 2 and 3 CPU backends at ubatch 1/3/16 with f16 and f32 caches, bit-identical to one  [ok]
+shards: 20 full-logit HF cases, tied/untied, threads, PPL and missing-shard CLI; max error 0.00000067  [ok]
+server: synthetic F32 model, 4 prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, refusals, the tokenize routes, a cancelled stream, the compatible completions, its file name as UTF-8 in every reply  [ok]
+server: synthetic F32 model without the byte token q, a text holding it refused alike by /v1/tokenize, /v1/generate and /v1/chat  [ok]
+server: an assistant turn with its reasoning in the content, in reasoning_content or null beside it renders as chat renders its own reply, and whole in both under a template without reasoning; two chat turns under a Qwen 3.8 template are the reference's renders; /v1/tokenize counts each as the chat routes read it; a bad reasoning_content and a conversation the template raises on answer 400  [ok]
+server: synthetic MoE model, experts on the host and long prompts streamed, 6 prompts alone and four at a time  [ok]
+server: ignore_eos on the synthetic model, a greedy reply that ends at its end token after 9 tokens running to 12 through the CLI and the server, greedy and seeded, uncapped to the context, which the CLI given the room also fills, beside requests without it, and refused unless a boolean  [ok]
+server: Qwen3-0.6B-Q8_0.gguf, 48 prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, refusals, the tokenize routes, a cancelled stream, a chat turn, the compatible routes, a reused prefix, the limits, uncapped requests sharing a pool, a prompt paused while prefilling, a 6-turn conversation past half the pool reusing its history on every follow-up, a follow-up consuming the turn it repeats while an unrelated donor stays, clients leaving a whole reply, a prefill and the queue, and one shutting its sending side  [ok]
+server: ignore_eos on Qwen3-0.6B-Q8_0.gguf, a greedy reply that ends at its end token after 13 tokens running to 48 through generate, chat and the four routes, greedy and seeded, a stop text still ending it, beside requests without it  [ok]
+server_load self-test: streams and figures on made-up times; closed and open loads on llmx, openai and completion against a server with known token times; prompts counted through /tokenize and /v1/tokenize; failures by reason, timeouts, a short reply and the exit status  [ok]
+chat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit; a refused template stops chat and serve, not generate  [ok]
+chat progress: completed loading percentages and per-turn phases stay on stderr  [ok]
+threads: perplexity effective counts/aliases and HF NLL, 56 cases, max error 0.00000093  [ok]
+threads: auto/explicit counts, prefill restore, follow-up chat and HF replies  [ok]
+baseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]
+baseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 4/6  [ok]
+baseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]
+baseline-logits[Qwen3-0.6B-Q5_K_M.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 2/6  [ok]
+baseline-logits[Qwen3-0.6B-Q4_K_M.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 1/6  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1 batched]: PPL 28.8983 vs HF 28.7974, NLL delta 0.003494 <= 0.010  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1 per-token]: PPL 28.8390 vs HF 28.7974, NLL delta 0.001444 <= 0.010  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4 batched]: PPL 56.4216 vs HF 56.2812, NLL delta 0.002490 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4 per-token]: PPL 56.4880 vs HF 56.2812, NLL delta 0.003670 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2 batched]: PPL 40.8612 vs HF 40.8602, NLL delta 0.000023 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2 per-token]: PPL 41.1323 vs HF 40.8602, NLL delta 0.006633 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2 batched]: PPL 38.0763 vs HF 37.7428, NLL delta 0.008796 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2 per-token]: PPL 37.9190 vs HF 37.7428, NLL delta 0.004656 <= 0.020  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1 batched]: PPL 32.9172 vs HF 28.7974, NLL delta 0.133714 <= 0.160  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1 per-token]: PPL 32.8996 vs HF 28.7974, NLL delta 0.133174 <= 0.160  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4 batched]: PPL 66.8638 vs HF 56.2812, NLL delta 0.172300 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4 per-token]: PPL 67.2965 vs HF 56.2812, NLL delta 0.178750 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2 batched]: PPL 43.9376 vs HF 40.8602, NLL delta 0.072613 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2 per-token]: PPL 44.4225 vs HF 40.8602, NLL delta 0.083593 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2 batched]: PPL 42.3348 vs HF 37.7428, NLL delta 0.114816 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2 per-token]: PPL 42.7928 vs HF 37.7428, NLL delta 0.125576 <= 0.200  [ok]
+baseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=0 chunks=1 batched]: PPL 29.5308 vs HF 28.7974, NLL delta 0.025144 <= 0.050  [ok]
+baseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=0 chunks=1 per-token]: PPL 29.5766 vs HF 28.7974, NLL delta 0.026694 <= 0.050  [ok]
+baseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=4 batched]: PPL 63.1938 vs HF 56.2812, NLL delta 0.115850 <= 0.160  [ok]
+baseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=4 per-token]: PPL 63.2124 vs HF 56.2812, NLL delta 0.116140 <= 0.160  [ok]
+baseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=2 batched]: PPL 43.9114 vs HF 40.8602, NLL delta 0.072013 <= 0.160  [ok]
+baseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=2 per-token]: PPL 44.1541 vs HF 40.8602, NLL delta 0.077533 <= 0.160  [ok]
+baseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=123 chunks=2 batched]: PPL 38.1109 vs HF 37.7428, NLL delta 0.009706 <= 0.160  [ok]
+baseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=123 chunks=2 per-token]: PPL 38.4322 vs HF 37.7428, NLL delta 0.018106 <= 0.160  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=0 chunks=1 batched]: PPL 31.8318 vs HF 28.7974, NLL delta 0.100184 <= 0.130  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=0 chunks=1 per-token]: PPL 32.0241 vs HF 28.7974, NLL delta 0.106204 <= 0.130  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=4 batched]: PPL 69.7536 vs HF 56.2812, NLL delta 0.214610 <= 0.250  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=4 per-token]: PPL 69.6209 vs HF 56.2812, NLL delta 0.212700 <= 0.250  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=2 batched]: PPL 49.5745 vs HF 40.8602, NLL delta 0.193323 <= 0.250  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=2 per-token]: PPL 49.2324 vs HF 40.8602, NLL delta 0.186393 <= 0.250  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=123 chunks=2 batched]: PPL 45.1375 vs HF 37.7428, NLL delta 0.178916 <= 0.250  [ok]
+baseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=123 chunks=2 per-token]: PPL 44.9565 vs HF 37.7428, NLL delta 0.174896 <= 0.250  [ok]
+
+  version    PASS
+  cli        PASS
+  reference-generator PASS
+  reference-consumer PASS
+  roundtrip  PASS
+  raw-blocks PASS
+  perf       PASS
+  tokenizer  PASS
+  perplexity PASS
+  f32        PASS
+  moe        PASS
+  split      PASS
+  shards     PASS
+  server     PASS
+  server-load PASS
+  chat       PASS
+  threads    PASS
+  baseline   PASS
+EXIT 0

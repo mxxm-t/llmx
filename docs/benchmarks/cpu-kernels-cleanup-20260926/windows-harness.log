@@ -1,0 +1,7 @@
+MSVC 14.50 (Visual Studio 18): cl /std:c++17 /O2 /arch:AVX2 /EHsc /DNDEBUG kernel-harness.cpp, against each tree's src and build-cpu/generated
+cb: 11017 cases, 11018 lines, sha256 of the output 828c1900e89951e58ef2a954578fe262a4ea0c38a59b6154d094b834b0844e48
+cf: 11017 cases, 11018 lines, sha256 of the output 828c1900e89951e58ef2a954578fe262a4ea0c38a59b6154d094b834b0844e48
+harness IDENTICAL
+gather 3212055f237fe0ac
+gather-beyond refused
+cl /W4 over the same unit: 1 warning on main and 1 on the branch, both C4101 in the harness itself (line 132), none in src

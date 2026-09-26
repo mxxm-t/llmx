@@ -1,0 +1,77 @@
+cb 6777955f7305cc19 llmx 0.1.0+g27130f771588
+cf d7ba0922da4cabb0 llmx 0.1.0+g79fc5e86261f.dirty
+Sat Sep 26 16:02:23 2026
+06 1 cb rc 0 pp 417.70 tg 43.08 cpu% before 3
+06 1 cf rc 0 pp 451.48 tg 39.95 cpu% before 11
+06 2 cf rc 0 pp 416.38 tg 40.61 cpu% before 35
+06 2 cb rc 0 pp 428.15 tg 44.11 cpu% before 13
+06 3 cb rc 0 pp 403.12 tg 43.44 cpu% before 15
+06 3 cf rc 0 pp 396.16 tg 41.82 cpu% before 10
+06 4 cf rc 0 pp 445.54 tg 46.01 cpu% before 12
+06 4 cb rc 0 pp 443.42 tg 41.80 cpu% before 11
+06 5 cb rc 0 pp 448.69 tg 43.70 cpu% before 19
+06 5 cf rc 0 pp 424.38 tg 44.71 cpu% before 16
+06 6 cf rc 0 pp 446.06 tg 45.22 cpu% before 5
+06 6 cb rc 0 pp 442.57 tg 44.13 cpu% before 6
+06 7 cb rc 0 pp 433.80 tg 40.87 cpu% before 23
+06 7 cf rc 0 pp 420.05 tg 40.07 cpu% before 12
+06 8 cf rc 0 pp 417.51 tg 42.37 cpu% before 26
+06 8 cb rc 0 pp 434.12 tg 41.73 cpu% before 14
+06 9 cb rc 0 pp 428.60 tg 42.90 cpu% before 14
+06 9 cf rc 0 pp 421.53 tg 41.19 cpu% before 6
+06 10 cf rc 0 pp 464.11 tg 41.62 cpu% before 7
+06 10 cb rc 0 pp 428.52 tg 41.85 cpu% before 15
+06 11 cb rc 0 pp 453.32 tg 42.03 cpu% before 9
+06 11 cf rc 0 pp 428.74 tg 43.51 cpu% before 13
+06 12 cf rc 0 pp 422.98 tg 41.14 cpu% before 7
+06 12 cb rc 0 pp 441.50 tg 38.83 cpu% before 23
+06t1 1 cb rc 0 pp 105.20 tg 31.37 cpu% before 7
+06t1 1 cf rc 0 pp 107.91 tg 31.36 cpu% before 11
+06t1 2 cf rc 0 pp 80.20 tg 18.89 cpu% before 8
+06t1 2 cb rc 0 pp 90.93 tg 19.66 cpu% before 4
+06t1 3 cb rc 0 pp 106.32 tg 29.39 cpu% before 19
+06t1 3 cf rc 0 pp 107.61 tg 30.13 cpu% before 9
+06t1 4 cf rc 0 pp 81.10 tg 23.14 cpu% before 11
+06t1 4 cb rc 0 pp 106.91 tg 31.87 cpu% before 7
+06t1 5 cb rc 0 pp 108.84 tg 32.59 cpu% before 3
+06t1 5 cf rc 0 pp 108.15 tg 33.08 cpu% before 11
+06t1 6 cf rc 0 pp 110.36 tg 33.26 cpu% before 6
+06t1 6 cb rc 0 pp 108.88 tg 31.68 cpu% before 1
+06t1 7 cb rc 0 pp 108.37 tg 33.99 cpu% before 9
+06t1 7 cf rc 0 pp 106.61 tg 32.14 cpu% before 1
+06t1 8 cf rc 0 pp 109.01 tg 32.87 cpu% before 3
+06t1 8 cb rc 0 pp 107.97 tg 32.78 cpu% before 5
+30 1 cb rc 0 pp 79.68 tg 13.78 cpu% before 4
+30 1 cf rc 0 pp 81.41 tg 13.98 cpu% before 1
+30 2 cf rc 0 pp 79.47 tg 13.87 cpu% before 8
+30 2 cb rc 0 pp 79.85 tg 13.68 cpu% before 9
+30 3 cb rc 0 pp 80.43 tg 13.67 cpu% before 6
+30 3 cf rc 0 pp 76.32 tg 13.44 cpu% before 2
+30 4 cf rc 0 pp 80.84 tg 13.72 cpu% before 5
+30 4 cb rc 0 pp 79.82 tg 13.95 cpu% before 5
+30 5 cb rc 0 pp 80.57 tg 13.35 cpu% before 3
+30 5 cf rc 0 pp 79.38 tg 14.08 cpu% before 5
+30 6 cf rc 0 pp 83.35 tg 13.57 cpu% before 11
+30 6 cb rc 0 pp 80.91 tg 13.73 cpu% before 6
+30t8 1 cb rc 0 pp 63.46 tg 15.71 cpu% before 8
+30t8 1 cf rc 0 pp 57.44 tg 14.03 cpu% before 4
+30t8 2 cf rc 0 pp 63.66 tg 15.66 cpu% before 4
+30t8 2 cb rc 0 pp 60.88 tg 15.11 cpu% before 12
+30t8 3 cb rc 0 pp 61.32 tg 14.06 cpu% before 6
+30t8 3 cf rc 0 pp 63.84 tg 15.29 cpu% before 4
+30t8 4 cf rc 0 pp 62.18 tg 14.98 cpu% before 0
+30t8 4 cb rc 0 pp 63.42 tg 15.40 cpu% before 6
+30t8 5 cb rc 0 pp 62.41 tg 15.27 cpu% before 4
+30t8 5 cf rc 0 pp 63.41 tg 14.95 cpu% before 3
+30t8 6 cf rc 0 pp 63.51 tg 15.04 cpu% before 7
+30t8 6 cb rc 0 pp 60.38 tg 15.21 cpu% before 4
+Sat Sep 26 16:13:16 2026
+
+06    pp  main best 453.32 median 433.96 (n 12)  branch best 464.11 median 423.68 (n 12)  best +2.4% median -2.4%
+06    tg  main best 44.13 median 42.47 (n 12)  branch best 46.01 median 41.72 (n 12)  best +4.3% median -1.8%
+06t1  pp  main best 108.88 median 107.44 (n 8)  branch best 110.36 median 107.76 (n 8)  best +1.4% median +0.3%
+06t1  tg  main best 33.99 median 31.77 (n 8)  branch best 33.26 median 31.75 (n 8)  best -2.1% median -0.1%
+30    pp  main best 80.91 median 80.14 (n 6)  branch best 83.35 median 80.16 (n 6)  best +3.0% median +0.0%
+30    tg  main best 13.95 median 13.71 (n 6)  branch best 14.08 median 13.79 (n 6)  best +0.9% median +0.7%
+30t8  pp  main best 63.46 median 61.86 (n 6)  branch best 63.84 median 63.46 (n 6)  best +0.6% median +2.6%
+30t8  tg  main best 15.71 median 15.24 (n 6)  branch best 15.66 median 15.01 (n 6)  best -0.3% median -1.5%

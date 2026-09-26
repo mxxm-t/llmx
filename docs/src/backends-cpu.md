@@ -1,12 +1,10 @@
 # `src/backends/cpu/cpu_backend.hpp` - CPU backend (AVX2)
 
-CPU implementation of the `Backend` interface, in namespace `backend`. The
-current build requires x86 AVX2/FMA/F16C; retained scalar branches do not make
-the compiled binary portable to older CPUs.
+CPU implementation of the `Backend` interface, in namespace `backend`.
+The build requires x86-64 AVX2, FMA and F16C (`docs/BUILD.md`), and the kernels use them with no runtime check and no scalar fallback; their scalar loops cover the tails of lengths that are not a multiple of 8.
+A compile without them stops at one `#error` at the top of the header.
 
-- Detects AVX2 **once** in the constructor (via `__cpuid` on MSVC, `__get_cpuid`
-  on GCC/Clang) and caches it - not per row.
-- Persistent worker pool. `matvec_q8_0` and attention both run through it; previously each created and joined `std::thread`s per call, which on Qwen3-8B was thousands of thread creations per token.
+- Persistent worker pool. The decode row dots and attention both run through it; previously each created and joined `std::thread`s per call, which on Qwen3-8B was thousands of thread creations per token.
 - The pool starts on the first dispatch that needs it (`run_parallel`), at the thread count in force then, and runs until the count changes.
   Construction and `set_threads` start no threads, so a loader that sets its count before any work starts one pool of the size it uses, and a one-thread backend never starts one.
   The first parallel pass after a load therefore includes the pool's start, once; the synthetic `bench` runs one untimed matmul first so that its timed loop leaves the start out.
@@ -24,13 +22,14 @@ the compiled binary portable to older CPUs.
 - `read`, `write` and `copy` accept valid zero-byte ranges, including empty
   buffers and an offset exactly at the end. Range checks still reject offsets
   past the end, and a nonempty write still requires a non-null source.
-- `matvec_q8_0` and the fused Q4_K, Q5_K and Q6_K row dots: the float
-  reference path of a decode row, fused dequant+FMA AVX2 dots taken only
-  when the quantized decode dots are off (`set_decode_activations8(false)`,
-  below); decode otherwise takes `q8_dots.hpp`. `matvec_q8_0` streams weight
-  blocks; native sampled instruction locations alone do not establish DRAM
-  bandwidth saturation or memory-stall causes. F16C availability is cached
-  and used for half conversion where supported.
+- `row_dot`: one weight row against one activation row in float, the one float decode row dot.
+  F32 takes `dot_f32`, Q8_0 `dot_row_impl`, and Q4_K, Q5_K and Q6_K their fused dequant+FMA dots, falling back to `dot_row_dequant` when a fused sum overflows.
+  A single-column decode matmul of those types calls it in one pooled loop over the rows, and a routed decode entry calls it for every type.
+  For the quantized types it is the float reference path, taken only when the quantized decode dots are off (`set_decode_activations8(false)`, below); decode otherwise takes `q8_dots.hpp`.
+  Other types, routed Q4_0 and Q4_1 decode among them, take `dot_row_dequant`, which dequantizes and sums in double, while a dense Q4_0 or Q4_1 decode keeps the batched float path, so the two differ in rounding.
+  The Q6_K dot rounds each scaled group sum before accumulating it, through separate intrinsics, because compilers fused the two into one FMA or not by the code around them and by their contraction rules.
+  GCC and MSVC builds round this dot as they did before the intrinsics, and a Clang build, which fused the plain expression at its default contraction, now rounds as they do; a Clang build with `-ffp-contract=fast` would still fuse the intrinsics.
+  `dot_row_impl` streams weight blocks with no software prefetch, which the hardware prefetcher makes unnecessary on these sequential streams; native sampled instruction locations alone do not establish DRAM bandwidth saturation or memory-stall causes.
 - `matmul`: type-generic batched matmul. Dequantizes `DOT_ROWS` weight rows
   through the registry, then walks the batch. `dot_f32_x4` loads each
   activation vector once and reuses it across those 4 rows, because the naive
@@ -47,8 +46,7 @@ the compiled binary portable to older CPUs.
 - F32 matrices use those same float dot kernels directly on resident host
   weights, without a dequantization buffer or row copy. Quantized inputs retain
   the existing row staging and fused decode paths.
-  Single-column F32 uses `dot_f32` one row at a time for contiguous weight
-  access; this has a different reduction order from the fused four-row dot.
+  Single-column F32 decode goes through `row_dot`, `dot_f32` one row at a time for contiguous weight access; this has a different reduction order from the fused four-row dot.
 - `DOT_ROWS` is the fused kernel's width, not a tuning constant. A cache-byte
   budget was measured instead and was worse at every size (see
   `docs/STATUS.md`).
@@ -56,13 +54,12 @@ the compiled binary portable to older CPUs.
   Q4_1, Q4_K, Q5_K or Q6_K decode projections in one pool dispatch. `RowRuns`
   also admits batches of generated rows. F32, prompt rows, single projections
   and unsupported integer-dot configurations fall back to separate matmul
-  calls; small grouped jobs run on the caller.
+  calls; small grouped jobs run on the caller (`split_rows`, below).
   Whether every row is a generated token's is read through `for_each_run`, so malformed runs are refused here as in `matmul`.
 - `dot_row_impl`: AVX2 fused dequant + FMA accumulation over int8 blocks.
   The stored half scale is broadcast directly from memory before F16C
   conversion; signed byte groups load directly into the widening operations.
-  Float activations and per-lane accumulation order are unchanged. Software
-  half conversion and scalar dot fallbacks remain available.
+  Float activations and per-lane accumulation order are unchanged.
 - **Order of operations decides whether a kernel can overflow, and the two
   families differ.** `dot_row_impl` folds the scale into each weight before it
   meets the activation, `(q*d)*x`, avoiding the demonstrated scale-after-sum
@@ -77,13 +74,11 @@ the compiled binary portable to older CPUs.
 - The `rms_norm_raw` helper under `rms_norm_rows` and `norm_rope_rows`, and
   `rope_raw` under `norm_rope_rows`: AVX2 vectorized with scalar tails for
   non-multiples of 8.
-- `rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`: the batched forms the
-  model calls. Two private helpers decide dispatch. `spread` keeps a stage on
-  the calling thread below two rows per worker; `chunk` keeps elementwise spans
-  under 32K elements there. Both thresholds are properties of a host thread
-  pool - waking it costs more than the work - and a device backend must not
-  inherit them. `silu_mul` keeps `std::exp` per element: a vectorized
-  approximation would shift logits and needs its own correctness gate.
+- `rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`: the batched forms the model calls.
+  Private helpers decide dispatch.
+  `spread` keeps a stage on the calling thread below two rows per worker; `chunk` keeps elementwise spans under 32K elements there; `split_rows` hands the row dots of a decode matmul, `matvec_q8x`, `matmul_group` and the routed decode entries to the pool in one contiguous range per worker, and keeps them on the caller below eight rows per worker, except an F32 decode matmul, which splits as the batched float path does, from `DOT_ROWS` rows per worker in whole `DOT_ROWS` chunks.
+  The thresholds are properties of a host thread pool - waking it costs more than the work - and a device backend must not inherit them.
+  `silu_mul` keeps `std::exp` per element: a vectorized approximation would shift logits and needs its own correctness gate.
 - `parallel_for` stays public here but is deliberately off the `Backend`
   interface; the batched ops above are how the model gets parallelism.
 - `CpuKVStorage`, `kv_layout`, `kv_alloc`, `kv_write`: the physical half of the paged KV cache.
@@ -96,8 +91,8 @@ the compiled binary portable to older CPUs.
   table order with one global softmax and token-ordered value accumulation
   across block edges, so the arithmetic is that of a contiguous history.
   The backend grows scratch to the sequence being processed, rather than
-  reserving the model's full context. AVX2 dots and weighted value accumulation have scalar
-  tails; a scalar branch is retained for the runtime AVX2 check.
+  reserving the model's full context.
+  AVX2 dots and weighted value accumulation have scalar tails.
   Vectorized dot reductions change summation order and require the HF gate.
   Value coefficients are normalized once, then output accumulators stay in
   registers across the KV sequence: 32-lane tiles, eight-lane remainders, and

@@ -1,0 +1,26 @@
+Sat Sep 26 14:45:15 UTC 2026
+19.58 21.37 23.07 16/3260 8
+cb build rc 0, warnings 0, errors 0; 04e85b3 docs: STATUS records the loader' dirty 0 llmx 0.1.0+g04e85b3e74b9
+cf build rc 0, warnings 0, errors 0; 832233a cpu: the runtime AVX2 and F16C c dirty 0 llmx 0.1.0+g832233a81a76
+cb harness rc 0, 11017 cases, warnings 0
+cf harness rc 0, 11017 cases, warnings 0
+harness IDENTICAL: 11018 lines
+ctest rc 0; 100% tests passed, 0 tests failed out of 22
+06q8.generate rc 0,0 f65b7c5864c26ed2 f65b7c5864c26ed2 same 379B
+06q8.logits rc 0,0 51498e9dddb595ce 51498e9dddb595ce same 298B
+06q8.ppl_tok rc 0,0 f28fe010b5b2dd0b f28fe010b5b2dd0b same 114B
+06q4.generate rc 0,0 a3694738ebec7af7 a3694738ebec7af7 same 374B
+06q4.logits rc 0,0 79183d2f800ee3fe 79183d2f800ee3fe same 296B
+06q4.ppl_tok rc 0,0 5857b67b4ad738bd 5857b67b4ad738bd same 114B
+06q5.generate rc 0,0 f65b7c5864c26ed2 f65b7c5864c26ed2 same 380B
+06q5.logits rc 0,0 c2f4dfacbc2d47d4 c2f4dfacbc2d47d4 same 297B
+06q5.ppl_tok rc 0,0 1956bbff92875b18 1956bbff92875b18 same 114B
+8q8.generate rc 0,0 a9ef32c5fe808a51 a9ef32c5fe808a51 same 379B
+8q8.logits rc 0,0 cc5df3725355d6c0 cc5df3725355d6c0 same 298B
+8q8.ppl_tok rc 0,0 a3c03c5f393ca7fc a3c03c5f393ca7fc same 114B
+30.generate rc 0,0 49e1b2c27da27144 49e1b2c27da27144 same 363B
+30.logits rc 0,0 2e02e08e230a1c24 2e02e08e230a1c24 same 298B
+30.ppl_tok rc 0,0 8d230b052e90dd35 8d230b052e90dd35 same 114B
+Sat Sep 26 15:05:53 UTC 2026
+19.88 23.80 25.52 8/2081 7032
+container exit 0

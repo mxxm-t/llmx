@@ -1,0 +1,22 @@
+trees: branch 79fc5e8 cpu: main 27130f7 docs
+build llmx-ck-fix: warning or error lines 0, 2 of 2 binaries, llmx 0.1.0+g79fc5e86261f
+build llmx-ck-base: warning or error lines 0, 2 of 2 binaries, llmx 0.1.0+g27130f771588
+SPIR-V modules that differ from main: 0 of 58
+one MI50, rocm-smi index 3, free after 0 min; load 26.04 21.98 18.98
+ctest at the branch: 100% tests passed, 0 tests failed out of 25
+device identity with main: 15 same, 0 differ, 0 empty or invalid, of 15
+bench 06 1 main bench: pp512 13215.64 +- 0.00 tok/s (1 runs) bench: tg128 301.19 +- 0.00 tok/s (1 runs)
+bench 06 1 branch bench: pp512 13263.54 +- 0.00 tok/s (1 runs) bench: tg128 325.18 +- 0.00 tok/s (1 runs)
+bench 06 2 branch bench: pp512 13209.19 +- 0.00 tok/s (1 runs) bench: tg128 334.27 +- 0.00 tok/s (1 runs)
+bench 06 2 main bench: pp512 13018.73 +- 0.00 tok/s (1 runs) bench: tg128 304.70 +- 0.00 tok/s (1 runs)
+bench 06 3 main bench: pp512 13087.26 +- 0.00 tok/s (1 runs) bench: tg128 302.31 +- 0.00 tok/s (1 runs)
+bench 06 3 branch bench: pp512 13270.39 +- 0.00 tok/s (1 runs) bench: tg128 332.76 +- 0.00 tok/s (1 runs)
+bench 30 1 main bench: pp128 884.55 +- 0.00 tok/s (1 runs) bench: tg32 134.64 +- 0.00 tok/s (1 runs)
+bench 30 1 branch bench: pp128 873.22 +- 0.00 tok/s (1 runs) bench: tg32 120.53 +- 0.00 tok/s (1 runs)
+bench 30 2 branch bench: pp128 881.40 +- 0.00 tok/s (1 runs) bench: tg32 130.62 +- 0.00 tok/s (1 runs)
+bench 30 2 main bench: pp128 880.80 +- 0.00 tok/s (1 runs) bench: tg32 132.27 +- 0.00 tok/s (1 runs)
+bench 30 3 main bench: pp128 883.90 +- 0.00 tok/s (1 runs) bench: tg32 134.82 +- 0.00 tok/s (1 runs)
+bench 30 3 branch bench: pp128 882.47 +- 0.00 tok/s (1 runs) bench: tg32 128.81 +- 0.00 tok/s (1 runs)
+python suite on vulkan:0 at the branch: EXIT 0;  version PASS  cli PASS  reference-generator PASS  reference-consumer PASS  roundtrip PASS  raw-blocks PASS  perf PASS  tokenizer PASS  perplexity PASS  f32 PASS  moe PASS  split PASS  shards PASS  server PASS  server-load PASS  chat PASS  threads PASS  baseline PASS
+load at the end 26.58 30.38 25.36
+DONE

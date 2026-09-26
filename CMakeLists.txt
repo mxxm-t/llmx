@@ -14,7 +14,7 @@ add_executable(llmx
 target_include_directories(llmx PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_include_directories(llmx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# Generate src/config.hpp with the cache options baked in, as 0/1; the committed src/config.hpp is the fallback for plain build.bat.
+# Generate config.hpp into the build tree from cmake/llmx-config.hpp.in, with the release version and the Vulkan backend flag as 0/1; the committed src/config.hpp is the fallback for plain build.bat.
 if(LLMX_HAS_BACKEND_VULKAN)
     set(LLMX_BACKEND_VULKAN_FLAG 1)
 else()
@@ -136,7 +136,7 @@ if(BUILD_TESTING)
     target_include_directories(llmx-model-validation-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-model-validation-test)
     add_test(NAME model-validation COMMAND llmx-model-validation-test)
-    # It builds hundreds of small models, which once started a CPU worker pool each and ran past 30 seconds on a host with no idle cores.
+    # It builds hundreds of small models, so it gets a longer timeout than the other unit tests.
     set_tests_properties(model-validation PROPERTIES TIMEOUT 120)
     add_executable(llmx-gguf-validation-test tests/gguf_validation.cpp)
     target_include_directories(llmx-gguf-validation-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -263,7 +263,7 @@ if(BUILD_TESTING)
         target_link_libraries(llmx-backend-vulkan-test PRIVATE llmx-vulkan)
         list(APPEND LLMX_TARGETS llmx-backend-vulkan-test)
         add_test(NAME backend-vulkan COMMAND llmx-backend-vulkan-test)
-        # It checks about 25 million kernel outputs against the CPU backend, which takes one to six minutes on a shared card.
+        # It checks millions of kernel outputs against the CPU backend, so it gets the longest timeout.
         set_tests_properties(backend-vulkan PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77)
         # Includes the private implementation to inject resource failures without runtime hooks.
         add_executable(llmx-vulkan-lifetime-test tests/vulkan_buffer.cpp)
@@ -293,7 +293,7 @@ endif()
 
 find_package(Threads REQUIRED)
 foreach(target IN LISTS LLMX_TARGETS)
-    # The current x86 build requires AVX2/FMA/F16C; per-kernel runtime checks do not make the binary portable to older CPUs.
+    # The x86 build requires AVX2/FMA/F16C, which the CPU kernels use with no runtime check; without them cpu_backend.hpp stops the compile.
     if(MSVC)
         target_compile_options(${target} PRIVATE /std:c++17 /O2 /arch:AVX2)
     else()

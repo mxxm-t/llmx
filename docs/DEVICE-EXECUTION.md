@@ -133,24 +133,20 @@ caller.
 
 ### Tensor residency
 
-`Model` resolves every tensor **once, at construction**, into per-layer structs:
+`Model` resolves every tensor **once, at construction**, into a row of weights per layer, indexed by the role ids of the architecture's plan:
 
 ```cpp
-struct DeviceTensor {
+struct Weight {
     uint32_t type = 0;
     BufferPtr data;
     size_t nin = 0, nout = 0;
 };
-struct LayerWeights {
-    DeviceTensor attn_norm, attn_q, attn_k, attn_v, attn_q_norm, attn_k_norm,
-                 attn_output, ffn_norm, ffn_gate, ffn_up, ffn_down;
-};
-std::vector<LayerWeights> layers_;
+std::vector<std::vector<Weight>> home_;   // per layer, by role id
 ```
 
-The current forward pass builds `"blk." + std::to_string(l) + "."` and does ~10
-hash lookups **per layer, per token** - ~280 per decoded token on 28 layers.
-Pre-resolution deletes them.
+Before this step the forward pass built `"blk." + std::to_string(l) + "."` and
+did ~10 hash lookups **per layer, per token** - ~280 per decoded token on 28
+layers. Resolution at construction removed them.
 
 **No admissible measurement yet.** An interleaved A/B showed 25.32 tok/s before
 and after, but it ran off-protocol and on a machine another agent's benchmark
@@ -301,7 +297,7 @@ benchmarkable against the floor.
 
 | # | Step | CPU effect |
 |---|---|---|
-| 1 | Pre-resolve tensors into `LayerWeights` (**done**) | Expected neutral; no admissible measurement |
+| 1 | Pre-resolve tensors once, at construction (**done**) | Expected neutral; no admissible measurement |
 | 2 | Batched elementwise ops (`rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`, `embed`); drop `parallel_for` / `for_rows` (**done**) | Measured; `silu_mul` helps prefill, which reads and writes three `n_ff * B` streams |
 | 3 | `Buffer`, `alloc`/`adopt`/`read`/`copy`; weights become buffers; `dot_q8_0` / `matvec_q8_0` leave the interface, the CPU's float Q8_0 decode row later going to its one row dot, `row_dot` (**done**) | Measured neutral over 15 and 9 pairs |
 | 4 | Activation arena; op signatures take buffer + offset (**done**) | Measured neutral over 15 and 9 pairs, twice |

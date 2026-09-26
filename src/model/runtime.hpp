@@ -12,6 +12,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <limits>
+#include <optional>
 #include <random>
 
 #include "format/gguf.hpp"
@@ -195,11 +196,137 @@ inline QwenWeights gguf_weights(const gguf::GGUFModel& m) {
     return w;
 }
 
+// The tensors a model is built from, by name, which an architecture's plan and the model's resolution both look names up in.
+// Built once over the views, it refuses a repeated name, and a lookup of an absent one gives the one missing-tensor text; it lives no longer than the views it refers to.
+class TensorIndex {
+public:
+    explicit TensorIndex(const std::vector<TensorView>& tensors) : tensors_(&tensors) {
+        index_.reserve(tensors.size());
+        for (size_t i = 0; i < tensors.size(); ++i)
+            if (!index_.emplace(tensors[i].name, i).second)
+                throw std::runtime_error("inference: duplicate tensor " + tensors[i].name);
+    }
+    std::optional<size_t> find(const std::string& name) const {
+        const auto it = index_.find(name);
+        if (it == index_.end()) return std::nullopt;
+        return it->second;
+    }
+    size_t at(const std::string& name) const {
+        const auto it = index_.find(name);
+        if (it == index_.end()) throw std::runtime_error("inference: missing tensor " + name);
+        return it->second;
+    }
+    const TensorView& view(size_t i) const { return (*tensors_)[i]; }
+
+private:
+    const std::vector<TensorView>* tensors_;
+    std::unordered_map<std::string, size_t> index_;
+};
+
+// The part of a pass a role runs with: a layer is a mixer part (attention) then a feed-forward part, which a placement may put on another device, and the embedding and the head are parts of the pass.
+enum class Part : uint8_t { embed, mixer, ffn, head };
+
+// How the model checks a role's tensor.
+enum class RoleKind : uint8_t {
+    norm,     // F32, [in], trailing axes of one
+    matrix,   // [in, out], trailing axes of one, read by a matrix product
+    gather,   // checked as a matrix, its rows gathered by the embedding
+    experts,  // exactly [in, out, experts], a routed stack
+};
+
+// What a routed layer run beside its mixer for a long prompt (Placement::stream_from) does with a feed-forward role: nothing, a copy adopted on the mixer's device at load, or a copy written into that device's window in each pass that needs it.
+enum class Stream : uint8_t { none, copy, window };
+
+// A tensor the model reads: the id its resolved weight is indexed by, the part it runs with, how it is checked, its name and the name taken when that is absent (a tied head reads the embedding), its expected shape and what streaming does with it.
+struct Role {
+    uint16_t id;
+    Part part;
+    RoleKind kind;
+    std::string name, alias;
+    uint64_t in = 0, out = 1, experts = 0;
+    Stream stream = Stream::none;
+};
+
+// A decoder layer as the model runs it: the architecture's own kind for it, whether its feed-forward part holds routed experts, and its roles in the order they are adopted.
+struct LayerPlan {
+    uint8_t kind = 0;
+    bool routed = false;
+    std::vector<Role> roles;
+};
+
+// What an architecture declares of a model's tensors: the size of every resolved row of weights, the vocabulary, the roles of the pass (the embedding's and the head's) and each layer's.
+struct ModelPlan {
+    size_t role_ids = 0;
+    size_t vocab = 0;
+    std::vector<Role> pass;
+    std::vector<LayerPlan> layers;
+};
+
+namespace qwen3 {
+
+// Qwen3's roles, by the id a row of resolved weights is indexed by, and its layer kinds.
+enum Role : uint16_t {
+    token_embd, output, output_norm,
+    attn_norm, attn_q_norm, attn_k_norm, attn_q, attn_k, attn_v, attn_output,
+    ffn_norm, ffn_gate, ffn_up, ffn_down, ffn_gate_inp, ffn_gate_exps, ffn_up_exps, ffn_down_exps,
+};
+enum Kind : uint8_t { dense, routed };
+
+// The plan of a file's tensors under a configuration: the embedding gives the vocabulary, and a layer with a router is routed, which a dense architecture refuses, as a dense layer is refused without the dense width.
+// A layer's roles are its attention's, its feed-forward norm, then its router and expert stacks or its three dense matrices; a routed layer copies its norm and router beside its mixer and writes its stacks into a window.
+inline ModelPlan plan(const QwenConfig& cfg, const TensorIndex& tensors) {
+    const TensorView& embedding = tensors.view(tensors.at("token_embd.weight"));
+    if (embedding.shape.size() < 2 || !embedding.shape[1] ||
+        embedding.shape[1] > uint64_t(std::numeric_limits<int>::max()))
+        throw std::runtime_error("inference: invalid vocabulary dimension");
+    ModelPlan p;
+    p.role_ids = ffn_down_exps + 1;
+    p.vocab = embedding.shape[1];
+    const uint64_t E = (uint64_t)cfg.n_embd, D = (uint64_t)cfg.head_dim;
+    const uint64_t Q = (uint64_t)cfg.n_head * D, KV = (uint64_t)cfg.n_head_kv * D;
+    p.pass = {{token_embd, Part::embed, RoleKind::gather, "token_embd.weight", "", E, p.vocab},
+              {output, Part::head, RoleKind::matrix, "output.weight", "token_embd.weight", E, p.vocab},
+              {output_norm, Part::head, RoleKind::norm, "output_norm.weight", "", E}};
+    p.layers.resize((size_t)cfg.n_layer);
+    for (int l = 0; l < cfg.n_layer; ++l) {
+        const std::string pre = "blk." + std::to_string(l) + ".";
+        LayerPlan& layer = p.layers[(size_t)l];
+        layer.routed = tensors.find(pre + "ffn_gate_inp.weight").has_value();
+        if (layer.routed && !cfg.n_expert) throw std::runtime_error("inference: expert tensors in a dense architecture " + pre);
+        if (!layer.routed && !cfg.n_ff) throw std::runtime_error("inference: dense layer without a feed-forward width " + pre);
+        layer.kind = layer.routed ? routed : dense;
+        const Stream copy = layer.routed ? Stream::copy : Stream::none;
+        layer.roles = {{attn_norm, Part::mixer, RoleKind::norm, pre + "attn_norm.weight", "", E},
+                       {attn_q_norm, Part::mixer, RoleKind::norm, pre + "attn_q_norm.weight", "", D},
+                       {attn_k_norm, Part::mixer, RoleKind::norm, pre + "attn_k_norm.weight", "", D},
+                       {attn_q, Part::mixer, RoleKind::matrix, pre + "attn_q.weight", "", E, Q},
+                       {attn_k, Part::mixer, RoleKind::matrix, pre + "attn_k.weight", "", E, KV},
+                       {attn_v, Part::mixer, RoleKind::matrix, pre + "attn_v.weight", "", E, KV},
+                       {attn_output, Part::mixer, RoleKind::matrix, pre + "attn_output.weight", "", Q, E},
+                       {ffn_norm, Part::ffn, RoleKind::norm, pre + "ffn_norm.weight", "", E, 1, 0, copy}};
+        if (layer.routed) {
+            const uint64_t X = (uint64_t)cfg.n_expert, F = (uint64_t)cfg.n_ff_exp;
+            layer.roles.push_back({ffn_gate_inp, Part::ffn, RoleKind::matrix, pre + "ffn_gate_inp.weight", "", E, X, 0, Stream::copy});
+            layer.roles.push_back({ffn_gate_exps, Part::ffn, RoleKind::experts, pre + "ffn_gate_exps.weight", "", E, F, X, Stream::window});
+            layer.roles.push_back({ffn_up_exps, Part::ffn, RoleKind::experts, pre + "ffn_up_exps.weight", "", E, F, X, Stream::window});
+            layer.roles.push_back({ffn_down_exps, Part::ffn, RoleKind::experts, pre + "ffn_down_exps.weight", "", F, E, X, Stream::window});
+        } else {
+            const uint64_t F = (uint64_t)cfg.n_ff;
+            layer.roles.push_back({ffn_gate, Part::ffn, RoleKind::matrix, pre + "ffn_gate.weight", "", E, F});
+            layer.roles.push_back({ffn_up, Part::ffn, RoleKind::matrix, pre + "ffn_up.weight", "", E, F});
+            layer.roles.push_back({ffn_down, Part::ffn, RoleKind::matrix, pre + "ffn_down.weight", "", F, E});
+        }
+    }
+    return p;
+}
+
+} // namespace qwen3
+
 // How the model's builder puts tensor `tensor` of its QwenWeights on backend `b`, returning the buffer the model reads.
 // The model calls it once for each backend that hosts a weight's role; without one it calls b.adopt(view.data, view.bytes).
 using AdoptWeight = std::function<backend::BufferPtr(size_t tensor, backend::Backend& b)>;
 
-// A weight resolved once at load: type, storage and dimensions, which the forward pass reads through layers_ rather than looking a tensor up by name.
+// A weight resolved once at load: type, storage and dimensions, which the forward pass reads from a row of resolved weights by role id rather than looking a tensor up by name.
 // A device backend recognizes a weight across calls by it, which residency needs (docs/DEVICE-EXECUTION.md).
 struct Weight {
     uint32_t type = 0;
@@ -212,18 +339,6 @@ struct Weight {
 };
 
 class Model;
-
-struct LayerWeights {
-    Weight attn_norm, attn_q_norm, attn_k_norm;
-    Weight attn_q, attn_k, attn_v, attn_output;
-    Weight ffn_norm, ffn_gate, ffn_up, ffn_down;
-    // A routed layer's router and its stacked experts, whose nin and nout are one expert's.
-    bool moe = false;
-    Weight ffn_gate_inp, ffn_gate_exps, ffn_up_exps, ffn_down_exps;
-    // A host-placed routed layer whose long prompt runs its attention device takes over (Placement::stream_from): the norm and router copied there, the experts copied into that device's window in each pass that needs them.
-    int stream_device = -1;
-    Weight stream_norm, stream_router;
-};
 
 // Where each tensor role runs, as an index into the model's backends, with empty meaning everything on device 0.
 // Per role rather than per layer, so a layer's attention and its feed-forward block can sit on different devices, as expert offload places them (docs/EXECUTION.md).
@@ -584,7 +699,10 @@ public:
         if ((size_t)place_.output_device != at) devices_[at]->sends = true;
 
         try {
-            resolve_tensors(weights, adopt);
+            const TensorIndex tensors(weights.tensors);
+            plan_ = qwen3::plan(cfg, tensors);
+            for (const LayerPlan& layer : plan_.layers) any_dense_ = any_dense_ || !layer.routed;
+            resolve_tensors(weights, tensors, adopt);
 
             // Each device that runs attention gets a storage for exactly its layers, with its own block size and pool.
             // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it.
@@ -656,7 +774,7 @@ public:
         for (const Device* d : storages_) largest = std::max(largest, d->b->kv_layout().block_tokens);
         return largest;
     }
-    size_t n_vocab() const { return output_.nout; }
+    size_t n_vocab() const { return plan_.vocab; }
     const QwenConfig& config() const { return cfg; }
     size_t prefill_batch() const { return (size_t)ubatch_; }
     // The host's count wherever it sits among the devices; a device backend reports 0.
@@ -940,119 +1058,97 @@ private:
     int ubatch_ = kDefaultUbatch;
     ModelOptions options_;
     bool any_dense_ = false;   // some layer has a dense feed-forward block
-    // Per device, what a streamed layer's experts are copied into: one buffer per projection, sized to the largest streamed layer's.
-    struct Window { backend::BufferPtr gate, up, down; };
-    std::vector<Window> windows_;
-    std::vector<LayerWeights> layers_;
-    Weight token_embd_, output_norm_, output_;
+    ModelPlan plan_;
+    std::vector<Weight> pass_;                  // the pass's roles by role id, on the embedding's and the head's devices
+    std::vector<std::vector<Weight>> home_;     // per layer, its roles by role id, each on the device of its part
+    // A routed layer run beside its mixer for a long prompt (Placement::stream_from): the device it runs on, or -1, and home_'s row with its copy roles adopted on that device and its window roles in that device's windows.
+    std::vector<int> stream_device_;
+    std::vector<std::vector<Weight>> stream_;
+    std::vector<std::vector<backend::BufferPtr>> windows_;   // per device, a buffer per window role in role order, sized to the largest streamed layer's
     std::vector<float> rope_cos_, rope_sin_;
     Sequence seq_;
     ExecContext ctx_;
 
-    // Validate every tensor this architecture needs and resolve it to a Weight in the same pass, so a resolved handle is well-formed by construction and the forward pass never looks a tensor up by name.
-    // Each weight is put on the backend that hosts its role, by the caller's hook when it gave one.
-    void resolve_tensors(const QwenWeights& weights, const AdoptWeight& adopt) {
-        std::unordered_map<std::string, size_t> index;
-        index.reserve(weights.tensors.size());
-        for (size_t i = 0; i < weights.tensors.size(); ++i)
-            if (!index.emplace(weights.tensors[i].name, i).second)
-                throw std::runtime_error("inference: duplicate tensor " + weights.tensors[i].name);
-        auto find = [&](const std::string& name) -> size_t {
-            auto it = index.find(name);
-            if (it == index.end()) throw std::runtime_error("inference: missing tensor " + name);
-            return it->second;
-        };
-        auto take = [&](size_t device, size_t i) -> backend::BufferPtr {
-            backend::Backend& b = *devices_[device]->b;
-            return adopt ? adopt(i, b) : b.adopt(weights.tensors[i].data, weights.tensors[i].bytes);
-        };
-        const TensorView& embedding = weights.tensors[find("token_embd.weight")];
-        if (embedding.shape.size() < 2 || !embedding.shape[1] ||
-            embedding.shape[1] > uint64_t(std::numeric_limits<int>::max()))
-            throw std::runtime_error("inference: invalid vocabulary dimension");
-        const uint64_t vocab = embedding.shape[1];
-        auto check = [&](size_t device, const std::string& name, uint64_t input,
-                         uint64_t output, bool norm = false) -> Weight {
-            const size_t i = find(name);
-            const TensorView& t = weights.tensors[i];
-            bool valid = !t.shape.empty() && t.shape[0] == input;
-            if (norm) {
-                valid = valid && t.type == quant::GGML_TYPE_F32;
+    // Resolve every role of the plan to a Weight, in plan order: the pass's roles, then each layer's followed by a streamed layer's copies.
+    // Each role's tensor is its name's, or its alias's when the name is absent, checked by the role's kind in the same step, so a resolved handle is well-formed by construction and the forward pass never looks a tensor up by name.
+    // Each weight is put on the backend that runs its part, by the caller's hook when it gave one, and a tensor two roles take on one device is put there once, as a tied head beside the embedding reads the embedding's buffer.
+    void resolve_tensors(const QwenWeights& weights, const TensorIndex& tensors, const AdoptWeight& adopt) {
+        const size_t n_devices = devices_.size();
+        std::vector<backend::BufferPtr> taken(weights.tensors.size() * n_devices);
+        auto resolve = [&](const Role& role, size_t device) -> Weight {
+            const std::optional<size_t> named = tensors.find(role.name);
+            const size_t i = named ? *named : tensors.at(role.alias.empty() ? role.name : role.alias);
+            const TensorView& t = tensors.view(i);
+            bool valid;
+            if (role.kind == RoleKind::experts) {
+                valid = t.shape.size() == 3 && t.shape[0] == role.in && t.shape[1] == role.out && t.shape[2] == role.experts;
             } else {
-                valid = valid && t.shape.size() >= 2 && t.shape[1] == output;
-            }
-            for (size_t d = norm ? 1 : 2; d < t.shape.size(); ++d) valid = valid && t.shape[d] == 1;
-            if (!valid) throw std::runtime_error("inference: incompatible tensor layout " + name);
-            return Weight{t.type, take(device, i), (size_t)input, (size_t)output};
-        };
-        // A stacked expert tensor: n_expert matrices of `output` rows of `input` values, the whole tensor adopted as one buffer.
-        auto experts = [&](size_t device, const std::string& name, uint64_t input, uint64_t output) -> Weight {
-            const size_t i = find(name);
-            const TensorView& t = weights.tensors[i];
-            if (t.shape.size() != 3 || t.shape[0] != input || t.shape[1] != output || t.shape[2] != (uint64_t)cfg.n_expert)
-                throw std::runtime_error("inference: incompatible tensor layout " + name);
-            return Weight{t.type, take(device, i), (size_t)input, (size_t)output};
-        };
-        // Tied embeddings: models without a separate output.weight reuse token_embd.weight as the output projection (same [n_embd, n_vocab] layout), so the head is just a matvec against the embedding matrix.
-        const std::string out_name = index.count("output.weight") ? "output.weight" : "token_embd.weight";
-        const size_t ed = (size_t)place_.embed_device, od = (size_t)place_.output_device;
-        token_embd_ = check(ed, "token_embd.weight", cfg.n_embd, vocab);
-        // A tied head on the embedding's own device reads the buffer adopted for the embedding rather than a second copy.
-        output_ = out_name == "token_embd.weight" && ed == od ? token_embd_ : check(od, out_name, cfg.n_embd, vocab);
-        output_norm_ = check(od, "output_norm.weight", cfg.n_embd, 1, true);
-        const uint64_t kv_width = uint64_t(cfg.n_head_kv) * cfg.head_dim;
-        layers_.resize(cfg.n_layer);
-        for (int l = 0; l < cfg.n_layer; ++l) {
-            const std::string pre = "blk." + std::to_string(l) + ".";
-            const size_t a = (size_t)place_.attn_device[(size_t)l];
-            const size_t f = (size_t)place_.ffn_device[(size_t)l];
-            LayerWeights& w = layers_[l];
-            w.attn_norm   = check(a, pre + "attn_norm.weight", cfg.n_embd, 1, true);
-            w.attn_q_norm = check(a, pre + "attn_q_norm.weight", cfg.head_dim, 1, true);
-            w.attn_k_norm = check(a, pre + "attn_k_norm.weight", cfg.head_dim, 1, true);
-            w.attn_q      = check(a, pre + "attn_q.weight", cfg.n_embd, q_dim_);
-            w.attn_k      = check(a, pre + "attn_k.weight", cfg.n_embd, kv_width);
-            w.attn_v      = check(a, pre + "attn_v.weight", cfg.n_embd, kv_width);
-            w.attn_output = check(a, pre + "attn_output.weight", q_dim_, cfg.n_embd);
-            w.ffn_norm    = check(f, pre + "ffn_norm.weight", cfg.n_embd, 1, true);
-            w.moe = index.count(pre + "ffn_gate_inp.weight") != 0;
-            if (w.moe) {
-                if (!cfg.n_expert) throw std::runtime_error("inference: expert tensors in a dense architecture " + pre);
-                w.ffn_gate_inp  = check(f, pre + "ffn_gate_inp.weight", cfg.n_embd, cfg.n_expert);
-                w.ffn_gate_exps = experts(f, pre + "ffn_gate_exps.weight", cfg.n_embd, cfg.n_ff_exp);
-                w.ffn_up_exps   = experts(f, pre + "ffn_up_exps.weight", cfg.n_embd, cfg.n_ff_exp);
-                w.ffn_down_exps = experts(f, pre + "ffn_down_exps.weight", cfg.n_ff_exp, cfg.n_embd);
-                // Experts read in place on the host beside attention on a device that copies its weights.
-                if (place_.stream_from && a != f && !devices_[a]->b->reads_in_place() && devices_[f]->b->reads_in_place()) {
-                    w.stream_device = (int)a;
-                    w.stream_norm = check(a, pre + "ffn_norm.weight", cfg.n_embd, 1, true);
-                    w.stream_router = check(a, pre + "ffn_gate_inp.weight", cfg.n_embd, cfg.n_expert);
+                const bool norm = role.kind == RoleKind::norm;
+                valid = !t.shape.empty() && t.shape[0] == role.in;
+                if (norm) {
+                    valid = valid && t.type == quant::GGML_TYPE_F32;
+                } else {
+                    valid = valid && t.shape.size() >= 2 && t.shape[1] == role.out;
                 }
-                continue;
+                for (size_t d = norm ? 1 : 2; d < t.shape.size(); ++d) valid = valid && t.shape[d] == 1;
             }
-            if (!cfg.n_ff) throw std::runtime_error("inference: dense layer without a feed-forward width " + pre);
-            any_dense_ = true;
-            w.ffn_gate    = check(f, pre + "ffn_gate.weight", cfg.n_embd, cfg.n_ff);
-            w.ffn_up      = check(f, pre + "ffn_up.weight", cfg.n_embd, cfg.n_ff);
-            w.ffn_down    = check(f, pre + "ffn_down.weight", cfg.n_ff, cfg.n_embd);
+            if (!valid) throw std::runtime_error("inference: incompatible tensor layout " + t.name);
+            backend::BufferPtr& buffer = taken[i * n_devices + device];
+            if (!buffer) {
+                backend::Backend& b = *devices_[device]->b;
+                buffer = adopt ? adopt(i, b) : b.adopt(t.data, t.bytes);
+            }
+            return Weight{t.type, buffer, (size_t)role.in, (size_t)role.out};
+        };
+        auto device_of = [&](Part part, size_t l) -> size_t {
+            if (part == Part::embed) return (size_t)place_.embed_device;
+            if (part == Part::head) return (size_t)place_.output_device;
+            return (size_t)(part == Part::mixer ? place_.attn_device[l] : place_.ffn_device[l]);
+        };
+        pass_.assign(plan_.role_ids, Weight{});
+        for (const Role& role : plan_.pass) pass_[role.id] = resolve(role, device_of(role.part, 0));
+        const size_t n_layer = plan_.layers.size();
+        home_.assign(n_layer, {});
+        stream_.assign(n_layer, {});
+        stream_device_.assign(n_layer, -1);
+        for (size_t l = 0; l < n_layer; ++l) {
+            const LayerPlan& layer = plan_.layers[l];
+            std::vector<Weight>& row = home_[l];
+            row.assign(plan_.role_ids, Weight{});
+            for (const Role& role : layer.roles) row[role.id] = resolve(role, device_of(role.part, l));
+            // Experts read in place on the host beside a mixer on a device that copies its weights.
+            const size_t a = (size_t)place_.attn_device[l], f = (size_t)place_.ffn_device[l];
+            if (!layer.routed || !place_.stream_from || a == f || devices_[a]->b->reads_in_place() || !devices_[f]->b->reads_in_place())
+                continue;
+            stream_device_[l] = (int)a;
+            stream_[l] = row;
+            for (const Role& role : layer.roles)
+                if (role.stream == Stream::copy) stream_[l][role.id] = resolve(role, a);
         }
         // The windows are allocated with the weights, so a pass never fails for want of one.
-        windows_.resize(devices_.size());
-        std::vector<size_t> sizes(devices_.size() * 3, 0);
-        for (const LayerWeights& w : layers_) {
-            if (w.stream_device < 0) continue;
-            size_t* s = &sizes[(size_t)w.stream_device * 3];
-            s[0] = std::max(s[0], w.ffn_gate_exps.data->size());
-            s[1] = std::max(s[1], w.ffn_up_exps.data->size());
-            s[2] = std::max(s[2], w.ffn_down_exps.data->size());
+        std::vector<std::vector<size_t>> sizes(n_devices);
+        for (size_t l = 0; l < n_layer; ++l) {
+            if (stream_device_[l] < 0) continue;
+            std::vector<size_t>& s = sizes[(size_t)stream_device_[l]];
+            size_t k = 0;
+            for (const Role& role : plan_.layers[l].roles) {
+                if (role.stream != Stream::window) continue;
+                if (k == s.size()) s.push_back(0);
+                s[k] = std::max(s[k], home_[l][role.id].data->size());
+                ++k;
+            }
         }
-        for (size_t d = 0; d < devices_.size(); ++d) {
-            const size_t* s = &sizes[d * 3];
-            if (!s[0]) continue;
-            backend::Backend& b = *devices_[d]->b;
-            windows_[d].gate = b.alloc(s[0]);
-            windows_[d].up = b.alloc(s[1]);
-            windows_[d].down = b.alloc(s[2]);
+        windows_.assign(n_devices, {});
+        for (size_t d = 0; d < n_devices; ++d)
+            for (size_t bytes : sizes[d]) windows_[d].push_back(devices_[d]->b->alloc(bytes));
+        for (size_t l = 0; l < n_layer; ++l) {
+            if (stream_device_[l] < 0) continue;
+            size_t k = 0;
+            for (const Role& role : plan_.layers[l].roles) {
+                if (role.stream != Stream::window) continue;
+                const Weight& home = home_[l][role.id];
+                stream_[l][role.id] = Weight{home.type, windows_[(size_t)stream_device_[l]][k++], home.nin, home.nout};
+            }
         }
     }
 
@@ -1143,8 +1239,9 @@ private:
         size_t cur = st.device;
         if (s == 0) {
             cur = (size_t)place_.embed_device;
-            devices_[cur]->b->embed(slot(ctx, cur, 0), token_embd_.type, token_embd_.slice(),
-                                    token_embd_.nin, token_embd_.nout, p.ids.data(), p.rows);
+            const Weight& embedding = pass_[qwen3::token_embd];
+            devices_[cur]->b->embed(slot(ctx, cur, 0), embedding.type, embedding.slice(),
+                                    embedding.nin, embedding.nout, p.ids.data(), p.rows);
         } else if (p.at != cur) {
             receive(ctx, p.at, p.handoff, p.sent, cur, 0, p.rows);
         }
@@ -1152,13 +1249,13 @@ private:
         for (int l = st.first; l < st.end; l++) {
             if (st.device != cur) { cross(ctx, cur, st.device, 0, p.rows); cur = st.device; }
             attention_half(ctx, p, cur, l, p.rows, p.entries.size());
-            if (p.long_runs && layers_[(size_t)l].stream_device == (int)cur) {
+            if (p.long_runs && stream_device_[(size_t)l] == (int)cur) {
                 ffn_split(ctx, p, cur, l);
                 continue;
             }
             const size_t f = (size_t)place_.ffn_device[(size_t)l];
             if (f != cur) { cross(ctx, cur, f, 0, p.rows); cur = f; }
-            ffn_half(ctx, cur, l, 0, p.rows, all, false);
+            ffn_half(ctx, cur, l, 0, p.rows, all, home_[(size_t)l].data());
         }
         if (s + 1 < stages_.size()) {
             // A residual already where the next stage runs stays there.
@@ -1170,12 +1267,14 @@ private:
             if (p.want) {
                 // The rows that want logits are not contiguous once entries mix, so they are compacted first and the head runs once over exactly those rows.
                 const size_t E = (size_t)cfg.n_embd;
+                const Weight& norm = pass_[qwen3::output_norm];
+                const Weight& head = pass_[qwen3::output];
                 backend::Backend& b = *devices_[cur]->b;
                 b.gather_rows(slot(ctx, cur, 1), slot(ctx, cur, 0), E, p.pick.data(), p.want);
-                b.rms_norm_rows(slot(ctx, cur, 1), slot(ctx, cur, 1), output_norm_.slice(),
+                b.rms_norm_rows(slot(ctx, cur, 1), slot(ctx, cur, 1), norm.slice(),
                                 p.want, E, E, cfg.rms_eps);
-                b.matmul_logits(output_.type, output_.slice(), slot(ctx, cur, 1),
-                                {ctx.logits_buf.get(), p.logits_base * output_.nout}, output_.nin, output_.nout, p.want,
+                b.matmul_logits(head.type, head.slice(), slot(ctx, cur, 1),
+                                {ctx.logits_buf.get(), p.logits_base * head.nout}, head.nin, head.nout, p.want,
                                 backend::RowRuns{p.head_runs.data(), p.head_runs.size()});
             }
         }
@@ -1283,11 +1382,11 @@ private:
         if (want && (!ctx.logits_buf || ctx.logit_rows < want)) {
             // The head writes here and the host reads it in place once the pass has retired: the one point per pass that must be host visible, and the one wait per pass.
             backend::BufferPtr logits = devices_[(size_t)place_.output_device]->b->alloc(
-                mul(mul(want, output_.nout), sizeof(float)), backend::Memory::host_visible);
+                mul(mul(want, plan_.vocab), sizeof(float)), backend::Memory::host_visible);
             if (ctx.logits_buf) devices_[(size_t)place_.output_device]->b->wait(ctx.tickets[(size_t)place_.output_device]);
             ctx.logits_buf = std::move(logits);
             ctx.logit_rows = want;
-            ctx.width = output_.nout;
+            ctx.width = plan_.vocab;
         }
     }
 
@@ -1330,10 +1429,11 @@ private:
         return place_.stream_from && p.runs[e].extent >= std::max<size_t>(place_.stream_from, 2);
     }
 
-    // A streamed layer in a pass with long runs: consecutive entries alike form a group, the long ones run where the residual is, with the experts copied into the window once, and the rest on the host through a crossing each way.
+    // A streamed layer in a pass with long runs: consecutive entries alike form a group, the long ones run where the residual is on the layer's streamed row, with each window role's bytes written into its window once, and the rest on the host through a crossing each way.
     // The residual ends where it started, on the layer's attention device.
     void ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l) {
-        const LayerWeights& w = layers_[(size_t)l];
+        const std::vector<Weight>& home = home_[(size_t)l];
+        const std::vector<Weight>& streamed = stream_[(size_t)l];
         const size_t host = (size_t)place_.ffn_device[(size_t)l];
         bool copied = false;
         for (size_t e = 0, base = 0; e < p.runs.size();) {
@@ -1348,16 +1448,15 @@ private:
             if (on_device) {
                 if (!copied) {
                     backend::Backend& b = *devices_[dev]->b;
-                    const Window& win = windows_[dev];
-                    b.write(*win.gate, 0, w.ffn_gate_exps.data->host_ptr(), w.ffn_gate_exps.data->size());
-                    b.write(*win.up, 0, w.ffn_up_exps.data->host_ptr(), w.ffn_up_exps.data->size());
-                    b.write(*win.down, 0, w.ffn_down_exps.data->host_ptr(), w.ffn_down_exps.data->size());
+                    for (const Role& role : plan_.layers[(size_t)l].roles)
+                        if (role.stream == Stream::window)
+                            b.write(*streamed[role.id].data, 0, home[role.id].data->host_ptr(), home[role.id].data->size());
                     copied = true;
                 }
-                ffn_half(ctx, dev, l, base, end - base, runs, true);
+                ffn_half(ctx, dev, l, base, end - base, runs, streamed.data());
             } else {
                 cross(ctx, dev, host, base, end - base);
-                ffn_half(ctx, host, l, base, end - base, runs, false);
+                ffn_half(ctx, host, l, base, end - base, runs, home.data());
                 cross(ctx, host, dev, base, end - base);
             }
             base = end;
@@ -1366,9 +1465,10 @@ private:
 
     // The slots are those of slot_widths.
     void attention_half(ExecContext& ctx, const Pass& p, size_t dev, int l, size_t rows, size_t n_views) {
+        using namespace qwen3;
         Device& d = *devices_[dev];
         backend::Backend& b = *d.b;
-        const LayerWeights& w = layers_[(size_t)l];
+        const Weight* w = home_[(size_t)l].data();
         const size_t E = (size_t)cfg.n_embd, half = (size_t)cfg.head_dim / 2;
         const size_t KV = (size_t)cfg.n_head_kv * cfg.head_dim;
         const backend::Slice x = slot(ctx, dev, 0), h = slot(ctx, dev, 1), q = slot(ctx, dev, 2),
@@ -1377,58 +1477,57 @@ private:
         const std::vector<backend::KVView>& views = p.views[(size_t)d.storage_index];
 
         const backend::RowRuns runs{p.runs.data(), p.runs.size()};
-        b.rms_norm_rows(h, x, w.attn_norm.slice(), rows, E, E, cfg.rms_eps, runs);
+        b.rms_norm_rows(h, x, w[attn_norm].slice(), rows, E, E, cfg.rms_eps, runs);
 
-        b.matmul_group({projection(w.attn_q, q),
-                        projection(w.attn_k, k),
-                        projection(w.attn_v, v)}, h, E, rows, runs);
+        b.matmul_group({projection(w[attn_q], q),
+                        projection(w[attn_k], k),
+                        projection(w[attn_v], v)}, h, E, rows, runs);
 
         const backend::Backend::RopeArgs rope{{d.rope_cos.get(), 0}, {d.rope_sin.get(), 0},
                                               half, p.pos.data(), cfg.rms_eps};
-        b.norm_rope_kv(q, (size_t)q_dim_, cfg.n_head, w.attn_q_norm.slice(),
-                       k, v, KV, cfg.n_head_kv, w.attn_k_norm.slice(),
+        b.norm_rope_kv(q, (size_t)q_dim_, cfg.n_head, w[attn_q_norm].slice(),
+                       k, v, KV, cfg.n_head_kv, w[attn_k_norm].slice(),
                        rope, rows, layer, views.data(), n_views);
         b.attention(q, layer, views.data(), n_views, attn,
                     cfg.n_head, cfg.n_head_kv, cfg.head_dim);
 
-        b.matmul_add(w.attn_output.type, w.attn_output.slice(), attn, x,
-                     w.attn_output.nin, w.attn_output.nout, rows, runs);
+        b.matmul_add(w[attn_output].type, w[attn_output].slice(), attn, x,
+                     w[attn_output].nin, w[attn_output].nout, rows, runs);
     }
 
-    // `rows` rows of the residual from `base`, through the scratch slots from their start; a streamed layer's on its attention device reads the copies there.
-    void ffn_half(ExecContext& ctx, size_t dev, int l, size_t base, size_t rows, backend::RowRuns runs, bool streamed) {
+    // `rows` rows of the residual from `base`, through the scratch slots from their start, reading the row of weights `w` by role id: the layer's own, or on its attention device a streamed layer's copies and windows.
+    void ffn_half(ExecContext& ctx, size_t dev, int l, size_t base, size_t rows, backend::RowRuns runs, const Weight* w) {
+        using namespace qwen3;
         backend::Backend& b = *devices_[dev]->b;
-        const LayerWeights& w = layers_[(size_t)l];
         const size_t E = (size_t)cfg.n_embd;
         backend::Slice x = slot(ctx, dev, 0);
         x.offset += base * E;
         const backend::Slice h = slot(ctx, dev, 1), gate = slot(ctx, dev, 6), up = slot(ctx, dev, 7), ffn = slot(ctx, dev, 8);
 
-        b.rms_norm_rows(h, x, (streamed ? w.stream_norm : w.ffn_norm).slice(), rows, E, E, cfg.rms_eps, runs);
+        b.rms_norm_rows(h, x, w[ffn_norm].slice(), rows, E, E, cfg.rms_eps, runs);
 
-        if (w.moe) {
+        if (plan_.layers[(size_t)l].kind == routed) {
             const backend::Slice scores = slot(ctx, dev, 9), ids = slot(ctx, dev, 10), weights = slot(ctx, dev, 11);
             const size_t k = (size_t)cfg.n_expert_used, n_expert = (size_t)cfg.n_expert, ff = (size_t)cfg.n_ff_exp;
-            const Weight& router = streamed ? w.stream_router : w.ffn_gate_inp;
-            const Window* win = streamed ? &windows_[dev] : nullptr;
+            const Weight& router = w[ffn_gate_inp];
             b.matmul(router.type, router.slice(), h, scores, E, n_expert, rows, runs);
             b.route_experts(scores, rows, n_expert, k, cfg.expert_norm, ids, weights);
             const backend::Backend::Routing routing{ids, weights, k, n_expert};
-            b.matmul_experts({projection(w.ffn_gate_exps, gate, win ? win->gate.get() : nullptr),
-                              projection(w.ffn_up_exps, up, win ? win->up.get() : nullptr)}, h, E, rows, routing, runs);
+            b.matmul_experts({projection(w[ffn_gate_exps], gate),
+                              projection(w[ffn_up_exps], up)}, h, E, rows, routing, runs);
             // The routed down projection reads the SiLU's output as k entries a token row, each of its token's prompt.
             ctx.entry_runs.clear();
             for (size_t i = 0; i < runs.n; ++i) ctx.entry_runs.push_back(backend::RowRun{runs.runs[i].end * k, runs.runs[i].extent});
             b.silu_mul(ffn, gate, up, rows * k * ff, {ctx.entry_runs.data(), ctx.entry_runs.size()});
-            b.matmul_experts_add(w.ffn_down_exps.type, {win ? win->down.get() : w.ffn_down_exps.data.get(), 0}, ffn, x,
+            b.matmul_experts_add(w[ffn_down_exps].type, w[ffn_down_exps].slice(), ffn, x,
                                  ff, E, rows, routing, runs);
             return;
         }
-        b.matmul_group({projection(w.ffn_gate, gate),
-                        projection(w.ffn_up, up)}, h, E, rows, runs);
+        b.matmul_group({projection(w[ffn_gate], gate),
+                        projection(w[ffn_up], up)}, h, E, rows, runs);
         b.silu_mul(ffn, gate, up, rows * (size_t)cfg.n_ff, runs);
-        b.matmul_add(w.ffn_down.type, w.ffn_down.slice(), ffn, x,
-                     w.ffn_down.nin, w.ffn_down.nout, rows, runs);
+        b.matmul_add(w[ffn_down].type, w[ffn_down].slice(), ffn, x,
+                     w[ffn_down].nin, w[ffn_down].nout, rows, runs);
     }
 
     // A block returns to the pool only once the backend has retired every submission that touched it (docs/KV-CACHE.md).
@@ -1438,8 +1537,8 @@ private:
     }
 
     // The buffer is passed by raw pointer, not by handle, so building a projection copies no shared pointer on the per-token path.
-    static backend::Projection projection(const Weight& w, backend::Slice out, const backend::Buffer* copy = nullptr) {
-        return {w.type, {copy ? copy : w.data.get(), 0}, out, w.nout};
+    static backend::Projection projection(const Weight& w, backend::Slice out) {
+        return {w.type, {w.data.get(), 0}, out, w.nout};
     }
 };
 

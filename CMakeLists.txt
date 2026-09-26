@@ -284,7 +284,7 @@ if(BUILD_TESTING)
         target_include_directories(llmx-vk-handoff PRIVATE ${LLMX_VULKAN_INCLUDE_DIR})
         target_link_libraries(llmx-vk-handoff PRIVATE ${CMAKE_DL_LIBS})
         list(APPEND LLMX_TARGETS llmx-vk-handoff)
-        # Not a test: phase 0's concurrency, pipeline, group sum and expert exchange measurements through the backend.
+        # Not a test: phase 0's concurrency, pipeline, group sum and expert exchange measurements through the backend, and a split model's stage times for the layer split's phase 3.
         add_executable(llmx-multi-device-bench tools/multi_device_bench.cpp)
         target_link_libraries(llmx-multi-device-bench PRIVATE llmx-vulkan)
         list(APPEND LLMX_TARGETS llmx-multi-device-bench)

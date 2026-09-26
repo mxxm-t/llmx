@@ -40,8 +40,12 @@ placement contracts in `docs/EXECUTION.md`.
   the read ring (`infer::detail::stream`).
 - `submit()` returns a monotonic `Ticket` for everything enqueued so far;
   `wait(t)` blocks until that submission has retired. The model submits
-  once per forward pass, waits on that ticket for the logits, and waits on
-  the last one again when a conversation is reset.
+  each device a stage records on at the end of that stage, and the source
+  device again at each crossing inside a stage, such as a feed-forward
+  block on another device than its attention or a streamed layer's host
+  rows on the way out and back, so a pass on a single device submits once.
+  It waits on its pass's last ticket for the logits, and on a sequence's
+  last tickets when that sequence is reset.
 - `sync()`: `noexcept`, like `wait`, and blocks until everything has
   retired, including ops queued behind no ticket. The model calls it on the
   failure paths before returning KV blocks to the pool, during failed loading

@@ -62,7 +62,7 @@ using Reply = std::vector<server::Request::Token>;
 struct Req {
     std::vector<uint32_t> prompt;
     int cap = 0;
-    std::string stop;
+    std::string stop = {};
 };
 
 server::SampleParams params_of(const Req& r) {

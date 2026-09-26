@@ -98,6 +98,34 @@ public:
     uint8_t* data() const { return data_; }
     size_t size() const { return size_; }
 
+    // `bytes` of address space, rounded up to whole pages, with no memory behind it until commit gives some: a layout whose parts are filled one by one, such as the direct load's copy of the weights a host reads.
+    static HostPages reserved(size_t bytes) {
+        HostPages p;
+        p.size_ = (bytes + page_size() - 1) / page_size() * page_size();
+        if (!p.size_) return p;
+#if defined(_WIN32)
+        p.data_ = (uint8_t*)VirtualAlloc(nullptr, p.size_, MEM_RESERVE, PAGE_NOACCESS);
+#else
+        void* q = mmap(nullptr, p.size_, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+        p.data_ = q == MAP_FAILED ? nullptr : (uint8_t*)q;
+#endif
+        if (!p.data_) throw std::runtime_error("cannot reserve " + std::to_string(p.size_) + " bytes of address space");
+        return p;
+    }
+
+    // Give memory to the whole pages covering `bytes` from `offset`, which must lie inside; committing a page twice is harmless.
+    void commit(size_t offset, size_t bytes) {
+        if (!bytes) return;
+        if (offset > size_ || bytes > size_ - offset) throw std::logic_error("host pages: commit outside the range");
+        const size_t page = page_size(), lo = offset / page * page, hi = (offset + bytes + page - 1) / page * page;
+#if defined(_WIN32)
+        const bool ok = VirtualAlloc(data_ + lo, hi - lo, MEM_COMMIT, PAGE_READWRITE) != nullptr;
+#else
+        const bool ok = mprotect(data_ + lo, hi - lo, PROT_READ | PROT_WRITE) == 0;
+#endif
+        if (!ok) throw std::runtime_error("cannot commit " + std::to_string(hi - lo) + " bytes of host pages");
+    }
+
 private:
     void release() noexcept {
         if (!data_) return;

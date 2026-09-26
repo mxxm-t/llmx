@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include "core/host_memory.hpp"
@@ -105,6 +106,28 @@ int main(int argc, char** argv) {
         bool refused = false;
         try { format::FileReader r((dir / "file-reader-missing.bin").u8string()); } catch (const std::runtime_error&) { refused = true; }
         require(refused, "a missing file was opened");
+        // Direct reads where this file system takes them: aligned ranges read the file, a read rounded up past the end is short by what the file lacks, and a misaligned request is refused rather than served.
+        // Where it does not, opening for direct reads says so.
+        try {
+            const format::FileReader r(path.u8string(), true);
+            const size_t g = r.granule();
+            require(r.direct() && g >= core::page_size() && g % core::page_size() == 0, "the direct granule is not a multiple of the page");
+            core::HostPages buf(big.size() + 2 * g);
+            require(r.read(0, buf.data(), 2 * g) == 2 * g && std::memcmp(buf.data(), big.data(), 2 * g) == 0, "a direct read differs from the file");
+            const uint64_t last = big.size() / g * g;
+            const size_t tail = big.size() - size_t(last);
+            require(r.read(last, buf.data(), g) == tail && std::memcmp(buf.data(), big.data() + last, tail) == 0,
+                    "a direct read rounded past the end is not short by what the file lacks");
+            for (const auto& [off, len, at] : std::vector<std::tuple<uint64_t, size_t, size_t>>{{1, g, 0}, {0, g + 1, 0}, {0, g, 1}}) {
+                bool misaligned = false;
+                try { r.read(off, buf.data() + at, len); } catch (const std::logic_error&) { misaligned = true; }
+                require(misaligned, "a misaligned direct read was served");
+            }
+            std::cout << "file-reader: direct reads, granule " << g << "\n";
+        } catch (const format::DirectUnavailable& e) {
+            require(std::string(e.what()).find(path.u8string()) != std::string::npos, "a direct refusal does not name its file");
+            std::cout << "file-reader: direct reads refused here: " << e.what() << "\n";
+        }
         std::cout << "file-reader: " << checks << " checks passed\n";
         return 0;
     } catch (const std::exception& e) {

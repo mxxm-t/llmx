@@ -127,7 +127,7 @@ do not want while measuring.
 - **Test configuration**: `LLMX_BASELINE_GGUF` points `tests/baseline.py` at a fixture model; `LLMX_DEVICE`, set by `run_tests.py --device`, appends `--device` to every command that takes it so the suite runs on a device backend, except where a component names its own devices (`threads` names the CPU, whose thread counts it checks, and `split` names the CPU backends its tool splits over); `LLMX_CACHE_TYPE`, set by `run_tests.py --cache-type`, appends `--cache-type-k` and `--cache-type-v` the same way so the HF gate runs with a chosen cache type; `LLMX_LAYER_SHARES`, set by `run_tests.py --layer-shares`, appends `--layer-shares` so a device list is tested at a split the fit would not choose.
   The synthetic bench (`bench` without `--model`) takes only `--device` and `--threads`, so it gets neither shares nor cache types, and `split` gives its tool equal shares and the cache types it names itself.
   The runtime stores f16 by default, so the components that check exact f32 arithmetic against independent fixtures (`f32`, `moe`, `shards`, `server`) ask for f32 sides themselves and skip when `--cache-type` asks for another type (`common.f32_cache_skip`).
-  `LLMX_LOAD_MODE`, set by `run_tests.py --load-mode`, appends `--load-mode` to every model command the same way, so the suite runs with the weights read either way.
+  `LLMX_LOAD_MODE`, set by `run_tests.py --load-mode`, appends `--load-mode` to every model command the same way, so the suite runs with the weights read in any mode.
   That is test configuration, not runtime configuration, and it reaches the binary only as the flags.
 
 If you add a flag, add it to `docs/USAGE.md` and to `print_usage` in the same
@@ -166,7 +166,8 @@ It then writes a tiny Qwen model with tokenizer metadata and loads it through `i
 Every load's progress starts at 0, only rises and ends at the payload, and every load gives logits bit-identical to the same model built in memory, with the tokenizer and the chat format loaded beside them.
 A write that fails part way through a streamed load, and a progress callback that throws, stop it with their errors.
 The stream itself runs in reads of one granule, so tensors cross reads and reads hold several tensors: every copy, two of one tensor included, holds the file's bytes, and a file cut after its header was read stops it with where the file ended.
-`file-reader` checks `format::FileReader` and `core::HostPages`: reads at any offset and length, a read past the end short by exactly what the file lacks, empty and tiny files, and eight threads reading one reader at once.
+`file-reader` checks `format::FileReader` and `core::HostPages`: reads at any offset and length, a read past the end short by exactly what the file lacks, empty and tiny files, and eight threads reading one reader at once; where the test's file system takes direct reads, aligned direct reads, a rounded one past the end, and the refusal of a misaligned one, and where it does not, the refusal naming the file.
+The loader's checks run in `direct` too where the file system takes direct reads, and check its refusal where it does not.
 
 `gguf-shards` covers complete shard sets, metadata-only first shards, exact
 payloads and the shard each tensor's span names (a zero-sized tensor that ends

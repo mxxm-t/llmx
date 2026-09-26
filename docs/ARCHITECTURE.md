@@ -186,7 +186,7 @@ become requirements imposed on future device backends.
 
 Loading reports progress through an optional `LoadProgress` callback, which the loader (`infer::load_model`) drives.
 With `--load-mode mapped` it counts the payload bytes whose pages were read in (`gguf::warm`), in file order, before the model is placed; a payload larger than available host memory is not read in, and its progress goes from 0 straight to complete.
-With `auto` it starts once the model is built and counts the bytes of every tensor a backend took, each once: those streamed to the devices as each read's copies are made, then those a host reads in place as their pages are read in, so it reaches complete after the last upload.
+With `auto` and `direct` it starts once the model is built and counts the bytes of every tensor a backend took, each once: those streamed to the devices as each read's copies are made, and those a host reads in place as they are read, into its own copy (`direct`) or through the mapping after the uploads (`auto`), so it reaches complete after the last upload.
 Reading a file's headers (`gguf::read_gguf`) and mapping its payload report nothing.
 Inference reports decoded byte chunks through the optional generation callback of `infer::generate`, which the CLI's `generate` and `chat` drive.
 Both callbacks run synchronously on their caller, hold no global subscriber state, and leave terminal formatting to the CLI.

@@ -45,7 +45,7 @@ def main():
                         help="with several devices in --device, their proportions of the layers, e.g. 1,1")
     parser.add_argument("--cache-type", default=None, choices=["f32", "f16"],
                         help="store both KV cache sides as this type in every command that takes --cache-type-k/-v")
-    parser.add_argument("--load-mode", default=None, choices=["auto", "mapped"],
+    parser.add_argument("--load-mode", default=None, choices=["auto", "mapped", "direct"],
                         help="read every model's weights this way in every command that takes --load-mode")
     parser.add_argument("--only", default=None, metavar="NAMES",
                         help="run only these components, comma separated, e.g. baseline or split,server")

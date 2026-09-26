@@ -52,6 +52,22 @@ struct CopyingBackend : backend::CpuBackend {
     }
 };
 
+// The load modes to run on the file at `path`: direct only where its file system takes direct reads, and where it does not, the refusal a direct load gives is checked instead.
+std::vector<infer::LoadMode> load_modes(const std::string& path) {
+    try {
+        format::FileReader probe(path, true);
+    } catch (const format::DirectUnavailable&) {
+        infer::PlacementRequest request;
+        request.names = {"cpu"};
+        std::string error;
+        try { infer::load_model(path, {backend::make_cpu_backend()}, request, {}, {}, infer::LoadMode::direct); }
+        catch (const std::runtime_error& e) { error = e.what(); }
+        require(error == "--load-mode direct: " + path + " is on a file system that does not take direct reads", "a direct load was not refused where direct reads are not taken");
+        return {infer::LoadMode::automatic, infer::LoadMode::mapped};
+    }
+    return {infer::LoadMode::automatic, infer::LoadMode::mapped, infer::LoadMode::direct};
+}
+
 // Whether every buffer holds the bytes of some tensor of `source` of its size, so nothing of the poison is left.
 bool holds_tensors(const std::vector<backend::BufferPtr>& buffers, const gguf::GGUFModel& source) {
     for (const auto& b : buffers) {
@@ -111,7 +127,7 @@ void loader_checks(const std::string& path) {
     const std::vector<float> expected = infer::Model(source, backend::make_cpu_backend()).prefill(ids);
     size_t payload = 0;
     for (size_t i = 0; i < source.tensors.size(); ++i) payload += source.tensor_bytes(i);
-    for (const infer::LoadMode mode : {infer::LoadMode::automatic, infer::LoadMode::mapped}) {
+    for (const infer::LoadMode mode : load_modes(path)) {
         for (const bool copying : {false, true}) {
             const auto copier = std::make_shared<CopyingBackend>();
             const backend::BackendPtr b = copying ? backend::BackendPtr(copier) : backend::make_cpu_backend();
@@ -121,14 +137,17 @@ void loader_checks(const std::string& path) {
             const auto loaded = infer::load_model(path, {b}, request, {}, progress.callback(), mode);
             require(progress.whole(payload), "a load's progress did not rise from 0 to the payload");
             // A streamed load's copies all hold file tensors' bytes; a mapped one adopts, and allocates no weight storage.
+            const bool streams = mode != infer::LoadMode::mapped;
             if (copying)
-                require(mode == infer::LoadMode::automatic ? copier->weights.size() == source.tensors.size() && holds_tensors(copier->weights, source)
-                                                           : copier->weights.empty(),
+                require(streams ? copier->weights.size() == source.tensors.size() && holds_tensors(copier->weights, source) : copier->weights.empty(),
                         "a copying backend's weights do not hold the file's bytes, or a mapped load allocated weight storage");
-            require(copying ? loaded->file.payload_size() == 0 : loaded->file.payload_size() != 0,
+            require(copying ? loaded->file.payload_size() == 0 && loaded->host.empty() : loaded->file.payload_size() != 0,
                     copying ? "a model no host reads kept the host copy" : "a model the CPU reads lost its payload");
-            require(loaded->times.mode == mode && (loaded->times.files == (copying && mode == infer::LoadMode::automatic ? 1u : 0u)),
-                    "a load streamed where its mode and backends say it should not, or did not where they say it should");
+            // auto streams a copying backend's weights through the cache; direct reads every file around it, into its own copy where the CPU reads in place.
+            const bool direct = mode == infer::LoadMode::direct;
+            require(loaded->times.mode == mode && loaded->times.files == (copying && mode == infer::LoadMode::automatic ? 1u : 0u) &&
+                        loaded->times.direct_files == (direct ? 1u : 0u) && loaded->host.size() == (direct && !copying ? 1u : 0u),
+                    "a load read where its mode and backends say it should not, or did not where they say it should");
             const std::vector<float> logits = loaded->model->prefill(ids);
             require(logits.size() == expected.size() &&
                         std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
@@ -221,7 +240,7 @@ void experts_checks(const std::string& path) {
     gguf::write_gguf(source, path);
     const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
     const std::vector<float> expected = infer::Model(source, backend::make_cpu_backend()).prefill(ids);
-    for (const infer::LoadMode mode : {infer::LoadMode::automatic, infer::LoadMode::mapped}) {
+    for (const infer::LoadMode mode : load_modes(path)) {
         infer::PlacementRequest request;
         request.names = {"cpu"};
         request.cpu_moe = -1;

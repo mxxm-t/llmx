@@ -236,7 +236,7 @@ Flags:
 | `--layer-shares A,B` | with several devices, their proportions of the layers |
 | `--n-cpu-moe N`, `--cpu-moe` | experts of the first `N` routed layers, or of all, on the CPU beside a device |
 | `--moe-stream-from N` | run those experts on the device for a prompt of at least `N` new tokens (default 0, never) |
-| `--load-mode M` | how the weights are read: `auto` (default) or `mapped` (below) |
+| `--load-mode M` | how the weights are read: `auto` (default), `mapped` or `direct` (below) |
 
 By default a window goes through the model in batched passes of up to `--ubatch` tokens, the way a prompt does, with logits taken for every position; the output head then runs once per pass over all of its rows. `--per-token` scores the same targets one token at a time instead, which is the path generation takes after the prompt. On a device the two paths use different kernels, so a score from each checks different code; they agree to within the rounding of their reductions. This all-target window policy differs from
 scoring modes elsewhere that exclude a warmup half-window; compare scores only with
@@ -377,13 +377,15 @@ sides to store the cache exactly.
 Every command that runs a model takes `--load-mode`, which says how the weights a device copies are read from the file; it means the same on every backend.
 
 - `auto` (the default) builds the model first, so every weight, cache and scratch buffer is allocated and a model that does not fit fails before any byte is uploaded, and then reads the weights a device copies from the file in large reads, in file order, on two reader threads, while the uploads of the reads before go on.
-  The reads go through the operating system's file cache, so a model loaded again is served from it while the host has room.
+  The reads go through the operating system's file cache, so a model loaded again is served from it while the host has room; when the weights a device copies are more than the host's available memory, and the file system takes direct reads, they go around the cache.
   Only the weights the CPU reads in place are mapped, and their pages are read in after the uploads, when the host has room for them.
   The progress starts once the model is built and reaches 100% after the last upload.
   A model on the CPU alone loads as with `mapped`.
 - `mapped` maps the whole file, reads every page in before the model is placed when the host has room for it, and copies each weight a device takes out of the mapping.
+- `direct` reads every weight around the file cache and maps nothing: those a device copies as `auto` streams them, and those the CPU reads into memory of its own laid out as the file, in the same pass.
+  It is refused, before the model is built, where a file's file system does not take direct reads (on Linux that needs 6.1 or later and a file system that reports the alignment), and after the model is built, before a byte is read, when the weights the CPU reads are more than the host's available memory.
 
-Both give the same model, bit for bit. With `--verbose`, and always with `bench --model`, a line after the split's plan gives the mode and where the load's time went: building the model, and for `auto` the reads, the uploads and the uploads' waits for a read.
+All three give the same model, bit for bit. With `--verbose`, and always with `bench --model`, a line after the split's plan gives the mode and where the load's time went: building the model, and for a streamed load the files read through the cache and around it, the reads, the uploads and the uploads' waits for a read.
 
 ## Physical batch (`--ubatch`)
 
@@ -436,7 +438,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--n-cpu-moe N`         | experts of the first `N` routed layers on the CPU    | 0       |
 | `--cpu-moe`             | experts of every routed layer on the CPU             | off     |
 | `--moe-stream-from N`   | new prompt tokens from which those experts run on the device | 0 (never) |
-| `--load-mode M`         | how the weights are read: `auto` or `mapped`          | auto    |
+| `--load-mode M`         | how the weights are read: `auto`, `mapped` or `direct` | auto    |
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--ignore-eos`          | never end at the model's end-of-text token           | off     |

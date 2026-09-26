@@ -1354,9 +1354,9 @@ struct PlacedModel {
     std::string plan;
 };
 
-// Whether the placement of `request` over `backends` adds a CPU backend for experts on the CPU, which it does beside one device that copies its weights.
+// Whether the placement of `request` over `backends` adds a CPU backend for experts on the CPU, which it does beside one backend that is not the CPU.
 inline bool adds_host_for_experts(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
-    return request.cpu_moe && backends.size() == 1 && request.shares.empty() && !backends[0]->reads_in_place();
+    return request.cpu_moe && backends.size() == 1 && request.shares.empty() && !backends[0]->is_cpu();
 }
 
 // Whether a backend of that placement reads weights in place: one of `backends`, or the CPU backend it adds for experts.

@@ -233,7 +233,7 @@ struct Placement {
     std::vector<int> attn_device, ffn_device;
     int embed_device = 0, output_device = 0;
     // A routed layer with its feed-forward block on a host and its attention on a device runs a prompt of at least this many new tokens on the device, its experts copied there for each pass: past some length a prompt's expert products on the host cost more than moving the experts.
-    // By the tokens the request prefills (BatchEntry::fresh), so a short reply in a long conversation stays on the host, and every slice of one prompt takes the same path however it is batched. Zero keeps every run on the host, and a generated token never streams: one row cannot pay for moving a layer's experts.
+    // By the tokens the request prefills (BatchEntry::fresh), so a short reply in a long conversation stays on the host, and every slice of one prompt takes the same path however it is batched. Zero keeps every run on the host, and neither a generated token nor a prompt of one new token streams, so 1 streams what 2 does: one row cannot pay for moving a layer's experts.
     size_t stream_from = 0;
 };
 
@@ -1217,7 +1217,7 @@ private:
         receive(ctx, from, 0, devices_[from]->b->submit(), to, base, rows);
     }
 
-    // Whether entry e of a pass takes a streamed layer on the device (Placement::stream_from): a prompt of enough new tokens, never a generated token.
+    // Whether entry e of a pass takes a streamed layer on the device (Placement::stream_from): a prompt of enough new tokens, two at the least, never a generated token.
     bool streams(const Pass& p, size_t e) const {
         return place_.stream_from && p.runs[e].extent > 1 && p.fresh[e] >= std::max<size_t>(place_.stream_from, 2);
     }

@@ -238,7 +238,7 @@ Flags:
 | `--device D`    | backend: `cpu`, or `vulkan:N` in a build with it |
 | `--layer-shares A,B` | with several devices, their proportions of the layers |
 | `--n-cpu-moe N`, `--cpu-moe` | experts of the first `N` routed layers, or of all, on the CPU beside a device |
-| `--moe-stream-from N` | run those experts on the device for a prompt of at least `N` new tokens (default 0, never) |
+| `--moe-stream-from N` | run those experts on the device for a prompt of at least `N` new tokens, two at the least (default 0, never) |
 | `--load-mode M` | how the weights are read: `auto` (default), `mapped` or `direct` (below) |
 
 By default a window goes through the model in batched passes of up to `--ubatch` tokens, the way a prompt does, with logits taken for every position; the output head then runs once per pass over all of its rows. `--per-token` scores the same targets one token at a time instead, which is the path generation takes after the prompt. On a device the two paths use different kernels, so a score from each checks different code; they agree to within the rounding of their reductions. This all-target window policy differs from
@@ -353,7 +353,7 @@ reused conversation prefix excluded, so a short reply in a long chat stays
 on the CPU; all slices of one prompt take the same path, alone or beside
 other requests. A server reply that reuses a cached prefix can therefore
 take the CPU for tokens a single pass over the whole conversation would
-stream, and differ from it by rounding. Generated tokens never stream. The device holds one layer's experts for this
+stream, and differ from it by rounding. Generated tokens never stream, and neither does a prompt of one new token, so `1` streams the prompts `2` does. The device holds one layer's experts for this
 (about 640 MB for Qwen3-30B-A3B Q8_0).
 Without `--n-cpu-moe` or `--cpu-moe` there are no experts on the CPU to stream, so a nonzero `--moe-stream-from` is refused.
 
@@ -442,7 +442,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--layer-shares A,B`    | with several devices, their proportions of the layers | fitted to free memory |
 | `--n-cpu-moe N`         | experts of the first `N` routed layers on the CPU    | 0       |
 | `--cpu-moe`             | experts of every routed layer on the CPU             | off     |
-| `--moe-stream-from N`   | new prompt tokens from which those experts run on the device | 0 (never) |
+| `--moe-stream-from N`   | new prompt tokens, two at the least, from which those experts run on the device | 0 (never) |
 | `--load-mode M`         | how the weights are read: `auto`, `mapped` or `direct` | auto    |
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |

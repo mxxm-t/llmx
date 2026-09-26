@@ -457,7 +457,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   The `--last` rows of the prompt, in one pass and in several, and of its first three tokens continued by `--then-ids`, are held to the HF bound at their positions.
   Each row is printed once, and the rows over several passes and after `--then-ids` are the bytes of the one-pass rows at the same positions.
 - **MoE** (`tests/moe.py`): the same for a tiny `qwen3moe` model against HF `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`), two routed layers and one dense, across batch widths and threads and, on a device, with the experts of one or every routed layer on the CPU (`--n-cpu-moe`, `--cpu-moe`).
-  On a device it also streams those layers to the device for prompts from a length on (`--moe-stream-from`): from 0, from 1, which a generated token never reaches, and from 4, which only the longer prompts reach.
+  On a device it also streams those layers to the device for prompts from a length on (`--moe-stream-from`): from 0, from 1, which streams what 2 does since neither a generated token nor a one-token prompt streams, and from 4, which only the longer prompts reach.
 - **Baseline** (`tests/baseline.py`): real-model EXTERNAL ground truth.
   Compares llmx against golden fixtures generated once from the HF reference by `tools/gen_baseline.py` and committed to `tests/data/`.
   Needs a real model, so it SKIPS when none is on disk; point it at one with `LLMX_BASELINE_GGUF`.

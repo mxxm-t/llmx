@@ -66,7 +66,7 @@ def run():
     assert weight_hash(weights) == golden["weights_sha256"], "MoE fixture weights changed"
     # On a device the experts also run on the CPU beside it: the first routed layer's alone, and all of them.
     # Experts on the CPU are a placement of one device; with several listed the split places whole layers instead.
-    # Streamed, the host's layers run on the device with their experts copied there: every prompt (from 1, which a generated token never reaches), and from 4 only the longer ones.
+    # Streamed, the host's layers run on the device with their experts copied there: every prompt of two tokens or more (from 1, which streams what 2 does, since neither a generated token nor a one-token prompt streams), and from 4 only the longer ones.
     device = os.environ.get("LLMX_DEVICE", "cpu")
     placements = [[]] + ([["--n-cpu-moe", "1", "--moe-stream-from", "0"], ["--cpu-moe", "--moe-stream-from", "0"],
                           ["--cpu-moe", "--moe-stream-from", "1"], ["--n-cpu-moe", "1", "--moe-stream-from", "4"]]

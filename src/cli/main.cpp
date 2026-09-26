@@ -824,7 +824,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --cpu-moe               All routed layers' experts on CPU\n"
             << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"
             << "                          at least N new tokens; 0 disables this (default: " << defaults.moe_stream_from << ").\n"
-            << "                          Generated tokens stay on CPU.\n"
+            << "                          Generated tokens and one-token prompts stay on CPU.\n"
             << "  --load-mode M           How weights are read: auto, mapped or direct (default: " << infer::load_mode_name(defaults.load_mode) << ")\n";
     };
     if (command == "chat" || command == "generate") {

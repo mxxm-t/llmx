@@ -36,8 +36,8 @@
 #include "backends/devices.hpp"
 #include "hub/pull.hpp"
 #include "format/gguf.hpp"
+#include "format/raw_convert.hpp"
 #include "quant/quant.hpp"
-#include "quant/convert.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "inference/sampler.hpp"
 #include "inference/generate.hpp"
@@ -278,16 +278,16 @@ void emit_text(const std::string& text) {
 // An unknown type name is a usage error, refused before any file is opened.
 int cmd_quantize(const std::string& json_path, const std::string& bin_path,
                  const std::string& out_path, const std::string& type_arg) {
-    const std::optional<uint32_t> type = quant::quant_type_of(type_arg);
+    const std::optional<uint32_t> type = format::quant_type_of(type_arg);
     if (!type) throw UsageError("unknown quant type: " + type_arg + " (expected q8_0 or q4_0)");
-    const size_t tensors = quant::quantize_raw(json_path, bin_path, out_path, *type);
+    const size_t tensors = format::quantize_raw(json_path, bin_path, out_path, *type);
     std::cout << "wrote " << out_path << " (" << tensors << " tensors, " << type_arg << ")\n";
     return 0;
 }
 
 int cmd_dequantize(const std::string& in_path, const std::string& out_json,
                    const std::string& out_bin) {
-    quant::dequantize_to_raw(in_path, out_json, out_bin);
+    format::dequantize_to_raw(in_path, out_json, out_bin);
     std::cout << "wrote " << out_json << " and " << out_bin << "\n";
     return 0;
 }

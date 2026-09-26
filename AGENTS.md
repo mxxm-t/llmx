@@ -558,7 +558,7 @@ matters: **each layer depends only on the layers below it** -
 | `core/`      | fp16 <-> f32, JSON parser, UTF-8, common types  |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
 | `quant/`     | QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
-| `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets |
+| `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, raw F32 tensors to and from GGUF |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | Qwen3 config + forward pass (dense and qwen3moe), KV cache, layer split over devices |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |

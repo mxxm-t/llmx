@@ -15,7 +15,7 @@
 #include "quant/quant.hpp"
 
 // Conversion between a model as raw F32 tensors and a GGUF file: model.json names the model and each tensor with its shape, model.bin holds their floats in that order.
-namespace quant {
+namespace format {
 
 // The tensors model.json describes, each to be written as `type`.
 inline std::vector<gguf::TensorInfo> raw_tensors(const jmini::Value& root, uint32_t type) {
@@ -65,7 +65,7 @@ inline uint32_t file_type_of(uint32_t type) {
 
 // Write the model model.json and model.bin describe as a GGUF file whose tensors are all `type`; returns the tensor count.
 inline size_t quantize_raw(const std::string& json_path, const std::string& bin_path, const std::string& out_path, uint32_t type) {
-    const QuantType* qt = Registry::instance().get(type);
+    const quant::QuantType* qt = quant::Registry::instance().get(type);
     if (!qt || !qt->quantize) throw std::runtime_error("quantize: unsupported quant type");
     std::ifstream jf(std::filesystem::u8path(json_path));
     if (!jf) throw std::runtime_error("cannot open " + json_path);
@@ -151,7 +151,7 @@ inline void dequantize_to_raw(const std::string& in_path, const std::string& out
         if (t.type == gguf::GGML_TYPE_F32) {
             std::memcpy(f.data(), raw, n * 4);
         } else {
-            const QuantType* qt = Registry::instance().get(t.type);
+            const quant::QuantType* qt = quant::Registry::instance().get(t.type);
             if (!qt || !qt->dequantize)
                 throw std::runtime_error("unsupported tensor type in dequantize: " + t.name);
             qt->dequantize(raw, f.data(), n / qt->block_size);
@@ -168,4 +168,4 @@ inline void dequantize_to_raw(const std::string& in_path, const std::string& out
     ob.write((const char*)out.data(), (std::streamsize)out.size());
 }
 
-} // namespace quant
+} // namespace format

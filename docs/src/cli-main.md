@@ -34,8 +34,8 @@ Commands and their entry points:
   pass HF credentials to `hub::pull`, render status on stderr and print the
   verified model path on stdout. See [Hub acquisition](hub.md).
 
-- `quantize` / `dequantize`: the dispatch in `main` checks the argument count, and `cmd_quantize` maps the type name, `kQuantType` when omitted, through `quant::quant_type_of`, a name quantize does not write being a usage error with exit status 2 before any file is opened.
-  Those are the CLI's two checks; `cmd_quantize` and `cmd_dequantize` then call `quant::quantize_raw` and `quant::dequantize_to_raw`, which check the tensors and files themselves (see [quant-convert](quant-convert.md)).
+- `quantize` / `dequantize`: the dispatch in `main` checks the argument count, and `cmd_quantize` maps the type name, `kQuantType` when omitted, through `format::quant_type_of`, a name quantize does not write being a usage error with exit status 2 before any file is opened.
+  Those are the CLI's two checks; `cmd_quantize` and `cmd_dequantize` then call `format::quantize_raw` and `format::dequantize_to_raw`, which check the tensors and files themselves (see [format-raw_convert](format-raw_convert.md)).
 - `info`: `cmd_info` (dump metadata + tensor list), each tensor's type named by the quant registry.
 - `tokenize` / `detokenize`: `cmd_tokenize` / `cmd_detokenize`.
 - `info`, `tokenize` and `detokenize` read the file's headers alone (`gguf::read_gguf`): they map no tensor data, so they neither read the payload nor hold the file.

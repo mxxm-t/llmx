@@ -60,6 +60,16 @@ bool load_modes() {
            refused("") && refused("mmap") && refused("Auto");
 }
 
+// An empty --layer-shares would read as no shares given, so it is refused as the flag is read, as a malformed list is.
+bool empty_layer_shares() {
+    std::string flag = "--layer-shares", empty;
+    char* argv[] = {flag.data(), empty.data()};
+    ExecOptions exec;
+    int i = 0;
+    try { exec_flag(2, argv, i, exec, false); } catch (const UsageError&) { return true; }
+    return false;
+}
+
 // --threads-batch and -tb are execution flags only where the command asks for them, as generate, chat and perplexity do; elsewhere they are not read, so the command refuses them as unknown.
 bool batch_threads() {
     auto read = [](std::string flag, bool batch_threads, ExecOptions& exec) {
@@ -160,6 +170,10 @@ int main() {
         std::cerr << "CLI load modes not read by name or not refused as the flag is read\n";
         return 1;
     }
+    if (!empty_layer_shares()) {
+        std::cerr << "CLI --layer-shares with an empty list read as no shares given\n";
+        return 1;
+    }
     if (!batch_threads()) {
         std::cerr << "CLI --threads-batch read where the command does not ask for it, or not read where it does\n";
         return 1;
@@ -172,6 +186,6 @@ int main() {
         std::cerr << "CLI token id lists not read as comma or whitespace separated ids within the vocabulary\n";
         return 1;
     }
-    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types and load modes refused as read; -tb read only where asked; numbers and token ids read strictly\n";
+    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types, load modes and an empty share list refused as read; -tb read only where asked; numbers and token ids read strictly\n";
     return 0;
 }

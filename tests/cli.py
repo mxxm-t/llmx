@@ -105,6 +105,25 @@ def check_usage_errors():
                        (["logits", model, "a", "--moe-stream-from", "4"], "logits"),
                        (["serve", model, "--moe-stream-from", "1", "--n-cpu-moe", "0"], "serve")):
         usage_error(args, page)
+    # Each line is checked by its reason, so a usage error for another cause does not pass for it.
+    # --per-token scores on --threads, a window of one token scores nothing, an empty value would read as the flag not given, a second value would overwrite the first, and --cpu-moe is --n-cpu-moe for every routed layer.
+    for args, page, reason in ((["--version", "extra"], "<command>", "--version takes nothing after it"),
+                               (["perplexity", model, "a", "--per-token", "-tb", "2"], "perplexity", "-tb sets the workers of batched passes"),
+                               (["perplexity", model, "a", "--threads-batch", "0", "--per-token"], "perplexity", "--threads-batch sets the workers of batched passes"),
+                               (["perplexity", model, "a", "-c", "1"], "perplexity", "-c: '1' is not a whole number of at least 2"),
+                               (["perplexity", model, "a", "--ctx-size", "1"], "perplexity", "--ctx-size: '1' is not a whole number of at least 2"),
+                               (["pull", "a/b:q8_0", "--file", ""], "pull", "--file needs a file name"),
+                               (["pull", "a/b:q8_0", "--cache-dir", ""], "pull", "--cache-dir needs a path"),
+                               (["generate", model, "a", "--stop", ""], "generate", "--stop needs a text"),
+                               (["logits", model, "a", "--then-ids", ""], "logits", "--then-ids needs a path"),
+                               (["generate", model, "a", "--layer-shares", ""], "generate", "--layer-shares needs a share for each device"),
+                               (["bench", "--model", "", "--size", "32", "--iters", "1", "--p", "1", "--n", "1"], "bench", "--model needs a path"),
+                               (["generate", model, "a", "--temp", "0", "--temp", "1"], "generate", "--temp is given twice"),
+                               (["generate", model, "a", "-n", "4", "--max-tokens", "8"], "generate", "-n and --max-tokens set the same thing"),
+                               (["pull", "a/b:q8_0", "--revision", "a", "--revision", "b"], "pull", "--revision is given twice"),
+                               (["generate", model, "a", "--cpu-moe", "--n-cpu-moe", "2"], "generate", "--cpu-moe and --n-cpu-moe set the same thing"),
+                               (["serve", model, "--n-cpu-moe", "1", "--cpu-moe"], "serve", "--n-cpu-moe and --cpu-moe set the same thing")):
+        usage_error(args, page, reason)
     # --ignore-eos is a switch, so a value written after it is refused rather than read as true or false: generate reads it as a second prompt and chat as a message.
     # The reasons are checked, since a parser without the switch would refuse these lines as an unknown flag.
     for args, page, reason in ((["generate", model, "a", "--ignore-eos", "true"], "generate", "a second prompt, 'true'"),
@@ -141,17 +160,22 @@ def help_page(command, directory):
     return pages[0]
 
 
-def listed_flags(page):
-    """The flags a page lists, each spelling with its value's placeholder or None.
+def flag_lines(page):
+    """The option lines of a page, each the list of its flag's spellings, each spelling with its value's placeholder or None.
     An option line is two spaces, the flag's spellings separated by ', ', each with its placeholder, then two or more spaces and the description."""
-    flags = {}
+    lines = []
     for line in page.splitlines():
         m = re.match(r"  (-\S.*?)(?:  +|$)", line)
         if m:
             spellings = m.group(1).split(", ")
             value = next((s.split(" ", 1)[1] for s in spellings if " " in s), None)
-            flags.update((s.split(" ", 1)[0], value) for s in spellings)
-    return flags
+            lines.append([(s.split(" ", 1)[0], value) for s in spellings])
+    return lines
+
+
+def listed_flags(page):
+    """The flags a page lists, each spelling with its value's placeholder or None."""
+    return {flag: value for spellings in flag_lines(page) for flag, value in spellings}
 
 
 # What each placeholder stands for in a line that takes the flag, a value every command listing that flag accepts.
@@ -163,6 +187,7 @@ UNREACHED = re.compile(r"error: (\w+: )?cannot open (file: )?missing\.|error: pu
 
 def check_help():
     """Every page needs no model, every flag a command's page lists is accepted by that command, and a flag its page does not list is refused.
+    A second value for a flag the page lists is refused, in one spelling and in each pair of the spellings its line lists, and a switch given twice is taken, since the second changes nothing.
     A flag is tried on a line that the command reads in full and then fails on as it opens an input file that does not exist, the model or a file a flag names, so no file or network is reached; pull fails on an empty quant the same way.
     The devices are made before the model is opened, so the one line naming a Vulkan device, --profile's, ends at that device's refusal on a build or a machine without it."""
     model = "missing.gguf"
@@ -171,15 +196,22 @@ def check_help():
              "pull": ["pull", "owner/repo:"], "info": ["info", model], "tokenize": ["tokenize", model, "a"],
              "detokenize": ["detokenize", model, "1"], "dequantize": ["dequantize", model, "out.json", "out.bin"],
              "quantize": ["quantize", "missing.json", "missing.bin", "out.gguf"]}
-    # bench's --size and --iters are the synthetic bench's, which runs in full on this line; --profile times one Vulkan device, and --moe-stream-from streams the experts on the CPU.
-    synthetic = ["bench", "--size", "32", "--iters", "1", "--p", "1", "--n", "1"]
+    # bench's --size and --iters are the synthetic bench's, which runs in full on a short line giving the other of the two once; --profile times one Vulkan device, and --moe-stream-from streams the experts on the CPU.
+    synthetic = ["bench", "--p", "1", "--n", "1"]
     company = {"--profile": ["--device", "vulkan:0"], "--moe-stream-from": ["--cpu-moe"]}
-    values = {"--size": "32"}
+    # Values a placeholder's would not give: --size is a multiple of 32, and a perplexity window holds two tokens at least.
+    values = {"--size": "32", "--ctx-size": "2", "-c": "2"}
+
+    def given(flag, value):
+        return [flag] + ([values.get(flag, PLACEHOLDERS[value])] if value else [])
 
     def line(command, flag, value):
-        args = [flag] + ([values.get(flag, PLACEHOLDERS[value])] if value else [])
+        args = given(flag, value)
         if command == "bench" and flag in ("--size", "--iters"):
-            return synthetic + args
+            return synthetic + given("--iters" if flag == "--size" else "--size", "N") + args
+        # bench's base line names the model with --model, so the flag's own line is the command and the flag alone.
+        if command == "bench" and flag == "--model":
+            return ["bench"] + args
         # A text file stands in place of the text, right after the model.
         if command in ("logits", "perplexity") and flag in ("--file", "-f"):
             return bases[command][:2] + args
@@ -206,12 +238,15 @@ def check_help():
             every.update(flags)
         take = [bases[c] for c in commands] + [line(c, f, v) for c in commands for f, v in listed[c].items()]
         refuse = [bases[c] + [f] + ([PLACEHOLDERS[v]] if v else []) for c in commands for f, v in every.items() if f not in listed[c]]
+        again = [(v, line(c, f, v) + given(g, v)) for c in commands for spellings in flag_lines(pages[c]) for f, v in spellings for g, _ in spellings]
+        switches = [args for v, args in again if not v]
+        twice = [args for v, args in again if v]
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-            jobs = [pool.submit(accepted, args, directory) for args in take]
-            jobs += [pool.submit(usage_error, args, args[0]) for args in refuse]
+            jobs = [pool.submit(accepted, args, directory) for args in take + switches]
+            jobs += [pool.submit(usage_error, args, args[0]) for args in refuse + twice]
             for job in jobs:
                 job.result()
-    return len(take), len(refuse)
+    return len(take) + len(switches), len(switches), len(refuse), len(twice)
 
 
 def run():
@@ -221,11 +256,12 @@ def run():
         devices = check_expert_flags(model)
         check_info(directory)
     check_usage_errors()
-    taken, refused = check_help()
+    taken, switches, refused, twice = check_help()
     print("cli: a Vulkan device refused without the backend or without the device, experts on the CPU refused on a model without routed layers "
           "on %d device(s) by the flag's name, info's architecture, layers and tensors, "
           "usage errors exiting 2 with the command's page, and every help page shown without a model, "
-          "with %d lines of the flags it lists taken and %d of the flags it does not list refused  [ok]" % (devices, taken, refused))
+          "with %d lines of the flags it lists taken, %d of them giving a switch twice, %d of the flags it does not list refused and %d giving a listed flag a second value refused  [ok]"
+          % (devices, taken, switches, refused, twice))
     return True
 
 

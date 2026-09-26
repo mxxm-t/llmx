@@ -167,8 +167,9 @@ to a `backend::Backend`.
     which every pass shares, a handoff buffer per slot on each device the
     residual leaves, two at least on a pipelined split and one for the
     single slot of a placement that is not pipelined, and `logit_rows` rows
-    of logits the caller hands out. The context is frozen from then on. More
-    than one slot needs a pipelined placement.
+    of logits the caller hands out. The context is frozen from then on. A
+    reservation that fails leaves the context fresh, so a smaller one may
+    follow. More than one slot needs a pipelined placement.
     `begin_pass(ctx, slot, entries, n, logits_base)` plans a pass in a free
     slot, copying its tokens, and puts its sequences in flight; a sequence
     in flight or listed twice, a slot in use or beyond the reservation, and

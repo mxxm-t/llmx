@@ -728,15 +728,18 @@ public:
 
     // Size a fresh context once, before any pass, for `slots` passes in flight of up to `rows` rows each and `logit_rows` rows of logits that the caller hands out to them (begin_pass's logits_base), with the handoff buffers of `slots` passes (handoffs).
     // The context is frozen from then on: begin_pass refuses a pass that needs more before any work, nothing is replaced while passes are in flight, and forward refuses it.
+    // A reservation that fails leaves the context fresh, so a smaller one may follow.
     // More than one slot needs a pipelined placement.
     void reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows) {
         if (ctx.slots || !ctx.scratch.empty()) throw std::logic_error("inference: reserve_passes takes a fresh context, once");
         if (!slots || !rows) throw std::logic_error("inference: reserve_passes needs a slot and a row");
         if (slots > 1 && !pipelined_) throw std::logic_error("inference: passes in flight need a pipelined placement");
-        ensure(ctx, rows, logit_rows, handoffs(slots));
-        ctx.passes.assign(slots, Pass{});
-        ctx.slots = slots;
-        ctx.pass_rows = rows;
+        ExecContext reserved;
+        ensure(reserved, rows, logit_rows, handoffs(slots));
+        reserved.passes.assign(slots, Pass{});
+        reserved.slots = slots;
+        reserved.pass_rows = rows;
+        ctx = std::move(reserved);
     }
 
     // Plan a pass in `slot` of a reserved context: its entries' tokens are copied here, and the head writes its wanting rows from logits row `logits_base` on.

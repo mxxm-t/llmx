@@ -393,33 +393,30 @@ struct FreeCost {
     double write = 0, run = 0;
 };
 
-// Both averaged on an idle device: a write alone, and a recording as its calls at their mean and its submissions at the final one's.
-// On an idle device only a call that submits or opens a command buffer can wait, for a slot the same pass filled, so each recording's slowest calls, two for each submission, are left out of the mean.
+// Both the median of 11 on an idle device: a write alone, and a recording as its calls at their mean and its submissions at the final one's.
+// On an idle device only a call that submits or opens a command buffer can wait, for a slot the same pass filled, so each recording's slowest calls, two for each submission, are left out of its mean.
 FreeCost free_cost(Stage& s, size_t rows) {
-    const int reps = 11;
     std::vector<float> r(rows * kEmbd, 0.01f);
-    double write = 0, submit = 0, calls = 0;
-    size_t kept = 0;
-    backend::Ticket submissions = 0;
-    for (int k = 0; k < reps; ++k) {
+    std::vector<double> writes, runs;
+    for (int k = 0; k < 11; ++k) {
         s.b->sync();
         const auto t0 = Clock::now();
         s.b->write(*s.x, 0, r.data(), r.size() * 4);
-        write += ms_since(t0) / reps;
+        writes.push_back(ms_since(t0));
         const backend::Ticket before = s.b->submit();
         s.b->wait(before);
         std::vector<double> each;
-        double last = 0;
-        const backend::Ticket t = s.run(rows, *s.outs[0], &each, &last);
-        submit += last / reps;
-        submissions = t - before;
+        double submit = 0;
+        const backend::Ticket t = s.run(rows, *s.outs[0], &each, &submit);
+        const size_t submissions = (size_t)(t - before);
         s.b->wait(t);
         std::sort(each.begin(), each.end());
-        const size_t keep = each.size() > 2 * submissions ? each.size() - 2 * (size_t)submissions : 1;
-        for (size_t i = 0; i < keep; ++i) calls += each[i];
-        kept += keep;
+        const size_t keep = each.size() > 2 * submissions ? each.size() - 2 * submissions : 1;
+        double kept = 0;
+        for (size_t i = 0; i < keep; ++i) kept += each[i];
+        runs.push_back(kept * (double)each.size() / (double)keep + (double)submissions * submit);
     }
-    return {write, (double)s.calls() * calls / (double)kept + (double)submissions * submit};
+    return {median(writes), median(runs)};
 }
 
 // What every driver runs on: the stages, the rows a pass, the host's sampling time a pass and each stage's costs when nothing blocks.
@@ -665,7 +662,8 @@ int pipeline(const std::vector<int>& devices, PipelineOptions o) {
     std::printf("drivers: per-stage, a thread per stage; completion, one thread serving stages as their passes complete; round, one thread in the round's order; round-idle, the round waiting for each device to finish before recording onto it\n");
     std::printf("onto: idle, a device gets a pass only once it has finished the last; busy, a pass is recorded as soon as its input is on the host\n");
     std::printf("passes: distinct passes seen leaving the last stage; on devices: passes recorded and not yet seen complete by the host, the mean over time and the most\n");
-    std::printf("thread: where one driving thread's time went; held is what recording and writes took beyond their mean on an idle device: waits for a command slot or for staging, and any delay a busy host adds\n");
+    std::printf("of slowest: passes a second against the slowest stage's rate with its passes recorded ahead, the most a filled pipeline can reach\n");
+    std::printf("thread: where one driving thread's time went; held is what recording and writes took beyond their median on an idle device: waits for a command slot or for staging, and any delay a busy host adds\n");
     std::printf("each driver runs twice at each P, in the order listed and then reversed\n");
     for (size_t ri = 0; ri < o.rows.size(); ++ri) {
         const size_t rows = o.rows[ri];
@@ -685,31 +683,47 @@ int pipeline(const std::vector<int>& devices, PipelineOptions o) {
                 if (k >= 3) serial += ms_since(t0) / 10;
             }
         }
-        // Each stage's pass repeated back to back, so the device never idles: the rate a filled pipeline is bounded by.
+        // A stage's passes one after another, each written in, recorded and copied out, either with the next recorded while the last runs or with the host waiting on each before the next.
+        // Recorded ahead, the device never idles, which gives the rate a filled pipeline is bounded by; waited on, the device idles while the host records.
         // The tickets count the submissions a pass takes.
-        std::printf("\n%zu row%s a pass:\n", rows, rows == 1 ? "" : "s");
-        Setup u{st, rows, o.sample_ms, {}};
-        double slowest = 0;
-        for (size_t i = 0; i < S; ++i) {
-            Stage& s = *st[i];
+        auto back_to_back = [&](Stage& s, bool ahead, double& per_pass) {
             std::vector<float> r(rows * kEmbd, 0.01f);
+            backend::Buffer* out[2] = {s.out.get(), s.outs[0].get()};
             for (int k = 0; k < 3; ++k) s.b->wait(s.run(rows));
             backend::Ticket first = 0, last = 0;
             const auto t0 = Clock::now();
             for (int k = 0; k < 20; ++k) {
                 s.b->write(*s.x, 0, r.data(), r.size() * 4);
-                last = s.run(rows);
-                if (!k) first = last;
-                s.b->wait(last);
-                std::memcpy(r.data(), s.out->host_ptr(), r.size() * 4);
+                const backend::Ticket t = s.run(rows, *out[k % 2]);
+                if (!k) first = t;
+                if (ahead && k) {
+                    s.b->wait(last);
+                    std::memcpy(r.data(), out[(k - 1) % 2]->host_ptr(), r.size() * 4);
+                }
+                if (!ahead) {
+                    s.b->wait(t);
+                    std::memcpy(r.data(), out[k % 2]->host_ptr(), r.size() * 4);
+                }
+                last = t;
             }
-            const double busy = ms_since(t0) / 20;
+            s.b->wait(last);
+            per_pass = ms_since(t0) / 20;
+            return double(last - first) / 19;
+        };
+        std::printf("\n%zu row%s a pass:\n", rows, rows == 1 ? "" : "s");
+        Setup u{st, rows, o.sample_ms, {}};
+        double slowest = 0;
+        for (size_t i = 0; i < S; ++i) {
+            Stage& s = *st[i];
+            double busy = 0, waited = 0;
+            const double submissions = back_to_back(s, true, busy);
+            back_to_back(s, false, waited);
             slowest = std::max(slowest, busy);
             u.free_cost.push_back(free_cost(s, rows));
             char asked[48] = "";
             if (o.calls && std::fabs((double)s.calls() - (double)o.calls) > 0.1 * (double)o.calls) std::snprintf(asked, sizeof asked, " of the %zu asked", o.calls);
-            std::printf("  stage %zu, device %d: %zu layers, %zu call%s a projection, %zu calls%s in %.1f submissions a pass, %.2f ms a pass back to back; written in %.3f ms and recorded in %.3f ms on an idle device\n",
-                        i, devices[i], s.layers, s.split, s.split == 1 ? "" : "s", s.calls(), asked, double(last - first) / 19, busy, u.free_cost[i].write, u.free_cost[i].run);
+            std::printf("  stage %zu, device %d: %zu layers, %zu call%s a projection, %zu calls%s in %.1f submissions a pass; %.2f ms a pass recorded ahead and %.2f ms waited on one at a time; written in %.3f ms and recorded in %.3f ms on an idle device\n",
+                        i, devices[i], s.layers, s.split, s.split == 1 ? "" : "s", s.calls(), asked, submissions, busy, waited, u.free_cost[i].write, u.free_cost[i].run);
         }
         std::printf("  one pass through every stage alone: %.2f ms\n", serial);
         std::printf("  %-11s %-5s %6s %12s %9s %10s %10s\n", "driver", "onto", "passes", "on devices", "passes/s", "ms a pass", "of slowest");

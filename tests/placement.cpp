@@ -688,8 +688,7 @@ struct FormedPass {
 
 constexpr size_t kPassUbatch = 16, kPassSeqs = 5, kPassLogitRows = 2 * kPassSeqs;
 
-// One run over S CPU stages with P pass slots.
-// Every logits row must be the bytes of its request run alone through prefill and step on one CPU backend.
+// One run over S CPU stages with P pass slots, in which every logits row must be the bytes of its request run alone through prefill and step on one CPU backend.
 // Once in the run, a backend fails a pass of several sequences at its next stage: that pass's histories go back to where it found them in every storage, the other passes go on, and its requests, formed again, still give their rows alone.
 void passes_run(const gguf::GGUFModel& weights, size_t S, size_t P, uint32_t seed) {
     std::mt19937 rng(seed);
@@ -924,8 +923,7 @@ struct TightCpu : backend::CpuBackend {
 };
 
 // What the pass API refuses, each before any work and with nothing changed: a context not reserved, reserved twice, used before or on a placement that is not pipelined for more than one slot; forward through a reserved context; a slot beyond the reservation or in use; more rows or logits rows than reserved; a sequence listed twice or already in flight, and reset, fork and forward of one; stages out of order or twice, and logits or an end before the last stage.
-// A reservation the devices cannot hold fails with their error and leaves the context fresh, so a smaller one on it succeeds.
-// A pass ended, one aborted after its first stage, and the aborted one run again must each leave the histories and rows of the sequences run alone.
+// Beside them, a reservation the devices cannot hold fails with their error and leaves the context fresh, so a smaller one on it succeeds, and a pass ended, one aborted after its first stage and the aborted one run again each leave the histories and rows of the sequences run alone.
 void passes_refused() {
     const auto weights = tiny_qwen(4, 2 * 128, true);
     std::vector<std::shared_ptr<TightCpu>> tight{std::make_shared<TightCpu>(), std::make_shared<TightCpu>()};

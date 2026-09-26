@@ -95,12 +95,8 @@ struct LayerSplit {
     }
 };
 
-// Consecutive layers per device in the order given.
-// Every set of devices that could run layers is tried, each of its devices running at least one: the first carries the embedding and the last the head, and a small dynamic program assigns the layers by their actual sizes, the fewest layers on devices that read the mapped file in place, then the lightest busiest device, every device within its budget.
-// The plan kept is the best of those sets by the same order; devices are a machine's few cards and its CPU, so trying every set stays small.
-// `shares`, when given, is each device's proportion of the layers and overrides the balance; the fit is still checked.
-// What a device must hold: its layers' weights as it keeps them resident and their caches; on the first and last devices the embedding and the head, once when a device holds both and they are tied; `rows` rows of activations; and where it copies weights its own tables and its kernels' scratch (DeviceBudget::scratch).
-// What the host must hold for a set: `rows` rows of logits, the position tables, a handoff buffer of `rows` rows per pass slot, two at least, on each device but the last, which sends nothing (`slots`, the passes a caller keeps in flight), and the host memory of each backend in the set; on the set's first host device, whose budget is the host's memory, else within the first host device listed or, with none listed, `host_free`.
+// Consecutive layers per device in the order given: the best plan over every set of devices that could run layers, with every device and the host within its budget (docs/src/model-layer_split.md says what each holds).
+// `shares`, when given, is each device's proportion of the layers in place of the balance, still checked against the budgets.
 inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {},
                                std::optional<size_t> host_free = std::nullopt, size_t slots = 1) {
     if (devices.empty()) throw std::runtime_error("split: no devices");

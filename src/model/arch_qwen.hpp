@@ -167,8 +167,7 @@ struct TensorView {
     size_t bytes = 0;
 };
 
-// What a model of this architecture is built from, whatever file it came from: the configuration and one view per tensor in the file's order, so tensor i is the file's tensor i.
-// Names are unique.
+// What a model of this architecture is built from, whatever file it came from: the configuration and one view per tensor in the file's order, so tensor i is the file's tensor i, each under a unique name.
 // The model reads the views only while it is built; a streamed load reads the bytes again afterwards to fill what a copying backend took, and the bytes a backend adopted in place are read for as long as its buffer lives.
 struct QwenWeights {
     QwenConfig config;
@@ -200,9 +199,8 @@ inline QwenWeights gguf_weights(const gguf::GGUFModel& m) {
 // The model calls it once for each backend that hosts a weight's role; without one it calls b.adopt(view.data, view.bytes).
 using AdoptWeight = std::function<backend::BufferPtr(size_t tensor, backend::Backend& b)>;
 
-// A weight resolved once at load: type, storage and dimensions.
-// Resolving per call meant rebuilding "blk.N." and hashing a tensor name for every projection of every layer of every token; the forward pass indexes layers_ instead.
-// It is also what lets a device backend recognize a weight across calls, which is the prerequisite for residency (docs/DEVICE-EXECUTION.md).
+// A weight resolved once at load: type, storage and dimensions, which the forward pass reads through layers_ rather than looking a tensor up by name.
+// A device backend recognizes a weight across calls by it, which residency needs (docs/DEVICE-EXECUTION.md).
 struct Weight {
     uint32_t type = 0;
     // A handle, not a pointer: the backend decides where the bytes live.
@@ -227,9 +225,8 @@ struct LayerWeights {
     Weight stream_norm, stream_router;
 };
 
-// Where each tensor role runs, as an index into the model's backends.
-// Per role rather than per layer, so a layer's attention and its feed-forward block can sit on different devices; that is what expert offload needs later (docs/EXECUTION.md).
-// Empty means everything on device 0.
+// Where each tensor role runs, as an index into the model's backends, with empty meaning everything on device 0.
+// Per role rather than per layer, so a layer's attention and its feed-forward block can sit on different devices, as expert offload places them (docs/EXECUTION.md).
 struct Placement {
     std::vector<int> attn_device, ffn_device;
     int embed_device = 0, output_device = 0;
@@ -248,10 +245,8 @@ struct ModelOptions {
     size_t kv_tokens = 0;
 };
 
-// One request's history in a model's cache: a block table per storage and the committed length, and per device the ticket of the last pass that touched it, which is what a release waits on rather than draining the device (docs/EXECUTION.md).
-// Made by Model::make_sequence so it is bound to that model's pools and block sizes.
-// Movable, not copyable; the server keeps one per request.
-// From Model::begin_pass until its end_pass or abort_pass a sequence is in flight: no other pass, reset or fork takes it, and it must not move, since the pass holds its address.
+// One request's history in a model's cache, made by Model::make_sequence for that model's pools and block sizes: a block table per storage, the committed length, and per device the ticket of the last pass that touched it, which a release waits on rather than draining the device (docs/EXECUTION.md).
+// Movable, not copyable; from Model::begin_pass until its end_pass or abort_pass it is in flight, when no other pass, reset or fork takes it and it must not move, since the pass holds its address.
 class Sequence {
 public:
     Sequence() = default;
@@ -301,10 +296,8 @@ struct Pass {
     size_t ran = 0;                                    // the stages run_pass_stage has recorded
 };
 
-// Where a context's passes run: an activation arena per device, which each device's passes use in turn, host-visible handoff buffers on each device a crossing leaves, the host-visible logits rows on the output device, and the tickets of the submissions.
-// A forward grows it to the largest pass seen; Model::reserve_passes instead sizes it once for passes in flight, each slot with its own handoff buffers and logits rows, and replaces nothing after that.
-// The CLI has one context, and a scheduler that keeps passes in flight reserves one.
-// Plain data that Model fills.
+// Where a context's passes run, as plain data Model fills: an activation arena per device, which each device's passes use in turn, host-visible handoff buffers on each device a crossing leaves, the host-visible logits rows on the output device, and the tickets of the submissions.
+// A forward grows it to the largest pass seen, while Model::reserve_passes sizes it once for passes in flight, each slot with its own handoff buffers and logits rows, and replaces nothing after that.
 struct ExecContext {
     // Row i of the logits the last forward produced, in entry order, valid until the next forward through this context.
     // The first read waits on the pass's ticket, so forward itself never blocks: a caller with two contexts submits the next pass before it reads this one.
@@ -640,8 +633,7 @@ public:
 
     ~Model() { retire(); }
 
-    // Sequences hold the pools' addresses; moving the model would leave them pointing at the old ones.
-    // Nothing moves a Model today.
+    // Sequences hold the pools' addresses, so a Model is neither copied nor moved.
     Model(const Model&) = delete;
     Model& operator=(const Model&) = delete;
 
@@ -726,10 +718,8 @@ public:
     // Whether passes may be in flight together: several stages, the embedding on the first stage's device, the head on the last's and every feed-forward block beside its attention.
     bool pipelined() const { return pipelined_; }
 
-    // Size a fresh context once, before any pass, for `slots` passes in flight of up to `rows` rows each and `logit_rows` rows of logits that the caller hands out to them (begin_pass's logits_base), with the handoff buffers of `slots` passes (handoffs).
+    // Size a fresh context once, before any pass, for `slots` passes in flight, which above one need a pipelined placement, of up to `rows` rows each, with their handoff buffers and `logit_rows` rows of logits the caller hands out (begin_pass's logits_base); a reservation that fails leaves the context fresh, so a smaller one may follow.
     // The context is frozen from then on: begin_pass refuses a pass that needs more before any work, nothing is replaced while passes are in flight, and forward refuses it.
-    // A reservation that fails leaves the context fresh, so a smaller one may follow.
-    // More than one slot needs a pipelined placement.
     void reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows) {
         if (ctx.slots || !ctx.scratch.empty()) throw std::logic_error("inference: reserve_passes takes a fresh context, once");
         if (!slots || !rows) throw std::logic_error("inference: reserve_passes needs a slot and a row");
@@ -742,8 +732,7 @@ public:
         ctx = std::move(reserved);
     }
 
-    // Plan a pass in `slot` of a reserved context: its entries' tokens are copied here, and the head writes its wanting rows from logits row `logits_base` on.
-    // Its sequences are in flight until end_pass or abort_pass.
+    // Plan a pass in `slot` of a reserved context, its entries' tokens copied here and its wanting rows written from logits row `logits_base` on, and put its sequences in flight until end_pass or abort_pass.
     // A sequence in flight or listed twice, a slot in use or beyond the reservation, and more rows or logits rows than reserved are refused, with nothing changed.
     void begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base) {
         if (!ctx.slots) throw std::logic_error("inference: begin_pass needs a context reserved for passes");
@@ -831,7 +820,7 @@ public:
         // The prompt is one transaction across its microbatches: a failure in any of them restores the history from before the call.
         const size_t start = seq_.length();
         auto work = [&] {
-            // Sized to the largest chunk this prompt will use, inside the scope, so a short prompt does not allocate scratch for a full ubatch (at n_ff 12288 a 512-wide gate/up/ffn is about 25 MB each).
+            // Sized to the largest chunk this prompt will use, inside the scope, so a short prompt does not allocate scratch for a full ubatch.
             // Sized before any chunk runs, so nothing in flight loses its storage.
             ensure(ctx_, std::min((size_t)ubatch(), ids.size()), 1, handoffs(1));
             const size_t B = (size_t)ubatch(), chunks = (ids.size() + B - 1) / B;
@@ -1075,8 +1064,7 @@ private:
         return s.kv_[(size_t)devices_[stages_.front().device]->storage_index].length();
     }
 
-    // A pass's plan: its rows in entry order, their positions after each history, and the rows the head reads, from logits row `logits_base` on.
-    // Nothing is reserved yet; each stage reserves the blocks of the storage it writes.
+    // A pass's plan: its rows in entry order, their positions after each history, and the rows the head reads, from logits row `logits_base` on, with nothing reserved yet, since each stage reserves the blocks of the storage it writes.
     // A context reserved for passes is not grown: a pass that needs more rows or logits rows than it holds is refused here.
     void begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries, size_t logits_base = 0) {
         if (!entries || !n_entries) throw std::runtime_error("inference: empty batch");
@@ -1449,7 +1437,7 @@ private:
         for (auto& d : devices_) if (d->used) d->b->sync();
     }
 
-    // The buffer is passed by raw pointer, not by handle: three projections per layer per token is nearly two hundred refcount pairs a token if a shared pointer is copied here instead.
+    // The buffer is passed by raw pointer, not by handle, so building a projection copies no shared pointer on the per-token path.
     static backend::Projection projection(const Weight& w, backend::Slice out, const backend::Buffer* copy = nullptr) {
         return {w.type, {copy ? copy : w.data.get(), 0}, out, w.nout};
     }

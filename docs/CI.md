@@ -86,8 +86,10 @@ The qwen35 pretokenizer is held to HF in every job all the same, with no model: 
 
 The Python suite also checks reference-generator argument safeguards and that the requested commit, float32 dtype and eager attention reach the HF loader.
 It checks that the qwen35 tokenizer golden keeps every merge its texts reach and gives the added tokens the files' types, that a tokenizer file with another SHA-256 is refused, and that the committed golden holds the generator's texts, commit and digests.
+For the tiny qwen35 goldens it checks that the generator refuses another transformers version and the packages HF would run in place of its torch functions, loads in float32 with eager attention from local files, and refuses unused keys other than `mtp.*` and `model.visual.*` and any missing key; and it maps the committed Qwen3.5-4B `dt_bias` values onto the 4B GGUF's through the tiny writer's tiled order, bit for bit.
 These use standard-library test doubles; CI does not generate new HF goldens or download larger models.
-The ordinary suite now has 20 components, including `dead-code` and `docs`, the source and Markdown checks, `raw-blocks`, the spec decoders' checks, `server-load`, the load tool's self-test, and `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
+The `qwen35` component reports SKIP, not PASS, while llmx refuses the architecture.
+The ordinary suite now has 21 components, including `dead-code` and `docs`, the source and Markdown checks, `qwen35`, `raw-blocks`, the spec decoders' checks, `server-load`, the load tool's self-test, and `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
 These tests use small committed JSON fixtures and doubles, without 8B inference.
 Default real-model downloads are the four pinned 0.6B GGUFs: Q8_0, Q4_0, Q5_K_M and Q4_K_M.
 Six more models are pinned there ahead of their tensor types, with `gate` false, and no job downloads them yet.

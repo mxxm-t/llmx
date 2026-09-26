@@ -127,7 +127,7 @@ do not want while measuring.
   access. It is not a tuning knob and must not appear in child argv or logs.
 - **Test configuration**: `LLMX_BASELINE_GGUF` points `tests/baseline.py` at a fixture model; `LLMX_DEVICE`, set by `run_tests.py --device`, appends `--device` to every command that takes it so the suite runs on a device backend, except where a component names its own devices (`threads` names the CPU, whose thread counts it checks, and `split` names the CPU backends its tool splits over); `LLMX_CACHE_TYPE`, set by `run_tests.py --cache-type`, appends `--cache-type-k` and `--cache-type-v` the same way so the HF gate runs with a chosen cache type; `LLMX_LAYER_SHARES`, set by `run_tests.py --layer-shares`, appends `--layer-shares` so a device list is tested at a split the fit would not choose.
   The synthetic bench (`bench` without `--model`) takes only `--device` and `--threads`, so it gets neither shares, cache types nor a load mode, and `split` gives its tool equal shares and the cache types it names itself.
-  The runtime stores f16 by default, so the components that check exact f32 arithmetic against independent fixtures (`f32`, `moe`, `shards`, `server`) ask for f32 sides themselves and skip when `--cache-type` asks for another type (`common.f32_cache_skip`).
+  The runtime stores f16 by default, so the components that check exact f32 arithmetic against independent fixtures (`f32`, `moe`, `qwen35`, `shards`, `server`) ask for f32 sides themselves and skip when `--cache-type` asks for another type (`common.f32_cache_skip`).
   `LLMX_LOAD_MODE`, set by `run_tests.py --load-mode`, appends `--load-mode` to every model command the same way, so the suite runs with the weights read in any mode.
   That is test configuration, not runtime configuration, and it reaches the binary only as the flags.
 
@@ -522,6 +522,11 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   Each row is printed once, and the rows over several passes and after `--then-ids` are the bytes of the one-pass rows at the same positions.
 - **MoE** (`tests/moe.py`): the same for a tiny `qwen3moe` model against HF `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`), two routed layers and one dense, across batch widths and threads and, on a device, with the experts of one or every routed layer on the CPU (`--n-cpu-moe`, `--cpu-moe`).
   On a device it also streams those layers to the device for prompts from a length on (`--moe-stream-from`): from 0, from 1, which streams what 2 does since neither a generated token nor a one-token prompt streams, and from 4, which only the longer prompts reach.
+- **Qwen 3.5** (`tests/qwen35.py`): the same for tiny `qwen35` models against HF `Qwen3_5ForCausalLM` (`tools/gen_baseline.py qwen35`), whose goldens come from HF's token-by-token cached forward, which runs the recurrence llmx runs per token.
+  The fixtures are Hv = Hk with a tied head, Hv = 3 Hk with its own head, and that model with one MTP block, whose file must print the bytes the file without it prints.
+  The writer makes the weights as HF holds them and applies the converter's transforms itself (docs/QWEN35.md, GGUF conventions).
+  Beyond the F32 checks, the NLL is scored in passes of three tokens and one token at a time, and greedy decode after a prefill must give HF's greedy tokens.
+  Until llmx runs the architecture it refuses the files, and the component reports SKIP, which `run_tests.py` counts as neither a pass nor a failure (`common.SKIPPED`).
 - **Baseline** (`tests/baseline.py`): real-model EXTERNAL ground truth.
   Compares llmx against golden fixtures generated once from the HF reference by `tools/gen_baseline.py` and committed to `tests/data/`.
   Needs a real model, so it SKIPS when none is on disk; point it at one with `LLMX_BASELINE_GGUF`.
@@ -538,6 +543,8 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
 - **Reference generator** (`tests/reference_generator.py`): standard-library checks for pinned reference selection, separate alternate-model output and forwarding the revision/float32/eager settings to the HF loaders.
   Actual reference generation and model correctness remain separate checks.
   For `file-exact` it checks the argument combinations it refuses, that `tests/baseline.py --file-exact` fails when the device has no kernel for the file, the HF parameters a few GGUF tensor names take under the one map `tests/f32.py` holds for the tiny models and file-exact alike, and a tiny GGUF's tensors reaching their parameters with reversed dimensions and unchanged values.
+  For `qwen35` its doubles hold the generator to transformers 5.17.0, offline, with none of the packages HF would run in place of its torch functions, to float32 and eager attention, and to its key checks: only `mtp.*` and `model.visual.*` keys unused, and none missing.
+  It also maps HF's `dt_bias` of one Qwen3.5-4B layer onto that layer's `ssm_dt.bias` in a 4B GGUF bit for bit through the tiny qwen35 writer's tiled order (`tests/data/qwen35_4b_dt_bias.json`), so a misreading of the order that the writer and the kernels share cannot pass the Hv = 3 Hk fixture.
   It also checks `tests/data/fixtures.json`: each file pinned once with every field, the gate's models those with bounds, and of the six pinned ahead of their types the hosted ones exactly UD-Q8_K_XL, IQ4_XS and Q2_K.
   The qwen35 tokenizer golden, on a made-up vocabulary, must keep a merge that joins across a cut HF makes and drop one no text reaches.
   It must give an added token the GGUF files' type, control for a special one or one written `<|name|>` and user-defined otherwise, and keep a token only the config adds apart.

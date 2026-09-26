@@ -471,7 +471,7 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 
 ### Generating pinned HF references
 
-`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe` or `tokenizer-qwen35` (default `all`).
+`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `tokenizer-qwen35` or `qwen35` (default `all`).
 Real-model modes default to `Qwen/Qwen3-0.6B` at commit `c1899de289a04d12100db370d81485cdf75e47ca`.
 Both model and tokenizer loaders receive that revision.
 Logits and PPL use CPU float32 eager attention with six threads by default; `--threads N` selects another positive count.
@@ -516,6 +516,39 @@ That gives 27 control and 6 user-defined tokens in each file.
 
 transformers 5.17.0 loads this repository as `Qwen2Tokenizer`, which replaces the file's pretokenizer with the qwen2 regex and adds the 7 control tokens.
 Its ids therefore differ from `tokenizer.json` on text with combining marks (Thai and Devanagari) and on those 7 tokens, so the qwen35 tokenizer golden takes its ids from `tokenizers` and the file itself, and any qwen35 reference that tokenizes through `AutoTokenizer` must be checked against it.
+
+#### The tiny qwen35 references
+
+`qwen35` writes `tests/data/baseline_qwen35.json` (73,807 bytes) for the tiny models of `tests/qwen35.py`, accepts only `--output-dir` and is not part of `all`.
+It runs in the qwen35 venv above, offline (`HF_HUB_OFFLINE` and `TRANSFORMERS_OFFLINE`, in a container without a network), with one thread.
+It refuses a transformers version other than 5.17.0, and an installed `kernels`, `fla` or `causal_conv1d` package, which HF's qwen3_5 code would run in place of its own torch functions.
+
+- **The models.** 37 wide, 4 layers alternating linear and full attention (`full_attention_interval` 2), FFN 19, vocabulary 257 and context 16.
+  Full attention has 4 query and 2 KV heads of 40, with a rotary width of 8 at base 100 and sections [2, 1, 1, 0].
+  Linear attention has 2 K heads of 12 and V heads of 10, a conv kernel of 4, and 2 V heads (`hv1`, tied head) or 6 (`hv3`, own head); `hv3-mtp` is `hv3` with one MTP block.
+- **The weights.** They are made as HF holds them, each a multiple of 1/8192 scaled by a power of two, so every one is exact in float32.
+  The writer in `tests/qwen35.py` applies the converter's transforms to write the GGUF: 1 + w for every norm but `ssm_norm`, `ssm_a` = -exp(A_log), the tiled V-head order on every tensor indexed by V head, the conv kernel with its middle axis dropped, and `attn_q` as HF holds it, each head's query rows then its gate rows.
+- **Loading.** Each fixture's raw weights go to a temporary directory as `config.json` and `model.safetensors`, and `Qwen3_5ForCausalLM.from_pretrained` loads them from local files with `dtype=torch.float32` and eager attention.
+  The generator refuses unused checkpoint keys other than `mtp.*` and `model.visual.*`, a missing or mismatched key, a parameter that is not float32, a loaded value other than the checkpoint's, and a rotary width other than 8.
+- **The goldens** come from HF's token-by-token cached forward.
+  Each text, window and greedy run starts from a cache that holds the zero conv rows and state a sequence starts from, so every step, the first included, runs HF's recurrent delta rule, the per-token recurrence llmx runs.
+  Hooks on HF's recurrent and chunked delta-rule functions count that each step ran the recurrence once in every linear layer and the chunked form never: 152 steps for each of `hv1` and `hv3`.
+  They hold all 257 logits at the last position of the five texts of `tests/f32.py`, the mean NLL of the longest in windows of 4 and 16 tokens, and six greedy tokens after `abcdefg` with the end-of-text token left out.
+  `hv1`'s tied head repeats the prompt's last byte six times, and `hv3`'s six tokens all differ.
+- **Recorded beside them:** the full forward's largest distance from the stepwise logits over the longest text, which runs HF's chunked form and must not be 0 (4.0e-7 for `hv1`, 4.9e-7 for `hv3`); the lowest log-decay a step read (-5.8 and -15.9); and the greedy steps' smallest gap between the top two logits, refused below 1e-4 (0.225 and 0.0080).
+- **The MTP file.** HF leaves its 15 `mtp.*` keys unused and gives `hv3`'s stepwise and full-forward logits bit for bit, so it is held to `hv3`'s goldens.
+
+Generation took 11 s on the Linux machine at a load average of 38 on 2026-09-26.
+An independent float64 reading of each written GGUF, the forward pass of [QWEN35](QWEN35.md) run token by token on the stored tensors, matched the goldens within 7.9e-7 per logit and 5.5e-8 in NLL, with the greedy tokens equal.
+The same reading with one misreading at a time missed `hv3`'s goldens by 0.11 to 1.31 in some logit and changed its greedy tokens: V heads read in HF's grouped order, 1 added again to the norms or to `ssm_norm`, exp applied to `ssm_a`, the conv taps reversed, the query and gate rows swapped, rope frequencies over the head width, the decay after the recall, and no query scale.
+
+`tests/data/qwen35_4b_dt_bias.json` holds the input of the hosted check of the writer's tiled order.
+
+- **HF's side:** the 32 values of `model.language_model.layers.0.linear_attn.dt_bias` of `Qwen/Qwen3.5-4B` at commit `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`, stored as bf16 and widened to float32.
+  They were read by HTTP range requests, the safetensors header then the tensor's 64 bytes, from `model.safetensors-00002-of-00002.safetensors` (3,990,429,408 bytes, SHA-256 `cb544bd9bfae93dc59b0f22b292f5933573854a7f9b97835c67060d7d910e188` as the Hub records it), with no other part of the file downloaded.
+- **The GGUF's side:** the 32 values of `blk.0.ssm_dt.bias`, F32, of the Linux machine's `Qwen3.5-4B-Q4_K_M.gguf` (2,707,513,696 bytes, SHA-256 `25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c`), read with `tests/spec_decode.py`.
+  By size it is none of the Q4_K_M files of `unsloth/Qwen3.5-4B-GGUF` or `bartowski/Qwen_Qwen3.5-4B-GGUF`, so it has no known Hub source; the tensor is F32, which quantization leaves as converted.
+- `tests/reference_generator.py` requires the writer's tiled order with Hk = 16 and Hv = 32 to map the one onto the other bit for bit, and HF's own order not to.
 
 The local 8B GGUF is not an independent HF reference. On 2026-09-20, original
 `Qwen/Qwen3-8B` weights/config at revision

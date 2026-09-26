@@ -764,6 +764,20 @@ def check_logprobs(srv, prompts, n, chat):
     status, err = srv.post("/v1/chat/completions", {"messages": [{"role": "user", "content": "a"}], "max_tokens": 2, "top_logprobs": 2})
     assert status == 400 and "top_logprobs" in err["error"]["message"], (status, err)
 
+    # A seeded draw: the completions route's map holds the sampled token's text at every position, listed or not, with one token listed and with none, and every route gives the draw's values, the native shape with no top_logprobs when none are asked for.
+    drawn = {"prompt": prompts[0], "max_tokens": n, "temperature": 1.5, "penalty": 1.3, "seed": 11}
+    status, native = srv.post("/v1/generate", dict(drawn, logprobs=True, top_logprobs=1))
+    assert status == 200, native
+    status, bare = srv.post("/v1/generate", dict(drawn, logprobs=True, top_logprobs=0))
+    assert status == 200 and bare["ids"] == native["ids"] and bare["logprobs"] == native["logprobs"] and "top_logprobs" not in bare, bare
+    for k in (1, 0):
+        status, reply = srv.post("/v1/completions", dict(drawn, logprobs=k))
+        assert status == 200, (k, reply)
+        lp = reply["choices"][0]["logprobs"]
+        assert lp["token_logprobs"] == native["logprobs"], (k, lp["token_logprobs"], native["logprobs"])
+        for i, (token, value, top) in enumerate(zip(lp["tokens"], lp["token_logprobs"], lp["top_logprobs"])):
+            assert top.get(token) == value and len(top) <= k + 1, (k, i, token, value, top)
+
     # Four at a time, where a pass holds one request's prompt rows beside another's decode rows, each request's values are the ones it gets alone.
     ask = {"max_tokens": n, "temperature": 0, "logprobs": True, "top_logprobs": TOP}
     alone = {p: srv.post("/v1/generate", dict(ask, prompt=p))[1] for p in prompts[:4]}

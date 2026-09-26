@@ -62,6 +62,15 @@ inline std::string error_json(const std::string& message, bool compat) {
     return "{\"error\":{\"message\":" + text + ",\"type\":\"invalid_request_error\"}}";
 }
 
+// The least log-probability a compatible shape writes, since its fields are numbers: a lower one, minus infinity or a NaN is written as this, a probability of zero to any float.
+inline constexpr float kLogprobFloor = -9999.0f;
+
+// A log-probability in a compatible shape: the shortest decimal that reads back as the float, or kLogprobFloor for one below it or not a number.
+// The native shapes write jmini::number's own, which is null where JSON has no number.
+inline std::string compat_number(float logprob) {
+    return jmini::number(logprob >= kLogprobFloor ? logprob : kLogprobFloor);
+}
+
 class Api {
 public:
     Api(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format, Scheduler& sched,
@@ -104,8 +113,6 @@ private:
     static constexpr std::chrono::milliseconds kProbe{100};
     // The most tokens a request may list beside each sampled one, `top_logprobs` or the completions route's `logprobs`: the compatible chat API's limit, which the completions route takes too, though that API stops at 5.
     static constexpr int kTopLogprobs = 20;
-    // The least value a compatible shape writes, since its fields are numbers: a lower one, minus infinity or a NaN is written as this, a probability of zero to any float.
-    static constexpr float kLogprobFloor = -9999.0f;
 
     enum class Route { generate, chat, chat_completions, completions };
     static std::optional<Route> route_of(const std::string& path) {
@@ -309,10 +316,6 @@ private:
             text += hex[c & 0x0f];
         }
         return text;
-    }
-    // A value in a compatible shape: the shortest decimal that reads back as the float, or kLogprobFloor for one below it or not a number.
-    static std::string compat_number(float logprob) {
-        return jmini::number(logprob >= kLogprobFloor ? logprob : kLogprobFloor);
     }
     // A token in the chat route's shape, {"token", "logprob", "bytes"}, its bytes as numbers so a split character is exact.
     static std::string chat_token(const std::string& bytes, float logprob) {

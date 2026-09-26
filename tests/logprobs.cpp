@@ -1,6 +1,5 @@
-// infer::log_sum_exp, logprob and top_logprobs against a double-precision reference computed another way, and the server's token channel carrying them.
-// The reference shifts by the row's maximum and sums with compensation, so a float log-probability must be within half a float step of it, plus the reference's own error.
-// The channel's values must be the log-softmax of the very logits row the scheduler sampled from, which a second model run through the same passes gives, whether the reader keeps up or falls behind.
+// infer::log_sum_exp, logprob and top_logprobs against a compensated double-precision reference, and the server's token channel carrying the log-softmax of the very row each token was sampled from.
+// AGENTS.md (Tests, logprobs) lists the cases.
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -155,9 +154,8 @@ std::vector<server::Request::Token> drain(server::Request& r) {
     return out;
 }
 
-// A greedy request with logprobs through the scheduler, read from its channel, against a second model run through the passes the scheduler runs for a request alone: its prompt as one entry at the prompt's extent, then each token as a decode entry.
-// Every id must be the row's greedy choice, its logprob and top five that row's log-softmax; the same request without logprobs gets the same ids and no values.
-// A request left unread until it ends holds kRowsWaiting rows and gets the same values, the scheduler computing those past them; cancelled, its waiting rows are dropped without values.
+// Requests read from the scheduler's channel against a second model fed the same ids through the passes the scheduler runs for a request alone: every value is that row's log-softmax, greedy or drawn at temperature 1.5 with penalty 1.3, which do not reach the values.
+// Without logprobs a request gets the same ids and no values; left unread it holds kRowsWaiting rows and gets the same values, and cancelled its waiting rows are dropped.
 void channel() {
     const gguf::GGUFModel weights = served();
     const bpe::Tokenizer tok(weights);
@@ -172,8 +170,12 @@ void channel() {
     server::SampleParams plain = asked;
     plain.logprobs = false;
     plain.top_logprobs = 0;
+    server::SampleParams drawn = asked;
+    drawn.temp = 1.5f;
+    drawn.penalty = 1.3f;
+    drawn.seed = 7;
 
-    std::vector<server::Request::Token> with, without, behind, cancelled;
+    std::vector<server::Request::Token> with, without, behind, cancelled, sampled;
     constexpr size_t waiting = server::Request::kRowsWaiting;
     require((size_t)asked.max_tokens > waiting, "the reply must outrun the rows a channel holds");
     {
@@ -183,6 +185,7 @@ void channel() {
         try {
             with = drain(*sched.submit(prompt, asked));
             without = drain(*sched.submit(prompt, plain));
+            sampled = drain(*sched.submit(prompt, drawn));
             auto late = sched.submit(prompt, asked);
             await_end(*late);
             require(late->rows_waiting() == waiting, "a reader behind holds " + std::to_string(late->rows_waiting()) + " rows");
@@ -214,31 +217,44 @@ void channel() {
         else require(cancelled[i].logprob == with[i].logprob && cancelled[i].top.size() == with[i].top.size(), at + ": values the scheduler computed");
     }
 
+    // The reply's ids fed to a second model, each value checked against the raw row its token was sampled from; the positions whose id is not the row's greedy choice.
     infer::Model control(weights, cpu);
-    infer::Sequence seq = control.make_sequence();
-    infer::ExecContext ctx;
-    infer::BatchEntry first{&seq, prompt.data(), prompt.size(), true};
-    first.extent = prompt.size();
-    control.forward(ctx, &first, 1);
+    const auto rows_match = [&](const std::vector<server::Request::Token>& reply, const std::string& what) {
+        infer::Sequence seq = control.make_sequence();
+        infer::ExecContext ctx;
+        infer::BatchEntry first{&seq, prompt.data(), prompt.size(), true};
+        first.extent = prompt.size();
+        control.forward(ctx, &first, 1);
+        size_t off = 0;
+        for (size_t i = 0; i < reply.size(); ++i) {
+            const std::string at = what + ", token " + std::to_string(i);
+            const std::vector<float> row(ctx.logits(0), ctx.logits(0) + ctx.width);
+            const uint32_t id = reply[i].id;
+            off += id != ranked(row)[0];
+            double ref_lse = 0.0;
+            const std::vector<double> want = reference(row, ref_lse);
+            const double lse = infer::log_sum_exp(row.data(), row.size());
+            require(reply[i].logprob == infer::logprob(row.data(), lse, id), at + ": the channel's logprob is not its row's");
+            rounded(reply[i].logprob, want[id], ref_lse, at);
+            const std::vector<infer::TokenLogprob> top = infer::top_logprobs(row.data(), row.size(), lse, 5);
+            require(reply[i].top.size() == 5, at + ": top 5");
+            for (size_t j = 0; j < top.size(); ++j)
+                require(reply[i].top[j].id == top[j].id && reply[i].top[j].logprob == top[j].logprob, at + ": a top entry is not its row's");
+            infer::BatchEntry next{&seq, &id, 1, true};
+            control.forward(ctx, &next, 1);
+        }
+        control.reset(seq);
+        return off;
+    };
+    require(rows_match(with, "greedy") == 0, "a greedy id is not its row's greedy choice");
     for (size_t i = 0; i < with.size(); ++i) {
         const std::string at = "token " + std::to_string(i);
-        const std::vector<float> row(ctx.logits(0), ctx.logits(0) + ctx.width);
-        const uint32_t id = ranked(row)[0];
-        require(with[i].id == id && without[i].id == id, at + ": not the row's greedy id");
-        double ref_lse = 0.0;
-        const std::vector<double> want = reference(row, ref_lse);
-        const double lse = infer::log_sum_exp(row.data(), row.size());
-        require(with[i].logprob == infer::logprob(row.data(), lse, id), at + ": the channel's logprob is not its row's");
-        rounded(with[i].logprob, want[id], ref_lse, at);
-        const std::vector<infer::TokenLogprob> top = infer::top_logprobs(row.data(), row.size(), lse, 5);
-        require(with[i].top.size() == 5, at + ": top 5");
-        for (size_t j = 0; j < top.size(); ++j)
-            require(with[i].top[j].id == top[j].id && with[i].top[j].logprob == top[j].logprob, at + ": a top entry is not its row's");
+        require(without[i].id == with[i].id, at + ": a request without logprobs got another id");
         require(with[i].top[0].logprob == with[i].logprob, at + ": greedy's logprob is not the largest");
         require(without[i].top.empty() && without[i].logprob == 0.0f, at + ": values for a request that did not ask");
-        infer::BatchEntry next{&seq, &id, 1, true};
-        control.forward(ctx, &next, 1);
     }
+    require(sampled.size() == (size_t)drawn.max_tokens, "a drawn reply's length");
+    require(rows_match(sampled, "drawn at temperature 1.5 with penalty 1.3") > 0, "a draw at temperature 1.5 never left greedy's choice, so it checks nothing greedy does not");
 }
 
 } // namespace

@@ -151,6 +151,12 @@ struct GGUFModel {
         const Segment& s = segment_of(i);
         return s.file ? s.file->data() + s.start + (offsets[i] - s.base) : nullptr;
     }
+    // Where tensor i's bytes lie in its file, mapped or not; the loader streams a copied weight from there. A model built in memory has no file to name.
+    format::FileSpan span(size_t i) const {
+        if (segments.empty()) throw std::logic_error("GGUF model has no file: " + tensors[i].name);
+        const Segment& s = segment_of(i);
+        return {s.path, uint64_t(s.start + (offsets[i] - s.base)), tensor_bytes(i)};
+    }
     // A mapped tensor no host reads in place: its pages leave the host's working set first (MappedFile::drop). Nothing for an in-memory model or a file not mapped.
     void drop_pages(size_t i) const {
         if (segments.empty()) return;
@@ -564,24 +570,24 @@ inline void map_payload(GGUFModel& m) {
     }
 }
 
-// The bytes of every tensor, padding excluded.
-inline size_t bytes_of(const GGUFModel& m) {
+// The bytes of `tensors`, padding excluded.
+inline size_t bytes_of(const GGUFModel& m, const std::vector<size_t>& tensors) {
     size_t total = 0;
-    for (size_t i = 0; i < m.tensors.size(); ++i) total = size_t(checked_add(total, m.tensor_bytes(i)));
+    for (size_t i : tensors) total = size_t(checked_add(total, m.tensor_bytes(i)));
     return total;
 }
 
-// Read the payload's pages into memory in tensor order, one byte of every page in steps of up to 8 MiB, so that a weight's first reader does not fault them in.
-// `progress` gets the tensors' bytes: 0 first when there are any, then after every step, and their total last, so tensors holding no bytes report (0, 0) once.
-// The files must be mapped (map_payload); a tensor that is not is refused before any progress.
-inline void warm(const GGUFModel& m, const format::LoadProgress& progress = {}) {
-    for (size_t i = 0; i < m.tensors.size(); ++i)
+// Read the pages of `tensors` into memory in the order given, one byte of every page in steps of up to 8 MiB, so that a weight's first reader does not fault them in.
+// `progress` gets their bytes: 0 first when there are any, then after every step, and their total last, so tensors holding no bytes report (0, 0) once.
+// Their files must be mapped (map_payload); a tensor that is not is refused before any progress.
+inline void warm(const GGUFModel& m, const std::vector<size_t>& tensors, const format::LoadProgress& progress = {}) {
+    for (size_t i : tensors)
         if (!m.tensor_data(i) && m.tensor_bytes(i)) throw std::logic_error("GGUF tensor is not mapped: " + m.tensors[i].name);
-    const size_t total = bytes_of(m), page = core::page_size();
+    const size_t total = bytes_of(m, tensors), page = core::page_size();
     if (progress && total) progress(0, total);
     size_t completed = 0;
     volatile uint8_t sink = 0;
-    for (size_t i = 0; i < m.tensors.size(); ++i) {
+    for (size_t i : tensors) {
         const uint8_t* p = m.tensor_data(i);
         const size_t bytes = m.tensor_bytes(i);
         for (size_t offset = 0; offset < bytes;) {

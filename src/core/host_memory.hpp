@@ -1,8 +1,11 @@
 #pragma once
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <optional>
 #include <stdexcept>
+#include <string>
+#include <utility>
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -13,6 +16,7 @@
 #endif
 #include <windows.h>
 #else
+#include <sys/mman.h>
 #include <unistd.h>
 #endif
 
@@ -62,5 +66,51 @@ inline std::optional<size_t> host_memory_available() {
     return std::nullopt;
 #endif
 }
+
+// Page-aligned memory the process owns, rounded up to whole pages and given back when it goes.
+// A read into it can go around the file cache, and a device copies out of it as out of any host memory (docs/src/core-host_memory.md).
+class HostPages {
+public:
+    HostPages() = default;
+    explicit HostPages(size_t bytes) : size_((bytes + page_size() - 1) / page_size() * page_size()) {
+        if (!size_) return;
+#if defined(_WIN32)
+        data_ = (uint8_t*)VirtualAlloc(nullptr, size_, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#else
+        void* p = mmap(nullptr, size_, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        data_ = p == MAP_FAILED ? nullptr : (uint8_t*)p;
+#endif
+        if (!data_) throw std::runtime_error("cannot allocate " + std::to_string(size_) + " bytes of host pages");
+    }
+    ~HostPages() { release(); }
+    HostPages(HostPages&& o) noexcept : data_(std::exchange(o.data_, nullptr)), size_(std::exchange(o.size_, 0)) {}
+    HostPages& operator=(HostPages&& o) noexcept {
+        if (this != &o) {
+            release();
+            data_ = std::exchange(o.data_, nullptr);
+            size_ = std::exchange(o.size_, 0);
+        }
+        return *this;
+    }
+    HostPages(const HostPages&) = delete;
+    HostPages& operator=(const HostPages&) = delete;
+
+    uint8_t* data() const { return data_; }
+    size_t size() const { return size_; }
+
+private:
+    void release() noexcept {
+        if (!data_) return;
+#if defined(_WIN32)
+        VirtualFree(data_, 0, MEM_RELEASE);
+#else
+        munmap(data_, size_);
+#endif
+        data_ = nullptr;
+    }
+
+    uint8_t* data_ = nullptr;
+    size_t size_ = 0;
+};
 
 } // namespace core

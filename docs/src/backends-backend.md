@@ -19,10 +19,17 @@ placement contracts in `docs/EXECUTION.md`.
   that reads in place (`reads_in_place()`) borrows the source for the
   buffer's life and does not read it inside `adopt`; one that copies has
   consumed the source when `adopt` returns, so the caller may release it
-  then, as the loader does for a model on device backends alone.
+  then.
+- `alloc_weight(bytes)`: storage for a weight the caller fills with `write`
+  before any op reads it. It need not be zeroed, and a backend keeps it as it
+  keeps an adopted weight (Vulkan's padded F32 copies). The default is `alloc`.
+  The loader's streamed load allocates every weight a copying backend takes
+  this way while the model is built and streams them in after, so a model that
+  cannot be placed fails before any weight is uploaded ([load](inference-load.md)).
 - `write(dst, off, src, bytes)`: host to storage, enqueued, the source
   consumed before it returns. Callers include residual transfers at placement
-  boundaries and uploads of streamed expert weights.
+  boundaries, uploads of streamed expert weights, and the loader's streamed
+  load of every weight a copying backend took (`infer::detail::stream`).
 - `submit()` returns a monotonic `Ticket` for everything enqueued so far;
   `wait(t)` blocks until that submission has retired. The model submits
   once per forward pass, waits on that ticket for the logits, and waits on

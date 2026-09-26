@@ -47,6 +47,10 @@ def device_args(args, cache=None):
     want = os.environ.get("LLMX_CACHE_TYPE") or cache
     if want and "--cache-type-k" not in args and not synthetic:
         args += ["--cache-type-k", want, "--cache-type-v", want]
+    # LLMX_LOAD_MODE, set by run_tests.py --load-mode, reads every model's weights that way; test configuration again, reaching the binary only as the flag.
+    mode = os.environ.get("LLMX_LOAD_MODE")
+    if mode and "--load-mode" not in args and not synthetic:
+        args += ["--load-mode", mode]
     return args
 
 

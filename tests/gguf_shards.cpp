@@ -3,6 +3,7 @@
 #include <iterator>
 #include <iostream>
 #include <limits>
+#include <numeric>
 #include "format/gguf.hpp"
 
 using Bytes = std::vector<uint8_t>;
@@ -98,11 +99,17 @@ static void save(const std::filesystem::path& path, const Bytes& bytes) {
     file.write(reinterpret_cast<const char*>(bytes.data()), std::streamsize(bytes.size()));
 }
 
+static std::vector<size_t> every(const gguf::GGUFModel& model) {
+    std::vector<size_t> tensors(model.tensors.size());
+    std::iota(tensors.begin(), tensors.end(), size_t(0));
+    return tensors;
+}
+
 // The set read, mapped and read in as the loader does, its payload reported to `progress`.
 static gguf::GGUFModel load(const std::filesystem::path& path, const format::LoadProgress& progress) {
     auto model = gguf::read_gguf(path.u8string());
     gguf::map_payload(model);
-    gguf::warm(model, progress);
+    gguf::warm(model, every(model), progress);
     return model;
 }
 
@@ -110,16 +117,18 @@ static gguf::GGUFModel accepted(const std::filesystem::path& path, const std::ve
                                 const std::vector<std::filesystem::path>& files = {}) {
     size_t total = 0;
     for (const auto& t : expected) total += t.data.size();
-    // Reading the set maps nothing, and lays each tensor in the segment of the file given for it, where one is given: a segment holds the tensors from its first on.
+    // Before anything is mapped, each tensor's span holds its bytes and names the file given for it, where one is given.
     {
         const auto read = gguf::read_gguf(path.u8string());
         require(read.tensors.size() == expected.size(), "wrong aggregate tensor count");
         for (size_t i = 0; i < expected.size(); ++i) {
-            require(!read.tensor_data(i), "reading the set mapped it");
-            if (files.empty()) continue;
-            size_t s = 0;
-            while (s + 1 < read.segments.size() && read.segments[s + 1].first <= i) ++s;
-            require(read.segments[s].path == files[i].u8string(), "a tensor lies in another shard's segment");
+            const format::FileSpan span = read.span(i);
+            require(files.empty() || span.file == files[i].u8string(), "a tensor's span names another shard");
+            std::ifstream in(std::filesystem::u8path(span.file), std::ios::binary);
+            Bytes bytes(span.bytes);
+            in.seekg(std::streamoff(span.offset));
+            in.read(reinterpret_cast<char*>(bytes.data()), std::streamsize(bytes.size()));
+            require(!read.tensor_data(i) && in && bytes == expected[i].data, "a tensor's span does not hold its bytes");
         }
     }
     std::vector<size_t> seen;

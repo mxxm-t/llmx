@@ -127,6 +127,7 @@ do not want while measuring.
 - **Test configuration**: `LLMX_BASELINE_GGUF` points `tests/baseline.py` at a fixture model; `LLMX_DEVICE`, set by `run_tests.py --device`, appends `--device` to every command that takes it so the suite runs on a device backend, except where a component names its own devices (`threads` names the CPU, whose thread counts it checks, and `split` names the CPU backends its tool splits over); `LLMX_CACHE_TYPE`, set by `run_tests.py --cache-type`, appends `--cache-type-k` and `--cache-type-v` the same way so the HF gate runs with a chosen cache type; `LLMX_LAYER_SHARES`, set by `run_tests.py --layer-shares`, appends `--layer-shares` so a device list is tested at a split the fit would not choose.
   The synthetic bench (`bench` without `--model`) takes only `--device` and `--threads`, so it gets neither shares nor cache types, and `split` gives its tool equal shares and the cache types it names itself.
   The runtime stores f16 by default, so the components that check exact f32 arithmetic against independent fixtures (`f32`, `moe`, `shards`, `server`) ask for f32 sides themselves and skip when `--cache-type` asks for another type (`common.f32_cache_skip`).
+  `LLMX_LOAD_MODE`, set by `run_tests.py --load-mode`, appends `--load-mode` to every model command the same way, so the suite runs with the weights read either way.
   That is test configuration, not runtime configuration, and it reaches the binary only as the flags.
 
 If you add a flag, add it to `docs/USAGE.md` and to `print_usage` in the same
@@ -160,12 +161,15 @@ escaped Unicode tensor names through the actual CLI.
 `gguf-validation` checks independent binary fixtures for field lengths/counts,
 array depth, tensor arithmetic, file extents, quantized row widths, custom
 alignment and a tensor name repeated in one file. These are format checks; they do not establish model-schema safety.
-`load-progress` reads, maps and reads in a file as the loader does, and checks the progress, that reading the headers maps nothing, that a model not mapped is neither written nor read in, early rejection, and a file truncated before loading or whose size changes between reading and mapping, refused before any progress.
-It then writes a tiny Qwen model with tokenizer metadata and loads it twice through `infer::load_model`: on the CPU the payload is kept, and on a CPU backend that copies what it adopts and reports `reads_in_place()` false the host copy is released (`payload_size()` is 0).
-Both give logits bit-identical to the same model built in memory, with the tokenizer and the chat format loaded beside them.
+`load-progress` reads, maps and reads in a file as the loader does, and checks the progress, each tensor's file span, that reading the headers maps nothing, that a model not mapped is neither written nor read in, early rejection, and a file truncated before loading or whose size changes between reading and mapping, refused before any progress.
+It then writes a tiny Qwen model with tokenizer metadata and loads it through `infer::load_model` in each load mode: on the CPU the payload is kept, and on a CPU backend that copies what it adopts and reports `reads_in_place()` false the host copy is released (`payload_size()` is 0), streamed from one file in `auto`.
+Every load's progress starts at 0, only rises and ends at the payload, and every load gives logits bit-identical to the same model built in memory, with the tokenizer and the chat format loaded beside them.
+A write that fails part way through a streamed load, and a progress callback that throws, stop it with their errors.
+The stream itself runs in reads of one granule, so tensors cross reads and reads hold several tensors: every copy, two of one tensor included, holds the file's bytes, and a file cut after its header was read stops it with where the file ended.
+`file-reader` checks `format::FileReader` and `core::HostPages`: reads at any offset and length, a read past the end short by exactly what the file lacks, empty and tiny files, and eight threads reading one reader at once.
 
 `gguf-shards` covers complete shard sets, metadata-only first shards, exact
-payloads and the shard segment each tensor lies in (a zero-sized tensor that ends
+payloads and the shard each tensor's span names (a zero-sized tensor that ends
 a shard included), inconsistent metadata,
 duplicate tensor names, truncation before reading and between reading and
 mapping, aggregate progress and Unicode file paths. `hub-manifest`, `hub-pull` and `hub-transport` are offline tests of
@@ -177,7 +181,8 @@ logits and NLL against the independent HF fixture.
 `model-validation` checks Qwen configuration ranges/defaults, required tensor layouts and in-memory storage before model execution buffers are allocated.
 It covers tied/untied output, supported matrix types and singleton axes.
 An asynchronous test backend, which copies what it adopts, also checks loading failure and model teardown drain pending work before releasing buffers, including split placements and backend reuse.
-Through the loader's own adoption hook (`infer::recording_adopt`), it checks that nothing is read in place on that backend, and that a host running a streamed layer's experts beside it reads exactly that layer's feed-forward norm, router and three expert stacks, the norm and router taken by both.
+Through the loader's own adoption hook (`infer::planning_adopt`), it checks that nothing is read in place on that backend, and that a host running a streamed layer's experts beside it reads exactly that layer's feed-forward norm, router and three expert stacks, the norm and router taken by both.
+It checks the hook both ways: deferring the copies, as the streamed load does, every copied weight gets storage and nothing is written or adopted while the model is built, and a model missing a tensor, or whose cache does not fit, fails after storage but before any weight is uploaded; without deferring, as the mapped load does, every weight is adopted as the model resolves it.
 It does not validate numeric weights, arbitrary token IDs or failed-session recovery.
 Each model it builds runs on a one-thread CPU backend that must start no worker threads.
 
@@ -366,7 +371,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   Perplexity also checks batched/per-token counts, both batch-thread aliases
   and automatic/zero selection against an independent HF NLL fixture.
 - **Loading and streaming** (CTest `load-progress`, `generation-stream`, `cli-output`):
-  read-in byte reporting, files truncated before loading or between reading and mapping, callback failures, the loader's host copy and logits, early text delivery, split UTF-8 bytes and stop/EOS accounting, with `ignore_eos` a reply running past the masked EOS to its limit or to a stop text;
+  read-in byte reporting, file spans, files truncated before loading or between reading and mapping, callback failures, the loader's host copy and logits in each load mode, the stream's reads, copies and failures, early text delivery, split UTF-8 bytes and stop/EOS accounting, with `ignore_eos` a reply running past the masked EOS to its limit or to a stop text;
   `cli-output` also reads `--device` lists as the commands do (canonical spellings, a device once, malformed entries refused), and the cache types as `exec_flag` reads them (one spelling each, an empty or unknown name refused before any model file is read).
   It checks that `exec_flag` reads `--threads-batch` and `-tb` only where the command asks for them.
   It runs the CLI's number readers (`int_arg`, `float_arg` with the ranges of `infer::Sampling`, `--seed`'s decimal 64-bit read) and `token_ids` over every malformed form: a missing value, a sign, space, base prefix, fraction or trailing character, infinity and NaN, a value past its range or its type, and an id that would narrow into the vocabulary.
@@ -517,7 +522,7 @@ matters: **each layer depends only on the layers below it** -
 | `core/`      | fp16 <-> f32, JSON parser, UTF-8, common types  |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
 | `quant/`     | QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
-| `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in) |
+| `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | Qwen3 config + forward pass (dense and qwen3moe), KV cache, layer split over devices |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |

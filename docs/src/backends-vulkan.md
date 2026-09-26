@@ -46,7 +46,11 @@ kernel notes and measurements are `docs/VULKAN.md`.
 - `adopt` copies weights through two staging halves and returns after consuming
   the source, with device copies still ordered on the queue. If a later upload
   chunk fails, it drains the queue before releasing the local destination.
-  Successfully adopted weights retain their eligibility for padded F32 copies.
+  Its storage is `alloc_weight`'s: device-local, not zero-filled, and marked
+  adopted, so a weight a loader allocates that way and writes in pieces keeps
+  its eligibility for padded F32 copies as an adopted one does.
+  An upload carries on from the staging half the last one left, so consecutive
+  writes of one weight overlap host and device copies as one long upload does.
   Padded copies enter their owning cache before their copy command is recorded;
   a replaced copy is retained by the command-buffer slot first.
   A buffer `alloc` zero-fills or `adopt` copies into is held by each command-buffer slot that names it until the slot retires, so a caller may drop it before anything is submitted.

@@ -168,7 +168,7 @@ struct TensorView {
 };
 
 // What a model of this architecture is built from, whatever file it came from: the configuration and one view per tensor in the file's order, so tensor i is the file's tensor i.
-// Names are unique. The views are read only while the model is built; the bytes a backend adopted in place are read for as long as its buffer lives.
+// Names are unique. The model reads the views only while it is built; a streamed load reads the bytes again afterwards to fill what a copying backend took, and the bytes a backend adopted in place are read for as long as its buffer lives.
 struct QwenWeights {
     QwenConfig config;
     std::vector<TensorView> tensors;

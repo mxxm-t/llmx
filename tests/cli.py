@@ -137,7 +137,7 @@ def listed_flags(page):
 
 
 # What each placeholder stands for in a line that takes the flag, a value every command listing that flag accepts.
-PLACEHOLDERS = {"N": "1", "F": "1", "D": "cpu", "T": "f16", "A,B": "1", "TEXT": "x", "PATH": "missing.txt", "NAME": "x", "REF": "main", "H": "127.0.0.1"}
+PLACEHOLDERS = {"N": "1", "F": "1", "D": "cpu", "T": "f16", "M": "auto", "A,B": "1", "TEXT": "x", "PATH": "missing.txt", "NAME": "x", "REF": "main", "H": "127.0.0.1"}
 
 # The last line a taken line prints: a missing input file's error, which a command may prefix with its name, or pull's on its empty quant.
 UNREACHED = re.compile(r"error: (\w+: )?cannot open (file: )?missing\.|error: pull: quant is required$")

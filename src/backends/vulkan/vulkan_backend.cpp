@@ -1077,11 +1077,18 @@ public:
         return b;
     }
 
-    // A copy in chunks through staging; weights arrive here once at load.
-    BufferPtr adopt(const void* src, size_t bytes) override {
-        if (!src && bytes) throw std::runtime_error("vulkan: adopting null storage");
+    // Device-local and not filled, since the caller writes every byte before an op reads it; adopted, so a float tile keeps a padded copy of it as of any adopted weight.
+    BufferPtr alloc_weight(size_t bytes) override {
         drop_tags();
         auto b = std::make_shared<VulkanBuffer>(dev_, bytes, false);
+        b->adopted = true;
+        return b;
+    }
+
+    // alloc_weight's storage filled in chunks through staging, for a weight the model adopts as it is built.
+    BufferPtr adopt(const void* src, size_t bytes) override {
+        if (!src && bytes) throw std::runtime_error("vulkan: adopting null storage");
+        auto b = std::static_pointer_cast<VulkanBuffer>(alloc_weight(bytes));
         try {
             upload(*b, 0, src, bytes, b);
         } catch (...) {
@@ -1089,7 +1096,6 @@ public:
             sync();
             throw;
         }
-        b->adopted = true;
         return b;
     }
 
@@ -2417,6 +2423,7 @@ private:
     }
 
     // Host to device through the two halves of staging: the host fills one while the device copies from the other, so a long upload runs at the slower of the two rather than at their sum.
+    // Consecutive uploads carry on from the half the last one left, so a weight written in pieces overlaps as one long upload does.
     // It returns once the source is consumed; the copies are in stream order, ahead of whatever reads the destination.
     // `keep`, a buffer being adopted, is held by every slot that copies into it, so its caller may drop it before the copies retire.
     void upload(VulkanBuffer& dst, size_t off, const void* src, size_t bytes, const std::shared_ptr<VulkanBuffer>& keep = nullptr) {
@@ -2424,7 +2431,7 @@ private:
         VulkanBuffer& st = staging();
         const size_t half = st.size() / 2;
         size_t done = 0;
-        for (size_t i = 0; done < bytes; i ^= 1) {
+        for (size_t& i = next_half_; done < bytes; i ^= 1) {
             const size_t n = std::min(bytes - done, half);
             wait(staged_[i]);
             std::memcpy((uint8_t*)st.mapped() + i * half, (const uint8_t*)src + done, n);
@@ -2449,6 +2456,7 @@ private:
     Ticket last_ticket_ = 0;
     std::unique_ptr<VulkanBuffer> staging_;
     Ticket staged_[2] = {};                   // the last copy out of each half of staging
+    size_t next_half_ = 0;                    // the half of staging the next upload fills first
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
     VkQueryPool queries_ = VK_NULL_HANDLE;    // timestamps, only for a diagnostics backend
     static constexpr uint32_t kQueries = 8192;    // two per dispatch; a reading empties the pool, which the next dispatch resets

@@ -45,6 +45,8 @@ def main():
                         help="with several devices in --device, their proportions of the layers, e.g. 1,1")
     parser.add_argument("--cache-type", default=None, choices=["f32", "f16"],
                         help="store both KV cache sides as this type in every command that takes --cache-type-k/-v")
+    parser.add_argument("--load-mode", default=None, choices=["auto", "mapped"],
+                        help="read every model's weights this way in every command that takes --load-mode")
     parser.add_argument("--only", default=None, metavar="NAMES",
                         help="run only these components, comma separated, e.g. baseline or split,server")
     args = parser.parse_args()
@@ -56,6 +58,8 @@ def main():
         os.environ["LLMX_CACHE_TYPE"] = args.cache_type
     if args.layer_shares:
         os.environ["LLMX_LAYER_SHARES"] = args.layer_shares
+    if args.load_mode:
+        os.environ["LLMX_LOAD_MODE"] = args.load_mode
     if args.require_baseline:
         missing = [s["file"] for s in baseline.BASELINE_MODELS if not baseline.find_fixture(s)]
         if missing:

@@ -78,6 +78,7 @@ struct ExecOptions {
     int kv_tokens = 0;            // the KV pool's total token budget, serve's --ctx-size; 0 is the model context
     int cpu_moe = 0;              // routed layers whose experts run on the CPU beside a device: the first N, -1 all
     int moe_stream_from = 0;      // new prompt tokens from which those experts are copied to the device for a pass; 0 never
+    std::string load_mode = "auto";   // how weights are read (infer::LoadMode), as its flag gives it
     bool verbose = false;         // the prompt token count, the thread counts, a split's plan and progress
 };
 
@@ -322,7 +323,17 @@ std::vector<int> layer_shares(const std::string& value) {
     return shares;
 }
 
-// The execution flags every model command takes, the "Execution options" of its help: where it runs, its workers, its prompt batch and its caches.
+// The load mode after `flag` in its one spelling, checked as it is read, so an unknown name is refused before any model file is read.
+std::string load_mode_arg(int argc, char** argv, int& i, const std::string& flag) {
+    const std::string name = flag_value(argc, argv, i, flag);
+    try {
+        return infer::load_mode_name(infer::load_mode_of(name));
+    } catch (const std::runtime_error& e) {
+        throw UsageError(flag + ": " + e.what());
+    }
+}
+
+// The execution flags every model command takes, the "Execution options" of its help: where it runs, its workers, its prompt batch, its caches and how its weights are read.
 // Reads argv[i] (and its value) into `exec` and returns true when it is one of them.
 // `batch_threads` adds --threads-batch (-tb), which only the commands that give a prompt's batched passes their own worker count read: generate, chat and perplexity.
 bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_threads) {
@@ -337,8 +348,21 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
     else if (a == "--ubatch") exec.ubatch = int_arg(argc, argv, i, a, 1);
     else if (a == "--cache-type-k" || a == "-ctk") exec.cache_type_k = cache_type_arg(argc, argv, i, a);
     else if (a == "--cache-type-v" || a == "-ctv") exec.cache_type_v = cache_type_arg(argc, argv, i, a);
+    else if (a == "--load-mode") exec.load_mode = load_mode_arg(argc, argv, i, a);
     else return false;
     return true;
+}
+
+// A load's timing line, printed with a split's plan: the mode, where a streamed load read from, and where its time went.
+std::string load_timing(const infer::LoadTimes& t) {
+    char line[256];
+    if (t.files)
+        std::snprintf(line, sizeof line, "load: %s, %.2f GiB in buffered reads from %zu file%s; construct %.2f s, read %.2f s, upload %.2f s, waiting for reads %.2f s\n",
+                      infer::load_mode_name(t.mode), double(t.streamed) / double(size_t(1) << 30), t.files, t.files == 1 ? "" : "s",
+                      t.construct, t.read, t.upload, t.wait);
+    else
+        std::snprintf(line, sizeof line, "load: %s; construct %.2f s\n", infer::load_mode_name(t.mode), t.construct);
+    return line;
 }
 
 // Open a model file as the flags ask, through infer::load_model: the devices --device lists, made first so a bad flag fails before the file is read, the model placed over them for its ubatch plus `decode_rows` generated tokens a pass (a server's sequences), progress on stderr when `progress`, and a split's plan when `show_plan`.
@@ -368,8 +392,8 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         std::cerr << "Reading model metadata...\n";
         shown = progress_bar();
     }
-    auto loaded = infer::load_model(path, std::move(backends), request, options, shown);
-    if (show_plan) std::cerr << loaded->plan;
+    auto loaded = infer::load_model(path, std::move(backends), request, options, shown, infer::load_mode_of(exec.load_mode));
+    if (show_plan) std::cerr << loaded->plan << load_timing(loaded->times);
     if (threads > 0) loaded->model->set_threads(threads);
     return loaded;
 }
@@ -795,7 +819,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --cpu-moe               All routed layers' experts on CPU\n"
             << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"
             << "                          at least N new tokens; 0 disables this (default: " << defaults.moe_stream_from << ").\n"
-            << "                          Generated tokens stay on CPU.\n";
+            << "                          Generated tokens stay on CPU.\n"
+            << "  --load-mode M           How weights are read: auto (default) or mapped\n";
     };
     if (command == "chat" || command == "generate") {
         const bool chat = command == "chat";

@@ -191,6 +191,9 @@ public:
     // A backend that reads in place (reads_in_place) borrows src for the returned buffer's life and does not read it inside adopt; one that copies has consumed src when adopt returns, so the caller may release it then.
     virtual BufferPtr adopt(const void* src, size_t bytes) = 0;
 
+    // Storage for a weight the caller fills with write before any op reads it; it need not be zeroed, and the backend keeps it as it keeps an adopted weight.
+    virtual BufferPtr alloc_weight(size_t bytes) { return alloc(bytes); }
+
     // Ops enqueue on one stream; submit() flushes and returns a monotonic ticket, and wait(t) retires that submission and everything before it.
     // Results require wait(), sync() or read(); CPU ops complete eagerly (docs/DEVICE-EXECUTION.md).
     virtual Ticket submit() = 0;

@@ -91,7 +91,7 @@ virtual void copy(Buffer& dst, size_t dst_off,
                   const Buffer& src, size_t src_off, size_t bytes) = 0;
 ```
 
-`adopt` is the load-time entry point for weights, and its name is deliberate.
+`adopt` is how a weight reaches a backend while the model is built, and its name is deliberate.
 "Upload" would imply a copy, and the CPU backend must not pay one: model
 weights are already resident in the GGUF blob, and copying an 8B model to make
 it a `Buffer` would double peak memory for nothing. `adopt` means *the backend
@@ -103,15 +103,23 @@ The contract has two halves, told apart by `reads_in_place()`. **A backend
 that reads in place borrows `src` for the lifetime of the returned `Buffer`
 and does not read it inside `adopt`**; the file's mapping outlives the model,
 so this is free on CPU. **A backend that copies has consumed `src` when
-`adopt` returns.** The loader relies on the second half: a model whose every
-weight a copying backend took releases the host's copy of the file as soon
-as it is built (`inference/load.hpp`).
+`adopt` returns.**
+
+The loader's default, streamed load does not adopt through a copying backend:
+it asks it for `alloc_weight(bytes)`, storage kept as an adopted weight's is
+but not filled, while the model is built, and then streams every such weight
+from the file in file order with `write`. So every weight has storage, and a
+model that cannot be placed has failed, before any weight is uploaded, and a
+model whose every weight a copying backend took releases the host's copy of
+the file once the writes are made (`inference/load.hpp`). Its mapped load
+adopts each weight as the model resolves it, as it always did.
 
 `copy` exists for the KV cache, whose writes are device-to-device once
 activations are resident. A host-to-device `write` was part of this design,
 was dropped when step 5 gave it no caller, and returned with one at
 [EXECUTION](EXECUTION.md) step 6: the residual stream crossing to another
-device at a placement boundary.
+device at a placement boundary. The loader's streamed load is now its largest
+caller.
 
 ### Tensor residency
 

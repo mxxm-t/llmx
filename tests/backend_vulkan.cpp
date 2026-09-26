@@ -342,6 +342,27 @@ size_t check_kernels(backend::Backend& vk) {
         p.vk.read(*y2, 0, b.data(), b.size() * sizeof(float));
         values += exact(a, b, "an F32 matmul after a write into its weights read the old weights");
     }
+    // A loader's weight, allocated with alloc_weight and written in pieces that end inside a row, holds the bytes and gives the products of the same weight adopted, whose storage adopt allocates the same way; the float tile reads both through its padded copy.
+    {
+        const size_t nin = 256, nout = 67, cols = 64;
+        const auto w = uniform(nin * nout, 24), xx = uniform(nin * cols, 25);
+        const size_t bytes = w.size() * sizeof(float), piece = 4100;
+        auto adopted = p.vk.adopt(w.data(), bytes);
+        auto filled = p.vk.alloc_weight(bytes);
+        for (size_t off = 0; off < bytes; off += piece)
+            p.vk.write(*filled, off, (const uint8_t*)w.data() + off, std::min(piece, bytes - off));
+        auto xb = p.vk.adopt(xx.data(), xx.size() * sizeof(float));
+        auto y1 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
+        auto y2 = p.vk.alloc(nout * cols * sizeof(float), backend::Memory::device);
+        p.vk.matmul(gguf::GGML_TYPE_F32, {adopted.get(), 0}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, cols);
+        p.vk.matmul(gguf::GGML_TYPE_F32, {filled.get(), 0}, {xb.get(), 0}, {y2.get(), 0}, nin, nout, cols);
+        std::vector<float> a(nout * cols), b(nout * cols), back(w.size());
+        p.vk.read(*y1, 0, a.data(), a.size() * sizeof(float));
+        p.vk.read(*y2, 0, b.data(), b.size() * sizeof(float));
+        p.vk.read(*filled, 0, back.data(), bytes);
+        require(std::memcmp(back.data(), w.data(), bytes) == 0, "a weight written in pieces into alloc_weight storage differs from its source");
+        values += exact(a, b, "a weight written in pieces into alloc_weight storage gave other products than the same weight adopted");
+    }
     // matmul: F32 and Q8_0 over odd sizes and batch widths that fall inside, on and past the eight-column chunk.
     // The reduction order differs from the CPU's, so a tolerance.
     for (size_t nin : {size_t(1024), size_t(256), size_t(224)}) {

@@ -54,8 +54,10 @@ to a `backend::Backend`.
   the model's builder puts a tensor on a backend. The model calls it once
   for each backend that hosts a weight's role, and without one it calls
   `Backend::adopt(view.data, view.bytes)`. The loader's hook
-  (`infer::recording_adopt`) records which tensors a backend that reads in
-  place took ([load](inference-load.md)).
+  (`infer::planning_adopt`) adopts a weight on a backend that reads in place
+  and gives a copying backend unfilled storage (`Backend::alloc_weight`),
+  which the loader fills once the model is built ([load](inference-load.md)).
+  The model reads no weight's bytes while it is built.
 - `Weight` / `LayerWeights`: a tensor resolved once at load - type, a buffer
   handle from the backend that hosts it and the two dimensions - and a
   layer's weights grouped together: eleven for a dense layer, the router
@@ -218,12 +220,13 @@ and F32 embeddings/matrices/norms. F32 embedding rows are copied directly;
 F32 matmul reads weight rows without staging. Missing
 `output.weight` selects tied token embeddings for the output projection.
 
-The views are read only during construction. The bytes a backend that reads
-in place adopted must stay valid and unchanged while its buffer lives, which
-is the model's lifetime; a backend that copies has consumed its bytes when
-`adopt` returns (`backend.hpp`). So the payload of a model whose every weight
-a copying backend took may be released once the model is built, which the
-loader does (`GGUFModel::release_payload`). Construction
+The model reads the views only while it is built. The bytes a backend that
+reads in place adopted must stay valid and unchanged while its buffer lives,
+which is the model's lifetime; a backend that copies has consumed its bytes
+when `adopt` or `write` returns (`backend.hpp`). The loader's streamed load
+reads the file again after construction to fill the storage a copying backend
+was given, so the payload of a model whose every weight a copying backend took
+is released once those writes are made (`GGUFModel::release_payload`). Construction
 does not scan numerical weight contents, validate every possible metadata
 extension, check arbitrary token IDs or establish recovery after an execution
 failure. Those require separate input/session checks; they are not guarantees

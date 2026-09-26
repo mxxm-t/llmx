@@ -124,7 +124,7 @@ void construct(const gguf::GGUFModel& m, bool step = false) {
 
 
 struct LoadingState {
-    int adoptions = 0, allocations = 0, drains = 0, releases = 0, premature = 0;
+    int adoptions = 0, allocations = 0, weights = 0, writes = 0, drains = 0, releases = 0, premature = 0;
     bool pending = false;
 };
 
@@ -144,7 +144,7 @@ struct LoadingBuffer : backend::Buffer {
 
 struct LoadingBackend : backend::CpuBackend {
     std::shared_ptr<LoadingState> state = std::make_shared<LoadingState>();
-    int fail_adopt = 0, fail_alloc = 0;
+    int fail_adopt = 0, fail_alloc = 0, fail_write = 0;
     bool fail_cache = false;
     // It plays a device, whose buffers hide their host bytes, so it copies what it adopts.
     bool reads_in_place() const override { return false; }
@@ -161,6 +161,17 @@ struct LoadingBackend : backend::CpuBackend {
         auto buffer = std::make_shared<LoadingBuffer>(backend::CpuBackend::alloc(bytes, where), state);
         state->pending = true;
         return buffer;
+    }
+    // A loader's weight storage, filled by write; the write's copy is outstanding until wait or sync.
+    backend::BufferPtr alloc_weight(size_t bytes) override {
+        ++state->weights;
+        return std::make_shared<LoadingBuffer>(backend::CpuBackend::alloc(bytes, backend::Memory::device), state);
+    }
+    void write(backend::Buffer& dst, size_t off, const void* src, size_t bytes) override {
+        if (++state->writes == fail_write) throw std::runtime_error("injected write failure");
+        auto* wrapped = dynamic_cast<LoadingBuffer*>(&dst);
+        backend::CpuBackend::write(wrapped ? *wrapped->storage : dst, off, src, bytes);
+        state->pending = true;
     }
     void sync() noexcept override { ++state->drains; state->pending = false; }
     void wait(backend::Ticket) noexcept override { sync(); }
@@ -285,21 +296,21 @@ void loading_window_checks() {
     }
 }
 
-// The model puts each weight on a backend through the loader's hook, which records the tensors a host reads in place (infer::recording_adopt).
+// The model puts each weight on a backend through the loader's hook, which records the tensors a host reads in place (infer::planning_adopt).
 // A copying backend reads none; beside a device, a host that runs a streamed layer's experts reads exactly those, its norm and its router, which the device also takes.
 void reader_checks() {
     auto read_in_place = [](const infer::QwenWeights& weights, std::vector<backend::BackendPtr> backends, infer::Placement placement) {
         std::vector<int> takes(weights.tensors.size(), 0);
-        std::vector<char> host_reads;
-        const infer::AdoptWeight record = infer::recording_adopt(weights, host_reads);
+        infer::WeightPlan plan;
+        const infer::AdoptWeight record = infer::planning_adopt(weights, backends.size(), plan, true);
         const infer::AdoptWeight adopt = [&](size_t i, backend::Backend& b) {
             ++takes[i];
             return record(i, b);
         };
         { infer::Model model(weights, std::move(backends), std::move(placement), {}, adopt); }
         std::vector<std::string> host;
-        for (size_t i = 0; i < host_reads.size(); ++i)
-            if (host_reads[i]) host.push_back(weights.tensors[i].name);
+        for (size_t i = 0; i < plan.host_reads.size(); ++i)
+            if (plan.host_reads[i]) host.push_back(weights.tensors[i].name);
         std::sort(host.begin(), host.end());
         return std::make_pair(host, takes);
     };
@@ -513,6 +524,50 @@ void tensor_checks() {
 }
 }
 
+// The loader's hook, deferring the copies (the streamed load): a copying backend gets storage for every weight while the model is built and nothing is written or adopted, so a model missing a tensor, or whose cache does not fit, fails after storage but before any weight is uploaded.
+// Without deferring (the mapped load) the backend adopts each weight as the model resolves it, as it always did.
+void hook_checks() {
+    const auto m = fixture();
+    const infer::QwenWeights weights = infer::gguf_weights(m);
+    // The model adopts the RoPE tables it computes itself, whatever the hook; `tables` counts those adoptions.
+    int tables = -1;
+    for (const bool defer : {true, false}) {
+        auto device = std::make_shared<LoadingBackend>();
+        device->set_threads(1);
+        infer::WeightPlan plan;
+        { infer::Model model(weights, {device}, infer::Placement{}, {}, infer::planning_adopt(weights, 1, plan, defer)); }
+        const int n = (int)weights.tensors.size();
+        if (defer) tables = device->state->adoptions;
+        require(tables > 0 && (defer ? plan.uploads.size() == weights.tensors.size() && device->state->weights == n
+                                     : plan.uploads.empty() && device->state->weights == 0 && device->state->adoptions == n + tables),
+                defer ? "the deferring hook did not give every copied weight storage, or adopted one" : "the inline hook did not adopt every weight");
+        require(device->state->writes == 0, "the hook wrote a weight while the model was built");
+        ++checks;
+    }
+    auto missing = fixture();
+    auto it = std::find_if(missing.tensors.begin(), missing.tensors.end(), [](const auto& t) { return t.name == "blk.0.ffn_down.weight"; });
+    missing.offsets.erase(missing.offsets.begin() + (it - missing.tensors.begin()));
+    missing.tensors.erase(it);
+    const infer::QwenWeights partial = infer::gguf_weights(missing);
+    for (const bool cache : {false, true}) {
+        auto device = std::make_shared<LoadingBackend>();
+        device->set_threads(1);
+        device->fail_cache = cache;
+        const infer::QwenWeights& w = cache ? weights : partial;
+        std::string caught;
+        infer::WeightPlan plan;
+        try { infer::Model model(w, {device}, infer::Placement{}, {}, infer::planning_adopt(w, 1, plan, true)); }
+        catch (const std::runtime_error& e) { caught = e.what(); }
+        require(caught == (cache ? "injected cache allocation failure" : "inference: missing tensor blk.0.ffn_down.weight"),
+                "a model that cannot be built lost its error");
+        require(device->state->weights > 0 && (!cache || device->state->weights == (int)weights.tensors.size()) &&
+                    device->state->adoptions <= tables && device->state->writes == 0,
+                "a model that cannot be built uploaded a weight, or its storage was not allocated first");
+        require(device->state->premature == 0, "a failed build freed storage before its backend drained");
+        ++checks;
+    }
+}
+
 int main() {
     try {
         metadata_checks();
@@ -521,6 +576,7 @@ int main() {
         loading_window_checks();
         reader_checks();
         fit_width_checks();
+        hook_checks();
         std::cout << "model-validation: " << checks << " checks passed\n";
         return 0;
     } catch (const std::exception& e) {

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <limits>
 #include <new>
+#include <numeric>
 #include "format/gguf.hpp"
 
 using Bytes = std::vector<uint8_t>;
@@ -68,7 +69,9 @@ static void save(const std::string& path, const Bytes& bytes) {
 static gguf::GGUFModel load(const std::string& path, const format::LoadProgress& progress) {
     auto model = gguf::read_gguf(path);
     gguf::map_payload(model);
-    gguf::warm(model, progress);
+    std::vector<size_t> tensors(model.tensors.size());
+    std::iota(tensors.begin(), tensors.end(), size_t(0));
+    gguf::warm(model, tensors, progress);
     return model;
 }
 

@@ -295,6 +295,30 @@ int padded_drop_checks() {
     return ok ? 0 : 1;
 }
 
+// A loader's weight: alloc_weight storage is device-local and adopted, so written in pieces that end inside a row it holds the bytes and still gets the float tile's padded copy, which storage from alloc does not.
+int loader_weight_checks() {
+    auto base = backend::make_vulkan_backend(0);
+    auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+    std::vector<float> w(2 * 256);
+    for (size_t i = 0; i < w.size(); ++i) w[i] = float(i % 97) - 48.0f;
+    const size_t bytes = w.size() * sizeof(float);
+    auto filled = b.alloc_weight(bytes);
+    auto& fv = backend::as_vulkan(*filled);
+    for (size_t off = 0; off < bytes; off += 1000) b.write(*filled, off, (const uint8_t*)w.data() + off, std::min<size_t>(1000, bytes - off));
+    const auto binding = backend::VulkanLifetimeTest::padded(b, {filled.get(), 0}, 2);
+    auto plain = b.alloc(bytes, backend::Memory::device);
+    const auto plain_binding = backend::VulkanLifetimeTest::padded(b, {plain.get(), 0}, 2);
+    std::vector<float> back(w.size());
+    b.read(*filled, 0, back.data(), bytes);
+    b.sync();
+    const bool held = std::memcmp(back.data(), w.data(), bytes) == 0;
+    const bool padded = fv.adopted && !filled->host_ptr() && binding.buffer != fv.handle() && fv.padded.size() == 1;
+    const bool unpadded = plain_binding.buffer == backend::as_vulkan(*plain).handle();
+    const bool ok = held && padded && unpadded;
+    std::cout << "loader_weight held=" << held << " padded=" << padded << " plain_unpadded=" << unpadded << (ok ? " PASS\n" : " FAIL\n");
+    return ok ? 0 : 1;
+}
+
 int queue_checks() {
     int failures = 0;
     for (int kind = 0; kind < 8; ++kind) {
@@ -429,7 +453,8 @@ std::shared_ptr<backend::Device> fake_device(Failure failure) {
 int main(int argc, char** argv) {
     try {
         if (argc == 2 && std::string(argv[1]) == "--queue") {
-            const int failures = queue_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks();
+            const int failures = queue_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
+                                 loader_weight_checks();
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;

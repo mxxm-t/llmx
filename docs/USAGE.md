@@ -95,8 +95,9 @@ temporary directories. Completed shards remain reusable if a later shard fails.
 
 All GGUF commands accept the first `-00001-of-0000N.gguf` shard and discover
 the siblings beside it. Loading validates all shard metadata and tensor extents,
-then maps every shard in place, so a sharded model larger than host memory loads,
-and refuses a shard whose size changed in between.
+then reads the weights as `--load-mode` says (below): a shard is mapped in place
+where the CPU reads its weights, so a sharded model larger than host memory
+loads, and one whose size changed in between is refused.
 A loaded model's files must not change while it runs: a file truncated or
 rewritten under the mapping is not detected and can end the process. The first shard may contain metadata
 only. Successful download does not establish that llmx implements the model's
@@ -170,7 +171,7 @@ comma-separated list on one line.
 
 Decode a comma- or whitespace-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> ("<text>" | --file <path>) [--then-ids F] [--last N] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T]`
+## `llmx logits <in.gguf> ("<text>" | --file <path>) [--then-ids F] [--last N] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
 
 Print the top-N next-token logits for `text`, one `id value` pair per line after a `tokens:` header.
 `--top` defaults to 10.
@@ -235,6 +236,7 @@ Flags:
 | `--layer-shares A,B` | with several devices, their proportions of the layers |
 | `--n-cpu-moe N`, `--cpu-moe` | experts of the first `N` routed layers, or of all, on the CPU beside a device |
 | `--moe-stream-from N` | run those experts on the device for a prompt of at least `N` new tokens (default 0, never) |
+| `--load-mode M` | how the weights are read: `auto` (default) or `mapped` (below) |
 
 By default a window goes through the model in batched passes of up to `--ubatch` tokens, the way a prompt does, with logits taken for every position; the output head then runs once per pass over all of its rows. `--per-token` scores the same targets one token at a time instead, which is the path generation takes after the prompt. On a device the two paths use different kernels, so a score from each checks different code; they agree to within the rounding of their reductions. This all-target window policy differs from
 scoring modes elsewhere that exclude a warmup half-window; compare scores only with
@@ -370,6 +372,19 @@ bound) and because a decode step reads the whole cache, so a 512-token
 generation on Qwen3-0.6B runs 6 percent faster. Pass `f32` on both
 sides to store the cache exactly.
 
+## Reading the weights (`--load-mode`)
+
+Every command that runs a model takes `--load-mode`, which says how the weights a device copies are read from the file; it means the same on every backend.
+
+- `auto` (the default) builds the model first, so every weight, cache and scratch buffer is allocated and a model that does not fit fails before any byte is uploaded, and then reads the weights a device copies from the file in large reads, in file order, on two reader threads, while the uploads of the reads before go on.
+  The reads go through the operating system's file cache, so a model loaded again is served from it while the host has room.
+  Only the weights the CPU reads in place are mapped, and their pages are read in after the uploads, when the host has room for them.
+  The progress starts once the model is built and reaches 100% after the last upload.
+  A model on the CPU alone loads as with `mapped`.
+- `mapped` maps the whole file, reads every page in before the model is placed when the host has room for it, and copies each weight a device takes out of the mapping.
+
+Both give the same model, bit for bit. With `--verbose`, and always with `bench --model`, a line after the split's plan gives the mode and where the load's time went: building the model, and for `auto` the reads, the uploads and the uploads' waits for a read.
+
 ## Physical batch (`--ubatch`)
 
 `--ubatch` is how many prompt tokens go through **one forward pass** of the
@@ -421,6 +436,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--n-cpu-moe N`         | experts of the first `N` routed layers on the CPU    | 0       |
 | `--cpu-moe`             | experts of every routed layer on the CPU             | off     |
 | `--moe-stream-from N`   | new prompt tokens from which those experts run on the device | 0 (never) |
+| `--load-mode M`         | how the weights are read: `auto` or `mapped`          | auto    |
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--ignore-eos`          | never end at the model's end-of-text token           | off     |
@@ -486,7 +502,7 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T]`
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
 
 The multi-user server (`docs/SERVER.md`): one model, a sequence per
 request, every active request advanced by one token per pass with a slice
@@ -608,7 +624,7 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --max-queue 256
 python tools/server_load.py --input-len-range 64:1024 --output-len 128 --rate 1 2 4 8 inf --num-prompts 200 --json open.json
 ```
 
-## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--profile]`
+## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--profile]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an

@@ -29,7 +29,9 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
   `payload_size()` is the extent the offsets address; `tensor_data(i)` / `tensor_bytes(i)`
   address a tensor in whichever holds it, `tensor_data(i)` is null while its
   file is not mapped, and a mapped model's bytes are read-only.
-  `release_payload()` clears the segments: it drops the mappings or
+  `span(i)` is where tensor i's bytes lie in its file, a `format::FileSpan`,
+  mapped or not; it throws for a model built in memory, which has no file,
+  and after `release_payload()`, which clears the segments. `release_payload()` drops the mappings or
   frees the blob once a model on device backends alone has copied every
   weight into device memory, which the loader tells from the backends that
   took each weight ([load](inference-load.md)), so the host does not
@@ -62,11 +64,11 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
     whose size changed since its header was read, since the extents
     `read_gguf` checked no longer describe it. The shards mapped before the
     refused one stay mapped until the model is dropped.
-  - `warm(m, progress = {})` reads the payload's pages into memory in tensor
-    order, one byte of every page (`core::page_size`) in steps of up to 8 MiB,
-    so a weight's first reader does not fault them in. The files must be
-    mapped; a tensor that is not is refused before any progress.
-    `bytes_of(m)` is the tensors' bytes, padding excluded. Whether to warm at all is the loader's rule
+  - `warm(m, tensors, progress = {})` reads the pages of the given tensors
+    into memory in the order given, one byte of every page (`core::page_size`)
+    in steps of up to 8 MiB, so their first reader does not fault them in.
+    Their files must be mapped; a tensor that is not is refused before any
+    progress. `bytes_of(m, tensors)` is their bytes, padding excluded. Whether to warm at all is the loader's rule
     ([load](inference-load.md)).
 
 This is the format the CLI and the `infer::Model` layer consume. Metadata reads

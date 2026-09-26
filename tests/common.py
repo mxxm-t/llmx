@@ -174,8 +174,7 @@ def leave_mid_stream(port, body, after_bytes):
 
 
 def device_lacks_kernel(rc, out):
-    """True when the selected device refused the model for want of a kernel,
-    which a test reports as skipped rather than failed."""
+    """True when the selected device refused the model for want of a kernel, which a test reports as skipped rather than failed."""
     return (rc != 0 and bool(os.environ.get("LLMX_DEVICE")) and
             ("unsupported matrix type" in out or "unsupported embedding type" in out))
 
@@ -197,7 +196,7 @@ def max_err(a, b):
     return max(abs(x - y) for x, y in zip(a, b))
 
 
-# The components that check exact f32 arithmetic against independently generated fixtures run the CLI through this, so they keep their f32 cache sides now that the runtime stores f16 by default.
+# The components that check exact f32 arithmetic against independently generated fixtures run the CLI through this, which asks for f32 on both cache sides where the runtime would store f16.
 def run_f32_cache(args):
     return run(args, cache="f32")
 
@@ -325,7 +324,7 @@ def check_ppl(output, case, total_tokens, context, bounds):
 
 
 # Every perplexity case is scored both ways: in batched passes, the prompt path, and one token at a time, the decode path.
-# On a device they are different kernels, and scoring only one way once left one set of them without an HF check at all.
+# On a device they are different kernels, so scoring only one way would leave one set of them without an HF check.
 PPL_MODES = ("batched", "per-token")
 
 

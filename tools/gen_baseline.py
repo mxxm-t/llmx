@@ -47,7 +47,7 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 REFERENCE_REVISION = "c1899de289a04d12100db370d81485cdf75e47ca"
 
 # Each case targets a class of pretokenizer behaviour.
-# The multi-space and indentation cases are the ones that caught the GPT-2 `\s+(?!\S)` bug, where runs of 2+ spaces were emitted whole instead of leaving the last space to attach to the following word.
+# The multi-space and indentation cases hold the GPT-2 rule `\s+(?!\S)`: a run of two or more spaces leaves its last space to attach to the following word.
 CASES = [
     "hello world",
     "The capital of France is Paris.",

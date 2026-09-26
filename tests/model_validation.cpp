@@ -227,17 +227,34 @@ void loading_lifetime_checks() {
 }
 
 
-void loading_window_checks() {
+// The fixture with its one layer routed over two experts of `expert_ff` rows each; the layer keeps the fixture's dense feed-forward tensors, which a routed layer does not read.
+gguf::GGUFModel routed_fixture(uint64_t expert_ff = 12) {
     auto m = fixture();
     for (auto& kv : m.kv) kv.first.replace(0, 5, "qwen3moe");
     set(m, "general.architecture", text("qwen3moe"));
     set(m, "qwen3moe.expert_count", integer(2));
     set(m, "qwen3moe.expert_used_count", integer(1));
-    set(m, "qwen3moe.expert_feed_forward_length", integer(12));
+    set(m, "qwen3moe.expert_feed_forward_length", integer(expert_ff));
     add(m, "blk.0.ffn_gate_inp.weight", {8, 2}, 0);
-    add(m, "blk.0.ffn_gate_exps.weight", {8, 12, 2}, 0);
-    add(m, "blk.0.ffn_up_exps.weight", {8, 12, 2}, 0);
-    add(m, "blk.0.ffn_down_exps.weight", {12, 8, 2}, 0);
+    add(m, "blk.0.ffn_gate_exps.weight", {8, expert_ff, 2}, 0);
+    add(m, "blk.0.ffn_up_exps.weight", {8, expert_ff, 2}, 0);
+    add(m, "blk.0.ffn_down_exps.weight", {expert_ff, 8, 2}, 0);
+    return m;
+}
+
+// The fit counts a pass's activation rows as the model allocates them: a layer with a router is routed, so the dense ffn_gate it also carries does not widen the feed-forward slots.
+void fit_width_checks() {
+    const auto m = routed_fixture(6);
+    size_t routed = 0;
+    for (size_t w : infer::slot_widths(infer::load_config(m), false)) routed += w * sizeof(float);
+    require(infer::footprint(m, infer::ModelOptions{}).activations_per_row == routed,
+            "the fit widens a routed layer's slots for the dense ffn_gate it also carries");
+    infer::Model model(m);
+    ++checks;
+}
+
+void loading_window_checks() {
+    const auto m = routed_fixture();
     infer::Placement placement;
     placement.attn_device = {0}; placement.ffn_device = {1};
     placement.stream_from = 1;
@@ -437,6 +454,7 @@ int main() {
         tensor_checks();
         loading_lifetime_checks();
         loading_window_checks();
+        fit_width_checks();
         std::cout << "model-validation: " << checks << " checks passed\n";
         return 0;
     } catch (const std::exception& e) {

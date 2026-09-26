@@ -32,18 +32,24 @@ struct TokenLogprob {
 };
 
 // The `k` most likely tokens of a row, most likely first, a tie going to the lower id as greedy sampling's does; a `k` past the row lists the whole row.
+// The best `k` so far are a heap with the least likely on top, so a token that cannot enter costs one comparison and a whole row sorts in n log n.
 inline std::vector<TokenLogprob> top_logprobs(const float* logits, size_t n, double lse, size_t k) {
     k = std::min(k, n);
+    const auto before = [&](uint32_t a, uint32_t b) { return logits[a] > logits[b] || (logits[a] == logits[b] && a < b); };
     std::vector<uint32_t> best;
-    best.reserve(k + 1);
+    best.reserve(k);
     for (size_t v = 0; v < n && k; ++v) {
-        if (best.size() == k && !(logits[v] > logits[best.back()])) continue;
-        // After every id with an equal logit, which is lower since ids arrive in order.
-        auto at = std::upper_bound(best.begin(), best.end(), logits[v],
-                                   [&](float x, uint32_t b) { return x > logits[b]; });
-        best.insert(at, (uint32_t)v);
-        if (best.size() > k) best.pop_back();
+        if (best.size() < k) {
+            best.push_back((uint32_t)v);
+            std::push_heap(best.begin(), best.end(), before);
+        } else if (logits[v] > logits[best.front()]) {
+            // Ids arrive in order, so one with the logit of the least likely kept is behind it.
+            std::pop_heap(best.begin(), best.end(), before);
+            best.back() = (uint32_t)v;
+            std::push_heap(best.begin(), best.end(), before);
+        }
     }
+    std::sort_heap(best.begin(), best.end(), before);
     std::vector<TokenLogprob> top;
     top.reserve(best.size());
     for (uint32_t id : best) top.push_back({id, logprob(logits, lse, id)});

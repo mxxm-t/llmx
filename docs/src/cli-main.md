@@ -48,6 +48,7 @@ Commands and their entry points:
 - `logits`: `cmd_logits` (top-N next-token logits; this is what the correctness
   gate compares against a full-precision reference, since sampled text hides
   everything except argmax flips).
+  The top N are ranked by `infer::top_logprobs` ([logprobs](inference-logprobs.md)), the list the server's log-probabilities take, a tie going to the lower id, and printed as raw logits.
   It takes its text inline or from `--file <path>` (`-f`) right after the model, as `perplexity` does, and appends the `--then-ids` file's ids.
 - `generate`: `cmd_generate` (`prefill_turn`, then `infer::generate`; prints `pp:`/`tg:` timings).
   `--ignore-eos`, read for `generate` and `chat`, sets `GenParams::ignore_eos`, so the sampler never draws the end-of-text token.

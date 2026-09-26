@@ -41,6 +41,7 @@
 #include "tokenizer/tokenizer.hpp"
 #include "inference/sampler.hpp"
 #include "inference/generate.hpp"
+#include "inference/logprobs.hpp"
 #include "inference/perplexity.hpp"
 #include "inference/chat.hpp"
 #include "inference/load.hpp"
@@ -517,29 +518,21 @@ int cmd_logits(const std::string& model_path, const std::string& text,
     }
     if (ids.empty()) throw std::runtime_error("logits: empty prompt");
 
-    auto top = [&](const float* logits) {
-        std::vector<std::pair<float, uint32_t>> ranked;
-        ranked.reserve(model.n_vocab());
-        for (size_t i = 0; i < model.n_vocab(); i++) ranked.push_back({ logits[i], (uint32_t)i });
-        const size_t n = std::min((size_t)topn, ranked.size());
-        std::partial_sort(ranked.begin(), ranked.begin() + (std::ptrdiff_t)n, ranked.end(),
-                          [](const auto& a, const auto& b) { return a.first > b.first; });
-        ranked.resize(n);
-        return ranked;
-    };
+    // Ranked by the top list the server's log-probabilities take, a tie to the lower id; the values printed are the raw logits.
+    auto top = [&](const float* logits) { return infer::top_logprobs(logits, model.n_vocab(), 0.0, (size_t)topn); };
     printf("tokens: %zu\n", ids.size());
     if (last) {
         const size_t from = ids.size() - std::min(last, ids.size());
         model.score(ids, [&](size_t pos, const float* logits) {
             if (pos < from) return;
             printf("%zu", pos);
-            for (const auto& r : top(logits)) printf(" %u %.6f", r.second, r.first);
+            for (const auto& t : top(logits)) printf(" %u %.6f", t.id, logits[t.id]);
             printf("\n");
         });
         return 0;
     }
     std::vector<float> logits = model.prefill(ids);
-    for (const auto& r : top(logits.data())) printf("%u %.6f\n", r.second, r.first);
+    for (const auto& t : top(logits.data())) printf("%u %.6f\n", t.id, logits[t.id]);
     return 0;
 }
 

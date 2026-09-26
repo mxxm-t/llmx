@@ -4,6 +4,13 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Usage errors for what a command would ignore or overwrite (2026-09-26, branch fix/cli-usage-refusals)
+
+- **Why:** USAGE says a flag or argument a command would ignore or overwrite is a usage error, refused before any model file is opened, and main at 007b504 ran several such lines instead.
+  `-tb` with `perplexity --per-token` was dropped, since per-token scoring runs on `--threads`; `--version` took anything after it; a value flag given twice kept its last value, `--stop` alone excepted; an empty `pull --file` read as no file given; and `perplexity -c 1` was refused only once the model had loaded.
+  `pull`'s help also printed `--cache-dir`'s default as a literal of its own, where every other default the help prints comes from its owner.
+- **Left:** the failing tests, then the refusals and the help default from hub, then the gates: CTest in a Vulkan and a CPU build, and the `cli` and `perplexity` components on the CPU build.
+
 ## Dead-code and stale-docs checks in every job (2026-09-27, branch tools/health-monitors)
 
 - **Why:** AGENTS.md asks that what nothing reaches is removed in the change that leaves it unreached, and that a doc changes with what it describes, and nothing checked either. On main `72c6d6d` a measurement found by hand 5 functions no target reaches, 20 only tests reach, two shader switches no build sets, a stale parameter name in a live page, a source file without its page and eleven line numbers that point elsewhere. The checks hold the rules where a mechanical check is precise, so that a check never fails on a correct tree and nobody switches it off, and leave the rest to the review at each merge (AGENTS.md, Dead code and stale docs).

@@ -313,29 +313,33 @@ public:
                 if (stopping_) break;
                 // A waiting request whose client left ends wherever it waits, queued or paused, not only once admission reaches it, which may be after every active request has finished.
                 for (auto* waiting : {&queue_, &paused_})
-                    for (auto it = waiting->begin(); it != waiting->end();) {
-                        if ((*it)->cancel_.load()) { (*it)->end("cancel"); it = waiting->erase(it); }
-                        else ++it;
-                    }
-                // Room goes by first admission: nothing resumes or is admitted while a request that could not grow sits out the passes, paused requests resume oldest first and stop at the first that does not fit, and new requests come in queue order only once none is paused.
-                const bool stalled = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
-                while (!stalled && !paused_.empty() && active.size() < max_seqs_ && enter(paused_.front(), active)) paused_.pop_front();
-                while (!stalled && paused_.empty() && !queue_.empty() && active.size() < max_seqs_) {
-                    // A client can leave after the sweep, while the requests before its own are admitted; its request ends here, before any donor gives blocks up for it or it forks one.
-                    if (queue_.front()->cancel_.load()) { queue_.front()->end("cancel"); queue_.pop_front(); continue; }
-                    if (!enter(queue_.front(), active)) break;
-                    queue_.pop_front();
-                }
-                active_count_.store(active.size());
-                paused_count_.store(paused_.size());
+                    for (auto it = waiting->begin(); it != waiting->end();) it = (*it)->cancel_.load() ? leave(*waiting, it) : it + 1;
             }
             // Cancelled requests leave before the pass.
             for (size_t i = 0; i < active.size();) {
                 if (active[i]->cancel_.load()) finish(active, i, "cancel");
                 else ++i;
             }
-            if (active.empty()) continue;
+            // Growth steps that fall due take their room before anything is admitted, so a request admitted now never holds what an older request's step needs in this pass.
             grow(active);
+            {
+                std::lock_guard<std::mutex> lk(m_);
+                // Room goes by first admission: nothing resumes or is admitted while a request that could not grow sits out the pass, paused requests resume oldest first and stop at the first that does not fit, and new requests come in queue order only once none is paused.
+                // A client can leave after the sweep, while the requests before its own are admitted; its request ends here, before any donor gives blocks up for it or it forks one.
+                const bool stalled = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
+                while (!stalled && !paused_.empty() && active.size() < max_seqs_) {
+                    if (paused_.front()->cancel_.load()) { leave(paused_, paused_.begin()); continue; }
+                    if (!enter(paused_.front(), active)) break;
+                    paused_.pop_front();
+                }
+                while (!stalled && paused_.empty() && !queue_.empty() && active.size() < max_seqs_) {
+                    if (queue_.front()->cancel_.load()) { leave(queue_, queue_.begin()); continue; }
+                    if (!enter(queue_.front(), active)) break;
+                    queue_.pop_front();
+                }
+                active_count_.store(active.size());
+                paused_count_.store(paused_.size());
+            }
             if (active.empty()) continue;
 
             // Decode entries first, but for a request that could not grow, then what the other requests' caches lack, one stretch's slice each, up to ubatch tokens.
@@ -593,6 +597,14 @@ private:
         for (size_t d = 0; r.donor_ && d < donors_.size(); ++d)
             if (donors_[d].id == r.donor_) return d;
         return donors_.size();
+    }
+
+    // A waiting request whose client left ends where it waits, and a paused one's own donor goes with it when it holds less than a block, which no fork can share; the position after it. Under the lock.
+    std::deque<std::shared_ptr<Request>>::iterator leave(std::deque<std::shared_ptr<Request>>& waiting, std::deque<std::shared_ptr<Request>>::iterator it) {
+        const size_t d = own_donor(**it);
+        if (d < donors_.size() && donors_[d].tokens.size() < model_.kv_block_tokens()) drop_donor(d);
+        (*it)->end("cancel");
+        return waiting.erase(it);
     }
 
     // The donor sharing the longest run of whole blocks with r's history by tokens, and for a request with a record of its rows only over rows computed as its own were; the run's length goes to `tokens`, zero when none shares a block.

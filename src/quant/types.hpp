@@ -6,6 +6,9 @@
 // quant::Registry pairs each id with its kernels, and quant::row_bytes sizes rows by it, the format layer's tensors included.
 namespace quant {
 
+// A file's dimensions are 64-bit and row_bytes sizes them in size_t, so a narrower size_t would cut them short before its overflow check.
+static_assert(sizeof(size_t) >= sizeof(uint64_t), "llmx needs a 64-bit size_t");
+
 constexpr uint32_t GGML_TYPE_F32  = 0;
 constexpr uint32_t GGML_TYPE_Q4_0 = 2;
 constexpr uint32_t GGML_TYPE_Q4_1 = 3;

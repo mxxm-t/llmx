@@ -10,6 +10,9 @@ through.
 - The block of each quantized type, values per block and bytes per block
   (`*_BLOCK`, `*_TYPESIZE`): 32/18 (Q4_0), 32/20 (Q4_1), 32/34 (Q8_0),
   256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K).
+- A `static_assert` that `size_t` holds 64 bits: `row_bytes` sizes a file's
+  64-bit dimensions in `size_t`, so a narrower one would cut them short
+  before its overflow check, and llmx does not build there.
 
 `quant::Registry` (`quant/quant.hpp`) pairs each id with its block and its
 kernels, F32 as a block of one value in 4 bytes, and `quant::row_bytes`

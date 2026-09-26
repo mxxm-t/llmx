@@ -58,8 +58,8 @@ struct CopyingBackend : backend::CpuBackend {
     }
 };
 
-// The load modes to run on the file at `path`: direct only where its file system takes direct reads, and where it does not, the refusal a direct load gives is checked instead.
-std::vector<infer::LoadMode> load_modes(const std::string& path) {
+// The load modes to run on the model at `path`: direct only where its file system takes direct reads, and where it does not, the refusal a direct load gives is checked instead, naming the first file with tensors, `named` (the path itself when empty).
+std::vector<infer::LoadMode> load_modes(const std::string& path, const std::string& named = {}) {
     try {
         format::FileReader probe(path, true);
     } catch (const format::DirectUnavailable&) {
@@ -68,7 +68,7 @@ std::vector<infer::LoadMode> load_modes(const std::string& path) {
         std::string error;
         try { infer::load_model(path, {backend::make_cpu_backend()}, request, {}, {}, infer::LoadMode::direct); }
         catch (const std::runtime_error& e) { error = e.what(); }
-        require(error.rfind("--load-mode direct: ", 0) == 0 && error.find(path) != std::string::npos,
+        require(error.rfind("--load-mode direct: ", 0) == 0 && error.find(named.empty() ? path : named) != std::string::npos,
                 "a direct load was not refused, naming its file, where direct reads are not taken");
         return {infer::LoadMode::automatic, infer::LoadMode::mapped};
     }
@@ -338,7 +338,7 @@ void shard_checks(const std::filesystem::path& dir) {
     }
     const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
     const std::vector<float> expected = infer::Model(source, backend::make_cpu_backend()).prefill(ids);
-    for (const infer::LoadMode mode : load_modes(paths[1])) {
+    for (const infer::LoadMode mode : load_modes(paths[0], paths[1])) {
         for (const bool copying : {false, true}) {
             const auto copier = std::make_shared<CopyingBackend>();
             const backend::BackendPtr b = copying ? backend::BackendPtr(copier) : backend::make_cpu_backend();

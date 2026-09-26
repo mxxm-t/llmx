@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
             save(p, small);
             const format::FileReader r(p.u8string());
             core::HostPages buf(4096);
-            require(r.size() == bytes && r.read(0, buf.data(), 4096) == bytes && std::memcmp(buf.data(), small.data(), bytes) == 0,
+            require(r.size() == bytes && r.read(0, buf.data(), 4096) == bytes && (!bytes || std::memcmp(buf.data(), small.data(), bytes) == 0),
                     "a " + std::to_string(bytes) + "-byte file did not read whole");
         }
         bool refused = false;

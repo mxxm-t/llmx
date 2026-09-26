@@ -2,7 +2,7 @@
 // Every mode but `stages` uses the Backend interface as a split would (adopt, matmul, copy into host-visible memory, submit, wait, write), so the numbers include the backend's own submission and waiting.
 // `concurrent D...`: each device runs decode-shaped passes on its own thread, first alone, then all at once.
 // `pipeline D0 D1 [D...] [options]`: a stage per device with P passes in flight, driven by a thread per stage or by one thread in completion order or in the round's order; each pass leaves a stage through host memory into the next, and the host holds it for a sampling time before it re-enters stage 0.
-// `stages MODEL D... [options]`: a model split by layers over the devices as the CLI places it, and each stage's device time a decode pass from GPU timestamps.
+// `stages MODEL D... [options]`: a model split by layers over the devices as the CLI places it, and each stage's device time a decode pass, and a prefill pass when asked, from GPU timestamps.
 // `groupsum D...`: every device's vector summed on the host in device order and written back to each, for a decode row and a 512-row chunk.
 // `exchange D... [-- tokens skew]`: a mixture-of-experts layer's dispatch and return between ranks, each rank's entries sent to the ranks holding their experts and the results sent back.
 // The synthetic modes use the shapes of a 5120-wide dense model (Qwen3-32B) and Qwen3-235B-A22B's experts (4096 wide, 128 experts of 1536, 8 per token); `stages` reads its model file.
@@ -753,6 +753,7 @@ int pipeline(const std::vector<int>& devices, PipelineOptions o) {
 
 struct StagesOptions {
     std::vector<size_t> rows{1, 8, 16, 32, 64};
+    std::vector<size_t> prefill;   // prompt rows of the prefill passes timed, none unless asked
     size_t context = 512, steps = 16;
 };
 
@@ -776,7 +777,8 @@ std::vector<int> plan_layers(const std::string& plan, size_t devices) {
     return out.size() == devices ? out : std::vector<int>{};
 }
 
-// Decode passes of each row count through the model split over `devices`, every sequence first given `context` tokens, and each device's time a pass as the sum of its dispatches' GPU timestamps.
+// Decode passes of each row count through the model split over `devices`, every sequence first given `context` tokens, and prefill passes of each prompt row count, each the slice that ends a prompt after `context` tokens, so it wants its last row's logits.
+// Each device's time a pass is the sum of its dispatches' GPU timestamps.
 // The last stage is set against the others, and where the plan gives the layer counts, what it takes beyond its layers at the others' time a layer is the head's.
 int stages(const std::string& path, const std::vector<int>& devices, const StagesOptions& o) {
     std::vector<backend::BackendPtr> backends;
@@ -786,9 +788,10 @@ int stages(const std::string& path, const std::vector<int>& devices, const Stage
         request.names.push_back("vulkan:" + std::to_string(d));
     }
     const size_t most = *std::max_element(o.rows.begin(), o.rows.end()), warm = 3;
+    const size_t widest = o.prefill.empty() ? 0 : *std::max_element(o.prefill.begin(), o.prefill.end());
     request.decode_rows = most;
     request.histories = most;
-    request.history_tokens = o.context + warm + o.steps;
+    request.history_tokens = o.context + std::max(warm + o.steps, widest);
     const auto loaded = infer::load_model(path, backends, request);
     infer::Model& model = *loaded->model;
     std::printf("%s, %zu tokens of context, %zu passes timed after %zu:\n%s", path.c_str(), o.context, o.steps, warm, loaded->plan.c_str());
@@ -802,46 +805,43 @@ int stages(const std::string& path, const std::vector<int>& devices, const Stage
         for (auto& t : v) t = (uint32_t)(rng() % vocab);
         return v;
     };
-    const std::vector<uint32_t> prompt = ids(o.context), gen = ids(warm + o.steps);
+    const std::vector<uint32_t> prompt = ids(o.context), gen = ids(warm + o.steps), tail = ids(widest);
     const size_t n = devices.size(), ubatch = model.prefill_batch();
     infer::ExecContext ctx;
-    for (size_t rows : o.rows) {
-        std::vector<infer::Sequence> seqs;
-        for (size_t i = 0; i < rows; ++i) seqs.push_back(model.make_sequence());
-        // Each history's prompt in slices of the ubatch, each slice given the whole prompt's extent.
-        for (auto& q : seqs)
-            for (size_t at = 0; at < prompt.size(); at += ubatch) {
-                infer::BatchEntry e{&q, prompt.data() + at, std::min(ubatch, prompt.size() - at), at + ubatch >= prompt.size()};
-                e.extent = e.fresh = prompt.size();
-                model.forward(ctx, &e, 1);
-            }
-        ctx.logits(0);
-        std::vector<infer::BatchEntry> batch;
-        auto pass = [&](size_t g) {
-            batch.clear();
-            for (auto& q : seqs) batch.push_back(infer::BatchEntry{&q, &gen[g], 1, true});
-            model.forward(ctx, batch.data(), batch.size());
-            ctx.logits(0);
-        };
-        for (size_t g = 0; g < warm; ++g) pass(g);
-        for (auto& b : backends) backend::vulkan_kernel_times(*b);
-        std::vector<double> device(n, 0.0), dispatches(n, 0.0);
-        double host = 0;
-        for (size_t g = 0; g < o.steps; ++g) {
+    // Tokens [from, to) of the prompt `whole` into q, in slices of the ubatch, each slice given the whole prompt's extent; the slice that ends the prompt wants its last row's logits.
+    auto feed = [&](infer::Sequence& q, const std::vector<uint32_t>& whole, size_t from, size_t to) {
+        for (size_t at = from; at < to; at += ubatch) {
+            const size_t len = std::min(ubatch, to - at);
+            infer::BatchEntry e{&q, whole.data() + at, len, at + len == whole.size()};
+            e.extent = e.fresh = whole.size();
+            model.forward(ctx, &e, 1);
+        }
+    };
+    struct Reading {
+        std::vector<double> device, dispatches;   // each device's time and dispatches a pass
+        double host = 0;                          // a pass on the host, the stages one after another
+    };
+    // `o.steps` passes timed after `warm`, each after its `setup`, which is not timed.
+    auto time_passes = [&](const auto& setup, const auto& pass) {
+        Reading r{std::vector<double>(n, 0.0), std::vector<double>(n, 0.0), 0.0};
+        for (size_t g = 0; g < warm + o.steps; ++g) {
+            setup(g);
+            for (auto& b : backends) backend::vulkan_kernel_times(*b);
             const auto t0 = Clock::now();
-            pass(warm + g);
-            host += ms_since(t0);
+            pass(g);
+            if (g < warm) continue;
+            r.host += ms_since(t0) / (double)o.steps;
             for (size_t d = 0; d < n; ++d) {
-                for (const auto& k : backend::vulkan_kernel_times(*backends[d])) device[d] += k.second / (double)o.steps;
-                dispatches[d] += (double)backend::vulkan_timed_dispatches(*backends[d]) / (double)o.steps;
+                for (const auto& k : backend::vulkan_kernel_times(*backends[d])) r.device[d] += k.second / (double)o.steps;
+                r.dispatches[d] += (double)backend::vulkan_timed_dispatches(*backends[d]) / (double)o.steps;
             }
         }
-        for (auto& q : seqs) model.reset(q);
-        if (std::all_of(dispatches.begin(), dispatches.end(), [](double v) { return v == 0; }))
+        if (std::all_of(r.dispatches.begin(), r.dispatches.end(), [](double v) { return v == 0; }))
             throw std::runtime_error("no device timestamps its dispatches");
-
-        std::printf("\n%zu row%s a pass: %.2f ms a pass on the host, the stages one after another\n", rows, rows == 1 ? "" : "s", host / (double)o.steps);
-        auto runs_layers = [&](size_t d) { return layers.empty() ? dispatches[d] > 0 : layers[d] > 0; };
+        return r;
+    };
+    auto report = [&](const Reading& r) {
+        auto runs_layers = [&](size_t d) { return layers.empty() ? r.dispatches[d] > 0 : layers[d] > 0; };
         size_t last = n;
         for (size_t d = 0; d < n; ++d)
             if (runs_layers(d)) last = d;
@@ -851,20 +851,53 @@ int stages(const std::string& path, const std::vector<int>& devices, const Stage
         for (size_t d = 0; d < n; ++d) {
             std::printf("  %s", request.names[d].c_str());
             if (!layers.empty()) std::printf(", %d layers", layers[d]);
-            std::printf(": %.3f ms of device time a pass over %.0f dispatches\n", device[d], dispatches[d]);
+            std::printf(": %.3f ms of device time a pass over %.0f dispatches\n", r.device[d], r.dispatches[d]);
             if (d != last && runs_layers(d)) {
-                others += device[d];
+                others += r.device[d];
                 ++n_others;
                 if (!layers.empty()) other_layers += layers[d];
             }
         }
-        if (!n_others || last == n) continue;
-        std::printf("  last stage: %+.1f%% against the other stages' mean", 100 * (device[last] / (others / (double)n_others) - 1));
+        if (!n_others || last == n) return;
+        std::printf("  last stage: %+.1f%% against the other stages' mean", 100 * (r.device[last] / (others / (double)n_others) - 1));
         if (other_layers) {
-            const double per = others / other_layers, head = device[last] - layers[last] * per;
-            std::printf("; beyond its %d layers at their %.3f ms a layer it takes %.3f ms, %.1f%% of it", layers[last], per, head, 100 * head / device[last]);
+            const double per = others / other_layers, head = r.device[last] - layers[last] * per;
+            std::printf("; beyond its %d layers at their %.3f ms a layer it takes %.3f ms, %.1f%% of it", layers[last], per, head, 100 * head / r.device[last]);
         }
         std::printf("\n");
+    };
+    for (size_t rows : o.rows) {
+        std::vector<infer::Sequence> seqs;
+        for (size_t i = 0; i < rows; ++i) seqs.push_back(model.make_sequence());
+        for (auto& q : seqs) feed(q, prompt, 0, prompt.size());
+        ctx.logits(0);
+        std::vector<infer::BatchEntry> batch;
+        const Reading r = time_passes([](size_t) {}, [&](size_t g) {
+            batch.clear();
+            for (auto& q : seqs) batch.push_back(infer::BatchEntry{&q, &gen[g], 1, true});
+            model.forward(ctx, batch.data(), batch.size());
+            ctx.logits(0);
+        });
+        for (auto& q : seqs) model.reset(q);
+        std::printf("\n%zu row%s a pass: %.2f ms a pass on the host, the stages one after another\n", rows, rows == 1 ? "" : "s", r.host);
+        report(r);
+    }
+    for (size_t rows : o.prefill) {
+        std::vector<uint32_t> whole = prompt;
+        whole.insert(whole.end(), tail.begin(), tail.begin() + (std::ptrdiff_t)rows);
+        infer::Sequence q = model.make_sequence();
+        const Reading r = time_passes(
+            [&](size_t) {
+                model.reset(q);
+                feed(q, whole, 0, o.context);
+            },
+            [&](size_t) {
+                feed(q, whole, o.context, whole.size());
+                ctx.logits(0);
+            });
+        model.reset(q);
+        std::printf("\nprefill, %zu prompt rows a pass ending a prompt after %zu tokens: %.2f ms a pass on the host, the stages one after another\n", rows, o.context, r.host);
+        report(r);
     }
     return 0;
 }
@@ -1013,7 +1046,7 @@ const char* const kUsage =
     "                                        [--driver all|DRIVER[,DRIVER...]] [--sample MS] [--calls N]\n"
     "         --ms: a stage's time for every stage or for each, in one list for every --rows value or a list for each, separated by /\n"
     "         DRIVER: per-stage, completion, round or round-idle\n"
-    "       llmx-multi-device-bench stages MODEL D... [--rows R[,R...]] [--context N] [--steps N]\n"
+    "       llmx-multi-device-bench stages MODEL D... [--rows R[,R...]] [--prefill R[,R...]] [--context N] [--steps N]\n"
     "       llmx-multi-device-bench groupsum D...\n"
     "       llmx-multi-device-bench exchange D... [-- tokens skew]\n";
 
@@ -1112,6 +1145,9 @@ StagesOptions stages_options(const Args& a) {
     o.rows = count_list(a, "--rows", o.rows);
     for (size_t r : o.rows)
         if (!r) throw Usage("--rows: at least one row a pass");
+    o.prefill = count_list(a, "--prefill", o.prefill);
+    for (size_t r : o.prefill)
+        if (!r || r > (size_t)infer::kDefaultUbatch) throw Usage("--prefill: 1 to " + std::to_string(infer::kDefaultUbatch) + " prompt rows a pass, the ubatch");
     if (a.has("--context")) o.context = count(a.at("--context"), "--context");
     if (a.has("--steps")) o.steps = count(a.at("--steps"), "--steps");
     if (!o.context || !o.steps) throw Usage("--context and --steps: at least one");
@@ -1134,7 +1170,7 @@ int main(int argc, char** argv) {
         }
         if (mode == "stages") {
             if (argc < 3 || !std::strncmp(argv[2], "--", 2)) throw Usage("stages: the model file first");
-            const Args a = parse_args(argc, argv, 3, {"--rows", "--context", "--steps"});
+            const Args a = parse_args(argc, argv, 3, {"--rows", "--prefill", "--context", "--steps"});
             if (a.devices.empty()) throw Usage("stages: one device or more");
             return stages(argv[2], a.devices, stages_options(a));
         }

@@ -10,6 +10,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from baseline_8b import file_sha256
+import baseline_qwen35
 import common
 from common import run as cli
 
@@ -23,7 +24,8 @@ GOLDEN = os.path.join(HERE, "data", "baseline_tokenizer.json")
 GOLDEN_LOGITS = os.path.join(HERE, "data", "baseline_logits.json")
 GOLDEN_PPL = os.path.join(HERE, "data", "baseline_perplexity.json")
 
-# The fixture models are pinned in tests/data/fixtures.json: repo, revision, file, SHA-256 and size, "gate" for the models the logit/PPL gates check, and "hosted" for those the hosted HF job downloads.
+# The fixture models are pinned in tests/data/fixtures.json: family, repo, revision, file, SHA-256 and size, "gate" for the models the logit/PPL gates check, and "hosted" for those the hosted HF job downloads.
+# A family has its own goldens, vocabulary and context: qwen3 here, and qwen35 in tests/baseline_qwen35.py.
 # tools/fetch_test_models.py downloads the gate's models, and the HF job's cache key hashes their pins, so a change of bounds keeps the cached downloads.
 # The other entries are pinned ahead of the tensor types they hold, each joining the gate with its type's bounds (docs/ASSETS.md).
 FIXTURES = os.path.join(HERE, "data", "fixtures.json")
@@ -41,13 +43,15 @@ BOUNDS = {
 
 with io.open(FIXTURES, encoding="utf-8") as f:
     PINNED = json.load(f)
-# Each model is pinned once, and every gate model needs bounds, and only those.
+# Each model is pinned once in a family with goldens, and every gate model needs bounds, and only those.
 assert len({spec["file"] for spec in PINNED}) == len(PINNED), "tests/data/fixtures.json pins a file twice"
-GATE_FILES = sorted(spec["file"] for spec in PINNED if spec["gate"])
+assert all(spec["family"] in ("qwen3", "qwen35") for spec in PINNED), "tests/data/fixtures.json names a family without goldens"
+GATE_FILES = sorted(spec["file"] for spec in PINNED if spec["gate"] and spec["family"] == "qwen3")
 assert GATE_FILES == sorted(BOUNDS), "tests/data/fixtures.json gates %s, but tests/baseline.py bounds %s" % (GATE_FILES, sorted(BOUNDS))
+assert all(spec["file"] in baseline_qwen35.BOUNDS for spec in PINNED if spec["gate"] and spec["family"] == "qwen35"), "tests/data/fixtures.json gates a qwen35 model without bounds in tests/baseline_qwen35.py"
 # The hosted HF job downloads and requires every gate model, so a model it is to leave out joins the gate only with a change that lets the job leave it out.
 assert all(spec["hosted"] for spec in PINNED if spec["gate"]), "tests/data/fixtures.json gates a model the hosted HF job does not download"
-BASELINE_MODELS = [dict(spec, **BOUNDS[spec["file"]]) for spec in PINNED if spec["gate"]]
+BASELINE_MODELS = [dict(spec, **BOUNDS[spec["file"]]) for spec in PINNED if spec["gate"] and spec["family"] == "qwen3"]
 
 # A correct next-token logit for these models sits around 15-25.
 # Gross corruption blows this up (the reintroduced f16 bug gave 582), so a magnitude bound catches whole classes of damage that a ranking check can miss.
@@ -232,7 +236,7 @@ def find_model(spec):
 
 
 def run():
-    return run_tokenizer() and run_logits() and run_perplexity()
+    return run_tokenizer() and run_logits() and run_perplexity() and baseline_qwen35.run_hosted()
 
 
 def run_tokenizer():

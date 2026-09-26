@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import math
 import os
 from pathlib import Path
 import struct
@@ -125,7 +126,8 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(len({spec["file"] for spec in pinned}), len(pinned))
         for spec in pinned:
             with self.subTest(file=spec["file"]):
-                self.assertEqual(set(spec), {"repo", "file", "revision", "sha256", "size", "gate", "hosted"})
+                self.assertEqual(set(spec), {"family", "repo", "file", "revision", "sha256", "size", "gate", "hosted"})
+                self.assertIn(spec["family"], ("qwen3", "qwen35"))
                 self.assertRegex(spec["revision"], r"^[0-9a-f]{40}$")
                 self.assertRegex(spec["sha256"], r"^[0-9a-f]{64}$")
                 self.assertTrue(type(spec["size"]) is int and spec["size"] > 0)
@@ -133,12 +135,197 @@ class ReferenceGenerator(unittest.TestCase):
                 self.assertEqual(baseline.pinned_fixture(spec["file"]), spec)
         # The gate is the models with bounds, in the file's order.
         self.assertEqual([spec["file"] for spec in baseline.BASELINE_MODELS], [spec["file"] for spec in pinned if spec["gate"]])
-        # The six pinned ahead of their types join the gate with them: the hosted HF job is to download UD-Q8_K_XL, IQ4_XS and Q2_K, and the other three are checked by hand.
-        later = [spec for spec in pinned if not spec["gate"]]
+        # The six Qwen3 files pinned ahead of their types join the gate with them: the hosted HF job is to download UD-Q8_K_XL, IQ4_XS and Q2_K, and the other three are checked by hand.
+        later = [spec for spec in pinned if not spec["gate"] and spec["family"] == "qwen3"]
         self.assertEqual(sorted(spec["file"] for spec in later if spec["hosted"]),
                          ["Qwen3-0.6B-IQ4_XS.gguf", "Qwen3-0.6B-Q2_K.gguf", "Qwen3-0.6B-UD-Q8_K_XL.gguf"])
         self.assertEqual(sorted(spec["file"] for spec in later if not spec["hosted"]),
                          ["Qwen3-0.6B-BF16.gguf", "Qwen3-0.6B-IQ4_NL.gguf", "Qwen3-0.6B-Q3_K_S.gguf"])
+        # The qwen35 files join the gate with their bounds: the two 0.8B files in the hosted HF job, the 4B by hand, and each is a file of a checkpoint QWEN35_MODELS pins.
+        qwen35 = [spec for spec in pinned if spec["family"] == "qwen35"]
+        self.assertEqual(sorted(spec["file"] for spec in qwen35 if spec["hosted"]), ["Qwen3.5-0.8B-Q4_K_M.gguf", "Qwen3.5-0.8B-Q8_0.gguf"])
+        self.assertEqual(sorted(spec["file"] for spec in qwen35 if not spec["hosted"]), ["Qwen3.5-4B-Q4_K_M.gguf"])
+        self.assertEqual(sorted(spec["file"] for spec in qwen35),
+                         sorted(file for model in generator.QWEN35_MODELS.values() for file in model["gguf_files"]))
+
+    def test_qwen35_selection(self):
+        args = generator.parse_args(["qwen35", "--model", "Qwen3.5-4B", "--threads", "3"])
+        self.assertEqual((args.family, args.qwen35_model, args.repo, args.revision, args.threads),
+                         ("qwen35", "Qwen3.5-4B", "Qwen/Qwen3.5-4B", generator.QWEN35_MODELS["Qwen3.5-4B"]["revision"], 3))
+        self.assertEqual(Path(args.output_dir), Path(generator.OUT_DIR) / "qwen35-4b")
+        self.assertEqual((args.gguf_repo, args.gguf_file), ("lmstudio-community/Qwen3.5-4B-GGUF", "Qwen3.5-4B-Q4_K_M.gguf"))
+        with tempfile.TemporaryDirectory(prefix="llmx_reference_qwen35_out_") as directory:
+            self.assertTrue(Path(generator.parse_args(["qwen35", "--model", "Qwen3.5-0.8B", "--output-dir", directory]).output_dir).samefile(directory))
+        invalid = [["qwen35"], ["logits", "--model", "Qwen3.5-0.8B"], ["qwen35", "--model", "Qwen3.5-9B"],
+                   ["qwen35", "--model", "Qwen3.5-0.8B", "--repo", "Qwen/Qwen3.5-4B", "--revision", "a" * 40],
+                   ["qwen35", "--model", "Qwen3.5-0.8B", "--gguf-repo", "a/b", "--gguf-file", "c.gguf"],
+                   ["qwen35", "--model", "Qwen3.5-0.8B", "--weights-gguf", str(SCRIPT)],
+                   ["qwen35", "--model", "Qwen3.5-0.8B", "--threads", "0"]]
+        with contextlib.redirect_stderr(io.StringIO()):
+            for argv in invalid:
+                with self.subTest(argv=argv), self.assertRaises(SystemExit) as error:
+                    generator.parse_args(argv)
+                self.assertEqual(error.exception.code, 2)
+        # A pinned qwen35 file's file-exact reference is the checkpoint whose goldens are for it, which --repo cannot replace.
+        with tempfile.TemporaryDirectory(prefix="llmx_reference_qwen35_file_exact_") as directory:
+            path = os.path.join(directory, "Qwen3.5-0.8B-Q4_K_M.gguf")
+            Path(path).write_bytes(b"GGUF")
+            out = os.path.join(directory, "goldens")
+            args = generator.parse_args(["file-exact", "--weights-gguf", path, "--output-dir", out])
+            self.assertEqual((args.family, args.qwen35_model, args.repo, args.gguf_repo, args.gguf_file),
+                             ("qwen35", "Qwen3.5-0.8B", "Qwen/Qwen3.5-0.8B", "unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"))
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                generator.parse_args(["file-exact", "--weights-gguf", path, "--output-dir", out, "--repo", "Qwen/Qwen3.5-4B", "--revision", "a" * 40])
+
+    def test_qwen35_tensors_undo_the_converter(self):
+        import spec_decode
+        # A qwen35 file written as the converter writes one, from HF-order tensors of a model with 3 V heads to each of 2 K heads, a linear layer, an attention layer and an MTP block.
+        width, vocab, hk, hv, dk, dv = 4, 5, 2, 6, 2, 3
+        conv = 2 * hk * dk + hv * dv
+        # The converter stores HF's V head h * 3 + s as V head s * 2 + h.
+        held = [(j % hk) * (hv // hk) + j // hk for j in range(hv)]
+
+        def tiled(values, rows, block, cols=1, offset=0, columns=False):
+            if columns:
+                return [values[r * rows + offset + held[j // block] * block + j % block] for r in range(len(values) // rows) for j in range(rows)]
+            head_rows = [offset + held[j // block] * block + j % block for j in range(rows - offset)]
+            return values[:offset * cols] + [values[r * cols + c] for r in head_rows for c in range(cols)]
+
+        state, written = {}, []
+
+        def add(gguf, hf, shape, stored=None):
+            count = 1
+            for n in shape:
+                count *= n
+            values = [0.25 * (len(state) * 64 + i) for i in range(count)]
+            state[hf] = (shape, values)
+            data = stored(values) if stored else values
+            written.append((gguf, list(reversed(shape)) if len(shape) < 3 else [shape[2], shape[0]], spec_decode.F32, struct.pack("<%df" % count, *data)))
+
+        norm = lambda values: [v + 1 for v in values]
+        add("token_embd.weight", "model.embed_tokens.weight", [vocab, width])
+        add("output_norm.weight", "model.norm.weight", [width], norm)
+        add("output.weight", "lm_head.weight", [vocab, width])
+        linear = "model.layers.0.linear_attn."
+        add("blk.0.attn_norm.weight", "model.layers.0.input_layernorm.weight", [width], norm)
+        add("blk.0.post_attention_norm.weight", "model.layers.0.post_attention_layernorm.weight", [width], norm)
+        add("blk.0.attn_qkv.weight", linear + "in_proj_qkv.weight", [conv, width], lambda v: tiled(v, conv, dv, width, 2 * hk * dk))
+        add("blk.0.attn_gate.weight", linear + "in_proj_z.weight", [hv * dv, width], lambda v: tiled(v, hv * dv, dv, width))
+        add("blk.0.ssm_alpha.weight", linear + "in_proj_a.weight", [hv, width], lambda v: tiled(v, hv, 1, width))
+        add("blk.0.ssm_beta.weight", linear + "in_proj_b.weight", [hv, width], lambda v: tiled(v, hv, 1, width))
+        add("blk.0.ssm_conv1d.weight", linear + "conv1d.weight", [conv, 1, 4], lambda v: tiled(v, conv, dv, 4, 2 * hk * dk))
+        add("blk.0.ssm_a", linear + "A_log", [hv], lambda v: tiled([-math.exp(x / 64) for x in v], hv, 1))
+        add("blk.0.ssm_dt.bias", linear + "dt_bias", [hv], lambda v: tiled(v, hv, 1))
+        add("blk.0.ssm_norm.weight", linear + "norm.weight", [dv])
+        add("blk.0.ssm_out.weight", linear + "out_proj.weight", [width, hv * dv], lambda v: tiled(v, hv * dv, dv, columns=True))
+        attention = "model.layers.1.self_attn."
+        for name, hf, shape in (("attn_q", "q_proj", [8, width]), ("attn_k", "k_proj", [2, width]), ("attn_v", "v_proj", [2, width]),
+                                ("attn_output", "o_proj", [width, 4])):
+            add("blk.1.%s.weight" % name, attention + hf + ".weight", shape)
+        for name, hf in (("attn_q_norm", "q_norm"), ("attn_k_norm", "k_norm")):
+            add("blk.1.%s.weight" % name, attention + hf + ".weight", [2], norm)
+        add("blk.1.ffn_down.weight", "model.layers.1.mlp.down_proj.weight", [width, 3])
+        add("blk.2.nextn.eh_proj.weight", "mtp.fc.weight", [width, 2 * width])
+        del state["mtp.fc.weight"]
+        # The A_log a file holds is -exp(A_log) rounded to f32, so its log comes back within that rounding.
+        state[linear + "A_log"] = ([hv], [x / 64 for x in state[linear + "A_log"][1]])
+        metadata = {"general.architecture": (8, "qwen35"), "qwen35.block_count": (4, 3), "qwen35.nextn_predict_layers": (4, 1),
+                    "qwen35.ssm.group_count": (4, hk), "qwen35.ssm.time_step_rank": (4, hv), "qwen35.ssm.state_size": (4, dk),
+                    "qwen35.ssm.inner_size": (4, hv * dv)}
+        with tempfile.TemporaryDirectory(prefix="llmx_reference_qwen35_state_") as directory:
+            path = os.path.join(directory, "tiny.gguf")
+            spec_decode.write_gguf(path, metadata, written)
+            got, types = generator.gguf_state(path, numpy=False)
+            self.assertEqual(types, {"F32": len(state)})
+            self.assertEqual(set(got), set(state))
+            for key, (shape, values) in state.items():
+                with self.subTest(key=key):
+                    self.assertEqual(got[key][0], shape)
+                    if key.endswith("A_log"):
+                        self.assertTrue(all(abs(a - b) < 1e-6 for a, b in zip(got[key][1], values)))
+                    else:
+                        self.assertEqual(got[key][1], values)
+            spec_decode.write_gguf(path, metadata, written + [("blk.0.ssm_extra", [hv], spec_decode.F32, struct.pack("<%df" % hv, *[0.0] * hv))])
+            with self.assertRaisesRegex(SystemExit, "blk.0.ssm_extra"):
+                generator.gguf_state(path, numpy=False)
+
+    def test_qwen35_reference_loads_as_pinned(self):
+        # load_qwen35 against doubles: the versions, float32 and eager attention, transformers' torch forms, and the keys a load may leave out.
+        dtype = object()
+
+        def load(transformers_version="5.17.0", installed=(), missing=(), unexpected=()):
+            model = MagicMock()
+            model.cpu.return_value = model
+            info = {"missing_keys": list(missing), "mismatched_keys": [],
+                    "unexpected_keys": ["mtp.fc.weight", "model.visual.blocks.0.attn.qkv.weight"] + list(unexpected)}
+            causal = SimpleNamespace(from_pretrained=MagicMock(return_value=(model, info)))
+            modeling = SimpleNamespace(torch_chunk_gated_delta_rule=MagicMock(return_value="chunked"), torch_recurrent_gated_delta_rule=MagicMock())
+            torch = SimpleNamespace(__version__="2.5.1+cpu", float32=dtype, set_num_threads=MagicMock())
+            modules = {"torch": torch, "tokenizers": SimpleNamespace(__version__="0.23.2"),
+                       "transformers": SimpleNamespace(__version__=transformers_version, Qwen3_5ForCausalLM=causal),
+                       "transformers.models": SimpleNamespace(), "transformers.models.qwen3_5": SimpleNamespace(modeling_qwen3_5=modeling),
+                       "transformers.models.qwen3_5.modeling_qwen3_5": modeling}
+            args = generator.parse_args(["qwen35", "--model", "Qwen3.5-0.8B", "--threads", "2"])
+            with patch.dict(sys.modules, modules), patch.object(generator, "qwen35_checkpoint", return_value="checkpoint"), \
+                 patch.object(generator, "Qwen35Tokenizer"), patch.object(importlib.util, "find_spec", side_effect=lambda name: name in installed or None):
+                result = generator.load_qwen35(args)
+            return args, torch, causal, modeling, model, result
+
+        args, torch, causal, modeling, model, result = load()
+        causal.from_pretrained.assert_called_once_with("checkpoint", dtype=dtype, attn_implementation="eager", output_loading_info=True)
+        torch.set_num_threads.assert_called_once_with(2)
+        model.eval.assert_called_once_with()
+        self.assertIs(result[3], model)
+        self.assertEqual(args.qwen35["gguf_files"], generator.QWEN35_MODELS["Qwen3.5-0.8B"]["gguf_files"])
+        # The goldens are HF's full forward: its chunked form is counted and its token-by-token recurrence refused.
+        self.assertEqual(modeling.torch_chunk_gated_delta_rule(1), "chunked")
+        self.assertEqual(args.chunked_calls, 1)
+        with self.assertRaisesRegex(SystemExit, "recurrence"):
+            modeling.torch_recurrent_gated_delta_rule(1)
+        refusals = [({"transformers_version": "5.16.0"}, "5.17.0"), ({"installed": ("kernels",)}, "kernels"),
+                    ({"installed": ("fla",)}, "fla"), ({"missing": ("model.norm.weight",)}, "model.norm.weight"),
+                    ({"unexpected": ("model.language_model.extra",)}, "model.language_model.extra")]
+        for change, message in refusals:
+            with self.subTest(change=change), self.assertRaisesRegex(SystemExit, message):
+                load(**change)
+
+    def test_qwen35_checkpoint_files_are_held_to_their_digests(self):
+        with tempfile.TemporaryDirectory(prefix="llmx_reference_qwen35_checkpoint_") as directory:
+            files = {"config.json": b"{}", "model.safetensors": b"weights"}
+            for name, raw in files.items():
+                (Path(directory) / name).write_bytes(raw)
+            spec = {"repo": "a/b", "revision": "c" * 40, "sha256": {name: hashlib.sha256(raw).hexdigest() for name, raw in files.items()}}
+            hub = SimpleNamespace(hf_hub_download=MagicMock(side_effect=lambda repo, name, revision: str(Path(directory) / name)))
+            with patch.dict(sys.modules, {"huggingface_hub": hub}):
+                self.assertTrue(Path(generator.qwen35_checkpoint(spec)).samefile(directory))
+                self.assertEqual(hub.hf_hub_download.call_args_list, [call("a/b", name, revision="c" * 40) for name in files])
+                with self.assertRaisesRegex(SystemExit, "model.safetensors"):
+                    generator.qwen35_checkpoint(dict(spec, sha256=dict(spec["sha256"], **{"model.safetensors": "0" * 64})))
+
+    def test_committed_qwen35_goldens_are_the_generators(self):
+        # Each model's goldens record the generator's checkpoint, files, prompts, conversations, template and excerpts, and the consumer pins every one of them.
+        # A model whose files are all checked by hand may have none yet, and a model with a hosted file has all of them.
+        import baseline
+        import baseline_qwen35
+        pinned = set()
+        for spec in generator.QWEN35_MODELS.values():
+            directory = Path(generator.OUT_DIR) / spec["directory"]
+            docs = {path.name: json.loads(path.read_text(encoding="utf-8")) for path in directory.glob("*.json")}
+            if not docs and not any(baseline.pinned_fixture(file)["hosted"] for file in spec["gguf_files"]):
+                continue
+            self.assertEqual(sorted(docs), sorted(["baseline_logits.json", "baseline_chat.json"] + list(baseline_qwen35.PPL_GOLDENS.values())))
+            pinned.update(spec["directory"] + "/" + name for name in docs)
+            for name, doc in docs.items():
+                with self.subTest(golden=spec["directory"] + "/" + name):
+                    self.assertEqual((doc["reference_repo"], doc["reference_revision"], doc["gguf_files"]), (spec["repo"], spec["revision"], spec["gguf_files"]))
+                    self.assertEqual((doc["reference_dtype"], doc["attention"], doc["transformers_version"]), ("float32", "eager", generator.QWEN35_ENV["transformers"]))
+            self.assertEqual([case["text"] for case in docs["baseline_logits.json"]["cases"]], generator.LOGIT_PROMPTS)
+            chat = docs["baseline_chat.json"]
+            self.assertEqual(chat["template_sha256"], spec["template_sha256"])
+            self.assertEqual([(case["name"], case["messages"]) for case in chat["cases"]], [(name, messages) for name, messages in generator.QWEN35_CHATS])
+            for context, name in baseline_qwen35.PPL_GOLDENS.items():
+                self.assertEqual((docs[name]["chars"], docs[name]["chunk_cases"][0]["context_size"]), (generator.QWEN35_PPL[context], context))
+        self.assertEqual(pinned | {baseline_qwen35.TOKENIZER_GOLDEN}, set(baseline_qwen35.GOLDEN_SHA256))
 
     @unittest.skipUnless(sys.platform == "win32", "Windows short-path aliases")
     def test_short_windows_output_directory(self):

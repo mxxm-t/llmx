@@ -1,5 +1,6 @@
 [
   {
+    "family": "qwen3",
     "repo": "Qwen/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-Q8_0.gguf",
     "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
@@ -9,6 +10,7 @@
     "hosted": true
   },
   {
+    "family": "qwen3",
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-Q4_0.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
@@ -18,6 +20,7 @@
     "hosted": true
   },
   {
+    "family": "qwen3",
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-Q5_K_M.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
@@ -27,6 +30,7 @@
     "hosted": true
   },
   {
+    "family": "qwen3",
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-Q4_K_M.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
@@ -36,6 +40,7 @@
     "hosted": true
   },
   {
+    "family": "qwen3",
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-BF16.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
@@ -45,6 +50,7 @@
     "hosted": false
   },
   {
+    "family": "qwen3",
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-UD-Q8_K_XL.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
@@ -54,6 +60,7 @@
     "hosted": true
   },
   {
+    "family": "qwen3",
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-IQ4_NL.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
@@ -63,6 +70,7 @@
     "hosted": false
   },
   {
+    "family": "qwen3",
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-IQ4_XS.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
@@ -72,6 +80,7 @@
     "hosted": true
   },
   {
+    "family": "qwen3",
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-Q2_K.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
@@ -81,11 +90,42 @@
     "hosted": true
   },
   {
+    "family": "qwen3",
     "repo": "unsloth/Qwen3-0.6B-GGUF",
     "file": "Qwen3-0.6B-Q3_K_S.gguf",
     "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
     "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
     "size": 323075776,
+    "gate": false,
+    "hosted": false
+  },
+  {
+    "family": "qwen35",
+    "repo": "unsloth/Qwen3.5-0.8B-GGUF",
+    "file": "Qwen3.5-0.8B-Q8_0.gguf",
+    "revision": "6ab461498e2023f6e3c1baea90a8f0fe38ab64d0",
+    "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+    "size": 811843840,
+    "gate": false,
+    "hosted": true
+  },
+  {
+    "family": "qwen35",
+    "repo": "unsloth/Qwen3.5-0.8B-GGUF",
+    "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+    "revision": "6ab461498e2023f6e3c1baea90a8f0fe38ab64d0",
+    "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+    "size": 532517120,
+    "gate": false,
+    "hosted": true
+  },
+  {
+    "family": "qwen35",
+    "repo": "lmstudio-community/Qwen3.5-4B-GGUF",
+    "file": "Qwen3.5-4B-Q4_K_M.gguf",
+    "revision": "f9f88ac3e234be915e23811a6d28ea287bdb927e",
+    "sha256": "25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c",
+    "size": 2707513696,
     "gate": false,
     "hosted": false
   }

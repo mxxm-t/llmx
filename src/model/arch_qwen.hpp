@@ -1226,8 +1226,8 @@ private:
         p.in_flight = false;
     }
 
-    // Handoff buffers on each device a crossing leaves (Device::sends) for `slots` passes in flight: one where crossings run inside a stage, and on a pipelined split one per slot, two at least, so a prompt's chunk goes out through one while the chunk before it still waits in the other.
-    size_t handoffs(size_t slots) const { return pipelined_ ? std::max<size_t>(2, slots) : 1; }
+    // Handoff buffers on each device a crossing leaves (Device::sends) for `slots` passes in flight, by the rule the fit counts them with.
+    size_t handoffs(size_t slots) const { return handoff_buffers(slots, pipelined_); }
 
     // The CPU prefill scope is per backend, so a prompt enters one on every device it runs on, nested.
     // A device backend's scope is the default and just runs the body.

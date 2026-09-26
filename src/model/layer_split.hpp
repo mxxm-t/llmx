@@ -34,8 +34,11 @@ struct Footprint {
     size_t tables = 0;                         // position tables: the host keeps them while the model lives, and every device that copies weights holds its own
     size_t activations_per_row = 0;            // one row of a pass's activations on each device
     size_t logits_per_row = 0;                 // one row of logits where the head runs
-    size_t handoff_per_row = 0;                // one row of the stream handed from one device to the next through host memory, which each used device but the last keeps a buffer of per pass slot, two at least
+    size_t handoff_per_row = 0;                // one row of the stream handed from one device to the next through host memory, in each of the handoff buffers every used device but the last keeps
 };
+
+// The handoff buffers each device the residual leaves keeps for `slots` passes in flight: on a pipelined split one per slot, two at least, so a prompt's chunk goes out through one while the chunk before it waits in the other, and one where crossings run only inside a stage.
+inline size_t handoff_buffers(size_t slots, bool pipelined) { return pipelined ? std::max<size_t>(2, slots) : 1; }
 
 // What a device offers a split: the bytes it reports free, or nothing when it cannot tell and is not checked; whether weights placed on it read the mapped file in place, as the CPU's do, rather than being copied into its memory; and what adopting a matrix keeps resident there, its bytes when empty.
 // `host_side` is host memory the device's backend holds for itself, such as upload staging, which counts against the host.
@@ -130,7 +133,8 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     };
     auto host_for = [&](const std::vector<size_t>& used) {
         Host h;
-        h.need = rows * fp.logits_per_row + fp.tables + (used.size() > 1 ? std::max<size_t>(2, slots) * (used.size() - 1) * rows * fp.handoff_per_row : 0);
+        // A layer split is pipelined, and every stage but the last sends its residual on.
+        h.need = rows * fp.logits_per_row + fp.tables + (used.size() > 1 ? handoff_buffers(slots, true) * (used.size() - 1) * rows * fp.handoff_per_row : 0);
         for (size_t d : used) {
             h.need += devices[d].host_side;
             if (devices[d].host && h.carrier == SIZE_MAX) h.carrier = d;

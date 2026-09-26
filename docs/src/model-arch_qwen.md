@@ -166,7 +166,8 @@ to a `backend::Backend`.
     logit_rows)` sizes a fresh context once: the arena for `rows` rows,
     which every pass shares, a handoff buffer per slot on each device the
     residual leaves, two at least on a pipelined split and one for the
-    single slot of a placement that is not pipelined, and `logit_rows` rows
+    single slot of a placement that is not pipelined (`handoff_buffers` in
+    `layer_split.hpp`, the rule the fit counts by), and `logit_rows` rows
     of logits the caller hands out. The context is frozen from then on. A
     reservation that fails leaves the context fresh, so a smaller one may
     follow. More than one slot needs a pipelined placement.

@@ -32,11 +32,13 @@ def file_sha256(path):
     return digest.hexdigest()
 
 
-def load_goldens():
+def load_goldens(data=None, fixture_sha256=None):
+    """The goldens in `data`, each refused unless its text has the SHA-256 `fixture_sha256` gives it; the 8B's when neither is given."""
+    data = DATA if data is None else data
     docs = {}
-    for name, expected in FIXTURE_SHA256.items():
+    for name, expected in (FIXTURE_SHA256 if fixture_sha256 is None else fixture_sha256).items():
         # Git may check JSON out with CRLF; the generator writes LF.
-        text = (DATA / name).read_text(encoding="utf-8")
+        text = (data / name).read_text(encoding="utf-8")
         require(hashlib.sha256(text.encode("utf-8")).hexdigest() == expected,
                 "HF fixture changed: " + name)
         docs[name] = json.loads(text)
@@ -49,8 +51,28 @@ check_logits = functools.partial(common.check_logits, vocab=VOCAB_SIZE, bounds=B
 check_ppl = functools.partial(common.check_ppl, context=MODEL_CONTEXT, bounds=BOUNDS)
 
 
+def qwen3_8b():
+    """The 8B's goldens as consume() takes a model's goldens, read from this module's names when a run starts."""
+    return {"name": "8B", "data": DATA, "fixture_sha256": FIXTURE_SHA256, "bounds": BOUNDS,
+            "vocab": VOCAB_SIZE, "context": MODEL_CONTEXT,
+            "scope": "20 tokenizer cases, six short prefill rankings and four NLL cases, each scored in batched passes and per token; not full-corpus or deep-context coverage",
+            "provenance_limit": "Official GGUF base model and file digest match; exact original conversion revision is undocumented."}
+
+
+class Refused(Exception):
+    """llmx refused the model with the error that a consumer reads as llmx not running the model yet."""
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Optional pinned Qwen3-8B Q8_0 HF check; no downloads or skips.")
+    return consume(argv, "Optional pinned Qwen3-8B Q8_0 HF check; no downloads or skips.",
+                   lambda digest: qwen3_8b() if digest == MODEL_SHA256 else None)
+
+
+def consume(argv, description, select, refusal=None):
+    """Hold llmx on a model to the HF goldens that `select` gives for its SHA-256, and write report.json and each command's output into a new directory.
+    A model `select` gives no goldens for fails, as do a golden whose text changed, a failed command and a check out of bounds.
+    With `refusal`, a command that fails with that text in its error ends the run as a skip, exit 0, unless a check had already failed."""
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--exe", required=True, type=Path)
     parser.add_argument("--model", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path, help="new directory for raw output and report")
@@ -66,12 +88,10 @@ def main(argv=None):
     if out.exists():
         parser.error("output directory already exists; use a new path")
     out.mkdir(parents=True)
-    report = {"status": "running", "bounds": dict(BOUNDS), "threads": 6, "ubatch": 128,
+    report = {"status": "running", "threads": 6, "ubatch": 128,
               "model": str(model), "executable": str(exe), "device": args.device or "cpu", "layer_shares": args.layer_shares,
-              "fixture_sha256_lf": FIXTURE_SHA256,
-              "scope": "20 tokenizer cases, six short prefill rankings and four NLL cases, each scored in batched passes and per token; not full-corpus or deep-context coverage",
-              "provenance_limit": "Official GGUF base model and file digest match; exact original conversion revision is undocumented.",
               "commands": [], "checks": []}
+    name = None
 
     def save():
         (out / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=True) + "\n", encoding="ascii")
@@ -96,6 +116,9 @@ def main(argv=None):
         (out / (label + ".stdout")).write_bytes(stdout)
         (out / (label + ".stderr")).write_bytes(stderr)
         save()
+        error = stderr.decode("utf-8", "replace").strip()
+        if refusal and record.get("returncode") not in (None, 0) and refusal in error:
+            raise Refused(error)
         require(record.get("returncode") == 0, label + " failed: " + record["status"])
         return stdout.decode("utf-8")
 
@@ -107,13 +130,25 @@ def main(argv=None):
         report["checks"].append(dict(label=label, **result))
         save()
 
+    def failures():
+        return [item["label"] for item in report["checks"] if item["status"] == "fail"]
+
+    def title():
+        return name + " HF check" if name else "HF check"
+
     save()
     try:
-        docs = load_goldens()
         report["executable_sha256"] = file_sha256(exe)
-        print("Verifying 8B model SHA-256", flush=True)
+        print("Verifying the model's SHA-256", flush=True)
         report["model_sha256"] = file_sha256(model)
-        require(report["model_sha256"] == MODEL_SHA256, "wrong 8B GGUF digest")
+        golden = select(report["model_sha256"])
+        require(golden is not None, "no goldens here for a GGUF with SHA-256 " + report["model_sha256"])
+        name = golden["name"]
+        report.update(golden=name, bounds=dict(golden["bounds"]), fixture_sha256_lf=golden["fixture_sha256"],
+                      scope=golden["scope"], provenance_limit=golden["provenance_limit"])
+        docs = load_goldens(golden["data"], golden["fixture_sha256"])
+        check_model_logits = functools.partial(common.check_logits, vocab=golden["vocab"], bounds=golden["bounds"])
+        check_model_ppl = functools.partial(common.check_ppl, context=golden["context"], bounds=golden["bounds"])
         report["version"] = run("version", ["--version"]).strip()
         for index, case in enumerate(docs["baseline_tokenizer.json"]["cases"]):
             label = "tokenizer-%02d" % index
@@ -121,7 +156,7 @@ def main(argv=None):
         for index, case in enumerate(docs["baseline_logits.json"]["cases"]):
             label = "logits-%02d" % index
             check(label + "-ids", check_ids, run(label + "-ids", ["tokenize", str(model), case["text"]]), case["token_ids"])
-            check(label, check_logits, run(label, ["logits", str(model), case["text"],
+            check(label, check_model_logits, run(label, ["logits", str(model), case["text"],
                   "--top", "10", "--threads", "6", "--ubatch", "128"]), case)
         doc = docs["baseline_perplexity.json"]
         excerpt = out / "excerpt.txt"
@@ -132,18 +167,24 @@ def main(argv=None):
             for mode in common.PPL_MODES:
                 label = "ppl-%02d" % index + ("-per-token" if mode == "per-token" else "")
                 command = common.ppl_command(str(model), str(excerpt), case, mode, ubatch=128)
-                check(label, check_ppl, run(label, command), case, doc["n_tokens"])
-        failures = [item["label"] for item in report["checks"] if item["status"] == "fail"]
-        require(not failures, "failed checks: " + ", ".join(failures))
+                check(label, check_model_ppl, run(label, command), case, doc["n_tokens"])
+        require(not failures(), "failed checks: " + ", ".join(failures()))
         report["status"] = "pass"
-        print("8B HF check PASS: %d checks, 20 tokenizer cases, six rankings, four NLL cases batched and per token"
-              % len(report["checks"]), flush=True)
+        print("%s PASS: %d checks, 20 tokenizer cases, six rankings, four NLL cases batched and per token"
+              % (title(), len(report["checks"])), flush=True)
+    except Refused as refused:
+        if failures():
+            report.update(status="fail", error="failed checks: %s, then llmx refused the model: %s" % (", ".join(failures()), refused))
+            print("%s FAIL: %s" % (title(), report["error"]), file=sys.stderr, flush=True)
+        else:
+            report.update(status="skip", reason=str(refused))
+            print("%s SKIP: llmx does not run this model yet (%s)" % (title(), refused), flush=True)
     except (OSError, ValueError, OverflowError) as error:
         report.update(status="fail", error=str(error))
-        print("8B HF check FAIL: " + str(error), file=sys.stderr, flush=True)
+        print("%s FAIL: %s" % (title(), error), file=sys.stderr, flush=True)
     finally:
         save()
-    return 0 if report["status"] == "pass" else 1
+    return 0 if report["status"] in ("pass", "skip") else 1
 
 
 if __name__ == "__main__":

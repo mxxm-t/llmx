@@ -533,8 +533,110 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertNotEqual(packed(hf), packed(gguf))
 
 
+LAYERED_SCRIPT = SCRIPT.parent / "gen_layered_reference.py"
+LAYERED_SPEC = importlib.util.spec_from_file_location("llmx_gen_layered_reference", LAYERED_SCRIPT)
+layered = importlib.util.module_from_spec(LAYERED_SPEC)
+LAYERED_SPEC.loader.exec_module(layered)
+
+
+class LayeredReference(unittest.TestCase):
+    """tools/gen_layered_reference.py, which needs torch to run, through what it does without it: its arguments, its V-head order, its inputs, and the records it committed."""
+
+    def test_arguments(self):
+        with tempfile.TemporaryDirectory(prefix="llmx_layered_args_") as directory:
+            gguf = os.path.join(directory, "model.gguf")
+            Path(gguf).write_bytes(b"GGUF")
+            out = os.path.join(directory, "goldens")
+            good = ["goldens", "--repo", "Qwen/Qwen3.5-9B", "--revision", "a" * 40, "--gguf", gguf, "--output-dir", out]
+            args = layered.parse_args(good + ["--gguf-repo", "a/b-GGUF", "--gguf-revision", "b" * 40])
+            self.assertEqual((args.threads, args.gguf_repo, args.gguf_revision), (6, "a/b-GGUF", "b" * 40))
+            self.assertTrue(Path(args.output_dir).is_absolute())
+            self.assertEqual(layered.parse_args(["equality", "--output", out, "--threads", "2"]).threads, 2)
+            invalid = [["typo"], ["goldens"], ["equality"], good[:-2], good + ["--threads", "0"],
+                       good[:4] + ["main"] + good[5:], good[:4] + ["A" * 40] + good[5:],
+                       good[:2] + [directory] + good[3:], good[:6] + [gguf + ".missing"] + good[7:],
+                       good + ["--gguf-revision", "b" * 40], good + ["--gguf-repo", "a/b", "--gguf-revision", "b" * 39],
+                       good[:-1] + [generator.OUT_DIR]]
+            with contextlib.redirect_stderr(io.StringIO()):
+                for argv in invalid:
+                    with self.subTest(argv=argv), self.assertRaises(SystemExit) as error:
+                        layered.parse_args(argv)
+                    self.assertEqual(error.exception.code, 2)
+
+    def test_tiled_v_head_order(self):
+        self.assertEqual(layered.tiled_order(2, 6), [0, 3, 1, 4, 2, 5])
+        self.assertEqual(layered.tiled_order(16, 16), list(range(16)))
+        # GGUF V head j reads K head j mod Hk, and the HF head it holds reads K head floor(i / r), the same one.
+        for k_heads, v_heads in ((16, 32), (16, 48)):
+            order = layered.tiled_order(k_heads, v_heads)
+            self.assertEqual(sorted(order), list(range(v_heads)))
+            self.assertTrue(all(order[j] // (v_heads // k_heads) == j % k_heads for j in range(v_heads)))
+
+    def test_label_keeps_the_writers_fields_in_order(self):
+        extra = {"gguf_repo": None, "gguf_file": "m.gguf", "gguf_sha256": "0" * 64}
+        with tempfile.TemporaryDirectory(prefix="llmx_layered_label_") as directory:
+            path = os.path.join(directory, "golden.json")
+            # The logit and tokenizer writers name the GGUF, and the perplexity writer does not.
+            for written, labelled in (({"_comment": "writer", "gguf_repo": None, "gguf_file": "m.gguf", "cases": []},
+                                       [("_comment", layered.COMMENT), ("gguf_repo", None), ("gguf_file", "m.gguf"), ("gguf_sha256", "0" * 64), ("cases", [])]),
+                                      ({"_comment": "writer", "transformers_version": "5.17.0", "text": "t"},
+                                       [("_comment", layered.COMMENT), ("transformers_version", "5.17.0"), ("gguf_repo", None), ("gguf_file", "m.gguf"),
+                                        ("gguf_sha256", "0" * 64), ("text", "t")])):
+                generator._write(path, written)
+                layered.label_golden(path, extra)
+                with open(path, encoding="utf-8") as f:
+                    self.assertEqual(list(json.load(f).items()), labelled)
+            generator._write(path, {"_comment": "writer", "text": "t"})
+            with self.assertRaises(SystemExit):
+                layered.label_golden(path, extra)
+
+    def test_one_window_rule_gives_every_perplexity_golden(self):
+        import baseline_layered
+        paths = [Path(generator.OUT_DIR) / "baseline_perplexity.json", Path(generator.OUT_DIR) / "qwen3-8b" / "baseline_perplexity.json"]
+        paths += [golden["data"] / "baseline_perplexity.json" for golden in baseline_layered.GOLDENS.values()]
+        for path in paths:
+            with self.subTest(path=path.parent.name):
+                doc = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(doc["text"], generator.ppl_text())
+                self.assertEqual([(case["context_size"], case["max_chunks"]) for case in doc["chunk_cases"]], list(generator.PPL_WINDOWS))
+                for case in doc["chunk_cases"]:
+                    spans = generator.ppl_window_bounds(doc["n_tokens"], case["context_size"], case["max_chunks"])
+                    self.assertEqual((len(spans), sum(end - start for start, end in spans), sum(end - start - 1 for start, end in spans)),
+                                     (case["chunks"], case["used_tokens"], case["n_scored"]))
+
+    def test_committed_equality_record_shows_the_layered_forward_equal(self):
+        doc = json.loads((Path(generator.OUT_DIR) / "layered_equality.json").read_text(encoding="utf-8"))
+        self.assertEqual((doc["reference_repo"], doc["reference_revision"]), (layered.EQUALITY_REPO, layered.EQUALITY_REVISION))
+        self.assertEqual((doc["transformers_version"], doc["torch_version"], doc["reference_dtype"], doc["attention"]),
+                         (layered.TRANSFORMERS_VERSION, layered.TORCH_VERSION, "float32", "eager"))
+        self.assertTrue(doc["parameters"] > 0 and doc["parameters_equal"] == doc["parameters"] and doc["inv_freq_equal"])
+        # Every input the goldens take, each prompt and the text whole and in every window, with the full forward's logits bit for bit.
+        tokens = next(case["tokens"] for case in doc["cases"] if case["label"] == "perplexity")
+        self.assertEqual([case["label"] for case in doc["cases"]], layered.row_labels(len(generator.LOGIT_PROMPTS), tokens))
+        for case in doc["cases"]:
+            with self.subTest(case=case["label"]):
+                self.assertRegex(case["full_sha256"], r"^[0-9a-f]{64}$")
+                self.assertEqual((case["layered_sha256"], case["max_abs_difference"]), (case["full_sha256"], 0.0))
+
+    def test_committed_layered_goldens_are_the_generators(self):
+        import baseline_layered
+        for digest, golden in baseline_layered.GOLDENS.items():
+            with self.subTest(golden=golden["name"]):
+                docs = {name: json.loads((golden["data"] / name).read_text(encoding="utf-8")) for name in golden["fixture_sha256"]}
+                self.assertEqual([case["text"] for case in docs["baseline_tokenizer.json"]["cases"]], generator.CASES)
+                self.assertEqual([case["text"] for case in docs["baseline_logits.json"]["cases"]], generator.LOGIT_PROMPTS)
+                self.assertTrue(all(doc["_comment"] == layered.COMMENT and doc["gguf_sha256"] == digest for doc in docs.values()))
+                for name in ("baseline_logits.json", "baseline_perplexity.json"):
+                    doc = docs[name]
+                    self.assertEqual((doc["transformers_version"], doc["torch_version"], doc["reference_dtype"], doc["attention"], doc["threads"]),
+                                     (layered.TRANSFORMERS_VERSION, layered.TORCH_VERSION, "float32", "eager", 6))
+                    self.assertRegex(doc["reference_revision"], r"^[0-9a-f]{40}$")
+                    self.assertTrue(doc["layered"]["safetensors_sha256"])
+
+
 def run():
-    result = unittest.TextTestRunner(stream=sys.stdout).run(unittest.defaultTestLoader.loadTestsFromTestCase(ReferenceGenerator))
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceGenerator, LayeredReference))
+    result = unittest.TextTestRunner(stream=sys.stdout).run(suite)
     return result.wasSuccessful()
 
 

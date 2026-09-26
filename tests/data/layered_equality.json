@@ -1,0 +1,122 @@
+{
+ "_comment": "Written by tools/gen_layered_reference.py equality. Do not hand-edit.",
+ "reference_repo": "Qwen/Qwen3.5-0.8B",
+ "reference_revision": "2fc06364715b967f1860aea9cf38778875588b17",
+ "reference_dtype": "float32",
+ "attention": "eager",
+ "device": "cpu",
+ "threads": 6,
+ "torch_version": "2.5.1+cpu",
+ "transformers_version": "5.17.0",
+ "parameters": 321,
+ "parameters_equal": 321,
+ "inv_freq_equal": true,
+ "unexpected_keys_ignored": 168,
+ "cases": [
+  {
+   "label": "logits 0",
+   "tokens": 5,
+   "full_sha256": "63c1be7fc1d53cf446975d266aefc78b4e7af461d412b6a2a71a104228eb7c41",
+   "layered_sha256": "63c1be7fc1d53cf446975d266aefc78b4e7af461d412b6a2a71a104228eb7c41",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "logits 1",
+   "tokens": 3,
+   "full_sha256": "8e218d1c773dba9f78fb65f2fed1fea2f4ae15dadafa72bb0b2b21efca1d0162",
+   "layered_sha256": "8e218d1c773dba9f78fb65f2fed1fea2f4ae15dadafa72bb0b2b21efca1d0162",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "logits 2",
+   "tokens": 6,
+   "full_sha256": "293383675c5451d3d32b97ac9c0c343c77c1830996e14976d0afb2e0ae6545ad",
+   "layered_sha256": "293383675c5451d3d32b97ac9c0c343c77c1830996e14976d0afb2e0ae6545ad",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "logits 3",
+   "tokens": 7,
+   "full_sha256": "0e2dfd7f51531c32b29de325c25f102927d72e3c4010cc0dd1f8050f226af565",
+   "layered_sha256": "0e2dfd7f51531c32b29de325c25f102927d72e3c4010cc0dd1f8050f226af565",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "logits 4",
+   "tokens": 12,
+   "full_sha256": "7028fa3e570983b0347de2fef2f41029d780abde0c33924f455f7c2492bf1b67",
+   "layered_sha256": "7028fa3e570983b0347de2fef2f41029d780abde0c33924f455f7c2492bf1b67",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "logits 5",
+   "tokens": 17,
+   "full_sha256": "f685e0f45e987855a65cbf394e5bdde1502bc92c619747f4adef824d15c3a648",
+   "layered_sha256": "f685e0f45e987855a65cbf394e5bdde1502bc92c619747f4adef824d15c3a648",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "perplexity",
+   "tokens": 243,
+   "full_sha256": "29903380b0346fb43a7381751de5b78f54ce85fa48b1f50522688587c899c543",
+   "layered_sha256": "29903380b0346fb43a7381751de5b78f54ce85fa48b1f50522688587c899c543",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "perplexity 64/0 [0, 64)",
+   "tokens": 64,
+   "full_sha256": "4596f20e704afbcb574415a6be838252a23f4d575fe1304a67c2b3f5430ba4e4",
+   "layered_sha256": "4596f20e704afbcb574415a6be838252a23f4d575fe1304a67c2b3f5430ba4e4",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "perplexity 64/0 [64, 128)",
+   "tokens": 64,
+   "full_sha256": "edceb53492ce8cb140c642336f38db1d1106306e827cd7ff39af33f3c9235e7d",
+   "layered_sha256": "edceb53492ce8cb140c642336f38db1d1106306e827cd7ff39af33f3c9235e7d",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "perplexity 64/0 [128, 192)",
+   "tokens": 64,
+   "full_sha256": "d75e3479e608afee7bb539f3830519ab5d556966645d371e8c94c58ab65992f2",
+   "layered_sha256": "d75e3479e608afee7bb539f3830519ab5d556966645d371e8c94c58ab65992f2",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "perplexity 64/0 [192, 243)",
+   "tokens": 51,
+   "full_sha256": "012fc546fff2818eeeeb5e666e66502c172ca3225622249af3e0894f725a6597",
+   "layered_sha256": "012fc546fff2818eeeeb5e666e66502c172ca3225622249af3e0894f725a6597",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "perplexity 64/2 [0, 64)",
+   "tokens": 64,
+   "full_sha256": "4596f20e704afbcb574415a6be838252a23f4d575fe1304a67c2b3f5430ba4e4",
+   "layered_sha256": "4596f20e704afbcb574415a6be838252a23f4d575fe1304a67c2b3f5430ba4e4",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "perplexity 64/2 [64, 128)",
+   "tokens": 64,
+   "full_sha256": "edceb53492ce8cb140c642336f38db1d1106306e827cd7ff39af33f3c9235e7d",
+   "layered_sha256": "edceb53492ce8cb140c642336f38db1d1106306e827cd7ff39af33f3c9235e7d",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "perplexity 123/0 [0, 123)",
+   "tokens": 123,
+   "full_sha256": "c55e9ecbba74d9a91ab7e01c07ba5b8c99441efb402092579b6dd698d5bd6964",
+   "layered_sha256": "c55e9ecbba74d9a91ab7e01c07ba5b8c99441efb402092579b6dd698d5bd6964",
+   "max_abs_difference": 0.0
+  },
+  {
+   "label": "perplexity 123/0 [123, 243)",
+   "tokens": 120,
+   "full_sha256": "d049903e5002e83e0d05309e02e96a3e3e4cecf2707f5e48b6d609cac23a4191",
+   "layered_sha256": "d049903e5002e83e0d05309e02e96a3e3e4cecf2707f5e48b6d609cac23a4191",
+   "max_abs_difference": 0.0
+  }
+ ]
+}

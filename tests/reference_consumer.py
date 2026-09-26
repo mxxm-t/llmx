@@ -14,6 +14,7 @@ from unittest.mock import patch
 import baseline
 import baseline_8b as consumer
 import baseline_qwen35
+import baseline_layered as layered
 import common
 
 
@@ -22,12 +23,41 @@ def logits_text(case):
         "%d %.6f\n" % pair for pair in zip(case["top_ids"], case["top_logits"]))
 
 
-def ppl_text(case, nll=None, context=consumer.MODEL_CONTEXT, tokens=247):
+def ppl_text(case, nll=None, tokens=247, context=consumer.MODEL_CONTEXT):
     nll = case["mean_nll"] if nll is None else nll
     return ("tokens: %d\nused tokens: %d\nscored tokens: %d\nchunks: %d\n"
             "context size: %d\nmean NLL: %.6g\nperplexity: %.6g\n") % (
         tokens, case["used_tokens"], case["n_scored"], case["chunks"],
         case["context_size"] or context, nll, math.exp(nll))
+
+
+def simulated_llmx(docs, tokens, context, refuse=None):
+    """A stand-in for subprocess.run that answers every command of a consumer's run from the goldens `docs`, as a passing llmx would.
+    With `refuse`, every `logits` and `perplexity` command fails with that error instead."""
+    ids = {case["text"]: case["ids"] for case in docs["baseline_tokenizer.json"]["cases"]}
+    ids.update((case["text"], case["token_ids"]) for case in docs["baseline_logits.json"]["cases"])
+    doc = docs["baseline_perplexity.json"]
+    ids[doc["text"]] = doc["token_ids"]
+    logits = {case["text"]: logits_text(case) for case in docs["baseline_logits.json"]["cases"]}
+
+    def flag(command, name):
+        return int(command[command.index(name) + 1]) if name in command else 0
+
+    def llmx(command, **kwargs):
+        if refuse and command[1] in ("logits", "perplexity"):
+            return subprocess.CompletedProcess(command, 1, b"", refuse.encode("utf-8"))
+        if command[1] == "tokenize":
+            out = " ".join(map(str, ids[command[3]]))
+        elif command[1] == "logits":
+            out = logits[command[3]]
+        elif command[1] == "perplexity":
+            window = (flag(command, "--ctx-size"), flag(command, "--chunks"))
+            out = ppl_text(next(case for case in common.ppl_cases(doc)
+                                if (case["context_size"], case["max_chunks"]) == window), tokens=tokens, context=context)
+        else:
+            out = "llmx 0\n"
+        return subprocess.CompletedProcess(command, 0, out.encode("utf-8"), b"")
+    return llmx
 
 
 class ReferenceConsumer(unittest.TestCase):
@@ -117,35 +147,14 @@ class ReferenceConsumer(unittest.TestCase):
                     consumer.check_ppl(output, case, 247)
 
     def test_passing_run_scores_each_nll_case_both_ways(self):
-        doc = self.docs["baseline_perplexity.json"]
-        ids = {case["text"]: case["ids"] for case in self.docs["baseline_tokenizer.json"]["cases"]}
-        ids.update((case["text"], case["token_ids"]) for case in self.docs["baseline_logits.json"]["cases"])
-        ids[doc["text"]] = doc["token_ids"]
-        logits = {case["text"]: logits_text(case) for case in self.docs["baseline_logits.json"]["cases"]}
-
-        def flag(command, name):
-            return int(command[command.index(name) + 1]) if name in command else 0
-
-        def llmx(command, **kwargs):
-            if command[1] == "tokenize":
-                out = " ".join(map(str, ids[command[3]]))
-            elif command[1] == "logits":
-                out = logits[command[3]]
-            elif command[1] == "perplexity":
-                window = (flag(command, "--ctx-size"), flag(command, "--chunks"))
-                out = ppl_text(next(case for case in common.ppl_cases(doc)
-                                    if (case["context_size"], case["max_chunks"]) == window))
-            else:
-                out = "llmx 0\n"
-            return subprocess.CompletedProcess(command, 0, out.encode("utf-8"), b"")
-
         sha256 = consumer.file_sha256
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             args = ["--exe", str(root / "llmx"), "--model", str(root / "model"), "--output-dir", str(root / "result")]
             with patch.object(consumer, "file_sha256",
                               side_effect=lambda path: sha256(path) if path.name == "excerpt.txt" else consumer.MODEL_SHA256), \
-                 patch.object(consumer.subprocess, "run", side_effect=llmx), contextlib.redirect_stdout(io.StringIO()):
+                 patch.object(consumer.subprocess, "run", side_effect=simulated_llmx(self.docs, 247, consumer.MODEL_CONTEXT)), \
+                 contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(consumer.main(args), 0)
             report = json.loads((root / "result/report.json").read_text())
         self.assertEqual(report["status"], "pass")
@@ -350,10 +359,73 @@ class Qwen35Consumer(unittest.TestCase):
                 self.assertEqual(baseline.missing_gate_models(), [])
 
 
+class LayeredConsumer(unittest.TestCase):
+    """tests/baseline_layered.py: the layered HF reference's goldens, chosen by the model's SHA-256 and checked by the 8B consumer's run."""
+
+    def consume(self, digest, llmx):
+        """baseline_layered.main on a model with SHA-256 `digest`, with `llmx` answering its commands: the exit code, the report and what it printed."""
+        sha256 = consumer.file_sha256
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = ["--exe", str(root / "llmx"), "--model", str(root / "model"), "--output-dir", str(root / "result")]
+            printed = io.StringIO()
+            with patch.object(consumer, "file_sha256", side_effect=lambda path: sha256(path) if path.name == "excerpt.txt" else digest), \
+                 patch.object(consumer.subprocess, "run", side_effect=llmx) as run, \
+                 contextlib.redirect_stdout(printed), contextlib.redirect_stderr(printed):
+                code = layered.main(args)
+            return code, json.loads((root / "result/report.json").read_text()), printed.getvalue(), run.call_count
+
+    def test_goldens_record_the_gguf_they_are_chosen_for(self):
+        for digest, golden in layered.GOLDENS.items():
+            with self.subTest(golden=golden["name"]):
+                docs = consumer.load_goldens(golden["data"], golden["fixture_sha256"])
+                self.assertEqual({doc["gguf_sha256"] for doc in docs.values()}, {digest})
+                self.assertEqual(len({doc["gguf_file"] for doc in docs.values()}), 1)
+                # One checkpoint gives all three: the tokenizer's repository and commit are the model's.
+                ran = {(doc["reference_repo"], doc["reference_revision"]) for name, doc in docs.items() if name != "baseline_tokenizer.json"}
+                self.assertEqual(ran, {(docs["baseline_tokenizer.json"]["tokenizer_repo"], docs["baseline_tokenizer.json"]["tokenizer_revision"])})
+                for name in ("baseline_logits.json", "baseline_perplexity.json"):
+                    self.assertEqual(docs[name]["layered"]["gguf_provenance"]["differ"], [])
+
+    def test_passing_run_for_each_model(self):
+        for digest, golden in layered.GOLDENS.items():
+            with self.subTest(golden=golden["name"]):
+                docs = consumer.load_goldens(golden["data"], golden["fixture_sha256"])
+                code, report, printed, _ = self.consume(digest, simulated_llmx(docs, docs["baseline_perplexity.json"]["n_tokens"], layered.MODEL_CONTEXT))
+                self.assertEqual((code, report["status"], report["golden"]), (0, "pass", golden["name"]))
+                self.assertEqual(len(report["checks"]), 41)
+                self.assertIn(golden["name"] + " HF check PASS", printed)
+
+    def test_refusal_of_the_architecture_is_one_skip_line(self):
+        refusal = "error: inference: unsupported metadata general.architecture\n"
+        digest, golden = next(iter(layered.GOLDENS.items()))
+        docs = consumer.load_goldens(golden["data"], golden["fixture_sha256"])
+        code, report, printed, _ = self.consume(digest, simulated_llmx(docs, docs["baseline_perplexity.json"]["n_tokens"], layered.MODEL_CONTEXT, refuse=refusal))
+        self.assertEqual((code, report["status"]), (0, "skip"))
+        self.assertEqual([line for line in printed.splitlines() if "HF check" in line],
+                         [golden["name"] + " HF check SKIP: llmx does not run this model yet (" + refusal.strip() + ")"])
+        # The tokenizer cases ran before the first logits command was refused, and passed.
+        self.assertEqual(len(report["checks"]), 21)
+        self.assertTrue(all(item["status"] == "pass" for item in report["checks"]))
+        # A check that failed before the refusal fails the run, and any other error is a failure, not a skip.
+        answer = simulated_llmx(docs, docs["baseline_perplexity.json"]["n_tokens"], layered.MODEL_CONTEXT, refuse=refusal)
+        first = docs["baseline_tokenizer.json"]["cases"][0]["text"]
+        wrong = lambda command, **kwargs: (subprocess.CompletedProcess(command, 0, b"1 2 3", b"")
+                                           if command[1] == "tokenize" and command[3] == first else answer(command, **kwargs))
+        for llmx in (wrong, simulated_llmx(docs, 0, 0, refuse="error: vulkan: this model's mixer has no kernel\n")):
+            code, report, _, _ = self.consume(digest, llmx)
+            self.assertEqual((code, report["status"]), (1, "fail"))
+
+    def test_a_model_without_goldens_fails_before_running(self):
+        code, report, printed, calls = self.consume("0" * 64, lambda command, **kwargs: None)
+        self.assertEqual((code, report["status"], calls), (1, "fail", 0))
+        self.assertIn("no goldens here", report["error"])
+
+
 def run():
-    loader = unittest.defaultTestLoader
-    suite = unittest.TestSuite([loader.loadTestsFromTestCase(ReferenceConsumer), loader.loadTestsFromTestCase(Qwen35Consumer)])
-    return unittest.TextTestRunner(stream=sys.stdout).run(suite).wasSuccessful()
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceConsumer, Qwen35Consumer, LayeredConsumer))
+    result = unittest.TextTestRunner(stream=sys.stdout).run(suite)
+    return result.wasSuccessful()
 
 
 if __name__ == "__main__":

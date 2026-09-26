@@ -120,6 +120,26 @@ LOGIT_PROMPTS = [
 ]
 TOPN = 10
 
+# The perplexity golden's text is the first PPL_CHARS characters of wiki.test.raw, scored whole and then in the (context, most windows) cases of PPL_WINDOWS, 0 meaning no limit.
+PPL_CHARS = 1024
+PPL_WINDOWS = ((64, 0), (64, 2), (123, 0))
+
+
+def ppl_text():
+    with open(os.path.join(ROOT, "tests", "data", "wiki.test.raw"), encoding="utf-8") as f:
+        return f.read(PPL_CHARS)
+
+
+def ppl_window_bounds(n_tokens, context, limit):
+    """The [start, end) token spans a (context, limit) case scores in a text of `n_tokens`: disjoint windows of `context` in order, at most `limit` of them unless it is 0, ending before the first shorter than 2 tokens."""
+    bounds = []
+    for start in range(0, n_tokens, context):
+        end = min(start + context, n_tokens)
+        if end - start < 2 or (limit and len(bounds) >= limit):
+            break
+        bounds.append((start, end))
+    return bounds
+
 
 def gen_tokenizer(args):
     from tokenizers import Tokenizer
@@ -405,8 +425,7 @@ def gen_logits(args, loaded=None):
 
 def gen_perplexity(args, loaded=None):
     torch, transformers, tok, model = loaded or load_reference(args)
-    with open(os.path.join(ROOT, "tests", "data", "wiki.test.raw"), encoding="utf-8") as f:
-        text = f.read(1024)
+    text = ppl_text()
     ids = tok(text, add_special_tokens=False, return_tensors="pt").input_ids
     with torch.inference_mode():
         logits = model(ids, use_cache=False).logits[0, :-1].double()
@@ -414,12 +433,11 @@ def gen_perplexity(args, loaded=None):
         nll = torch.logsumexp(logits, dim=-1) - logits.gather(1, targets[:, None]).squeeze(1)
         mean_nll = nll.mean().item()
     chunk_cases = []
-    for context, limit in ((64, 0), (64, 2), (123, 0)):
+    for context, limit in PPL_WINDOWS:
         total_nll, used, scored, chunks = 0.0, 0, 0, 0
-        for window in ids.split(context, dim=1):
+        for start, end in ppl_window_bounds(ids.shape[1], context, limit):
+            window = ids[:, start:end]
             count = window.shape[1]
-            if count < 2 or (limit and chunks >= limit):
-                break
             with torch.inference_mode():
                 logits = model(window, use_cache=False).logits[0, :-1].double()
                 targets = window[0, 1:]

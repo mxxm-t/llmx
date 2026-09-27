@@ -24,13 +24,19 @@ near-tie. The check is two parts instead:
 
 Usage:
   python tools/long_context_check.py --exe build/Release/llmx.exe \\
-      --model <model.gguf> --device vulkan:0 [--baseline cpu] [--tokens 16384] [--max-tokens 512]
+      --model <model.gguf> --device vulkan:0 [--baseline cpu] [--tokens 16384] [--max-tokens 512] [--cli]
 
 It starts `llmx serve` for each device run on a port the OS chooses, sends the
 prompt to /v1/generate with temperature 0, and reports prompt tokens,
 generated tokens, wall time and the SHA-256 of the generated text; then it
 runs `llmx logits --last` on the baseline over the prompt and the generated
 tokens. It exits non-zero if either part fails.
+
+With --cli each device run is a fresh `llmx generate --file` at temperature 0
+instead, whose `--verbose` output gives the prompt's token count and the
+generated ids, for a model the server does not take, such as one whose
+layers keep a recurrent state; the prompt is sized with `llmx tokenize`, or
+where a command line cannot hold it (Windows) with one-token `generate` runs.
 """
 
 import argparse
@@ -110,6 +116,58 @@ def run_once(port, prompt, max_tokens):
     return out
 
 
+def generate_cli(exe, model, device, prompt, max_tokens, extra):
+    """One fresh `llmx generate` of the prompt, greedy, as the server run's reply: its prompt tokens, ids and wall time."""
+    with tempfile.TemporaryDirectory(prefix="llmx_long_") as d:
+        path = os.path.join(d, "prompt.txt")
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(prompt)
+        cmd = [exe, "generate", model, "--file", path, "-n", str(max_tokens), "--temp", "0", "--verbose", "--device", device] + extra
+        start = time.time()
+        out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT)
+    if out.returncode != 0:
+        raise SystemExit("generate failed:\n" + out.stderr[-2000:])
+    lines = out.stdout.splitlines()
+    counts = [int(l.split()[-1]) for l in lines if l.startswith("prompt tokens: ")]
+    ids = next((l[len("ids:"):].strip() for l in reversed(lines) if l.startswith("ids:")), None)
+    if not counts or ids is None:
+        raise SystemExit("generate --verbose printed no prompt count or ids:\n" + out.stdout[-2000:])
+    got = {"prompt_tokens": counts[-1], "ids": [int(i) for i in ids.split(",")] if ids else []}
+    got["tokens"] = len(got["ids"])
+    got["finish"] = "length" if got["tokens"] >= max_tokens else "stop"
+    got["wall_s"] = time.time() - start
+    got["sha256"] = hashlib.sha256(ids.encode("ascii")).hexdigest()
+    return got
+
+
+def build_prompt_cli(exe, model, device, want_tokens, extra):
+    """The prompt closest to `want_tokens` tokens, as build_prompt finds it, counted by `llmx tokenize`, or where a command line cannot hold the text by one-token generate runs."""
+    raw = open(CORPUS, encoding="utf-8").read().lstrip("\n ")
+
+    def count(chars):
+        text = INSTRUCTION + raw[:chars]
+        if os.name == "nt":
+            return generate_cli(exe, model, device, text, 1, extra)["prompt_tokens"], text
+        out = subprocess.run([exe, "tokenize", model, text], capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if out.returncode != 0:
+            raise SystemExit("tokenize failed:\n" + out.stderr[-2000:])
+        return len(out.stdout.strip().split(",")), text
+
+    chars = min(len(raw), want_tokens * 4)
+    best = None
+    for _ in range(6):
+        n, text = count(chars)
+        if best is None or abs(n - want_tokens) < abs(best[0] - want_tokens):
+            best = (n, text)
+        if n == want_tokens or n == 0:
+            break
+        step = int(chars * (want_tokens / n - 1.0))
+        if step == 0:
+            break
+        chars = max(1000, min(len(raw), chars + step))
+    return best
+
+
 def report(name, got):
     print(f"{name:12s} prompt {got.get('prompt_tokens', 0)} tokens, generated "
           f"{got.get('tokens', 0)}, finish {got.get('finish')!r}, "
@@ -153,6 +211,7 @@ def main():
                     help="KV budget; 0 uses the prompt plus the generation plus a margin")
     ap.add_argument("--threads", type=int, default=0)
     ap.add_argument("--timeout", type=float, default=0, help="seconds to wait for each reply; 0 waits as long as it takes")
+    ap.add_argument("--cli", action="store_true", help="run the device through two fresh `llmx generate` runs rather than `llmx serve`")
     args = ap.parse_args()
     args.exe = os.path.abspath(args.exe)
 
@@ -161,18 +220,24 @@ def main():
     extra = ["--threads", str(args.threads)] if args.threads else []
     ctx = args.ctx_size or (args.tokens + args.max_tokens + 512)
 
-    # 1. The device twice, each from a fresh server; the first run also sizes the prompt.
+    # 1. The device twice, each from a fresh server, or a fresh process with --cli; the first run also sizes the prompt.
     runs = []
     prompt = None
+    if args.cli:
+        n, prompt = build_prompt_cli(args.exe, args.model, args.device, args.tokens, extra)
+        print(f"prompt: {n} tokens, {len(prompt)} characters", flush=True)
     for i in range(2):
-        proc, port, log = serve(args.exe, args.model, args.device, ctx, extra)
-        try:
-            if prompt is None:
-                n, prompt = build_prompt(port, args.tokens)
-                print(f"prompt: {n} tokens, {len(prompt)} characters", flush=True)
-            got = run_once(port, prompt, args.max_tokens)
-        finally:
-            common.stop_server(proc, log)
+        if args.cli:
+            got = generate_cli(args.exe, args.model, args.device, prompt, args.max_tokens, extra)
+        else:
+            proc, port, log = serve(args.exe, args.model, args.device, ctx, extra)
+            try:
+                if prompt is None:
+                    n, prompt = build_prompt(port, args.tokens)
+                    print(f"prompt: {n} tokens, {len(prompt)} characters", flush=True)
+                got = run_once(port, prompt, args.max_tokens)
+            finally:
+                common.stop_server(proc, log)
         report(f"{args.device} #{i + 1}", got)
         runs.append(got)
     repeat_ok = runs[0].get("ids") == runs[1].get("ids")

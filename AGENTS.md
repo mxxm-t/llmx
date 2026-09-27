@@ -607,6 +607,9 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   near-ties where either token is right, so identical text is only
   required of one backend against itself. It needs a real model and is run
   by hand, not by `run_tests.py`.
+  `--cli` sends the prompt through two fresh `llmx generate --file` runs
+  instead, whose `--verbose` output gives the prompt's token count and the
+  generated ids, for a model the server refuses, such as a `qwen35` file.
 - **Decode probe** (`tools/decode_probe.cpp`, target `llmx-decode-probe`, built beside `llmx-split-check`): a reply's decode path on a real model, the prompt read as one prefill and each forced id of a fixture fed as a decode step, as a request alone runs through the server.
   Each step prints its greedy token, the runner-up and the forced id with their logits, and the tool exits 1 where a forced id is not its step's greedy token; after the last forced id it prints the step's five best, ranked by `infer::top_logprobs`, or every id of a smaller vocabulary, and the logits of the fixture's two tokens.
   `tests/data/decode_probe_30b_a3b.json` holds a prompt, the 55 ids Qwen3-30B-A3B Q8_0's greedy replies share on an MI50 in the Q8_0 decode kernel's quarter layout and in its half-block order, and the two tokens where they part, with each order's gap between them (docs/STATUS.md, the half-block order).

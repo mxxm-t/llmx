@@ -505,9 +505,14 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, const
     double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     printf("tg: %zu tok, %.0f ms, %.2f tok/s\n", gen.size(), tg_ms,
            (double)gen.size() / (tg_ms / 1e3));
-    if (exec.verbose)
+    if (exec.verbose) {
         printf("kv: allocated %zu bytes, peak %zu bytes, used %zu bytes\n",
                model.kv_allocated_bytes(), model.kv_peak_bytes(), model.kv_used_bytes());
+        // The generated ids, which `logits --then-ids` reads back as the tokens they were, where their text could tokenize otherwise (tools/long_context_check.py).
+        printf("ids:");
+        for (size_t i = 0; i < gen.size(); ++i) printf("%s%u", i ? "," : " ", gen[i]);
+        printf("\n");
+    }
     return 0;
 }
 
@@ -902,8 +907,11 @@ bool print_usage(const std::string& command, std::ostream& out) {
         out << (chat ? "Interactive chat with retained conversation history.\n\n"
                      : "Generate from raw text without applying a chat template.\n\n")
             << "Usage: llmx " << command << " <model.gguf>"
-            << (chat ? " [options]\n" : " \"<prompt>\" [options]\n")
-            << "\nGeneration options:\n"
+            << (chat ? " [options]\n" : " \"<prompt>\" [options]\n       llmx generate <model.gguf> --file <path> [options]\n")
+            << "\nGeneration options:\n";
+        if (!chat) out
+            << "  --file PATH, -f         UTF-8 prompt file, immediately after the model\n";
+        out
             << "  -n N, --max-tokens N    Maximum generated tokens per turn (default: " << sampling.max_tokens << ")\n"
             << "  --temp F                Temperature; 0 is greedy (default: " << sampling.temp << ")\n"
             << "  --topk N                Top-k sampling (default: " << sampling.top_k << ")\n"
@@ -912,7 +920,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
             << "  --stop TEXT             Stop when generated text contains TEXT\n"
             << "  --ignore-eos            Never end at the end-of-text token; run to -n or --stop\n"
-            << "  --verbose               Show the prompt token count, progress and execution details\n";
+            << "  --verbose               Show the prompt token count, progress and execution details" << (chat ? "" : ", and the generated ids") << "\n";
         if (chat) out
             << "  --system TEXT           System message (default: " << kChatSystem << ")\n";
         model_options(true);
@@ -1113,10 +1121,15 @@ int main(int argc, char** argv) {
             std::string prompt;
             bool have_prompt = false;
             GivenFlags given;
-            for (int i = 3; i < argc; i++) {
+            // generate takes its prompt from the file `--file` or `-f` names right after the model, as logits and perplexity take their text, for a prompt longer than a command line holds.
+            const std::string third = argc > 3 ? argv[3] : "";
+            const int first = !chat && (third == "--file" || third == "-f") ? text_arg(argc, argv) : 3;
+            have_prompt = first == 5;
+            for (int i = first; i < argc; i++) {
                 const int at = i;
                 const std::string a = argv[i];
                 const std::string_view f = long_spelling(a);
+                if (!chat) no_second_text(a);
                 if (f == "--max-tokens") gp.max_tokens = int_arg(argc, argv, i, a, 1);
                 else if (f == "--temp") gp.temp = float_arg(argc, argv, i, a, infer::Sampling::temp_range.lo, infer::Sampling::temp_range.hi);
                 else if (f == "--topk") gp.top_k = int_arg(argc, argv, i, a, infer::Sampling::top_k_range.lo, infer::Sampling::top_k_range.hi);
@@ -1136,7 +1149,7 @@ int main(int argc, char** argv) {
             }
             if (chat) return cmd_chat(argv[2], system, gp, exec);
             if (!have_prompt) throw UsageError("missing the prompt");
-            return cmd_generate(argv[2], prompt, gp, exec);
+            return cmd_generate(argv[2], first == 5 ? read_text_file(argv[4], cmd) : prompt, gp, exec);
         }
 
         if (cmd == "perplexity") {

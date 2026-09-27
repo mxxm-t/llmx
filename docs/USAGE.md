@@ -440,10 +440,11 @@ so a pass can hold up to `--ubatch` plus `--max-seqs` rows (`docs/SERVER.md`).
 For a CLI prompt, scratch grows to the smaller of `--ubatch` and that prompt.
 The server reserves its pass capacity at startup, including decode rows.
 
-## `llmx generate <in.gguf> "<prompt>" [flags...]`
+## `llmx generate <in.gguf> ("<prompt>" | --file <path>) [flags...]`
 
 Prompt-process `prompt`, then autoregressively generate tokens until eos or
 `--max-tokens`. Streams generated text as tokens arrive, reasoning included.
+`--file <path>` (`-f`) in place of the prompt reads it from a UTF-8 file, as `logits` and `perplexity` read their text, for a prompt longer than a command line holds.
 Stop matching retains the matching token in output, including any suffix
 within that token, as before.
 
@@ -482,7 +483,8 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--ignore-eos`          | never end at the model's end-of-text token           | off     |
-| `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status | off   |
+| `-f`, `--file <path>`   | read the prompt from a UTF-8 file, right after the model | (none) |
+| `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status, and after `tg:` the generated token ids as `ids: a,b,...`, which `logits --then-ids` reads back | off   |
 
 `--seed` is a decimal whole number up to 2^64 - 1, so a leading zero does not make it octal and a `0x` prefix is refused.
 `--temp` and `--topk` are at least 0, `--topp` is 0 to 1 and `--penalty` is at least 1, the ranges the server takes for the same settings.

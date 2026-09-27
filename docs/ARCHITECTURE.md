@@ -251,9 +251,9 @@ ownership only after success; diagnostic query pools are released after device
 idle. Padded-cache invalidation reserves retirement capacity before moving any
 entry, so allocation failure leaves the cache intact. The dated
 [backend audit](benchmarks/backend-audit-20260925/README.md) retains the original
-failure controls. Its separate CPU row-run finding remains open: malformed
-direct metadata can be rejected after a callback has already run, though
-model-generated malformed runs were not observed.
+failure controls. Its separate CPU row-run finding is closed: `for_each_run`
+(`src/backends/backend.hpp`) checks that the runs are in row order and end at
+the call's last row before any callback, so a malformed list reaches no rows.
 
 GGUF metadata reads and seeks throw on stream failure. Payload extents are
 checked when the headers are read, and a file whose size changed before its

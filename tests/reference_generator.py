@@ -124,6 +124,7 @@ class ReferenceGenerator(unittest.TestCase):
 
     def test_fixtures_are_pinned_once(self):
         import baseline
+        import baseline_qwen35
         pinned = baseline.PINNED
         self.assertEqual(len({spec["file"] for spec in pinned}), len(pinned))
         for spec in pinned:
@@ -135,15 +136,17 @@ class ReferenceGenerator(unittest.TestCase):
                 self.assertTrue(type(spec["size"]) is int and spec["size"] > 0)
                 self.assertTrue(type(spec["gate"]) is bool and type(spec["hosted"]) is bool)
                 self.assertEqual(baseline.pinned_fixture(spec["file"]), spec)
-        # The gate is the models with bounds, in the file's order.
-        self.assertEqual([spec["file"] for spec in baseline.BASELINE_MODELS], [spec["file"] for spec in pinned if spec["gate"]])
+        # The gate is the models with bounds, in the file's order, each family's by its own: Qwen3's in tests/baseline.py, the qwen35 files' hosted ones in tests/baseline_qwen35.py.
+        self.assertEqual([spec["file"] for spec in baseline.BASELINE_MODELS], [spec["file"] for spec in pinned if spec["gate"] and spec["family"] == "qwen3"])
+        self.assertEqual([spec["file"] for spec in pinned if spec["gate"] and spec["family"] == "qwen35"],
+                         [spec["file"] for spec in pinned if spec["family"] == "qwen35" and spec["hosted"] and spec["file"] in baseline_qwen35.BOUNDS])
         # The six Qwen3 files pinned ahead of their types join the gate with them: the hosted HF job is to download UD-Q8_K_XL, IQ4_XS and Q2_K, and the other three are checked by hand.
         later = [spec for spec in pinned if not spec["gate"] and spec["family"] == "qwen3"]
         self.assertEqual(sorted(spec["file"] for spec in later if spec["hosted"]),
                          ["Qwen3-0.6B-IQ4_XS.gguf", "Qwen3-0.6B-Q2_K.gguf", "Qwen3-0.6B-UD-Q8_K_XL.gguf"])
         self.assertEqual(sorted(spec["file"] for spec in later if not spec["hosted"]),
                          ["Qwen3-0.6B-BF16.gguf", "Qwen3-0.6B-IQ4_NL.gguf", "Qwen3-0.6B-Q3_K_S.gguf"])
-        # The qwen35 files join the gate with their bounds: the two 0.8B files in the hosted HF job, the 4B by hand, and each is a file of a checkpoint QWEN35_MODELS pins.
+        # The qwen35 files: the two 0.8B files hosted, the Q8_0 in the gate with its bounds and the Q4_K_M out of it without them, the 4B by hand, and each a file of a checkpoint QWEN35_MODELS pins.
         qwen35 = [spec for spec in pinned if spec["family"] == "qwen35"]
         self.assertEqual(sorted(spec["file"] for spec in qwen35 if spec["hosted"]), ["Qwen3.5-0.8B-Q4_K_M.gguf", "Qwen3.5-0.8B-Q8_0.gguf"])
         self.assertEqual(sorted(spec["file"] for spec in qwen35 if not spec["hosted"]), ["Qwen3.5-4B-Q4_K_M.gguf"])

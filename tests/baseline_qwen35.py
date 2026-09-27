@@ -15,7 +15,7 @@ import spec_decode
 
 # The qwen35 family's real-model check: llmx on a pinned Qwen3.5 file against the HF goldens of its model, which tools/gen_baseline.py qwen35 made with HF's full forward in float32 on the pinned checkpoint.
 # The tokenizer cases are the family's golden, since every checkpoint pinned here has the same tokenizer.json.
-# tests/baseline.py runs the hosted 0.8B files at 512-token windows; the 4096-token windows and the 4B run by hand through main().
+# tests/baseline.py runs the gate's qwen35 files at 512-token windows; the 4096-token windows and the files outside the gate run by hand through main().
 
 DATA = Path(__file__).resolve().parent / "data"
 TOKENIZER_GOLDEN = "baseline_tokenizer_qwen35.json"
@@ -36,8 +36,12 @@ GOLDEN_SHA256 = {
     "qwen35-4b/baseline_perplexity_4096.json": "e19d2510d6acccb10fb292c530899e47843d7caff97915e1a93cb9d544af01e4",
 }
 
-# Each file's bounds against its model's goldens, set from llmx's first measurement on it; a file without them is measured and fails.
-BOUNDS = {}
+# Each file's bounds against its model's goldens, set from llmx's first measurement on it, the largest NLL delta over both window lengths, both cache types and both ways of scoring plus a margin (docs/ASSETS.md); a file without them is measured and fails.
+# The 0.8B Q4_K_M has none: its own quantization moves HF's top-1 on two prompts, which its file-exact goldens show (docs/STATUS.md).
+BOUNDS = {
+    "Qwen3.5-0.8B-Q8_0.gguf": {"top5_overlap": 5, "continuous_nll": 0.02, "window_nll": 0.02},
+    "Qwen3.5-4B-Q4_K_M.gguf": {"top5_overlap": 4, "continuous_nll": 0.07, "window_nll": 0.08},
+}
 # A file against its file-exact goldens is held to this file's bounds whatever its type, since the format's loss is on both sides.
 FILE_EXACT_BOUNDS = "Qwen3.5-0.8B-Q8_0.gguf"
 MAX_PLAUSIBLE_LOGIT = 100.0
@@ -165,10 +169,10 @@ def pinned(model):
 
 
 def run_hosted():
-    """The 512-token check of every hosted qwen35 fixture on disk, in the suite's form: a line for each file, and False on the first failure."""
+    """The 512-token check of every qwen35 fixture of the gate on disk, which the hosted HF job downloads, in the suite's form: a line for each file, and False on the first failure."""
     import tempfile
     from baseline import PINNED, snapshot_path
-    for spec in (s for s in PINNED if s["family"] == "qwen35" and s["hosted"]):
+    for spec in (s for s in PINNED if s["family"] == "qwen35" and s["gate"]):
         name = "baseline-qwen35[%s]" % spec["file"]
         if os.environ.get("LLMX_BASELINE_GGUF"):
             print("%s: SKIP - LLMX_BASELINE_GGUF selects one Qwen3 fixture" % name)

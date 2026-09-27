@@ -679,6 +679,15 @@ def statement_at(code, pos):
     return code[code.rfind("\n", 0, pos) + 1:code.find("\n", pos)]
 
 
+def in_if_condition(line, at):
+    """Whether position `at` of `line` sits inside the parentheses of an `if` the same line opens."""
+    opens = list(re.finditer(r"\bif\s*\(", line[:at]))
+    if not opens:
+        return False
+    span = line[opens[-1].end() - 1:at]
+    return span.count("(") > span.count(")")
+
+
 def flag_findings(texts):
     """`flag`: a flag whose parse stores nothing, or stores into a field or local that nothing uses.
     The help printing the default is no use, nor is a refusal's condition, nor a copy into a field of the same name, which passes the value on.
@@ -694,7 +703,8 @@ def flag_findings(texts):
     for n, line in enumerate(lines, 1):
         for m in re.finditer(r'\b(\w+)\s*==\s*"(-{1,2}[A-Za-z][\w-]*)"', line):
             flag = m.group(2)
-            if m.group(1) == "cmd":
+            # A parse is a comparison inside an if's condition; one elsewhere, as a spelling mapped to its setting, parses nothing.
+            if m.group(1) == "cmd" or not in_if_condition(line, m.start()):
                 continue
             sites += 1
             # The statement the comparison guards: from the condition's closing parenthesis to the next ';' or '}'.

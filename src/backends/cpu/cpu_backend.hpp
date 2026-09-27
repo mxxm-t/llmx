@@ -926,8 +926,8 @@ public:
     // The transcendental steps of the elementwise ops, each computed here only, with std::exp per element, since a vectorized approximation would shift the logits (docs/src/backends-cpu.md).
     static float silu_of(float x) { return x / (1.0f + std::exp(-x)); }
     static float sigmoid_of(float x) { return 1.0f / (1.0f + std::exp(-x)); }
-    // log(1 + exp(x)), taken as x above 20.
-    static float softplus_of(float x) { return x > 20.0f ? x : std::log1p(std::exp(x)); }
+    // log(1 + exp(x)), taken as x above 20, the one softplus of the ops; the log is taken in double and rounded once, since not every C library rounds the float log1p correctly.
+    static float softplus_of(float x) { return x > 20.0f ? x : (float)std::log1p((double)std::exp(x)); }
     // The linear attention's decay factor exp(g), 0 below 2^-126 as on every backend, so the factor does not depend on the host's denormal handling, though a state it scales below the normal range does (docs/QWEN35.md, Linear attention).
     static float decay_of(float g) {
         const float d = std::exp(g);

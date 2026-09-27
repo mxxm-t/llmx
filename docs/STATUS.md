@@ -108,7 +108,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Merged** at `92de07d` on main `1f7aa85` after a green hosted run on `gate/merge-23`, rebased with no conflict from `02c0a37`, the base its gates ran on; the commits between touch no Vulkan file, backend test or `docs/VULKAN.md`.
 - **Left:** nothing for the fix. `perf/decode-columns`, rebased onto `4ad199a`, dropped its own copy of it (`3fc95b1`) for this branch's `5f4a68d`, and its decode-column check over every type the row kernels decode took the place of this branch's Q4_1 check, with this check's width of 9 columns added, as its block records under layer split phase 3, step 5.
   The one `server-resume` failure on the MI50 above did not come back in 15 runs of the whole test, 8 on the head and 7 on main; it is recorded here in case it does.
-## Architecture modules: one runtime, one module per architecture (planned 2026-09-27, branch refactor/arch-modules)
+## Architecture modules: one runtime, one module per architecture (planned 2026-09-27, branch refactor/arch-modules, merged at `3e73ffb`)
 
 - **Goal:** the model layer becomes a runtime that names no architecture and one module per architecture, chosen by one registry from `general.architecture`, as AGENTS.md's rule "A feature lives in one place" asks of a model architecture.
   - A module declares a plan, which is data the runtime reads: its layers, their kinds, their tensor roles, arena slots, residual width, context length, KV geometry and position tables.
@@ -432,11 +432,12 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
       The first run's bands, main's three builds, and the head (load averages: main 37, its perturbed builds 32 and 24, the head 24, medians): matmul 21.28 to 29.55 GFLOPS, head 25.70; the synthetic prefill 3537 to 5464 tok/s, head 5414; the synthetic decode 3275 to 4580, head 5104; 0.6B Q8_0 pp64 54.1 to 67.5, head 66.4; tg32 after it 6.70 to 7.40, head 6.97; pp247 59.8 to 81.8, head 72.7; tg128 6.08 to 7.49, head 6.79; pp512 68.4 to 79.1, head 91.2; tg32 after it 6.58 to 7.17, head 8.37.
       The second run's (load averages: main 13, its perturbed builds 17 and 17, the head 17): matmul 35.82 to 47.38, head 47.03; the synthetic prefill 5053 to 7628, head 6811; the synthetic decode 4931 to 7016, head 6585; pp64 184.7 to 228.3, head 147.4; tg32 after it 27.17 to 28.32, head 24.53; pp247 184.1 to 211.8, head 158.5; tg128 22.12 to 27.79, head 22.83; pp512 170.2 to 196.0, head 177.7; tg32 after it 20.86 to 28.13, head 24.95.
     - Context, not the gate: the reference's Vulkan build on the same cards (b11100 on the MI50 with the clocks held, flash attention off and on; b11075 on the Radeon VII), two rounds each. Over its best run the head's median is 1.47 to 2.15 times in prompt and 1.07 to 1.33 times in decode on the three files on the MI50, and 1.9 to 4.2 times in prompt and 1.08 to 1.20 times in decode for 0.6B and 8B on the Radeon VII. With experts on the CPU the MI50 host's contention bound both sides (0.36 to 1.64 times), and on the Radeon VII the head's median is above the reference's in every cell.
+- **Merged** at `3e73ffb` on main `376ecab` after a green hosted run on `gate/merge-27` (run 36333703640, all six jobs), rebased from `05d8eae` over main's steps 1 and 2, the qwen35 CPU ops, the Q4_1 fix, the wider decode builds and the host memory fix with conflicts only in STATUS, AGENTS, CI, `tests/data/known_findings.txt` and one include in `src/server/scheduler.hpp`.
+  At the rebased head on the Linux machine, against main built from its own sha: builds with and without Vulkan with no warning, CTest on both, `generate` greedy and seeded, `logits` and `perplexity` on 0.6B Q8_0 at `--threads 6` byte-identical, the suite's `dead-code`, `docs`, `arch-boundary`, `cli` and `server` components, and `tests/dead_code.py --linked` against the list.
 - **Left**, in this order:
-  1. A green hosted run on `gate/refactor-arch-modules`, which C1 and C2 have not had.
-  2. After the merge, T on the CPU on a quiet host: main, its two perturbed builds and the merged head, since the runs above could not resolve a CPU cell.
-  3. The link beside "A feature lives in one place" once that rule is in the base.
-  4. Then `tests/arch-fixtures`. Once it writes `general.architecture` into every fixture, the registry's default for a missing name goes (Decided 3); the synthetic model names its architecture already.
+  1. After the merge, T on the CPU on a quiet host: main, its two perturbed builds and the merged head, since the runs above could not resolve a CPU cell.
+  2. The link beside "A feature lives in one place" once that rule is in the base.
+  3. Then `tests/arch-fixtures`. Once it writes `general.architecture` into every fixture, the registry's default for a missing name goes (Decided 3); the synthetic model names its architecture already.
 - **Gotchas:**
   - Earlier blocks of this file and `docs/benchmarks/` name `src/model/arch_qwen.hpp` and `docs/src/model-arch_qwen.md` at their commits; from C1 on they are `src/model/runtime.hpp` and `docs/src/model-runtime.md`.
   - Each gate's base arm is its base (Base) built from its own sha in its own tree, never the branch's parent built again in the candidate's tree, since the build identity alone moves 0.6B prefill (AGENTS.md, Principles).
@@ -7195,7 +7196,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | Planned (block above), built in the background |
 | More model architectures (Llama, ...)    | Planned  |
 | Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | Planned (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, its model code waiting for the architecture refactor |
-| Architecture modules: one runtime, a module per architecture, one registry | In progress (block above), branch `refactor/arch-modules` |
+| Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (block above); the CPU timing on a quiet host follows |
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | Done |
 | GGUF reader size and tensor extent validation | Done |

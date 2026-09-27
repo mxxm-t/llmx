@@ -324,15 +324,25 @@ const uint32_t kRowColsWide = 8, kRowColsOne = 1;
 // A kernel's pipelines: the wide build, then the one-column, then for the row kernels the wide build grouped by expert, then the Q8_0 decode kernel's further builds.
 const int kVariants = 6;
 
-// The Q8_0 decode kernel's builds (shaders/matmul_vec_q8.comp) by pipeline variant: the columns a lane keeps, the rows a subgroup takes and the steps whose weights a lane loads before using any (specialization constants 0, 9 and 10).
+// The Q8_0 decode kernel's forms (shaders/matmul_vec_q8.comp, specialization constants 11 to 13): the reduction through the subgroup reduction's own pairs for every row and column at once, offsets computed once per step, and a block's scale products shared over its quad.
+// A build asks for forms and takes those its device's profile allows (q8_decode_forms), since the first gives the subgroup reduction's bits only where that reduction takes the same pairs.
+const uint32_t kQ8Tree = 1, kQ8Hoist = 2, kQ8Quad = 4, kQ8Forms = kQ8Tree | kQ8Hoist | kQ8Quad;
+
+// The Q8_0 decode kernel's builds by pipeline variant: the columns a lane keeps, the rows a subgroup takes, the steps whose weights a lane loads before using any and the forms it asks for (specialization constants 0, 9 and 10, then 11 to 13).
 // Variants 0 to 2 are every row kernel's wide, one-column and grouped builds, and 3 to 5 this kernel's 2-, 4- and 16-column builds.
 // Every build gives a column the same bits, so the builds differ only in time (docs/VULKAN.md).
 struct VecBuild {
-    uint32_t cols, rows, steps;
+    uint32_t cols, rows, steps, forms;
 };
-const VecBuild kVecBuilds[kVariants] = {{kRowColsWide, 4, 1}, {kRowColsOne, 2, 1}, {kRowColsWide, 4, 1}, {2, 2, 1}, {4, 4, 1}, {16, 4, 2}};
+const VecBuild kVecBuilds[kVariants] = {{kRowColsWide, 4, 1, kQ8Forms}, {kRowColsOne, 2, 1, 0}, {kRowColsWide, 4, 1, 0},
+                                        {2, 2, 1, kQ8Tree | kQ8Hoist}, {4, 4, 1, kQ8Forms}, {16, 4, 2, kQ8Forms}};
 // Its builds for plain columns, narrowest first.
 const int kVecByWidth[] = {1, 3, 4, 0, 5};
+
+// The forms a Q8_0 decode build takes on a device: those it asks for that the device's profile allows.
+inline uint32_t vec_forms(int variant, const DeviceProfile& profile) {
+    return kVecBuilds[variant].forms & profile.q8_decode_forms;
+}
 
 // The columns a row kernel's build keeps, by pipeline variant.
 inline uint32_t build_cols(KernelId id, int variant) {
@@ -993,7 +1003,9 @@ public:
         std::vector<DecodeBuild> out;
         for (int v = 0; v < kVariants; ++v) {
             const VecBuild& b = kVecBuilds[v];
-            out.push_back({kernel_variant_name(K_MATMUL_VEC_Q8, v), b.cols, b.rows, b.steps});
+            const uint32_t forms = vec_forms(v, dev_->profile);
+            out.push_back({kernel_variant_name(K_MATMUL_VEC_Q8, v), b.cols, b.rows, b.steps, (forms & kQ8Tree) != 0, (forms & kQ8Hoist) != 0,
+                           (forms & kQ8Quad) != 0});
         }
         return out;
     }
@@ -2429,14 +2441,18 @@ private:
                                    id == K_MATMUL_TILE_Q8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
                                              : build_cols(id, variant);
-            // Constant 7 selects a producer's build that also writes the 8-bit twin, constant 8 a row kernel's grouped build, and constants 9 and 10 are the Q8_0 decode kernel's rows and steps (kVecBuilds).
-            // Every pipeline gets all five entries, and a module that declares none ignores them.
-            const uint32_t spec_data[5] = {spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u, kVecBuilds[variant].rows, kVecBuilds[variant].steps};
-            const VkSpecializationMapEntry entries[5] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)},
-                                                         {8, 2 * sizeof(uint32_t), sizeof(uint32_t)}, {9, 3 * sizeof(uint32_t), sizeof(uint32_t)},
-                                                         {10, 4 * sizeof(uint32_t), sizeof(uint32_t)}};
+            // Constant 7 selects a producer's build that also writes the 8-bit twin, constant 8 a row kernel's grouped build, and constants 9 to 13 are the Q8_0 decode kernel's rows, steps and forms (kVecBuilds).
+            // Every pipeline gets all eight entries, and a module that declares none ignores them.
+            const VecBuild& vb = kVecBuilds[variant];
+            const bool vec = id == K_MATMUL_VEC_Q8;
+            const uint32_t forms = vec ? vec_forms(variant, d.profile) : 0;
+            const uint32_t spec_data[8] = {spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u, vb.rows, vb.steps,
+                                           (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Hoist) ? 1u : 0u, (forms & kQ8Quad) ? 1u : 0u};
+            const uint32_t spec_ids[8] = {0, 7, 8, 9, 10, 11, 12, 13};
+            VkSpecializationMapEntry entries[8];
+            for (uint32_t i = 0; i < 8; ++i) entries[i] = {spec_ids[i], i * uint32_t(sizeof(uint32_t)), sizeof(uint32_t)};
             VkSpecializationInfo spec{};
-            spec.mapEntryCount = 5;
+            spec.mapEntryCount = 8;
             spec.pMapEntries = entries;
             spec.dataSize = sizeof(spec_data);
             spec.pData = spec_data;

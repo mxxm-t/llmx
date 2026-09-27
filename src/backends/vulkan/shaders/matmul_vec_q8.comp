@@ -3,10 +3,12 @@
 // A subgroup takes ROWS rows; lane l covers quarter l % 4 of blocks l / 4, l / 4 + S / 4 and on, so a step reads S / 4 consecutive blocks of a row.
 // A lane keeps MAX_COLS columns and loads each column's eight 8-bit activation values once for all the subgroup's rows.
 // Every other block's quants start two bytes into a word, so a lane loads the words its eight bytes touch and shifts.
-// The lanes' sums meet in one subgroup reduction per row and column.
-// A build changes only how many columns and rows share a weight read: a column's lanes, their block order, its products and sums and its reduction are the same in every build, so it computes the same bits in all of them (docs/VULKAN.md).
+// The lanes' sums meet in one subgroup reduction per row and column, or with TREE in the same reduction's pairs taken for every row and column at once.
+// A build changes only how many columns and rows share a weight read and how the same operations are scheduled: a column's lanes, their block order, its products and sums and its reduction's pairs are the same in every build, so it computes the same bits in all of them (docs/VULKAN.md).
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_KHR_shader_subgroup_quad : require
 #extension GL_EXT_integer_dot_product : require
 #extension GL_EXT_control_flow_attributes : require
 layout(local_size_x = 256) in;
@@ -14,6 +16,13 @@ layout(constant_id = 0) const uint MAX_COLS = 8;
 // Rows a subgroup takes (specialization constant 9), and steps whose weights a lane loads before using any (10), so STEPS steps of every row are in flight at once; the backend dispatches by the same rows (kVecBuilds).
 layout(constant_id = 9) const uint ROWS = 2;
 layout(constant_id = 10) const uint STEPS = 1;
+// TREE (11) reduces every row and column through the subgroup reduction's own pairs, lanes l and l ^ 1, 2, 7, 15, 16 and 32 in that order, transposed so each level halves the values a lane holds, and stores them in one write.
+// It gives the subgroup reduction's bits only where that reduction takes those pairs, as RADV's on a 64-lane GCN subgroup does, so the backend sets it only from the device profile.
+layout(constant_id = 11) const bool TREE = false;
+// HOIST (12) computes the weight and activation offsets once per lane and step where the block count is even: every row then starts on an even block, so a lane's quants straddle a word, or not, in every step alike, and its scale is always the same half of its word.
+layout(constant_id = 12) const bool HOIST = false;
+// QUAD (13), with HOIST and 4 rows, has lane q of a block load row q's scale and form row q's scale product, which the block's four lanes share over their quad, since every lane of a block computes the same product.
+layout(constant_id = 13) const bool QUAD = false;
 // The row kernel's push layout, which row_dispatch fills for every row kernel; cluster, rows_per_sg, the types and the wide flags go unread here.
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint col0; uint ncols; uint cluster; uint rows_per_sg; uint nproj;
@@ -41,6 +50,25 @@ layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 const uint GROUP = MAX_COLS < 4u ? MAX_COLS : 4u;
 // Whether a group past the first half that the count leaves part full skips its surplus columns' products, each behind a uniform check; the 16-column build keeps one copy of its products, which a second copy slowed (docs/VULKAN.md).
 const bool PARTIAL = MAX_COLS <= 8u;
+// The values TREE reduces, a power of two in every build, and how many a lane holds at the end.
+const uint NV = ROWS * MAX_COLS;
+const uint LOGNV = NV >= 128u ? 7u : NV >= 64u ? 6u : NV >= 32u ? 5u : NV >= 16u ? 4u : NV >= 8u ? 3u : NV >= 4u ? 2u : NV >= 2u ? 1u : 0u;
+const uint NLEFT = NV > 64u ? NV / 64u : 1u;
+
+// Whether a lane keeps the upper half of its values at TREE level l; partners at every level then hold the same values, since each level's choice is unchanged by the later levels' lane masks.
+bool keeps_upper(uint l, uint lane) {
+    uint v = l == 0u ? (lane ^ (lane >> 2u)) : l == 1u ? ((lane >> 1u) ^ (lane >> 2u)) : l == 2u ? ((lane >> 2u) ^ (lane >> 3u)) : (lane >> l);
+    return (v & 1u) != 0u;
+}
+// The value of lane l ^ 1, 2, 7, 15, 16 or 32 at level 0 to 5: the subgroup reduction's partners, a quad's pairs, its halves, an eight's mirror, a sixteen's mirror, then the sixteens and the halves of the subgroup.
+float partner(float v, uint l) {
+    if (l == 0u) return subgroupShuffleXor(v, 1u);
+    if (l == 1u) return subgroupShuffleXor(v, 2u);
+    if (l == 2u) return subgroupShuffleXor(v, 7u);
+    if (l == 3u) return subgroupShuffleXor(v, 15u);
+    if (l == 4u) return subgroupShuffleXor(v, 16u);
+    return subgroupShuffleXor(v, 32u);
+}
 
 void main() {
     uint wg = gl_WorkGroupID.x;
@@ -78,6 +106,90 @@ void main() {
     const uint SB = S >> 2u;
     float acc[ROWS][MAX_COLS];
     [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) acc[r][c] = 0.0;
+    // A lane's steps are blocks b, b + SB and on: STEPS at a time while that many remain, then one at a time.
+    uint b = lane >> 2u;
+    if (HOIST && (nblk & 1u) == 0u && S == 64u) {
+        // Each row's first word, a multiple of 17 words since the row's first block is even; per lane its quant words, the third one (the second again where the bytes do not straddle), its scale word and its activation offsets, which a step moves by 136 words, 64 pairs and 16 blocks.
+        const bool quad = QUAD && ROWS == 4u;
+        uint rw[ROWS];
+        [[unroll]] for (uint r = 0u; r < ROWS; ++r) rw[r] = ((wrow0 + min(row0 + r, nout - 1u)) * nblk) * 17u / 2u;
+        const bool odd = (b & 1u) == 0u;
+        uint lq = (b * 34u + 2u + q * 8u) >> 2u;
+        uint ls = (b * 34u) >> 2u;
+        uint lt = lq + (odd ? 2u : 1u);
+        uint lx = b * 4u + q;
+        uint lb = b;
+        uint nin8 = p.nin / 8u;
+        uint rwq = 0u;
+        if (quad) rwq = q == 0u ? rw[0] : q == 1u ? rw[1 % ROWS] : q == 2u ? rw[2 % ROWS] : rw[3 % ROWS];
+// Column g + J's products of step d, one for each row, added to its accumulators; with the quad-shared products lane r of the block's quad forms row r's scale product.
+#define HOIST_PRODUCTS(J) { \
+            if (quad) { \
+                float pq = dwq[d] * dx[J]; \
+                int s0 = dotPacked4x8EXT(int(w0[d][0]), int(xa[J].x)) + dotPacked4x8EXT(int(w1[d][0]), int(xa[J].y)); \
+                int s1 = dotPacked4x8EXT(int(w0[d][1 % ROWS]), int(xa[J].x)) + dotPacked4x8EXT(int(w1[d][1 % ROWS]), int(xa[J].y)); \
+                int s2 = dotPacked4x8EXT(int(w0[d][2 % ROWS]), int(xa[J].x)) + dotPacked4x8EXT(int(w1[d][2 % ROWS]), int(xa[J].y)); \
+                int s3 = dotPacked4x8EXT(int(w0[d][3 % ROWS]), int(xa[J].x)) + dotPacked4x8EXT(int(w1[d][3 % ROWS]), int(xa[J].y)); \
+                acc[0][g + (J)] += subgroupQuadBroadcast(pq, 0u) * float(s0); \
+                acc[1 % ROWS][g + (J)] += subgroupQuadBroadcast(pq, 1u) * float(s1); \
+                acc[2 % ROWS][g + (J)] += subgroupQuadBroadcast(pq, 2u) * float(s2); \
+                acc[3 % ROWS][g + (J)] += subgroupQuadBroadcast(pq, 3u) * float(s3); \
+            } else { \
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
+                    int s = dotPacked4x8EXT(int(w0[d][r]), int(xa[J].x)) + dotPacked4x8EXT(int(w1[d][r]), int(xa[J].y)); \
+                    acc[r][g + (J)] += dw[d][r] * dx[J] * float(s); \
+                } \
+            } \
+        }
+// NS steps from the lane's current offsets: every row's words for all NS steps first, then per group of columns the NS steps in order, so each column still adds its blocks in order.
+#define HOIST_STEPS(NS) { \
+            uint w0[NS][ROWS], w1[NS][ROWS]; \
+            float dw[NS][ROWS]; \
+            float dwq[NS]; \
+            [[unroll]] for (uint d = 0u; d < NS; ++d) { \
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
+                    uint t0 = w32s[pi].w32[lq + rw[r] + d * 136u], t1 = w32s[pi].w32[lq + rw[r] + d * 136u + 1u]; \
+                    uint t2 = w32s[pi].w32[lt + rw[r] + d * 136u]; \
+                    w0[d][r] = odd ? (t0 >> 16u) | (t1 << 16u) : t0; \
+                    w1[d][r] = odd ? (t1 >> 16u) | (t2 << 16u) : t1; \
+                    if (!quad) { \
+                        uint sw = w32s[pi].w32[ls + rw[r] + d * 136u]; \
+                        dw[d][r] = unpackHalf2x16(odd ? sw : sw >> 16u).x; \
+                    } \
+                } \
+                if (quad) { \
+                    uint sw = w32s[pi].w32[ls + rwq + d * 136u]; \
+                    dwq[d] = unpackHalf2x16(odd ? sw : sw >> 16u).x; \
+                } \
+            } \
+            [[unroll]] for (uint g = 0u; g < MAX_COLS; g += GROUP) { \
+                if (g > 0u && (GROUPED || 2u * g > MAX_COLS) && g >= ncols) break; \
+                [[unroll]] for (uint d = 0u; d < NS; ++d) { \
+                    uvec2 xa[GROUP]; \
+                    float dx[GROUP]; \
+                    [[unroll]] for (uint j = 0u; j < GROUP; ++j) { \
+                        uint col = XCOL(min(g + j, ncols - 1u)); \
+                        xa[j] = xq4[col * nin8 + lx + d * 64u]; \
+                        dx[j] = xt2[xtab + col * nblk + lb + d * 16u].x; \
+                    } \
+                    if (!PARTIAL || 2u * g < MAX_COLS || g + GROUP <= ncols) { \
+                        [[unroll]] for (uint j = 0u; j < GROUP; ++j) HOIST_PRODUCTS(j) \
+                    } else { \
+                        [[unroll]] for (uint j = 0u; j < GROUP; ++j) if (g + j < ncols) HOIST_PRODUCTS(j) \
+                    } \
+                } \
+            } \
+        }
+        for (; b + (STEPS - 1u) * SB < nblk; b += STEPS * SB) {
+            HOIST_STEPS(STEPS)
+            lq += STEPS * 136u; ls += STEPS * 136u; lt += STEPS * 136u; lx += STEPS * 64u; lb += STEPS * 16u;
+        }
+        if (STEPS > 1u)
+            for (; b < nblk; b += SB) {
+                HOIST_STEPS(1u)
+                lq += 136u; ls += 136u; lt += 136u; lx += 64u; lb += 16u;
+            }
+    } else {
 // Column g + J's products of step d, one for each row, added to its accumulators.
 #define COLUMN_PRODUCTS(J) [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
         int s = dotPacked4x8EXT(int(w0[d][r]), int(xa[J].x)) + dotPacked4x8EXT(int(w1[d][r]), int(xa[J].y)); \
@@ -119,11 +231,43 @@ void main() {
             } \
         } \
     }
-    // A lane's steps are blocks b, b + SB and on: STEPS at a time while that many remain, then one at a time.
-    uint b = lane >> 2u;
-    for (; b + (STEPS - 1u) * SB < nblk; b += STEPS * SB) QUARTER_STEPS(STEPS)
-    if (STEPS > 1u)
-        for (; b < nblk; b += SB) QUARTER_STEPS(1u)
+        for (; b + (STEPS - 1u) * SB < nblk; b += STEPS * SB) QUARTER_STEPS(STEPS)
+        if (STEPS > 1u)
+            for (; b < nblk; b += SB) QUARTER_STEPS(1u)
+    }
+    if (TREE && S == 64u) {
+        // Level l pairs a lane's values i and i + h, keeps one and sends the other to its partner, and adds what the partner sends; where fewer values than levels remain, a level adds the one value both hold.
+        // Each lane then holds whole sums of values idx to idx + NLEFT - 1, and the one lane that holds a value alone writes it.
+        float t[NV];
+        [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) t[r * MAX_COLS + c] = acc[r][c];
+        uint idx = 0u;
+        bool writer = true;
+        [[unroll]] for (uint l = 0u; l < 6u; ++l) {
+            bool up = keeps_upper(l, lane);
+            if (l < LOGNV) {
+                const uint h = NV >> (l + 1u);
+                [[unroll]] for (uint j = 0u; j < h; ++j) {
+                    float lo = t[j], hi = t[j + h];
+                    t[j] = (up ? hi : lo) + partner(up ? lo : hi, l);
+                }
+                if (up) idx += h;
+            } else {
+                t[0] = t[0] + partner(t[0], l);
+                if (up) writer = false;
+            }
+        }
+        [[unroll]] for (uint j = 0u; j < NLEFT; ++j) {
+            uint v = idx + j;
+            uint r = v / MAX_COLS, c = v % MAX_COLS;
+            uint row = row0 + r;
+            if (writer && c < ncols && row < nout) {
+                uint o = OCOL(c) * nout + row;
+                if (p.accum != 0u) ys[pi].y[o] += t[j];
+                else ys[pi].y[o] = t[j];
+            }
+        }
+        return;
+    }
     [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
         uint row = row0 + r;
         [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {

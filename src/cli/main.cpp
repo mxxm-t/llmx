@@ -673,8 +673,8 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     const uint32_t pos0 = 0;
     t0 = clock::now();
     for (int it = 0; it < iters; it++)
-        b->norm_rope_rows({dst_buf.get(), 0}, 1, 0, 1, {w_buf.get(), 0}, 1e-6f,
-                          {cos_buf.get(), 0}, {sin_buf.get(), 0}, (size_t)size / 2, &pos0);
+        b->norm_rope_partial({dst_buf.get(), 0}, {dst_buf.get(), 0}, 1, (size_t)size, (size_t)size, 1, (size_t)size, (size_t)size,
+                             {w_buf.get(), 0}, 1e-6f, {cos_buf.get(), 0}, {sin_buf.get(), 0}, &pos0);
     double rp_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
 
     double mm_gflops = 2.0 * (double)size * (double)size / (mm_ms * 1e6);

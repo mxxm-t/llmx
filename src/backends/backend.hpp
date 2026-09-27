@@ -403,14 +403,16 @@ public:
     virtual void rms_norm_rows(Slice dst, CSlice src, CSlice w,
                                size_t rows, size_t n, size_t stride, float eps, RowRuns runs = {}) = 0;
 
-    // Per-head RMS norm followed by RoPE over a batch of rows: row r starts at x + r*stride with `heads` contiguous heads of `2*half` floats, at position pos[r] in the `cos`/`sin` tables.
+    // Per-head RMS norm over `head_dim` floats, then RoPE on the first `rope_dim` of them only, pairs (i, i + rope_dim / 2) at pos[r] in `cos`/`sin` tables of rope_dim / 2 entries a position.
+    // Source head h of row r starts at src + r * src_stride + h * src_head_stride, and the heads are written contiguously, heads * head_dim floats a row of dst.
     // Positions are per row because a batch may carry several sequences; norm and RoPE are one op so a device gets one launch per layer.
-    virtual void norm_rope_rows(Slice x, size_t rows, size_t stride,
-                                size_t heads, CSlice w, float eps,
-                                CSlice cos, CSlice sin, size_t half,
-                                const uint32_t* pos) = 0;
+    // With rope_dim equal to head_dim it is the whole head's rope; for text the qwen35 rope sections give every frequency the same position, so they reduce to this (docs/QWEN35.md, Gated attention).
+    // dst may alias src only if identical and src's heads are contiguous.
+    virtual void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
+                                   size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
+                                   CSlice cos, CSlice sin, const uint32_t* pos) = 0;
 
-    // Normalize and rotate q and k in place, then write k and v into the views' KV blocks using the primitive ops' row layouts.
+    // Normalize and rotate q and k in place over the whole head, then write k and v into the views' KV blocks using the primitive ops' row layouts.
     // A device may fuse these consecutive ops; k must still hold its normalized, rotated rows afterward.
     struct RopeArgs {
         CSlice cos, sin;
@@ -422,8 +424,9 @@ public:
                               Slice k, CSlice v, size_t kv_stride, size_t n_head_kv, CSlice k_w,
                               const RopeArgs& rope, size_t rows, size_t layer,
                               const KVView* views, size_t n_views) {
-        norm_rope_rows(q, rows, q_stride, n_head, q_w, rope.eps, rope.cos, rope.sin, rope.half, rope.pos);
-        norm_rope_rows(k, rows, kv_stride, n_head_kv, k_w, rope.eps, rope.cos, rope.sin, rope.half, rope.pos);
+        const size_t dim = 2 * rope.half;
+        norm_rope_partial(q, q, rows, q_stride, dim, n_head, dim, dim, q_w, rope.eps, rope.cos, rope.sin, rope.pos);
+        norm_rope_partial(k, k, rows, kv_stride, dim, n_head_kv, dim, dim, k_w, rope.eps, rope.cos, rope.sin, rope.pos);
         kv_write(layer, views, n_views, k, v);
     }
 
@@ -461,7 +464,7 @@ public:
     virtual void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout,
                                     size_t nrows, const Routing& routing, RowRuns runs = {}) = 0;
 
-    // The ops of the qwen35 layers (docs/QWEN35.md, The forward pass), which a backend without them refuses by name.
+    // The ops of the qwen35 layers (docs/QWEN35.md, The forward pass) but norm_rope_partial above, which a backend without them refuses by name.
 
     // The recurrent state of `layers` linear-attention layers with `slots` slots each, allocated now and zero-filled, so no pass allocates state.
     std::unique_ptr<StateStorage> state_alloc(size_t layers, size_t slots, const StateShape& shape) {
@@ -503,17 +506,6 @@ public:
                                 RowRuns runs = {}) {
         (void)dst; (void)x; (void)z; (void)w; (void)rows; (void)heads; (void)dim; (void)eps; (void)runs;
         lacks("gated_rms_norm");
-    }
-
-    // Per-head RMS norm over `head_dim` floats, then RoPE on the first `rope_dim` of them only, pairs (i, i + rope_dim / 2) at pos[r] in `cos`/`sin` tables of rope_dim / 2 entries a position.
-    // Source head h of row r starts at src + r * src_stride + h * src_head_stride, and the heads are written contiguously, heads * head_dim floats a row of dst.
-    // For text the rope sections give every frequency the same position, so they reduce to this (docs/QWEN35.md, Gated attention); dst may alias src only if identical and src's heads are contiguous.
-    virtual void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
-                                   size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
-                                   CSlice cos, CSlice sin, const uint32_t* pos) {
-        (void)dst; (void)src; (void)rows; (void)src_stride; (void)src_head_stride; (void)heads; (void)head_dim;
-        (void)rope_dim; (void)w; (void)eps; (void)cos; (void)sin; (void)pos;
-        lacks("norm_rope_partial");
     }
 
     // dst[r][h][d] = x[r][h][d] * sigmoid(gate[r * gate_stride + h * gate_head_stride + d]), x and dst being `rows` rows of heads * dim floats.

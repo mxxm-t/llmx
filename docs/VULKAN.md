@@ -666,15 +666,18 @@ HF gate measures the cost of it.
   requests.
 - **kv_write**: a scatter of `[rows, n_head_kv, head_dim]` into blocks,
   one lane per float.
-- **norm_rope_rows**: one workgroup per (row, head): the head's sum of
-  squares in a shared-memory tree over the workgroup, then the rotation reading the table at
-  the row's position.
+- **norm_rope_partial**: one workgroup per (row, head): the head's sum of
+  squares in a tree through shared memory, then the rotation of its first
+  `rope_dim` values reading the table at the row's position, the heads read
+  at their strides and written contiguously. It is the partial rope of the
+  qwen35 layers; Qwen3's rope, the op at the full width in place, runs in
+  the fused kernel below.
 - **norm_rope_kv**: the layer's attention inputs in one dispatch, a
   workgroup per (row, head) over the q heads, the k heads and the v
-  heads: q normed and rotated in place with norm_rope_rows' arithmetic,
+  heads: q normed and rotated in place with norm_rope_partial's arithmetic at the full width,
   k normed and rotated straight into its KV block, v copied into its
   block.
-  The model asks for the three together (`Backend::norm_rope_kv`, whose default is the three ops and is what the CPU runs), and every view of a batch goes through the view table in that one dispatch.
+  The model asks for the three together (`Backend::norm_rope_kv`, whose default is `norm_rope_partial` on q and on k, then `kv_write`, and is what the CPU runs), and every view of a batch goes through the view table in that one dispatch.
   Three dispatches fewer per layer, 0.6B Q8_0 decode 202 to 221 tok/s under the matched protocol.
 - **silu_mul, add, gather_rows**: elementwise or gather kernels, one invocation per output float, or four a lane where the integer-dot tile reads `silu_mul`'s output next.
 - **rms_norm_rows**: a row over one or more workgroups, each summing the whole row's squares in a tree and writing its own chunks.

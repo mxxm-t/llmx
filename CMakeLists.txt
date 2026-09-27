@@ -47,7 +47,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
     endif()
     # Shaders are GLSL in the tree, compiled to SPIR-V at build time and embedded as uint32_t arrays, so the binary carries its kernels.
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
-    set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_rows embed matmul_row
+    set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_partial embed matmul_row
         kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile quantize_x
         quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group attention_vec)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.

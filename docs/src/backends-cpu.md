@@ -78,7 +78,7 @@ A compile without them stops at one `#error` at the top of the header.
   `rope_raw` under `norm_rope_raw`: AVX2 vectorized with scalar tails for
   non-multiples of 8.
   The tails' multiply-adds are explicit FMAs, `rope_raw`'s the same ones as its vector body, so a build that contracts expressions and one that does not give the same bits (docs/QWEN35.md, Row classes), and `rms_norm_raw`'s tail scales by the row's factor times the weight, as its body does.
-  `norm_rope_raw` norms each head and rotates its first dims from heads read at a stride of their own into contiguous heads, the one norm and rope of both `norm_rope_rows`, in place at the full rotary width, and `norm_rope_partial`.
+  `norm_rope_raw` norms each head and rotates its first dims from heads read at a stride of their own into contiguous heads, the one norm and rope of `norm_rope_partial`, which Qwen3 reaches in place at the full rotary width through `Backend::norm_rope_kv`.
 - `silu_of`, `sigmoid_of`, `softplus_of` and `decay_of`: the elementwise ops' transcendental steps, each computed in one place with `std::exp` per element.
   `softplus_of` takes its argument as it is above 20, and its `exp` in float and its log in double, rounded once, so its value does not follow how the C library rounds the float `log1p`, and `decay_of` gives 0 for a decay factor below 2^-126, as every backend does, so the factor does not depend on the host's denormal handling, though a state value it scales below 2^-126 does.
 - The qwen35 layers' ops (`backends-backend.md`), each on the pool with every value computed by one routine whatever the thread count, so the thread count and the grouping of rows into calls change no bit.
@@ -87,7 +87,7 @@ A compile without them stops at one `#error` at the top of the header.
     Each V column's arithmetic is its own, with every multiply-add an explicit FMA and the sums over K in row order, so the columns run 32, 8 or 1 at a time with the same bits, and a block of 32 columns of a 128-row matrix stays in the first-level cache over a whole view's tokens.
   - `gated_rms_norm`, `norm_rope_partial` and `sigmoid_mul`: row by row through `spread`; `gated_rms_norm` and `sigmoid_mul` do not read their row runs, since the CPU keeps no activation copies.
   - `state_slot` resolves a slot of a state storage's layer to host floats and refuses storage of another backend; the conv and the recurrence resolve every view's slots before they write anything.
-- `rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`: the batched forms the model calls.
+- `rms_norm_rows`, `silu_mul`, `add`: the batched forms the model calls.
   Private helpers decide dispatch.
   `spread` keeps a stage on the calling thread below two rows per worker; `chunk` keeps elementwise spans under 32K elements there; `split_rows` hands the row dots of a decode matmul, `matvec_q8x`, `matmul_group` and the routed decode entries to the pool in one contiguous range per worker, and keeps them on the caller below eight rows per worker, except an F32 decode matmul, which splits as the batched float path does, from `DOT_ROWS` rows per worker in whole `DOT_ROWS` chunks.
   The thresholds are properties of a host thread pool - waking it costs more than the work - and a device backend must not inherit them.

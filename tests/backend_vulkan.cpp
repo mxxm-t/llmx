@@ -240,31 +240,40 @@ size_t check_kernels(backend::Backend& vk) {
         auto q = p.results(one);
         values += close(q.first, q.second, 1e-5, "rms_norm in place differs beyond 1e-5");
     }
-    // norm_rope_rows: positions per row out of order, a padded stride.
+    // norm_rope_partial: positions per row out of order; the whole head rotated in place over contiguous heads, as Qwen3 calls it; q read between its gates at a padded stride with a quarter of each 256-wide head rotated, and k in place so, as qwen35 calls it.
     {
-        const size_t rows = 5, heads = 3, half = 64, dim = 2 * half, stride = heads * dim + 8, table = 12;
-        const auto x = uniform(rows * stride, 8), w = uniform(dim, 9, 0.5f, 1.5f);
-        std::vector<float> cs(table * half), sn(table * half);
-        for (size_t t = 0; t < table; ++t)
-            for (size_t i = 0; i < half; ++i) {
-                const double f = std::pow(10000.0, -2.0 * double(i) / double(dim));
-                cs[t * half + i] = float(std::cos(double(t) * f));
-                sn[t * half + i] = float(std::sin(double(t) * f));
-            }
+        const size_t rows = 5, table = 12;
         const uint32_t pos[rows] = {5, 2, 9, 0, 11};
-        Pair::In wi = p.in(w), ci = p.in(cs), si = p.in(sn);
-        Pair::Out d = p.out(rows * stride);
-        p.cpu.write(*d.c, 0, x.data(), x.size() * sizeof(float));
-        p.vk.write(*d.v, 0, x.data(), x.size() * sizeof(float));
-        p.cpu.norm_rope_rows(d.cs(), rows, stride, heads, wi.cs(), 1e-6f, ci.cs(), si.cs(), half, pos);
-        p.vk.norm_rope_rows(d.vs(), rows, stride, heads, wi.vs(), 1e-6f, ci.vs(), si.vs(), half, pos);
-        auto r = p.results(d);
-        values += close(r.first, r.second, 1e-5, "norm_rope_rows differs beyond 1e-5");
-        const uint32_t beyond[1] = {12};
-        bool rejected = false;
-        try { p.vk.norm_rope_rows(d.vs(), 1, stride, heads, wi.vs(), 1e-6f, ci.vs(), si.vs(), half, beyond); }
-        catch (const std::runtime_error&) { rejected = true; }
-        require(rejected, "position beyond the table accepted");
+        struct Case { size_t heads, dim, rope, src_stride, head_stride; bool in_place; };
+        const Case cases[] = {{3, 128, 128, 3 * 128, 128, true}, {3, 256, 64, 3 * 512 + 8, 512, false}, {2, 256, 64, 2 * 256, 256, true},
+                              {4, 40, 8, 4 * 80, 80, false}};
+        for (const Case& c : cases) {
+            const size_t half = c.rope / 2, width = c.heads * c.dim, src_floats = (rows - 1) * c.src_stride + (c.heads - 1) * c.head_stride + c.dim;
+            const auto x = uniform(src_floats, 8, -2.0f, 2.0f), w = uniform(c.dim, 9, 0.5f, 1.5f);
+            std::vector<float> cs(table * half), sn(table * half);
+            for (size_t t = 0; t < table; ++t)
+                for (size_t i = 0; i < half; ++i) {
+                    const double f = std::pow(10000.0, -2.0 * double(i) / double(c.rope));
+                    cs[t * half + i] = float(std::cos(double(t) * f));
+                    sn[t * half + i] = float(std::sin(double(t) * f));
+                }
+            Pair::In xi = p.in(x), wi = p.in(w), ci = p.in(cs), si = p.in(sn);
+            Pair::Out d = p.out(c.in_place ? src_floats : rows * width);
+            if (c.in_place) {
+                p.cpu.write(*d.c, 0, x.data(), x.size() * sizeof(float));
+                p.vk.write(*d.v, 0, x.data(), x.size() * sizeof(float));
+            }
+            const backend::CSlice cs_src = c.in_place ? backend::CSlice(d.cs()) : xi.cs(), vs_src = c.in_place ? backend::CSlice(d.vs()) : xi.vs();
+            p.cpu.norm_rope_partial(d.cs(), cs_src, rows, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.cs(), 1e-6f, ci.cs(), si.cs(), pos);
+            p.vk.norm_rope_partial(d.vs(), vs_src, rows, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.vs(), 1e-6f, ci.vs(), si.vs(), pos);
+            auto r = p.results(d);
+            values += close(r.first, r.second, 1e-5, "norm_rope_partial differs beyond 1e-5");
+            const uint32_t beyond[1] = {12};
+            bool rejected = false;
+            try { p.vk.norm_rope_partial(d.vs(), vs_src, 1, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.vs(), 1e-6f, ci.vs(), si.vs(), beyond); }
+            catch (const std::runtime_error&) { rejected = true; }
+            require(rejected, "position beyond the table accepted");
+        }
     }
     // embed: F32 rows are copies and Q8_0 rows are a half scale times a small integer, exact in float, so both are exact.
     {
@@ -1413,8 +1422,8 @@ size_t check_kernels(backend::Backend& vk) {
         const auto hw = uniform(128, 22, 0.5f, 1.5f);
         const auto hwb = vk.adopt(hw.data(), hw.size() * sizeof(float));
         const uint32_t pos0 = 7;
-        time("norm_rope_rows 1 row 16 heads", [&] {
-            vk.norm_rope_rows({xb.get(), 0}, 1, 0, 16, {hwb.get(), 0}, 1e-6f, {cb.get(), 0}, {sb.get(), 0}, 64, &pos0);
+        time("norm_rope_partial 1 row 16 heads", [&] {
+            vk.norm_rope_partial({xb.get(), 0}, {xb.get(), 0}, 1, 16 * 128, 128, 16, 128, 128, {hwb.get(), 0}, 1e-6f, {cb.get(), 0}, {sb.get(), 0}, &pos0);
         });
         time("silu_mul 3072", [&] { vk.silu_mul({xb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, 3072); });
         time("kv_write 1 row", [&] { vk.kv_write(0, &view, 1, {Kb.get(), 0}, {Vb.get(), 0}); });

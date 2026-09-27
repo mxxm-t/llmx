@@ -663,7 +663,7 @@ size_t check_gated_norm(std::mt19937& g, size_t heads, size_t dim) {
 }
 
 // norm_rope_partial reading q's heads between their gates, as attn_q holds them, and k in place, against the math with every pair rotated at the token's position, which the rope sections give for text (docs/QWEN35.md, Gated attention).
-// A head near 1e-4 holds eps; rows alone and every thread count give the same bits; and with a full rotary width over contiguous heads it is norm_rope_rows.
+// A head near 1e-4 holds eps, and rows alone and every thread count give the same bits.
 size_t check_partial_rope(std::mt19937& g, size_t heads, size_t head_dim, size_t rope_dim, double base) {
     const size_t rows = 19, half = rope_dim / 2, positions = 64;
     std::vector<float> cos(positions * half), sin(positions * half);
@@ -734,20 +734,6 @@ size_t check_partial_rope(std::mt19937& g, size_t heads, size_t head_dim, size_t
                               {wb.get(), 0}, eps, {cb.get(), 0}, {sb.get(), 0}, pos.data());
     } catch (const std::runtime_error&) { refused = true; }
     require(refused, "partial rope in place over heads that are not contiguous was taken");
-    // The full rotary width over contiguous heads is norm_rope_rows, bit for bit.
-    std::vector<float> fc(positions * head_dim / 2), fs(positions * head_dim / 2);
-    for (size_t p = 0; p < positions; ++p)
-        for (size_t i = 0; i < head_dim / 2; ++i) {
-            const double t = (double)p * std::pow(base, -2.0 * (double)i / (double)head_dim);
-            fc[p * head_dim / 2 + i] = (float)std::cos(t);
-            fs[p * head_dim / 2 + i] = (float)std::sin(t);
-        }
-    BufferPtr fcb = upload(cpu, fc), fsb = upload(cpu, fs), full = upload(cpu, k), rows_op = upload(cpu, k);
-    cpu.norm_rope_partial({full.get(), 0}, {full.get(), 0}, rows, heads * head_dim, head_dim, heads, head_dim, head_dim, {wb.get(), 0}, eps,
-                          {fcb.get(), 0}, {fsb.get(), 0}, pos.data());
-    cpu.norm_rope_rows({rows_op.get(), 0}, rows, heads * head_dim, heads, {wb.get(), 0}, eps, {fcb.get(), 0}, {fsb.get(), 0}, head_dim / 2,
-                       pos.data());
-    require(same_bits(download(cpu, *full, k.size()), download(cpu, *rows_op, k.size())), "partial rope at the full width differs from norm_rope_rows");
     return rows * heads;
 }
 
@@ -846,7 +832,6 @@ void check_refusals() {
     BufferPtr buf = zeros(cpu, 4096);
     const backend::Slice o = {buf.get(), 0};
     const StateView view = {s.get(), 0, 0, 0, 1};
-    const uint32_t pos = 0;
     auto refused = [](const char* op, auto&& call) {
         try {
             call();
@@ -860,7 +845,6 @@ void check_refusals() {
     refused("causal_conv_silu", [&] { base.Backend::causal_conv_silu(o, o, o, 0, &view, 1); });
     refused("gated_delta_rule", [&] { base.Backend::gated_delta_rule(o, o, o, o, o, o, 0, &view, 1); });
     refused("gated_rms_norm", [&] { base.Backend::gated_rms_norm(o, o, o, o, 1, 1, 4, 1e-6f); });
-    refused("norm_rope_partial", [&] { base.Backend::norm_rope_partial(o, o, 1, 8, 8, 1, 8, 4, o, 1e-6f, o, o, &pos); });
     refused("sigmoid_mul", [&] { base.Backend::sigmoid_mul(o, o, o, 1, 1, 4, 4, 0); });
 }
 }  // namespace
@@ -888,6 +872,7 @@ int main() {
         norm += check_gated_norm(g, 4, 128);
         rope += check_partial_rope(g, 4, 40, 8, 100.0);
         rope += check_partial_rope(g, 3, 256, 64, 1e7);
+        rope += check_partial_rope(g, 2, 64, 64, 1e4);
         check_rope_tail(g);
         check_norm_tail(g);
         gate += check_sigmoid_mul(g, 4, 40);

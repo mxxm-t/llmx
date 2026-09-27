@@ -4240,6 +4240,12 @@ This separate merge-record change reviews STATUS against the completed landing e
        - Speed at or above llama.cpp Vulkan on every cell: pp64, pp247, pp512, pp4096, tg32, tg128 and pp16384/tg512.
          The files are the 0.8B Q4_K_M, the 9B Q4_K_M, and the 27B Q4_K_M and Q8_0 on the MI50, and the 0.8B and 9B Q4_K_M on the Radeon VII (question 9).
      - Size: about 1.6 to 2.1.
+     - **In progress on `feat/qwen35-vulkan`** (2026-09-27), built on `feat/qwen35-model` at `83292c5`, which sits on `refactor/arch-modules` and main `1f7aa85`; it is rebased when those land on main, and merges after them.
+       - **Goal:** the dense qwen35 files on the Vulkan backend within the HF bounds on both cards, bit-for-bit slice invariant on the device, and at or above llama.cpp's Vulkan build on every speed cell above.
+       - **Done:**
+         - `norm_rope_rows` folds into `norm_rope_partial`, as the user decided: `Backend::norm_rope_kv` runs it at the full width in place, which is the CPU's one routine `norm_rope_raw` as before, and the device's kernel, `shaders/norm_rope_partial.comp`, reads the heads at their strides and rotates the first `rope_dim` values; Qwen3 on the device keeps its fused `norm_rope_kv` kernel, whose arithmetic per head is the op's at the full width.
+       - **Left:** the device's kernels of the other four ops; the projection groups measured on the device; attention's vector and tile kernels at head width 256; the CLI's split with states on 2 and 3 MI50s and the Radeon VII with the CPU; the 16k check's CLI mode; the rest of the gates above, among them the Radeon VII, the 4B, the 9B and 27B, the Qwen3 identity set and the speed table beside llama.cpp's Vulkan build.
+       - **Not in this step:** the checkpoint row of the recurrence and the conv, which the plan lists here; it has no caller before step 8c's checkpoints, so it arrives with them.
   6. **`feat/qwen35-chunked`:** the chunked form on Vulkan for the prompt rows of every entry whose extent is above 1, and the model's prompt cut on the absolute 64-row grid.
      - Gates:
        - The tiny fixtures, the 0.8B and the 4B within HF bounds on both cards.
@@ -8227,7 +8233,7 @@ their own measurements; K-quant optimization remains separate work below.
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
 | Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | In progress (block above): the spec decoders, fixtures and MXFP4 writer merged at `e9b13dec`, and MXFP4 is being built on branches of its own |
 | More model architectures (Llama, ...)    | Planned  |
-| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the device, is next |
+| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the Vulkan backend, in progress on `feat/qwen35-vulkan` |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (block above); the CPU timing on a quiet host follows |
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | Done |

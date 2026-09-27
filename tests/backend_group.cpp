@@ -302,7 +302,7 @@ static size_t check_magnitudes(backend::CpuBackend& cpu) {
 }
 
 // Rows of a batch carry their own positions.
-// Three rows at positions that are neither consecutive nor ordered, two heads each and a padded stride, against a double-precision norm-then-rotate reference reading the same table at the row's own position.
+// Three rows at positions that are neither consecutive nor ordered, two heads each read at a padded stride and written contiguously, against a double-precision norm-then-rotate reference reading the same table at the row's own position.
 static size_t check_row_positions(backend::CpuBackend& cpu) {
     const size_t rows = 3, heads = 2, half = 4, head_dim = 2 * half;
     const size_t stride = heads * head_dim + 3, table = 12;
@@ -321,8 +321,10 @@ static size_t check_row_positions(backend::CpuBackend& cpu) {
     const auto w_buf = cpu.adopt(w.data(), w.size() * sizeof(float));
     const auto c_buf = cpu.adopt(cs.data(), cs.size() * sizeof(float));
     const auto s_buf = cpu.adopt(sn.data(), sn.size() * sizeof(float));
-    cpu.norm_rope_rows({x_buf.get(), 0}, rows, stride, heads, {w_buf.get(), 0}, 1e-6f,
-                       {c_buf.get(), 0}, {s_buf.get(), 0}, half, pos);
+    std::vector<float> out(rows * heads * head_dim);
+    const auto o_buf = cpu.adopt(out.data(), out.size() * sizeof(float));
+    cpu.norm_rope_partial({o_buf.get(), 0}, {x_buf.get(), 0}, rows, stride, head_dim, heads, head_dim, head_dim, {w_buf.get(), 0}, 1e-6f,
+                          {c_buf.get(), 0}, {s_buf.get(), 0}, pos);
     size_t count = 0;
     for (size_t r = 0; r < rows; ++r)
         for (size_t h = 0; h < heads; ++h) {
@@ -334,11 +336,11 @@ static size_t check_row_positions(backend::CpuBackend& cpu) {
                 const double a = src[i] * inv * w[i], b = src[i + half] * inv * w[i + half];
                 const double c = cs[pos[r] * half + i], s = sn[pos[r] * half + i];
                 const double want[2] = {a * c - b * s, a * s + b * c};
-                const float* got = x.data() + r * stride + h * head_dim;
+                const float* got = out.data() + (r * heads + h) * head_dim;
                 for (int k = 0; k < 2; ++k) {
                     const double g = got[k ? i + half : i];
                     require(std::fabs(g - want[k]) <= 1e-5 * (1.0 + std::fabs(want[k])),
-                            "norm_rope_rows differs from the per-position reference");
+                            "norm_rope_partial differs from the per-position reference");
                     ++count;
                 }
             }

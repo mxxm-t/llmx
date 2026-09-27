@@ -109,8 +109,8 @@ const uint32_t kSpvGatherRows[] = {
 const uint32_t kSpvRmsNormRows[] = {
 #include "vulkan/rms_norm_rows.inc"
 };
-const uint32_t kSpvNormRopeRows[] = {
-#include "vulkan/norm_rope_rows.inc"
+const uint32_t kSpvNormRopePartial[] = {
+#include "vulkan/norm_rope_partial.inc"
 };
 const uint32_t kSpvEmbed[] = {
 #include "vulkan/embed.inc"
@@ -283,8 +283,7 @@ const uint32_t kSpvMoeCombine[] = {
 const uint32_t kSpvMoeGroup[] = {
 #include "vulkan/moe_group.inc"
 };
-
-enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
+enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_PARTIAL, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
                 K_MATMUL_ROW_K4, K_MATMUL_ROW_K5, K_MATMUL_ROW_K, K_NORM_ROPE_KV, K_ATTENTION_TILE,
                 K_KV_WRITE_K16, K_KV_WRITE_V16, K_KV_WRITE_KV16,
@@ -450,7 +449,7 @@ const uint32_t kMatmulTileQCounts[5] = {3, 3, 1, 1, 1};
 const uint32_t kMatmulReduceCounts[2] = {3, 1};
 
 const char* const kKernelNames[K_COUNT] = {
-    "add", "silu_mul", "gather_rows", "rms_norm_rows", "norm_rope_rows", "embed",
+    "add", "silu_mul", "gather_rows", "rms_norm_rows", "norm_rope_partial", "embed",
     "matmul_row", "kv_write", "attention", "attention_merge", "matmul_tile", "matmul_row_q4",
     "matmul_row_k4", "matmul_row_k5", "matmul_row_k", "norm_rope_kv", "attention_tile",
     "kv_write_k16", "kv_write_v16", "kv_write_kv16",
@@ -472,7 +471,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvSiluMul, sizeof(kSpvSiluMul), 4, nullptr},
     {kSpvGatherRows, sizeof(kSpvGatherRows), 3, nullptr},
     {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 4, nullptr},
-    {kSpvNormRopeRows, sizeof(kSpvNormRopeRows), 5, nullptr},
+    {kSpvNormRopePartial, sizeof(kSpvNormRopePartial), 6, nullptr},
     {kSpvEmbed, sizeof(kSpvEmbed), 4, nullptr},
     {kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts, kSpvMatmulRowPreserve, sizeof(kSpvMatmulRowPreserve)},
     {kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr},
@@ -1174,6 +1173,9 @@ public:
         return out;
     }
 
+    // Of the qwen35 layers' ops only the partial rope has its kernels here so far.
+    bool implements(Op op) const override { return op == Op::norm_rope_partial; }
+
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
     int threads_available() const override { return 0; }
@@ -1482,18 +1484,27 @@ public:
         if (quant) xq_tag_ = XqTag{bind(dst), rows * n, !tile && want_x8_};
     }
 
-    void norm_rope_rows(Slice x, size_t rows, size_t stride, size_t heads, CSlice w,
-                        float eps, CSlice cos, CSlice sin, size_t half,
-                        const uint32_t* pos) override {
-        if (!rows || !heads || !half) return;
-        if (!pos) throw std::runtime_error("vulkan: rope without positions");
-        const size_t table = floats_from(cos) / half;
+    // One workgroup per (row, head), reading the heads at their strides and writing them contiguously (shaders/norm_rope_partial.comp).
+    void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
+                           size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
+                           CSlice cos, CSlice sin, const uint32_t* pos) override {
+        if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
+            throw std::runtime_error("vulkan: invalid partial rope dimensions");
+        if (rows && !pos) throw std::runtime_error("vulkan: rope without positions");
+        if (!rows) return;
+        const size_t width = size_mul(heads, head_dim), half = rope_dim / 2;
+        const size_t last = size_add(size_add(size_mul(rows - 1, src_stride), size_mul(heads - 1, src_head_stride)), head_dim);
+        if (floats_from(dst) < size_mul(rows, width) || floats_from(src) < last || floats_from(w) < head_dim)
+            throw std::runtime_error("vulkan: partial rope operand outside its allocation");
+        if (dst.buffer == src.buffer && dst.offset == src.offset && (src_stride != width || src_head_stride != head_dim))
+            throw std::runtime_error("vulkan: partial rope in place over heads that are not contiguous");
+        const size_t table = std::min(floats_from(cos), floats_from(sin)) / half;
         for (size_t r = 0; r < rows; ++r)
             if (pos[r] >= table) throw std::runtime_error("vulkan: position outside the RoPE table");
-        struct { uint32_t stride, heads, half; float eps; }
-            pc{u32(stride), u32(heads), u32(half), eps};
-        dispatch(K_NORM_ROPE_ROWS,
-                 {bind(x), bind(w), bind(cos), bind(sin), args(pos, rows * sizeof(uint32_t))},
+        struct { uint32_t src_stride, src_head_stride, heads, head_dim, half; float eps; }
+            pc{u32(src_stride), u32(src_head_stride), u32(heads), u32(head_dim), u32(half), eps};
+        dispatch(K_NORM_ROPE_PARTIAL,
+                 {bind(dst), bind(src), bind(w), bind(cos), bind(sin), args(pos, rows * sizeof(uint32_t))},
                  &pc, sizeof(pc), u32(rows * heads));
     }
 

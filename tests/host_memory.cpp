@@ -32,7 +32,7 @@ std::string gib(const std::optional<size_t>& n, const char* none) {
     return text;
 }
 
-// cgroup v2's memory.max less memory.current: 0 past the limit, nothing for "max" or a text that is not one decimal number.
+// cgroup v2's memory.max less memory.current, without a memory.stat: 0 past the limit, nothing for "max" or a text that is not one decimal number.
 void v2_room() {
     struct Case { const char* max; const char* current; std::optional<size_t> room; };
     const Case cases[] = {
@@ -45,13 +45,13 @@ void v2_room() {
         {"4294967296\n", "garbage\n", std::nullopt}, {"4294967296\n", "-5\n", std::nullopt}, {"4294967296\n", "1 2\n", std::nullopt},
     };
     for (const auto& c : cases) {
-        const auto got = core::cgroup_v2_memory_room(c.max, c.current);
+        const auto got = core::cgroup_v2_memory_room(c.max, c.current, "");
         require(got == c.room, std::string("memory.max \"") + c.max + "\" over memory.current \"" + c.current + "\" gave " + shown(got) +
                                ", expected " + shown(c.room));
     }
 }
 
-// cgroup v1's memory.limit_in_bytes less memory.usage_in_bytes: 0 past the limit, nothing for a limit of 2^62 bytes or more, which is how v1 writes none, or a text that is not one decimal number.
+// cgroup v1's memory.limit_in_bytes less memory.usage_in_bytes, without a memory.stat: 0 past the limit, nothing for a limit of 2^62 bytes or more, which is how v1 writes none, or a text that is not one decimal number.
 void v1_room() {
     struct Case { const char* limit; const char* usage; std::optional<size_t> room; };
     const Case cases[] = {
@@ -63,9 +63,52 @@ void v1_room() {
         {"8589934592\n", "", std::nullopt}, {"8589934592\n", "1g\n", std::nullopt}, {"18446744073709551616\n", "0\n", std::nullopt},
     };
     for (const auto& c : cases) {
-        const auto got = core::cgroup_v1_memory_room(c.limit, c.usage);
+        const auto got = core::cgroup_v1_memory_room(c.limit, c.usage, "");
         require(got == c.room, std::string("memory.limit_in_bytes \"") + c.limit + "\" over memory.usage_in_bytes \"" + c.usage + "\" gave " +
                                shown(got) + ", expected " + shown(c.room));
+    }
+}
+
+// The limit less the working set, the usage less the inactive file pages memory.stat gives, which the kernel reclaims before it kills: inactive_file on v2 and total_inactive_file on v1, a working set below 0 taken as 0, and the usage whole when memory.stat is missing, lacks the key or gives it as anything but one decimal number.
+void working_set() {
+    struct Case { const char* limit; const char* usage; const char* stat; std::optional<size_t> room; };
+    const char* const v2_stat = "anon 1073741824\nfile 5368709120\ninactive_anon 0\nactive_anon 1073741824\ninactive_file 4294967296\nactive_file 1073741824\n";
+    const Case v2_cases[] = {
+        {"8589934592\n", "6442450944\n", v2_stat, 6 * G},
+        {"8589934592\n", "1073741824\n", "inactive_file 2147483648\n", 8 * G},
+        {"8589934592\n", "8589000000\n", "anon 500000000\ninactive_file 8000000000\n", 8589934592 - 589000000},
+        {"1073741824\n", "3221225472\n", "inactive_file 1073741824\n", 0},
+        {"8589934592\n", "6442450944\n", "anon 0\ninactive_file 4294967296", 6 * G},
+        {"8589934592\n", "6442450944\n", "anon 1073741824\nfile 5368709120\nactive_file 1073741824\n", 2 * G},
+        {"8589934592\n", "6442450944\n", "", 2 * G},
+        {"8589934592\n", "6442450944\n", "inactive_anon 4294967296\n", 2 * G},
+        {"8589934592\n", "6442450944\n", "total_inactive_file 4294967296\n", 2 * G},
+        {"8589934592\n", "6442450944\n", "inactive_file 4G\n", 2 * G},
+        {"8589934592\n", "6442450944\n", "inactive_file -1\n", 2 * G},
+        {"8589934592\n", "6442450944\n", "inactive_file\n", 2 * G},
+        {"8589934592\n", "6442450944\n", "inactive_file 1 2\n", 2 * G},
+        {"8589934592\n", "6442450944\n", "garbage", 2 * G},
+        {"max\n", "6442450944\n", v2_stat, std::nullopt},
+        {"8589934592\n", "garbage\n", v2_stat, std::nullopt},
+    };
+    for (const auto& c : v2_cases) {
+        const auto got = core::cgroup_v2_memory_room(c.limit, c.usage, c.stat);
+        require(got == c.room, std::string("memory.max \"") + c.limit + "\" over memory.current \"" + c.usage + "\" and memory.stat \"" + c.stat +
+                               "\" gave " + shown(got) + ", expected " + shown(c.room));
+    }
+    const Case v1_cases[] = {
+        {"8589934592\n", "6442450944\n", "cache 5368709120\ninactive_file 1073741824\ntotal_cache 5368709120\ntotal_inactive_file 4294967296\n", 6 * G},
+        {"8589934592\n", "1073741824\n", "total_inactive_file 2147483648\n", 8 * G},
+        {"1073741824\n", "3221225472\n", "total_inactive_file 1073741824\n", 0},
+        {"8589934592\n", "6442450944\n", "cache 5368709120\ninactive_file 4294967296\n", 2 * G},
+        {"8589934592\n", "6442450944\n", "", 2 * G},
+        {"8589934592\n", "6442450944\n", "total_inactive_file x\n", 2 * G},
+        {"9223372036854771712\n", "6442450944\n", "total_inactive_file 4294967296\n", std::nullopt},
+    };
+    for (const auto& c : v1_cases) {
+        const auto got = core::cgroup_v1_memory_room(c.limit, c.usage, c.stat);
+        require(got == c.room, std::string("memory.limit_in_bytes \"") + c.limit + "\" over memory.usage_in_bytes \"" + c.usage +
+                               "\" and memory.stat \"" + c.stat + "\" gave " + shown(got) + ", expected " + shown(c.room));
     }
 }
 
@@ -145,6 +188,16 @@ void walk() {
          {{v1 + "/docker/abc/memory.limit_in_bytes", "4294967296\n"}, {v1 + "/docker/abc/memory.usage_in_bytes", "1073741824\n"},
           {v2 + "/unified/system.slice/x.service/memory.max", "2147483648\n"},
           {v2 + "/unified/system.slice/x.service/memory.current", "1073741824\n"}}, 1 * G},
+        {"a container whose usage is mostly file cache", "0::/\n", v2_own_namespace,
+         {{v2 + "/memory.max", "8589934592\n"}, {v2 + "/memory.current", "8547991552\n"},
+          {v2 + "/memory.stat", "anon 41943040\nfile 8506048512\ninactive_file 8455716864\nactive_file 50331648\n"}}, 8 * G - 92274688},
+        {"each cgroup's memory.stat read at its own level", "0::/a/b\n", v2_host,
+         {{v2 + "/a/b/memory.max", "8589934592\n"}, {v2 + "/a/b/memory.current", "1073741824\n"},
+          {v2 + "/a/memory.max", "4294967296\n"}, {v2 + "/a/memory.current", "3758096384\n"},
+          {v2 + "/a/memory.stat", "inactive_file 3221225472\n"}}, 3 * G + G / 2},
+        {"a v1 container's total_inactive_file", "9:memory:/docker/abc\n", v1_container,
+         {{v1 + "/memory.limit_in_bytes", "8589934592\n"}, {v1 + "/memory.usage_in_bytes", "8053063680\n"},
+          {v1 + "/memory.stat", "inactive_file 0\ntotal_inactive_file 6442450944\n"}}, 6 * G + G / 2},
         {"no files", "0::/a/b\n", v2_host, {}, std::nullopt},
         {"no mountinfo", "0::/\n", "", {{v2 + "/memory.max", "1073741824\n"}, {v2 + "/memory.current", "0\n"}}, std::nullopt},
         {"no cgroup line", "", v2_own_namespace, {{v2 + "/memory.max", "1073741824\n"}, {v2 + "/memory.current", "0\n"}}, std::nullopt},
@@ -200,6 +253,7 @@ int main() {
     try {
         v2_room();
         v1_room();
+        working_set();
         walk();
         job();
         fewest();

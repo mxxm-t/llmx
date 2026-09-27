@@ -1681,7 +1681,7 @@ public:
     // A build of one column group then checks the count only before the groups past its first half, and the second group of a two-group build, which gets 1 to all of its columns, before each group.
     template <typename Fn>
     void for_each_column_chunk(KernelId id, size_t nbatch, const Fn& each) const {
-        int builds[kVariants];
+        int builds[kVariants] = {};
         const size_t n = column_builds(id, builds);
         const size_t wide = build_cols(id, builds[n - 1]);
         size_t col0 = 0;

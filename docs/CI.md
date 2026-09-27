@@ -5,7 +5,7 @@ A stack of branches about to merge is pushed as `gate/<name>` so these checks ru
 Branches are merged locally, so no pull request reaches the workflow, and the gates a branch passes before it merges are run locally and recorded in `docs/STATUS.md`.
 A pull request's newer push cancels its older run; every other run has a concurrency group of its own, so each push to `main` keeps its run as the record of that merge and each push to a `gate/<name>` branch keeps its run as the check before it.
 Builds use `--parallel 4`, the hosted runners' core count.
-It contains six independent checks:
+It contains seven independent checks:
 
 | Check | Coverage |
 |---|---|
@@ -13,6 +13,7 @@ It contains six independent checks:
 | CPU (windows-2022) | MSVC, CMake Release and `build.bat`, synthetic tests and benchmark smoke on both binaries, and the `build.bat` binary reporting the same version as the CMake one |
 | CPU (macos-15-intel) | Apple Clang, CMake Release, synthetic tests and benchmark smoke |
 | CPU (Linux UBSan) | GCC 14 undefined-behavior checks, including mixed-tensor float alignment; GCC 14 is the compiler of `docker/Dockerfile`'s image, beside the runner's default GCC 13 in the ubuntu job |
+| CPU (Linux TSan) | GCC 14 with ThreadSanitizer, address randomization off as its memory layout needs on the runner's kernel: the `http` test, whose listener is closed from another thread while its accept loop runs, and `server-passes-cpu`, the scheduler's passes in flight over CPU stages; the two binaries run without CTest, whose timeouts are set for uninstrumented builds, and a report fails the job |
 | Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan`, `vulkan-lifetime` and `vulkan-quantization` skipping without a driver, while `vulkan-buffer`, whose fake device supplies every Vulkan call, needs no loader and runs; then the Python suite with `--require-tools` on the CPU path (`--device cpu`) of the Vulkan-enabled binary, the build Linux GPU users make; then the dead-code check of the linked binaries, `tests/dead_code.py --linked`, on a build of its own at -O0 |
 | HF reference (CPU) | Linux build plus the six pinned gate models, the four Qwen3-0.6B files and the two Qwen3.5-0.8B files: tokenizer, logits, continuous/chunked PPL, and the real-model server checks on the Qwen3-0.6B Q8_0 (limits, uncapped requests pausing, a prompt paused while prefilling, prefix reuse over a conversation, clients leaving, a chat turn, the tokenize routes against `llmx tokenize` and `llmx detokenize` on the tokenizer golden's texts and `messages` against the chat template goldens); the suite's HF chat and thread replies run here as in every CPU job. Then the `baseline` component again with f32 caches, `llmx-split-check` on the Q8_0 over two CPU backends, and many users through the server on the Q8_0. No CTest: the Ubuntu job runs it on the same build |
 
@@ -20,6 +21,7 @@ Every job that runs the Python suite starts it with the dead-code and stale-docs
 The Vulkan job's extra step builds every target again at -O0 with every inline function emitted and links each executable with `--gc-sections`, so the functions only tests keep show; it adds about two minutes to the job, and it runs even when a step before it failed, since it builds a tree of its own.
 A finding fails its job unless `tests/data/known_findings.txt` lists it, with how often it occurs and a reason, and a listed finding that no longer occurs, or occurs another number of times, fails it too.
 Every CTest a CPU build registers runs in every job's "Backend tests" step but the HF job's, which builds what the Ubuntu job builds, so the KV cache, placement, HTTP layer, server UTF-8 repair, prefill-scope, log-probabilities, server-resume, server-passes and server-passes-cpu checks are covered on all three platforms and under UBSan.
+`http` and `server-passes-cpu` also run under ThreadSanitizer in the TSan job, which builds only those two.
 The four Vulkan-only CTests run in the Vulkan job alone, where `backend-vulkan`, `vulkan-lifetime` and `vulkan-quantization` skip without a device.
 That job then runs the Python suite on the CPU through the Vulkan-enabled binary, where the `cli` component finds no device and checks that a Vulkan device is refused rather than run on the CPU.
 The Python suite's `server` component starts `llmx serve` on the synthetic dense and MoE models in every CPU job, the MoE model's prompts alone against four at a time and the dense model's tokenize routes against `llmx tokenize` and `llmx detokenize` on text beyond ASCII, special tokens' text and an empty text, and on the real Q8_0 fixture in the HF job.

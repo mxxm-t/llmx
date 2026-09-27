@@ -97,6 +97,26 @@ jobs:
       - name: Test
         run: python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools
 
+  thread-sanitizer:
+    name: CPU (Linux TSan)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The tests whose threads share the server's objects: the HTTP layer's listener closed from another thread, and the scheduler's passes in flight over CPU stages.
+      - name: Configure with thread checks
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-14 "-DCMAKE_CXX_FLAGS=-fsanitize=thread -g"
+      - name: Build
+        run: cmake --build build --config Release --parallel 4 --target llmx-http-test llmx-server-passes-cpu-test
+      # ThreadSanitizer's memory layout needs address randomization off on the runner's kernel, and a report fails its test with exit status 66.
+      # The binaries run without CTest, whose timeouts are set for uninstrumented builds.
+      - name: Thread tests
+        run: |
+          setarch "$(uname -m)" -R build/llmx-http-test
+          setarch "$(uname -m)" -R build/llmx-server-passes-cpu-test
+
   vulkan-build:
     name: Vulkan backend (build, Linux)
     runs-on: ubuntu-24.04

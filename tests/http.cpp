@@ -1,5 +1,6 @@
 // The HTTP layer of docs/SERVER.md step 1: a listener on a system-chosen port served from a thread, requests sent with the layer's own client.
-// A whole response, a body echoed back, a chunked stream whose chunks arrive as written, a whole response refused inside a stream, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, a client seen as open while it waits, also after one urgent (out-of-band) byte, and as closed once it leaves, a write to it then throwing ClientGone, and the listener closed from the main thread ending the accept loop.
+// A whole response, a body echoed back, a chunked stream whose chunks arrive as written, a whole response refused inside a stream, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, a client seen as open while it waits, also after one urgent (out-of-band) byte, and as closed once it leaves, a write to it then throwing ClientGone, and the listener closed from the main thread ending the accept loop, whether its thread is serving a client or waiting in accept.
+// The hosted TSan job runs it under ThreadSanitizer, which sees the socket read by accept on one thread and closed on another.
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -165,12 +166,30 @@ int main() {
             http::close_socket(s);
             require(raw.substr(raw.find("\r\n\r\n") + 4, 4) == "open", "a waiting client seen as open");
         }
+        // Closed while the server thread may still be serving /linger, so its next accept can start after the close.
         listener.close();
         server.join();
         require(served.load() == 9, "every request served once");
         require(departures.load() == 1, "a departed client seen as closed and a write to it refused");
+        {
+            // A listener closed while its thread waits in accept, as a server with no client stops: that accept returns no connection within seconds, and so does any accept after it.
+            http::Listener idle("127.0.0.1", 0);
+            std::atomic<bool> started{false}, empty{false};
+            std::thread waiter([&] {
+                started = true;
+                empty = !idle.accept().open();
+            });
+            while (!started.load()) std::this_thread::yield();
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            const auto closed_at = std::chrono::steady_clock::now();
+            idle.close();
+            waiter.join();
+            require(empty.load(), "an accept waiting when its listener closed gave a connection");
+            require(std::chrono::steady_clock::now() - closed_at < std::chrono::seconds(5), "an accept waiting when its listener closed did not return");
+            require(!idle.accept().open(), "an accept on a closed listener gave a connection");
+        }
         std::cout << "http: listener, whole responses, a 3-chunk stream, a response refused inside a stream, 413, 400 and 404, a client with an urgent byte answered, a client seen leaving, over " << served.load()
-                  << " connections\n";
+                  << " connections, and a listener closed while serving and while waiting\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "http: " << e.what() << "\n";

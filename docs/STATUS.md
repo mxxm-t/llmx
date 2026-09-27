@@ -29,6 +29,19 @@ Eight-sequence 8B decode gains 80.79/83.98 percent across mirrored blocks, with 
 
 [Final gate evidence](benchmarks/cpu-q8-row-final-20260929.json) pins complete matrices, identity chains, hosted results and the two verified raw archives: Windows 316 files, SHA-256 `9239c3355f1ff58a06ae50c11bc2df2345dec7b03e4e57aaf62aa3c3f0053652`; Linux 130 files, SHA-256 `6dedfa87bd4a0114e8d60d186188a8c619d8d02a07bf8014d9bdce6960b0c207`. Earlier diagnostic and rejected-arm evidence remains in its checkpoint records. All 71 Markdown pages are reconciled: this STATUS record is checked against final evidence, and the other 70 retain their hash-verified source-backed review. This separate merge record changes documentation only. MXFP4 and the native16 GPU work remain separate, unfinished features.
 
+## The HTTP listener's socket is closed only once no accept uses it (2026-09-28, branch fix/http-listener-race)
+
+- **Goal:** `http::Listener::close()` marked the listening socket invalid and closed it on one thread while `accept()` read it on another, with nothing ordering the two, so an accept after the close could be handed a closed descriptor or one the process had since reused.
+  Found by layer split phase 3's step 4 on a ThreadSanitizer build of main; the `http` CTest's stop, the listener closed from the main thread while its accept loop runs, is that race.
+- **Done:**
+  - Reproduced on main `c82e901a` built by GCC 14.2 with `-fsanitize=thread -g`, run with address randomization off: `http` exits 66 in 5 of 5 runs, each with one report, a read of the socket in `Listener::accept()` on the server thread (`http.hpp:321 at c82e901a`) against its write in `Listener::close()` on the main thread (`http.hpp:341 at c82e901a`).
+  - Test: `http` also closes a listener while its thread waits in accept, which must return no connection within seconds, and then asks a closed listener for a connection, which must give none.
+    No run without the sanitizer shows the race: it needs the close to land between the accept loop reading the socket and the call using it.
+    So the hosted workflow gets a TSan job, which builds `http` and `server-passes-cpu` with `-fsanitize=thread` and runs both with address randomization off; on main's listener it fails on `http`.
+- **Left:** the fix, and the host tier's gates with the TSan runs and the Windows build and `http` test.
+- **Gotchas:** ThreadSanitizer on the Linux machine's kernel, as on the hosted runner's, fails at start unless address randomization is off: `setarch "$(uname -m)" -R`, which in a container needs `--security-opt seccomp=unconfined`.
+  The TSan build of `server-passes-cpu` warns once, `-Wstringop-overflow` at `infer::footprint` (`src/model/place.hpp`), on main as on the branch; the builds without the sanitizer do not.
+
 ## Vulkan activation repair on current main (2026-09-28, fix/vulkan-activation-main, merged at `1108fc3`)
 
 - **Goal:** finish the finite-activation repair independently of MXFP4 and MoE development.

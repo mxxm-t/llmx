@@ -21,6 +21,7 @@ enum class RoleKind : uint8_t {
     matrix,   // [in, out], trailing axes of one, read by a matrix product
     gather,   // checked as a matrix, its rows gathered by the embedding
     experts,  // exactly [in, out, experts], a routed stack
+    table,    // F32, [in, out], trailing axes of one, read whole by an op rather than by a matrix product
 };
 
 // What a routed layer run beside its mixer for a long prompt (Placement::stream_from) does with a feed-forward role: nothing, a copy adopted on the mixer's device at load, or a copy written into that device's window in each pass that needs it.

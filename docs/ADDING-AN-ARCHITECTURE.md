@@ -87,7 +87,7 @@ The module's `plan` is built once, from the configuration and the runtime's inde
 - for each role:
   - its tensor name;
   - the part it is placed with;
-  - its kind: norm, matrix, gathered table or stacked experts;
+  - its kind: norm, matrix, gathered table, stacked experts, or an F32 table an op reads whole;
   - its expected shape;
   - what streaming does with it: nothing, a copy beside the mixer, or a copy written into a window each pass;
   - an alias taken when the name is absent, as a tied head takes the embedding;

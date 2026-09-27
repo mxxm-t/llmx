@@ -26,8 +26,10 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   - A `RoleKind` says how a role's tensor is checked and whether the fit
     counts it as a product: `norm` is F32 `[in]`, `matrix` is `[in, out]`
     read by a product, `gather` is checked as a matrix and gathered by the
-    embedding, and `experts` is exactly `[in, out, experts]`; a norm or
-    matrix takes trailing axes of one up to rank four.
+    embedding, `experts` is exactly `[in, out, experts]`, and `table` is
+    an F32 `[in, out]` an op reads whole, such as a convolution's taps,
+    which the fit does not count as a product; a norm, matrix or table
+    takes trailing axes of one up to rank four.
   - A `Stream` says what a routed layer run beside its mixer for a long
     prompt does with a role: nothing, a copy adopted on the mixer's device
     at load, or a copy written into that device's window in each pass that

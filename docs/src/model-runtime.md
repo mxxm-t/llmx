@@ -210,7 +210,8 @@ delegated to a `backend::Backend`.
     kind and returning its `Weight` from the same check, so a resolved
     handle is well-formed by construction and no other path produces one:
     a norm is an F32 vector of `in`, a matrix or gathered table is
-    `[in, out]`, both with trailing axes of one up to rank four, and an
+    `[in, out]` and a table an F32 `[in, out]`, each with trailing axes of
+    one up to rank four, and an
     expert stack is exactly `[in, out, experts]`. Each weight goes to the
     device of its part, and a tensor two roles take on one device is adopted
     there once, which is how a tied head beside the embedding reads the

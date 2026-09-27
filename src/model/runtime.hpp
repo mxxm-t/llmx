@@ -673,6 +673,7 @@ private:
                     valid = valid && t.type == quant::GGML_TYPE_F32;
                 } else {
                     valid = valid && t.shape.size() >= 2 && t.shape[1] == role.out;
+                    if (role.kind == RoleKind::table) valid = valid && t.type == quant::GGML_TYPE_F32;
                 }
                 for (size_t d = norm ? 1 : 2; d < t.shape.size(); ++d) valid = valid && t.shape[d] == 1;
             }

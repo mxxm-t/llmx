@@ -172,7 +172,7 @@ if(BUILD_TESTING)
     add_executable(llmx-backend-group-test tests/backend_group.cpp)
     target_include_directories(llmx-backend-group-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     if(NOT MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        # Make scalar-tail rounding deterministic for the exact ordered-FMA oracle.
+        # Without contraction only a multiply-add written as an FMA fuses, so the ordered-FMA oracle fails a prompt dot whose tail leaves its FMAs to the compiler.
         target_compile_options(llmx-backend-group-test PRIVATE -ffp-contract=off)
     endif()
     list(APPEND LLMX_TARGETS llmx-backend-group-test)

@@ -207,12 +207,9 @@ offline downloader checks.
 
 The `backend-group` test disables implicit floating-point contraction on
 GCC/Clang, including AppleClang. Its explicit SIMD FMA and `std::fma` calls
-remain fused. This fixes scalar-tail rounding for the bitwise ordered oracle:
-UBSan can otherwise make the compiler fuse one multiply/add expression and
-leave the identical expression in the other path unfused. Equality and
-numerical bounds are unchanged. The option applies only to this test target,
-not the CLI or performance tools. It proves ordered reduction under controlled
-contraction; the CLI HF checks separately exercise the normal runtime flags.
+remain fused, and nothing else is.
+Its bitwise oracle for the prompt's three-, two- and one-column float dots takes every product, the tail's included, as an explicit FMA, so under this option a kernel matches it only if the kernel's tail is written as FMAs too.
+The option applies only to this test target, not the CLI or performance tools; the CLI HF checks separately exercise the normal runtime flags.
 
 The reference-generator path test checks an absolute path and filesystem
 identity, so Windows short names such as `RUNNER~1` and their long names are

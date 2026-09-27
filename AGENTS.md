@@ -199,9 +199,9 @@ Each model it builds runs on a one-thread CPU backend that must start no worker 
 `backend-group` checks mixed types, uneven rows, batches, thread counts,
 output boundaries and fallback behavior against separate calls and double dots.
 It also checks every finite f16 scale against signed Q8 weight extremes using
-one-hot inputs with exact expected products, and the three-column prefill
-reduction against ordered scalar FMA across dimension tails and unaligned
-inputs. The independent HF fixtures below remain the external correctness gate.
+one-hot inputs with exact expected products, and every column of the three-, two- and one-column prefill dots against one ordered scalar FMA oracle across dimension tails and unaligned inputs.
+The test is built without contraction, so a tail the kernels leave to the compiler fails it.
+The independent HF fixtures below remain the external correctness gate.
 
 `fused-dot-overflow` pins the two kernel families apart. `dot_row_impl` folds
 the scale into each weight before the activation, avoiding the demonstrated

@@ -9,6 +9,8 @@ static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 
+// Every column of the prompt's three-, two- and one-column dots against one oracle: FMAs per lane, the lanes added in order, then the tail's FMAs in order.
+// A prompt row lands in any of the three by its place in the batch, so all must give the oracle's bits; the target is built without contraction, so a tail the kernel leaves to the compiler fails here.
 static size_t check_prefill_reduction() {
     size_t count = 0;
     for (size_t n : std::array<size_t, 19>{0,1,2,7,8,9,15,16,17,31,32,33,127,128,129,1023,1024,1025,2048}) {
@@ -21,8 +23,10 @@ static size_t check_prefill_reduction() {
                 inputs[i] = float(int((i * 769 + 23) % 32749) - 16374) / 523.0f;
             const float* r = rows.data() + offset;
             const float* x = inputs.data() + offset;
-            float actual[12];
-            backend::CpuBackend::dot_f32_x4x3(r, stride, x, x + stride, x + 2 * stride, n, actual, actual + 4, actual + 8);
+            float three[12], two[8], one[12];
+            backend::CpuBackend::dot_f32_x4x3(r, stride, x, x + stride, x + 2 * stride, n, three, three + 4, three + 8);
+            backend::CpuBackend::dot_f32_x4x2(r, stride, x, x + stride, n, two, two + 4);
+            for (size_t c = 0; c < 3; ++c) backend::CpuBackend::dot_f32_x4(r, stride, x + c * stride, n, one + c * 4);
             for (size_t c = 0; c < 3; ++c) for (size_t k = 0; k < 4; ++k) {
                 float lanes[8] = {};
                 size_t j = 0;
@@ -31,10 +35,14 @@ static size_t check_prefill_reduction() {
                         lanes[lane] = std::fma(r[k * stride + j + lane], x[c * stride + j + lane], lanes[lane]);
                 float v = lanes[0];
                 for (size_t lane = 1; lane < 8; ++lane) v += lanes[lane];
-                for (; j < n; ++j) v += r[k * stride + j] * x[c * stride + j];
-                require(std::memcmp(&v, &actual[c * 4 + k], sizeof(float)) == 0,
-                        "prefill reduction differs from ordered scalar FMA oracle");
-                ++count;
+                for (; j < n; ++j) v = std::fma(r[k * stride + j], x[c * stride + j], v);
+                require(std::memcmp(&v, &three[c * 4 + k], sizeof(float)) == 0,
+                        "a column of the three-column prompt dot differs from the ordered FMA oracle");
+                require(c == 2 || std::memcmp(&v, &two[c * 4 + k], sizeof(float)) == 0,
+                        "a column of the two-column prompt dot differs from the ordered FMA oracle");
+                require(std::memcmp(&v, &one[c * 4 + k], sizeof(float)) == 0,
+                        "the one-column prompt dot differs from the ordered FMA oracle");
+                count += c == 2 ? 2 : 3;
             }
         }
     }

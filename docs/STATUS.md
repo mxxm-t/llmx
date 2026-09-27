@@ -2404,6 +2404,28 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
          - Bounds for the three pinned qwen35 files in `tests/baseline_qwen35.py`, from llmx's first measurement, and `gate` set on the 0.8B files; until then a file llmx runs is measured and fails.
          - llmx's own render of the chat golden's two conversations, compared with transformers' render, which the consumer does not check yet.
          - The `qwen35` component, `tests/baseline_qwen35.py` and `tests/baseline_layered.py` skip only on the CPU's architecture refusal, so once the CPU runs qwen35 and the device backends refuse it, their device runs fail rather than skip unless this step makes them skip on that refusal too.
+     - **The CPU ops exist** (2026-09-27), started before the architecture refactor lands, since none of them depends on the model code:
+       - `backends/backend.hpp` gains the ops of both layer kinds, each named for what it computes: `causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`, `norm_rope_partial` and `sigmoid_mul`.
+         Beside them are the recurrent state's `StateShape`, `StateStorage` and `StateView`, with `check_state_views`, every backend's check of the views; `state_alloc`, one buffer per layer holding every slot, zero-filled when it is made and never grown; and `state_copy`, a slot to a slot in every layer.
+         A view of length 0 reads a zero state whatever its slot holds, the conv's carried rows before a sequence's start included.
+       - The CPU implements them all as Design, the kernels, CPU, has it: the conv one invocation per (entry, channel); the recurrence one task per (sequence, V head) on one thread, the state laid out [K row][V column] with its sums over K in row order and every multiply-add an explicit FMA, read from a source slot and written to a destination slot, V head j reading K head j mod Hk, with the L2 norms, g and beta in a prologue; the gated norm, the partial rope and `sigmoid_mul` row by row.
+         The recurrence runs 32 V columns at a time, then 8, then 1, which gives the same bits, and a 32-column block of a 128 by 128 matrix stays in the first-level cache over a view's tokens.
+       - A backend without an op runs `Backend`'s form of it, which refuses it by name; the Vulkan backend does so until step 5.
+         `state_alloc` and `state_copy` run over any backend's `alloc` and `copy`, so a device needs no form of its own for them.
+       - One difference from Design, the kernels, for the user's OK: the partial rope is an op of its own, `norm_rope_partial`, beside `norm_rope_rows`, which keeps its signature, so the Qwen3 path and its Vulkan kernels stay as they are; on the CPU both run one routine, `norm_rope_raw`, and `silu_mul` and the new ops share one SiLU.
+       - The CTest `qwen35-ops` (AGENTS.md, Tests) holds each op to a double-precision reference written in the test from the math, within bounds stated as counts of F32 units of the values' magnitude, and every op to the same bits at thread counts from 1 to 16 and under every grouping of rows into calls it tries.
+         At the branch's code it takes 1.0 s over 88 rows of mixed sequences, 796 runs of thread counts and groupings compared bit for bit and 24 one-token steps, and its worst errors are 0.10 of their bound for the conv, 0.04 for the recurrence, 0.21 for the gated norm, 0.04 for the partial rope and 0.33 for `sigmoid_mul`.
+         Each of 11 changes to the kernels fails it: the grouped V-to-K mapping, a conv tap moved, no decay flush, carried rows read before position 0, a fresh slot read, no query scale, no beta, the full width rotated, the output gate's head stride dropped, the gated norm's SiLU replaced by a sigmoid, and softplus replaced by exp.
+       - On the Linux machine's CPU, in containers of six CPUs, at one-minute load averages of 16 to 56 from other work on the machine, at `38bd5df`:
+         - CPU-only and Vulkan builds with no warning, and ctest 24 of 24 on the CPU-only build and 25 of 27 on the Vulkan build, where `backend-vulkan` and `vulkan-lifetime` skip without a device.
+         - The ordinary suite with `--require-tools`, 1908 s: `dead-code` and `docs` pass against the listed findings, the `qwen35` component reports SKIP and the other 20 pass.
+         - `tests/dead_code.py --linked` passes against the list.
+         - On the four Qwen3-0.6B files llmx reads, the logits of 14 positions and the greedy text of `generate -n 32` are main's byte for byte; the other six files are refused by both.
+         - At the docs check's commit alone, `dead-code` and `docs` pass as well.
+       - On Windows, an MSVC build of `llmx` and the backend tests at /W4 gives no warning.
+       - The branch was rebased onto main at `7955a21` first; `docs/CI.md` took main's component count with this branch's `qwen35` component, 21 in all, and main's docs check, which failed the layered consumer's command line in ASSETS as taking no flags since the consumer hands its arguments to the 8B consumer's parser, now takes the flags of the modules a script without a parser imports.
+       - Waits for the architecture refactor's module, where the model's use of these ops lands: the config, the resolver and the mixer kind, the arena slots, the per-layer cache in `Footprint` and the rope table by rope_dim, the KV counters over attention layers only, the state slots per command with the retirement, failed-pass and truncate rules, and the refusals by the device backends and by `serve` at load; then this step's gates above.
+         Until then only `qwen35-ops` calls the ops, so their dead-code findings are listed in `tests/data/known_findings.txt` against this step, and `state_copy`'s against step 8b, which takes a state back into a live slot.
   5. **`feat/qwen35-vulkan`:** the device ops (conv, the per-token recurrence with source, destination and checkpoint-row push constants, the gated norm, `sigmoid_mul`, and the copy and tag rules), the projection groups, device state storage, attention at head dim 256, strided partial rope, the CLI's layer split with states, and a CLI mode for `tools/long_context_check.py` (two fresh `generate` runs, plus `logits --last` on the baseline).
      - Gates:
        - The tiny fixtures, the 0.8B and the 4B within bounds on both cards.
@@ -6399,7 +6421,7 @@ their own measurements; K-quant optimization remains separate work below.
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
 | Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | Planned (block above), built in the background |
 | More model architectures (Llama, ...)    | Planned  |
-| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | Planned (block above, design in [QWEN35](QWEN35.md)), built in the background |
+| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | Planned (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops on `feat/qwen35-cpu`, its model code waiting for the architecture refactor |
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | Done |
 | GGUF reader size and tensor extent validation | Done |

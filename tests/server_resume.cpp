@@ -15,6 +15,8 @@
 
 #include "backends/devices.hpp"
 #include "model/runtime.hpp"
+#include "model/place.hpp"
+#include "model/arch/registry.hpp"
 #include "server/scheduler.hpp"
 
 namespace {
@@ -38,7 +40,7 @@ const Shape kSplit{4, 64, 128, 4, 2, 16, 64};
 
 // The synthetic model with a token list and no end token, so an uncapped reply runs to what the request may hold.
 gguf::GGUFModel served(const Shape& s) {
-    gguf::GGUFModel m = infer::synthetic_model(s.layers, s.embd, s.ff, s.heads, s.kv_heads, s.head_dim, s.vocab, 20260925u);
+    gguf::GGUFModel m = infer::synthetic_model({s.layers, s.embd, s.ff, s.heads, s.kv_heads, s.head_dim, s.vocab, 20260925u});
     gguf::MetaValue tokens;
     tokens.vtype = gguf::V_ARRAY;
     tokens.u = gguf::V_STRING;

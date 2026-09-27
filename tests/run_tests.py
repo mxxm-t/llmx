@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import dead_code
 import docs_check
+import arch_boundary
 import roundtrip
 import raw_blocks
 import perf
@@ -69,6 +70,7 @@ def main():
             parser.error("missing required HF fixtures: " + ", ".join(missing))
     components = [("dead-code", dead_code.run),
                   ("docs", docs_check.run),
+                  ("arch-boundary", arch_boundary.run),
                   ("version", version.run),
                   ("cli", cli.run),
                   ("reference-generator", reference_generator.run),

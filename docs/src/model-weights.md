@@ -11,7 +11,7 @@ The part of the architecture contract that the loader and a file's reader use as
   tensor i, with unique names: `gguf::read_gguf` refuses a repeated name,
   and the model refuses one among views that reach it another way. A second
   format is a reader that produces this, as `infer::gguf_weights`
-  ([runtime](model-runtime.md)) does for GGUF. Two models built from one
+  ([registry](model-arch-registry.md)) does for GGUF. Two models built from one
   `ModelWeights` share the architecture object and nothing else.
 - `TensorIndex`: the views by name, which `plan_model` builds once over a
   `ModelWeights`'s tensors for the architecture's plan and for setting each

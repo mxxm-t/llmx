@@ -154,7 +154,7 @@ Every MoE layer, on every rank at once:
 
 ### Expert tiers
 
-A layer's experts divided by id between two devices, the most used on the faster one. This covers a card and the CPU (the Radeon VII with a model slightly past its 16 GB, where today whole layers go to the CPU), or two cards when a stage overflows by a few experts. The router runs on the attention device, each token's entries go to the device holding their expert, and the slots come back and are combined in slot order. That is two crossings per MoE layer, as the CPU experts pay today, and both devices compute at once. The split comes from use counts collected per expert and layer on a calibration run, stored with the placement, and fixed while serving. This generalizes `--n-cpu-moe` from whole layers to single experts.
+A layer's experts divided by id between two devices, the most used on the faster one. This covers a card and the CPU (the Radeon VII with a model slightly past its 16 GB, where today whole layers go to the CPU), or two cards when a stage overflows by a few experts. The router runs on the layer's mixer device, each token's entries go to the device holding their expert, and the slots come back and are combined in slot order. That is two crossings per MoE layer, as the CPU experts pay today, and both devices compute at once. The split comes from use counts collected per expert and layer on a calibration run, stored with the placement, and fixed while serving. This generalizes `--n-cpu-moe` from whole layers to single experts.
 
 ### Expert tensor split
 

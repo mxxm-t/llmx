@@ -19,9 +19,11 @@ inference/     model loading (load), sampler (RNG + top-k/top-p/temp/penalty),
                generate loop, chat template rendering, perplexity driver
    |
    v
-model/         Qwen3 Model + logical KV cache (block pool, sequence);
-               architecture registry planned, forward graph (runtime),
-               layer split over devices (layer_split)
+model/         runtime (Model: sequences, passes, stages, the arena),
+               placement (place), one module per architecture under arch/
+               chosen by the registry from general.architecture, logical
+               KV cache (block pool, sequence), layer split over devices
+               (layer_split)
    |
    v
 backends/      Backend interface (type-generic matmul / attention / RMSNorm /
@@ -91,7 +93,7 @@ need no dequantization buffer.
 | `quant/`        | `types.hpp` (the type ids and block sizes), `quant.hpp` (registry + block quants, `row_bytes`), `k_quants.hpp` (K-quants) |
 | `format/`       | `format.hpp` (`FileSpan`, where a tensor lies in its file, and `LoadProgress`), `file_reader.hpp` (a file read at given offsets by several threads, through the file cache or around it, which the loader streams weights through), `gguf.hpp` (GGUF v3: `read_gguf` reads the headers, `map_payload` maps the payload, `warm` reads it in), `mapped_file.hpp` (read-only mapping), `raw_convert.hpp` (raw F32 tensors to and from GGUF, for `quantize` and `dequantize`) |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer)     |
-| `model/`        | `weights.hpp` (the format-neutral weights a model is built from, `ModelWeights`, and the resolved `Weight`), `architecture.hpp` (the contract an architecture implements: its plan and its parts), `runtime.hpp` (the runtime that runs a plan and its parts + Qwen3's architecture and `gguf_weights` + the memory footprint, `Placement` of each tensor role, and `place_model`, which places a model over its backends), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
+| `model/`        | `weights.hpp` (the format-neutral weights a model is built from, `ModelWeights`, and the resolved `Weight`), `architecture.hpp` (the contract an architecture implements: its plan and its parts), `runtime.hpp` (the runtime that runs a plan and its parts: sequences, passes, stages, the arena, crossings, `Placement` of each tensor role), `place.hpp` (the memory footprint from the plan, and `place_model`, which places a model over its backends), `arch/registry.hpp` (the architectures by `general.architecture`, and `gguf_weights`), `arch/metadata.hpp` (typed metadata reads), `arch/qwen3.hpp` (Qwen3 and qwen3moe), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
 | `backends/`     | `backend.hpp` (interface), `kv_storage.hpp` (the paged KV storage the backends derive theirs from: buffers, accounting, growth and view checks), `devices.hpp` (the backend a device spec names: `device_specs`, `make_backends`), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/q8_dots.hpp` (the CPU's dots against quantized activations), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
 | `inference/`    | `load.hpp` (`load_model`, the one load sequence, in the mode `--load-mode` names: file read; mapped and read in when the host has room (`mapped`), mapped only for a host that reads in place (`auto`), or never mapped, a host's weights read into its own copy laid out as the file (`direct`); tokenizer, chat format, weights, placed model with each weight's reader and each streamed copy's storage recorded; copies streamed in file order on two reader threads, around the file cache in `direct` and in `auto` when they would not fit in it; host copy released or unread pages dropped), `sampler.hpp`, `logprobs.hpp` (log-softmax of a logits row), `generate.hpp`, `perplexity.hpp`, `chat.hpp` |
 | `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies), `scheduler.hpp` (admission, batching, the rounds over the model's pass API, sampling, prefix reuse), `policy.hpp` (the scheduler's policy core: room, the round's stages, the logits rows), `api.hpp` (the native and OpenAI-compatible routes), per `SERVER.md` |

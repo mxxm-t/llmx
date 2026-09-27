@@ -1,5 +1,6 @@
 #include <iostream>
 #include "inference/generate.hpp"
+#include "model/arch/registry.hpp"
 
 void require(bool value, const char* message) {
     if (!value) throw std::runtime_error(message);

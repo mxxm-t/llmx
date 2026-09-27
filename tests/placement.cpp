@@ -13,6 +13,8 @@
 #include <utility>
 #include <vector>
 #include "model/runtime.hpp"
+#include "model/place.hpp"
+#include "model/arch/registry.hpp"
 #include "model/layer_split.hpp"
 #include "tiny_qwen.hpp"
 
@@ -57,7 +59,7 @@ void split_matches_single() {
     for (auto& c : {one, a, b}) c->set_threads(1);
     infer::Model single(infer::gguf_weights(weights), one);
     infer::Placement p;
-    p.attn_device = {0, 1};
+    p.mixer_device = {0, 1};
     p.ffn_device = {1, 0};
     p.embed_device = 0;
     p.output_device = 0;
@@ -112,7 +114,7 @@ void split_matches_single() {
 
     // The embedding alone on A and the rest on B: the residual leaves A only, so A keeps the one handoff buffer of a placement that is not pipelined and B keeps none.
     infer::Placement embed_apart;
-    embed_apart.attn_device = embed_apart.ffn_device = {1, 1};
+    embed_apart.mixer_device = embed_apart.ffn_device = {1, 1};
     embed_apart.embed_device = 0;
     embed_apart.output_device = 1;
     infer::Model apart(infer::gguf_weights(weights), {a, b}, embed_apart);
@@ -160,7 +162,7 @@ void layer_split_fits() {
     require(even.stages[0].count == 1 && even.stages[1].count == 1, "two devices with room do not share the layers");
     require(even.embed_device == 0 && even.output_device == 1, "embedding and head not on the first and last stages");
     const infer::Placement placed = infer::placement_for(even);
-    require(placed.attn_device == std::vector<int>({0, 1}) && placed.ffn_device == std::vector<int>({0, 1}) &&
+    require(placed.mixer_device == std::vector<int>({0, 1}) && placed.ffn_device == std::vector<int>({0, 1}) &&
                 placed.embed_device == 0 && placed.output_device == 1,
             "a layer's attention and feed-forward block on different devices");
     ++checked;
@@ -573,7 +575,7 @@ void histories_fit_the_pool() {
 // A history recomputed in the classes that first computed it, over two CPU stages, as a paused request's resume recomputes it (docs/SERVER.md, pausing): a 40-token prompt at its extent in slices of 16, then 199 greedy tokens as entries of extent 1 of up to 64 rows, logits only on the last.
 // The synthetic Q8_0 model's decode rows take the 8-bit dots, so the replay must give the logits one backend gives after the prompt and 199 single decode steps, bit for bit; and so must a fork at the first block replaying the rest.
 void replay_over_stages() {
-    const gguf::GGUFModel weights = infer::synthetic_model(2, 64, 128, 4, 2, 16, 64, 11u);
+    const gguf::GGUFModel weights = infer::synthetic_model({2, 64, 128, 4, 2, 16, 64, 11u});
     auto one = std::make_shared<backend::CpuBackend>();
     one->set_threads(1);
     infer::Model single(infer::gguf_weights(weights), one);
@@ -629,18 +631,18 @@ void bad_placements_refused() {
         ++checked;
     };
     infer::Placement p;
-    p.attn_device = {0};
+    p.mixer_device = {0};
     p.ffn_device = {0, 0};
     rejects(p, "placement short of a layer accepted");
-    p.attn_device = {0, 2};
+    p.mixer_device = {0, 2};
     rejects(p, "placement naming a missing device accepted");
-    p.attn_device = {0, 0};
+    p.mixer_device = {0, 0};
     p.output_device = -1;
     rejects(p, "negative device accepted");
     // A device whose attention layers come back after another's would own a storage two stages write.
     const auto three = tiny_qwen(3, 2 * 128, true);
     infer::Placement split;
-    split.attn_device = split.ffn_device = {0, 1, 0};
+    split.mixer_device = split.ffn_device = {0, 1, 0};
     bool split_refused = false;
     try { infer::Model m(infer::gguf_weights(three), {a, b}, split); } catch (const std::runtime_error&) { split_refused = true; }
     require(split_refused, "a device's attention layers split in two accepted");

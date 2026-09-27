@@ -46,6 +46,7 @@
 #include "inference/chat.hpp"
 #include "inference/load.hpp"
 #include "model/runtime.hpp"
+#include "model/arch/registry.hpp"
 #include "server/api.hpp"
 
 // CLI argument parsing and dispatch; format, quantization, inference and model logic stay in their own layers.
@@ -605,7 +606,7 @@ int cmd_chat(const std::string& model_path, const std::string& system, const inf
 }
 
 
-// Micro-benchmark of the backend hot paths (matmul, RMSNorm, norm+RoPE) plus end-to-end prefill/decode TPS on a synthetic Qwen3 model.
+// Micro-benchmark of the backend hot paths (matmul, RMSNorm, norm+RoPE) plus end-to-end prefill/decode TPS on the synthetic model (infer::synthetic_model).
 // Used by tests/perf.py as the perf-regression gate for hot-path changes.
 int cmd_bench(int size, int iters, int threads, int prefill, int decode,
               const std::string& device) {
@@ -662,10 +663,10 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     printf("bench: rms_norm n=%d  %8.3f ms\n", size, rn_ms);
     printf("bench: norm_rope n=%d  %8.3f ms\n", size, rp_ms);
 
-    // End-to-end TPS on a small synthetic Qwen3 model (2 layers, 256 embd).
+    // End-to-end TPS on a small synthetic model (2 layers, 256 embd).
     {
         const int nl = 2, ne = 256, nf = 1024, nh = 8, nk = 2, hd = 32, nv = 512;
-        gguf::GGUFModel sm = infer::synthetic_model(nl, ne, nf, nh, nk, hd, nv, 12345u);
+        gguf::GGUFModel sm = infer::synthetic_model({nl, ne, nf, nh, nk, hd, nv, 12345u});
         infer::Model model(infer::gguf_weights(sm), b);
 
         const int P = prefill, G = decode;

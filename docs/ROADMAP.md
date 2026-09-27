@@ -264,7 +264,7 @@ make a model usable: its architecture and tokenizer must also be implemented.
   Both are the first types of the quantization plan (#1), widened exactly to F32 inside the kernels on every backend, and the native safetensors path takes the same kernels.
 - **`tokenizer.json`**: the HF tokenizer format. `bpe::Tokenizer` reads only
   GGUF-embedded `tokenizer.ggml.*`, so safetensors repos have no tokenizer path
-- **`config.json`**: architecture config. `infer::load_config` reads only
+- **`config.json`**: architecture config. `infer::qwen3::read_config` reads only
   `qwen3.*` and `qwen3moe.*` GGUF metadata keys
 
 ### 9c. Hub kernels (additional, not a primary target) **[design]**

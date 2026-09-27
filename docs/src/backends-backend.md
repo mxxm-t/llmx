@@ -42,7 +42,7 @@ placement contracts in `docs/EXECUTION.md`.
   `wait(t)` blocks until that submission has retired. The model submits
   each device a stage records on at the end of that stage, and the source
   device again at each crossing inside a stage, such as a feed-forward
-  block on another device than its attention or a streamed layer's host
+  block on another device than its mixer or a streamed layer's host
   rows on the way out and back, so a pass on a single device submits once.
   It waits on its pass's last ticket for the logits, and on a sequence's
   last tickets when that sequence is reset.

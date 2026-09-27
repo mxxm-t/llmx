@@ -20,6 +20,8 @@
 #include "tokenizer/tokenizer.hpp"
 #include "inference/chat.hpp"
 #include "model/runtime.hpp"
+#include "model/place.hpp"
+#include "model/arch/registry.hpp"
 
 // Loading a model file, the one sequence every command and tool opens a model through (docs/src/inference-load.md).
 

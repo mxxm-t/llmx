@@ -16,6 +16,7 @@
 #include "inference/logprobs.hpp"
 #include "inference/perplexity.hpp"
 #include "server/scheduler.hpp"
+#include "model/arch/registry.hpp"
 #include "tiny_qwen.hpp"
 
 namespace {

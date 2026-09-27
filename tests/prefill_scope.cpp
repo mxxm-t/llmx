@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <thread>
 #include "model/runtime.hpp"
+#include "model/arch/registry.hpp"
 #include "tiny_qwen.hpp"
 
 static thread_local bool before_scope = false, fail_body_allocation = false;

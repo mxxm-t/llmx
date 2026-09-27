@@ -911,7 +911,7 @@ size_t check_kernels(backend::Backend& vk) {
                 const auto f1 = silu(true), f0 = silu(false);
                 values += exact(floats(f1), floats(f0), "the SiLU's output differs with and without its runs");
                 values += exact(matmul_of(silu(true)), matmul_of(silu(false)), "a matmul from the SiLU's 8-bit copy differs from its own pass");
-                // A routed down projection reads the SiLU's output as k entries a token row, each of its token's prompt, so the SiLU given those runs writes the copy the routed tile reads (model/runtime.hpp).
+                // A routed down projection reads the SiLU's output as k entries a token row, each of its token's prompt, so the SiLU given those runs writes the copy the routed tile reads (model/arch/qwen3.hpp).
                 {
                     const size_t k = 2, n_expert = 4, entries = rows * k, ebytes = entries * n_in * sizeof(float);
                     const std::vector<backend::RowRun> eruns{{entries, rows}};

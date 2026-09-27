@@ -168,7 +168,7 @@ void loading_lifetime_checks() {
     auto unused = std::make_shared<LoadingBackend>();
     for (auto& device : {a, b, unused}) device->set_threads(1);
     infer::Placement placement;
-    placement.attn_device = {0}; placement.ffn_device = {1};
+    placement.mixer_device = {0}; placement.ffn_device = {1};
     placement.embed_device = 0; placement.output_device = 1;
     b->fail_adopt = 4;
     rejects("split loading failure", [&] { infer::Model model(infer::gguf_weights(m), {a, b, unused}, placement); });
@@ -274,7 +274,7 @@ void plan_checks() {
 // Layer 0's attention on a device and its experts on a host, streamed to the device from one new token.
 infer::Placement streamed_placement() {
     infer::Placement placement;
-    placement.attn_device = {0}; placement.ffn_device = {1};
+    placement.mixer_device = {0}; placement.ffn_device = {1};
     placement.stream_from = 1;
     return placement;
 }
@@ -346,7 +346,7 @@ void reader_checks() {
     device = std::make_shared<LoadingBackend>();
     device->set_threads(1); second->set_threads(1);
     infer::Placement across;
-    across.attn_device = {0}; across.ffn_device = {1};
+    across.mixer_device = {0}; across.ffn_device = {1};
     across.embed_device = 0; across.output_device = 1;
     const Reads tied = read_in_place(infer::gguf_weights(fixture(true)), {device, second}, across);
     require(tied.order == "token_embd.weight@0 token_embd.weight@1 output_norm.weight@1 "
@@ -449,7 +449,7 @@ void metadata_checks() {
     auto m = fixture(false, 0, false, false);
     for (const char* key : {"attention.head_count_kv", "attention.key_length", "context_length"})
         erase_key(m, std::string("qwen3.") + key);
-    auto config = infer::load_config(m);
+    const auto config = infer::qwen3::read_config(m, "qwen3.", false);
     require(config.n_head_kv == 2 && config.head_dim == 4 && config.context_length == 4096 &&
             config.rope_theta == 10000.0f && config.rms_eps == 1e-6f, "incorrect absent defaults");
     construct(m, true);
@@ -597,7 +597,7 @@ void moe_metadata_checks() {
     for (const bool norm : {false, true}) {
         gguf::MetaValue v; v.vtype = gguf::V_BOOL; v.b = norm;
         m = base; set(m, "qwen3moe.expert_weights_norm", v);
-        require(infer::load_config(m).expert_norm == norm, "expert_weights_norm not read");
+        require(infer::qwen3::read_config(m, "qwen3moe.", true).expert_norm == norm, "expert_weights_norm not read");
         ++checks;
     }
     m = base; set(m, "qwen3moe.expert_weights_norm", integer(1));
@@ -673,11 +673,11 @@ void placement_checks() {
             {"the embedding on a device the model does not have", {0}, {0}, 2, 0},
             {"the head on a negative device", {0}, {0}, 0, -1}}) {
         infer::Placement p;
-        p.attn_device = c.attn; p.ffn_device = c.ffn; p.embed_device = c.embed; p.output_device = c.output;
+        p.mixer_device = c.attn; p.ffn_device = c.ffn; p.embed_device = c.embed; p.output_device = c.output;
         rejects(c.label, [&] { infer::Model model(weights, {cpu(), cpu()}, p); });
     }
     infer::Placement split;
-    split.attn_device = {0, 1, 0}; split.ffn_device = {0, 1, 0};
+    split.mixer_device = {0, 1, 0}; split.ffn_device = {0, 1, 0};
     rejects("a device's attention layers in two runs", [&] {
         infer::Model model(infer::gguf_weights(three), {cpu(), cpu()}, split);
     });
@@ -687,7 +687,7 @@ void placement_checks() {
     };
     auto odd = std::make_shared<OddBlocks>();
     odd->set_threads(1);
-    split.attn_device = {0, 1}; split.ffn_device = {0, 1};
+    split.mixer_device = {0, 1}; split.ffn_device = {0, 1};
     rejects("cache blocks that do not nest", [&] {
         infer::Model model(infer::gguf_weights(two), {cpu(), odd}, split);
     });

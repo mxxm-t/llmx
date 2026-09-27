@@ -15,6 +15,7 @@
 
 #include "backends/cpu/cpu_backend.hpp"
 #include "model/runtime.hpp"
+#include "model/arch/registry.hpp"
 #include "model/kv_cache.hpp"
 #include "tiny_qwen.hpp"
 
@@ -731,7 +732,7 @@ void model_fork() {
 // The reference is a 40-token prompt at its extent, then 199 greedy tokens each decoded in a pass of its own; the synthetic Q8_0 model's decode rows take the 8-bit dots and its prompt rows the float path, so a class taken wrongly shows.
 // The replays: the prompt at its extent in slices of 16, then the 199 tokens as entries of extent 1 of up to 64 rows, logits only on the last; a fork at the first block of the reference history replaying the rest; and the replay beside another sequence's decode row and a third's prompt slice.
 void replay_by_class() {
-    const gguf::GGUFModel weights = infer::synthetic_model(2, 64, 128, 4, 2, 16, 64, 7u);
+    const gguf::GGUFModel weights = infer::synthetic_model({2, 64, 128, 4, 2, 16, 64, 7u});
     auto cpu = std::make_shared<backend::CpuBackend>();
     cpu->set_threads(2);
     infer::Model model(infer::gguf_weights(weights), cpu);

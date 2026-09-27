@@ -296,10 +296,11 @@ before a device is involved.
 
 ## Beyond dense Qwen
 
-The models this project will be asked to run next do four things dense
+The models this project will be asked to run next do five things dense
 Qwen does not, and each is an addition on top of the interface above
 rather than a change to it, provided the steps do not assume otherwise.
 The assumptions to avoid are marked.
+On the model side, each addition lands as a field of the architecture contract ([model-architecture](src/model-architecture.md)) together with its first user.
 
 - **Hybrid compressed attention** (DeepSeek V4: layers that pool every 4
   or 128 tokens into one entry, a lightning indexer choosing the top

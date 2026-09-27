@@ -44,7 +44,7 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. Th
 
 ## 2. More model architectures
 The `infer::Model` layer covers Qwen3 and its mixture-of-experts form today.
-Generalize to an architecture registry keyed by `general.architecture`:
+Generalize to an architecture registry keyed by `general.architecture` (done: `model/arch/registry.hpp` picks the module that runs a file):
 - Done: `qwen3moe` (Qwen3-30B-A3B), routed layers on the CPU and Vulkan
   backends with experts optionally on the CPU beside a device; the gate is a
   tiny random-weight model through HF `Qwen3MoeForCausalLM` (`docs/STATUS.md`)
@@ -60,12 +60,12 @@ Generalize to an architecture registry keyed by `general.architecture`:
   Their released sizes exceed the hardware here; the gate is a tiny random-weight model of the real architecture through HF modeling code.
   They follow Qwen 3.x and the `MXFP4` type (#1).
   Qwen3.8-Flash-Next (`qwen4exp`), with hyper-connections, compressed attention and hashed n-gram embeddings, gets its own plan after DeepSeek V4.1.
-- Each architecture family is a forward-graph file under `model/`, selected at load from metadata.
-  The Qwen family (`qwen3`, `qwen3moe`, `qwen35`, `qwen35moe`) is one model path, extended per architecture as `qwen3moe` was, since its stages, pools, forks, arena and placement do not depend on the architecture.
+- Each architecture is a module under `model/arch/` on the shared runtime, selected by the registry from `general.architecture`; qwen35 is a module beside qwen3, as `docs/ADDING-AN-ARCHITECTURE.md` describes.
 
 ## 3. More formats
-The model is built from `infer::ModelWeights`, which a second format's
-reader produces as `infer::gguf_weights` does for GGUF, and the loader reads
+The model is built from `infer::ModelWeights`, whose views a second format's
+reader produces as `infer::gguf_weights` does for GGUF, with its `model_type`
+looked up in the architecture registry, and the loader reads
 the weights it streams from `format::FileSpan`s, which
 `gguf::GGUFModel::span` gives for GGUF. A second format is such a reader plus
 one branch in `infer::load_model`; the CLI, the tokenizer and the chat format still consume

@@ -664,7 +664,7 @@ matters: **each layer depends only on the layers below it** -
 | `quant/`     | type ids and block sizes, QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
 | `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, raw F32 tensors to and from GGUF |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
-| `model/`     | Qwen3 config + forward pass (dense and qwen3moe), KV cache, layer split over devices |
+| `model/`     | runtime (sequences, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe), KV cache, layer split over devices |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
 | `inference/` | model loading, sampler, log-probabilities, generate, perplexity, chat template renderer |
 | `server/`    | multi-user server (`docs/SERVER.md`): HTTP layer, scheduler with prefix reuse, routes |
@@ -679,6 +679,7 @@ A fresh agent (or human) can jump straight into a feature by reading, in order:
 4. `docs/STATUS.md` - what is already in flight and where each feature stands.
 
 When you start (or pick up) a feature:
+- A new model architecture is a module under `src/model/arch/`, built in the order and held to the gates `docs/ADDING-AN-ARCHITECTURE.md` gives.
 - Keep each independent feature on its own branch based on current main.
   Do not base unrelated work on another unmerged feature. If a dependency is
   necessary, name it in STATUS and keep the dependent change separate.
@@ -749,8 +750,10 @@ In the code: code that runs but serves nothing, paths for inputs or devices that
 - **Backends** are the only compile-time concern (GPU SDKs are heavy). Gated by
   `LLMX_HAS_BACKEND_*` in `src/config.hpp` (see `cmake/llmx-config.hpp.in`).
   Vulkan is implemented; the ROCm, CUDA and SYCL options exist without code.
-- **Model architectures** are planned to be compiled in and selected from
-  metadata; today Qwen3, dense and mixture of experts (`qwen3moe`), is implemented.
+- **Model architectures** are compiled in and selected from metadata by
+  `src/model/arch/registry.hpp`, one module per architecture under `src/model/arch/`
+  on a runtime they share; today qwen3 and qwen3moe. A new one follows
+  `docs/ADDING-AN-ARCHITECTURE.md`.
 - **Split mode** is a runtime flag: a `--device` list splits by layers
   (`docs/MULTI-DEVICE.md`); tensor groups and node count are planned. See
   `docs/ROADMAP.md`.

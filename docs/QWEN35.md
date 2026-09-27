@@ -51,7 +51,7 @@ Every key is prefixed by the architecture name, `qwen35.` or `qwen35moe.`.
 - No file here has the per-layer `attention.recurrent_layers` array.
   llama.cpp's current converter writes one with `block_count` entries, the MTP block's included and false, and its graph reads it at that length.
   The config reads the array when a file has it, and refuses it unless it has `block_count` entries with every MTP entry false.
-  The resolver refuses a layer whose tensors disagree with its kind.
+  The module's plan refuses a layer whose tensors disagree with its kind.
 
 Common to every qwen35 and qwen35moe file here:
 

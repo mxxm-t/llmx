@@ -83,6 +83,24 @@ format layer and reaches the blocks through the registry. Dense F32 and
 supported block-quant matrices share the CPU float dot kernels; F32 rows
 need no dequantization buffer.
 
+### Model architectures
+
+The model layer is one runtime that names no architecture and one module per architecture.
+- The runtime (`model/runtime.hpp` and `model/place.hpp`) owns sequences, passes, stages, the arena, the crossings between devices, placement and the fit, experts on the host and streamed to a device, and the cache storages.
+  It indexes a file's tensors by name once and finds each role's tensor there, reads the plan a module declares, and calls the module's parts.
+- A module (`model/arch/qwen3.hpp` for qwen3 and qwen3moe) reads its configuration from the file's metadata and declares a plan: its layers, each layer's kind and tensor roles, the arena slots, the residual width, the context length, the K and V geometry and the position tables.
+  It supplies its math as backend ops, which the runtime calls once per layer part: `embed`, `mixer`, `ffn` and `head`.
+- The registry (`model/arch/registry.hpp`) maps each `general.architecture` value to its module and is the only place such a name is accepted.
+
+Inside `model/` the dependencies run one way:
+- The runtime and a module meet only in the contract, `architecture.hpp` and `weights.hpp`.
+- A module includes the contract, `arch/metadata.hpp`, the backend interface and the format headers its readers read. It may include another module's graph header when it runs that module's blocks, and it never includes the runtime or the registry.
+- The runtime never includes a module.
+- The registry includes every module, and only the loader (`inference/load.hpp`), the tests and tools that build a model without the loader, and the CLI, for `bench`'s synthetic model, include the registry.
+
+`tests/arch_boundary.py` holds the runtime, the loader, the passes, the server, the CLI and the headers the modules share to naming no registered architecture and no tensor.
+A new architecture is added as [ADDING-AN-ARCHITECTURE](ADDING-AN-ARCHITECTURE.md) describes.
+
 ## What lives where
 
 | Directory       | Contents                                                              |
@@ -117,8 +135,8 @@ belongs to `format/`, so locally supplied and downloaded shards load identically
   SDKs, so they are opt-in via `LLMX_HAS_BACKEND_*` in `config.hpp`. CPU is
   always on (no external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan
   backend; the ROCm, CUDA and SYCL options define macros only.
-- **Model architectures** will be compiled in and selected from metadata.
-  Today the model layer implements Qwen3, dense and `qwen3moe`.
+- **Model architectures** are compiled in and selected from metadata by
+  `model/arch/registry.hpp`; today qwen3 and qwen3moe.
 - **Split mode** is a runtime parameter: `--device` with several devices
   splits the model by layers over them (`MULTI-DEVICE.md`); tensor groups
   and node count are planned. See `ROADMAP.md`.
@@ -137,8 +155,8 @@ submission support.
 
 ## KV state and concurrent execution
 
-`Model` holds the weights, the cache's pool and physical storage, and the
-backend, and is read-only after construction apart from pool bookkeeping. A
+`Model` holds the architecture and its plan, the weights, the cache's pool and
+physical storage, and the backend, and is read-only after construction apart from pool bookkeeping. A
 `Sequence` is one request's history, an `ExecContext` is where passes run
 (activation arenas, handoff buffers, logits rows, tickets, the plan of each
 pass in flight), and `Model::forward` runs one pass over a batch of entries,
@@ -247,8 +265,8 @@ array nesting, checks tensor-size arithmetic and validates every payload range
 before mapping payloads or reporting loading progress. It honors declared file alignment.
 These are structural format checks. Taking a GGUF model's weights (`infer::gguf_weights`)
 separately validates consumed configuration values, attention geometry, tensor
-ranks and in-memory payload ranges (`read_gguf` has refused repeated names), and Qwen model construction validates
-required tensor names/shapes and normalization types, all before model
+ranks and in-memory payload ranges (`read_gguf` has refused repeated names). The module's plan names the tensors
+and shapes, and the runtime validates each by its role's kind, normalization types included, all before model
 activation/KV/RoPE allocation. Explicit malformed values cannot select optional metadata defaults.
 The loader's callers make the backends before the file is read, so a device that cannot be opened fails first.
 Weights a host backend reads in place must stay unchanged for the model's lifetime once the load has returned. In a direct load they are the loader's own copy of each file (`LoadedModel::host`), which it fills after the model is built and before anything reads it, since a backend that reads in place does not read a weight as it adopts it.
@@ -283,8 +301,8 @@ planned. This, the tickets, the batched views and the `Model` /
 `Sequence` / `ExecContext` split are designed in `EXECUTION.md` and
 implemented, as are the Vulkan backend (#4b) and the multi-user server (#7).
 A layer split over the devices `--device` lists is fitted by
-`model/layer_split.hpp` from the architecture's `footprint` and each
-backend's `memory_available()`; the split knows no architecture and the
-architecture knows no device. A prompt's chunks pipeline over the stages;
+`model/layer_split.hpp` from the `footprint` of the architecture's plan
+(`model/place.hpp`) and each backend's `memory_available()`; the split knows
+no architecture and the architecture knows no device. A prompt's chunks pipeline over the stages;
 the server's passes in flight, tensor groups and a second vendor backend are
 what `MULTI-DEVICE.md` and `ROADMAP.md` #4b and #5 still carry.

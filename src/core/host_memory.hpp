@@ -106,7 +106,7 @@ inline std::optional<size_t> cgroup_room(std::optional<uint64_t> limit, std::opt
 
 }  // namespace detail
 
-// Bytes a cgroup v2 memory.max text leaves over its memory.current and memory.stat texts, the limit less the usage less the stat's inactive_file, and 0 past it; the usage whole when the stat, empty for none, does not give inactive_file; nothing for "max", no limit, or a limit or usage it cannot read.
+// Bytes a cgroup v2 memory.max text leaves over its memory.current and memory.stat texts, the limit less the working set (the usage less the stat's inactive_file, 0 below it), and 0 past the limit; the usage whole when the stat, empty for none, does not give inactive_file; nothing for "max", no limit, or a limit or usage it cannot read.
 inline std::optional<size_t> cgroup_v2_memory_room(std::string_view memory_max, std::string_view memory_current, std::string_view memory_stat) {
     return detail::cgroup_room(detail::file_number(memory_max), detail::file_number(memory_current), memory_stat, "inactive_file");
 }

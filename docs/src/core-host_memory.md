@@ -15,8 +15,8 @@ Each cgroup's room is its limit less its working set, 0 when the working set is 
 The working set is the usage less the inactive file pages the cgroup's own `memory.stat` gives, 0 when those are more than the usage.
 A cgroup's usage counts the page cache charged to it, and the kernel reclaims its inactive file pages before it would kill the process, so they are available in the sense `MemAvailable` counts the host's reclaimable cache available: a model file read once in a container leaves the next load, or the loader's copy decision, what the limit leaves beside the process's own memory, where the limit less the usage would leave almost nothing.
 
-- cgroup v2 (`cgroup_v2_memory_room`): `memory.max` less `memory.current` less `inactive_file`, where "max" is no limit;
-- cgroup v1 (`cgroup_v1_memory_room`), in the hierarchy mounted with the `memory` controller: `memory.limit_in_bytes` less `memory.usage_in_bytes` less `total_inactive_file`, which counts the cgroups under it as the usage does, where a limit of 2^62 bytes or more is no limit, since v1 writes none as the largest signed 64-bit value rounded down to a page (9223372036854771712 with 4 KiB pages).
+- cgroup v2 (`cgroup_v2_memory_room`): `memory.max` less the working set (`memory.current` less `inactive_file`), where "max" is no limit;
+- cgroup v1 (`cgroup_v1_memory_room`), in the hierarchy mounted with the `memory` controller: `memory.limit_in_bytes` less the working set (`memory.usage_in_bytes` less `total_inactive_file`, which counts the cgroups under it as the usage does), where a limit of 2^62 bytes or more is no limit, since v1 writes none as the largest signed 64-bit value rounded down to a page (9223372036854771712 with 4 KiB pages).
 
 A `memory.stat` that is missing, lacks the key or gives it as anything but one decimal number leaves the usage whole, the limit less the usage.
 A limit or usage that is not one decimal number, a limit without its usage and a cgroup whose files are missing are passed over, so a limit that cannot be read changes nothing, and with none read the host's figure stands.

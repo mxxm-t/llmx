@@ -15,7 +15,7 @@ A reader takes the smallest limit over all of them; a hybrid machine, v1 control
 
 For cgroup v2 the process's path is its `0::/path` line in `/proc/self/cgroup` (`cgroup_v2_path`) and the mounts are the `cgroup2` ones in `/proc/self/mountinfo` (`cgroup_v2_mounts`); for v1 the path is the first line whose controllers list `controller` (`cgroup_v1_path`) and the mounts are the `cgroup` ones whose super options list it (`cgroup_v1_mounts`).
 A path, or a mount's root, that is not absolute or climbs with `..` is not read, and trailing slashes are taken off.
-The mounts are read from mountinfo lines of any number of optional fields, their root and mount point with the kernel's octal escapes (`\040` for a space) decoded.
+The mounts are read from mountinfo lines, their root and mount point with the kernel's octal escapes (`\040` for a space) decoded; a line is read up to 32 fields, room for 22 optional fields, and a longer line is passed over.
 
 `/proc/self/cgroup` names the path in the cgroup hierarchy as the process's cgroup namespace sees it, which in a container without its own namespace is the path on the host, while a mount can hold only a part of the hierarchy: mountinfo's fourth field is the hierarchy's directory mounted there.
 `cgroup_directory` takes the first mount whose root holds the process's path, and the path below that root is its directory under the mount point; a path no mount's root holds is not read.

@@ -85,8 +85,9 @@ jobs:
           python-version: '3.12'
       - name: Test fixture downloader
         run: python -X utf8 tests/fetch_models.py
+      # GCC 14, the compiler of docker/Dockerfile's image, beside the runner's default GCC 13 in the ubuntu job.
       - name: Configure with undefined-behavior checks
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "-DCMAKE_CXX_FLAGS=-fsanitize=undefined -fno-sanitize-recover=undefined"
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-14 "-DCMAKE_CXX_FLAGS=-fsanitize=undefined -fno-sanitize-recover=undefined"
       - name: Build
         run: cmake --build build --config Release --parallel 4
       - name: Backend tests

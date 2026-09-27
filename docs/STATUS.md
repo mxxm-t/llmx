@@ -4,7 +4,7 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## The available host memory honours the cgroup and job object memory limits (2026-09-27, branch fix/host-memory-limit)
+## The available host memory honours the cgroup and job object memory limits (2026-09-27, branch fix/host-memory-limit, merged at `618c505`)
 
 - **Why:** `core::host_memory_available()` read the host's free memory alone, `MemAvailable` on Linux and `GlobalMemoryStatusEx`'s available physical memory on Windows, while its page called it what the process can still take.
   It is the CPU backend's `memory_available()`, the host's budget in the layer split's fit (`place_model`), and the figure the loader compares against (`inference/load.hpp`): whether a payload is read in ahead, whether `auto` reads around the file cache, and whether `direct` is refused.
@@ -52,7 +52,8 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
     - A probe that commits 512 MiB sees the room fall from 3071 to 2558 MiB under the process limit and from 2047 to 1534 under the job limit, so both commits are read.
     - The same plan as above, main (dbafdec, the `llmx` target of a CPU build) against `175ff1b`: 14.38 GiB against 7.92 under a process limit of 8192 MiB, 14.31 against 5.92 under a job limit of 6144, and under a process limit of 3072 or a job limit of 2048 main plans with 14.81 and 14.92 GiB while the branch refuses with 2.92 and 1.92 GiB free.
   - Markdown: the pages that name the available host memory, the cgroup reading, the `cpus` and `host-memory` tests or the native counts were read against the code, and the docs check passes.
-- **Left:** the merge.
+- **Merged** at `618c505` on main `dbafdec` after a green hosted run on `gate/merge-26` (run 36331454672, all six jobs).
+- **Left:** nothing for the fix; the loader's temporary-memory accounting (staging and direct copies) stays an open finding of its own.
 - **Gotchas:**
   - Active file pages count as used, since the kernel takes them back only once they turn inactive, so a file read twice in a container still narrows its room until its pages age.
   - On ZFS only a mapped read puts a file in the page cache and charges the cgroup; a `read()` fills the ARC, which no cgroup is charged for, so a check of the working set on such a host has to map the file.

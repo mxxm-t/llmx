@@ -701,6 +701,20 @@ When you start (or pick up) a feature:
 - Don't invent new directions - follow the roadmap. When the feature ships,
   delete its block and mark the row `Done` in the STATUS table.
 
+## Merge gates
+
+A branch runs the checks of what it can break, once, when it is complete; between its commits only the builds, CTest and a quick Qwen3-0.6B identity on the CPU run.
+
+- Docs only: the suite's `docs` and `dead-code` components and the hosted run.
+- Tests or tools only: CTest and the suite components they touch, on the CPU, and the hosted run.
+- CLI, server or other host logic: CTest, the CPU suite, Qwen3-0.6B byte identity against main, and the hosted run; host code specific to Windows also runs CTest and the suite on Windows.
+- Model, kernel, device, loader or placement code: byte identity against main on the CPU and a device for the models the change reaches, the suite on a device, the Radeon VII check on Windows for device code, one timing round against main, and the hosted run.
+  A change of numerics also records its error against the HF reference and the headroom to its bound.
+- A rebase without a conflict in code reruns the builds, CTest and the hosted run; a fix after review reruns what it touches.
+
+A branch lands when the hosted run is green at the head that lands and main has not moved since: main is fast-forwarded to it, and STATUS records the merge in a commit of its own.
+Comparisons against the reference runtimes belong to the phase's final gate, not to each branch.
+
 ## Checkpoints
 
 Update `docs/STATUS.md` and commit at each meaningful checkpoint - at minimum

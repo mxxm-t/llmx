@@ -173,7 +173,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         std::stable_sort(fraction.begin(), fraction.end(), [](const auto& x, const auto& y) { return x.first > y.first; });
         for (size_t i = 0; given < L; ++i, ++given) ++count[fraction[i].second];
     } else {
-        // A plan is better with fewer layers on devices that read in place, then fewer layers on its busiest device, whose stage sets a pipeline's pace since every layer of the model costs the same, then fewer bytes there.
+        // A plan is better with fewer layers on devices that read in place, then fewer layers on its busiest device, whose stage sets a pipeline's pace, taking the layer count as a stage's time, which holds while the layers are alike (a routed and a dense layer are not), then fewer bytes there.
         // A device's load is (layers, bytes), compared in that order; the busiest is the largest, a single maximum the program keeps exact.
         using Load = std::pair<size_t, size_t>;
         using Score = std::pair<size_t, Load>;

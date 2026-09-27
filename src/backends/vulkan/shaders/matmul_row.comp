@@ -390,7 +390,12 @@ void main() {
                     nibble_dots(w3, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph);
                     nibble_dots(w4, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
                     vec2 xb = xq_block(col, b);
+#ifdef LLMX_DOT
                     acc[c] += dm.x * (xb.x * float(pl + ph)) + dm.y * xb.y;
+#else
+                    // The minimum's term joins the sum before the scaled dot, as two additions: a driver that reassociates float sums then has one order to contract in every build (docs/VULKAN.md, batch invariance).
+                    acc[c] = (acc[c] + dm.y * xb.y) + dm.x * (xb.x * float(pl + ph));
+#endif
                 }
             }
         }

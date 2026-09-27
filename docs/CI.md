@@ -119,7 +119,7 @@ The `cli` component checks that the builds without the Vulkan backend, and the V
 It also checks that the CLI's usage errors exit with status 2 and the command's page on stderr, before any model file is opened.
 It shows every help page without a model, and checks that each command takes every flag its page lists, refuses a second value for it in any of its spellings, takes a switch given twice, and refuses the flags its page does not.
 The UBSan job makes misaligned in-memory tensors a test failure.
-The three CPU jobs and the UBSan job also run CTest for JSON syntax/Unicode/numeric boundaries and string escaping, GGUF structure, custom alignment and loading failures, Qwen model configuration and required tensor/storage layouts, grouped kernels, worker failures, chat rendering against transformers' own renderer, sampling and KV storage, plus the Python HF follow-up fixtures and CLI thread-control checks.
+The three CPU jobs and the UBSan job also run CTest for JSON syntax/Unicode/numeric boundaries and string escaping, GGUF structure, custom alignment and loading failures, Qwen model configuration and required tensor/storage layouts, grouped kernels, worker failures, chat rendering against transformers' own renderer, sampling, KV storage and the automatic worker count's reading of the CPU quota, plus the Python HF follow-up fixtures and CLI thread-control checks, which hold the automatic count to the one the test reads itself.
 The Python suite's `roundtrip` component in these jobs checks the Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K decoders bit for bit against the spec decoders of `tests/spec_decode.py`, each on raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under the negative scales quantize never writes, so those readers are covered without a real model.
 Its `raw-blocks` component checks the spec decoders themselves, those of F16, BF16, IQ4_NL, IQ4_XS, MXFP4, Q2_K and Q3_K included, against values computed from each format's fields and the sign each zero takes.
 Every job that runs the suite with `--require-tools` installs numpy 2.4.3 first, so raw-blocks also holds the spec decoders' numpy form, which makes the file-exact references and the MXFP4 fixture, to the pure form, and fails rather than skips without numpy.
@@ -224,7 +224,7 @@ runs `prefill-placement`: active real topology when available, real fallback
 otherwise, and synthetic topology/failure cases even on small hosted runners.
 These checks do not require a real model or establish performance.
 
-Native counts are 24 on Windows and 23 on Linux/macOS; the Windows-only `prefill-placement` target accounts for the difference, and a build with `LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`, `vulkan-buffer` and `vulkan-lifetime`: 27 native tests on Windows and 26 on Linux/macOS.
+Native counts are 25 on Windows and 24 on Linux/macOS; the Windows-only `prefill-placement` target accounts for the difference, and a build with `LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`, `vulkan-buffer` and `vulkan-lifetime`: 28 native tests on Windows and 27 on Linux/macOS.
 The buffer test runs on a fake device that supplies every Vulkan call, so it needs no loader; the lifetime test opens a device and intercepts transfers for ownership checks, including failed padded-cache invalidation.
 It also substitutes five kernel creation failures to check cleanup/retry, and runs two real diagnostic-query cases for failed creation and idle-before-destruction.
 Query cases skip on a device without diagnostic timestamps.

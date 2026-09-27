@@ -42,7 +42,8 @@ quant/         type ids and block sizes, QuantType registry;
    |
    v
 core/          fp16 <-> f32, minimal JSON parser, UTF-8, file hashes, available
-               host memory and owned pages, comma-separated lists
+               host memory and owned pages, comma-separated lists, the CPUs a
+               process may use
 ```
 
 The rule is: **each layer depends only on the layers below it.** Nothing below
@@ -85,7 +86,7 @@ need no dequantization buffer.
 | Directory       | Contents                                                              |
 |-----------------|-----------------------------------------------------------------------|
 | `src/` root     | `config.hpp` (build configuration: version and the `LLMX_HAS_BACKEND_*` switches) |
-| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `utf8.hpp` (UTF-8 encoding and validation), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory, the page size, `HostPages`: owned page-aligned memory, and address space reserved and committed by range), `list.hpp` (comma-separated values) |
+| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `utf8.hpp` (UTF-8 encoding and validation), `sha.hpp` (Hub file hashes), `host_memory.hpp` (available host memory, the page size, `HostPages`: owned page-aligned memory, and address space reserved and committed by range), `list.hpp` (comma-separated values), `cpus.hpp` (the CPUs a process may use, by its affinity and its CPU quota, and `automatic_threads`, the worker count a pool takes when given none) |
 | `hub/`          | `manifest.hpp` (Hub metadata/quant selection), `transport.hpp` (curl HTTPS transport), `pull.hpp` (verified download cache) |
 | `quant/`        | `types.hpp` (the type ids and block sizes), `quant.hpp` (registry + block quants, `row_bytes`), `k_quants.hpp` (K-quants) |
 | `format/`       | `format.hpp` (`FileSpan`, where a tensor lies in its file, and `LoadProgress`), `file_reader.hpp` (a file read at given offsets by several threads, through the file cache or around it, which the loader streams weights through), `gguf.hpp` (GGUF v3: `read_gguf` reads the headers, `map_payload` maps the payload, `warm` reads it in), `mapped_file.hpp` (read-only mapping), `raw_convert.hpp` (raw F32 tensors to and from GGUF, for `quantize` and `dequantize`) |

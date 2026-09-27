@@ -16,9 +16,9 @@ A compile without them stops at one `#error` at the top of the header.
   A failed start joins the threads it created and fails the dispatch that asked for it before any participant runs; the count stays and the next dispatch retries, so a lasting failure fails every dispatch rather than leaving the backend serial.
   A count change allocates its scratch before stopping anything, so a failed change keeps the previous count and pool.
   Concurrent or recursive submissions remain unsupported.
-- `set_threads(0)` leaves the current pool unchanged, including inside a prefill
-  scope. The constructor selects the initial automatic count; the CLI resolves
-  its automatic thread flags before requesting a change.
+- `set_threads(0)` leaves the current pool unchanged, including inside a prefill scope.
+  The constructor takes the initial automatic count from `core::automatic_threads()` ([cpus](core-cpus.md)).
+  The CLI resolves its automatic thread flags before requesting a change.
 - `read`, `write` and `copy` accept valid zero-byte ranges, including empty
   buffers and an offset exactly at the end. Range checks still reject offsets
   past the end, and a nonempty write still requires a non-null source.

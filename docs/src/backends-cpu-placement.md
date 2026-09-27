@@ -8,6 +8,7 @@ Only six workers on a single processor group with homogeneous efficiency
 classes and at least six allowed physical cores qualify. The first allowed
 logical processor of each of the first six cores is selected deterministically.
 Placement stays within incoming process and thread masks; cleanup restores the original masks.
+The process mask is the one `core::group_affinity()` reads ([cpus](core-cpus.md)), which gives none unless the process's threads lie in one processor group.
 Other thread counts, unsupported topology and non-Windows builds pass through.
 There is no runtime flag, environment setting or NUMA memory policy.
 

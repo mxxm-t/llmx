@@ -5,12 +5,8 @@
 #include <cstdint>
 #include <stdexcept>
 #include <vector>
-#if defined(_WIN32)
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#endif
+
+#include "core/cpus.hpp"
 
 namespace backend {
 namespace detail {
@@ -30,9 +26,9 @@ public:
     explicit PrefillPlacement(bool enabled) {
 #if defined(_WIN32)
         if (!enabled || GetActiveProcessorGroupCount() != 1) return;
-        DWORD_PTR allowed = 0, system = 0;
-        if (!GetProcessAffinityMask(GetCurrentProcess(), &allowed, &system) ||
-            !allowed || (allowed & ~system)) return;
+        const auto affinity = core::group_affinity();
+        if (!affinity || (affinity->allowed & ~affinity->system)) return;
+        const DWORD_PTR allowed = affinity->allowed;
         DWORD bytes = 0;
         if (GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &bytes) ||
             GetLastError() != ERROR_INSUFFICIENT_BUFFER || !bytes) return;

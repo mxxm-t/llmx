@@ -18,6 +18,7 @@
 #include "backends/kv_storage.hpp"
 #include "backends/cpu/prefill_placement.hpp"
 #include "backends/cpu/q8_dots.hpp"
+#include "core/cpus.hpp"
 #include "core/fp16.hpp"
 #include "core/host_memory.hpp"
 #include "quant/quant.hpp"
@@ -95,9 +96,7 @@ class CpuBackend : public Backend {
 public:
     // No worker starts here: the pool starts on the first dispatch that needs it, so a count set before any work costs no pool at the automatic size.
     CpuBackend() {
-        unsigned hw = std::thread::hardware_concurrency();
-        threads_ = (hw > 0) ? (int)hw : 4;
-        if (threads_ > 64) threads_ = 64;
+        threads_ = core::automatic_threads();
         rowbuf_.resize((size_t)threads_);
     }
 

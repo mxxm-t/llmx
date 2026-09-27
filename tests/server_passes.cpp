@@ -1,6 +1,7 @@
-// The scheduler's policy core (server/policy.hpp): make_room, the round's stages and the logits rows by hand, then under a simulated executor in random schedules over 1 to 4 stages, 1 to 2S pass slots and two pools of different block sizes, with random stage times, arrivals, growth, pauses, cancellations, failures and stops.
-// After every event a request is in at most one pass and no pass is empty, each device runs its passes in formation order, a slot and a run of logits rows belong to one pass until it ends, no pool is over-reserved and nothing in flight is paused, parked or ended, and the oldest request is refused room only when capped requests hold it.
-// A growth plan pauses one request at most, and the oldest request's plan that waits on it in flight takes it in the round its pass retires; within one lap every decoder that is not stalled gets a token and a cancellation ends; admission is first-come and no free slot idles while work is ready; after a stop the ledger and every pool are at zero.
+// The scheduler's policy core (server/policy.hpp): make_room, the growth rule, the round's stages and the logits rows by hand, then the scheduler's round over them under a simulated executor, in random schedules over 1 to 4 stages, 1 to 2S pass slots and two pools of different block sizes, with random stage times, arrivals, growth, pauses, cancellations, failures and stops.
+// With one slot the simulated round is the scheduler's; with more, which the server does not run yet, it forms a pass in every free slot, each request in one pass at a time.
+// After every event a request is in at most one pass and no pass is empty, each device runs its passes in formation order, a slot and a run of logits rows belong to one pass until it ends, no pool is over-reserved and nothing in flight is paused, parked or ended, and a request is refused room only when the donors, and for growth the uncapped requests admitted after it, cannot give it, the oldest only when a capped request holds the rest.
+// A growth plan pauses one request at most and waits only on a request in flight, and the oldest request's wait ends in the round that request's pass retires; within one lap every decoder that is not stalled gets a token and a cancellation ends; admission is first-come, no free slot idles while a request is ready, and a drained schedule ends every request; after a stop the ledger and the logits rows hold nothing.
 // `llmx-server-passes-test N` runs N schedules, 2000 by default.
 #include <algorithm>
 #include <cstdint>
@@ -24,7 +25,8 @@ void require(bool ok, const std::string& what) {
 
 constexpr size_t npos = (size_t)-1;
 
-// The scheduler's rules over the policy core, driven by a simulated executor: stage s runs on device s, the host waits for a stage's handoff before it records the next one and for a pass's last stage before it samples, and each stage takes a random time on its device.
+// The scheduler's round over the policy core, driven by a simulated executor: stage s runs on device s, the host waits for a stage's handoff before it records the next one and for a pass's last stage before it samples, and each stage takes a random time on its device.
+// The pools, the growth rule, make_room, the round's stages and the logits rows are the scheduler's own functions; the order of the round's steps is the scheduler's run, restated here.
 struct Sim {
     struct Req {
         uint64_t id = 0, admission = 0, donor = 0;   // donor: the one its last pause left, which it takes back if it is still there
@@ -41,17 +43,17 @@ struct Sim {
         size_t len = 0;
         std::vector<size_t> blocks;
     };
-    struct Pass {
-        bool live = false;
-        uint64_t formed = 0;
-        size_t ran = 0, base = 0, want = 0;
+    struct Pass : server::Flight {
+        size_t base = 0, want = 0;
         std::vector<uint64_t> ids;   // by entry
         std::vector<size_t> rows;
         std::vector<char> wants;
         double ready = 0;            // when its last recorded stage ends on its device
     };
-    size_t S, P, lap, max_seqs = 4, ubatch = 16, grow = 16, fail_per_mille = 2;
-    std::vector<size_t> pool{64, 32}, block{64, 128}, reserved{0, 0};
+    size_t S, P, lap, max_seqs = 4, ubatch = 16, fail_per_mille = 2;
+    server::Pools pools{{64, 32}, {64, 128}};
+    server::Growth growth{16};
+    std::vector<size_t> reserved{0, 0};
     std::vector<Donor> donors;               // oldest first
     std::vector<Req> queue, active, paused;  // active and paused in order of first admission
     std::vector<Pass> slots;
@@ -59,7 +61,7 @@ struct Sim {
     std::vector<double> device_free;
     std::vector<uint64_t> device_last;       // per device, the formation order of the last pass it ran
     double clock = 0;
-    uint64_t round_no = 0, formed = 0, next_id = 1, admissions = 0, donor_ids = 0, first_admitted = 0, blocked_at = 0;
+    uint64_t round_no = 0, formed = 0, next_id = 1, admissions = 0, donor_ids = 0, first_admitted = 0;
     uint64_t waiter = 0, waited = 0, waiting_from = 0;   // the oldest request while its plan waits on a request in flight, that request, and the round it first waited
     size_t ended = 0, stalls = 0, pauses = 0, taken_back = 0, waits = 0, resolved = 0, failures = 0, flying_cancels = 0, unrecorded_cancels = 0;
     std::mt19937 rng;
@@ -69,27 +71,23 @@ struct Sim {
         slots.resize(P);
         device_free.assign(S, 0.0);
         device_last.assign(S, 0);
-        rows.size = std::min<size_t>(P, 2) * max_seqs;
+        rows = server::logit_rows(P, max_seqs);
     }
     // A small random configuration, so schedules pause, stall and hold often.
     void randomize() {
         max_seqs = 2 + rng() % 7;
         ubatch = rng() % 2 ? 16 : 4;
         const size_t b = rng() % 2 ? 4 : 8;
-        block = {b, 2 * b};
-        pool = {12 + rng() % 36, 0};
-        pool[1] = pool[0] / 2 + rng() % 4;
-        grow = b * (1 + rng() % 4);
-        rows.size = std::min<size_t>(P, 2) * max_seqs;
+        pools.block_tokens = {b, 2 * b};
+        pools.blocks = {12 + rng() % 36, 0};
+        pools.blocks[1] = pools.blocks[0] / 2 + rng() % 4;
+        growth.tokens = b * (1 + rng() % 4);
+        rows = server::logit_rows(P, max_seqs);
     }
 
-    size_t largest_block() const { return *std::max_element(block.begin(), block.end()); }
-    size_t limit() const { return std::min(pool[0] * block[0], pool[1] * block[1]); }
-    std::vector<size_t> blocks_for(size_t tokens) const {
-        std::vector<size_t> b(pool.size());
-        for (size_t s = 0; s < b.size(); ++s) b[s] = std::min((tokens + block[s] - 1) / block[s], pool[s]);
-        return b;
-    }
+    size_t largest_block() const { return *std::max_element(pools.block_tokens.begin(), pools.block_tokens.end()); }
+    size_t limit() const { return std::min(pools.blocks[0] * pools.block_tokens[0], pools.blocks[1] * pools.block_tokens[1]); }
+    std::vector<size_t> blocks_for(size_t tokens) const { return pools.blocks_for(tokens); }
     size_t find(uint64_t id) const {
         for (size_t i = 0; i < active.size(); ++i)
             if (active[i].id == id) return i;
@@ -118,7 +116,7 @@ struct Sim {
     std::vector<server::Holder> holders() const {
         std::vector<server::Holder> h;
         for (const Req& r : active)
-            h.push_back({r.admission, r.uncapped, r.need, r.len ? blocks_for(r.len) : std::vector<size_t>(pool.size(), 0), r.slot != npos});
+            h.push_back({r.admission, r.uncapped, r.need, r.len ? blocks_for(r.len) : std::vector<size_t>(pools.blocks.size(), 0), r.slot != npos});
         return h;
     }
     std::vector<std::vector<size_t>> donor_blocks() const {
@@ -135,17 +133,17 @@ struct Sim {
 
     // The invariants that hold after every event; after growth, every ready decoding request has reserved room for its next token.
     void check(bool grown = false) {
-        std::vector<size_t> sum(pool.size(), 0);
+        std::vector<size_t> sum(pools.blocks.size(), 0);
         for (const Req& r : active) {
             add(sum, r.need);
             const bool next = grown && r.decoding() && ready(r);
             const std::vector<size_t> held = blocks_for(r.len + flying_rows(r) + (next ? 1 : 0));
-            for (size_t s = 0; s < pool.size(); ++s) require(held[s] <= r.need[s], at + ": a request holds more than it reserved");
+            for (size_t s = 0; s < held.size(); ++s) require(held[s] <= r.need[s], at + ": a request holds more than it reserved");
             require(r.slot == npos || (r.slot < slots.size() && slots[r.slot].live), at + ": a request in flight in no pass");
         }
         for (const auto& d : donors) add(sum, d.blocks);
-        for (size_t s = 0; s < pool.size(); ++s) {
-            require(reserved[s] <= pool[s], at + ": pool " + std::to_string(s) + " over-reserved");
+        for (size_t s = 0; s < sum.size(); ++s) {
+            require(reserved[s] <= pools.blocks[s], at + ": pool " + std::to_string(s) + " over-reserved");
             require(reserved[s] == sum[s], at + ": the ledger does not add up in pool " + std::to_string(s));
         }
         for (const auto* waiting : {&queue, &paused})
@@ -200,7 +198,7 @@ struct Sim {
     }
 
     bool enter(Req& r) {
-        std::vector<size_t> need = blocks_for(r.history() + (r.uncapped ? grow : r.max_tokens - r.gen));
+        std::vector<size_t> need = blocks_for(growth.entry(r.history(), r.uncapped, r.max_tokens, r.gen));
         // A resumed request whose donor is still there takes it back, first; otherwise now and then the request forks a donor, which make_room keeps for last, or takes first when told to.
         size_t own = donors.size();
         for (size_t d = 0; r.donor && d < donors.size(); ++d)
@@ -208,13 +206,13 @@ struct Sim {
         const bool take = own < donors.size();
         const size_t keep = take ? own : !donors.empty() && rng() % 2 ? rng() % donors.size() : npos;
         const bool keep_first = take || (keep < donors.size() && rng() % 2);
-        const server::Taken t = server::make_room(pool, reserved, donor_blocks(), keep, keep_first, holders(), 0, false, need);
+        const server::Taken t = server::make_room(pools.blocks, reserved, donor_blocks(), keep, keep_first, holders(), 0, false, need);
         if (!t.enough) {
             // Refused, so even every donor would not do.
             std::vector<size_t> all = reserved;
             for (const auto& d : donors) sub(all, d.blocks);
             bool short_somewhere = false;
-            for (size_t s = 0; s < pool.size(); ++s) short_somewhere = short_somewhere || all[s] + need[s] > pool[s];
+            for (size_t s = 0; s < all.size(); ++s) short_somewhere = short_somewhere || all[s] + need[s] > pools.blocks[s];
             require(short_somewhere, at + ": admission refused though the donors held enough");
             return false;
         }
@@ -231,7 +229,7 @@ struct Sim {
         r.stalled = false;
         r.since = round_no;
         taken_back += take;
-        for (size_t s = 0; s < pool.size(); ++s)
+        for (size_t s = 0; s < need.size(); ++s)
             require(blocks_for(r.len)[s] <= need[s], at + ": a request took back more than it reserved");
         if (!r.admission) {
             require(r.id > first_admitted, at + ": a request admitted before one submitted earlier");
@@ -272,14 +270,14 @@ struct Sim {
             else ++i;
     }
 
-    // Stage s of the pass in slot k; now and then it fails, and the pass is abandoned; whether it was recorded.
+    // Stage s of the pass in slot k; now and then it fails, which fails the round; whether it was recorded.
     bool record(size_t k, size_t s) {
         Pass& p = slots[k];
         require(p.live && p.ran == s, at + ": a stage recorded out of order");
         require(device_last[s] < p.formed, at + ": device " + std::to_string(s) + " ran a pass before one formed earlier");
         device_last[s] = p.formed;
         if (rng() % 1000 < fail_per_mille) {
-            abort(k);
+            fail();
             return false;
         }
         if (s) clock = std::max(clock, p.ready);
@@ -292,59 +290,56 @@ struct Sim {
         return true;
     }
 
-    // A failed pass: every device drained, its requests end with the error and give their blocks back without a donor, and the other passes go on.
-    void abort(size_t k) {
-        Pass& p = slots[k];
+    // A failed pass fails the round as the scheduler's fail does: every device drained, every pass in flight abandoned with its logits rows given back, and every active request ends with the error, giving its blocks back without a donor, while the paused and queued requests wait on.
+    void fail() {
         for (double t : device_free) clock = std::max(clock, t);
-        for (uint64_t id : p.ids) {
-            const size_t i = find(id);
-            require(i != npos && active[i].slot == k, at + ": a failed pass's request not in flight in it");
-            sub(reserved, active[i].need);
-            active.erase(active.begin() + (std::ptrdiff_t)i);
-            ++ended;
-        }
-        server::give_rows(rows, p.base, p.want);
-        p = Pass{};
+        for (Pass& p : slots)
+            if (p.live) {
+                server::give_rows(rows, p.base, p.want);
+                p = Pass{};
+            }
+        for (const Req& r : active) sub(reserved, r.need);
+        ended += active.size();
+        active.clear();
         ++failures;
     }
 
-    // The pass in slot k after its last stage: its rows committed, each wanting row sampled unless its request was cancelled, and the requests that end parked.
+    // The pass in slot k after its last stage: its rows committed and each wanting row sampled, a cancelled request's too, as the scheduler's retire does.
     void retire(size_t k) {
         Pass& p = slots[k];
         require(p.live && p.ran == S, at + ": a pass retired before its last stage");
         clock = std::max(clock, p.ready);
-        std::vector<uint64_t> ids = p.ids;
         for (size_t e = 0; e < p.ids.size(); ++e) {
-            Req& r = active[find(p.ids[e])];
+            const size_t i = find(p.ids[e]);
+            require(i != npos && active[i].slot == k, at + ": a retired pass's request not in flight in it");
+            Req& r = active[i];
             r.len += p.rows[e];
             r.slot = npos;
-            if (p.wants[e] && !r.cancel) {
+            if (p.wants[e]) {
                 ++r.gen;
                 r.since = round_no;
             }
         }
         server::give_rows(rows, p.base, p.want);
         p = Pass{};
-        for (uint64_t id : ids) {
-            const size_t i = find(id);
-            if (active[i].cancel || active[i].gen >= active[i].max_tokens) finish(i);
-        }
     }
 
-    // Growth, the earliest admitted first: a step make_room gives is taken, and one it refuses, or whose plan would pause a request in flight, is sat out.
+    // After the round's retirements, the requests whose last token has been sampled finish, in order of first admission.
+    void finish_ended() {
+        for (size_t i = 0; i < active.size();)
+            if (active[i].gen >= active[i].max_tokens) finish(i);
+            else ++i;
+    }
+
+    // Growth, the earliest admitted first: the step the growth rule gives, which make_room makes room for, is taken, and one it refuses, or whose plan would pause a request in flight, is sat out.
     // A step never passes one uncapped request's reservation, so a plan pauses one request at most, and the round that request's pass retires in makes room with it out of flight.
     void grow_all() {
         for (size_t i = 0; i < active.size(); ++i) {
             Req& r = active[i];
-            if (r.slot != npos) continue;
             r.stalled = false;
-            const std::vector<size_t> next = blocks_for(r.len + 1);
-            bool beyond = false;
-            for (size_t s = 0; s < pool.size(); ++s) beyond = beyond || next[s] > r.need[s];
-            if (!r.uncapped || !r.decoding() || !beyond) continue;
-            std::vector<size_t> step = blocks_for(r.len + 1 + grow);
-            for (size_t s = 0; s < step.size(); ++s) step[s] = step[s] > r.need[s] ? step[s] - r.need[s] : 0;
-            const server::Taken t = server::make_room(pool, reserved, donor_blocks(), npos, false, holders(), r.admission, true, step);
+            const std::vector<size_t> step = growth.step(pools, r.uncapped, r.decoding(), r.len, r.need);
+            if (step.empty()) continue;
+            const server::Taken t = server::make_room(pools.blocks, reserved, donor_blocks(), npos, false, holders(), r.admission, true, step);
             require(t.paused.size() <= 1, at + ": a growth plan paused " + std::to_string(t.paused.size()) + " requests, though one uncapped request's reservation holds a step");
             if (i == 0 && waiter == r.id) {
                 if (find(waited) == npos || active[find(waited)].slot == npos) {
@@ -361,7 +356,7 @@ struct Sim {
                 for (size_t j = i + 1; j < active.size(); ++j)
                     if (active[j].uncapped) sub(could, active[j].need);
                 bool short_somewhere = false;
-                for (size_t s = 0; s < pool.size(); ++s) short_somewhere = short_somewhere || could[s] + step[s] > pool[s];
+                for (size_t s = 0; s < could.size(); ++s) short_somewhere = short_somewhere || could[s] + step[s] > pools.blocks[s];
                 require(short_somewhere, at + ": a request was refused room that donors or requests admitted after it held");
                 if (i == 0) {
                     bool capped = false;
@@ -429,16 +424,15 @@ struct Sim {
                 p.rows.push_back(n);
                 p.wants.push_back(r.len + n == r.history());
             }
-            if (p.ids.empty()) return;
-            for (char w : p.wants) p.want += (size_t)w;
-            p.base = server::take_rows(rows, p.want);
-            if (p.base == rows.size) {
-                // Only a run an aborted pass gave back early, which waits for the passes formed before it, keeps a run from fitting.
-                require(std::any_of(rows.runs.begin(), rows.runs.end(), [](const server::LogitRows::Run& r) { return r.back; }),
-                        at + ": no logits rows for a pass though the passes in flight hold at most half of them");
-                blocked_at = round_no;
+            if (p.ids.empty()) {
+                // No free slot idles while a request is ready: a pass comes out empty only when every active request is in flight or sits the round out.
+                for (const Req& r : active) require(!ready(r), at + ": a free slot idled while a request was ready");
                 return;
             }
+            for (char w : p.wants) p.want += (size_t)w;
+            p.base = server::take_rows(rows, p.want);
+            // A failure gives every pass's rows back, and the passes in flight want at most one row a request, half the rows, so a run always fits.
+            require(p.base != rows.size, at + ": no logits rows for a pass though the passes in flight want at most half of them");
             p.live = true;
             p.formed = ++formed;
             slots[k] = p;
@@ -449,34 +443,31 @@ struct Sim {
                 active[find(p.ids[rng() % p.ids.size()])].cancel = true;
                 ++unrecorded_cancels;
             }
-            record(k, 0);
+            if (!record(k, 0)) return;
             check();
         }
     }
 
-    // One round: the waiting requests' cancellations, each stage's oldest waiting pass from the last stage down, the passes whose last stage an earlier round recorded, the active requests' cancellations, then room and new passes while a slot is free.
-    void round() {
-        ++round_no;
-        for (auto* all : {&queue, &paused, &active})
-            for (Req& r : *all)
-                if (r.cancel && !r.cancelled) r.cancelled = round_no;
+    // The round's steps as the scheduler's run takes them: the waiting requests' cancellations, each stage's oldest waiting pass from the last stage down, the passes whose last stage an earlier round recorded, the requests that ended, the cancelled requests no pass holds, then room and new passes while a slot is free; a failure ends the round's steps.
+    void steps() {
         at = "the sweep";
         sweep_waiting();
         check();
-        std::vector<server::Flight> f;
-        for (const Pass& p : slots) f.push_back({p.live, p.formed, p.ran});
-        const server::Steps steps = server::round_steps(f, S);
+        const server::Steps st = server::round_steps(std::vector<server::Flight>(slots.begin(), slots.end()), S);
         at = "advance";
-        for (const auto& a : steps.advance) {
+        for (const auto& a : st.advance) {
             require(slots[a.first].live && slots[a.first].ran == a.second, at + ": a stage given a pass that does not wait for it");
-            record(a.first, a.second);
+            const bool recorded = record(a.first, a.second);
             check();
+            if (!recorded) return;
         }
         at = "retirement";
-        for (size_t k : steps.retire) {
+        for (size_t k : st.retire) {
             retire(k);
             check();
         }
+        finish_ended();
+        check();
         at = "the active sweep";
         sweep_active();
         check();
@@ -484,14 +475,22 @@ struct Sim {
             room();
             form();
         }
+    }
+
+    // One round, and after it the bounds a lap sets.
+    void round() {
+        ++round_no;
+        for (auto* all : {&queue, &paused, &active})
+            for (Req& r : *all)
+                if (r.cancel && !r.cancelled) r.cancelled = round_no;
+        steps();
         // With nothing in flight the host waits for a submission.
         if (!in_flight()) clock += 1.0;
-        // Laps: a ready decoder waits one lap at most, two after a pass's rows waited for an aborted pass's, and a cancellation ends within one.
-        const uint64_t bound = lap + (blocked_at && round_no - blocked_at <= lap ? lap : 0);
+        // Laps: a ready decoder waits one lap at most, and a cancellation ends within one.
         for (Req& r : active) {
             if (!r.decoding() || r.stalled) r.since = round_no;
-            require(round_no - r.since <= bound, "round " + std::to_string(round_no) + ": a decoder went " + std::to_string(round_no - r.since) +
-                    " rounds without a token, past a lap of " + std::to_string(bound));
+            require(round_no - r.since <= lap, "round " + std::to_string(round_no) + ": a decoder went " + std::to_string(round_no - r.since) +
+                    " rounds without a token, past a lap of " + std::to_string(lap));
         }
         for (const auto* all : {&queue, &paused, &active})
             for (const Req& r : *all)
@@ -527,7 +526,7 @@ struct Sim {
         paused.clear();
         queue.clear();
         while (!donors.empty()) drop(0);
-        require(reserved == std::vector<size_t>(pool.size(), 0) && rows.runs.empty(), "after a stop the ledger or the logits rows hold something");
+        require(reserved == std::vector<size_t>(pools.blocks.size(), 0) && rows.runs.empty(), "after a stop the ledger or the logits rows hold something");
     }
 };
 
@@ -562,6 +561,22 @@ void rooms_by_hand() {
     active[1].flying = true;
     t = server::make_room(pool, {10}, {}, npos, false, active, 1, true, {3});
     require(t.enough && !t.wait, "a capped request in flight held up a plan that does not pause it");
+}
+
+// The growth rule by hand: admission reserves a capped request's history and what it may still generate and an uncapped one's history and a step, and a step falls due only for an uncapped decoding request whose next position passes its blocks, reaching a step past that position, never past what a pool holds.
+// Then the logits rows a context reserves: one pass's alone, and twice that once passes overlap.
+void growth_by_hand() {
+    const server::Pools pools{{10, 5}, {4, 8}};
+    const server::Growth g{6};
+    require(g.entry(9, false, 20, 3) == 26 && g.entry(9, true, 20, 3) == 15, "admission did not reserve the history and what is left, or uncapped a step past it");
+    require(pools.blocks_for(0) == std::vector<size_t>({0, 0}) && pools.blocks_for(41) == std::vector<size_t>({10, 5}), "blocks were not counted whole up to the pool");
+    require(g.step(pools, true, true, 7, {2, 1}).empty(), "a step fell due while the next position fit");
+    require(g.step(pools, true, true, 8, {2, 1}) == std::vector<size_t>({2, 1}), "a due step did not reach a step past the next position");
+    require(g.step(pools, false, true, 8, {2, 1}).empty() && g.step(pools, true, false, 8, {2, 1}).empty(), "a capped or prefilling request grew");
+    require(g.step(pools, true, true, 8, {}) == std::vector<size_t>({4, 2}), "a request with nothing reserved did not take the whole step");
+    require(g.step(pools, true, true, 36, {9, 5}) == std::vector<size_t>({1, 0}), "a step passed what a pool holds");
+    const server::LogitRows one = server::logit_rows(1, 5), many = server::logit_rows(4, 5);
+    require(one.size == 5 && many.size == 10 && one.runs.empty(), "the logits rows were not one pass's alone, or twice that once passes overlap");
 }
 
 // The round by hand: each stage records its oldest waiting pass from the last stage down, one stage a pass, and passes past their last stage retire oldest first.
@@ -600,9 +615,9 @@ void due_step_first() {
     Sim sim(1, 1, 1);
     sim.max_seqs = 3;
     sim.ubatch = 512;
-    sim.grow = 256;
-    sim.pool = {18, 9};
-    sim.rows.size = sim.max_seqs;
+    sim.growth.tokens = 256;
+    sim.pools.blocks = {18, 9};
+    sim.rows = server::logit_rows(1, sim.max_seqs);
     Sim::Req a;
     a.id = 1, a.admission = 1, a.uncapped = true, a.prompt = 40, a.gen = 345, a.len = 384;
     a.max_tokens = sim.limit() - a.prompt;
@@ -657,8 +672,8 @@ void random_schedules(size_t n) {
     }
     // Enough schedules must meet every rule's case.
     if (n >= 1000)
-        for (size_t i = 1; i < 9; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, waits on requests in flight, waits ended, failures and cancellations in flight");
-    std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses, %zu stalls, %zu donors taken back, %zu waits on requests in flight (%zu of the oldest ended as the request left flight), %zu failed passes, %zu cancellations in flight (%zu before a first stage)\n",
+        for (size_t i = 1; i < 9; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight and cancellations before a first stage");
+    std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses, %zu stalls, %zu donors taken back, %zu growth plans that waited on a request in flight, %zu waits of the oldest request ended in the round the request left flight, %zu failed passes, %zu cancellations in flight (%zu before a first stage)\n",
                 n, rounds, totals[0], totals[1], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8]);
 }
 
@@ -668,6 +683,7 @@ int main(int argc, char** argv) {
     try {
         const size_t schedules = argc > 1 ? (size_t)std::stoul(argv[1]) : 2000;
         rooms_by_hand();
+        growth_by_hand();
         rounds_by_hand();
         rows_by_hand();
         due_step_first();

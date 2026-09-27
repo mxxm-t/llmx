@@ -11,6 +11,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include "inference/logprobs.hpp"
@@ -195,9 +196,11 @@ public:
     // The model's context is reserved here for one pass in flight, of every decoding request's row and a ubatch of other rows, each request wanting a logits row at most.
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue)
         : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()),
-          max_queue_(max_queue), slots_(1), reserved_(model.kv_pools(), 0) {
-        // Passes in flight take their logits rows from twice what they may want together, so a run always fits (LogitRows), and one pass alone from what it may want.
-        logit_rows_.size = std::min<size_t>(slots_.size(), 2) * max_seqs_;
+          max_queue_(max_queue), slots_(1), logit_rows_(logit_rows(slots_.size(), max_seqs)), reserved_(model.kv_pools(), 0) {
+        for (size_t s = 0; s < model_.kv_pools(); ++s) {
+            pools_.blocks.push_back(model_.kv_pool_blocks(s));
+            pools_.block_tokens.push_back(model_.kv_pool_block_tokens(s));
+        }
         model_.reserve_passes(ctx_, slots_.size(), ubatch_ + max_seqs_, logit_rows_.size);
     }
 
@@ -330,16 +333,13 @@ public:
     }
 
 private:
-    // Tokens an uncapped request reserves beyond what it holds, at admission and each time it grows.
-    static constexpr size_t kGrowTokens = 256;
+    // How requests reserve room, at admission and as uncapped ones grow.
+    static constexpr Growth kGrowth{};
     // The most generated tokens a pass recomputes for one resume, each taking ubatch / kReplayRows of the budget since it takes the decode kernels; docs/STATUS.md (Exact resume) records the timing that sets it.
     static constexpr size_t kReplayRows = 64;
 
-    // A slot of the context reserved for passes: whether a pass is in flight in it, that pass's place in formation order and the stages recorded, its requests by entry with the history each had and the rows each adds, those it samples in logits order, and its logits rows.
-    struct Slot {
-        bool live = false;
-        uint64_t formed = 0;
-        size_t ran = 0;
+    // A slot of the context reserved for passes: the round's view of it (Flight), its pass's requests by entry with the history each had and the rows each adds, those it samples in logits order, and its logits rows.
+    struct Slot : Flight {
         std::vector<std::shared_ptr<Request>> members, wanting;
         std::vector<size_t> from, rows;
         size_t base = 0, want = 0;
@@ -351,11 +351,7 @@ private:
     size_t free_slot() const {
         return (size_t)(std::find_if(slots_.begin(), slots_.end(), [](const Slot& k) { return !k.live; }) - slots_.begin());
     }
-    std::vector<Flight> flights() const {
-        std::vector<Flight> f;
-        for (const Slot& k : slots_) f.push_back(Flight{k.live, k.formed, k.ran});
-        return f;
-    }
+    std::vector<Flight> flights() const { return std::vector<Flight>(slots_.begin(), slots_.end()); }
 
     // A new pass in slot k: decode entries first, but for a request that could not grow, then what the other requests' caches lack, one stretch's slice each, up to ubatch tokens; then its logits rows, begin_pass and its first stage.
     void form(size_t k, const std::vector<std::shared_ptr<Request>>& active) {
@@ -396,10 +392,12 @@ private:
             e.extent = c.extent;
             add_entry(r, e);
         }
-        if (entries_.empty()) return;
+        // With one slot nothing is in flight here, so some active request has a row to add, since the oldest sits a pass out only while a capped request holds room, and every logits row is free.
+        // An empty pass or one short of rows would break those rules, and it ends the requests with the error rather than leaving the loop to spin.
+        if (entries_.empty()) throw std::logic_error("server: a round with active requests formed an empty pass");
         f.want = f.wanting.size();
         f.base = take_rows(logit_rows_, f.want);
-        if (f.base == logit_rows_.size) return;
+        if (f.base == logit_rows_.size) throw std::logic_error("server: no logits rows for a new pass");
         try {
             model_.begin_pass(ctx_, k, entries_.data(), entries_.size(), f.base);
         } catch (...) {
@@ -510,10 +508,9 @@ private:
         for (size_t i = 0; i < active.size(); ++i) {
             Request& r = *active[i];
             r.stalled_ = false;
-            if (!r.params_.until_limit || !decoding(r) || !beyond(blocks_for(r.seq_.length() + 1), r.need_)) continue;
-            std::vector<size_t> step = blocks_for(r.seq_.length() + 1 + kGrowTokens);
-            for (size_t s = 0; s < step.size(); ++s) step[s] = step[s] > r.need_[s] ? step[s] - r.need_[s] : 0;
-            const Taken t = make_room(pools(), reserved_, donor_blocks(), npos, false, holders(active), r.admission_, true, step);
+            const std::vector<size_t> step = kGrowth.step(pools_, r.params_.until_limit, decoding(r), r.seq_.length(), r.need_);
+            if (step.empty()) continue;
+            const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), npos, false, holders(active), r.admission_, true, step);
             if (!t.enough || t.wait) {
                 r.stalled_ = true;
                 ++r.stalls_;
@@ -532,15 +529,14 @@ private:
     // A donor it takes back or shares every full block of goes first, one it forks otherwise last, and a forked donor make_room takes is consumed, the shared blocks counted once.
     // Under the lock.
     bool enter(const std::shared_ptr<Request>& r, std::vector<std::shared_ptr<Request>>& active) {
-        const size_t tokens = history_tokens(*r) + (r->params_.until_limit ? kGrowTokens : (size_t)r->params_.max_tokens - r->gen_.size());
-        std::vector<size_t> need = blocks_for(tokens);
+        std::vector<size_t> need = pools_.blocks_for(kGrowth.entry(history_tokens(*r), r->params_.until_limit, (size_t)r->params_.max_tokens, r->gen_.size()));
         size_t shared = 0;
         size_t d = own_donor(*r);
         const bool take = d < donors_.size();
         if (!take) d = best_donor(*r, shared);
         const bool keep = take || shared;
         const bool keep_first = take || (shared && donors_[d].tokens.size() - shared < model_.kv_block_tokens());
-        const Taken t = make_room(pools(), reserved_, donor_blocks(), keep ? d : npos, keep_first, {}, 0, false, need);
+        const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), keep ? d : npos, keep_first, {}, 0, false, need);
         if (!t.enough) return false;
         std::vector<size_t> gone = t.donors;
         std::sort(gone.begin(), gone.end(), std::greater<size_t>());
@@ -600,12 +596,7 @@ private:
 
     static bool by_admission(const std::shared_ptr<Request>& a, const std::shared_ptr<Request>& b) { return a->admission_ < b->admission_; }
     static constexpr size_t npos = std::numeric_limits<size_t>::max();
-    // The ledger as make_room reads it: each pool's blocks, each donor's, and each running request's.
-    std::vector<size_t> pools() const {
-        std::vector<size_t> p(model_.kv_pools());
-        for (size_t s = 0; s < p.size(); ++s) p[s] = model_.kv_pool_blocks(s);
-        return p;
-    }
+    // The ledger as make_room reads it beside the pools: each donor's blocks, and each running request's.
     std::vector<std::vector<size_t>> donor_blocks() const {
         std::vector<std::vector<size_t>> b;
         for (const Donor& d : donors_) b.push_back(d.blocks);
@@ -615,7 +606,7 @@ private:
         std::vector<Holder> h;
         for (const auto& r : active) {
             const size_t len = r->seq_.length();
-            h.push_back(Holder{r->admission_, r->params_.until_limit, r->need_, len ? blocks_for(len) : std::vector<size_t>(model_.kv_pools(), 0), r->seq_.in_flight()});
+            h.push_back(Holder{r->admission_, r->params_.until_limit, r->need_, len ? pools_.blocks_for(len) : std::vector<size_t>(pools_.blocks.size(), 0), r->seq_.in_flight()});
         }
         return h;
     }
@@ -773,7 +764,7 @@ private:
             d.tokens.assign(h.begin(), h.begin() + (std::ptrdiff_t)std::min(h.size(), held));
             d.classes = clip(r->classes_, held);
             d.seq = std::move(r->seq_);
-            d.blocks = blocks_for(held);
+            d.blocks = pools_.blocks_for(held);
             sub(reserved_, r->need_);
             add(reserved_, d.blocks);
             r->need_.clear();
@@ -793,19 +784,6 @@ private:
         r.need_.clear();
     }
 
-    // What `tokens` positions take in each cache pool, in that pool's own blocks, never more than the pool holds.
-    std::vector<size_t> blocks_for(size_t tokens) const {
-        std::vector<size_t> b(model_.kv_pools());
-        for (size_t s = 0; s < b.size(); ++s)
-            b[s] = std::min(backend::blocks_for(tokens, model_.kv_pool_block_tokens(s)), model_.kv_pool_blocks(s));
-        return b;
-    }
-    // Whether `want` needs more than `held` in any pool; an empty `held` holds nothing.
-    static bool beyond(const std::vector<size_t>& want, const std::vector<size_t>& held) {
-        for (size_t s = 0; s < want.size(); ++s)
-            if (want[s] > (s < held.size() ? held[s] : 0)) return true;
-        return false;
-    }
     static void add(std::vector<size_t>& to, const std::vector<size_t>& b) {
         if (to.size() < b.size()) to.resize(b.size(), 0);
         for (size_t s = 0; s < b.size(); ++s) to[s] += b[s];
@@ -820,6 +798,7 @@ private:
     infer::ExecContext ctx_;
     std::vector<Slot> slots_;
     LogitRows logit_rows_;
+    Pools pools_;                              // the model's cache pools, which never change size
     uint64_t formed_ = 0;                      // passes formed, which orders them
     std::vector<infer::BatchEntry> entries_;   // the pass being formed
     mutable std::mutex m_;

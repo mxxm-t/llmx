@@ -1,5 +1,5 @@
 #pragma once
-// The scheduler's policy core (docs/SERVER.md, the round): who gives up blocks for whom, which stages a round records and which passes it retires, and where a pass's logits rows go, as free functions over plain data.
+// The scheduler's policy core (docs/SERVER.md, the round): what the pools' blocks hold, how an uncapped request's reservation grows, who gives up blocks for whom, which stages a round records and which passes it retires, and where a pass's logits rows go, as free functions over plain data.
 // The scheduler calls them with its requests and passes, and the server-passes CTest with a simulated executor's.
 #include <algorithm>
 #include <cstddef>
@@ -7,8 +7,42 @@
 #include <deque>
 #include <utility>
 #include <vector>
+#include "backends/backend.hpp"
 
 namespace server {
+
+// The cache pools as the ledger counts them: each pool's blocks and the tokens one of its blocks holds.
+struct Pools {
+    std::vector<size_t> blocks, block_tokens;
+    // What `tokens` positions take in each pool, in that pool's own blocks, never more than the pool holds.
+    std::vector<size_t> blocks_for(size_t tokens) const {
+        std::vector<size_t> b(blocks.size());
+        for (size_t s = 0; s < b.size(); ++s) b[s] = std::min(backend::blocks_for(tokens, block_tokens[s]), blocks[s]);
+        return b;
+    }
+};
+
+// How a request reserves room: a capped one its history and what it may still generate, an uncapped one `tokens` past its history, and again `tokens` past its next position whenever that position would pass what it holds.
+// Admission and growth read the same `tokens`, so the first uncapped request a growth plan pauses always frees a whole step, and a plan never pauses more than one.
+struct Growth {
+    size_t tokens = 256;
+    // The tokens a request reserves as it is admitted, first or on resuming.
+    size_t entry(size_t history, bool uncapped, size_t max_tokens, size_t generated) const {
+        return history + (uncapped ? tokens : max_tokens - generated);
+    }
+    // The blocks per pool an uncapped decoding request's growth step adds before a pass, whose cache holds `held` positions under the `need` blocks it has reserved; empty when no step falls due.
+    std::vector<size_t> step(const Pools& pools, bool uncapped, bool decoding, size_t held, const std::vector<size_t>& need) const {
+        if (!uncapped || !decoding) return {};
+        const std::vector<size_t> next = pools.blocks_for(held + 1), to = pools.blocks_for(held + 1 + tokens);
+        const auto has = [&](size_t s) { return s < need.size() ? need[s] : 0; };
+        bool due = false;
+        for (size_t s = 0; s < next.size(); ++s) due = due || next[s] > has(s);
+        if (!due) return {};
+        std::vector<size_t> more(to.size());
+        for (size_t s = 0; s < more.size(); ++s) more[s] = to[s] > has(s) ? to[s] - has(s) : 0;
+        return more;
+    }
+};
 
 // A running request as make_room sees it: its first admission, whether it may be paused (an uncapped one), the blocks it has reserved, those its history would keep as a donor once paused, per pool, and whether a pass in flight holds it.
 struct Holder {
@@ -117,6 +151,13 @@ struct LogitRows {
     size_t size = 0;
     std::deque<Run> runs;   // oldest first
 };
+
+// The logits rows of a context for `slots` passes in flight that each want `per_pass` rows at most: twice that once passes overlap, so a run always fits, and one pass's alone.
+inline LogitRows logit_rows(size_t slots, size_t per_pass) {
+    LogitRows rows;
+    rows.size = std::min<size_t>(slots, 2) * per_pass;
+    return rows;
+}
 
 // The first row of a run of `n` rows, or `rows.size` when none fits; no rows take nothing and start at row 0.
 inline size_t take_rows(LogitRows& rows, size_t n) {

@@ -4,6 +4,13 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Format output failure handling (2026-09-28, branch fix/format-output-failures, in progress)
+
+- **Goal:** refuse late write and close failures from GGUF writing and raw dequantization with the affected path, and publish output only after successful completion. Preserve pre-existing destination files when preparing replacement output fails.
+- **Done:** source review and the first regression establish the failure on unchanged main `c82e901a`. Local Ubuntu GCC 13.3 Release binary `c95bd06bc78ddc598f40753e923212246e57d034ef24ead241cc9fd64cc0a723` exits 0 in all eight child-only file-size-limit cases (GGUF/raw, 0/1024 bytes, absent/existing outputs), leaving partial files or replacing prior files. A ninth case reports a missing raw binary output parent but overwrites existing JSON first. `tests/roundtrip.py` now checks refusal with the affected path, preservation and cleanup; this test-first commit intentionally fails on production code. No production edit yet. Logs are retained in the owned clone under `writer-evidence-20260928/`; full Markdown review remains incomplete.
+- **Left:** commit a failing regression first, then implement checked output completion/publication at the shared format owner; exercise write and close failure, existing-file preservation, Unicode paths and ordinary conversion. Define and test the two-file raw export publication contract, then run the host-tier gates, full Markdown review, peer review and hosted gate.
+- **Gotchas:** a pair of separate files cannot be atomically replaced with one ordinary filesystem rename. Do not claim power-failure transactionality or erase existing final files during cleanup. Keep temporary-file ownership explicit and prevent a partially written result from being reported as success.
+
 ## The half-block order for the MI50's Q8_0 decode (2026-09-27, branch perf/decode-order, merged at `f2a677bb`)
 
 - **Merged** at `f2a677bb` on main `3da159b9` after a green hosted run on `gate/merge-32` (run 36349718215, all six jobs), the other developer's review of the rule tables and of the code, and the Radeon VII check: 12 of 12 outputs byte-identical to main on Qwen3-0.6B and Qwen3-8B Q8_0, the 60 kernel ISA files identical, CTest 34 of 34, the Q8_0 MoE fixture within E at a max error of 0.000167, and decode level with main once interleaved (0.993 at 8 rows; the first, planned block ran while a Visual Studio build shared the machine and is kept beside it).

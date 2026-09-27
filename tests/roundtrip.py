@@ -7,9 +7,10 @@ import random
 import json
 import math
 import shutil
+import subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import run as cli, run_process, write_bin, read_bin_floats, max_err
+from common import run as cli, run_process, exe_path, write_bin, read_bin_floats, max_err
 import spec_decode as sd
 
 # Regression gate for quant/ + format/: build a random F32 model, quantize it to Q8_0 (and Q4_0) via the CLI, dequantize it back, and check the max error is within each type's quantization bound.
@@ -139,6 +140,67 @@ def check_tensor_extents(d):
         assert os.path.getsize(ob) == 0, "empty model produced tensor bytes"
         print("roundtrip: %s, %d invalid extents preserve output; ranks 1..4, "
               "integral spellings and empty model [ok]" % (qtype, len(invalid)))
+
+
+# Real filesystem failures through the CLI, without filling a disk or changing the parent process's limits.
+def check_output_failures(d):
+    root = os.path.join(d, "write-failures")
+    os.mkdir(root)
+    mj, mb, mg = (os.path.join(root, n) for n in ("input.json", "input.bin", "input.gguf"))
+    with open(mj, "w", encoding="ascii") as f:
+        json.dump({"tensors": [{"name": "w", "shape": [32, 1024]}]}, f)
+    with open(mb, "wb") as f:
+        f.write(struct.pack("<f", 0.5) * 32768)
+    result = run_process(["quantize", mj, mb, mg, "q8_0"], text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+
+    # A failed second open must not replace the first output.
+    cases = [("raw-open", None, "raw", False)]
+    if os.name == "posix":
+        # A large write exceeds 1024; limit 0 also catches buffered output on completion.
+        for kind in ("gguf", "raw"):
+            for limit in (0, 1024):
+                for existing in (False, True):
+                    cases.append(("%s-%d-%s" % (kind, limit, existing), limit, kind, existing))
+    else:
+        print("roundtrip: file-size limit injection unavailable on this platform [skip]")
+
+    failures = []
+    for label, limit, kind, existing in cases:
+        case = os.path.join(root, label)
+        os.mkdir(case)
+        paths = [os.path.join(case, "output.gguf")] if kind == "gguf" else [
+            os.path.join(case, "output.json"), os.path.join(case, "output.bin")]
+        if limit is None:
+            existing = True
+            paths[1] = os.path.join(case, "missing-parent", "output.bin")
+        sentinel = b"previous output\x00\xff"
+        for path in paths:
+            if existing and os.path.isdir(os.path.dirname(path)):
+                with open(path, "wb") as f:
+                    f.write(sentinel)
+        before = {name: open(os.path.join(case, name), "rb").read() for name in os.listdir(case)}
+        args = ["quantize", mj, mb, paths[0], "q8_0"] if kind == "gguf" else ["dequantize", mg] + paths
+        command = [exe_path()] + args
+        if limit is not None:
+            wrapper = ("import os,resource,signal,sys; "
+                       "signal.signal(signal.SIGXFSZ, signal.SIG_IGN); "
+                       "n=int(sys.argv[1]); resource.setrlimit(resource.RLIMIT_FSIZE,(n,n)); "
+                       "os.execv(sys.argv[2],sys.argv[2:])")
+            command = [sys.executable, "-c", wrapper, str(limit)] + command
+        result = subprocess.run(command, capture_output=True, encoding="utf-8", timeout=30)
+        expected_path = paths[-1] if limit is None or (kind == "raw" and limit == 1024) else paths[0]
+        if result.returncode != 1 or expected_path not in result.stderr:
+            failures.append("%s: expected error naming %s; exit=%d stderr=%r" % (
+                label, expected_path, result.returncode, result.stderr))
+        if set(os.listdir(case)) != set(before):
+            failures.append(label + ": failure left output or temporary files")
+        for name, contents in before.items():
+            path = os.path.join(case, name)
+            if not os.path.isfile(path) or open(path, "rb").read() != contents:
+                failures.append(label + ": failure changed existing " + name)
+    assert not failures, "output failure handling:\n" + "\n".join(failures)
+    print("roundtrip: %d output failures refused by path, prior files preserved, no partial outputs [ok]" % len(cases))
 
 
 # The types this checks and their GGUF ids, whose values per block and bytes per block are in sd.TYPES.
@@ -272,7 +334,7 @@ def check_raw_decode(d):
 
 # Paths reach the converter as UTF-8, and Windows reads a narrow path in the system code page, so a directory named outside it is where a narrow open fails.
 def check_non_ascii_directory(d):
-    sub = os.path.join(d, "é中\U0001f600")
+    sub = os.path.join(d, "Ć©äø­\U0001f600")
     os.mkdir(sub)
     for name in ("model.json", "model.bin"):
         shutil.copyfile(os.path.join(d, name), os.path.join(sub, name))
@@ -346,6 +408,7 @@ def run():
         check_non_ascii_directory(d)
         check_type_names(d)
         check_tensor_extents(d)
+        check_output_failures(d)
         return True
     finally:
         shutil.rmtree(d, ignore_errors=True)

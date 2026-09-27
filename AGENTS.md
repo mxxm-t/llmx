@@ -311,13 +311,14 @@ prints the matvec bandwidth per type and, when the device reports them,
 the driver's per-kernel statistics (registers, shared memory, scratch);
 `--isa DIR` additionally writes the driver's disassembly of each kernel
 to that directory.
+With `--isa` every build of a row kernel must hold the float multiply and add kinds of its one-column build (a multiply, a multiply-add that rounds the product first, a fused one and an add), and every build of the Q8_0 decode kernel whose reduction shows as shuffled adds its counts per row and column (the same shuffled adds and one add a reduction, a whole number of multiply-adds and a multiply beside each), so no build contracts a column's sums differently.
 Attention additionally covers 80 combinations of head widths 32/40/64/128/256,
 query/KV head ratios 1/2/4/8 and all four F32/F16 cache-side pairs, with nonzero
 inputs at long histories. Both rows of a mixed short/long pass must equal the
 same rows taken separately, bit for bit; CPU comparisons retain the bound
 `1e-4 * (1 + abs(reference))`.
+Every decode column of every row kernel build must be, bit for bit, the same column computed alone: calls of 1 to 64 generated tokens, the residual add and a group of three projections at widths that reach every build and chunk, over F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K rows 4096 wide and the first four also 224 wide, the output head of Q4_0, Q4_1 and Q6_K on its own twin, and 8 experts routed 2 a token over 1 to 32 tokens on rows 4096 wide, each token's gate, up and down against the token alone.
 A group of a Q8_0 and a Q4_0 projection whose batch reaches the 8-bit tile crossover but not the other types' must equal each type alone forced onto the row kernel, bit for bit, on a device whose profile puts batches between the two.
-Every Q4_1 decode column must be, bit for bit, the same column computed alone, whichever of the row kernel's one-column, wide and grouped builds takes it: plain calls and the output head of 1 to 64 generated tokens and the residual add and a group of three projections at widths that reach every build and chunk, on rows 4096 and 224 wide, and 8 experts routed 2 a token over 1 to 32 tokens on rows 4096 wide, each token's gate, up and down against the token alone.
 A matmul whose row runs are out of order must be refused even when every run takes the same kernel.
 An `embed` whose F32 or Q8_0 table holds fewer rows than the call names must be refused, even when every id is inside the table.
 Each refusal it makes of `matmul`, `matmul_add`, `matmul_group`, the routed products and `embed` is made in two passes, and a valid call after each pass must give what it gave before.

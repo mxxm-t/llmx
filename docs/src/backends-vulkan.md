@@ -20,7 +20,10 @@ kernel notes and measurements are `docs/VULKAN.md`.
   prints after its checks. With `diagnostics` the backend also captures
   the driver's disassembly of each kernel, which
   `vulkan_kernel_representations` returns and `backend-vulkan --isa DIR`
-  writes one file per kernel, and on a queue that timestamps it times the
+  writes one file per kernel, then holds each row kernel build to its
+  one-column build's float multiply and add kinds and each Q8_0 decode
+  build to its counts per row and column. On a queue that timestamps it
+  the backend also times the
   dispatches: `vulkan_kernel_times` returns device milliseconds per kernel
   since the last reading, waiting for the queue, and
   `vulkan_timed_dispatches` how many dispatches that reading covered, the

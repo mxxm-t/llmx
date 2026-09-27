@@ -508,6 +508,16 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - A decode kernel that needs a different per-column summation order, fixed and independent of the batch, changes decode output once. It needs the user's OK first, with the count of changed greedy tokens on a fixed set, the HF results and the speed gain. Until then every new build is bit-identical to today's per column.
   - Slice boundaries may follow the cost model; an entry's extent and fresh count never do. `docs/MULTI-DEVICE.md` says so from this commit.
   - Batch invariance and exact reuse only: every request's output equals its run alone and the CLI's, and is identical across one card and 2 to 4 cards.
+- **Decided by the user (2026-09-27):**
+  - Step 6 becomes a head split: the output projection's vocabulary rows are divided over the stages, and each card writes its slice of the logits to host memory.
+    - No all-reduce runs: a pass adds one broadcast of the final hidden row to the stages and one join of the slices.
+    - It is built as an option, off by default, and measured on 2, 3, 4 and 8 MI50s before the user decides, with today's behaviour, the head on the last stage, kept available either way.
+    - vLLM's pipeline parallelism, read in its 0.12 source, keeps the output projection (`lm_head`) on its last rank and gives that rank at most one layer fewer than the others, only when the layer count does not divide, with `VLLM_PP_LAYER_PARTITION` for shares set by hand.
+  - The gate is met apples to apples: llmx's default modes against the references' default modes.
+    - Speedups the references do not have, the head split and compute-balanced shares among them, cannot count toward it, and are reported beside it only once the apples-to-apples result meets it.
+  - The default layer split stays like the reference's default: layers fitted to free memory, the head on the last stage, and `--layer-shares` as its `-ts`.
+    - Compute balancing is opt-in, behind flags named for best fit.
+  - Step 5 (`perf/decode-columns`) is held until 32 rows meets the reference's 57.3 ms per 8B pass on one MI50, and the prototype branch `perf/decode-32` works on that cell.
 - **Rules it keeps:**
   - A row's arithmetic follows its entry (token, position, extent, fresh count, its own cache), never what else is in flight.
   - The scheduler steps change no kernel, and `perf/decode-columns` keeps every column's bits until the user approves another order.
@@ -574,6 +584,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - "Needed" is the lowest rate that meets 2 times the layer split and 1.5 times the tensor split, from the low and the high ends of the estimates.
   - "Today's kernel" is P = S or step 8's P. "+ head shares" adds step 6. "+ wider build" adds step 5's 16- and 32-column builds at 39.5 ms plus 2.0 ms a row beyond 8. That is an estimate, not a bound either way, until a 16-column prototype is timed. The build's fixed cost grows with its width (Found). The reference's batched bench decodes 16 rows in 52.1 to 54.3 ms and 32 in 57.3 to 61.8, faster than this model.
   - "Pass cost needed" is the 8B pass cost at which the needed rate is met, with head-aware shares at P = S.
+  - The "+ head shares" columns were modeled on the layer shares step 6 no longer builds, and by the apples-to-apples rule (Decided, 2026-09-27) no gain the references lack counts toward the gate, so they stand as modeled gains reported beside it.
 
   **Qwen3-8B Q8_0 on 2, 3 and 4 MI50s:**
 
@@ -636,7 +647,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Levers**, each batch-invariant:
   - Wider decode builds (step 5): one weight read for up to 16 or 32 columns. A build keeps batch invariance only if each column keeps its lanes and its reduction (Found: one subgroup reduction in `matmul_vec_q8.comp`, a cluster's xor shuffles in the K-quant row kernels); the row count may change only how many columns share a weight fetch. Counterexamples: Marlin picks its tile by batch, llama.cpp switches kernels at 8 columns, and the gfx906 vLLM's AWQ kernel switches at 32 rows and adds with FP16 atomics.
   - A cheaper pass at 2 to 8 rows (step 5): builds that load only the columns a pass has.
-  - Stage shares that count the head (step 6): any split is bit-identical to one card (`llmx-split-check`).
+  - The head split over the stages (step 6), an option off by default that counts toward no gate (Decided): a split by output rows computes every logit as one card does (Found).
   - P from the kernel's column width (step 8) and assembly by predicted stage time (step 9): the cost model chooses which entries share a pass and where a slice ends, never an entry's extent or fresh count.
   - Host work off the critical path (steps 3 and 4): the 16-slot ring, the pool, rows read in place and the new sampler, which changes seeded draws once and leaves greedy unchanged.
   - Considered, not planned: greedy argmax on the device for rows that ask for neither logprobs nor a penalty. It is exact by construction (comparisons only, the lowest id on a tie, the host's handling of NaN kept), and it would take the row's pass over the vocabulary and part of the logits wait off the thread. If step 7's measurement shows the logits wait or greedy sampling limiting, it goes to the user beside step 7's numbers. It is not built before that.
@@ -809,6 +820,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
      - Target, recorded: at 32 to 64 users on 4 MI50s, default sampling within 15 percent of greedy.
      - Docs: the threads and sampling in `docs/SERVER.md`.
   5. **`perf/decode-columns`**, a branch of its own, started 2026-09-26 and built beside steps 1 to 4:
+     - Held (decided by the user 2026-09-27): it does not merge until 32 rows meets the reference's 57.3 ms per 8B pass on one MI50, and the prototype branch `perf/decode-32` works on that cell.
      - Its first commit times a 16-column prototype of `matmul_vec_q8.comp` with `bench --seqs` on one MI50. That time replaces the wider build's estimate in Targets.
      - `matmul_vec_q8.comp`, and the K-quant row kernels the Q4_K_M rows need, gain builds that read each weight once for up to 16 and 32 columns. Builds for 2 and 4 columns load only the columns a pass has, so the pass at 2 to 8 rows loses as much of the 8-column build's fixed cost as it can.
      - The sum-order rule (Decided) holds for every build that merges: every column bit-identical to today's. A faster build that needs another per-column order, fixed and independent of the batch, is built and timed only as a prototype that does not merge, and goes to the user with the count of changed greedy tokens on a fixed set, the HF results (the pinned fixtures and the 8B check, per token included) and the speed gain before any build's order changes. If the user approves, the order changes in every build at once, the one-column build that single-user decode and the CLI take included, so no row computes differently by pass width.
@@ -817,13 +829,21 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
      - Gate: the standing device merge gate, every cell against llama.cpp's pinned Vulkan build on the MI50 and on the Radeon VII.
      - Gate: `bench --seqs` on one MI50 faster than main at 2 to 4 and 9 to 64 rows, and level at 1 and at 5 to 8 unless a build that changes the 8-column pass merges, in which case it is faster there too. It must also be no slower than the reference's batched step, llmx's slower round against the reference's faster one: 52.1 ms at 16 rows and 57.3 at 32, and 27.9 at 8 once the 8-column pass is changed (step 0). The builds as modeled (55.5 and 87.5 ms, and today's 39.5 at 8 rows) miss it at every one of these widths, so the branch needs forms cheaper than the model. At 64 rows the reference's batched step (85.2 to 99.2 ms) beats the two 32-column chunks (up to 175 ms), so a 64-column build is measured. A form fast enough that needs another per-column order goes to the user under the sum-order rule.
      - Targets, recorded whether met or not: the pass costs in Targets, down to 8 rows in 21.5 ms and 16 in 25.0 ms for 8B, which 32B on two cards needs.
-  6. **Stage shares that count the head**, a branch of its own after `refactor/loader` merges, taken if step 0 measures the last stage more than 15 percent heavier than the others:
-     - Step 0 met the condition on 3 and 4 cards and found that no layer count keeps pp4096 level, so this step goes to the user with its figures first (step 0).
-     - The fit gives the last stage fewer layers by the head's measured cost, and by the MTP block's when speculative decoding is on, and the CLI prints the new plan.
+  6. **The head split over the stages**, a branch of its own, built as an option that is off by default (decided by the user 2026-09-27):
+     - Step 0 measured the last stage 18 to 21 percent heavier than the others' mean in decode on 3 cards and 24 to 28 percent on 4, against 12 to 13.5 on 2 (step 0).
+     - The head is about 2 layers of decode work at every row count and near nothing in prefill, where it computes one row, so moving whole layers off the last stage trades prefill for decode about one for one, and no layer count keeps pp4096 level.
+     - The output projection's vocabulary rows are divided over the stages, and each card writes the logits of its rows into the pass's logits range in host memory, so no all-reduce runs.
+     - A pass adds one broadcast of the final hidden row from the last stage to the others and one join of the slices before sampling.
+     - `pipelined_` (Found) asks for the head on the last stage's device, and takes the split head as a second form.
+     - Off, the default, every placement keeps today's head on the last stage, and that stays available whichever way the user decides.
+     - It replaces the layer shares this step planned, which moved whole layers off the last stage, and compute-balanced shares stay opt-in behind a flag (Decided, 2026-09-27).
+     - The user decides whether it stays an option or becomes the default once it is measured on 2, 3, 4 and 8 MI50s, on against off: each stage's time at 1 to 32 rows and in prefill, pp4096, and the server at 16 to 64 users.
+     - It counts toward no gate: the final gate is met in default modes, and its gain is reported beside that result once the result meets the gate (Decided, 2026-09-27).
      - `LoadedModel` carries each device's layer count as data, so `llmx-multi-device-bench stages` reads it there rather than parsing the plan's text.
-     - Gate: every split stays bit-identical to one card on 2, 3 and 4 MI50s, and every changed split plan is listed.
-     - Gate: pp4096 on 2 to 4 MI50s level with main.
-     - Target, recorded: on 8B, the last stage within 5 percent of the mean stage time at S = 2, 3 and 4, and throughput at S = 4 at 32 and 64 users at least 10 percent above the step before.
+     - Gate: with the option on, every split bit-identical to one card on 2, 3, 4 and 8 MI50s, since a split by output rows computes every logit as one card does (Found).
+     - Gate: with the option off, every output and split plan byte-identical to main.
+     - Gate: pp4096 on 2 to 4 MI50s level with main, with the option on and off.
+     - Target, recorded: on 8B with the option on, the last stage within 5 percent of the mean stage time in decode at S = 3 and 4, and throughput at S = 4 at 32 and 64 users at least 10 percent above the option off.
   7. **The thread decision, by the rule decided 2026-09-26.** It is measured after step 4 and again after step 5, since a faster pass shortens the round: 8B Q8_0 on 4 MI50s, 16 to 64 users, greedy and at the defaults, with the host's load average recorded with each run, which no run waits on (user, 2026-09-26). The measurement records the thread's working time; its blocked time in `receive` (the source's ticket and the staging wait apart), in `open` and in the logits wait, each apart; each device's idle time, with what the thread was doing when it went idle; and step 0's pipeline bench with all four of its drivers (`--driver all`): a thread per stage, and one thread in completion order, in the round's order onto busy devices and in the round's order waiting for idle ones.
      - At 90 percent of the device-bound rate or more everywhere, nothing changes.
      - Below 90 percent with devices idle while the thread is blocked: first the relay that does not block (sync-file waits or completion-order polling) and P = S + 1, with no contract change.
@@ -934,7 +954,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - `feat/ignore-eos` merged at `7f5ecd3`, before the gate runs, so every server's output lengths are fixed. Step 0's llmx runs so far ended no reply short.
   - The prefill kernels merged at db0f8c3 and `perf/decode-columns` move the one-card numbers, so every gate table names the commit it ran on.
   - The Qwen 3.x plan builds beside this one, with this phase and `perf/decode-columns` first on the cards. Its serve fit follows this phase's server work, and its checkpoints need this phase.
-  - Its speculative decoding verifies k drafts as one extent-1 entry of k + 1 rows of one sequence, so verify rows ride in passes as decode rows do. The one-pass rule holds, the rows count against W and in step 8's D, and the MTP block runs on the output device, which step 6's shares count when speculative decoding is on.
+  - Its speculative decoding verifies k drafts as one extent-1 entry of k + 1 rows of one sequence, so verify rows ride in passes as decode rows do. The one-pass rule holds, the rows count against W and in step 8's D, and the MTP block runs on the output device, which the opt-in compute balancing (Decided, 2026-09-27) counts when speculative decoding is on.
   - This phase changes one line of the exact-resume plan. While a request is stalled, the room it needs may be held by capped requests, by requests admitted before it, or by requests held until their pass returns. The exact-resume block takes this wording in phase 3's step 3 commit, or in `fix/server-exact-resume` if that branch has not merged by then.
 
 ## Layer split phase 2: a prompt pipelined over the stages (2026-09-25, branch feat/split-pipeline, done)

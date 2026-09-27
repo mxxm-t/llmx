@@ -1,0 +1,127 @@
+{
+  "date": "2026-09-27",
+  "base": "7d16fa64",
+  "test_commit": "284de4fe",
+  "producer": "uncommitted normalization prototype in source archive",
+  "scope": "Fresh rebased build, packed producer CTest and mechanical source/doc checks only",
+  "files": {
+    "source": {
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-vulkan/activation-rebased-source.tar",
+      "sha256": "9c444f14a828338c5a8bbd641963c901bf91571b1e72027deb9bec4db152c067"
+    },
+    "runtime": {
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-vulkan/build-activation-rebased/llmx",
+      "sha256": "938aa88e7946e1b996318cf98647fff655ea1dd38d4a4283d01d0ccac489cb55"
+    },
+    "test": {
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-vulkan/build-activation-rebased/llmx-vulkan-quantization-test",
+      "sha256": "29eca0dcb62747a261a230ffa5d87bdb57e06fd4e0f607d16c203fcb1e41360f"
+    }
+  },
+  "commands": [
+    {
+      "argv": [
+        "docker",
+        "exec",
+        "-w",
+        "/work/src-activation-rebased",
+        "llmx-p2-x-mxfp4-vulkan",
+        "cmake",
+        "-S",
+        "/work/src-activation-rebased",
+        "-B",
+        "/work/build-activation-rebased",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DLLMX_HAS_BACKEND_VULKAN=ON"
+      ],
+      "started": "2026-09-27T20:05:25.252324",
+      "completed": "2026-09-27T20:05:25.928723",
+      "exit": 0
+    },
+    {
+      "argv": [
+        "docker",
+        "exec",
+        "-w",
+        "/work/src-activation-rebased",
+        "llmx-p2-x-mxfp4-vulkan",
+        "cmake",
+        "--build",
+        "/work/build-activation-rebased",
+        "--target",
+        "llmx-vulkan-quantization-test",
+        "llmx",
+        "-j",
+        "4"
+      ],
+      "started": "2026-09-27T20:05:25.929105",
+      "completed": "2026-09-27T20:06:27.389909",
+      "exit": 0
+    },
+    {
+      "argv": [
+        "docker",
+        "exec",
+        "-w",
+        "/work/src-activation-rebased",
+        "llmx-p2-x-mxfp4-vulkan",
+        "ctest",
+        "--test-dir",
+        "/work/build-activation-rebased",
+        "-R",
+        "^vulkan-quantization$",
+        "--output-on-failure"
+      ],
+      "started": "2026-09-27T20:06:27.390229",
+      "completed": "2026-09-27T20:06:27.600120",
+      "exit": 0
+    },
+    {
+      "argv": [
+        "docker",
+        "exec",
+        "-w",
+        "/work/src-activation-rebased",
+        "llmx-p2-x-mxfp4-vulkan",
+        "python3",
+        "-X",
+        "utf8",
+        "tests/docs_check.py",
+        "--exe",
+        "/work/build-activation-rebased/llmx"
+      ],
+      "started": "2026-09-27T20:06:27.600309",
+      "completed": "2026-09-27T20:06:31.578925",
+      "exit": 0
+    },
+    {
+      "argv": [
+        "docker",
+        "exec",
+        "-w",
+        "/work/src-activation-rebased",
+        "llmx-p2-x-mxfp4-vulkan",
+        "python3",
+        "-X",
+        "utf8",
+        "tests/dead_code.py"
+      ],
+      "started": "2026-09-27T20:06:31.579318",
+      "completed": "2026-09-27T20:06:38.694480",
+      "exit": 0
+    }
+  ],
+  "terminal": {
+    "exit": 0
+  },
+  "limitations": [
+    "No production consumer preservation",
+    "No whole-model HF or performance gate",
+    "Full Markdown content review still owed"
+  ],
+  "archive": {
+    "path": "/opt/claude-work/llmx-p2-x-mxfp4-vulkan/vulkan-activation-rebased-20260927.tar.gz",
+    "sha256": "4081c4aecd75a1727669175cee318ab64c73fca034efc077005a3369dd726d5b",
+    "size": 13595809
+  }
+}

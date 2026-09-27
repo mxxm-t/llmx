@@ -184,6 +184,12 @@ if(BUILD_TESTING)
     add_test(NAME fused-dot-overflow COMMAND llmx-fused-dot-overflow-test)
     set_tests_properties(fused-dot-overflow PROPERTIES TIMEOUT 30)
 
+    add_executable(llmx-quantize-range-test tests/quantize_range.cpp)
+    target_include_directories(llmx-quantize-range-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    list(APPEND LLMX_TARGETS llmx-quantize-range-test)
+    add_test(NAME quantize-range COMMAND llmx-quantize-range-test)
+    set_tests_properties(quantize-range PROPERTIES TIMEOUT 30)
+
     add_executable(llmx-q8-dots-test tests/q8_dots.cpp)
     target_include_directories(llmx-q8-dots-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-q8-dots-test)

@@ -4,6 +4,13 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Q4_0 quantizer reciprocal range (2026-09-28, branch fix/quantize-q4-range, in progress)
+
+- **Goal:** quantize tiny finite F32 blocks without a nonfinite intermediate reaching an integer cast, keeping ordinary Q4_0 output unchanged.
+- **Done:** source review found that `quantize_row_q4_0` multiplies by `1/d` even when that reciprocal overflows. A local GCC probe on unchanged main `c82e901a`, with 32 finite values of `1e-39f`, fails under `-fsanitize=float-cast-overflow` at the first cast: infinity is outside the range of `int`. This is separate from conversion output publication and from the docs-only wording correction. The new hosted `quantize-range` test fails before the fix at exponent -149, rotation 0, position 0: code 0 instead of 1. Its exact integer expectations cover every code/position over 274 power-of-two scales, half-way cases and boundaries. A separate sanitizer build fails at the invalid cast. Local GCC 13.3 CMake Release build passed; this test-first commit intentionally fails its regression on unchanged production.
+- **Left:** commit a failing regression first, repair the quantizer, verify packed output and ordinary byte identity, run the applicable platform, correctness and hosted gates, complete the shared Markdown review and obtain peer review before merge.
+- **Gotchas:** a binary16 scale may round to zero for tiny inputs; that format limit remains. Packed integer codes still must be defined, and the conversion must not rely on an invalid float-to-int cast. Nonfinite source values and scales too large for binary16 are outside this fix's claim. Evidence is retained in the owned clone under `q4-range-evidence-20260928/`.
+
 ## The half-block order for the MI50's Q8_0 decode (2026-09-27, branch perf/decode-order, merged at `f2a677bb`)
 
 - **Merged** at `f2a677bb` on main `3da159b9` after a green hosted run on `gate/merge-32` (run 36349718215, all six jobs), the other developer's review of the rule tables and of the code, and the Radeon VII check: 12 of 12 outputs byte-identical to main on Qwen3-0.6B and Qwen3-8B Q8_0, the 60 kernel ISA files identical, CTest 34 of 34, the Q8_0 MoE fixture within E at a max error of 0.000167, and decode level with main once interleaved (0.993 at 8 rows; the first, planned block ran while a Visual Studio build shared the machine and is kept beside it).

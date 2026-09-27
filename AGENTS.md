@@ -596,21 +596,29 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   The server component runs `tests/server_mix_tool.py` offline, checking shared/fresh lifetimes, cleanup, forwarding, changed replies, reuse and unfinished-work refusals.
 
 - **Long context** (`tools/long_context_check.py`): one 16k-token
-  summarization prompt from `tests/data/wiki.test.raw`, greedy, 512
-  generated tokens by default, sent to `llmx serve` on the device under
-  test twice from fresh servers, which must give the same tokens; then the
-  CPU reads the prompt and those tokens (`llmx logits --last`), and at
-  every generated position the device's token must be the CPU's top choice
-  or within `--margin` (0.5) logits of it. Nothing else here reaches a
+  request, a user message asking for a summary of an extract of
+  `tests/data/wiki.test.raw`, rendered by the model's chat template as
+  `/v1/chat` renders it, greedy, 512 generated tokens by default, sent to
+  `llmx serve` on the device under test twice from fresh servers, which
+  must give the same tokens; then the CPU reads the rendered prompt and
+  those tokens (`llmx logits --chat --last`), and at every generated
+  position the device's token must be the CPU's top choice or within
+  `--margin` (0.5) logits of it. As raw text an instruct model continued
+  the extract and looped, and the check compared near-ties inside the loop.
+  Nothing else here reaches a
   prompt that fills thousands of KV blocks and then decodes from that
   history. A hash across two backends is not the check: their activations
   round differently, and after a long prompt greedy decoding meets
   near-ties where either token is right, so identical text is only
   required of one backend against itself. It needs a real model and is run
   by hand, not by `run_tests.py`.
-  `--cli` sends the prompt through two fresh `llmx generate --file` runs
-  instead, whose `--verbose` output gives the prompt's token count and the
-  generated ids, for a model the server refuses, such as a `qwen35` file.
+  `--cli` sends the message through two fresh `llmx generate --chat --file`
+  runs instead, whose `--verbose` output gives the prompt's token count and
+  the generated ids, for a model the server refuses, such as a `qwen35` file.
+  A position past the margin prints both backends' top candidates there, the
+  device reading the same tokens, so a near-tie is told from a wrong kernel.
+  The device reads them before the baseline does, so its work ends before
+  the baseline's long reading starts.
 - **Decode probe** (`tools/decode_probe.cpp`, target `llmx-decode-probe`, built beside `llmx-split-check`): a reply's decode path on a real model, the prompt read as one prefill and each forced id of a fixture fed as a decode step, as a request alone runs through the server.
   Each step prints its greedy token, the runner-up and the forced id with their logits, and the tool exits 1 where a forced id is not its step's greedy token; after the last forced id it prints the step's five best, ranked by `infer::top_logprobs`, or every id of a smaller vocabulary, and the logits of the fixture's two tokens.
   `tests/data/decode_probe_30b_a3b.json` holds a prompt, the 55 ids Qwen3-30B-A3B Q8_0's greedy replies share on an MI50 in the Q8_0 decode kernel's quarter layout and in its half-block order, and the two tokens where they part, with each order's gap between them (docs/STATUS.md, the half-block order).

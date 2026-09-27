@@ -1,6 +1,12 @@
-"""Long-context end-to-end check: one 16k-token summarization prompt, greedy,
+"""Long-context end-to-end check: one 16k-token summarization request, greedy,
 on the backend under test, checked for repeatability and against a second
 backend's reading of the same tokens.
+
+The request is one user message, an instruction to summarize followed by an
+encyclopedia extract, sent through the model's chat template as the chat
+routes render it, so an instruct model answers it. As raw text the model
+continued the article instead and fell into loops, where the two backends
+compared near-ties that say nothing about either.
 
 This is the case the short gates do not reach. The HF baseline scores windows
 of at most a few hundred tokens and the server component sends short prompts,
@@ -26,17 +32,20 @@ Usage:
   python tools/long_context_check.py --exe build/Release/llmx.exe \\
       --model <model.gguf> --device vulkan:0 [--baseline cpu] [--tokens 16384] [--max-tokens 512] [--cli]
 
-It starts `llmx serve` for each device run on a port the OS chooses, sends the
-prompt to /v1/generate with temperature 0, and reports prompt tokens,
-generated tokens, wall time and the SHA-256 of the generated text; then it
-runs `llmx logits --last` on the baseline over the prompt and the generated
-tokens. It exits non-zero if either part fails.
+It starts `llmx serve` for each device run on a port the OS chooses, sizes
+the message with /v1/tokenize, sends it to /v1/chat with temperature 0, and
+reports prompt tokens, generated tokens, wall time and the SHA-256 of the
+generated text; then `llmx logits --chat --last` reads the rendered prompt
+and the generated tokens on the device, whose rows it prints beside the
+baseline's at a position past the margin, and then on the baseline. The
+device reads first, so its work is done before the baseline's long reading.
+It exits non-zero if either part fails.
 
-With --cli each device run is a fresh `llmx generate --file` at temperature 0
-instead, whose `--verbose` output gives the prompt's token count and the
-generated ids, for a model the server does not take, such as one whose
-layers keep a recurrent state; the prompt is sized with `llmx tokenize`, or
-where a command line cannot hold it (Windows) with one-token `generate` runs.
+With --cli each device run is a fresh `llmx generate --chat --file` at
+temperature 0 instead, whose `--verbose` output gives the prompt's token
+count and the generated ids, for a model the server does not take, such as
+one whose layers keep a recurrent state; the message is sized with one-token
+`generate --chat` runs, since `llmx tokenize` renders no template.
 """
 
 import argparse
@@ -61,19 +70,28 @@ INSTRUCTION = (
 TOP = 20   # candidates the baseline reports per position
 
 
+def messages(text):
+    """The request: `text` as the one user message."""
+    return [{"role": "user", "content": text}]
+
+
+def post(port, route, body):
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{route}", data=json.dumps(body).encode("utf-8"),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+        return json.load(r)
+
+
 def build_prompt(port, want_tokens):
-    """Text whose prompt is as close to `want_tokens` tokens as a few probes
-    get. The count comes from a running server rather than the `tokenize`
-    command, because a prompt this long does not fit a command line: 16k
-    tokens of this corpus is about 68,000 characters against the 32,767 a
-    Windows command line takes. Each probe asks for one token, so it costs one
-    prefill."""
+    """The message whose rendered prompt is as close to `want_tokens` tokens
+    as a few probes get. The count comes from a running server's
+    /v1/tokenize, which renders the messages as /v1/chat does, rather than
+    the `tokenize` command, which renders no template."""
     raw = open(CORPUS, encoding="utf-8").read().lstrip("\n ")
 
     def count(chars):
         text = INSTRUCTION + raw[:chars]
-        got = run_once(port, text, 1)
-        return got.get("prompt_tokens", 0), text
+        return post(port, "/v1/tokenize", {"messages": messages(text)})["count"], text
 
     chars = min(len(raw), want_tokens * 4)
     best = None
@@ -104,25 +122,21 @@ TIMEOUT = None
 
 
 def run_once(port, prompt, max_tokens):
-    body = json.dumps({"prompt": prompt, "max_tokens": max_tokens,
-                       "temperature": 0.0, "seed": 0}).encode("utf-8")
-    req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/generate", data=body,
-                                 headers={"Content-Type": "application/json"})
     start = time.time()
-    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-        out = json.load(r)
+    out = post(port, "/v1/chat", {"messages": messages(prompt), "max_tokens": max_tokens,
+                                  "temperature": 0.0, "seed": 0})
     out["wall_s"] = time.time() - start
     out["sha256"] = hashlib.sha256(out.get("text", "").encode("utf-8")).hexdigest()
     return out
 
 
 def generate_cli(exe, model, device, prompt, max_tokens, extra):
-    """One fresh `llmx generate` of the prompt, greedy, as the server run's reply: its prompt tokens, ids and wall time."""
+    """One fresh `llmx generate --chat` of the message, greedy, as the server run's reply: its prompt tokens, ids and wall time."""
     with tempfile.TemporaryDirectory(prefix="llmx_long_") as d:
         path = os.path.join(d, "prompt.txt")
         with open(path, "w", encoding="utf-8", newline="") as f:
             f.write(prompt)
-        cmd = [exe, "generate", model, "--file", path, "-n", str(max_tokens), "--temp", "0", "--verbose", "--device", device] + extra
+        cmd = [exe, "generate", model, "--file", path, "--chat", "-n", str(max_tokens), "--temp", "0", "--verbose", "--device", device] + extra
         start = time.time()
         out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT)
     if out.returncode != 0:
@@ -141,17 +155,12 @@ def generate_cli(exe, model, device, prompt, max_tokens, extra):
 
 
 def build_prompt_cli(exe, model, device, want_tokens, extra):
-    """The prompt closest to `want_tokens` tokens, as build_prompt finds it, counted by `llmx tokenize`, or where a command line cannot hold the text by one-token generate runs."""
+    """The message closest to `want_tokens` tokens, as build_prompt finds it, counted by one-token `generate --chat` runs, which render the template."""
     raw = open(CORPUS, encoding="utf-8").read().lstrip("\n ")
 
     def count(chars):
         text = INSTRUCTION + raw[:chars]
-        if os.name == "nt":
-            return generate_cli(exe, model, device, text, 1, extra)["prompt_tokens"], text
-        out = subprocess.run([exe, "tokenize", model, text], capture_output=True, text=True, encoding="utf-8", errors="replace")
-        if out.returncode != 0:
-            raise SystemExit("tokenize failed:\n" + out.stderr[-2000:])
-        return len(out.stdout.strip().split(",")), text
+        return generate_cli(exe, model, device, text, 1, extra)["prompt_tokens"], text
 
     chars = min(len(raw), want_tokens * 4)
     best = None
@@ -175,14 +184,14 @@ def report(name, got):
 
 
 def baseline_logits(exe, model, baseline, prompt, reply_ids, extra):
-    """The baseline's top candidates at each position that predicts a generated token: the prompt followed by every generated token but the last."""
+    """The baseline's top candidates at each position that predicts a generated token: the rendered prompt followed by every generated token but the last."""
     with tempfile.TemporaryDirectory(prefix="llmx_long_") as d:
         text_path, ids_path = os.path.join(d, "prompt.txt"), os.path.join(d, "reply.ids")
         with open(text_path, "w", encoding="utf-8", newline="") as f:
             f.write(prompt)
         with open(ids_path, "w", encoding="utf-8") as f:
             f.write(" ".join(str(i) for i in reply_ids[:-1]))
-        cmd = [exe, "logits", model, "--file", text_path, "--then-ids", ids_path,
+        cmd = [exe, "logits", model, "--file", text_path, "--chat", "--then-ids", ids_path,
                "--last", str(len(reply_ids)), "--top", str(TOP), "--device", baseline] + extra
         out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if out.returncode != 0:
@@ -220,7 +229,7 @@ def main():
     extra = ["--threads", str(args.threads)] if args.threads else []
     ctx = args.ctx_size or (args.tokens + args.max_tokens + 512)
 
-    # 1. The device twice, each from a fresh server, or a fresh process with --cli; the first run also sizes the prompt.
+    # 1. The device twice, each from a fresh server, or a fresh process with --cli; the first run also sizes the message.
     runs = []
     prompt = None
     if args.cli:
@@ -243,10 +252,15 @@ def main():
     repeat_ok = runs[0].get("ids") == runs[1].get("ids")
     print(f"\nrepeatability: {'SAME' if repeat_ok else 'DIFFERENT'} tokens on two runs of {args.device}", flush=True)
 
-    # 2. The baseline reads the prompt and the device's tokens.
     reply = runs[0].get("ids", [])
     if not reply:
         raise SystemExit("the device generated nothing")
+    # The device reads its own tokens too, for a position past the margin, where both readings tell a near-tie from a wrong kernel; it does so now, so the device is free while the baseline reads.
+    device_rows = baseline_logits(args.exe, args.model, args.device, prompt, reply,
+                                  ["--threads", str(args.threads)] if args.threads else [])
+    print(f"{args.device} read its own {len(reply)} tokens; the baseline reads them next", flush=True)
+
+    # 2. The baseline reads the prompt and the device's tokens.
     start = time.time()
     rows = baseline_logits(args.exe, args.model, args.baseline, prompt, reply,
                            ["--threads", str(args.threads)] if args.threads else [])
@@ -266,11 +280,7 @@ def main():
     print(f"accuracy: {args.baseline} read {len(reply)} generated tokens in {time.time() - start:.0f} s; "
           f"its top choice {agree}/{len(reply)}, largest gap {worst:.3f} logits at token {worst_at}, "
           f"{len(beyond)} beyond {args.margin}", flush=True)
-    # A position past the margin with both readings of it: the baseline's top candidates and the device's own, from the device reading the same tokens, so a near-tie is told from a wrong kernel.
-    device_rows = None
-    if beyond:
-        device_rows = baseline_logits(args.exe, args.model, args.device, prompt, reply,
-                                      ["--threads", str(args.threads)] if args.threads else [])
+    # A position past the margin with both readings of it: the baseline's top candidates and the device's own.
     for j, gap in beyond[:10]:
         print(f"  token {j}: {gap:.3f} below the baseline's top; the device took {reply[j]}", flush=True)
         for name, found in ((args.baseline, rows), (args.device, device_rows)):

@@ -221,10 +221,11 @@ and implemented HF coverage are recorded in STATUS.
 - Path-controlled perplexity on real text as the lossless gate (see
   `correctness-gate` skill)
 - A long-context check of KV cache and RoPE correctness at depth
-  (`tools/long_context_check.py`): a 16k-token prompt's greedy reply
-  repeats on the same device from two fresh servers, and each generated
-  token is within a margin of the CPU's top choice over the same tokens. A
-  hash across backends is not the gate, since a near-tie can part them.
+  (`tools/long_context_check.py`): the greedy reply to a 16k-token request
+  sent through the chat template repeats on the same device from two fresh
+  servers, and each generated token is within a margin of the CPU's top
+  choice over the same tokens. A hash across backends is not the gate,
+  since a near-tie can part them.
 - Every GPU kernel claim gated by a CPU-vs-GPU A/B on identical inputs; the CPU
   backend is the reference implementation (see #4a)
 - Micro-benchmarks per backend/quant, stored for regression comparison

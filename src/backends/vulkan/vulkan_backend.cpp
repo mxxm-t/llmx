@@ -2283,7 +2283,7 @@ public:
     }
 
 private:
-    static constexpr uint32_t kRing = 4;
+    static constexpr uint32_t kRing = 16;
     uint32_t chunk_ = 0;
     static constexpr size_t kStagingBytes = size_t(64) << 20;
     static constexpr size_t kArenaBytes = size_t(1) << 20;

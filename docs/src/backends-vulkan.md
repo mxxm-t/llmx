@@ -33,8 +33,10 @@ kernel notes and measurements are `docs/VULKAN.md`.
   them.
 - Buffers are `VulkanBuffer`, device-local or host-visible, sized in whole
   32-bit words; every op is
-  recorded into a ring of command buffers and submitted in chunks of 64
-  dispatches, so the device starts a pass while the host records the rest.
+  recorded into a ring of 16 command buffers and submitted in chunks of 64
+  dispatches, so the device starts a pass while the host records the rest,
+  and a host recording several stages ahead onto a busy device waits for a
+  free slot only once 16 submissions are in flight.
   Small per-call inputs go through a host-visible arena per ring slot; a
   scratch outgrown mid-pass retires with the slot rather than being freed
   while recorded commands still name it. Buffer construction cleans up handles

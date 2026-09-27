@@ -110,7 +110,8 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   returns the ticket. `wait(t)` is `vkWaitSemaphores` on that value;
   `sync()` submits any open commands and waits on the latest ticket;
   retirement failure aborts because callers rely on it before freeing storage.
-  Command buffers are a ring; one is reused once its ticket has retired.
+  Command buffers are a ring of 16; one is reused once its ticket has retired.
+  Sixteen, not four, since a server with a pass in flight per stage records a stage onto a device still running the stages before it, and an 8B stage on two or three cards is 3 to 7 submissions plus its handoff's upload: with four a host recording ahead waited in `open` for a slot, and with 16 it does not (`docs/STATUS.md`, layer split phase 3).
   A pass of several hundred dispatches is submitted in chunks of 64 as
   it is recorded, so the device starts on the first chunk while the host
   records the rest; the timeline is ordered, so the last chunk's ticket

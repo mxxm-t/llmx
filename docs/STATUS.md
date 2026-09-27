@@ -4,6 +4,152 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## The half-block order for the MI50's Q8_0 decode (2026-09-27, branch perf/decode-order)
+
+- **Why:** layer split phase 3, step 5 asks the 32-row decode pass to meet the reference's batched step, 57.3 ms on 8B Q8_0, and every form that keeps main's order missed it: main's merged forms take 64.1 to 67.8 ms, and the loader-wave ring of `perf/decode-32-ring` 80.0 and 81.9 (step 5, Left).
+  `research/decode-order-change` (`1379f31`) built the half-block order into the kernel and measured it at 55.2 ms, with the tokens it changes and both orders' HF results; this branch puts it on main's builds (`dbafdec`).
+- **Decided:** the user accepted the order on 2026-09-27, once it was explained that every MI50 decode result changes once, where a greedy choice sits near a tie, that replies stay as correct against HF as before, and that each user's result stays independent of the batch.
+  The trace of the first divergences below qualifies the first point: on the dense 8B every first divergence of the prompt sets is a near tie on the decode path, but on Qwen3-30B-A3B not every one is, since the two orders route tokens to other experts at router near-ties well before the replies part; in 3 of its 18 prompts the order moves the two competing tokens by 1.3 to 2.3 logits.
+  - What makes a one-time change safe to take: each build is held to the HF reference, not to the build before it, so an accepted order change does not move the reference the next change is checked against, and there is no moving-reference drift on the checks the gate covers.
+  - What those checks do not cover stays a risk, numerical and behavioural, bounded only by their scope: six short rankings of 3 to 17 prompt tokens and four NLL cases over one 247-token excerpt, each case scored batched and per token, on Qwen3-0.6B Q8_0 and Qwen3-8B Q8_0 (below); the two prompt sets of 20 x 64 and 8 x 128 greedy tokens on 8B and 30B-A3B Q8_0, which compare the two orders with each other, not with HF; and the column and split checks, which hold a column to itself, not to a reference.
+    No HF reference checks a mixture of experts through this kernel: the `moe` component's tiny HF model is F32, and no reference covers Qwen3-30B-A3B, whose replies the order changes most.
+- **Done:**
+  - `1037cc7`: `backend-vulkan` also holds Q8_0 decode columns on rows 2560 wide to the same column alone.
+  - `8c3a375`: on the MI50 under RADV every Q8_0 decode build takes the half-block order where a row holds an even block count: the 1- to 32-column builds, the grouped build of expert entries and the routed per-entry calls.
+    Lane l covers half l % 2 of blocks l / 2, l / 2 + 32 and on (`HALF`, specialization constant 12; the column groups move to 13), so a lane's 16 bytes of a block meet in one integer sum of four dots and one scaled product.
+    It is bit 2 of the profile's `q8_decode_forms` (`kQ8Half`), which `vec_forms` gives every build of the kernel whatever forms the build asks for, so a column computes the same bits in all of them; the profile's value goes from 7 to 3.
+    The hoisted offsets and quad-shared scale products go with their constants and `kQ8Hoist` and `kQ8Quad`: they took only rows of an even block count, which the order now takes, and no other profile allowed them.
+    Rows of an odd block count, and every device whose profile does not allow the order, keep the quarter layout and its bits; the Radeon VII and the CPU take no part of this kernel.
+    Each build's representation starts with `tree=` and `half=`, and `backend-vulkan --isa` counts the half-block step's products beside the quarter layout's and requires every build to take its one-column build's order.
+    `docs/src/backends-vulkan.md` and `docs/src/backends-device_profile.md` say so.
+  - `2c5eb6c`: `llmx-decode-probe` (`tools/decode_probe.cpp`) reads a fixture's forced reply through the decode path: the prompt as one prefill, then each forced id as a decode step, as a request alone runs through the server; `tests/data/decode_probe_30b_a3b.json` keeps the longest reply the two orders share on 30B-A3B Q8_0 (the trace below) with each order's gap where they part.
+    `logits --then-ids` reads the same ids through the prompt path, so it does not show the decode path's logits, which is how the research branch read its margins.
+  - Registers and waves per SIMD on the MI50: the 16- and 32-column builds 128 and 2 as before; the 8-column and grouped builds 84 and 3 (64 and 4 on main), the 4-column 64 and 4 (48 and 5), the 2-column 36 and 7 (28 and 9), the one-column 28 and 9 (24 and 10).
+- **What it changes**, greedy ids through `llmx serve --device vulkan:0 --ctx-size 8192 --max-seqs 32` on one MI50, the end of text ignored, each request alone, main `dbafdec` against the head, counted by comparing id sequences; positions count a request's generated tokens from 0.
+  Main's ids are byte for byte the research branch's for `7647dee` and the head's for `a9c97ab`, so the counts are that branch's. All 28 requests sent at once gave their ids alone in both arms, on both models.
+
+  | model | prompts | tokens differing | sequences the same | first differing position of each other sequence |
+  |---|---|---:|---:|---|
+  | Qwen3-8B Q8_0 | 20 x 64 | 130 of 1,280 | 14 of 20 | 5, 6, 12, 32, 35, 50 |
+  | Qwen3-8B Q8_0 | 8 x 128 | 539 of 1,024 | 1 of 8 | 12, 16, 17, 24, 38, 75, 113 |
+  | Qwen3-30B-A3B Q8_0 | 20 x 64 | 567 of 1,280 | 5 of 20 | 0, 0, 1, 14, 14, 14, 15, 17, 23, 26, 31, 47, 48, 54, 55 |
+  | Qwen3-30B-A3B Q8_0 | 8 x 128 | 515 of 1,024 | 3 of 8 | 8, 9, 13, 14, 47 |
+
+  - The 20 prompts, p20-01 to p20-20, are the research branch's: "The capital of France is", "Write a short poem about the sea.", "Explain how a transistor works in simple terms.", "def fibonacci(n):", "The three laws of thermodynamics are", "Once upon a time in a small village,", "List five uses of baking soda around the house.", "What is the difference between TCP and UDP?", "Translate to German: The weather is nice today and we are going to the", "The history of the Roman Empire began", "Summarize the plot of Romeo and Juliet in two sentences.", "In machine learning, overfitting means", "Give me a recipe for pancakes.", "The derivative of sin(x) is", "Why is the sky blue?", "SELECT name, age FROM users WHERE", "Describe the water cycle step by step.", "The best way to learn a new programming language is", "Photosynthesis is the process by which" and "Write a haiku about autumn leaves.".
+    The 8, sl8-1 to sl8-8, are `tools/server_load.py`'s; sl8-1 and sl8-3 are p20-01 and p20-04, and their first 64 tokens are those replies.
+  - Once a sequence parts, the rest is another continuation, so most differing tokens come after a first difference.
+- **The first divergences on the decode path** (the review of 2026-09-27 asked for them): each differing request of both prompt sets run again through `llmx-decode-probe` in both arms on one MI50 (rocm-smi GPU[4]), the prompt read as one prefill and the shared ids fed as decode steps, as the server ran them alone; in both arms every shared id was its step's greedy token, so the probe follows the served replies. At the first differing step, each arm's lead of main's token over the head's, in logits, and on 30B-A3B the steps and layers routed to another set of experts, with the first of them and the router's 8th-to-9th score margin there in each arm, read from a research build that dumps the router's choice after each layer (not on the branch).
+  - Qwen3-8B Q8_0, dense, 13 requests (12 prompts): near ties on the decode path. Main's order leads by 0.006 to 0.154 and the half-block order trails by 0.009 to 0.148, so the two orders move the pair by 0.019 to 0.302 (sl8-6, "A recipe for bread needs flour, water,", at step 24).
+  - Qwen3-30B-A3B Q8_0, 20 requests (18 prompts):
+
+    | request | position | tokens (main / head) | main's lead | head's lead | moved by | layer routings that differ | first, and the router's 8th-9th margin (main / head) |
+    |---|---:|---|---:|---:|---:|---|---|
+    | p20-01, sl8-1 | 14 | 9856 / 279 | +0.140 | -0.416 | 0.556 | 78 of 720 | step 1, layer 26, 0.0265 / 0.0014 |
+    | p20-02 | 14 | 5443 / 576 | +0.084 | -0.234 | 0.318 | 65 of 720 | step 0, layer 21, 0.0082 / 0.0112 |
+    | p20-03 | 48 | 2613 / 3015 | +0.422 | -0.033 | 0.455 | 136 of 2352 | step 0, layer 46, 0.0153 / 0.0017 |
+    | p20-04, sl8-3 | 47 | 264 / 279 | +0.069 | -0.042 | 0.112 | 461 of 2304 | step 0, layer 16, 0.0039 / 0.0055 |
+    | p20-05 | 0 | 279 / 264 | +0.198 | -0.021 | 0.219 | 7 of 48 | step 0, layer 13, 0.0109 / 0.0037 |
+    | p20-06 | 23 | 21984 / 23594 | +0.158 | -0.108 | 0.265 | 107 of 1152 | step 0, layer 20, 0.0003 / 0.0090 |
+    | p20-08 | 0 | 7281 / 2585 | +0.085 | -0.004 | 0.090 | 0 of 48 | - |
+    | p20-09 | 1 | 686 / 525 | +0.040 | -0.009 | 0.049 | 12 of 96 | step 0, layer 4, 0.0002 / 0.0007 |
+    | p20-10 | 17 | 2118 / 24526 | +0.310 | -0.080 | 0.390 | 58 of 864 | step 0, layer 27, 0.0037 / 0.0148 |
+    | p20-12 | 54 | 1931 / 279 | +0.061 | -0.107 | 0.167 | 231 of 2640 | step 0, layer 15, 0.0118 / 0.0098 |
+    | p20-14 | 14 | 576 / 4695 | +0.020 | -2.257 | 2.277 | 140 of 720 | step 0, layer 4, 0.0025 / 0.0045 |
+    | p20-17 | 31 | 594 / 525 | +0.016 | -0.110 | 0.126 | 131 of 1536 | step 0, layer 20, 0.0106 / 0.0035 |
+    | p20-18 | 15 | 1205 / 758 | +0.052 | -0.076 | 0.128 | 64 of 768 | step 1, layer 2, 0.0060 / 0.0003 |
+    | p20-19 | 26 | 13666 / 374 | +0.211 | -0.029 | 0.240 | 130 of 1296 | step 0, layer 19, 0.0021 / 0.0024 |
+    | p20-20 | 55 | 32313 / 19602 | +0.870 | -0.801 | 1.672 | 333 of 2688 | step 0, layer 33, 0.0287 / 0.0077 |
+    | sl8-5 | 8 | 572 / 5230 | +0.106 | -0.015 | 0.122 | 30 of 432 | step 0, layer 12, 0.0175 / 0.0019 |
+    | sl8-6 | 9 | 374 / 311 | +1.214 | -0.116 | 1.331 | 82 of 480 | step 0, layer 10, 0.0137 / 0.0018 |
+    | sl8-8 | 13 | 576 / 2379 | +0.066 | -0.003 | 0.069 | 23 of 672 | step 1, layer 25, 0.0314 / 0.0009 |
+
+    A layer routing is one step's choice of 8 experts at one of the 48 layers, for the step's last row; step 0 is the prompt's last row.
+  - **p20-20** ("Write a haiku about autumn leaves.", position 55, 1.48 logits apart on main's prompt path in the research branch's count): not a near tie on the decode path. Each order puts its own token ahead, main's by 0.870 and the half-block order's by 0.801. The two runs part in the experts first: at the prompt's last row layer 33 routes to expert 80 in main's order and 9 in the half-block order, whose router scores lie 0.029 and 0.008 apart, and from there 333 of the 2,688 routings along the shared 55 tokens differ (0 to 17 of 48 layers a step), so the forced token's logit differs between the arms by up to 2.22 (step 19) while every step's greedy choice stays the same. At step 55 layers 43 and 45 route differently (expert 96 against 70, and 92 against 114, which the half-block order's router puts 0.0002 apart). It is the probe's fixture.
+  - **p20-05** ("The three laws of thermodynamics are", position 0): the 7-token prompt lies below the tile threshold, so the Q8_0 decode kernel reads it and the order reaches the first token. 7 of the 48 layers route the last row to other experts, the first at layer 13 (76 against 72, margins 0.011 and 0.004), and the pair moves by 0.219: main leads by 0.198, the half-block order trails by 0.021.
+  - **p20-08** ("What is the difference between TCP and UDP?", position 0): every layer routes as in main's order, and the pair moves by 0.090, main leading by 0.085 and the half-block order trailing by 0.004: a near tie the order alone flips.
+  - The other two large ones, p20-14 (2.277) and sl8-6 (1.331), are the same story as p20-20: the routings differ from the prompt's last row on.
+  So on the dense 8B every first divergence of these sets is a near tie on the decode path, and on the 30B-A3B mixture of experts it is not: a router near-tie that either order may flip changes a token's expert, and the replies part where the two continuations' states have moved apart, which the gate's references do not cover (above).
+- **HF, both orders**, on one MI50 (`--device vulkan:0`), main `dbafdec` (rocm-smi GPU[4]) against the head's code (`8c3a375`, GPU[8]); the observed error, its bound and the headroom left. The batched NLL cells are read by the prompt tiles, which the order does not touch, and are the same in both; the per-token cells go through the decode kernel, as do the rankings whose prompt is shorter than the tile threshold (all six on 0.6B, the first five on 8B).
+  - `tests/baseline.py` (`run_tests.py --only baseline --require-baseline`), Qwen3-0.6B Q8_0, PASS in both orders; the other gate files, which take no Q8_0 decode kernel, read the same in both.
+
+    | NLL cell | bound | main's order | headroom | half-block order | headroom |
+    |---|---:|---:|---:|---:|---:|
+    | whole excerpt, batched | 0.010 | 0.003494 | 0.006506 | 0.003494 | 0.006506 |
+    | whole excerpt, per token | 0.010 | 0.001444 | 0.008556 | 0.004706 | 0.005294 |
+    | c=64 4 chunks, batched | 0.020 | 0.002490 | 0.017510 | 0.002490 | 0.017510 |
+    | c=64 4 chunks, per token | 0.020 | 0.003670 | 0.016330 | 0.001880 | 0.018120 |
+    | c=64 2 chunks, batched | 0.020 | 0.000023 | 0.019977 | 0.000023 | 0.019977 |
+    | c=64 2 chunks, per token | 0.020 | 0.006633 | 0.013367 | 0.003217 | 0.016783 |
+    | c=123 2 chunks, batched | 0.020 | 0.008796 | 0.011204 | 0.008796 | 0.011204 |
+    | c=123 2 chunks, per token | 0.020 | 0.004656 | 0.015344 | 0.000846 | 0.019154 |
+
+    | ranking (prompt tokens) | HF top-1 margin | HF 5th-6th margin | main: top-5 overlap (set), exact order, top-1 margin, top-1 logit error | half-block: the same |
+    |---|---:|---:|---|---|
+    | "The capital of France is" (5) | 3.162 | 0.042 | 5 (4, a forgiven 5th-place swap), no, 3.207, -0.069 | 5 (5), yes, 3.298, -0.014 |
+    | "Machine learning is" (3) | 1.670 | 0.480 | 5 (5), yes, 1.644, -0.070 | 5 (5), yes, 1.659, -0.027 |
+    | "def add(a, b):" (6) | 2.962 | 0.597 | 5 (5), no, 2.900, -0.171 | 5 (5), no, 2.972, -0.163 |
+    | "The three primary colors are red," (7) | 0.891 | 0.203 | 5 (5), yes, 1.054, -0.111 | 5 (5), yes, 1.013, -0.128 |
+    | "In 1969, humans first walked on the" (12) | 0.678 | 0.130 | 5 (5), yes, 0.744, -0.189 | 5 (5), yes, 0.782, -0.038 |
+    | "The capital of France is Paris. The capital of" (17) | 0.930 | 0.101 | 5 (5), yes, 1.016, -0.263 | 5 (5), yes, 1.038, -0.309 |
+
+    The bound is a top-5 overlap of 5 with top-1 equal to HF's in every case; both orders keep top-1 in all six, the thinnest HF top-1 margin being 0.678.
+  - `tests/baseline_8b.py`, Qwen3-8B Q8_0, 41 of 41 checks PASS in both orders: tokenizer 20 of 20, the six rankings top-1 6 of 6 with top-5 overlap 5 of 5, and NLL:
+
+    | NLL cell | bound | main's order | headroom | half-block order | headroom |
+    |---|---:|---:|---:|---:|---:|
+    | ppl-00 (whole excerpt), batched | 0.01 | 0.003464 | 0.006536 | 0.003464 | 0.006536 |
+    | ppl-00, per token | 0.01 | 0.003624 | 0.006376 | 0.004424 | 0.005576 |
+    | ppl-01 (c=64, 4 chunks), batched | 0.02 | 0.000127 | 0.019873 | 0.000127 | 0.019873 |
+    | ppl-01, per token | 0.02 | 0.002183 | 0.017817 | 0.000777 | 0.019223 |
+    | ppl-02 (c=64, 2 chunks), batched | 0.02 | 0.004543 | 0.015457 | 0.004543 | 0.015457 |
+    | ppl-02, per token | 0.02 | 0.000053 | 0.019947 | 0.003273 | 0.016727 |
+    | ppl-03 (c=123, 2 chunks), batched | 0.02 | 0.001675 | 0.018325 | 0.001675 | 0.018325 |
+    | ppl-03, per token | 0.02 | 0.002515 | 0.017485 | 0.000805 | 0.019195 |
+
+    | ranking (prompt tokens) | HF top-1 margin | HF 5th-6th margin | main: top-5 overlap (set), exact order, top-1 margin, top-1 logit error | half-block: the same |
+    |---|---:|---:|---|---|
+    | "The capital of France is" (5) | 1.527 | 0.125 | 5 (5), yes, 1.510, +0.014 | 5 (5), yes, 1.357, +0.001 |
+    | "Machine learning is" (3) | 1.840 | 0.023 | 5 (5), yes, 1.872, +0.067 | 5 (5), yes, 1.858, +0.013 |
+    | "def add(a, b):" (6) | 4.179 | 0.318 | 5 (5), yes, 4.078, -0.056 | 5 (5), yes, 4.135, +0.029 |
+    | "The three primary colors are red," (7) | 0.776 | 0.271 | 5 (5), yes, 0.769, -0.007 | 5 (5), yes, 0.653, +0.023 |
+    | "In 1969, humans first walked on the" (12) | 0.521 | 1.395 | 5 (5), yes, 0.552, +0.015 | 5 (5), yes, 0.520, +0.054 |
+    | "The capital of France is Paris. The capital of" (17, the tile) | 0.075 | 0.409 | 5 (5), yes, 0.029, +0.296 | 5 (5), yes, 0.029, +0.296 |
+
+  - The last 8B ranking holds its top-1 by 0.029 logits in both orders against HF's 0.075; it is read by the tile, which neither order touches, and is the gate's thinnest case.
+  - Neither order is closer to HF: over the per-token NLL cells the 0.6B's deltas sum to 0.0164 in main's order and 0.0106 in the half-block order, the 8B's to 0.0084 and 0.0093.
+- **Gates** (device tier, at the head's code `8c3a375`; `2c5eb6c` adds the probe and its fixture and the commit after it the docs; main `dbafdec`; each arm built from a tree of its own at its commit, identified as `0.1.0+unknown`, llmx sha256 main `a356295c`, head `674c1a3f`):
+  - MI50 (Linux, RADV; rocm-smi GPU[8] with `/dev/kfd` unless named; one-minute load average 3 to 45 from other work, recorded with each run):
+    - Builds with and without Vulkan, 0 warnings each, at `8c3a375` and at `2c5eb6c`.
+    - CTest 31 of 31 on the Vulkan build, `backend-vulkan` on the card, and 28 of 28 on the build without Vulkan.
+    - `backend-vulkan --isa`: 122,456 decode columns equal to the same columns alone, every width from 1 to 64 plain, the residual add and the grouped projections at 16 widths and routed calls of 1 to 32 tokens, the Q8_0 rows 4096, 2560, 1280 and 224 wide among them; 3 row kernel builds hold their one-column build's counts, 9 those and whole columns, 6 Q8_0 decode builds the counts their shape and forms give, 0 their kinds only, and 5 grouped builds their wide build's.
+    - The decode-columns tool of `research/decode-32-screening` (`tools/decode_columns_check.cpp`, built beside each arm, not on the branch), on layers 0, 18 and 35 of the 8B Q8_0 file and its head at 1 to 64 columns, plain, grouped and added, GPU[4]: 0 of 16,640 columns differ from the one-column build per layer in both arms, and 0 group and add mismatches. The head gives hashes `84cc3da6`, `334b3b5e` and `cca9b836`, the research branch's for `a9c97ab`, and main `fa36dc4e`, `0a07589d` and `5d9bd849`, that branch's for main's order.
+    - The suite's perf, moe, split, baseline and f32 components pass (`--device vulkan:0 --no-perf-floor --require-tools --require-baseline`), and at the final head its dead-code and docs components pass and `tests/dead_code.py --linked` finds the 21 listed findings.
+    - HF on the card, both orders (above).
+    - `tools/server_mix_check.py` on 8B Q8_0: 16 requests alone, together 0 of 16 differ, skewed 0 of 12 differ with 4 clients leaving early, and 4 requests through the CLI the same.
+    - `llmx-split-check` on a 747-token text, 16 greedy steps, 64-token chunks: bit-identical to one card on two MI50s (GPU[4] and GPU[7]) and on three (GPU[8], GPU[4] and GPU[7]), for Qwen3-0.6B Q8_0 with f16 and f32 caches, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M with f16 caches: the prompt path, the decode steps, the replay by class and the mixed passes, 0 logits rows differing in all eight runs.
+  - Radeon VII (Windows, `vulkan:0`, AMD proprietary driver, after a quiet wait: no other llmx, compiler, linker or CTest process for three checks at a CPU load under 20 percent):
+    - Fresh Visual Studio builds of main and the head's code, no errors and the same 64 warning lines, file and line, in each: 41 MSB8029 for building under the temporary directory, 15 C4244 in the MSVC library from `q8-dots`, 4 C4996 for `getenv` in `hub-transport` and the 4 shadowed names in `backend-vulkan`. At `2c5eb6c` the new `llmx-decode-probe` project adds one MSB8029 line and no compiler warning.
+    - `backend-vulkan --isa`: 122,456 decode columns equal to the same columns alone (118,832 on main, without the 2560-wide rows), 10 builds hold their one-column build's counts and 6 grouped builds their wide build's, and the card's 60 kernel representations are byte for byte main's: its profile takes no Q8_0 decode kernel, so the order does not reach it.
+    - Byte identity with main, 12 of 12: `generate` greedy (64 tokens, and 160 with the end of text ignored) and seeded (96 at temperature 0.8), `logits` of a 1,500-byte excerpt, of a 7-token prompt and at the excerpt's last 4 positions, on Qwen3-0.6B Q8_0 and Qwen3-8B Q8_0.
+- **Timing**, `llmx bench --model Qwen3-8B-Q8_0 --device vulkan:0 --p 128 --n 128 --r 3 --seqs N` on one MI50 (rocm-smi GPU[8]), clocks held high, per rows the arms in order and then reversed, two rounds, so each cell is 4 runs of 3 repeats; ms a pass, mean and range. The reference's batched step (mx-llama.cpp's image, `llama-batched-bench -ngl 99 -fa 1 -lm dio -c 41984 -b 2048 -ub 512 -npp 128,512 -ntg 128 -npl 1,8,16,32,64`, its 128-token prompts' generation time over 128 steps) ran on the same card before and after the arms.
+
+  | rows | main `dbafdec` (`a356295c`) | head `8c3a375` (`674c1a3f`) | head vs main | reference before / after | one-minute load |
+  |---:|---|---|---:|---:|---:|
+  | 1 | 14.51 (14.35-14.66) | 13.49 (13.21-13.85) | 1.08x | 16.0 / 14.1 | 12.9 to 19.3 |
+  | 8 | 23.23 (23.06-23.45) | 19.42 (19.31-19.48) | 1.20x | 28.0 / 27.8 | 13.2 to 17.8 |
+  | 16 | 36.36 (35.89-36.83) | 31.39 (31.01-31.80) | 1.16x | 53.5 / 51.8 | 8.4 to 17.4 |
+  | 32 | 67.53 (66.99-68.46) | 57.23 (56.70-57.74) | 1.18x | 57.8 / 56.4 | 6.4 to 15.1 |
+  | 64 | 135.77 (133.78-137.02) | 115.56 (115.42-115.72) | 1.17x | 93.7 / 85.9 | 3.3 to 12.5 |
+
+  - At 32 rows the order takes 57.2 ms, between the reference's two runs of this session (57.8 and 56.4) and at step 0's 57.3; main reads 67.5 here, as at the rebased head's gate (67.8), where the research branch's session read main's order at 63.9 and the order at 55.2, the same 1.16 to 1.18 times.
+  - From 8 to 64 rows the order takes 1.16 to 1.20 times less than main, and 1.08 at one row; at 1 to 16 rows it is under the reference, and at 64 rows 115.6 ms stays 22 to 30 ms above it.
+- **Not merged** here: `gate/merge-25` carries the branch for the hosted run.
+- **Left:**
+  - 64 rows: the order takes 115.6 ms a pass against the reference's 85.9 to 93.7 in the same session; the 32-row pass is level with the reference, the 64-row one is not.
+  - The quarter layout keeps rows of an odd block count on the MI50 and every other integer-dot device; hoisted offsets or quad-shared products for it would come back from `3a203c9` if such a device or shape needed them.
+- **Gotchas:**
+  - A first divergence read through the prompt path (`logits --then-ids`) is not what the decode path gave: on 30B-A3B the research branch read p20-20 as 1.48 apart there, where the two decode paths each lead by about 0.8. Read a decode path with `llmx-decode-probe`.
+  - On a mixture of experts a summation-order change reaches the router, and a flipped expert at a near-tie moves the state by far more than the order's own rounding; on the 20 x 64 set the MoE's replies parted sooner and more often than the dense model's (5 of 20 unchanged against 14, 567 differing tokens against 130).
 ## Host pages refuse a size they cannot round to whole pages (2026-09-27, branch fix/host-pages-round, merged at `464ed604`)
 
 - **Merged** at `464ed604` on main `ede8fd7f` after a green hosted run on `gate/merge-37` (run 36346736543, all six jobs) and the other developer's review, which found nothing.
@@ -1951,7 +2097,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
          - Every arm passes `backend-vulkan` with `--isa` on the MI50: 60,824 decode columns equal to the same columns alone, and every row kernel build holds its one-column build's multiply and add kinds (a multiply, an unfused multiply-add, adds; no fused operation in any build). The builds with the transposed reduction and the quad-shared products are held to the kinds alone, since their counts per row and column follow the new forms; the plain builds still hold the counts.
          - Registers and waves per SIMD on the MI50: the 16-column and every 32-column build 128 and 2, the 8-column build 64 and 4, the 4-column 48 and 5, the 2-column 28 and 9, the one-column 24 and 10, in every arm.
          - At 32 rows the head arm `7647dee` decodes 499 tok/s where `98ae849` decodes 381, 1.31 times, and `bench --profile` puts 84 percent of its device time in the Q8_0 decode kernel and 11 percent in attention. It misses the reference's 57.3 by 6.8 ms and 64 rows by 29 to 43 ms. A 32-column chunk takes the one dispatch at 24 rows too, 56.5 where the arm without it takes 56.8; the plain halves lost there (71.1 against 66.9), since 24 columns then run a 16-column half at 8.
-       - The order change, measured and not merging: every build takes half a block a lane, lane l covering half l % 2 of blocks l / 2, l / 2 + 32 and on, so a lane's 16 bytes meet in one integer sum and one scaled product, 14 instructions for 32 products where the quarter layout takes 17 with the quad-shared products; the reduction is the transposed one, and the 32-row pass takes the halves on adjacent workgroups. It runs from `research/decode-32-screening` at `69f3d98`, its builds picked by `LLMX_D32_BUILDS`; a whole block a lane (11 instructions for 32 products) screened no faster at 32 columns. Every column equals the one-column build of the same order (16,640 columns, hash `84cc3da6`, against `fa36dc4e` for main's order). Bench as above, 16, 32 and 64 rows against `98ae849` and the head arm: 30.0 ms a pass at 16 rows (29.8-30.1), 54.6 at 32 (54.2-55.7) and 109.9 at 64 (109.7-110.5), against `98ae849`'s 42.4, 83.5 and 168.4 and the head arm's 34.8, 63.7 and 128.3 in the same runs (one-minute load average 6 to 31): under the reference's 57.3 at 32 rows, above its 85.2 to 99.2 at 64. Greedy generation of 64 tokens with the end of text ignored on 20 prompts, one sequence (the one-column build), the prototype's tokens against `98ae849`'s: 14 of the 20 sequences are the same 64 tokens, and 6 part at tokens 5, 6, 12, 32, 35 and 50 where a near tie flips ("BCE when" against "BCE, when"), so 130 of the 1,280 tokens differ, most of them after a sequence has parted (tokens counted by re-tokenizing each output). The user kept every column's bits on 2026-09-27, so the order change is not taken.
+       - The order change, measured and not merging: every build takes half a block a lane, lane l covering half l % 2 of blocks l / 2, l / 2 + 32 and on, so a lane's 16 bytes meet in one integer sum and one scaled product, 14 instructions for 32 products where the quarter layout takes 17 with the quad-shared products; the reduction is the transposed one, and the 32-row pass takes the halves on adjacent workgroups. It runs from `research/decode-32-screening` at `69f3d98`, its builds picked by `LLMX_D32_BUILDS`; a whole block a lane (11 instructions for 32 products) screened no faster at 32 columns. Every column equals the one-column build of the same order (16,640 columns, hash `84cc3da6`, against `fa36dc4e` for main's order). Bench as above, 16, 32 and 64 rows against `98ae849` and the head arm: 30.0 ms a pass at 16 rows (29.8-30.1), 54.6 at 32 (54.2-55.7) and 109.9 at 64 (109.7-110.5), against `98ae849`'s 42.4, 83.5 and 168.4 and the head arm's 34.8, 63.7 and 128.3 in the same runs (one-minute load average 6 to 31): under the reference's 57.3 at 32 rows, above its 85.2 to 99.2 at 64. Greedy generation of 64 tokens with the end of text ignored on 20 prompts, one sequence (the one-column build), the prototype's tokens against `98ae849`'s: 14 of the 20 sequences are the same 64 tokens, and 6 part at tokens 5, 6, 12, 32, 35 and 50 where a near tie flips ("BCE when" against "BCE, when"), so 130 of the 1,280 tokens differ, most of them after a sequence has parted (tokens counted by re-tokenizing each output). The user kept every column's bits on 2026-09-27, so the order change is not taken; later that day the user took it after all (The half-block order, at the top of this file).
      - **The forms folded in** (2026-09-27): the user decided that day to keep every column's bits, to fold the forms of `perf/decode-32` that keep them into this branch, and to hold this branch for merge until 32 rows meets the reference's 57.3 ms. `perf/decode-32`'s arm commits, which switched `q8_decode_cols` between 16 and 32, go in as three commits on `50d6d85`: `47c4f8c` (the backend's report of its decode builds and the test's counts from it), `438f9f6` (the forms on the builds of 2 to 16 columns) and `106fb04` (the 32-column build).
        - Folded: the transposed reduction, hoisted offsets and quad-shared scale products behind the profile's `q8_decode_forms` (the MI50 under RADV only), and the 32-column build as two 16-column halves on adjacent workgroups. The halves on adjacent subgroups of one workgroup (`ec57a55`) lost to them and are not folded, so their specialization constant is not either.
        - Specialization constants: the steps stay 10, where this branch had moved them; the forms take 11 to 13 and the column groups 14, where `perf/decode-32` had the steps at 11 and its new constants at 12 to 16.
@@ -2026,8 +2172,8 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
            Level, as expected: the card runs the same kernels as main, and the x8 decode's 0.5 percent is inside both arms' ranges (122.2 against 122.8 ms a pass).
      - **Left:**
-       - 32 rows, open as follow-up work since the user lifted the hold: the fold's timing took 65.5 ms a pass against the reference's 57.3, and the gate at the rebased head 67.8. The user decided on 2026-09-27 to keep every column's bits. What is left is weight streaming the waves do not hide (32-row forms, above); a loader-wave ring, where loader waves fill a shared-memory ring of weights several steps ahead while compute waves read only shared memory and their activations, was prototyped on `perf/decode-32-ring` and missed: 80.0 ms a pass with a barrier per step and 81.9 with flags in shared memory, both keeping the bits, against 63.9 for the folded forms in the same session. The half-block order on `research/decode-order-change` takes 55.2 ms at 32 rows and passes HF as main's order does, but changes every MI50 decode result once at near ties, so it waits for the user's decision and is not merged.
-       - 64 rows: 131.9 ms a pass with the forms in the fold's timing, 136.5 at the rebased head, against the reference's 85.2 to 99.2.
+       - 32 rows, open as follow-up work since the user lifted the hold: the fold's timing took 65.5 ms a pass against the reference's 57.3, and the gate at the rebased head 67.8. The user decided on 2026-09-27 to keep every column's bits. What is left is weight streaming the waves do not hide (32-row forms, above); a loader-wave ring, where loader waves fill a shared-memory ring of weights several steps ahead while compute waves read only shared memory and their activations, was prototyped on `perf/decode-32-ring` and missed: 80.0 ms a pass with a barrier per step and 81.9 with flags in shared memory, both keeping the bits, against 63.9 for the folded forms in the same session. The user took the half-block order on 2026-09-27 (branch `perf/decode-order`, The half-block order at the top of this file): 57.2 ms at 32 rows against the reference's 56.4 to 57.8 in the same session, where main took 67.5.
+       - 64 rows: 131.9 ms a pass with the forms in the fold's timing, 136.5 at the rebased head, against the reference's 85.2 to 99.2; 115.6 with the half-block order against the reference's 85.9 to 93.7 in that order's session.
        - Targets' "+ wider build" column carries the 16-column builds' pass costs; the fold's (above) replace them when the table is recomputed.
        - K-quants: several rows per lane, each lane taking R rows at the same place in its cluster so one activation load feeds 2R rows, with the same blocks, order and reduction for each row; prototyped and timed first.
        - **Merged** at `1a05591` on main `4ad199a` after a green hosted run on `gate/merge-24`. Before the merge, at the rebased head against main `4ad199a` on the Linux machine's MI50s: `tools/server_mix_check.py` on Qwen3-8B Q8_0 on one MI50 each, every request its own alone (16 together, 12 skewed with 4 clients leaving early) and the ids of both phases the same as main's; `llmx-split-check` bit-identical on two and on three MI50s for 0.6B Q8_0 with f16 and f32 caches, 8B Q8_0 and 30B-A3B Q4_K_M with f16.

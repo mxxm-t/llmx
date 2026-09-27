@@ -633,7 +633,7 @@ curl -d '{"text":"The capital of France is"}' http://127.0.0.1:8080/v1/tokenize
 ## Serving load (`tools/server_load.py`)
 
 A running server under load, measured the way serving runtimes are compared: `python tools/server_load.py --url http://127.0.0.1:8080 [flags]`, standard library only.
-Every request streams a greedy reply, so the arrival of each token is timed and the work of a request is fixed.
+Every request streams a greedy reply, or with `--sampled` one drawn at llmx's defaults, so the arrival of each token is timed and the work of a request is fixed.
 
 | Flag | Meaning | Default |
 |---|---|---|
@@ -649,6 +649,7 @@ Every request streams a greedy reply, so the arrival of each token is timed and 
 | `--input-len N` | every request its own prompt of N tokens | the eight short fixed prompts |
 | `--input-len-range LO:HI` | prompt lengths uniform from LO to HI | |
 | `--seed S` | seeds the prompt lengths, the prompts and the arrivals | 0 |
+| `--sampled` | every request drawn at temperature 0.8, top-k 40 and top-p 0.95, llmx's defaults, with seeds 1 up to the level's request count, sent explicitly on every API, and on `--api completion` the reference server's other samplers sent switched off | greedy |
 | `--warmup N` | requests before any level, at the longest prompt and the full reply | 1 |
 | `--timeout S` | seconds a timed request may go with nothing arriving before it fails, the limit the tool always put on every read | 600 |
 | `--total-timeout S` | seconds a timed request may take in all before it fails | 21600 |

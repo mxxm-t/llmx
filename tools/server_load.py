@@ -1,7 +1,7 @@
 """A server under load: the latency and throughput figures a serving runtime is judged by.
 
 Standard library only.
-Every request streams its reply, so the arrival of every token is timed, and samples greedily, so the work of a request is fixed.
+Every request streams its reply, so the arrival of every token is timed, and samples greedily, or with --sampled at llmx's defaults, so the work of a request is fixed.
 
 Load:
 
@@ -24,6 +24,8 @@ A prompt's length counts every token the server reads for it, a start token it a
 Where the server has a tokenize route (POST /tokenize, or POST /v1/tokenize as llmx serve has), each prompt is counted there and a word added or dropped until the count is exact.
 Otherwise two requests for one token, on the word list once and twice, show whether every word is one token and what a prompt costs beyond its words; when every word is one token, a prompt of k words has a known length.
 Where a reply reports its prompt tokens, the achieved lengths are checked against the target and the mismatches reported.
+
+--sampled draws every request at temperature 0.8, top-k 40 and top-p 0.95, llmx's defaults, with seeds 1 to the level's request count, sent explicitly on every API; on the reference server's route every other sampler it has is sent switched off (min_p 0, typical_p 1, repeat_penalty 1, no presence or frequency penalty, dry, xtc, top_n_sigma or mirostat).
 
 --output-len sends the cap with ignore_eos set on every route: max_tokens on llmx's /v1/generate and on the OpenAI route, n_predict on the reference server's /completion.
 llmx's routes honour ignore_eos; a server that does not can still end a reply at its end of text, which the short count shows.
@@ -99,6 +101,10 @@ WORDS = (
     "every never while through").split()
 
 DEFAULT_LEVELS = [1, 2, 4, 8, 16, 32, 64]
+# --sampled: llmx's sampling defaults, which every API is sent, and the reference server's other samplers switched off.
+SAMPLED = {"temperature": 0.8, "top_k": 40, "top_p": 0.95}
+SAMPLERS_OFF = {"min_p": 0.0, "typical_p": 1.0, "repeat_penalty": 1.0, "presence_penalty": 0.0, "frequency_penalty": 0.0,
+                "dry_multiplier": 0.0, "xtc_probability": 0.0, "top_n_sigma": -1.0, "mirostat": 0}
 
 # An open level starts this long after its request threads are released, so their wake-up is over before the first send.
 LEAD = 0.05
@@ -151,8 +157,8 @@ class Api:
         self.name = name
         self.model = model
 
-    def request(self, prompt, tokens, force, stream=True):
-        """The route and body of a greedy request for `tokens` tokens; `force` asks the server to ignore the end of text."""
+    def request(self, prompt, tokens, force, stream=True, seed=None):
+        """The route and body of a request for `tokens` tokens, greedy or with a `seed` drawn at SAMPLED; `force` asks the server to ignore the end of text."""
         if self.name == "llmx":
             path, body = "/v1/generate", {"prompt": prompt, "max_tokens": tokens, "temperature": 0}
         elif self.name == "openai":
@@ -163,6 +169,10 @@ class Api:
                 body["stream_options"] = {"include_usage": True}
         else:
             path, body = "/completion", {"prompt": prompt, "n_predict": tokens, "temperature": 0, "cache_prompt": False}
+        if seed is not None:
+            body.update(SAMPLED, seed=seed)
+            if self.name == "completion":
+                body.update(SAMPLERS_OFF)
         if stream:
             body["stream"] = True
         if force:
@@ -312,7 +322,7 @@ def send(target, api, spec, index, limits, t0):
     `limits` is (idle, total): the seconds the request may wait with nothing arriving, and the seconds it may take in all."""
     idle, total = limits
     rec = new_record(index, spec)
-    path, body = api.request(spec["prompt"], spec["tokens"], spec["force"])
+    path, body = api.request(spec["prompt"], spec["tokens"], spec["force"], seed=spec["seed"])
     data = json.dumps(body).encode("utf-8")
     arrivals = []
     conn = target.connection(min(idle, total))
@@ -449,6 +459,7 @@ class Workload:
         self.seed = args.seed
         self.tokens = args.output_len if args.output_len is not None else args.tokens
         self.force = args.output_len is not None
+        self.sampled = args.sampled
         self.range = None
         if args.input_len is not None:
             self.range = (args.input_len, args.input_len)
@@ -471,7 +482,7 @@ class Workload:
             rng = random.Random("%d/words/%s" % (self.seed, key))
             prompts = [self.lengths.make(rng, t) + (t,) for t in targets]
         return [{"prompt": prompt, "input_target": target, "input_counted": counted, "tokens": self.tokens,
-                 "force": self.force} for prompt, counted, target in prompts]
+                 "force": self.force, "seed": i + 1 if self.sampled else None} for i, (prompt, counted, target) in enumerate(prompts)]
 
     def describe(self):
         if self.range is None:
@@ -482,7 +493,8 @@ class Workload:
             prompts = "prompts of %d to %d tokens, uniform" % self.range
         replies = ("%d tokens a reply, end of text ignored" % self.tokens if self.force else
                    "up to %d tokens a reply, ending at the end of text" % self.tokens)
-        return "%s; %s; seed %d" % (prompts, replies, self.seed)
+        drawn = "drawn at temperature 0.8, top-k 40 and top-p 0.95" if self.sampled else "greedy"
+        return "%s; %s; %s; seed %d" % (prompts, replies, drawn, self.seed)
 
 
 def health(target):
@@ -726,6 +738,8 @@ def parse(argv):
     p.add_argument("--input-len-range", type=length_range, default=None, metavar="LO:HI",
                    help="prompt tokens uniform from LO to HI")
     p.add_argument("--seed", type=int, default=0, help="seeds the prompt lengths, the prompts and the arrivals (default 0)")
+    p.add_argument("--sampled", action="store_true",
+                   help="every request drawn at temperature 0.8, top-k 40 and top-p 0.95 with a seed of its own, in place of greedy")
     p.add_argument("--rounds", type=positive, default=2,
                    help="repeats of each closed-loop level; the table shows the round with the most output tok/s among "
                         "those in which no request failed (default 2)")
@@ -866,7 +880,7 @@ class FakeServer:
     """A server for --self-test that speaks the three APIs, counts a prompt's tokens as its words, and sends each streamed token at a known time after the request arrives: the first after `ttft` seconds and one every `itl` after it.
     With `tokenize` one of TOKENIZE_PATHS it has a tokenize route there, reading the field that path's servers read.
     Streamed requests take their behaviour from `plan` in arrival order: ok, 503, cut (the connection drops after two tokens), short (half the tokens, then the end of text) or stall (silence after the first token until the server closes).
-    Every streamed reply reports 4 reused prompt tokens, which /v1/health counts, and `ignore_eos` keeps the field of that name each streamed request sent, None for none, in arrival order."""
+    Every streamed reply reports 4 reused prompt tokens, which /v1/health counts, and `ignore_eos` keeps the field of that name each streamed request sent, None for none, in arrival order, as `sampling` keeps its sampling fields."""
 
     REUSED = 4
 
@@ -880,6 +894,7 @@ class FakeServer:
         self.hits = 0
         self.reused = 0
         self.ignore_eos = []
+        self.sampling = []
 
         class Handler(http.server.BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"
@@ -931,6 +946,7 @@ class FakeServer:
                 with fake.lock:
                     behaviour = fake.plan.pop(0) if fake.plan else "ok"
                     fake.ignore_eos.append(body.get("ignore_eos"))
+                    fake.sampling.append({k: body.get(k) for k in ("temperature", "top_k", "top_p", "seed", "min_p")})
                 if behaviour == "503":
                     return self.reply(503, {"error": "queue full"})
                 with fake.lock:
@@ -1138,7 +1154,7 @@ def exact_checks(check):
     check("poisson", arrivals(2.0, 4, 7) == want[:4])
 
     # Prompt lengths come from the seed alone: every round and level, and a server whose prompts cost a start token more, get the same lengths, from different words.
-    args = argparse.Namespace(seed=0, output_len=8, tokens=64, input_len=None, input_len_range=(64, 1024))
+    args = argparse.Namespace(seed=0, output_len=8, tokens=64, input_len=None, input_len_range=(64, 1024), sampled=False)
     w0, w1 = Workload(args, Lengths("two probe requests", 0, 1.0, True)), Workload(args, Lengths("two probe requests", 1, 1.0, True))
     r0, r1, r2 = w0.specs("closed/8/0", 8), w0.specs("closed/8/1", 8), w1.specs("closed/8/0", 8)
     targets = [sp["input_target"] for sp in r0]
@@ -1174,7 +1190,7 @@ def fake_checks(name, check):
         lengths = Lengths.calibrate(target, api, 10)
         check(name + " lengths", lengths.uniform and lengths.base == 0 and
               lengths.source == ("tokenize route" if route else "two probe requests"), lengths.json())
-        args = argparse.Namespace(seed=3, output_len=n, tokens=64, input_len=12, input_len_range=None)
+        args = argparse.Namespace(seed=3, output_len=n, tokens=64, input_len=12, input_len_range=None, sampled=False)
         work = Workload(args, lengths)
         specs = work.specs("closed/2/0", 4)
         check(name + " prompts", all(len(sp["prompt"].split()) == 12 and sp["input_counted"] == 12 for sp in specs) and
@@ -1198,9 +1214,17 @@ def fake_checks(name, check):
         # --output-len fixes the lengths by asking every request to ignore the end of text, and a --tokens request asks nothing.
         # The --tokens request comes from a workload built without --output-len, so the check covers the flag's reading as well as the request.
         check(label + " ignore_eos", fake.ignore_eos == [True] * 4, fake.ignore_eos)
-        capped = Workload(argparse.Namespace(seed=3, output_len=None, tokens=n, input_len=12, input_len_range=None), lengths)
+        capped = Workload(argparse.Namespace(seed=3, output_len=None, tokens=n, input_len=12, input_len_range=None, sampled=False), lengths)
         send(target, api, capped.specs("closed/2/0", 1)[0], 0, (10, 30), time.perf_counter())
         check(name + " --tokens ignore_eos", fake.ignore_eos[4:] == [None], fake.ignore_eos)
+        # A greedy request asks for temperature 0 and no seed; --sampled sends llmx's defaults and seeds 1 up, and min_p 0 on the reference's route.
+        greedy = {"temperature": 0, "top_k": None, "top_p": None, "seed": None, "min_p": None}
+        check(name + " greedy", fake.sampling == [greedy] * 5, fake.sampling)
+        drawn = Workload(argparse.Namespace(seed=3, output_len=n, tokens=64, input_len=12, input_len_range=None, sampled=True), lengths)
+        for i, spec in enumerate(drawn.specs("closed/2/0", 2)):
+            send(target, api, spec, i, (10, 30), time.perf_counter())
+        want = [dict(SAMPLED, seed=i + 1, min_p=0.0 if name == "completion" else None) for i in range(2)]
+        check(name + " --sampled", fake.sampling[5:] == want, fake.sampling[5:])
 
         offsets = arrivals(40.0, 5, 3)
         records, wall = open_level(target, api, work.specs("open/40.0", 5), offsets, (10, 30))
@@ -1275,7 +1299,7 @@ def self_test():
     for line in failed:
         print("  self-test: " + line)
     print("server_load self-test: streams and figures on made-up times; closed and open loads on llmx, openai and "
-          "completion against a server with known token times; prompts counted through /tokenize and /v1/tokenize; failures by reason, timeouts, a short reply and the "
+          "completion against a server with known token times; prompts counted through /tokenize and /v1/tokenize; failures by reason, timeouts, a short reply, the sampling fields and the "
           "exit status  [%s]" % ("ok" if not failed else "FAILED"))
     return not failed
 

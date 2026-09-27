@@ -1,6 +1,6 @@
 #version 450
 // One workgroup per (row, head): dst = x * rsqrt(mean(x^2) + eps) * w * silu(z) over the head's dim values, silu(z) = z / (1 + exp(-z)), w shared by every head.
-// The sum of squares is a tree through shared memory in a fixed order, so a head computes the same in every build and beside any other rows.
+// The sum of squares is a lane's fused multiply-adds, then a tree through shared memory in a fixed order, so a head computes the same in every build and beside any other rows.
 // With `quant` 1, dim is a multiple of 32 and the output's 16-bit twin is written beside it (xquant.glsl); with `quant` 2 the integer-dot tile reads the rows next, and a lane writes four values of the twin at a time.
 // dst may be x: every value is read for the sum before the barrier, and after it each lane reads and writes only its own values.
 #extension GL_KHR_shader_subgroup_basic : require
@@ -21,8 +21,8 @@ float gated(uint o, uint i, float r) {
 void main() {
     uint lid = gl_LocalInvocationID.x;
     uint o = gl_WorkGroupID.x * p.dim;
-    float s = 0.0;
-    for (uint i = lid; i < p.dim; i += 256u) { float v = x[o + i]; s += v * v; }
+    precise float s = 0.0;
+    for (uint i = lid; i < p.dim; i += 256u) { float v = x[o + i]; s = fma(v, v, s); }
     red[lid] = s;
     barrier();
     for (uint k = 128u; k > 0u; k >>= 1u) {

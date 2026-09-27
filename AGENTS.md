@@ -324,6 +324,8 @@ A paused load, two uncapped requests, one sampled, beside capped ones with promp
 A steady load that never pauses has each run's passes recorded as they retire (`Scheduler::on_retire`) and replayed in their order through `Model::forward` on a fresh model of the same placement, every logits row bit for bit; asked without log-probabilities, so its rows are drawn in place from the passes' logits, it gives every id it gives alone, and no values.
 Through a CPU backend that runs a hook as the model submits its work: a request cancelled at the last stage's twelfth or thirteenth submission ends cancelled with a prefix of its ids alone while the three others run whole; the last stage's twentieth submission throwing ends its pass's requests with the error, a prefix of their replies alone, and the others run whole, some always surviving once the passes fill the stages; and a stop at the first stage's twelfth submission ends every request cancelled with nothing reserved or in flight; after each a prompt as long as the pool runs, so every block came back.
 
+`sampling-pool` runs the scheduler's sampling threads (`server/sampling_pool.hpp`) with no thread and with one, three and four: every index of a job once, for jobs of 0, 1, 2, 5, 64 and 1000 indices and 2000 jobs back to back of 1 to 17, a single index on the calling thread, every thread and the calling one taking an index at once, each on a thread of its own, and calls that throw rethrown by `run` only once every call has returned, after which the next job runs whole.
+
 `backend-errors` injects task and startup-allocation failures, checks completion
 before error propagation, and exercises pool reuse and thread reconfiguration.
 It also checks valid empty CPU transfers, rejected offsets/null sources,

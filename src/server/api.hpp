@@ -602,9 +602,10 @@ inline void require_servable(const infer::Model& model) {
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format,
                   const Config& cfg, http::Listener& listener) {
     Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing);
-    const size_t passes = sched.stats().passes;
-    std::fprintf(stderr, "server: up to %zu pass%s in flight over %zu stage%s\n", passes, passes == 1 ? "" : "es", model.stage_count(),
-                 model.stage_count() == 1 ? "" : "s");
+    const Scheduler::Stats started = sched.stats();
+    std::fprintf(stderr, "server: up to %zu pass%s in flight over %zu stage%s, %zu sampling thread%s beside the scheduler's\n", started.passes,
+                 started.passes == 1 ? "" : "es", model.stage_count(), model.stage_count() == 1 ? "" : "s", started.samplers,
+                 started.samplers == 1 ? "" : "s");
     Api api(model, tok, format, sched, cfg);
     std::thread runner([&] { sched.run(); });
     std::atomic<int> open{0};

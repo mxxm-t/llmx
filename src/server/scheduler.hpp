@@ -14,10 +14,12 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "core/cpus.hpp"
 #include "inference/logprobs.hpp"
 #include "inference/sampler.hpp"
 #include "model/runtime.hpp"
 #include "server/policy.hpp"
+#include "server/sampling_pool.hpp"
 #include "tokenizer/tokenizer.hpp"
 
 namespace server {
@@ -197,9 +199,10 @@ public:
     // The model's context is reserved here for `passes` passes in flight, each sized for up to one row per decoding request plus a ubatch of prompt or replay rows, each request wanting a logits row at most.
     // No `passes` takes the stage count on a pipelined layer split and one elsewhere, which cannot keep more; passes that do not fit the devices' memory run fewer, and stderr says so.
     // A `timed` scheduler times its rounds and reads each stage's device time (Timing), over backends made to time their work.
+    // Up to kSamplers threads beside the scheduler thread sample a pass's rows, fewer where the process may use fewer CPUs.
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false)
         : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), timed_(timed),
-          reserved_(model.kv_pools(), 0) {
+          samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)), reserved_(model.kv_pools(), 0) {
         for (size_t s = 0; s < model_.kv_pools(); ++s) {
             pools_.blocks.push_back(model_.kv_pool_blocks(s));
             pools_.block_tokens.push_back(model_.kv_pool_block_tokens(s));
@@ -269,6 +272,7 @@ public:
         size_t recomputed = 0;   // rows resumes computed again
         size_t taken_back = 0;   // resumes that took their own donor back whole
         size_t passes = 0, in_flight = 0;   // the passes the context keeps in flight at most, and those in flight now
+        size_t samplers = 0;                // the threads that sample beside the scheduler thread
         std::vector<size_t> reserved, donor_blocks;   // per cache pool, the blocks the ledger holds reserved and those the donors hold
         bool timed = false;
         Timing timing;   // a timed scheduler's, as of its last round
@@ -276,7 +280,7 @@ public:
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
         Stats s{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_, (size_t)pauses_,
-                paused_count_.load(), stalls_, waits_, recomputed_, taken_back_, slots_.size(), in_flight_.load(), reserved_,
+                paused_count_.load(), stalls_, waits_, recomputed_, taken_back_, slots_.size(), in_flight_.load(), samplers_.threads(), reserved_,
                 std::vector<size_t>(reserved_.size(), 0), timed_, timing_};
         for (const Donor& d : donors_) add(s.donor_blocks, d.blocks);
         return s;
@@ -387,6 +391,17 @@ private:
     static constexpr Growth kGrowth{};
     // The most generated tokens a pass recomputes for one resume, each taking ubatch / kReplayRows of the budget since it takes the decode kernels; docs/STATUS.md (Exact resume) records the timing that sets it.
     static constexpr size_t kReplayRows = 64;
+    // The most sampling threads beside the scheduler thread; docs/STATUS.md (layer split phase 3, step 4) records why four.
+    static constexpr size_t kSamplers = 4;
+
+    // One wanting row of a retiring pass as the sampling pool draws it: the request, its mapped logits row, read in place, and the token drawn.
+    // With logprobs asked the row is copied for the channel, or, once the reader has fallen behind (Request::kRowsWaiting), the token takes its values instead.
+    struct Draw {
+        Request* r;
+        const float* row;
+        bool keep_row;
+        Request::Token t;
+    };
 
     // A slot of the context reserved for passes: the round's view of it (Flight), its pass's requests by entry with the history each had and the rows each adds, those it samples in logits order, its logits rows and its decode entries.
     struct Slot : Flight {
@@ -549,7 +564,7 @@ private:
         timing_ = round_;
     }
 
-    // The pass in slot k after its last stage: each wanting row sampled in place with its request's own state, in entry order, then the pass ended and the slot given back.
+    // The pass in slot k after its last stage: each wanting row drawn with its request's own state on the sampling pool, the tokens pushed in entry order, then the pass ended and the slot given back.
     // A request cancelled in flight is not sampled: its history stays what the pass computed, which its donor keeps.
     void retire(std::vector<std::shared_ptr<Request>>& active, size_t k) {
         Slot& f = slots_[k];
@@ -570,16 +585,20 @@ private:
                 }
                 on_retire(t);
             }
+            // The scheduler thread waits for the logits and reads each request's state; the pool draws the rows, and every read of the pass's logits ends before end_pass gives them back.
             const Clock::time_point start = timed_ ? Clock::now() : Clock::time_point{};
             double waited = 0;
+            draws_.clear();
             for (size_t w = 0; w < f.wanting.size(); ++w) {
                 Request& r = *f.wanting[w];
                 if (r.cancel_.load()) continue;
                 const Clock::time_point read = timed_ ? Clock::now() : Clock::time_point{};
                 const float* row = model_.pass_logits(ctx_, k, w);
                 if (timed_) waited += ms_since(read);
-                step(r, row);
+                draws_.push_back(Draw{&r, row, r.params_.logprobs && r.rows_waiting() < Request::kRowsWaiting, {}});
             }
+            samplers_.run(draws_.size(), [this](size_t i) { draw(draws_[i]); });
+            for (Draw& d : draws_) step(d);
             if (timed_) {
                 round_.logits_wait_ms += waited;
                 round_.sampling_ms += ms_since(start) - waited;
@@ -879,26 +898,31 @@ private:
         donors_.erase(donors_.begin() + (std::ptrdiff_t)i);
     }
 
-    // One token for a request, drawn from its row of the pass's mapped logits in place, and pushed to its channel unless it ends the request; a request that ends is finished after the pass, once every entry's logits have been read.
-    void step(Request& r, const float* row) {
-        const uint32_t id = infer::sample(row, ctx_.width, r.params_, tok_.eos_id, r.gen_, r.rng_);
+    // On a sampling thread: the token drawn from d's row with its request's own settings, history and generator, and with logprobs asked the row copied or its values computed.
+    // It touches only d and its request's generator and row copy, which no other draw of the pass shares, since a request wants one row a pass.
+    void draw(Draw& d) {
+        Request& r = *d.r;
+        d.t.id = infer::sample(d.row, ctx_.width, r.params_, tok_.eos_id, r.gen_, r.rng_);
+        if (tok_.is_eos(d.t.id) || !r.params_.logprobs) return;
+        if (d.keep_row) r.logits_.assign(d.row, d.row + ctx_.width);
+        else Request::fill(d.t, d.row, ctx_.width, r.params_.top_logprobs);
+    }
+
+    // A drawn token on the scheduler thread: pushed to its channel unless it ends the request; a request that ends is finished after the pass, once every entry's logits have been read.
+    void step(Draw& d) {
+        Request& r = *d.r;
+        const uint32_t id = d.t.id;
         if (tok_.is_eos(id)) { r.finish_pending_ = "eos"; return; }
         r.gen_.push_back(id);
         r.last_id_ = id;
-        Request::Token t;
-        t.id = id;
-        if (!r.params_.logprobs) {
-            r.push(std::move(t));
-        } else if (r.rows_waiting() < Request::kRowsWaiting) {
-            // A copy of the row the id was sampled from goes with it, the one copy a row gets, and a row the reader has finished with comes back for the next pass to fill.
-            r.logits_.assign(row, row + ctx_.width);
-            t.row = std::move(r.logits_);
+        if (d.keep_row) {
+            // The row the id was sampled from goes with it, and a row the reader has finished with comes back for the next pass to fill.
+            d.t.row = std::move(r.logits_);
             r.logits_.clear();
-            r.push(std::move(t), &r.logits_);
+            r.push(std::move(d.t), &r.logits_);
         } else {
-            // The reader has fallen behind: the values go in the row's place, the same values the reader would compute, taken from the row in place.
-            Request::fill(t, row, ctx_.width, r.params_.top_logprobs);
-            r.push(std::move(t));
+            // Without logprobs the token is its id; a reader that has fallen behind gets the values the draw computed, the same the reader would.
+            r.push(std::move(d.t));
         }
         if (!r.params_.stop.empty()) {
             r.decoded_ += tok_.decode({id});
@@ -991,6 +1015,8 @@ private:
     Pools pools_;                              // the model's cache pools, which never change size
     uint64_t formed_ = 0;                      // passes formed, which orders them
     std::vector<infer::BatchEntry> entries_;   // the pass being formed
+    SamplingPool samplers_;
+    std::vector<Draw> draws_;                  // the retiring pass's rows the pool draws
     mutable std::mutex m_;
     std::condition_variable cv_;
     std::deque<std::shared_ptr<Request>> queue_;

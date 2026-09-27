@@ -13,7 +13,7 @@ This page covers what a module holds, what the shared runtime does for it, the r
 - The runtime: [model-runtime](src/model-runtime.md).
 - What the execution model already allows for, and the assumptions not to make: [EXECUTION](EXECUTION.md), "Beyond dense Qwen".
 
-`src/model/arch/qwen3.hpp`, which runs Qwen3 and its mixture-of-experts form, is the worked example.
+`src/model/arch/qwen3.hpp`, which runs Qwen3 and its mixture-of-experts form, is the worked example, and `src/model/arch/qwen35.hpp` the one whose layers keep a recurrent state.
 
 ## The runtime, the modules and the registry
 
@@ -192,11 +192,12 @@ So the same prompt gives the same bytes through `generate`, `chat` and `perplexi
 
 - When rows of one architecture compute in more than one way (decode rows and prompt rows, prompt rows by extent, a per-token and a chunked recurrence), the design page defines the classes.
 - A cached row or state is reused only when it was computed in the class the CLI would compute it in.
-- A module whose layers keep a state that exists only at the end of what it has read declares so, through a capability flag that arrives with Qwen 3.x step 4. The runtime then:
-  - refuses forks, prefix reuse, and truncation to anything but 0 or the current length, until checkpoints serve them;
-  - marks the states lost when a pass fails.
+- A module whose layers keep a state that exists only at the end of what it has read declares so through those layers' cache (`Cache::state`) and the state's shape in its plan. The runtime then:
+  - holds each state in slots allocated at load, one per sequence that decodes at once (`ModelOptions::state_slots`);
+  - refuses forks, and so prefix reuse, until checkpoints serve them, and takes a history back only to 0, where the state reads as zero;
+  - marks the states lost when a pass fails, so the sequence continues only from a reset.
 
-  `serve` refuses the model until its scheduler handles the state.
+  `serve` refuses the model until its scheduler handles the state (`server::require_servable`).
 
 ### Refusals
 

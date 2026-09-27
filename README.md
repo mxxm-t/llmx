@@ -10,7 +10,7 @@ It downloads models from Hugging Face and can split a model by layers across the
 
 | | Supported |
 |---|---|
-| Models | Qwen3 dense (`qwen3`) and mixture of experts (`qwen3moe`), such as Qwen3-0.6B, 8B, 32B, 30B-A3B and 235B-A22B |
+| Models | Qwen3 dense (`qwen3`) and mixture of experts (`qwen3moe`), such as Qwen3-0.6B, 8B, 32B, 30B-A3B and 235B-A22B; Qwen 3.5, 3.6 and 3.8 dense (`qwen35`), such as Qwen3.5-0.8B to 9B and Qwen3.6-27B, on the CPU, not yet on a device or through `serve` |
 | Files | GGUF v3, one file or a shard set, with Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and F32 tensors, such as Q8_0, Q4_0, Q4_K_M and Q5_K_M files |
 | CPU | x86-64 with AVX2, FMA and F16C |
 | GPU | Vulkan 1.2 GPUs, tested on an AMD Radeon VII on Windows and AMD MI50 cards on Linux |
@@ -105,7 +105,7 @@ The performance target is to be at least as fast as [mx-llama.cpp](https://githu
 - [VULKAN](docs/VULKAN.md): design and kernels of the Vulkan backend.
 - [MULTI-DEVICE](docs/MULTI-DEVICE.md): design of the layer split and the splits planned after it.
 - [EXECUTION](docs/EXECUTION.md), [DEVICE-EXECUTION](docs/DEVICE-EXECUTION.md) and [KV-CACHE](docs/KV-CACHE.md): design of batched execution, device placement and the paged KV cache.
-- [QWEN35](docs/QWEN35.md): design of the Qwen 3.5, 3.6 and 3.8 architectures (`qwen35` and `qwen35moe`), planned and not yet run.
+- [QWEN35](docs/QWEN35.md): design of the Qwen 3.5, 3.6 and 3.8 architectures (`qwen35` and `qwen35moe`); the dense `qwen35` runs on the CPU, and the rest is planned.
 - [ROADMAP](docs/ROADMAP.md): planned models, formats, backends and features.
 - [STATUS](docs/STATUS.md): the dated development log, newest first, with measurements.
 - [ASSETS](docs/ASSETS.md): the models, corpora and reference fixtures behind the recorded results.

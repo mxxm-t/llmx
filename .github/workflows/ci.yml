@@ -135,7 +135,8 @@ jobs:
   hf-reference:
     name: HF reference (CPU)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # The two Qwen3.5-0.8B files' checks in both passes took about 19 minutes on six CPUs of the Linux machine (docs/CI.md).
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

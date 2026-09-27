@@ -572,7 +572,7 @@ It runs in the qwen35 venv above, offline, and passes the same environment check
   | file | repository at commit | bytes | SHA-256 | checked |
   |---|---|---:|---|---|
   | `Qwen3.5-0.8B-Q8_0.gguf` | `unsloth/Qwen3.5-0.8B-GGUF` at `6ab461498e2023f6e3c1baea90a8f0fe38ab64d0` | 811,843,840 | `0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c` | hosted and in the gate, 512-token windows |
-  | `Qwen3.5-0.8B-Q4_K_M.gguf` | the same | 532,517,120 | `bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517` | hosted, outside the gate without bounds (below) |
+  | `Qwen3.5-0.8B-Q4_K_M.gguf` | the same | 532,517,120 | `bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517` | hosted and in the gate, through its file-exact goldens and its own quality bounds (below) |
   | `Qwen3.5-4B-Q4_K_M.gguf` | `lmstudio-community/Qwen3.5-4B-GGUF` at `f9f88ac3e234be915e23811a6d28ea287bdb927e` | 2,707,513,696 | `25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c` | by hand, with bounds |
 
   The Hub's LFS records give these digests, and the Linux machine's `Qwen3.5-4B-Q4_K_M.gguf` has the 4B's, so that file is lmstudio-community's.
@@ -607,7 +607,7 @@ llmx's first measurement, on the Linux machine's CPU in containers of six CPUs a
 | 0.8B Q8_0 | 512 | f16 | 8 of 8 | 5 | 0.0044 | 0.0038 | 5, 0.02, 0.02 |
 | 0.8B Q8_0 | 512 | f32 | 8 of 8 | 5 | 0.0053 | 0.0038 | |
 | 0.8B Q8_0 | 4096 | f16 | 8 of 8 | 5 | 0.0083 | 0.0079 | |
-| 0.8B Q4_K_M | 512 | f16 | 6 of 8 | 4 | 0.0088 | 0.0228 | none |
+| 0.8B Q4_K_M | 512 | f16 | 6 of 8 | 4 | 0.0088 | 0.0228 | 6 of 8 top-1, 4, 0.021, 0.025 |
 | 0.8B Q4_K_M | 512 | f32 | 6 of 8 | 4 | 0.0097 | 0.0235 | |
 | 0.8B Q4_K_M | 4096 | f16 | 6 of 8 | 4 | 0.0189 | 0.0187 | |
 | 4B Q4_K_M | 512 | f16 | 8 of 8 | 4 | 0.0396 | 0.0475 | 4, 0.07, 0.08 |
@@ -617,7 +617,8 @@ Each bound is the largest delta measured plus a margin, at least 0.011 on the Q8
 On the Q8_0 the per-token deltas are the larger, 0.0044 against 0.0005 batched at 512 tokens, since the CPU's decode rows take its 8-bit dots over quantized activations.
 The 0.8B Q4_K_M ranks HF's second token first after `The capital of France is` and `In 1969, humans first walked on the`, where HF's margins are 0.32 and 0.11 logits, so those two checks fail at any bounds.
 Against the goldens `file-exact` made from each 0.8B file's own weights (below), llmx gives HF's top-1 on all six prompts and a top-5 overlap of 5 with both files, with NLL deltas, batched and per token, of 4.3e-5 and 3.9e-3 whole and 1.7e-5 and 4.2e-3 in windows on the Q8_0, and 2.3e-5 and 7.6e-4 whole and 1e-6 and 1.3e-3 in windows on the Q4_K_M: the two flips are the Q4_K_M's own quantization.
-Holding that file in the gate is a revision for the user: its file-exact goldens committed and held at the Q8_0 bounds, or a top-1 swap counted as agreement below a margin; until then it has no bounds and stays out of the gate.
+The user decided on 2026-09-27 to gate that file as the MXFP4 file is: its correctness gate is its file-exact goldens, committed in `tests/data/qwen35-0.8b-q4_k_m-file-exact` and held to the Q8_0 file-exact bounds, and against its model's goldens it is held to its own quantization's cost, for its SHA-256 alone: top-1 on at least 6 of the 8 rankings, top-5 overlap 4, and NLL 0.021 whole and 0.025 in windows, the measured maxima plus 11 and 6 percent (`QWEN35_08B_Q4_K_M_QUALITY` in `tests/baseline_qwen35.py`).
+Every other file must match every top-1.
 
 `file-exact --weights-gguf FILE` with a pinned qwen35 file loads the checkpoint whose entry names the file, and gives HF the file's own tensors, decoded by `tests/spec_decode.py` with the converter's changes undone:
 
@@ -628,7 +629,7 @@ Holding that file in the gate is a revision for the user: its file-exact goldens
 A file whose `dt_bias` does not come back as the checkpoint's is refused, since that F32 tensor matches bit for bit only in the tiled order.
 It writes the logit and 512-token perplexity goldens, and `tests/baseline_qwen35.py --file-exact DIR` holds the file to them at the Q8_0 file's bounds.
 Undone and compared with the checkpoints tensor by tensor, the 0.8B and 4B Q4_K_M files give back every F32 tensor bit for bit except `A_log`, within 1.9e-8 relative from the rounding of -exp, and one value in each of three of the 4B's layer norms, a w under 4e-6 that float32(1 + w) rounds; the quantized tensors differ by their formats' loss, at most 0.0062 relative for Q8_0, 0.020 for Q6_K, 0.041 for Q5_K and 0.090 for Q4_K.
-These goldens are not committed.
+The Q4_K_M's are committed in `tests/data/qwen35-0.8b-q4_k_m-file-exact`, pinned by SHA-256 in `tests/baseline_qwen35.py` as its correctness gate (above), and a run of the tool at `feat/qwen35-model` in 119 s wrote them byte for byte as the earlier runs had; the Q8_0's are not committed.
 
 | 0.8B file-exact goldens | mean NLL, 1,216 tokens whole | windows of 512 |
 |---|---:|---:|

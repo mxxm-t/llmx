@@ -68,15 +68,17 @@ def answer(reply):
 
 
 def run_together(port, reqs, delays=None, leavers=()):
+    """Every request at once, each after its delay: a finished request's answer, None for a client in `leavers` that left as planned, and an error either way failed."""
     results, threads = {}, []
     def worker(i):
         if delays:
             time.sleep(delays[i])
-        if i in leavers:
-            common.leave_mid_stream(port, reqs[i], 600)
-            return
         try:
-            results[i] = answer(post(port, reqs[i]))
+            if i in leavers:
+                common.leave_mid_stream(port, reqs[i], 600)
+                results[i] = None
+            else:
+                results[i] = answer(post(port, reqs[i]))
         except Exception as e:  # reported below as a mismatch
             results[i] = "error: %s" % e
     for i in range(len(reqs)):
@@ -209,7 +211,10 @@ def main():
         got = run_together(port, reqs, delays, leavers)
         phases["skewed"] = [None if i in leavers else got.get(i) for i in range(len(reqs))]
         bad = [i for i in range(len(reqs)) if i not in leavers and got.get(i) != alone[i]]
-        print("skewed: %d of %d differ, %d clients left early" % (len(bad), len(reqs) - len(leavers), len(leavers)), flush=True)
+        # A client that failed to leave as planned fails the phase as a request that failed to finish does.
+        stuck = [i for i in sorted(leavers) if i not in got or got[i] is not None]
+        print("skewed: %d of %d differ, %d clients left early, %d of them failed" % (len(bad), len(reqs) - len(leavers), len(leavers), len(stuck)), flush=True)
+        failures += ["skewed leaver %d: %s" % (i, got.get(i, "no result")) for i in stuck]
         failures += ["skewed %d" % i for i in bad]
         deadline = time.time() + 120
         while time.time() < deadline and health(port)["active"] != 0:

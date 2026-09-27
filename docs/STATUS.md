@@ -11,6 +11,14 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Done:** `file-reader` asks both for a `std::length_error` naming the size at `SIZE_MAX` and at `SIZE_MAX - page + 2`, the smallest that wraps, and for the operating system's refusal at `SIZE_MAX - page + 1`, the largest that rounds; the test commit fails on main.
   The rounding has one owner, the private `HostPages::whole_pages`, which refuses those sizes with `std::length_error`, as a container refuses a size past its `max_size`.
   `commit` and `decommit` need no check of their own: the size is a whole number of pages, so at most `SIZE_MAX - page + 1`, and with the range inside it their `offset + bytes + page - 1` and `offset + page - 1` stay within `SIZE_MAX`.
+- **Gates** (host tier; fix `7d0e1c33`, from which the head differs in this block alone; test commit `d72ab03a`; main `ede8fd7f`; each built from its own tree, `llmx 0.1.0+g7d0e1c33c95b` and `llmx 0.1.0+gede8fd7f9452`; on the Linux machine's CPU in containers of 6 CPUs, load average 21 to 27 from other work):
+  - The test commit's CTest fails `file-reader` alone, 29 of 30 passing: `host pages of 18446744073709551615 bytes was not refused by its size`.
+  - Fresh builds of the head with Vulkan off and on, and of main with it off: 0 warnings and 0 errors each.
+  - CTest 30 of 30 with Vulkan off and 33 of 33 with it on (`backend-vulkan` and `vulkan-lifetime` skipping without a device); `file-reader` passes 50 checks.
+  - The suite's `dead-code`, `docs`, `cli`, `f32` and `perplexity` components pass (`--no-perf-floor`).
+  - Byte identity with main on Qwen3-0.6B Q8_0 at `--threads 6`: `generate` greedy on a 5-word prompt and `logits --top 20` of the first 1500 bytes of `tests/data/wiki.test.raw`, each with `--load-mode direct`, `auto` and `mapped`: 6 of 6 the same, `direct` reading the file direct into its reservation.
+  - Windows (MSVC 19.50, `llmx-file-reader-test` built clean): no warning, and it passes 50 checks at the head and fails at the test commit as on Linux, through `VirtualAlloc`.
+- **Left:** nothing.
 
 ## A prompt row's bits no longer follow the compiler's choice to fuse a dot's tail (2026-09-27, branch fix/placement-ubsan, merged at `9b6413ea`)
 

@@ -109,7 +109,7 @@ The scheduler sees the flag at its next round: a queued or paused request ends w
 
 The scheduler thread repeats a round over the model's pass API (`reserve_passes`, `begin_pass`, `run_pass_stage`, `pass_logits`, `end_pass`, `abort_pass`, [EXECUTION](EXECUTION.md)) in one context reserved at start for its passes in flight, each in a slot with its own handoff buffers, of every decoding request's row and a ubatch of other rows, each request wanting one logits row at most.
 It keeps one pass in flight; layer split phase 3 (`docs/STATUS.md`) raises that to one pass per stage on a pipelined split.
-The policy the round follows is in `server/policy.hpp`, free functions over plain data: `make_room` for room, `round_steps` for which stages a round records and which passes it retires, and `take_rows` and `give_rows` for where a pass's logits rows go.
+The policy the round follows is in `server/policy.hpp`, free functions over plain data that the `server-passes` CTest drives with a simulated executor: `make_room` for room, `round_steps` for which stages a round records and which passes it retires, and `take_rows` and `give_rows` for where a pass's logits rows go.
 
 ```
 round:
@@ -135,7 +135,8 @@ round:
            reservation reserves another step, the earliest admitted
            first, with what make_room gives it: donors, then pausing
            uncapped requests admitted after it, latest first; if that is
-           not enough it sits out this pass (a stall)
+           not enough, or it would pause a request in flight, it sits
+           out this pass (a stall)
   admit:   unless a request sat out the pass, and while active <
            max_seqs: the paused requests oldest first, then, once none
            is paused, the queue in order; for each, take a resumed
@@ -307,3 +308,4 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 | 8 | Log-probabilities on every generating route, in the compatible shapes and a native one (**done**) | The `logprobs` CTest: the log-softmax against a double-precision reference and the scheduler's channel against a second model's logits, read at once or left to fall behind; the `server` component: each route's shape whole and streamed, the ids unchanged, the values repeating byte for byte and equal alone and four at a time, greedy's token the most likely, and a reply that does not ask byte-identical to one that never names them |
 | 9 | An exact resume: each request's row classes, a resume taking its own donor back whole when it survived, or forking only rows of its own classes and recomputing the rest in them (**done**) | `server-resume`: uncapped requests paused beside others give every id and value they give alone, on the CPU, a two-CPU split and a device, a follow-up turn's forked reply rows and a prefix of another extent included; a donor taken back recomputing nothing, a follow-up turn's among them, part of a history kept after its donor went, and a paused request cancelled; the `server` component's uncapped checks by value; `tools/server_mix_check.py --uncapped` checks the same by value, run before the merge on one MI50, a split over three MI50s and the Radeon VII (`docs/STATUS.md`) |
 | 10 | Room by first admission: `make_room` as the one owner of who gives up blocks for whom, growth that stalls rather than pausing itself, paused requests apart from the queue (**done**) | `server-room`: `make_room` through random admissions, growth, pauses, cancellations and ends over two pools of 64- and 128-token blocks, the ledger adding up, the oldest request never refused room younger requests or donors hold, no empty pass while requests are active, every request ending; `server-resume` unchanged in its values, with its stall, waiting and fork-by-class cases on the scheduler itself |
+| 11 | The rounds over the model's pass API with one pass in flight, and the policy core as free functions: `make_room`, the round's stages and the logits rows (layer split phase 3, step 2; **done**) | `server-passes`: the policy core by hand and in random schedules of a simulated executor over 1 to 4 stages and 1 to 2S pass slots, with arrivals, growth, pauses, cancellations, failures and stops (`docs/STATUS.md`, layer split phase 3); every reply byte-identical to the step before, alone, together and against the CLI (`server`, `server-resume`, `tools/server_mix_check.py`) |

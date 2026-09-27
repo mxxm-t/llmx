@@ -505,7 +505,7 @@ private:
     }
 
     // Before a pass, every uncapped decoding request whose next token would pass its reservation takes another step, the earliest admitted first, with what make_room gives it.
-    // A request make_room cannot give it to sits the pass out with its cache as it is (a stall) and asks again before the next; it is never paused for its own growth.
+    // A request make_room cannot give it to, or whose plan would pause a request in flight, sits the pass out with its cache as it is (a stall) and asks again before the next; it is never paused for its own growth.
     void grow(std::vector<std::shared_ptr<Request>>& active) {
         for (size_t i = 0; i < active.size(); ++i) {
             Request& r = *active[i];
@@ -514,7 +514,7 @@ private:
             std::vector<size_t> step = blocks_for(r.seq_.length() + 1 + kGrowTokens);
             for (size_t s = 0; s < step.size(); ++s) step[s] = step[s] > r.need_[s] ? step[s] - r.need_[s] : 0;
             const Taken t = make_room(pools(), reserved_, donor_blocks(), npos, false, holders(active), r.admission_, true, step);
-            if (!t.enough) {
+            if (!t.enough || t.wait) {
                 r.stalled_ = true;
                 ++r.stalls_;
                 std::lock_guard<std::mutex> lk(m_);
@@ -615,7 +615,7 @@ private:
         std::vector<Holder> h;
         for (const auto& r : active) {
             const size_t len = r->seq_.length();
-            h.push_back(Holder{r->admission_, r->params_.until_limit, r->need_, len ? blocks_for(len) : std::vector<size_t>(model_.kv_pools(), 0)});
+            h.push_back(Holder{r->admission_, r->params_.until_limit, r->need_, len ? blocks_for(len) : std::vector<size_t>(model_.kv_pools(), 0), r->seq_.in_flight()});
         }
         return h;
     }

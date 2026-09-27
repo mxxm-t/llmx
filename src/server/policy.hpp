@@ -1,6 +1,6 @@
 #pragma once
 // The scheduler's policy core (docs/SERVER.md, the round): who gives up blocks for whom, which stages a round records and which passes it retires, and where a pass's logits rows go, as free functions over plain data.
-// The scheduler calls them with its requests and passes.
+// The scheduler calls them with its requests and passes, and the server-passes CTest with a simulated executor's.
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -10,16 +10,19 @@
 
 namespace server {
 
-// A running request as make_room sees it: its first admission, whether it may be paused (an uncapped one), the blocks it has reserved, and those its history would keep as a donor once paused, per pool.
+// A running request as make_room sees it: its first admission, whether it may be paused (an uncapped one), the blocks it has reserved, those its history would keep as a donor once paused, per pool, and whether a pass in flight holds it.
 struct Holder {
     uint64_t admission;
     bool uncapped;
     std::vector<size_t> need, kept;
+    bool flying = false;
 };
 
 // What make_room takes, in the order it takes it: donors by index, then running requests to pause by index, each with whether the donor its history becomes goes too.
+// With `wait` a request to pause is in flight, so the caller takes nothing and plans again at its next room.
 struct Taken {
     bool enough = false;
+    bool wait = false;
     std::vector<size_t> donors;
     std::vector<std::pair<size_t, bool>> paused;
 };
@@ -63,6 +66,7 @@ inline Taken make_room(const std::vector<size_t>& pool, const std::vector<size_t
             const Holder& h = active[later[i]];
             gain(h.need, h.kept);
             t.paused.push_back({later[i], false});
+            t.wait = t.wait || h.flying;
             if ((t.enough = fits()) || std::all_of(h.kept.begin(), h.kept.end(), [](size_t b) { return b == 0; })) continue;
             gain(h.kept, {});
             t.paused.back().second = true;

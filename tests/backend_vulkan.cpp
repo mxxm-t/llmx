@@ -1712,7 +1712,7 @@ struct ContractionChecks {
 // Every build of a row kernel holds its one-column build's float multiply and add counts, and a grouped build its wide build's: a screen on how the driver contracts and reduces a column's products and sums, which sees a change only where it changes the counts.
 // Reassociation that keeps the counts shows only in the decode-column check, which is what holds batch invariance (docs/VULKAN.md, batch invariance).
 // A build of `matmul_row.comp` holds the one-column build's counts exactly where the driver keeps the column loop rolled, and otherwise those counts and N - 1 copies of one column's, N its columns.
-// The Q8_0 decode kernel's builds differ in rows and steps too, so where its one-column build reduces over shuffled adds each build holds that build's counts per row and column: one plain add for the residual add and the one-column build's shuffled adds, multiply-adds and fused ones a whole number of steps of the one-column build's, and as many multiplies beside them.
+// The Q8_0 decode kernel's builds differ in rows, steps and copies of their products too, so where its one-column build reduces over shuffled adds each build holds that build's counts per row and column: one plain add for the residual add and the one-column build's shuffled adds, multiply-adds and fused ones in the one-column build's proportion and at least its count, and as many multiplies beside them.
 // A kernel's builds are named after it: the wide build plain, then `_grouped` and `_<N>col`; a kernel whose driver gives no disassembly is not checked.
 ContractionChecks check_contraction(const std::vector<std::pair<std::string, std::string>>& representations) {
     ContractionChecks n;
@@ -1756,13 +1756,10 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                     ++n.kinds_only;
                     continue;
                 }
-                // got.add is the build's rows times columns, one add each for the residual add; steps is how many of the one-column build's steps each row and column takes.
-                const size_t rc = got.add, rc1 = ref.add, unit = ref.mad ? ref.mad : ref.fused, got_unit = ref.mad ? got.mad : got.fused;
-                const size_t per1 = unit % rc1 == 0 ? unit / rc1 : 0;
-                const bool whole = rc && per1 && ref.mad % rc1 == 0 && ref.fused % rc1 == 0 && got_unit % (rc * per1) == 0;
-                const size_t steps = whole ? got_unit / (rc * per1) : 0;
-                if (!steps || !got.lane_add || got.lane_add * rc1 != ref.lane_add * rc || got.mad != steps * rc * (ref.mad / rc1) ||
-                    got.fused != steps * rc * (ref.fused / rc1) || got.mul + ref.mad + ref.fused != ref.mul + got.mad + got.fused)
+                // got.add is the build's rows times columns, one add each for the residual add; a row and column's products appear once for each step in its code and again where a partial group has a copy of them.
+                const size_t rc = got.add, rc1 = ref.add;
+                if (!rc || !got.lane_add || got.lane_add * rc1 != ref.lane_add * rc || got.mad * ref.fused != got.fused * ref.mad ||
+                    (got.mad + got.fused) * rc1 < (ref.mad + ref.fused) * rc || got.mul + ref.mad + ref.fused != ref.mul + got.mad + got.fused)
                     fail("a build's float multiplies and adds per row and column differ from its one-column build's");
                 ++n.per_row_column;
                 continue;

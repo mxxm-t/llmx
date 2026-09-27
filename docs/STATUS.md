@@ -9,7 +9,24 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Why:** USAGE says a flag or argument a command would ignore or overwrite is a usage error, refused before any model file is opened, and main at 007b504 ran several such lines instead.
   `-tb` with `perplexity --per-token` was dropped, since per-token scoring runs on `--threads`; `--version` took anything after it; a value flag given twice kept its last value, `--stop` alone excepted; an empty `pull --file` read as no file given; and `perplexity -c 1` was refused only once the model had loaded.
   `pull`'s help also printed `--cache-dir`'s default as a literal of its own, where every other default the help prints comes from its owner.
-- **Left:** the failing tests, then the refusals and the help default from hub, then the gates: CTest in a Vulkan and a CPU build, and the `cli` and `perplexity` components on the CPU build.
+- **Done:**
+  - Each command's loop records a flag once its branch has read it (`GivenFlags`), so a second value for a flag is refused in either of its spellings, and so are `--cpu-moe` and `--n-cpu-moe` together, which set one setting; the check of a second `--stop` of its own goes.
+    The audit asked for value flags, so a switch given again, which changes nothing, is taken, as main takes it.
+  - Every branch compares a flag's long spelling (`long_spelling`), so each short form is paired with its long one only in `kShortForms`.
+  - An empty value that would read as the flag not given is refused as it is read (`nonempty_value`): `--stop`, `--then-ids`, `--layer-shares`, `bench --model`, `pull --file` and `pull --cache-dir`; an empty `--system` stays an empty system message.
+  - `perplexity --per-token` refuses `--threads-batch` in either spelling, `--version` refuses anything after it, and `perplexity --ctx-size` is read from `infer::kMinPerplexityWindow`, the floor `infer::perplexity` holds, so a window of one token is refused before the model is opened.
+  - `hub::cache_in_home` is the cache root inside the home directory, which `pull` takes and its help prints as `--cache-dir`'s default.
+  - `cli` checks each of these lines by its reason, a second value for every flag each help page lists, in each pair of its line's spellings, and each listed switch given twice as taken; `cli-output` checks the empty share list, `GivenFlags`, `long_spelling` and the help default. `threads` gives no batch count with `--per-token`, and `server` gives `--max-seqs` once.
+  - Two comments in files this branch touches are left as main has them, since the audit's cleanup branches own them: the one on `infer::perplexity` (cleanup/comments) and the opening comment of `tests/server.py` (cleanup/test-helpers).
+- **Gates** (code at `6b56fbc`, on main `b29f605`, on the Linux MI50 machine in the Vulkan image, device tests on one MI50):
+  - The test commit `46629e4` fails without the fix: `cli-output` on the empty share list and `cli` at its first new line, `--version extra`, which exits 0.
+    Run through every line without stopping, its binary refuses 4 of the 19 lines checked by reason, the 3 `--ignore-eos` lines and the empty `pull --cache-dir`, and 10 of the 159 lines that give a listed flag a second value, the `--file` and `-f` pairs of `logits` and `perplexity` and a second `--stop`; it takes all 13 lines that give a switch twice.
+  - At `6b56fbc`: CTest 23/23 in the CPU build and 26/26 in the Vulkan build; `cli` passes on both builds, and run through the same lines, its binary refuses all 19 lines checked by reason, all 103 older usage-error lines and all 641 help lines it should refuse, 159 of them giving a listed flag a second value, and takes all 155 help lines it should take, 13 of them giving a switch twice.
+    In the whole CPU suite all 18 components pass, `server`, `perplexity`, `threads` and the HF baseline included.
+  - The Windows build with Vulkan compiles every target, with no warning in a changed file.
+- **Markdown review:** every Markdown file was searched for the claims this change touches: the refusals, flags given twice, the short spellings, `-tb` with `--per-token`, `--version`, the perplexity window's floor and the cache root.
+  USAGE, AGENTS, CI and the pages of `cli/main.cpp`, `inference/perplexity.hpp` and `hub/` were brought to the code; nothing else states them.
+- **Left:** review and merge; the change reaches no device, model, kernel or loader code, so the Radeon VII gate does not apply.
 
 ## Dead-code and stale-docs checks in every job (2026-09-27, branch tools/health-monitors)
 

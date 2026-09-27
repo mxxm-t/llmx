@@ -1,16 +1,14 @@
 #pragma once
 #include <algorithm>
-#include <charconv>
 #include <climits>
 #include <cstdint>
-#include <cstdio>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <thread>
-#include <utility>
 #include <vector>
+
+#include "core/cgroup.hpp"
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -31,107 +29,12 @@ namespace core {
 
 namespace detail {
 
-// The whitespace-separated fields of a small file's text or line.
-inline size_t fields(std::string_view text, std::string_view* out, size_t most) {
-    size_t n = 0;
-    for (size_t i = 0; i < text.size();) {
-        while (i < text.size() && (text[i] == ' ' || text[i] == '\t' || text[i] == '\n' || text[i] == '\r')) ++i;
-        const size_t start = i;
-        while (i < text.size() && text[i] != ' ' && text[i] != '\t' && text[i] != '\n' && text[i] != '\r') ++i;
-        if (i == start) break;
-        if (n == most) return most + 1;
-        out[n++] = text.substr(start, i - start);
-    }
-    return n;
-}
-
-// Calls `f` with each line of `text`, the last one without its newline included.
-template <class F>
-void each_line(std::string_view text, F&& f) {
-    for (size_t at = 0; at < text.size();) {
-        size_t end = text.find('\n', at);
-        if (end == std::string_view::npos) end = text.size();
-        f(text.substr(at, end - at));
-        at = end + 1;
-    }
-}
-
-// Whether a comma-separated list holds `item`.
-inline bool lists(std::string_view list, std::string_view item) {
-    for (size_t at = 0; at <= list.size();) {
-        size_t end = list.find(',', at);
-        if (end == std::string_view::npos) end = list.size();
-        if (list.substr(at, end - at) == item) return true;
-        at = end + 1;
-    }
-    return false;
-}
-
-// A decimal number with nothing else in the field, no sign included.
-inline std::optional<uint64_t> number(std::string_view field) {
-    uint64_t v = 0;
-    const auto r = std::from_chars(field.data(), field.data() + field.size(), v);
-    if (r.ec != std::errc{} || r.ptr != field.data() + field.size()) return std::nullopt;
-    return v;
-}
-
 // A quota of `quota` microseconds in each `period` as whole CPUs, rounded up.
 inline std::optional<unsigned> quota_cpus(std::string_view quota, std::string_view period) {
     const auto q = number(quota), p = number(period);
     if (!q || !p || !*q || !*p) return std::nullopt;
     return (unsigned)std::min<uint64_t>(*q / *p + (*q % *p != 0), UINT_MAX);
 }
-
-// A cgroup path without its trailing slashes, when it is absolute and does not climb with "..".
-inline std::optional<std::string> cgroup_path(std::string path) {
-    if (path.empty() || path[0] != '/' || (path + "/").find("/../") != std::string::npos) return std::nullopt;
-    while (path.size() > 1 && path.back() == '/') path.pop_back();
-    return path;
-}
-
-// The path of the first "hierarchy:controllers:path" line `pick` accepts, when cgroup_path takes it.
-template <class Pick>
-std::optional<std::string> cgroup_line_path(std::string_view text, Pick pick) {
-    std::optional<std::string> path;
-    bool found = false;
-    each_line(text, [&](std::string_view line) {
-        const size_t a = line.find(':'), b = a == std::string_view::npos ? a : line.find(':', a + 1);
-        if (found || b == std::string_view::npos || !pick(line.substr(0, a), line.substr(a + 1, b - a - 1))) return;
-        found = true;
-        path = cgroup_path(std::string(line.substr(b + 1)));
-    });
-    return path;
-}
-
-// A mountinfo field with its octal escapes ("\040" for a space) decoded.
-inline std::string unescape(std::string_view field) {
-    std::string out;
-    for (size_t i = 0; i < field.size(); ++i) {
-        const auto octal = [&](size_t k) { return field[k] >= '0' && field[k] <= '7'; };
-        if (field[i] == '\\' && i + 3 < field.size() && octal(i + 1) && octal(i + 2) && octal(i + 3)) {
-            out += (char)((field[i + 1] - '0') * 64 + (field[i + 2] - '0') * 8 + (field[i + 3] - '0'));
-            i += 3;
-        } else {
-            out += field[i];
-        }
-    }
-    return out;
-}
-
-#if defined(__linux__)
-inline std::optional<std::string> read_text(const std::string& path) {
-    std::FILE* f = std::fopen(path.c_str(), "rb");
-    if (!f) return std::nullopt;
-    std::string text;
-    char buf[4096];
-    size_t n;
-    while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) text.append(buf, n);
-    const bool failed = std::ferror(f) != 0;
-    std::fclose(f);
-    if (failed) return std::nullopt;
-    return text;
-}
-#endif
 
 }  // namespace detail
 
@@ -149,94 +52,19 @@ inline std::optional<unsigned> cgroup_v1_cpus(std::string_view cfs_quota_us, std
     return detail::quota_cpus(q[0], p[0]);
 }
 
-// The process's cgroup v2 path in /proc/self/cgroup text, its "0::/path" line.
-inline std::optional<std::string> cgroup_v2_path(std::string_view proc_self_cgroup) {
-    return detail::cgroup_line_path(proc_self_cgroup, [](std::string_view hierarchy, std::string_view controllers) {
-        return hierarchy == "0" && controllers.empty();
-    });
-}
-
-// The process's cgroup v1 path for the cpu controller in /proc/self/cgroup text, from the first line whose controllers list cpu.
-inline std::optional<std::string> cgroup_v1_cpu_path(std::string_view proc_self_cgroup) {
-    return detail::cgroup_line_path(proc_self_cgroup, [](std::string_view, std::string_view controllers) {
-        return detail::lists(controllers, "cpu");
-    });
-}
-
-// A cgroup hierarchy's directory `root` mounted at `point`.
-struct CgroupMount {
-    std::string root, point;
-};
-
-namespace detail {
-
-// The mounts in /proc/self/mountinfo text whose file system type and super options `pick` accepts, in the order listed, leaving out a root cgroup_path does not take.
-template <class Pick>
-std::vector<CgroupMount> cgroup_mounts(std::string_view mountinfo, Pick pick) {
-    std::vector<CgroupMount> mounts;
-    each_line(mountinfo, [&](std::string_view line) {
-        std::string_view f[32];
-        const size_t n = fields(line, f, 32);
-        if (n > 32) return;
-        size_t dash = 6;
-        while (dash < n && f[dash] != "-") ++dash;
-        if (dash + 3 >= n || !pick(f[dash + 1], f[dash + 3])) return;
-        auto root = cgroup_path(unescape(f[3]));
-        const std::string point = unescape(f[4]);
-        if (root && !point.empty() && point[0] == '/') mounts.push_back({std::move(*root), point});
-    });
-    return mounts;
-}
-
-}  // namespace detail
-
-// The cgroup v2 mounts in /proc/self/mountinfo text.
-inline std::vector<CgroupMount> cgroup_v2_mounts(std::string_view mountinfo) {
-    return detail::cgroup_mounts(mountinfo, [](std::string_view type, std::string_view) { return type == "cgroup2"; });
-}
-
-// The cgroup v1 mounts in /proc/self/mountinfo text whose hierarchy holds the cpu controller.
-inline std::vector<CgroupMount> cgroup_v1_cpu_mounts(std::string_view mountinfo) {
-    return detail::cgroup_mounts(mountinfo, [](std::string_view type, std::string_view options) {
-        return type == "cgroup" && detail::lists(options, "cpu");
-    });
-}
-
-// Where cgroup `path` lies under the first of `mounts` whose root holds it: that mount's point and the path below its root, empty at the root itself; nothing when no root holds it.
-inline std::optional<std::pair<std::string, std::string>> cgroup_directory(const std::string& path, const std::vector<CgroupMount>& mounts) {
-    for (const auto& m : mounts) {
-        if (m.root == "/") return std::make_pair(m.point, path == "/" ? std::string() : path);
-        if (path == m.root) return std::make_pair(m.point, std::string());
-        if (path.size() > m.root.size() && path.compare(0, m.root.size(), m.root) == 0 && path[m.root.size()] == '/')
-            return std::make_pair(m.point, path.substr(m.root.size()));
-    }
-    return std::nullopt;
-}
-
 // CPUs the cgroup CPU quotas over a process allow, the smallest, from its /proc/self/cgroup and /proc/self/mountinfo texts and `read`, which gives a file's text or nothing.
 // The process's cgroup is found below its mount by taking the mount's root off its path, and a quota on any cgroup above it holds it too, so each is read up to the mount's point.
 template <class Read>
 std::optional<unsigned> cgroup_cpus(std::string_view proc_self_cgroup, std::string_view mountinfo, Read&& read) {
     std::optional<unsigned> fewest;
     const auto take = [&](std::optional<unsigned> n) { if (n && (!fewest || *n < *fewest)) fewest = n; };
-    const auto walk = [](const std::optional<std::string>& path, const std::vector<CgroupMount>& mounts, auto&& at) {
-        if (!path) return;
-        const auto dir = cgroup_directory(*path, mounts);
-        if (!dir) return;
-        const std::string point = dir->first == "/" ? std::string() : dir->first;
-        for (std::string below = dir->second;; below.erase(below.rfind('/'))) {
-            at(point + below);
-            if (below.empty()) return;
-        }
-    };
-    walk(cgroup_v2_path(proc_self_cgroup), cgroup_v2_mounts(mountinfo), [&](const std::string& dir) {
+    for (const auto& dir : cgroup_v2_directories(proc_self_cgroup, mountinfo))
         if (const auto max = read(dir + "/cpu.max")) take(cgroup_v2_cpus(*max));
-    });
-    walk(cgroup_v1_cpu_path(proc_self_cgroup), cgroup_v1_cpu_mounts(mountinfo), [&](const std::string& dir) {
+    for (const auto& dir : cgroup_v1_directories(proc_self_cgroup, mountinfo, "cpu")) {
         const auto quota = read(dir + "/cpu.cfs_quota_us");
-        if (!quota) return;
+        if (!quota) continue;
         if (const auto period = read(dir + "/cpu.cfs_period_us")) take(cgroup_v1_cpus(*quota, *period));
-    });
+    }
     return fewest;
 }
 

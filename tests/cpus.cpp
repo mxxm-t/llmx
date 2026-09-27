@@ -86,8 +86,8 @@ void paths() {
     for (const auto& c : cases) {
         require(core::cgroup_v2_path(c.text) == c.v2,
                 std::string("v2 path of \"") + c.text + "\" gave " + shown(core::cgroup_v2_path(c.text)) + ", expected " + shown(c.v2));
-        require(core::cgroup_v1_cpu_path(c.text) == c.v1,
-                std::string("v1 cpu path of \"") + c.text + "\" gave " + shown(core::cgroup_v1_cpu_path(c.text)) + ", expected " + shown(c.v1));
+        require(core::cgroup_v1_path(c.text, "cpu") == c.v1,
+                std::string("v1 cpu path of \"") + c.text + "\" gave " + shown(core::cgroup_v1_path(c.text, "cpu")) + ", expected " + shown(c.v1));
     }
 }
 
@@ -122,7 +122,7 @@ void mounts() {
         {"no text", "", {}, {}},
     };
     for (const auto& c : cases) {
-        const M v2 = core::cgroup_v2_mounts(c.mountinfo), v1 = core::cgroup_v1_cpu_mounts(c.mountinfo);
+        const M v2 = core::cgroup_v2_mounts(c.mountinfo), v1 = core::cgroup_v1_mounts(c.mountinfo, "cpu");
         require(same(v2, c.v2), std::string(c.name) + ": v2 mounts " + shown(v2) + ", expected " + shown(c.v2));
         require(same(v1, c.v1), std::string(c.name) + ": v1 cpu mounts " + shown(v1) + ", expected " + shown(c.v1));
     }

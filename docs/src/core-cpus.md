@@ -23,15 +23,9 @@ With several groups the process affinity mask is not given, so the count is ever
 
 ## The cgroup CPU quota (Linux)
 
-`cgroup_cpus(proc_self_cgroup, mountinfo, read)` finds the process's cgroups in the text of `/proc/self/cgroup`, their mounts in the text of `/proc/self/mountinfo`, and reads their files through `read`, which gives a file's text or nothing; `cgroup_cpus()` passes the real files and reader, and returns nothing off Linux.
-For cgroup v2 it takes the `0::/path` line (`cgroup_v2_path`) and the `cgroup2` mounts (`cgroup_v2_mounts`), and reads `cpu.max`; for v1 it takes the first line whose controllers list `cpu` (`cgroup_v1_cpu_path`) and the `cgroup` mounts whose super options list `cpu` (`cgroup_v1_cpu_mounts`), and reads `cpu.cfs_quota_us` and `cpu.cfs_period_us`.
-A path, or a mount's root, that is not absolute or climbs with `..` is not read.
-
-`/proc/self/cgroup` names the path in the cgroup hierarchy as the process's cgroup namespace sees it, which in a container without its own namespace is the path on the host, while a mount can hold only a part of the hierarchy: mountinfo's fourth field is the hierarchy's directory mounted there.
-`cgroup_directory` takes the first mount whose root holds the process's path, and the path below that root is its directory under the mount point; a path no mount's root holds is not read.
-So a v1 container's cgroup `/c` mounted at `/sys/fs/cgroup/cpu,cpuacct` is read at the mount point, a child cgroup `/c/inner` under it at `/sys/fs/cgroup/cpu,cpuacct/inner`, and a cgroup inside the container that happens to share a name with a directory on the host's path is never taken for the process's own.
-From that directory it reads each cgroup up to the mount point, and the smallest limit found wins, since a quota on a parent holds every cgroup under it; cgroups above the mount's root are not visible there and are not read.
-A hybrid machine, v1 controllers beside a v2 hierarchy, is read both ways, and the files that exist give the limit.
+`cgroup_cpus(proc_self_cgroup, mountinfo, read)` reads the quota in the process's cgroups, which [cgroup](core-cgroup.md) finds from the text of `/proc/self/cgroup` and `/proc/self/mountinfo`, through `read`, which gives a file's text or nothing; `cgroup_cpus()` passes the real files and reader, and returns nothing off Linux.
+For cgroup v2 it reads `cpu.max` in each of `cgroup_v2_directories`; for v1 it reads `cpu.cfs_quota_us` and `cpu.cfs_period_us` in each of `cgroup_v1_directories` for the `cpu` controller.
+Those are the process's own cgroup and each above it up to its mount's point, and the smallest limit found wins, since a quota on a parent holds every cgroup under it; a hybrid machine, v1 controllers beside a v2 hierarchy, is read both ways, and the files that exist give the limit.
 
 ## The job object's CPU rate (Windows)
 
@@ -44,5 +38,5 @@ Without both flags, as under a weighted rate or a minimum and maximum rate, or w
 The file texts and the job's fields are read by functions of them alone, so `tests/cpus.cpp` holds them without a real cgroup or job:
 `cgroup_v2_cpus(text)` reads `cpu.max` as a quota and a period in microseconds, "max 100000" as no limit (nothing), "600000 100000" as 6 CPUs and "150000 100000" as 2, rounded up; `cgroup_v1_cpus(quota, period)` reads the v1 pair the same way, a quota of -1 as no limit.
 A text that is not exactly those fields in decimal, or a zero quota or period, reads as nothing, so a quota or affinity that cannot be read changes nothing.
-The mounts are read from mountinfo lines of any number of optional fields, their root and mount point with the kernel's octal escapes (`\040` for a space) decoded.
+The test also holds [cgroup](core-cgroup.md)'s paths and mounts, and reads the quota over a file system held in a map.
 `automatic_threads(hardware, affinity, quota)` combines the three counts, a zero taken as not read, and the test holds the minimum, the fallback and the bounds there.

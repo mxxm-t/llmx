@@ -571,9 +571,9 @@ It runs in the qwen35 venv above, offline, and passes the same environment check
 
   | file | repository at commit | bytes | SHA-256 | checked |
   |---|---|---:|---|---|
-  | `Qwen3.5-0.8B-Q8_0.gguf` | `unsloth/Qwen3.5-0.8B-GGUF` at `6ab461498e2023f6e3c1baea90a8f0fe38ab64d0` | 811,843,840 | `0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c` | hosted, 512-token windows |
-  | `Qwen3.5-0.8B-Q4_K_M.gguf` | the same | 532,517,120 | `bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517` | hosted, 512-token windows |
-  | `Qwen3.5-4B-Q4_K_M.gguf` | `lmstudio-community/Qwen3.5-4B-GGUF` at `f9f88ac3e234be915e23811a6d28ea287bdb927e` | 2,707,513,696 | `25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c` | by hand |
+  | `Qwen3.5-0.8B-Q8_0.gguf` | `unsloth/Qwen3.5-0.8B-GGUF` at `6ab461498e2023f6e3c1baea90a8f0fe38ab64d0` | 811,843,840 | `0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c` | hosted and in the gate, 512-token windows |
+  | `Qwen3.5-0.8B-Q4_K_M.gguf` | the same | 532,517,120 | `bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517` | hosted, outside the gate without bounds (below) |
+  | `Qwen3.5-4B-Q4_K_M.gguf` | `lmstudio-community/Qwen3.5-4B-GGUF` at `f9f88ac3e234be915e23811a6d28ea287bdb927e` | 2,707,513,696 | `25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c` | by hand, with bounds |
 
   The Hub's LFS records give these digests, and the Linux machine's `Qwen3.5-4B-Q4_K_M.gguf` has the 4B's, so that file is lmstudio-community's.
   The machine's own 0.8B Q4_K_M (527,502,816 bytes) is another build and is not pinned.
@@ -595,10 +595,29 @@ It runs in the qwen35 venv above, offline, and passes the same environment check
 | Qwen3.5-4B | 1.844163831 | 2.519526005 | 2.216166791 | 2.269156456 |
 
 `tests/baseline_qwen35.py` pins every golden by SHA-256 and a file by its entry's, and finds a file's goldens by the files they name.
-`tests/baseline.py` runs it on each hosted file on disk at 512-token windows, and it runs by hand on any pinned file at either window (`AGENTS.md`, Tests).
-While llmx refuses the architecture it runs the 47 id checks (37 tokenizer texts, the file's chat template, the two renders, the six prompts and the excerpt) and reports one skip line.
+`tests/baseline.py` runs it on each file of the gate on disk at 512-token windows, and it runs by hand on any pinned file at either window (`AGENTS.md`, Tests).
+Where llmx does not run the architecture, on a device whose backend lacks its ops, it runs the 47 id checks (37 tokenizer texts, the file's chat template, the two renders, the six prompts and the excerpt) and reports one skip line.
 The chat checks hold the file to the template transformers rendered with and to the render's ids; the `chat-template` test holds llmx's own render of the two conversations to transformers', and the renderer to transformers' on that template over other conversations.
 Each file's bounds come from llmx's first measurement on it, and a file without them is measured and fails.
+
+llmx's first measurement, on the Linux machine's CPU in containers of six CPUs at one-minute load averages of 16 to 40 from other work, with the branch that runs qwen35 (`feat/qwen35-model`), gives the following; top-1 and top-5 are over the six prompts and the two chat renders, and each NLL delta is the largest of the excerpt scored in batched passes and per token:
+
+| file | windows | cache | top-1 | top-5 overlap, lowest | NLL delta whole | NLL delta in windows | bounds: top-5, whole, windows |
+|---|---:|---|---:|---:|---:|---:|---|
+| 0.8B Q8_0 | 512 | f16 | 8 of 8 | 5 | 0.0044 | 0.0038 | 5, 0.02, 0.02 |
+| 0.8B Q8_0 | 512 | f32 | 8 of 8 | 5 | 0.0053 | 0.0038 | |
+| 0.8B Q8_0 | 4096 | f16 | 8 of 8 | 5 | 0.0083 | 0.0079 | |
+| 0.8B Q4_K_M | 512 | f16 | 6 of 8 | 4 | 0.0088 | 0.0228 | none |
+| 0.8B Q4_K_M | 512 | f32 | 6 of 8 | 4 | 0.0097 | 0.0235 | |
+| 0.8B Q4_K_M | 4096 | f16 | 6 of 8 | 4 | 0.0189 | 0.0187 | |
+| 4B Q4_K_M | 512 | f16 | 8 of 8 | 4 | 0.0396 | 0.0475 | 4, 0.07, 0.08 |
+| 4B Q4_K_M | 4096 | f16 | 8 of 8 | 4 | 0.0289 | 0.0282 | |
+
+Each bound is the largest delta measured plus a margin, at least 0.011 on the Q8_0 and 0.03 on the 4B, and each top-5 bound the lowest overlap measured.
+On the Q8_0 the per-token deltas are the larger, 0.0044 against 0.0005 batched at 512 tokens, since the CPU's decode rows take its 8-bit dots over quantized activations.
+The 0.8B Q4_K_M ranks HF's second token first after `The capital of France is` and `In 1969, humans first walked on the`, where HF's margins are 0.32 and 0.11 logits, so those two checks fail at any bounds.
+Against the goldens `file-exact` made from each 0.8B file's own weights (below), llmx gives HF's top-1 on all six prompts and a top-5 overlap of 5 with both files, with NLL deltas, batched and per token, of 4.3e-5 and 3.9e-3 whole and 1.7e-5 and 4.2e-3 in windows on the Q8_0, and 2.3e-5 and 7.6e-4 whole and 1e-6 and 1.3e-3 in windows on the Q4_K_M: the two flips are the Q4_K_M's own quantization.
+Holding that file in the gate is a revision for the user: its file-exact goldens committed and held at the Q8_0 bounds, or a top-1 swap counted as agreement below a margin; until then it has no bounds and stays out of the gate.
 
 `file-exact --weights-gguf FILE` with a pinned qwen35 file loads the checkpoint whose entry names the file, and gives HF the file's own tensors, decoded by `tests/spec_decode.py` with the converter's changes undone:
 
@@ -826,7 +845,7 @@ python -X utf8 tools/gen_layered_reference.py goldens --repo Qwen/Qwen3.6-27B --
 
 **The consumer.**
 `tests/baseline_layered.py` chooses the goldens by the model's SHA-256 and runs the 8B consumer's checks with them (`tests/baseline_8b.py`, one runner for both): 20 tokenizer cases, six rankings and four NLL cases, each batched and per token, 41 checks with a report.
-While llmx refuses the qwen35 architecture it prints one line, `... HF check SKIP: llmx does not run this model yet (error: inference: unsupported metadata general.architecture)`, and exits 0, after the tokenizer cases, which llmx already runs.
+Where llmx does not run the qwen35 architecture it prints one line and exits 0, after the tokenizer cases: on a device whose backend lacks the linear attention's ops, `... HF check SKIP: llmx does not run this model yet (error: inference: layer 0's mixer needs causal_conv_silu, which the backend of its device does not implement)`.
 A check failed before the refusal, any other error, and a model with no goldens fail it.
 
 ```
@@ -836,6 +855,14 @@ python -X utf8 tests/baseline_layered.py --exe build/llmx --model path/to/Qwen3.
 Its bounds, declared before any llmx comparison as the 8B's were, are the Qwen3-0.6B Q4_K_M fixture's in `tests/baseline.py`, the same file type against its full-precision reference: top-1 exact, top-5 overlap 4 of 5, NLL within 0.13 continuous and 0.25 windowed, and logits within 100.
 On the Linux host's CPU, with a CPU-only build whose `src/` is main's at `b29f6056`, both files pass their 20 tokenizer cases and the first prompt's ids, 21 checks, and then give the skip line.
 The 9B's run took 20 s and the 27B's 36 s, most of it hashing the file, at load averages near 40.
+With the branch that runs qwen35 (`feat/qwen35-model`), on the same CPU in containers of six CPUs at load averages of 13 to 32:
+
+| file | top-1 | top-5 overlap, lowest | NLL delta whole, largest | NLL delta in windows, largest | checks | time |
+|---|---:|---:|---:|---:|---|---:|
+| 9B Q4_K_M | 6 of 6 | 4 | 0.0153 | 0.0464 | 41 pass | 1,096 s |
+| 27B Q4_K_M | 6 of 6 | 5 | 0.0107 | 0.0140 | 41 pass | 6,161 s |
+
+The 27B decoded as slowly as 0.1 token a second at those loads, so a per-token case of its 243 tokens took up to 39 minutes, past the consumer's 900 s a command, which stopped a first run at its second per-token case; the run in the table gave each command an hour and started with 26 GiB of memory available, and the two runs agree on every result both have.
 
 ### Fixed-excerpt HF perplexity gate
 

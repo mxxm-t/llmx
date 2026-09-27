@@ -3824,8 +3824,65 @@ This separate merge-record change reviews STATUS against the completed landing e
        - **Merged** at `a730810` with step 4's references, after rebasing onto main `9e7b1e1`, whose phase 3 step 1 lines sat beside this step's in `tests/data/known_findings.txt` and were both kept.
          On the Linux machine at the merged head: CPU-only and Vulkan builds with no warning; ctest 28 of 28 on the CPU-only build and 31 of 31 on the Vulkan build with one MI50, `backend-vulkan` run rather than skipped; `generate` greedy and seeded, `logits` and `perplexity` on Qwen3-0.6B Q8_0 byte-identical to main on the CPU and on the MI50, 8 of 8; `dead-code`, `docs` and `tests/dead_code.py --linked` against the list.
          The hosted run: green at `a730810` on `gate/merge-21`: Linux 2:55, UBSan 4:03, Windows 5:09, the Vulkan build with the linked check 5:26, macOS 5:51 and the HF reference job 19:00.
-       - The architecture refactor is merged at `3e73ffb`; step 4's model module and its gates remain in flight. That module brings the product use of these ops: the config, the resolver and the mixer kind, the arena slots, the per-layer cache in `Footprint` and the rope table by rope_dim, the KV counters over attention layers only, the state slots per command with the retirement, failed-pass and truncate rules, and the refusals by the device backends and by `serve` at load; then this step's gates above.
-         Until then only `qwen35-ops` calls the ops, so their dead-code findings are listed in `tests/data/known_findings.txt` against this step, and `state_copy`'s against step 8b, which takes a state back into a live slot.
+       - The model's use of these ops landed with the model, below; their dead-code findings left the list with it, but for `state_copy`'s against step 8b, which takes a state back into a live slot.
+     - **The model runs on the CPU** (2026-09-27, branch `feat/qwen35-model`), on the architecture refactor's modules: `refactor/arch-modules` at `05d8eae`, with main at `1f7aa85` merged in for the ops, to be rebased onto main once the refactor lands there.
+       - The four contract additions, each a commit of its own with qwen35 as first user and Qwen3 byte-identical:
+         - a cache per layer (`LayerPlan::cache`: KV, a recurrent state or none), a device's KV storage over its KV layers only, and `Footprint::cache` per layer;
+         - each stage's own committed length, so a stage whose layers keep no KV runs without a storage, and `kv_used_bytes` over the KV layers only; a stage's length has one owner, its KV sequence where it keeps KV and a count of its own otherwise, which the linked dead-code check asked for once the KV sequence's length and reset were read only by tests;
+         - the `table` role kind, an F32 `[in, out]` an op reads whole, which the fit does not count as a product, for `ssm_conv1d`;
+         - the state: `ModelPlan::state`, a `StateStorage` on each device for its state layers with `ModelOptions::state_slots` slots, allocated at load; the slots (`SlotPool` and `StateSlot` in `model/kv_cache.hpp`); and the mixer's views (`Step::states`, `Step::state_layer`).
+           A model that keeps a state is never forked, and a failed pass loses the state of each entry it takes back to a length other than 0, where the state reads as zero; the sequence is refused until its reset.
+       - The op check at load: `LayerPlan::ops` names each part's ops from `backend::Op`, and a model is refused before any weight is adopted on a device whose backend does not implement one (`Backend::implements`), with a text naming the layer, the part and the op.
+         The CPU implements all five, the Vulkan backend none until step 5.
+       - The embedding, the SwiGLU block, the head and the projection helper moved to `model/arch/blocks.hpp`, which both modules run; the routed expert block stays in Qwen3's module until step 7 needs it.
+       - `model/arch/qwen35.hpp` with its registry line, its page and CTest `arch-qwen35`:
+         - the configuration: `block_count - nextn_predict_layers`, at most one MTP block; the mixer kind from `full_attention_interval` or the `attention.recurrent_layers` array; the rotary width, even, inside a head and twice the sections' sum; and the linear attention's widths, the conv at 4 taps;
+         - the plan of both layer kinds, the rope tables at rope_dim / 2 a position, and the math over the step 4 ops.
+       - `serve` refuses a model that keeps a state before it listens (`server::require_servable`).
+         The qwen35 component, `tests/baseline_qwen35.py` and `tests/baseline_layered.py` skip on a device's refusal of the ops as on the architecture's (`qwen35.REFUSALS`), and the split component holds the tiny qwen35 models to one CPU over two and four CPU backends.
+       - Choices within the plan:
+         - A sequence takes its slot in its first pass and returns it at its reset, so `generate`, `logits`, `perplexity` and `chat` hold one slot, `bench --seqs N` N (its own sequence is reset before the batch), and `llmx-split-check` two; `serve` would take `--max-seqs` but refuses the model.
+         - The runtime has no public truncation, so the truncate rule is the rollback's: a history with a state taken back to any length but 0 is lost, and its next pass is refused until a reset.
+         - Prefix reuse is the server's and goes with its refusal; `Model::fork` refuses a model that keeps a state at any length, and `llmx-split-check` skips its fork for one.
+         - The linear layer's products are `attn_qkv` alone, then `attn_gate`, `ssm_alpha` and `ssm_beta` in one `matmul_group`, the second candidate of Design, the kernels; on the CPU a grouping changes no bit, and step 5 measures the choice on the device.
+         - No file carries a gated-attention key, so the plan's `attn_q` of `[E, 2 Hq D]` holds a file to the gated layout.
+       - Gates, on the Linux machine in containers of six CPUs at one-minute load averages of 11 to 45 from other work, with builds of the branch's C++ at `ae0b951`; the real models' measurements but the 27B's ran with builds of earlier states of the branch, whose runtime differed only in when a slot is taken and whose count a stage's length is, and whose logits, 512-token perplexity and greedy text on both 0.8B files are the final build's byte for byte:
+         - The tiny fixtures (`qwen35` component): every logit within 2e-5 of HF's token-by-token goldens, max error 8.7e-7, across ubatches 1, 2, 3, 5 and 16, 1 and 4 threads, `--last` and `--then-ids`; NLL within 1e-5 batched and per token; greedy decode after a prefill giving HF's ids; the MTP file printing the file's bytes without it; `serve` refused with its text; `bench --seqs 3`.
+           An MSVC build under Windows gives 8.6e-7 on the same component.
+         - `arch-qwen35`: 79 checks, every refusal with its text, the plan, the footprint, the op check, the slots, the failed-pass rules, a prompt in slices of 1, 3 and 16 and its decode bit for bit, two sequences in one pass against each alone, and a split over two CPU backends whose first stage holds only a state.
+         - The real models against HF (tokenizer ids, the file's chat template and its renders' ids, top-1, top-5, the NLL of the excerpt whole and in windows, batched and per token), as `tests/baseline_qwen35.py` reports them; bounds from these first measurements are in `tests/baseline_qwen35.py`:
+
+           | file | windows | cache | top-1 | top-5 overlap, lowest | NLL delta whole, largest | NLL delta in windows, largest |
+           |---|---:|---|---|---:|---:|---:|
+           | 0.8B Q8_0 | 512 | f16 | 8 of 8 | 5 | 0.0044 | 0.0038 |
+           | 0.8B Q8_0 | 512 | f32 | 8 of 8 | 5 | 0.0053 | 0.0038 |
+           | 0.8B Q8_0 | 4096 | f16 | 8 of 8 | 5 | 0.0083 | 0.0079 |
+           | 0.8B Q4_K_M | 512 | f16 | 6 of 8 | 4 | 0.0088 | 0.0228 |
+           | 0.8B Q4_K_M | 512 | f32 | 6 of 8 | 4 | 0.0097 | 0.0235 |
+           | 0.8B Q4_K_M | 4096 | f16 | 6 of 8 | 4 | 0.0189 | 0.0187 |
+           | 4B Q4_K_M | 512 | f16 | 8 of 8 | 4 | 0.0396 | 0.0475 |
+           | 4B Q4_K_M | 4096 | f16 | 8 of 8 | 4 | 0.0289 | 0.0282 |
+
+           The suite's `baseline` component holds the 0.8B Q8_0, the gate's one qwen35 file, to its 59 checks with f16 caches and with f32, as the HF job's two passes will.
+
+           The bounds: the 0.8B Q8_0 top-5 5, NLL 0.02 whole and 0.02 in windows, which puts it in the gate; the 4B top-5 4, NLL 0.07 and 0.08; the 0.8B Q4_K_M none.
+
+           The 0.8B Q4_K_M ranks HF's second token first on two of the six prompts, `The capital of France is` and `In 1969, humans first walked on the`, where HF's margins are 0.32 and 0.11 logits.
+           Against the goldens `tools/gen_baseline.py file-exact` made from that file's own weights, llmx gives HF's top-1 on all six prompts and top-5 overlap 5, with NLL deltas of 2.3e-5 whole and 1e-6 in windows batched, 7.6e-4 and 1.3e-3 per token; the Q8_0's are 4.3e-5, 1.7e-5, 3.9e-3 and 4.2e-3, all six top-1.
+           So the flips are the file's quantization, and the file has no bounds and stays out of the gate: holding it to its file-exact goldens, or letting a top-1 swap below a margin count as agreement, is a gate revision for the user.
+         - The layered goldens (`tests/baseline_layered.py`, the 0.6B Q4_K_M fixture's bounds): the 9B passes all 41 checks, top-1 on all six prompts, top-5 overlap 4 at the lowest, NLL deltas at most 0.0153 whole and 0.0464 in windows against 0.13 and 0.25, in 1,096 s; the 27B passes all 41, top-1 on all six, top-5 overlap 5 on every one, NLL deltas at most 0.0107 whole and 0.0140 in windows, in 6,161 s, with each command given an hour, since its per-token cases took up to 39 minutes at those loads and a first run at the consumer's 900 s a command stopped at its second.
+         - Qwen3 unchanged: `generate` greedy and seeded, `logits` of a prompt and of an excerpt's last positions, `perplexity` batched and per token, and a two-turn `chat`, on Qwen3-0.6B Q8_0, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M, byte-identical to main at `1f7aa85` on the CPU and on one MI50: 21 cells of 21 on the CPU and 21 of 21 on the MI50, at load averages of 21 to 40.
+         - The device refusal on the MI50: `generate` on the 0.8B refused with `inference: layer 0's mixer needs causal_conv_silu, which the backend of its device does not implement`, the `qwen35` component reporting SKIP and `tests/baseline_layered.py` on the 9B one skip line after its 21 tokenizer checks.
+         - CPU-only and Vulkan builds with no warning; ctest 29 of 29 on the CPU-only build and 32 of 32 on the Vulkan build with the MI50, `backend-vulkan` run.
+         - The ordinary suite with `--require-tools`, 29 minutes at load averages of 11 to 45: 21 of its 22 components pass, among them `dead-code`, `docs`, `arch-boundary`, `f32`, `moe`, `split` (60 runs, the qwen35 models over 2 and 4 CPU backends among them), `qwen35`, `server`, `threads` and `baseline` on the Qwen3 files of the HF cache, and `raw-blocks` fails only because the container has no numpy, its pure form's checks passing; `tests/dead_code.py --linked` passes against the list.
+         - `chat-template` renders the two conversations of the 0.8B's and the 4B's chat goldens under their files' templates as transformers renders them, 4 cases, and fails on a planted change to one render; the real-model check holds the files to those templates and to the renders' ids.
+         - `llmx-split-check` on the 0.8B Q8_0 over a 1,200-character excerpt (284 tokens), bit-identical: `cpu` against `cpu,cpu` with 8 steps and 64-token chunks, and against eight CPU backends of three layers each, whose first and fifth stages hold only states, with 4 steps.
+         - `bench --model` on the 0.8B Q8_0 with `--seqs 4`.
+       - Left, beyond step 5:
+         - The 0.8B Q4_K_M's gate, above, which waits for the user.
+         - The rebase onto main once the architecture refactor lands there, and the hosted run on its `gate/` push.
+         - The HF job's time with the 0.8B Q8_0 among its downloads, which it checks in both of its passes: the job ran 19 minutes of its 30 before, and the suite's `baseline` component took 9.0 minutes with f16 caches and 7.3 with f32 on that file on six loaded CPUs here, so the gate push may need the limit raised.
+       - Owed to step 5 from this step, beside step 5's own list: the device's five ops and state storage, after which the op check lets a device take the model and `Backend`'s refusing forms go; the projection grouping measured on the device; the 16k check's CLI mode; and the device's slots, which the CPU's rules above already fix.
   5. **`feat/qwen35-vulkan`:** the device ops (conv, the per-token recurrence with source, destination and checkpoint-row push constants, the gated norm, `sigmoid_mul`, and the copy and tag rules), the projection groups, device state storage, attention at head dim 256, strided partial rope, the CLI's layer split with states, and a CLI mode for `tools/long_context_check.py` (two fresh `generate` runs, plus `logits --last` on the baseline).
      - Owed from step 4's CPU ops: the five ops made pure virtual, with `Backend`'s refusing forms and `qwen35-ops`' `check_refusals` removed; `norm_rope_rows` folded into `norm_rope_partial`, as the user decided on 2026-09-27; `backend-vulkan` checks of `state_alloc` and `state_copy`; and the device's check of the decay flush on a state whose decayed values stay normal, as the CPU's is, since a device that flushes denormals zeroes a value the kept factor scales below 2^-126.
      - Gates:
@@ -7826,7 +7883,7 @@ their own measurements; K-quant optimization remains separate work below.
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
 | Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | Planned (block above), built in the background |
 | More model architectures (Llama, ...)    | Planned  |
-| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | Planned (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, its model implementation and device gates remain in flight; the architecture refactor is merged |
+| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model runs on the CPU on branch `feat/qwen35-model` |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (block above); the CPU timing on a quiet host follows |
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | Done |

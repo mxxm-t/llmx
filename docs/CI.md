@@ -102,12 +102,13 @@ These use standard-library test doubles; CI does not generate new HF goldens or 
 The `qwen35` component holds the tiny qwen35 files to HF on the CPU in every job, and reports SKIP, not PASS, only on a device whose backend refuses the architecture's ops.
 The ordinary suite now has 24 components, including `dead-code` and `docs`, the source and Markdown checks, `arch-boundary`, which holds the runtime to naming no architecture or tensor, `qwen35`, `raw-blocks`, the spec decoders' checks, `server-load`, the load tool's self-test, and `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
 These tests use small committed JSON fixtures and doubles, without 8B inference.
-Default real-model downloads are the four pinned 0.6B GGUFs: Q8_0, Q4_0, Q5_K_M and Q4_K_M.
+Default real-model downloads are the four pinned 0.6B GGUFs, Q8_0, Q4_0, Q5_K_M and Q4_K_M, and the pinned Qwen3.5-0.8B Q8_0.
 Six more models are pinned there ahead of their tensor types, with `gate` false, and no job downloads them yet.
 When their types join the gate, the three marked `hosted` (UD-Q8_K_XL, IQ4_XS and Q2_K, 1.51 GB) join the HF job's downloads and its cache key, and the other three (BF16, IQ4_NL and Q3_K_S) are checked by hand after `tools/fetch_test_models.py --all`.
 The job downloads and requires every gate model, so `tests/baseline.py` refuses a gate model not marked `hosted`, and one of those three joins the gate only with a change that lets the job leave it out.
-Three qwen35 files are pinned too, each naming the `qwen35` family: the two Qwen3.5-0.8B files marked `hosted` (Q8_0 and Q4_K_M, 1.34 GB), which join the HF job's downloads with their bounds in `tests/baseline_qwen35.py`, and the Qwen3.5-4B Q4_K_M, checked by hand.
-Until then the `baseline` component reports each hosted one as skipped when it is absent, and as one skip line while llmx refuses the architecture when it is present.
+Three qwen35 files are pinned too, each naming the `qwen35` family: the two Qwen3.5-0.8B files marked `hosted` (Q8_0 and Q4_K_M, 1.34 GB), and the Qwen3.5-4B Q4_K_M, checked by hand with its bounds.
+The 0.8B Q8_0 is in the gate with its bounds in `tests/baseline_qwen35.py`, so the HF job downloads and requires it and checks it at 512-token windows in both of its passes; the 0.8B Q4_K_M has no bounds and stays out of the gate, since its own quantization moves HF's top-1 on two prompts (`docs/STATUS.md`).
+The `baseline` component checks the qwen35 files of the gate, reports one as skipped when it is absent and as one skip line on a device whose backend lacks the architecture's ops, and leaves the files outside the gate to be run by hand.
 Every entry now names its family, so the key changed once with that field, which costs the HF job one fresh download of the gate's four files.
 
 The separate 8B consumer requires an existing model and a new output directory:

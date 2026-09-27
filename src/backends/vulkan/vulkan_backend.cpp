@@ -999,18 +999,6 @@ public:
     const std::string& name() const { return dev_->caps.device; }
     const DeviceProfile& profile() const { return dev_->profile; }
 
-    // The Q8_0 decode kernel's builds on this device, as the pipelines are made (vulkan_decode_builds).
-    std::vector<DecodeBuild> decode_builds() const {
-        std::vector<DecodeBuild> out;
-        for (int v = 0; v < kVariants; ++v) {
-            const VecBuild& b = kVecBuilds[v];
-            const uint32_t forms = vec_forms(v, dev_->profile);
-            out.push_back({kernel_variant_name(K_MATMUL_VEC_Q8, v), b.cols, b.rows, b.steps, (forms & kQ8Tree) != 0, (forms & kQ8Hoist) != 0,
-                           (forms & kQ8Quad) != 0});
-        }
-        return out;
-    }
-
     // The driver's statistics for every kernel compiled so far, one line each: on AMD the vector and scalar register counts, scratch, shared memory and occupancy.
     // Empty when the device does not report them.
     std::string kernel_statistics() const {
@@ -1059,6 +1047,7 @@ public:
     }
 
     // The driver's internal representations of every kernel compiled so far, under each kernel's name, for a backend opened for diagnostics.
+    // A Q8_0 decode build's text starts with a line giving its shape and forms as its pipeline was made, which backend-vulkan --isa holds its float operations to.
     std::vector<std::pair<std::string, std::string>> kernel_representations() const {
         std::vector<std::pair<std::string, std::string>> out;
         const Device& d = *dev_;
@@ -1073,6 +1062,13 @@ public:
             uint32_t n = 0;
             if (d.get_exec_props(d.device, &pi, &n, nullptr) != VK_SUCCESS) continue;
             std::string text;
+            if (id == K_MATMUL_VEC_Q8) {
+                const VecBuild& b = kVecBuilds[variant];
+                const uint32_t forms = vec_forms(variant, d.profile);
+                text = "; q8_decode_build cols=" + std::to_string(b.cols) + " rows=" + std::to_string(b.rows) + " steps=" + std::to_string(b.steps) +
+                       " tree=" + std::to_string((forms & kQ8Tree) ? 1 : 0) + " hoist=" + std::to_string((forms & kQ8Hoist) ? 1 : 0) +
+                       " quad=" + std::to_string((forms & kQ8Quad) ? 1 : 0) + "\n";
+            }
             for (uint32_t e = 0; e < n; ++e) {
                 VkPipelineExecutableInfoKHR ei{};
                 ei.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
@@ -2684,11 +2680,6 @@ size_t vulkan_timed_dispatches(const Backend& backend) {
 std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend) {
     const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
     return v ? v->kernel_representations() : std::vector<std::pair<std::string, std::string>>();
-}
-
-std::vector<DecodeBuild> vulkan_decode_builds(const Backend& backend) {
-    const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
-    return v ? v->decode_builds() : std::vector<DecodeBuild>();
 }
 
 } // namespace backend

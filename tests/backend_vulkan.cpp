@@ -1718,7 +1718,32 @@ struct DecodeOps {
     size_t products = 0, mul = 0, lane_add = 0, add = 0, reduce = 0;
     bool tree = false;
 };
-DecodeOps decode_ops(const backend::DecodeBuild& b, size_t levels, size_t extra) {
+// A Q8_0 decode build as the backend made it, read from the first line of its representation (vulkan_kernel_representations): the columns and rows a subgroup takes, the steps of weights a lane loads before using any, and its forms.
+struct DecodeBuild {
+    unsigned cols = 0, rows = 0, steps = 0;
+    bool tree = false, hoist = false, quad = false;
+};
+bool decode_build(const std::string& text, DecodeBuild& b) {
+    const std::string head = "; q8_decode_build";
+    const std::string line = text.substr(0, text.find('\n'));
+    if (line.compare(0, head.size(), head) != 0) return false;
+    // The value after ` key=` on that line, or false where the key is missing or its value is not a number.
+    auto field = [&](const char* key, unsigned& v) {
+        const std::string at = std::string(" ") + key + "=";
+        const size_t p = line.find(at);
+        if (p == std::string::npos || p + at.size() >= line.size() || !std::isdigit((unsigned char)line[p + at.size()])) return false;
+        v = unsigned(std::stoul(line.substr(p + at.size())));
+        return true;
+    };
+    unsigned tree = 0, hoist = 0, quad = 0;
+    if (!field("cols", b.cols) || !field("rows", b.rows) || !field("steps", b.steps) || !field("tree", tree) || !field("hoist", hoist) || !field("quad", quad))
+        return false;
+    b.tree = tree != 0;
+    b.hoist = hoist != 0;
+    b.quad = quad != 0;
+    return b.cols && b.rows && b.steps;
+}
+DecodeOps decode_ops(const DecodeBuild& b, size_t levels, size_t extra) {
     DecodeOps n;
     const size_t group = b.cols < 4 ? b.cols : 4, rc = size_t(b.rows) * b.cols;
     size_t cols = b.cols;
@@ -1745,12 +1770,17 @@ DecodeOps decode_ops(const backend::DecodeBuild& b, size_t levels, size_t extra)
 // Every build of a row kernel holds its one-column build's float multiply and add counts, and a grouped build its wide build's: a screen on how the driver contracts and reduces a column's products and sums, which sees a change only where it changes the counts.
 // Reassociation that keeps the counts shows only in the decode-column check, which is what holds batch invariance (docs/VULKAN.md, batch invariance).
 // A build of `matmul_row.comp` holds the one-column build's counts exactly where the driver keeps the column loop rolled, and otherwise those counts and N - 1 copies of one column's, N its columns.
-// The Q8_0 decode kernel's builds differ in rows, steps, copies of their products and forms (`decode`, as the backend makes them), so where its one-column build reduces over shuffled adds each build holds the counts its shape and forms give (decode_ops), the transposed reduction only where the one-column build's reduction takes six levels.
+// The Q8_0 decode kernel's builds differ in rows, steps, copies of their products and forms (as the first line of each one's representation gives them), so where its one-column build reduces over shuffled adds each build holds the counts its shape and forms give (decode_ops), the transposed reduction only where the one-column build's reduction takes six levels.
 // A kernel's builds are named after it: the wide build plain, then `_grouped` and `_<N>col`; a kernel whose driver gives no disassembly is not checked.
-ContractionChecks check_contraction(const std::vector<std::pair<std::string, std::string>>& representations, const std::vector<backend::DecodeBuild>& decode) {
+ContractionChecks check_contraction(const std::vector<std::pair<std::string, std::string>>& representations) {
     ContractionChecks n;
     std::vector<std::pair<std::string, FloatOps>> ops;
     for (const auto& kr : representations) ops.push_back({kr.first, float_ops(kr.second)});
+    auto shape_of = [&](const std::string& name, DecodeBuild& b) {
+        for (const auto& kr : representations)
+            if (kr.first == name) return decode_build(kr.second, b);
+        return false;
+    };
     auto find = [&](const std::string& name) -> const FloatOps* {
         for (const auto& o : ops)
             if (o.first == name) return &o.second;
@@ -1789,12 +1819,9 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                     ++n.kinds_only;
                     continue;
                 }
-                const backend::DecodeBuild *shape = nullptr, *one_shape = nullptr;
-                for (const auto& d : decode) {
-                    if (d.name == b) shape = &d;
-                    if (d.name == one.first) one_shape = &d;
-                }
-                if (!shape || !one_shape) fail("a Q8_0 decode build the backend does not report");
+                DecodeBuild shape_b, one_b;
+                if (!shape_of(b, shape_b) || !shape_of(one.first, one_b)) fail("a Q8_0 decode build whose representation does not start with its shape");
+                const DecodeBuild *shape = &shape_b, *one_shape = &one_b;
                 // The one-column build's own counts give its reduction's shuffled adds and the multiplies beside its products.
                 const size_t rc1 = size_t(one_shape->rows) * one_shape->cols, levels = ref.lane_add / rc1;
                 const DecodeOps want1 = decode_ops(*one_shape, levels, 0);
@@ -2134,7 +2161,7 @@ int main(int argc, char** argv) {
                 written += f.good() ? 1 : 0;
             }
             std::cout << "backend-vulkan: " << written << " kernel representations written to " << isa_dir << "\n";
-            const ContractionChecks c = check_contraction(representations, backend::vulkan_decode_builds(*b));
+            const ContractionChecks c = check_contraction(representations);
             std::cout << "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: " << c.same << " the same, "
                       << c.whole_columns << " those and whole columns, " << c.decode << " Q8_0 decode builds those their shape and forms give, "
                       << c.kinds_only << " their kinds only; " << c.grouped << " grouped builds the same as their wide build\n";

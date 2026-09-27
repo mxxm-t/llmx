@@ -22,8 +22,8 @@ kernel notes and measurements are `docs/VULKAN.md`.
   `vulkan_kernel_representations` returns and `backend-vulkan --isa DIR`
   writes one file per kernel, then holds each row kernel build to its
   one-column build's counts of float multiplies and adds, and each Q8_0
-  decode build to the counts its shape and forms give, which
-  `vulkan_decode_builds` reports (AGENTS.md, Tests). On a queue that
+  decode build to the counts its shape and forms give, which the first
+  line of that build's representation states (AGENTS.md, Tests). On a queue that
   timestamps it the backend also times the
   dispatches: `vulkan_kernel_times` returns device milliseconds per kernel
   since the last reading, waiting for the queue, and
@@ -92,7 +92,7 @@ kernel notes and measurements are `docs/VULKAN.md`.
   and F32 rows the plain build.
   The Q8_0 decode kernel is built for 1, 2, 4, 8, 16 and 32 columns (`kVecBuilds`), with the rows a subgroup takes, the steps of weights a lane loads ahead, its three forms and its column groups as specialization constants 9 to 14; `sg_rows` gives the rows a subgroup takes in any row kernel build, which a dispatch's rows per workgroup follow.
   The 32-column build is two 16-column groups over the same rows, and a dispatch gives each workgroup's rows two adjacent workgroups.
-  A build takes the forms it asks for that the profile's `q8_decode_forms` allows (`vec_forms`), and `vulkan_decode_builds` gives each build's shape and forms to `backend-vulkan`.
+  A build takes the forms it asks for that the profile's `q8_decode_forms` allows (`vec_forms`), and `kernel_representations` starts each build's text with its shape and forms for `backend-vulkan`.
   `for_each_column_chunk` splits a pass's columns: chunks of the widest build the kernel has on the device (the profile's `q8_decode_cols` for this kernel) while more columns remain than it holds, then the rest in the narrowest build that holds them.
   Each Q8_0 decode build holds twice the next narrower's columns, so a chunk fills more than half its build, and a build of one column group checks the column count only before the groups of columns past its first half, while the 32-column build's second group, which gets 1 to 16 columns, checks it before each; a build of up to 8 columns also skips the products of the columns past the count in a group the pass fills in part.
   Every build computes a column as the one-column build does, so the split changes only the time; `backend-vulkan` checks each column against the same column alone.

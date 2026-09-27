@@ -35,18 +35,9 @@ DeviceProfile vulkan_device_profile(const Backend& backend);
 std::string vulkan_kernel_statistics(const Backend& backend);
 
 // The driver's internal representations (the ISA on AMD) of every kernel a diagnostics backend has compiled, as (kernel name, text).
+// A build of the Q8_0 decode kernel starts with a line of its shape and forms as the backend made it on its device (docs/VULKAN.md): `; q8_decode_build cols=C rows=R steps=S tree=T hoist=H quad=Q`, each form 0 or 1.
 // Empty for a backend opened without diagnostics or a device that does not serve them.
 std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend);
-
-// A build of the Q8_0 decode kernel as the backend makes it on its device (docs/VULKAN.md): its name in vulkan_kernel_representations, the columns and rows a subgroup takes, the steps of weights a lane loads before using any, and the forms the device's profile gives it.
-struct DecodeBuild {
-    std::string name;
-    uint32_t cols = 0, rows = 0, steps = 0;
-    bool tree = false, hoist = false, quad = false;
-};
-
-// Every build of the Q8_0 decode kernel on this backend's device, for the test's counts of each build's float operations; empty for another backend.
-std::vector<DecodeBuild> vulkan_decode_builds(const Backend& backend);
 
 // Device time per kernel in milliseconds since the last call, for a diagnostics backend on a queue that timestamps.
 // Reading it waits for the queue, so it is a diagnostic and not something a pass does.

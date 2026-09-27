@@ -402,6 +402,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   `tests/chat.py` also checks that a device that cannot be made is refused before the model file is read.
 - **Thread controls** (`tests/threads.py`): actual auto/explicit phase counts,
   restoration after prefill, follow-up chat and HF-golden replies.
+  The automatic count must be the one the test reads itself, apart from llmx, from the hardware threads, the process's affinity and its CPU quotas (the cgroup's on Linux, the job object's CPU rate hard cap on Windows), so a run in a CPU-limited container checks the quota.
   Perplexity also checks batched/per-token counts, both batch-thread aliases
   and automatic/zero selection against an independent HF NLL fixture.
 - **Loading and streaming** (CTest `load-progress`, `generation-stream`, `cli-output`):

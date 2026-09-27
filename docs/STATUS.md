@@ -4,7 +4,9 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## The half-block order for the MI50's Q8_0 decode (2026-09-27, branch perf/decode-order)
+## The half-block order for the MI50's Q8_0 decode (2026-09-27, branch perf/decode-order, merged at `f2a677bb`)
+
+- **Merged** at `f2a677bb` on main `3da159b9` after a green hosted run on `gate/merge-32` (run 36349718215, all six jobs), the other developer's review of the rule tables and of the code, and the Radeon VII check: 12 of 12 outputs byte-identical to main on Qwen3-0.6B and Qwen3-8B Q8_0, the 60 kernel ISA files identical, CTest 34 of 34, the Q8_0 MoE fixture within E at a max error of 0.000167, and decode level with main once interleaved (0.993 at 8 rows; the first, planned block ran while a Visual Studio build shared the machine and is kept beside it).
 
 - **Why:** layer split phase 3, step 5 asks the 32-row decode pass to meet the reference's batched step, 57.3 ms on 8B Q8_0, and every form that keeps main's order missed it: main's merged forms take 64.1 to 67.8 ms, and the loader-wave ring of `perf/decode-32-ring` 80.0 and 81.9 (step 5, Left).
   `research/decode-order-change` (`1379f31`) built the half-block order into the kernel and measured it at 55.2 ms, with the tokens it changes and both orders' HF results; this branch puts it on main's builds (`dbafdec`).
@@ -261,7 +263,6 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
     The shader is unchanged, so rule 2, the timing and the greedy ids were not run again at either rebase, and the Radeon VII's check of `de6de81` holds for it; the hosted run on `1ffebd0` passed all six jobs.
 - **Not merged**: `gate/merge-32` carries the head for the hosted run; the merge waits for the review of rule 2's tables and the Radeon VII's part of the tier.
 - **Left:**
-  - The Radeon VII's part of the device tier on the Windows machine, and the review before the merge.
   - 64 rows: the order takes 113.2 ms a pass against the reference's 86.2 to 87.4 in the device tier's session; the 32-row pass is level with the reference, the 64-row one is not.
   - The quarter layout keeps rows of an odd block count on the MI50 and every other integer-dot device; hoisted offsets or quad-shared products for it would come back from `3a203c9` if such a device or shape needed them.
 - **Gotchas:**

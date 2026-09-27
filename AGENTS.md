@@ -345,7 +345,8 @@ It exits 77, which CTest reports as skipped, when there is no loader, no
 device or a driverless loader.
 
 The finite activation-range case in `backend-vulkan` reads 285 blocks through a raw Q8_0 identity matrix: zero, every f32 power, float max and both twins' reciprocal-overflow boundaries, with signs, zeros and fractions in each block.
-Its 9120 outputs are bounded against the original input by half an 8-bit step plus float-rounding allowance, with the independent f32 scale rounded upward to fit the block peak and floored at the smallest positive f32; it does not take expected values from the runtime quantizer.
+It takes the inputs directly, through SiLU and through RMSNorm; the latter two compare the packed representation with the producer's actual float output, independently of that producer's own arithmetic error.
+Its 27360 outputs are bounded by half an 8-bit step plus float-rounding allowance, with the independent f32 scale rounded upward to fit the block peak and floored at the smallest positive f32; it does not take expected values from the runtime quantizer.
 It is the failing regression for `fix/vulkan-activation-range` until that branch supplies the repair (docs/STATUS.md, Vulkan finite activation range).
 
 `vulkan-buffer` checks constructor cleanup on a fake device that supplies every Vulkan call it makes, so it needs no loader and runs wherever the backend builds.

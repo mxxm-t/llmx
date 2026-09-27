@@ -597,7 +597,7 @@ It runs in the qwen35 venv above, offline, and passes the same environment check
 `tests/baseline_qwen35.py` pins every golden by SHA-256 and a file by its entry's, and finds a file's goldens by the files they name.
 `tests/baseline.py` runs it on each hosted file on disk at 512-token windows, and it runs by hand on any pinned file at either window (`AGENTS.md`, Tests).
 While llmx refuses the architecture it runs the 47 id checks (37 tokenizer texts, the file's chat template, the two renders, the six prompts and the excerpt) and reports one skip line.
-The chat checks hold the file to the template transformers rendered with and to the render's ids; llmx's own render of the two conversations is not compared here, and the `chat-template` test holds the renderer to transformers' on that template over other conversations.
+The chat checks hold the file to the template transformers rendered with and to the render's ids; the `chat-template` test holds llmx's own render of the two conversations to transformers', and the renderer to transformers' on that template over other conversations.
 Each file's bounds come from llmx's first measurement on it, and a file without them is measured and fails.
 
 `file-exact --weights-gguf FILE` with a pinned qwen35 file loads the checkpoint whose entry names the file, and gives HF the file's own tensors, decoded by `tests/spec_decode.py` with the converter's changes undone:

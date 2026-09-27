@@ -70,6 +70,7 @@ Those bounds keep parsing and rendering within about 100 KB and 200 KB of host s
 - templates the renderer must refuse;
 - texts `assistant_turn` must split as the templates' own expression does.
 
+It then reads the chat goldens of the qwen35 real-model references (`tests/data/qwen35-0.8b` and `tests/data/qwen35-4b`, `baseline_chat.json`), each rendered by transformers under the file's template, which the fixture holds by its SHA-256: a system and a user message, and two turns with an earlier reply that holds its reasoning, each with a generation prompt.
 The test also holds one case in its own source: a conversation ending in an assistant turn under the Qwen3 template of the official repositories, which the old renderer rendered without the turn's reasoning.
 
 Every case must render byte for byte, or fail where the reference fails; the message must match too when the template raised it, an undefined value did, or Python raised a type or division error.

@@ -3,11 +3,13 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include "core/json.hpp"
 #include "core/sha.hpp"
 #include "inference/chat.hpp"
 
 // Checks chat templates against the HF reference renderer's output in a fixture tools/gen_chat_baseline.py writes (tests/data/baseline_chat_template.json, or a --scan of GGUF files), and the renderer's own limits; docs/src/inference-chat.md lists the checks.
+// A model's chat goldens given after it (tests/data/qwen35-*/baseline_chat.json) are rendered too, each under the template of the fixture its SHA-256 names.
 // Every failure is printed before the exit status says whether there was one.
 
 using chat::jj::Value;
@@ -247,7 +249,8 @@ int main(int argc, char** argv) {
     try {
         if (argc < 2) throw std::runtime_error("usage: llmx-chat-template-test FIXTURE.json...");
         Tally tally;
-        size_t templates = 0, features = 0, refused = 0, splits = 0;
+        size_t templates = 0, features = 0, refused = 0, splits = 0, goldens = 0;
+        std::map<std::string, std::string> sources;   // the templates read so far, by SHA-256
         for (int arg = 1; arg < argc; ++arg) {
             std::ifstream input(argv[arg], std::ios::binary);
             if (!input) throw std::runtime_error(std::string("cannot open ") + argv[arg]);
@@ -256,6 +259,24 @@ int main(int argc, char** argv) {
             const std::string& bos = field(fixture, "bos_token").str;
             const std::string& eos = field(fixture, "eos_token").str;
 
+            // A model's chat goldens: each case's messages rendered under the file's template, against the reference's render.
+            if (const auto* pinned = fixture.get("template_sha256")) {
+                const auto source = sources.find(pinned->str);
+                if (source == sources.end()) throw std::runtime_error(std::string(argv[arg]) + ": its template is in no fixture read before it");
+                const chat::ChatFormat format = chat::chat_format(source->second, bos, eos);
+                for (const auto& c : field(fixture, "cases").arr) {
+                    ++goldens;
+                    ++tally.cases;
+                    const std::string where = std::string(argv[arg]) + " / " + field(c, "name").str, &expected = field(c, "text").str;
+                    try {
+                        const std::string actual = render_case(format, c);
+                        if (actual != expected) tally.fail(where + ": renders\n" + actual + "\nwhere the reference renders\n" + expected);
+                    } catch (const chat::TemplateError& e) {
+                        tally.fail(where + ": fails with \"" + e.what() + "\" where the reference renders");
+                    }
+                }
+                continue;
+            }
             for (const auto& t : field(fixture, "templates").arr) {
                 ++templates;
                 const std::string& name = field(t, "name").str;
@@ -263,6 +284,7 @@ int main(int argc, char** argv) {
                 core::Sha sha(true);
                 sha.update(source.data(), source.size());
                 if (sha.hex() != field(t, "sha256").str) { tally.fail(name + ": the template does not match its SHA-256 pin"); continue; }
+                sources[sha.hex()] = source;
                 const chat::ChatFormat format = chat::chat_format(source, bos, eos);
                 if (!format.program) { tally.fail(name + ": refused: " + format.refusal); continue; }
                 check_cases(name, format, field(t, "cases"), tally);
@@ -328,7 +350,7 @@ int main(int argc, char** argv) {
         check_limit("a namespace in a list in a namespace", "{% set ns = namespace(a=1) %}{% set ns.all = [ns] %}", false,
                     "a namespace holding a namespace is not supported", tally);
         std::cout << templates << " templates and " << features << " feature templates over " << tally.cases << " cases, "
-                  << refused << " refusals and " << splits << " splits against the HF reference renderer: " << tally.failures << " failed\n";
+                  << refused << " refusals, " << splits << " splits and " << goldens << " model chat goldens against the HF reference renderer: " << tally.failures << " failed\n";
         if (!templates && !features) throw std::runtime_error("no templates in the fixture");
         return tally.failures ? 1 : 0;
     } catch (const std::exception& error) {

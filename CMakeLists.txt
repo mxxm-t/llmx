@@ -229,7 +229,9 @@ if(BUILD_TESTING)
     target_include_directories(llmx-chat-template-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-chat-template-test)
     add_test(NAME chat-template COMMAND llmx-chat-template-test
-        ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/baseline_chat_template.json)
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/baseline_chat_template.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/qwen35-0.8b/baseline_chat.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/qwen35-4b/baseline_chat.json)
     set_tests_properties(chat-template PROPERTIES TIMEOUT 30)
     add_executable(llmx-fp16-test tests/fp16.cpp)
     target_include_directories(llmx-fp16-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

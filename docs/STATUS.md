@@ -2380,6 +2380,12 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
          Its goldens took 37 minutes at a load average of 18 to 66, during which other work brought the memory available down to 5 GiB at times.
          A first 4B run gave the same logit, chat and 512-token goldens and was stopped during its 4096-token part, after the memory available had fallen to 4 GiB; a second 0.8B run gave the 0.8B goldens byte for byte.
        - The 0.8B and 4B Q4_K_M files undone by `file-exact` give back every F32 tensor of their checkpoints bit for bit but `A_log`, whose -exp the file rounds, and one value in each of three of the 4B's layer norms, where float32(1 + w) rounds a tiny w.
+     - **The layered HF reference exists** (branch `work/qwen35-ref-layered`, tools, tests and data only), as [ASSETS](ASSETS.md), The layered qwen35 reference, records with its pins, hashes and runs:
+       - `tools/gen_layered_reference.py` runs HF's own Qwen3.5 decoder layers one at a time from the safetensors, and on Qwen3.5-0.8B equals HF's full forward bit for bit on all 15 inputs the goldens take and all 321 parameters (`tests/data/layered_equality.json`).
+       - Goldens for the Qwen3.5-9B and Qwen3.6-27B Q4_K_M files, in `tests/data/qwen3.5-9b` and `tests/data/qwen3.6-27b`, run the checkpoints' bf16 weights widened to float32, as the 8B's do, and record each GGUF's SHA-256 and the match of its F32 tensors with the checkpoint's.
+       - `tests/baseline_layered.py` reads them and skips in one line while llmx refuses qwen35.
+         Its bounds are the 0.6B Q4_K_M fixture's, declared before any llmx comparison; this step keeps them or tightens them on its first run.
+       - The 27B Q4_K_M on the Linux host has no known Hub source; its F32 tensors equal the checkpoint's but for 28 of its `ssm_a` values, each one float32 step from torch's exp, as the host's other third-party 27B files hold them.
   5. **`feat/qwen35-vulkan`:** the device ops (conv, the per-token recurrence with source, destination and checkpoint-row push constants, the gated norm, `sigmoid_mul`, and the copy and tag rules), the projection groups, device state storage, attention at head dim 256, strided partial rope, the CLI's layer split with states, and a CLI mode for `tools/long_context_check.py` (two fresh `generate` runs, plus `logits --last` on the baseline).
      - Gates:
        - The tiny fixtures, the 0.8B and the 4B within bounds on both cards.

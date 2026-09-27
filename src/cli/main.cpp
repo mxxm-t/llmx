@@ -482,7 +482,12 @@ std::vector<float> prefill_turn(infer::Model& model, const ExecOptions& exec, co
     return logits;
 }
 
-int cmd_generate(const std::string& model_path, const std::string& prompt, const infer::GenParams& gp, const ExecOptions& exec) {
+// The text `--chat` makes of a prompt: one user message through the model's chat template with the assistant's header after it, as the server's chat routes render a conversation of that one message.
+std::string chat_prompt(const chat::ChatFormat& format, const std::string& text) {
+    return format.render({ { "user", text, std::nullopt } }, true);
+}
+
+int cmd_generate(const std::string& model_path, const std::string& prompt, bool as_chat, const infer::GenParams& gp, const ExecOptions& exec) {
     const bool progress = show_progress(exec);
     const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose);
     bpe::Tokenizer& tok = *loaded->tok;
@@ -491,7 +496,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, const
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
 
-    std::vector<uint32_t> ids = tok.encode(prompt);
+    std::vector<uint32_t> ids = tok.encode(as_chat ? chat_prompt(loaded->chat, prompt) : prompt);
     if (ids.empty()) throw std::runtime_error("generate: empty prompt");
 
     const std::vector<float> logits = prefill_turn(model, exec, ids, decode_threads, progress, [&](double pp_ms) {
@@ -519,13 +524,13 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, const
 // `then_ids` appends exact generated IDs without re-tokenizing their text; `last` reports the final positions.
 // Positions go through the batched passes a prompt takes, or with `per_token` one at a time through step, the decode path a generated token takes.
 // These logits support the external correctness gate in docs/ROADMAP.md #8.
-int cmd_logits(const std::string& model_path, const std::string& text,
+int cmd_logits(const std::string& model_path, const std::string& text, bool as_chat,
                int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0, bool per_token = false) {
     const auto loaded = open_model(model_path, exec, false, exec.threads);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
 
-    std::vector<uint32_t> ids = tok.encode(text);
+    std::vector<uint32_t> ids = tok.encode(as_chat ? chat_prompt(loaded->chat, text) : text);
     if (!then_ids.empty()) {
         const std::vector<uint32_t> more = token_ids(read_text_file(then_ids, "logits"), model.n_vocab());
         ids.insert(ids.end(), more.begin(), more.end());
@@ -905,12 +910,13 @@ bool print_usage(const std::string& command, std::ostream& out) {
     if (command == "chat" || command == "generate") {
         const bool chat = command == "chat";
         out << (chat ? "Interactive chat with retained conversation history.\n\n"
-                     : "Generate from raw text without applying a chat template.\n\n")
+                     : "Generate from raw text, or with --chat from one user message in the chat template.\n\n")
             << "Usage: llmx " << command << " <model.gguf>"
             << (chat ? " [options]\n" : " \"<prompt>\" [options]\n       llmx generate <model.gguf> --file <path> [options]\n")
             << "\nGeneration options:\n";
         if (!chat) out
-            << "  --file PATH, -f         UTF-8 prompt file, immediately after the model\n";
+            << "  --file PATH, -f         UTF-8 prompt file, immediately after the model\n"
+            << "  --chat                  Send the prompt as one user message through the model's chat template\n";
         out
             << "  -n N, --max-tokens N    Maximum generated tokens per turn (default: " << sampling.max_tokens << ")\n"
             << "  --temp F                Temperature; 0 is greedy (default: " << sampling.temp << ")\n"
@@ -973,6 +979,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --per-token             Score through decode; default uses batched passes\n"
             << "  --verbose               Show scoring phase, actual worker count and each window's NLL\n";
         else out
+            << "  --chat                  Read the text as one user message through the model's chat template\n"
             << "  --top N                 Number of logits to print (default: " << kLogitsTop << ")\n"
             << "  --then-ids PATH         Append these token IDs, comma or whitespace separated\n"
             << "  --last N                Print each of the last N positions, one per line\n"
@@ -1119,7 +1126,7 @@ int main(int argc, char** argv) {
             ExecOptions exec;
             std::string system = kChatSystem;
             std::string prompt;
-            bool have_prompt = false;
+            bool have_prompt = false, as_chat = false;
             GivenFlags given;
             // generate takes its prompt from the file `--file` or `-f` names right after the model, as logits and perplexity take their text, for a prompt longer than a command line holds.
             const std::string third = argc > 3 ? argv[3] : "";
@@ -1140,6 +1147,7 @@ int main(int argc, char** argv) {
                 else if (f == "--ignore-eos") gp.ignore_eos = true;
                 else if (exec_flag(argc, argv, i, exec, true)) {}
                 else if (f == "--system" && chat) system = flag_value(argc, argv, i, a);
+                else if (f == "--chat" && !chat) as_chat = true;
                 else if (f == "--verbose") exec.verbose = true;
                 else if (!a.empty() && a[0] == '-') throw UsageError("unknown flag: " + a);
                 else if (chat) throw UsageError("chat reads its messages from standard input, not '" + a + "'");
@@ -1149,7 +1157,7 @@ int main(int argc, char** argv) {
             }
             if (chat) return cmd_chat(argv[2], system, gp, exec);
             if (!have_prompt) throw UsageError("missing the prompt");
-            return cmd_generate(argv[2], first == 5 ? read_text_file(argv[4], cmd) : prompt, gp, exec);
+            return cmd_generate(argv[2], first == 5 ? read_text_file(argv[4], cmd) : prompt, as_chat, gp, exec);
         }
 
         if (cmd == "perplexity") {
@@ -1183,6 +1191,7 @@ int main(int argc, char** argv) {
             std::string then_ids;
             size_t last = 0;
             bool per_token = false;
+            bool as_chat = false;
             GivenFlags given;
             const int first = text_arg(argc, argv);
             for (int i = first; i < argc; i++) {
@@ -1194,12 +1203,13 @@ int main(int argc, char** argv) {
                 else if (f == "--then-ids") then_ids = nonempty_value(argc, argv, i, a, "a path");
                 else if (f == "--last") last = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--per-token") per_token = true;
+                else if (f == "--chat") as_chat = true;
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
                 given.take(a, i > at);
             }
             const std::string text = first == 5 ? read_text_file(argv[4], cmd) : argv[3];
-            return cmd_logits(argv[2], text, topn, exec, then_ids, last, per_token);
+            return cmd_logits(argv[2], text, as_chat, topn, exec, then_ids, last, per_token);
         }
 
         if (cmd == "tokenize") {

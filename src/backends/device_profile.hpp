@@ -37,7 +37,7 @@ struct DeviceProfile {
     uint32_t q6k_row_lanes = 32;
     // Lanes a Q4_K or Q5_K row takes at most in the integer-dot row kernels; a short row spread over a whole subgroup leaves each lane a few bytes to read.
     uint32_t k45_row_lanes = 32;
-    // Columns the widest build of the Q8_0 decode kernel on the integer dot keeps, which reads a weight once for that many generated tokens; a wider build holds more registers and runs fewer waves (docs/VULKAN.md).
+    // Columns the widest build of the Q8_0 decode kernel on the integer dot holds, which reads a weight once for that many generated tokens: its columns a subgroup times the column groups that take the same rows, and a subgroup that keeps more columns holds more registers and runs fewer waves (docs/VULKAN.md).
     uint32_t q8_decode_cols = 8;
     // Forms of the Q8_0 decode kernel a build may take (the Vulkan backend's kQ8Tree, kQ8Hoist and kQ8Quad): the first gives the subgroup reduction's bits only where that reduction takes the pairs it writes out, so it is set only where the pairs were read in the disassembly (docs/VULKAN.md).
     uint32_t q8_decode_forms = 0;
@@ -98,7 +98,7 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.moe_tile_from_q5k = 48;
              p.tile_tall_per_cu = 4;
              p.tile_tall_per_cu_narrow = 8;
-             p.q8_decode_cols = 16;
+             p.q8_decode_cols = 32;
              p.q8_decode_forms = 7;
          }},
     };

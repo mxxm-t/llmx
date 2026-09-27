@@ -322,31 +322,32 @@ inline bool row_kernel_builds_one_column(KernelId id) {
 
 const uint32_t kRowColsWide = 8, kRowColsOne = 1;
 // A kernel's pipelines: the wide build, then the one-column, then for the row kernels the wide build grouped by expert, then the Q8_0 decode kernel's further builds.
-const int kVariants = 6;
+const int kVariants = 7;
 
 // The Q8_0 decode kernel's forms (shaders/matmul_vec_q8.comp, specialization constants 11 to 13): the reduction through the subgroup reduction's own pairs for every row and column at once, offsets computed once per step, and a block's scale products shared over its quad.
 // A build asks for forms and takes those its device's profile allows (q8_decode_forms), since the first gives the subgroup reduction's bits only where that reduction takes the same pairs.
 const uint32_t kQ8Tree = 1, kQ8Hoist = 2, kQ8Quad = 4, kQ8Forms = kQ8Tree | kQ8Hoist | kQ8Quad;
 
-// The Q8_0 decode kernel's builds by pipeline variant: the columns a lane keeps, the rows a subgroup takes, the steps whose weights a lane loads before using any and the forms it asks for (specialization constants 0, 9 and 10, then 11 to 13).
-// Variants 0 to 2 are every row kernel's wide, one-column and grouped builds, and 3 to 5 this kernel's 2-, 4- and 16-column builds.
+// The Q8_0 decode kernel's builds by pipeline variant: the columns a subgroup keeps, the rows it takes, the steps whose weights a lane loads before using any, the forms it asks for, and how many column groups take the same rows on adjacent workgroups (specialization constants 0, 9 and 10, then 11 to 13 and 14).
+// Variants 0 to 2 are every row kernel's wide, one-column and grouped builds, and 3 to 6 this kernel's 2-, 4-, 16- and 32-column builds; a build holds its columns times its groups.
 // Every build gives a column the same bits, so the builds differ only in time (docs/VULKAN.md).
 struct VecBuild {
-    uint32_t cols, rows, steps, forms;
+    uint32_t cols, rows, steps, forms, span;
+    uint32_t capacity() const { return cols * span; }
 };
-const VecBuild kVecBuilds[kVariants] = {{kRowColsWide, 4, 1, kQ8Forms}, {kRowColsOne, 2, 1, 0}, {kRowColsWide, 4, 1, 0},
-                                        {2, 2, 1, kQ8Tree | kQ8Hoist}, {4, 4, 1, kQ8Forms}, {16, 4, 2, kQ8Forms}};
+const VecBuild kVecBuilds[kVariants] = {{kRowColsWide, 4, 1, kQ8Forms, 1}, {kRowColsOne, 2, 1, 0, 1}, {kRowColsWide, 4, 1, 0, 1},
+                                        {2, 2, 1, kQ8Tree | kQ8Hoist, 1}, {4, 4, 1, kQ8Forms, 1}, {16, 4, 2, kQ8Forms, 1}, {16, 4, 2, kQ8Forms, 2}};
 // Its builds for plain columns, narrowest first.
-const int kVecByWidth[] = {1, 3, 4, 0, 5};
+const int kVecByWidth[] = {1, 3, 4, 0, 5, 6};
 
 // The forms a Q8_0 decode build takes on a device: those it asks for that the device's profile allows.
 inline uint32_t vec_forms(int variant, const DeviceProfile& profile) {
     return kVecBuilds[variant].forms & profile.q8_decode_forms;
 }
 
-// The columns a row kernel's build keeps, by pipeline variant.
+// The columns a row kernel's build holds, by pipeline variant.
 inline uint32_t build_cols(KernelId id, int variant) {
-    if (id == K_MATMUL_VEC_Q8) return kVecBuilds[variant].cols;
+    if (id == K_MATMUL_VEC_Q8) return kVecBuilds[variant].capacity();
     return variant == 1 ? kRowColsOne : kRowColsWide;
 }
 
@@ -1666,7 +1667,7 @@ public:
         size_t n = 0;
         if (id == K_MATMUL_VEC_Q8) {
             for (int v : kVecByWidth)
-                if (kVecBuilds[v].cols <= dev_->profile.q8_decode_cols) out[n++] = v;
+                if (kVecBuilds[v].capacity() <= dev_->profile.q8_decode_cols) out[n++] = v;
             return n;
         }
         if (row_kernel_builds_one_column(id)) out[n++] = 1;
@@ -1676,7 +1677,8 @@ public:
 
     // Calls `each(col0, ncols, variant)` over a pass's columns: chunks of the widest build while more columns remain than it holds, then the rest in the narrowest build that holds them.
     // Every build gives a column the same bits, so how a pass is chunked changes only its time.
-    // Each Q8_0 decode build holds twice the columns of the next narrower, so each of that kernel's chunks fills more than half its build, which lets its plain builds skip only their last groups.
+    // Each Q8_0 decode build holds twice the columns of the next narrower, so each of that kernel's chunks fills more than half its build.
+    // A build of one column group then checks the count only before the groups past its first half, and the second group of a two-group build, which gets 1 to all of its columns, before each group.
     template <typename Fn>
     void for_each_column_chunk(KernelId id, size_t nbatch, const Fn& each) const {
         int builds[kVariants];
@@ -1771,13 +1773,15 @@ public:
                       size_t nin, size_t nbatch, size_t col0, size_t ncols, bool accumulate, int variant,
                       uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
                       uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0) {
+        // A Q8_0 decode build whose column groups take the same rows gives each workgroup's rows that many adjacent workgroups.
         const uint32_t rows_per_sg = sg_rows(plan, variant), per_group = (256 / dev_->caps.subgroup_size) * rows_per_sg;
+        const uint32_t span = plan.kernel == K_MATMUL_VEC_Q8 ? kVecBuilds[variant].span : 1;
         uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
         uint32_t total = 0;
         for (size_t i = 0; i < live.size(); ++i) {
             nout[i] = u32(live[i]->rows);
             start[i] = total;
-            total += groups(live[i]->rows, per_group);
+            total += groups(live[i]->rows, per_group) * span;
         }
         if (total > dev_->props.limits.maxComputeWorkGroupCount[0] || entries > dev_->props.limits.maxComputeWorkGroupCount[1])
             throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
@@ -2441,18 +2445,18 @@ private:
                                    id == K_MATMUL_TILE_Q8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
                                              : build_cols(id, variant);
-            // Constant 7 selects a producer's build that also writes the 8-bit twin, constant 8 a row kernel's grouped build, and constants 9 to 13 are the Q8_0 decode kernel's rows, steps and forms (kVecBuilds).
-            // Every pipeline gets all eight entries, and a module that declares none ignores them.
+            // Constant 7 selects a producer's build that also writes the 8-bit twin, constant 8 a row kernel's grouped build, and constants 9 to 14 are the Q8_0 decode kernel's rows, steps, forms and column groups (kVecBuilds), whose constant 0 is its columns a subgroup rather than the build's.
+            // Every pipeline gets all nine entries, and a module that declares none ignores them.
             const VecBuild& vb = kVecBuilds[variant];
             const bool vec = id == K_MATMUL_VEC_Q8;
             const uint32_t forms = vec ? vec_forms(variant, d.profile) : 0;
-            const uint32_t spec_data[8] = {spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u, vb.rows, vb.steps,
-                                           (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Hoist) ? 1u : 0u, (forms & kQ8Quad) ? 1u : 0u};
-            const uint32_t spec_ids[8] = {0, 7, 8, 9, 10, 11, 12, 13};
-            VkSpecializationMapEntry entries[8];
-            for (uint32_t i = 0; i < 8; ++i) entries[i] = {spec_ids[i], i * uint32_t(sizeof(uint32_t)), sizeof(uint32_t)};
+            const uint32_t spec_data[9] = {vec ? vb.cols : spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u, vb.rows, vb.steps,
+                                           (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Hoist) ? 1u : 0u, (forms & kQ8Quad) ? 1u : 0u, vb.span};
+            const uint32_t spec_ids[9] = {0, 7, 8, 9, 10, 11, 12, 13, 14};
+            VkSpecializationMapEntry entries[9];
+            for (uint32_t i = 0; i < 9; ++i) entries[i] = {spec_ids[i], i * uint32_t(sizeof(uint32_t)), sizeof(uint32_t)};
             VkSpecializationInfo spec{};
-            spec.mapEntryCount = 8;
+            spec.mapEntryCount = 9;
             spec.pMapEntries = entries;
             spec.dataSize = sizeof(spec_data);
             spec.pData = spec_data;

@@ -23,6 +23,8 @@ layout(constant_id = 11) const bool TREE = false;
 layout(constant_id = 12) const bool HOIST = false;
 // QUAD (13), with HOIST and 4 rows, has lane q of a block load row q's scale and form row q's scale product, which the block's four lanes share over their quad, since every lane of a block computes the same product.
 layout(constant_id = 13) const bool QUAD = false;
+// SPAN column groups of MAX_COLS each take the same rows on SPAN adjacent workgroups (14), whose reads of a row meet in the L2 cache; a group past the pass's columns returns whole.
+layout(constant_id = 14) const uint SPAN = 1;
 // The row kernel's push layout, which row_dispatch fills for every row kernel; cluster, rows_per_sg, the types and the wide flags go unread here.
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint col0; uint ncols; uint cluster; uint rows_per_sg; uint nproj;
@@ -46,8 +48,10 @@ layout(constant_id = 8) const bool GROUPED = false;
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 
 // Columns whose activations a lane loads together: their loads issue back to back, and a group past the pushed count is skipped whole.
-// A plain pass gives a build more than half its columns (for_each_column_chunk), so only a grouped build, or a group past the first half, can be past the count; no other group ends a block before its loads.
+// A plain pass gives a build more than half the columns it holds (for_each_column_chunk), so in a build of one column group only a group past the first half can be past the count; the second group of a two-group build gets 1 to MAX_COLS columns and a grouped build any count, so those check before every group.
+// No other group ends a block before its loads.
 const uint GROUP = MAX_COLS < 4u ? MAX_COLS : 4u;
+const bool CHECK_EVERY_GROUP = GROUPED || SPAN > 1u;
 // Whether a group past the first half that the count leaves part full skips its surplus columns' products, each behind a uniform check; the 16-column build keeps one copy of its products, which a second copy slowed (docs/VULKAN.md).
 const bool PARTIAL = MAX_COLS <= 8u;
 // The values TREE reduces, a power of two in every build, and how many a lane holds at the end.
@@ -78,8 +82,14 @@ void main() {
     uint nout = pi == 0u ? p.nout0 : (pi == 1u ? p.nout1 : p.nout2);
     uint local_wg = wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2));
     uint lane = gl_SubgroupInvocationID, S = gl_SubgroupSize;
+    // The column group this workgroup takes, and the workgroup its rows follow.
+    uint part = 0u;
+    if (SPAN > 1u) {
+        part = local_wg % SPAN;
+        local_wg /= SPAN;
+    }
     uint row0 = (local_wg * (256u / S) + gl_SubgroupID) * ROWS;
-    uint col0 = p.col0, out0 = p.col0, wrow0 = 0u, g_first = 0u, g_cnt = 0u;
+    uint col0 = p.col0 + part * MAX_COLS, out0 = col0, wrow0 = 0u, g_first = 0u, g_cnt = 0u;
     if (GROUPED) {
         uint y = gl_WorkGroupID.y;
         g_first = tab[4u * y + 1u];
@@ -94,7 +104,8 @@ void main() {
     }
     // A subgroup past the last row returns whole; one that holds a row reads the rows past the end as the last row and writes none of them.
     if (row0 >= nout) return;
-    const uint ncols = MAX_COLS == 1u ? 1u : GROUPED ? g_cnt : p.ncols;
+    if (SPAN > 1u && p.ncols <= part * MAX_COLS) return;
+    const uint ncols = MAX_COLS == 1u ? 1u : GROUPED ? g_cnt : SPAN > 1u ? min(p.ncols - part * MAX_COLS, MAX_COLS) : p.ncols;
 // Column c's X column and output row, as in matmul_row.comp.
 #define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (c))
 #define OCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] : out0 + (c))
@@ -163,7 +174,7 @@ void main() {
                 } \
             } \
             [[unroll]] for (uint g = 0u; g < MAX_COLS; g += GROUP) { \
-                if (g > 0u && (GROUPED || 2u * g > MAX_COLS) && g >= ncols) break; \
+                if (g > 0u && (CHECK_EVERY_GROUP || 2u * g > MAX_COLS) && g >= ncols) break; \
                 [[unroll]] for (uint d = 0u; d < NS; ++d) { \
                     uvec2 xa[GROUP]; \
                     float dx[GROUP]; \
@@ -213,7 +224,7 @@ void main() {
                 dw[d][r] = unpackHalf2x16((ob & 2u) != 0u ? sw >> 16u : sw).x; \
             } \
         [[unroll]] for (uint g = 0u; g < MAX_COLS; g += GROUP) { \
-            if (g > 0u && (GROUPED || 2u * g > MAX_COLS) && g >= ncols) break; \
+            if (g > 0u && (CHECK_EVERY_GROUP || 2u * g > MAX_COLS) && g >= ncols) break; \
             [[unroll]] for (uint d = 0u; d < NS; ++d) { \
                 uint bd = b + d * SB; \
                 uvec2 xa[GROUP]; \

@@ -143,14 +143,16 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   - At 32 rows the order takes 57.2 ms, between the reference's two runs of this session (57.8 and 56.4) and at step 0's 57.3; main reads 67.5 here, as at the rebased head's gate (67.8), where the research branch's session read main's order at 63.9 and the order at 55.2, the same 1.16 to 1.18 times.
   - From 8 to 64 rows the order takes 1.16 to 1.20 times less than main, and 1.08 at one row; at 1 to 16 rows it is under the reference, and at 64 rows 115.6 ms stays 22 to 30 ms above it.
-- **Merge gate**, agreed on 2026-09-27 by both developers, which BOSS takes as agreed (devlog, LDEV DECISION re:decode order gate proposal, with XDEV's two corrections), and fixed before any new measurement:
+- **Merge gate**, agreed on 2026-09-27 by both developers, which the user takes as agreed, with the reviewer's two corrections, and fixed before any new measurement:
   1. Paired corpus: 8B Q8_0 on one MI50 and 30B-A3B Q8_0 split over two, both orders, the same corpus (`tests/data/wiki.test.raw`), ids, chunk bounds (16 of 512), cache type, placement and per-token schedule (`perplexity --per-token`), each arm run twice and required to reproduce bit for bit.
      Pass: a token-weighted delta (new minus old) of at most +0.005 per model and no chunk worse by more than +0.03.
      These limits are an explicit allowed quality cost, about +0.50 and +3.05 percent PPL, chosen after an exploratory one-run aggregate (30B +0.00079, 8B -0.00044) and applied only to the new repeated results; a failure or losses concentrated in a few chunks mean 64 chunks and back to the developers.
   2. A tiny Q8_0 MoE against HF on its independently decoded weights, every matrix and expert width a multiple of 64: a bound E fixed once from a pinned CPU calibration, E = max(2e-5, 10 x that error) at most 2e-4, never recomputed from a candidate; above the cap, back with the numbers before any bound change.
      Both device orders within E of HF on every logit, scored through the same HF forced prefix for 16 decode steps, with HF's id wherever HF's top two lie more than 2E apart; NLL reported apart, and a near-tie router variant reported for sensitivity, never called HF-passed.
-- **Rebased** onto main `7d16fa6` (the architecture modules): the order's commits are now `7554b0c` (the test), `11198a9` (the order), `1e3e18b` (the probe) and `04603f4` (this block), after four commits the gate needed: `e7685d0` and `efca8ca`, `perplexity --verbose` printing each window's scored tokens and mean NLL, and `e017cba` and `6da7bd5`, `logits --per-token` reading every token through a decode step; each test commit fails alone (no window lines; `unknown flag: --per-token`), and `perplexity`, `f32`, `cli`, `threads`, `moe`, `docs` and `dead-code` pass at `6da7bd5` on the CPU build, `f32` and `perplexity` on the MI50.
-  `2e04a4a` adds rule 2's fixture.
+- **Rebased** onto main `369721c`, after the rules' runs on the base `7d16fa6` (the architecture modules) and the device tier on `6ae9a24` (layer split phase 3, step 3); each rebase conflicted in STATUS alone.
+  Four commits the gate needed come first, `e4db6bd` and `9a92e03`, `perplexity --verbose` printing each window's scored tokens and mean NLL, and `2c7a276` and `cc61818`, `logits --per-token` reading every token through a decode step; then the order's `03bcbf0` (the test), `5b8a6f6` (the order), `508d04c` (the probe) and `84fc272` (this block); then `c5fd752`, rule 2's fixture, `3786142`, rule 1's record, and `bd12a43`, the frozen rule 2.
+  On `7d16fa6` the same commits were `e7685d0`, `efca8ca`, `e017cba`, `6da7bd5`, `7554b0c`, `11198a9`, `1e3e18b`, `04603f4`, `2e04a4a`, `aa3afa6` and `990c545`, the names the rules' arms keep, and on `6ae9a24` they ended at `8dd3622`.
+  Each test commit fails alone (no window lines; `unknown flag: --per-token`), and `perplexity`, `f32`, `cli`, `threads`, `moe`, `docs` and `dead-code` pass at `6da7bd5` on the CPU build, `f32` and `perplexity` on the MI50.
 - **Rule 1: PASS on both models.** Arms `6da7bd5`, main's order (llmx sha256 `9fdc5c7e`), and `04603f4`, the half-block order (`2c0fdf34`), each a git archive built the same way in the same image (`0.1.0+unknown`); `llmx perplexity M --file tests/data/wiki.test.raw --ctx-size 512 --chunks 16 --per-token --verbose`, f16 caches, 30B-A3B over rocm-smi GPU[4] and GPU[8] (`vulkan:0,vulkan:1`, layers 0-23 and 24-47 in all four runs) and 8B on GPU[6], in the order A, B, B, A, one-minute load 12 to 19.
   Each arm's two outputs are byte for byte the same (sha256 `609cf518` and `e9afbe17` on 30B-A3B, `7af57831` and `bef18489` on 8B), so the deltas are the orders' and not noise; the totals are the exploratory run's (30B 2.5282 and 2.52899, 8B 2.69193 and 2.69149).
   Mean NLL per chunk of 511 scored tokens, delta the half-block order's less main's:
@@ -195,7 +197,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
     The gated variant's logits span -2.23 to 2.02 (standard deviation 0.59), its HF top-two gaps start at 0.0018, and the two decode rows whose greedy id is not HF's are the rows HF parts by 0.0018 and 0.0038; the near-tie variant's one is at an HF gap of 0.0095.
   - E = max(2e-5, 10 x 0.063473) = 0.63473 under the first rule 2, above its cap of 2e-4 (the batched modes alone would ask for 0.13522), so it stopped there with neither device order run, and the numbers went back to the developers.
   - Why the calibration is that large: the same decoded weights written as F32 read within 2.2e-6 of the goldens on both paths at the same binary, so the goldens and the model agree with llmx and the error is the Q8_0 arithmetic's: the CPU's decode dots, and its prompt path's expert entries, meet 8-bit activations (`q8_dots.hpp`), as the MI50's Q8_0 decode kernel does through the 8-bit twin; an absolute bound near 1e-4 is below what either path computes on logits of this size.
-- **Rule 2 as frozen** by both developers before either device order was read on the fixture (devlog, LDEV PROPOSAL 20:16 and XDEV REVIEW 20:25), committed before any device run; the fixture and seed are kept as they are.
+- **Rule 2 as frozen** by both developers before either device order was read on the fixture, committed before any device run; the fixture and seed are kept as they are.
   - Scope: a coarse fixture correctness bound, not losslessness or model-quality equivalence; rule 1 stays beside it unchanged.
   - Pinned: E = 0.127, twice the CPU calibration's 0.063473, never recomputed; the gated file's sha256 `d547bb5bf6f06f15`, the near-tie file's `93491ced5b64b194`; the calibration binary's `0a70f69d76690f34` (`6da7bd5`, built without Vulkan) and its tables above.
     The factor 2 is an empirical engineering allowance for a device that rounds the same 8-bit activations in its own order, not a guarantee.
@@ -203,10 +205,57 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Near-tie variant: reported only, with each path's max error, greedy agreement and per-prompt NLL error, and no pass or fail.
   - Before any device result is read, the pinned CPU build must meet the per-prompt NLL rule on all three paths; a focused mutant of the half-block order must be shown rejected on the MI50, with the condition that catches it; both arms get complete per-path, per-prompt tables; no bound moves on device results.
   - `tests/moe.py` holds it: `Q8_BOUND`, `Q8_NLL_BOUND`, `Q8_GREEDY_ROWS`, `Q8_FILES` and `Q8_CALIBRATION`.
-- **Not merged**: the device runs under the frozen rule 2 come next.
+- **Rule 2: PASS in both orders.** The frozen rule was committed at `990c545` before any device run, the same commit as `bd12a43` after the rebases onto `369721c`; the arms are the builds rule 1 named, `6da7bd5` (main's order, llmx sha256 `9fdc5c7e`) and `04603f4` (the half-block order, `2c0fdf34`), with the fixture and the rule read from `990c545` (a script not on the branch that evaluates every condition without stopping, beside the test); rocm-smi GPU[6], f32 caches, `--threads 4`, one-minute load 21 to 23.
+  - Before any device result was read, the pinned CPU build (`0a70f69d`) met the per-prompt NLL rule on all three paths: its largest per-prompt NLL error is 0.002119 ("a", decode), its aggregates +0.000011 (both batched paths) and -0.001230 (decode), and HF's id at all 4, 5 and 5 eligible rows on every path.
+  - Two focused mutants of the half-block order, throwaway builds from `04603f4` that were never committed, both fail every condition on every path and prompt on the MI50, so the fixture reaches the order's kernel on all three paths:
+
+    | mutant (one line of `matmul_vec_q8.comp`) | max logit error | forced NLL error | HF's id at the rows beyond 2E |
+    |---|---:|---:|---:|
+    | `mut-drop`: only half 0 of each block is added | 2.10 to 2.42 | +0.94 to +1.06 | 1 of 14 |
+    | `mut-pair`: each lane's weights meet the next block's activations (`lx = lane ^ 2`) | 3.05 to 3.13 | +1.28 to +1.79 | 0 of 14 |
+
+    The logit bound, the NLL rule and the greedy rule each catch both of them on their own.
+  - Both orders, gated variant: in each arm the three paths give the same numbers to every printed digit (batched in one pass, three rows a pass, and decode), as the kernels' batch invariance means, so one table holds each path:
+
+    | prompt | main's order: max logit error (row) | NLL error | HF's id, all rows / beyond 2E | half-block order: max logit error (row) | NLL error | HF's id, all rows / beyond 2E |
+    |---|---:|---:|---:|---:|---:|---:|
+    | "a" | 0.029916 (11) | -0.002119 | 17 of 17 / 4 of 4 | 0.029917 (11) | -0.002119 | 17 of 17 / 4 of 4 |
+    | "abcdefg" | 0.049648 (16) | +0.000419 | 16 of 17 / 5 of 5 | 0.049648 (16) | +0.000420 | 16 of 17 / 5 of 5 |
+    | "abcdefghijklm" | 0.063473 (8) | -0.002469 | 16 of 17 / 5 of 5 | 0.063473 (8) | -0.001991 | 16 of 17 / 5 of 5 |
+    | all three | 0.063473 | aggregate -0.001389 | 49 of 51 / 14 of 14 | 0.063473 | aggregate -0.001230 | 49 of 51 / 14 of 14 |
+
+    Against E = 0.127 both orders' largest error is 0.063473, half the bound, and their largest per-prompt NLL error 0.002469 and 0.002119 against 0.01; the two rows in each order whose greedy id is not HF's are rows HF parts by less than 2E, in the prompts where the CPU's decode path misses too.
+    The half-block order's forced NLLs are the CPU decode path's to the six printed decimals, and main's order differs from both in the last prompt's (4.188521 against 4.188998, HF 4.190990).
+  - Near-tie variant, reported only: in each arm the three paths again give the same numbers, main's order the CPU decode path's to every printed digit and the half-block order the same but for one maximum's sixth decimal.
+
+    | prompt | max logit error (row), both orders | NLL error, both orders | HF's id, all rows / beyond 2E |
+    |---|---:|---:|---:|
+    | "a" | 0.026626 and 0.026627 (14) | -0.002900 | 17 of 17 / 1 of 1 |
+    | "abcdefg" | 0.036746 (3) | -0.002753 | 16 of 17 / 3 of 3 |
+    | "abcdefghijklm" | 0.254408 (5) | -0.002393 | 17 of 17 / 0 of 0 |
+    | all three | 0.254408 | aggregate -0.002682 | 50 of 51 |
+- **Device tier** at `8dd3622`, the head rebased onto main `6ae9a24`, against that main (each a git archive built the same way in the same image, identified as `0.1.0+unknown`, llmx sha256 head `f12bd810`, head without Vulkan `7ce277e5`, main `265dc2d8`; the Linux machine, RADV, one-minute load 17 to 48 from other work, recorded with each step):
+  - Builds with and without Vulkan: 0 warnings and 0 errors each; main's Vulkan build the same.
+  - CTest 33 of 33 on the Vulkan build, `backend-vulkan` on rocm-smi GPU[6], and 30 of 30 on the build without Vulkan.
+  - The suite with `--device vulkan:0 --no-perf-floor --require-tools --require-baseline` on GPU[6]: 20 components pass, 4 skip (qwen35, which llmx refuses, and the qwen35 baseline files not on disk) and `raw-blocks` fails only because the image has no numpy, which `--require-tools` makes a failure; it runs no llmx binary and passes in the pinned Python image, which has numpy.
+  - The whole suite on the build without Vulkan, with `--no-perf-floor --require-tools --require-baseline`: the same 20 pass, the same 4 skip and `raw-blocks` the same, for want of numpy alone.
+  - Timing, `llmx bench --model Qwen3-8B-Q8_0 --device vulkan:0 --p 128 --n 128 --r 3 --seqs N` on one MI50 (rocm-smi GPU[8]), clocks held high and restored to auto after, one round with the arms in order and then reversed, so each cell is 2 runs of 3 repeats; ms a pass, mean and range; the reference's batched step as in the timing above, on the same card before and after:
+
+    | rows | main `6ae9a24` | head `8dd3622` | head vs main | reference before / after | one-minute load |
+    |---:|---|---|---:|---:|---:|
+    | 1 | 14.58 (14.56-14.60) | 13.35 (13.35-13.35) | 1.09x | 14.3 / 15.1 | 18.2 to 20.6 |
+    | 8 | 23.30 (23.26-23.33) | 19.54 (19.50-19.58) | 1.19x | 27.9 / 29.6 | 21.6 to 22.6 |
+    | 32 | 68.05 (67.64-68.45) | 57.22 (57.17-57.27) | 1.19x | 57.0 / 57.3 | 17.6 to 28.3 |
+    | 64 | 133.89 (130.95-136.83) | 113.23 (111.44-115.02) | 1.18x | 86.2 / 87.4 | 25.3 to 28.3 |
+
+    The same ratios as the gate at `8c3a375` (1.08 to 1.20); at 32 rows the order is level with the reference, at 64 rows 26 ms above it.
+  - Rebased again onto main `369721c` (the CPU dots' tail fix and docs) as `bd12a43`, with a STATUS conflict only, the builds, CTest and the components the branch touches ran again on GPU[6] (llmx sha256 `41d39329`, without Vulkan `1ae48cd5`; load 37 to 42): builds with and without Vulkan with 0 warnings, CTest 33 of 33 and 30 of 30, `perplexity`, `f32`, `moe` and `split` with `--device vulkan:0`, and `dead-code`, `docs`, `cli`, `perplexity`, `f32`, `moe`, `split` and `threads` on the CPU build, all passing; the Q8_0 fixture's numbers are those of the tables above on both.
+    The timing and the greedy ids were not run again: the commits between touch only the CPU's float tails, the host memory reading and docs, none of which a model on one MI50 reads.
+  - The one-time change in greedy ids, the 20 prompts at 64 tokens and the 8 at 128 through `llmx serve --ctx-size 8192 --max-seqs 32` on one MI50 (GPU[4]), the end of text ignored, each request alone, main `6ae9a24` against the head: 130 of 1,280 and 539 of 1,024 tokens differ on 8B Q8_0 (14 of 20 and 1 of 8 sequences the same), 567 of 1,280 and 515 of 1,024 on 30B-A3B Q8_0 (5 of 20 and 3 of 8), the counts of the table under What it changes; main's ids are `dbafdec`'s and the head's `8c3a375`'s byte for byte, and all 28 requests sent at once give their ids alone in both arms on both models.
+- **Not merged**: `gate/merge-32` carries the head for the hosted run; the merge waits for the review of rule 2's tables and the Radeon VII's part of the tier.
 - **Left:**
-  - Rule 2 as frozen: the pinned CPU's per-prompt check, the mutant, both device orders' tables, then the device tier and the hosted run.
-  - 64 rows: the order takes 115.6 ms a pass against the reference's 85.9 to 93.7 in the same session; the 32-row pass is level with the reference, the 64-row one is not.
+  - The Radeon VII's part of the device tier on the Windows machine, and the review before the merge.
+  - 64 rows: the order takes 113.2 ms a pass against the reference's 86.2 to 87.4 in the device tier's session; the 32-row pass is level with the reference, the 64-row one is not.
   - The quarter layout keeps rows of an odd block count on the MI50 and every other integer-dot device; hoisted offsets or quad-shared products for it would come back from `3a203c9` if such a device or shape needed them.
 - **Gotchas:**
   - A first divergence read through the prompt path (`logits --then-ids`) is not what the decode path gave: on 30B-A3B the research branch read p20-20 as 1.48 apart there, where the two decode paths each lead by about 0.8. Read a decode path with `llmx-decode-probe`, which prefills the prompt as a request does, or with `logits --per-token`, which steps every token.

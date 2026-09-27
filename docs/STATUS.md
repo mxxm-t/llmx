@@ -45,10 +45,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Rebased onto main `a9195e4` after these: its commits since `c17d043` change `tools/multi_device_bench.cpp`, a comment in `CMakeLists.txt` and docs, so `src/` and the tests are the ones gated above.
     On the rebased tree, at a load average of 9 to 12, both builds pass without a warning, CTest passes 23 of 23 and 26 of 26 on the MI50, and the Windows build compiles every target, the bench without a warning.
 - **Merge gates**, rebased onto main `dcf2561` with no change to its source: builds with and without Vulkan with no warning; the suite's dead-code, docs, cli, roundtrip, raw-blocks, f32, moe and shards components; `generate`, `logits` and `perplexity` on 0.6B Q8_0 at `--threads 6` the same as main; a green hosted run. Before the rebase: on the Radeon VII, 22 of 22 outputs the same as main on 0.6B, 8B and 30B-A3B with `--cpu-moe`, the six files of types llmx does not read refused alike under `info` and `dequantize` with only the accepted texts differing, and bench level; on one MI50, bench level on 0.6B and 8B.
-- **Left:**
-  - The Radeon VII gate, which the merge rules set for a branch that changes the backends, the model and the loader's size check: CTest and the suites on that card, and greedy text and logits against main on the pinned fixtures there.
-  - pp and tg against main on an MI50 and on the Radeon VII, with a layout-perturbed control, since the include and definition order of the one translation unit changes (AGENTS, Code layout is part of the measurement); the MI50 the branch is tested on is shared with another test lane, which allows tests but no timing.
-  - The merge.
+- **Left:** nothing; the branch merged on the merge gates above, its Radeon VII outputs and its speed on both cards among them.
 - **Gotchas:**
   - A branch that still names `gguf::GGML_TYPE_*`, `gguf::Q*_BLOCK` or `gguf::Q*_TYPESIZE`, or includes `quant/convert.hpp`, needs the same renames when it rebases onto this: `sed 's/gguf::\(GGML_TYPE_\|Q[0-9]_[0-9K]_\(BLOCK\|TYPESIZE\)\)/quant::\1/g'` for the ids, and `format/raw_convert.hpp` with `format::` for the conversion.
   - The quantization plan's step 0 (`refactor/storage-types`, below) puts its table over every type id in `core/storage.hpp`; the ids and sizes now sit in `quant/types.hpp`, which the format layer already reads, so whether that step grows its table there instead is that plan's to settle, and ROADMAP #1 and the loader's follow-ups point here.
@@ -1089,8 +1086,8 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
     - llmx reads F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K.
     - `gguf::TensorInfo::data_size` throws on any other type, and it runs for every tensor when a file is opened.
       So one tensor of another type makes the whole file unreadable, `info`, `tokenize` and `detokenize` included.
-      The message names neither the type nor the tensor.
-    - Type sizes are written in `format/gguf.hpp`, in the registry (`quant/quant.hpp`) and again in `q.glsl`.
+      The message named neither the type nor the tensor; since `refactor/raw-convert-to-format` it is `quant: unsupported tensor type N`, which names the type but not the tensor.
+    - Type sizes were written in `format/gguf.hpp`, in the registry (`quant/quant.hpp`) and again in `q.glsl`; since `refactor/raw-convert-to-format` they are written once in C++, in `quant/types.hpp`, and again in `q.glsl`.
     - Vulkan refuses a type it has no kernel for only when the kernel is first called ("unsupported matrix type").
       `tests/common.py:device_lacks_kernel` turns that message into a SKIP under `LLMX_DEVICE`, so a device run can pass with nothing checked.
     - Six checks use F16 (type 1) as the unsupported type, at b7b585f: in `backend_vulkan.cpp`, the matmul at 983, and `check_refusals`' matmul (1537), routed product (1587) and embed (1595) through its F16 constant (1444); and `model_validation.cpp:413` and `:421`.

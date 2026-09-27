@@ -314,6 +314,10 @@ class Declarations:
                 stack.pop()
                 if not stack:
                     stack = [("namespace", "")]
+            elif s == "{" and sum((x[1].text == "(") - (x[1].text == ")") for x in head) > 0:
+                # A braced default argument, `RowRuns runs = {}`, is part of the declaration its parameter list is in.
+                stack.append(("init", ""))
+                head.append((idx, t))
             elif s == "{":
                 texts = [x[1].text for x in head]
                 bare = texts[skip_template(texts, 0):]
@@ -466,7 +470,7 @@ def override_findings(texts):
             info["spans"].append((f, m.end(), end))
             body = c[m.end():end]
             info["virtuals"] |= set(re.findall(r"\bvirtual\s+[^;{(]*?\b(\w+)\s*\(", body))
-            for o in re.finditer(r"\b(\w+)\s*\([^;{]*\)\s*(?:const\s*)?(?:noexcept\s*)?(?:override|final)\b", body):
+            for o in re.finditer(r"\b(\w+)\s*\((?:[^;{}]|=\s*\{[^;{}]*\})*\)\s*(?:const\s*)?(?:noexcept\s*)?(?:override|final)\b", body):
                 info["overrides"].setdefault(o.group(1), (f, c.count("\n", 0, m.end() + o.start()) + 1))
     # Out-of-class member definitions are member bodies too.
     for f, c in code.items():
@@ -501,12 +505,13 @@ def override_findings(texts):
             if v not in virtual_names:
                 continue
             called = any(re.search(r"(?:->|\.)\s*" + v + r"\s*\(", c) for c in product.values())
+            # A declaration or definition, not a call, its parameters on one line or several.
+            declared = re.compile(v + r"\s*\((?:[^()]|\([^()]*\))*\)\s*(?:const\s*)?(?:noexcept\s*)?(?:override|final|=\s*0|\{)")
             if not called:
                 for ff, c in src.items():
                     for m in re.finditer(r"(?<![\w.>:~])" + v + r"\s*\(", c):
-                        line_text = c[c.rfind("\n", 0, m.start()) + 1:c.find("\n", m.start())]
-                        if re.search(r"\b" + v + r"\s*\([^)]*\)\s*(?:const\s*)?(?:noexcept\s*)?(?:override|final|=\s*0|\{)", line_text):
-                            continue   # a declaration or definition, not a call
+                        if declared.match(c, m.start()):
+                            continue
                         if owner_at(ff, m.start()) in family:
                             called = True
                             break

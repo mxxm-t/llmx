@@ -1,6 +1,6 @@
 #pragma once
-// The scheduler of docs/SERVER.md: one thread drives the model, one Model::forward per iteration carrying every decoding request's next token and slices of what other requests' caches lack, sampling each request's logits into its channel.
-// Room in the KV pool goes by first admission (make_room, in server/policy.hpp), and a request records how each stretch of its history was computed (RowClass), so a paused request resumes to the logits it gives when never paused.
+// The scheduler of docs/SERVER.md: one thread drives the model in rounds over its pass API, each pass carrying every decoding request's next token and slices of what other requests' caches lack, and samples each request's logits into its channel.
+// Room in the KV pool goes by first admission (make_room, with the rest of the policy core in server/policy.hpp), and a request records how each stretch of its history was computed (RowClass), so a paused request resumes to the logits it gives when never paused.
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -94,7 +94,7 @@ public:
         std::lock_guard<std::mutex> lk(m_);
         return error_;
     }
-    // Set by the connection thread when the client goes away; at its next iteration the scheduler drops the request from the queue or from the batch.
+    // Set by the connection thread when the client goes away; at its next round the scheduler drops the request from the queue or from the batch, once no pass in flight holds it.
     void cancel() { cancel_.store(true); }
     // The client's prompt tokens.
     size_t prompt_tokens() const { return prompt_.size(); }
@@ -192,9 +192,14 @@ struct TooLong : std::runtime_error {
 
 class Scheduler {
 public:
+    // The model's context is reserved here for one pass in flight, of every decoding request's row and a ubatch of other rows, each request wanting a logits row at most.
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue)
         : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()),
-          max_queue_(max_queue), reserved_(model.kv_pools(), 0) {}
+          max_queue_(max_queue), slots_(1), reserved_(model.kv_pools(), 0) {
+        // Passes in flight take their logits rows from twice what they may want together, so a run always fits (LogitRows), and one pass alone from what it may want.
+        logit_rows_.size = std::min<size_t>(slots_.size(), 2) * max_seqs_;
+        model_.reserve_passes(ctx_, slots_.size(), ubatch_ + max_seqs_, logit_rows_.size);
+    }
 
     // Tokens one request may hold, prompt and reply together: the model context or the KV pool, whichever is smaller.
     size_t token_limit() const {
@@ -240,27 +245,39 @@ public:
         return s;
     }
 
-    // The loop, in the caller's thread, until stop().
-    // The only caller of Model::forward for this model.
+    // The loop, in the caller's thread, until stop(): rounds over the model's pass API with one pass in flight (docs/SERVER.md, the round).
+    // The only thread that calls the model.
     void run() {
         std::vector<std::shared_ptr<Request>> active;   // in order of first admission
-        std::vector<infer::BatchEntry> entries;
-        std::vector<std::shared_ptr<Request>> wanting;
-        std::vector<size_t> lengths;   // per active request, its history before the pass
         for (;;) {
             {
                 std::unique_lock<std::mutex> lk(m_);
-                cv_.wait(lk, [&] { return stopping_ || !queue_.empty() || !active.empty() || !paused_.empty(); });
+                cv_.wait(lk, [&] { return stopping_ || flying() || !queue_.empty() || !active.empty() || !paused_.empty(); });
                 if (stopping_) break;
                 // A waiting request whose client left ends wherever it waits, queued or paused, not only once admission reaches it, which may be after every active request has finished.
                 for (auto* waiting : {&queue_, &paused_})
                     for (auto it = waiting->begin(); it != waiting->end();) it = (*it)->cancel_.load() ? leave(*waiting, it) : it + 1;
             }
-            // Cancelled requests leave before the pass.
+            try {
+                const Steps steps = round_steps(flights(), model_.stage_count());
+                for (const auto& a : steps.advance) advance(a.first, a.second);
+                for (const size_t k : steps.retire) retire(k);
+            } catch (const std::exception& e) {
+                fail(active, e.what());
+                continue;
+            }
             for (size_t i = 0; i < active.size();) {
-                if (active[i]->cancel_.load()) finish(active, i, "cancel");
+                if (!active[i]->finish_pending_.empty()) finish(active, i, active[i]->finish_pending_);
                 else ++i;
             }
+            // Cancelled requests leave before the next pass, and a request in flight once its pass has retired.
+            for (size_t i = 0; i < active.size();) {
+                if (active[i]->cancel_.load() && !active[i]->seq_.in_flight()) finish(active, i, "cancel");
+                else ++i;
+            }
+            // Room is made and a pass formed only in a free slot, so nothing in flight is paused, parked or given room.
+            const size_t k = free_slot();
+            if (k == slots_.size()) continue;
             // Growth steps that fall due take their room before anything is admitted, so a request admitted now never holds what an older request's step needs in this pass.
             grow(active);
             {
@@ -282,72 +299,17 @@ public:
                 paused_count_.store(paused_.size());
             }
             if (active.empty()) continue;
-
-            // Decode entries first, but for a request that could not grow, then what the other requests' caches lack, one stretch's slice each, up to ubatch tokens.
-            entries.clear();
-            wanting.clear();
-            lengths.clear();
-            size_t budget = ubatch_;
-            for (auto& r : active) {
-                lengths.push_back(r->seq_.length());
-                if (!decoding(*r) || r->stalled_) continue;
-                entries.push_back(infer::BatchEntry{&r->seq_, &r->last_id_, 1, true});
-                wanting.push_back(r);
-            }
-            for (auto& r : active) {
-                if (decoding(*r) || !budget) continue;
-                const size_t at = r->seq_.length(), end = history_tokens(*r);
-                const RowClass& c = class_at(r->classes_, at);
-                size_t n = std::min(c.end, end) - at;
-                if (c.extent == 1 && at < r->reached_) {
-                    // Rows of extent 1 a resume computes again, generated tokens or a forked reply's: a pass takes at most kReplayRows of them, each costing ubatch / kReplayRows of the budget, which is at most the whole budget, so a request gets one while the budget is untouched.
-                    // A one-token prompt read for the first time costs its row as any prompt does.
-                    const size_t cost = std::max<size_t>(1, ubatch_ / kReplayRows);
-                    n = std::min({n, kReplayRows, budget / cost});
-                    if (!n) continue;
-                    budget -= std::min(budget, n * cost);
-                } else {
-                    n = std::min(n, budget);
-                    budget -= n;
-                }
-                // The entry that ends the history wants the logits the next token is sampled from.
-                const bool last = at + n == end;
-                entries.push_back(infer::BatchEntry{&r->seq_, token_ptr(*r, at), n, last});
-                // The stretch's extent, so its rows take the kernels and the streamed path that first computed them.
-                entries.back().extent = c.extent;
-                if (last) wanting.push_back(r);
-            }
             try {
-                model_.forward(ctx_, entries.data(), entries.size());
-                // Rows a resume computed again are those below the longest history the cache has held.
-                size_t again = 0;
-                for (size_t i = 0; i < active.size(); ++i) {
-                    Request& r = *active[i];
-                    const size_t len = r.seq_.length(), n = std::min(len, r.reached_) - std::min(lengths[i], r.reached_);
-                    r.recomputed_ += n;
-                    again += n;
-                    r.reached_ = std::max(r.reached_, len);
-                }
-                if (again) {
-                    std::lock_guard<std::mutex> lk(m_);
-                    recomputed_ += again;
-                }
-                for (size_t w = 0; w < wanting.size(); ++w) {
-                    auto& r = wanting[w];
-                    const float* row = ctx_.logits(w);
-                    r->logits_.assign(row, row + ctx_.width);
-                    step(*r);
-                }
+                form(k, active);
             } catch (const std::exception& e) {
-                // A failed pass leaves every history as it was; every active request ends with the error rather than the loop.
-                for (size_t i = 0; i < active.size();) finish(active, i, "error", e.what());
-                continue;
-            }
-            for (size_t i = 0; i < active.size();) {
-                if (!active[i]->finish_pending_.empty()) finish(active, i, active[i]->finish_pending_);
-                else ++i;
+                fail(active, e.what());
             }
         }
+        for (size_t k = 0; k < slots_.size(); ++k)
+            if (slots_[k].live) {
+                model_.abort_pass(ctx_, k);
+                vacate(k);
+            }
         for (auto& r : active) { release(*r); r->end("cancel"); }
         std::lock_guard<std::mutex> lk(m_);
         for (auto* waiting : {&queue_, &paused_}) {
@@ -372,6 +334,140 @@ private:
     static constexpr size_t kGrowTokens = 256;
     // The most generated tokens a pass recomputes for one resume, each taking ubatch / kReplayRows of the budget since it takes the decode kernels; docs/STATUS.md (Exact resume) records the timing that sets it.
     static constexpr size_t kReplayRows = 64;
+
+    // A slot of the context reserved for passes: whether a pass is in flight in it, that pass's place in formation order and the stages recorded, its requests by entry with the history each had and the rows each adds, those it samples in logits order, and its logits rows.
+    struct Slot {
+        bool live = false;
+        uint64_t formed = 0;
+        size_t ran = 0;
+        std::vector<std::shared_ptr<Request>> members, wanting;
+        std::vector<size_t> from, rows;
+        size_t base = 0, want = 0;
+    };
+
+    bool flying() const {
+        return std::any_of(slots_.begin(), slots_.end(), [](const Slot& k) { return k.live; });
+    }
+    size_t free_slot() const {
+        return (size_t)(std::find_if(slots_.begin(), slots_.end(), [](const Slot& k) { return !k.live; }) - slots_.begin());
+    }
+    std::vector<Flight> flights() const {
+        std::vector<Flight> f;
+        for (const Slot& k : slots_) f.push_back(Flight{k.live, k.formed, k.ran});
+        return f;
+    }
+
+    // A new pass in slot k: decode entries first, but for a request that could not grow, then what the other requests' caches lack, one stretch's slice each, up to ubatch tokens; then its logits rows, begin_pass and its first stage.
+    void form(size_t k, const std::vector<std::shared_ptr<Request>>& active) {
+        Slot& f = slots_[k];
+        entries_.clear();
+        f.members.clear();
+        f.wanting.clear();
+        f.from.clear();
+        f.rows.clear();
+        const auto add_entry = [&](const std::shared_ptr<Request>& r, const infer::BatchEntry& e) {
+            entries_.push_back(e);
+            f.members.push_back(r);
+            f.from.push_back(r->seq_.length());
+            f.rows.push_back(e.n);
+            if (e.want_logits) f.wanting.push_back(r);
+        };
+        size_t budget = ubatch_;
+        for (auto& r : active)
+            if (decoding(*r) && !r->stalled_) add_entry(r, infer::BatchEntry{&r->seq_, &r->last_id_, 1, true});
+        for (auto& r : active) {
+            if (decoding(*r) || !budget) continue;
+            const size_t at = r->seq_.length(), end = history_tokens(*r);
+            const RowClass& c = class_at(r->classes_, at);
+            size_t n = std::min(c.end, end) - at;
+            if (c.extent == 1 && at < r->reached_) {
+                // Rows of extent 1 a resume computes again, generated tokens or a forked reply's: a pass takes at most kReplayRows of them, each costing ubatch / kReplayRows of the budget, which is at most the whole budget, so a request gets one while the budget is untouched.
+                // A one-token prompt read for the first time costs its row as any prompt does.
+                const size_t cost = std::max<size_t>(1, ubatch_ / kReplayRows);
+                n = std::min({n, kReplayRows, budget / cost});
+                if (!n) continue;
+                budget -= std::min(budget, n * cost);
+            } else {
+                n = std::min(n, budget);
+                budget -= n;
+            }
+            // The entry that ends the history wants the logits the next token is sampled from, and every entry carries its stretch's extent, so its rows take the kernels and the streamed path that first computed them.
+            infer::BatchEntry e{&r->seq_, token_ptr(*r, at), n, at + n == end};
+            e.extent = c.extent;
+            add_entry(r, e);
+        }
+        if (entries_.empty()) return;
+        f.want = f.wanting.size();
+        f.base = take_rows(logit_rows_, f.want);
+        if (f.base == logit_rows_.size) return;
+        try {
+            model_.begin_pass(ctx_, k, entries_.data(), entries_.size(), f.base);
+        } catch (...) {
+            give_rows(logit_rows_, f.base, f.want);
+            throw;
+        }
+        f.live = true;
+        f.formed = ++formed_;
+        f.ran = 0;
+        advance(k, 0);
+    }
+
+    // Stage s of the pass in slot k; a failure has abandoned the pass in the model, and the slot and its logits rows come back before it goes on.
+    void advance(size_t k, size_t s) {
+        try {
+            model_.run_pass_stage(ctx_, k, s);
+        } catch (...) {
+            vacate(k);
+            throw;
+        }
+        ++slots_[k].ran;
+    }
+
+    // The pass in slot k after its last stage: each wanting row sampled with its request's own state, in entry order, then the pass ended and the slot given back.
+    void retire(size_t k) {
+        Slot& f = slots_[k];
+        try {
+            for (size_t w = 0; w < f.wanting.size(); ++w) {
+                Request& r = *f.wanting[w];
+                const float* row = model_.pass_logits(ctx_, k, w);
+                r.logits_.assign(row, row + ctx_.width);
+                step(r);
+            }
+        } catch (...) {
+            model_.abort_pass(ctx_, k);
+            vacate(k);
+            throw;
+        }
+        model_.end_pass(ctx_, k);
+        // Rows a resume computed again are those below the longest history the cache has held.
+        size_t again = 0;
+        for (size_t e = 0; e < f.members.size(); ++e) {
+            Request& r = *f.members[e];
+            const size_t to = f.from[e] + f.rows[e], n = std::min(to, r.reached_) - std::min(f.from[e], r.reached_);
+            r.recomputed_ += n;
+            again += n;
+            r.reached_ = std::max(r.reached_, to);
+        }
+        if (again) {
+            std::lock_guard<std::mutex> lk(m_);
+            recomputed_ += again;
+        }
+        vacate(k);
+    }
+
+    // Slot k is free again, and the logits rows its pass held come back.
+    void vacate(size_t k) {
+        Slot& f = slots_[k];
+        give_rows(logit_rows_, f.base, f.want);
+        f.live = false;
+        f.members.clear();
+        f.wanting.clear();
+    }
+
+    // A failed pass leaves every history as it was; every active request ends with the error rather than the loop.
+    void fail(std::vector<std::shared_ptr<Request>>& active, const std::string& what) {
+        for (size_t i = 0; i < active.size();) finish(active, i, "error", what);
+    }
 
     // The tokens of r's history, prompt then generated: what a resume holds its cache to.
     static size_t history_tokens(const Request& r) { return r.prompt_.size() + r.gen_.size(); }
@@ -433,7 +529,8 @@ private:
     }
 
     // Admits a queued or paused request if make_room finds room without pausing anyone, reserving its history and max_tokens, or uncapped a growth step: its own donor taken back whole, a fork of the donor best_donor found, or a fresh sequence.
-    // A donor it takes back or shares every full block of goes first, one it forks otherwise last, and a forked donor make_room takes is consumed, the shared blocks counted once. Under the lock.
+    // A donor it takes back or shares every full block of goes first, one it forks otherwise last, and a forked donor make_room takes is consumed, the shared blocks counted once.
+    // Under the lock.
     bool enter(const std::shared_ptr<Request>& r, std::vector<std::shared_ptr<Request>>& active) {
         const size_t tokens = history_tokens(*r) + (r->params_.until_limit ? kGrowTokens : (size_t)r->params_.max_tokens - r->gen_.size());
         std::vector<size_t> need = blocks_for(tokens);
@@ -540,7 +637,8 @@ private:
         return donors_.size();
     }
 
-    // A waiting request whose client left ends where it waits, and a paused one's own donor goes with it when it holds less than a block, which no fork can share; the position after it. Under the lock.
+    // A waiting request whose client left ends where it waits, and a paused one's own donor goes with it when it holds less than a block, which no fork can share; the position after it.
+    // Under the lock.
     std::deque<std::shared_ptr<Request>>::iterator leave(std::deque<std::shared_ptr<Request>>& waiting, std::deque<std::shared_ptr<Request>>::iterator it) {
         const size_t d = own_donor(**it);
         if (d < donors_.size() && donors_[d].tokens.size() < model_.kv_block_tokens()) drop_donor(d);
@@ -567,7 +665,8 @@ private:
     }
 
     // A history for an admitted request: its own donor `d` taken back whole (`take`), a fork of donor `d` at `shared` tokens, or a fresh sequence.
-    // A first admission records its rows: a forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent, then the generated tokens at extent 1. Under the lock.
+    // A first admission records its rows: a forked prefix as its donor recorded it, the rest of the prompt at the prompt's extent, then the generated tokens at extent 1.
+    // Under the lock.
     void admit(Request& r, size_t d, size_t shared, bool take = false) {
         {
             std::lock_guard<std::mutex> lk(r.m_);
@@ -598,7 +697,8 @@ private:
         r.rng_.seed(r.params_.seed);
     }
 
-    // A donor's blocks back to the pool, the oldest donor's unless another is named. Under the lock.
+    // A donor's blocks back to the pool, the oldest donor's unless another is named.
+    // Under the lock.
     void drop_donor(size_t i = 0) {
         Donor& d = donors_[i];
         try { model_.reset(d.seq); } catch (const std::exception&) {}
@@ -718,6 +818,10 @@ private:
     const bpe::Tokenizer& tok_;
     size_t max_seqs_, ubatch_, max_queue_;
     infer::ExecContext ctx_;
+    std::vector<Slot> slots_;
+    LogitRows logit_rows_;
+    uint64_t formed_ = 0;                      // passes formed, which orders them
+    std::vector<infer::BatchEntry> entries_;   // the pass being formed
     mutable std::mutex m_;
     std::condition_variable cv_;
     std::deque<std::shared_ptr<Request>> queue_;

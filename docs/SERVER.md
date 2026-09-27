@@ -13,11 +13,12 @@ is measured against the single-sequence path and the reference.
   request's reset or cancel touches another's blocks
   ([ARCHITECTURE](ARCHITECTURE.md), "KV state and concurrent execution").
 - **Continuous batching.** A device saturates through batch size, so the
-  throughput design is one forward pass per scheduler iteration carrying
+  throughput design is one pass per scheduler round carrying
   every active request's next token plus a slice of some new request's
-  prompt, not one pass per request. `Model::forward` already takes that
-  batch: a prefill microbatch is one entry with many tokens, a decode step
-  is many entries with one token each, and the two mix in one pass.
+  prompt, not one pass per request. The model's pass API
+  (`Model::begin_pass`, [EXECUTION](EXECUTION.md)) takes that batch: a
+  prefill microbatch is one entry with many tokens, a decode step is many
+  entries with one token each, and the two mix in one pass.
 - **One submitter per device.** A `Backend` is driven by one thread at a
   time. The scheduler is that thread; connection threads only queue
   requests and drain token streams. This is a contract, not a lock.
@@ -46,8 +47,8 @@ is measured against the single-sequence path and the reference.
 - **Room by first admission.** One function, `make_room`, decides who gives up blocks for whom, and a request's place is its first admission, never renumbered.
   A request takes donors first, oldest first; only a request that grows then pauses uncapped requests admitted after it, the latest first, each giving up its reservation and, if that is still short, the donor its history became.
   A capped request is never paused, and a request is never paused for its own growth: one that cannot grow sits out the pass with its cache as it is (a stall) and asks again before the next, and since only capped requests and requests admitted before it can hold what it lacks, the stall ends when one of them ends or is paused.
-  Paused requests wait apart from the queue, in order of first admission: they do not count against `--max-queue`, a client that leaves ends its paused request at the next iteration, its donor going with it when it holds less than a block, which no fork can share, and they hold nothing but an evictable donor.
-  Each iteration gives the growth steps that fall due their room before anything resumes or is admitted, so a newer request never takes the room an older request's step needs in the same pass.
+  Paused requests wait apart from the queue, in order of first admission: they do not count against `--max-queue`, a client that leaves ends its paused request at the next round, its donor going with it when it holds less than a block, which no fork can share, and they hold nothing but an evictable donor.
+  Each round gives the growth steps that fall due their room before anything resumes or is admitted, so a newer request never takes the room an older request's step needs in the same pass.
   While a request is stalled nothing resumes or is admitted; paused requests resume oldest first and stop at the first that does not fit, and new requests are admitted only once none is paused.
   `/v1/health` counts the requests paused now, the passes requests sat out, the tokens resumes recomputed and the resumes that took their donor back.
 - **An exact resume.** A request keeps its prompt and what it generated, never rewritten, and a record of how each stretch of its history was computed, its row classes: the extent each stretch took (`BatchEntry`), which chooses a device's kernels and, with experts streamed, whether a routed layer runs on the device.
@@ -67,9 +68,10 @@ is measured against the single-sequence path and the reference.
 server/
   http.hpp       listen, accept, parse one request, write a response or a
                  chunked stream; blocking sockets, one thread per connection
-  scheduler.hpp  the request queue, admission, batch assembly, the forward
-                 loop, sampling, token channels
-  policy.hpp     the policy core: make_room, who gives up blocks for whom
+  scheduler.hpp  the request queue, admission, batch assembly, the rounds
+                 over the model's pass API, sampling, token channels
+  policy.hpp     the policy core: make_room, the round's stages and the
+                 logits rows, as free functions
   api.hpp        the routes and their JSON: /v1/generate, /v1/chat,
                  /v1/tokenize, /v1/detokenize, /v1/health, /v1/models,
                  /v1/chat/completions, /v1/completions
@@ -92,7 +94,7 @@ accept thread ---> connection thread (one per socket)
                      template, enqueue a Request, then wait on the
                      request's token channel and write chunks until done,
                      looking at the socket every 100 ms meanwhile
-scheduler thread   the only caller of Model::forward for its devices
+scheduler thread   the only thread that calls the model
 ```
 
 A `Request` carries the prompt ids, the sampling parameters, a `Sequence`, the stop conditions and a channel: a mutex, a condition variable and a deque of sampled tokens that the connection thread drains, each an id with, for a request that asks for log-probabilities, the logits row they come from or the values themselves (`Request::Token`, Log-probabilities below).
@@ -101,15 +103,40 @@ The thread waits on the channel for at most 100 ms at a time and looks at the so
 The look takes no byte and never blocks: an end of stream or a reset from the client is gone, and nothing to read, data waiting or only urgent (out-of-band) data is present.
 So a client that shuts only its sending side after the request is taken as gone, since that arrives as the same end of stream, and one that has sent bytes past its request is taken as present until a write to it fails.
 A client taken as gone gets no answer, not even an error: its request is cancelled and the connection closes, so a client that shut only its sending side and still reads sees the end of the connection.
-The scheduler sees the flag at its next iteration, after the pass in flight: a queued or paused request ends wherever it waits, and an active one is dropped from the batch and its sequence released, which returns its blocks once the last pass that read them has retired.
+The scheduler sees the flag at its next round: a queued or paused request ends wherever it waits, and an active one is dropped from the batch and its sequence released once no pass in flight holds it, which returns its blocks once the last pass that read them has retired.
 
-### The scheduler loop
+### The round
+
+The scheduler thread repeats a round over the model's pass API (`reserve_passes`, `begin_pass`, `run_pass_stage`, `pass_logits`, `end_pass`, `abort_pass`, [EXECUTION](EXECUTION.md)) in one context reserved at start for its passes in flight, each in a slot with its own handoff buffers, of every decoding request's row and a ubatch of other rows, each request wanting one logits row at most.
+It keeps one pass in flight; layer split phase 3 (`docs/STATUS.md`) raises that to one pass per stage on a pipelined split.
+The policy the round follows is in `server/policy.hpp`, free functions over plain data: `make_room` for room, `round_steps` for which stages a round records and which passes it retires, and `take_rows` and `give_rows` for where a pass's logits rows go.
 
 ```
-loop:
+round:
   drop:    end the queued and paused requests whose client left,
            wherever they wait, and look again as admission reaches each
-  admit:   unless a request sat out the last pass, and while active <
+  advance: from the last stage down to stage 1, each stage records the
+           oldest pass waiting for it (run_pass_stage), so every device
+           runs its passes in formation order and a pass advances a stage
+           at most a round
+  retire:  every pass whose last stage an earlier round recorded, oldest
+           first: per wanting row, the request's own sampler state;
+           push the id to its channel, with its logits row when the
+           request asked for logprobs (pass_logits waits on that pass's
+           own ticket); end_pass commits the histories, and the pass's
+           logits rows come back; finish on EOS, a stop string or
+           max_tokens, and keep the history as a donor when it holds a
+           full block, else release
+  cancel:  the active requests whose client left and that no pass in
+           flight holds end
+  -- the rest waits for a free slot, so nothing in flight is paused,
+     parked or given room
+  grow:    an uncapped decoding request whose next token passes its
+           reservation reserves another step, the earliest admitted
+           first, with what make_room gives it: donors, then pausing
+           uncapped requests admitted after it, latest first; if that is
+           not enough it sits out this pass (a stall)
+  admit:   unless a request sat out the pass, and while active <
            max_seqs: the paused requests oldest first, then, once none
            is paused, the queue in order; for each, take a resumed
            request's own donor if it is still there, else find the donor
@@ -122,36 +149,31 @@ loop:
            take its own donor back whole, fork the donor at the shared
            blocks or make a fresh sequence; else stop, evicting nothing;
            the cache's length is all the progress there is
-  grow:    an uncapped decoding request whose next token passes its
-           reservation reserves another step, the earliest admitted
-           first, with what make_room gives it: donors, then pausing
-           uncapped requests admitted after it, latest first; if that is
-           not enough it sits out this pass (a stall)
-  assemble: one entry per decoding request that did not stall, whose
+  form:    one entry per decoding request that did not stall, whose
            cache lacks only its last sampled id; then for every other
            request a slice of the next stretch its cache lacks, at that
            stretch's extent, in order of first admission, until the
            pass holds ubatch tokens, generated tokens at most 64 a pass
            and each counting ubatch / 64; the entry that ends a
-           request's history wants logits, the others do not
-  run:     Model::forward(ctx, entries, n); ctx.logits() waits
-  sample:  per entry that wanted logits, the request's own sampler state;
-           push the id to its channel, with its logits row when the
-           request asked for logprobs; commit the sequence; finish on EOS,
-           a stop string or max_tokens, and keep the history as a donor
-           when it holds a full block, else release
-  repeat while any request is active or paused; otherwise block on the queue
+           request's history wants logits, the others do not; the pass
+           takes a run of logits rows (take_rows), begin_pass puts its
+           sequences in flight, and its first stage is recorded
+  repeat while a pass is in flight or any request is active or paused;
+  otherwise block on the queue
 ```
 
+A failed pass is abandoned in the model (`abort_pass`, which drains every device and returns each of its histories to where the pass found it), and every active request ends with the error; stopping abandons the pass in flight first and then ends everything, so the ledger and every pool are left at zero.
+With one pass in flight a round that records a stage before the last one only relays, and the pass's logits are read the round after its last stage, which is the order `Model::forward` runs a pass in.
+
 Prefill of a long prompt is chunked at `ubatch`, so a 16k prompt does not
-stall the decoding requests for a whole pass: they advance one token per
-iteration while the prompt goes through in slices. That is the reason the
+stall the decoding requests for a whole pass: they advance one token a
+pass while the prompt goes through in slices. That is the reason the
 prompt slice comes after the decode entries and is bounded by what is left
 of `ubatch`.
 
-Passes in flight in one context reserved for them (`Model::reserve_passes`, `docs/EXECUTION.md`) would be the overlap of host sampling with the devices' next pass, and phase 3 of `docs/MULTI-DEVICE.md` brings them to the server.
-Layer split phase 3's step 0 (`docs/STATUS.md`) timed the host time between a pass's logits and the next `forward` on Qwen3-8B-Q8_0 on one MI50: 0.26 to 0.71 ms a row greedy and at the defaults at 1 to 32 sequences, nearly all of it sampling and about half of a greedy row the copy out of the mapped logits, which is 7 to 14 percent of a greedy pass at 8 to 32 sequences; the 25 microseconds an earlier timing build recorded did not hold.
-For the same requests a second pass in flight would not hide that time, because the next pass's tokens come from this one, so the server runs one pass at a time.
+Several passes in flight in the context the scheduler reserves would overlap host sampling with the devices' next pass, and phase 3 of `docs/MULTI-DEVICE.md` brings them to the server.
+Layer split phase 3's step 0 (`docs/STATUS.md`) timed the host time between a pass's logits and the next pass on Qwen3-8B-Q8_0 on one MI50: 0.26 to 0.71 ms a row greedy and at the defaults at 1 to 32 sequences, nearly all of it sampling and about half of a greedy row the copy out of the mapped logits, which is 7 to 14 percent of a greedy pass at 8 to 32 sequences; the 25 microseconds an earlier timing build recorded did not hold.
+For the same requests a second pass in flight would not hide that time, because the next pass's tokens come from this one, so the server keeps one pass in flight.
 The host also spends the recording of each pass, 0.7 milliseconds at one sequence and 1.7 at eight on Qwen3-0.6B-Q8_0 and 2.6 to 5.2 at one to 32 on the 8B, which no second pass in flight hides for the same reason; only a recorded pass replayed with new inputs would, and that is a backend change noted in STATUS, not a scheduler one.
 
 ### Sampling
@@ -279,7 +301,7 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 | 3 | `/v1/chat` through the template renderer; `/v1/models` (**done**) | A chat turn through the server in the `server` component |
 | 3a | One dispatch per layer for `kv_write`, `attention` and `norm_rope_kv` over every view of a batch (**done**: a view table per dispatch, `shaders/views.glsl`) | The backend-vulkan checks over two views and the device HF gate; the throughput gate again: 118, 112, 109 and 125 percent of the reference's server at 1, 4, 8 and 16: above it at every concurrency, short of the wide margin the serving gate above asks for |
 | 4 | Prefix reuse: finished requests kept as donors, the longest shared run of full blocks forked on admission (**done**) | The `server` component: a prompt repeating a 247-token excerpt with a different ending reuses the first request's blocks and its greedy text equals the CLI's; a 1995-token prefix on Qwen3-0.6B-Q8_0 costs 1.53 s the first time and 0.16 s with a donor on the device (8B: 8.74 s to 0.72 s; CPU 0.6B: 6.95 s to 0.95 s) |
-| 5 | The second execution context, if measured to help (**measured, not added**) | The host gap between passes is 0.26 to 0.71 ms a row on the 8B, 7 to 14 percent of a greedy pass at 8 to 32 sequences on one MI50 (layer split phase 3's step 0), and the next pass's tokens come from this one; see the scheduler loop above |
+| 5 | The second execution context, if measured to help (**measured, not added**) | The host gap between passes is 0.26 to 0.71 ms a row on the 8B, 7 to 14 percent of a greedy pass at 8 to 32 sequences on one MI50 (layer split phase 3's step 0), and the next pass's tokens come from this one; see the round above |
 | 6 | The compatible routes: `/v1/chat/completions`, `/v1/completions`, `/v1/models` in the OpenAI clients' shape (**done**) | The `server` component: greedy equality with the CLI through `/v1/completions` whole and streamed, usage counts, the role in the first chat chunk and the finish reason in the last, text content parts, the refusals' shape; CPU and device |
 | 7 | `/v1/tokenize` and `/v1/detokenize`, and `messages` rendered by the chat template in place of a text (**done**) | The `server` component against `llmx tokenize` and `llmx detokenize` on the synthetic model and the Q8_0 fixture: text beyond ASCII, special tokens, an empty text, ids ending inside a character, a reply's ids giving back its text, the chat fixture's goldens under the file's template and a chat request reading the same count, the refusals |
 | 8 | Log-probabilities on every generating route, in the compatible shapes and a native one (**done**) | The `logprobs` CTest: the log-softmax against a double-precision reference and the scheduler's channel against a second model's logits, read at once or left to fall behind; the `server` component: each route's shape whole and streamed, the ids unchanged, the values repeating byte for byte and equal alone and four at a time, greedy's token the most likely, and a reply that does not ask byte-identical to one that never names them |

@@ -20,6 +20,7 @@ import f32
 import moe
 import qwen35
 import split
+import decode_probe
 import shards
 import server
 import server_load_tool
@@ -84,6 +85,7 @@ def main():
                   ("moe", moe.run),
                   ("qwen35", qwen35.run),
                   ("split", lambda: split.run(require=args.require_tools)),
+                  ("decode-probe", lambda: decode_probe.run(require=args.require_tools)),
                   ("shards", shards.run),
                   ("server", server.run),
                   ("server-load", server_load_tool.run),

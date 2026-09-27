@@ -116,7 +116,7 @@
     "revision": "6ab461498e2023f6e3c1baea90a8f0fe38ab64d0",
     "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
     "size": 532517120,
-    "gate": false,
+    "gate": true,
     "hosted": true
   },
   {

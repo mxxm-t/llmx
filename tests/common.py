@@ -373,9 +373,9 @@ def check_ids(output, expected):
     return {"tokens": len(ids)}
 
 
-def check_logits(output, case, vocab, bounds):
+def check_logits(output, case, vocab, bounds, require_top1=True):
     """`llmx logits --top 10` for a reference case: the prompt's exact token count, then ten unique IDs below `vocab` with finite logits sorted from the top, none beyond `bounds["max_abs_logit"]`.
-    HF's top-1 must lead, and the top-5 overlap as top5_overlap counts it must reach `bounds["top5_overlap"]`."""
+    HF's top-1 must lead unless the caller counts the top-1 matches over its cases, and the top-5 overlap as top5_overlap counts it must reach `bounds["top5_overlap"]`."""
     lines = output.strip().splitlines()
     require(len(lines) == 11 and lines[0] == "tokens: " + str(case["n_tokens"]),
             "wrong logit count or prompt token count")
@@ -388,7 +388,8 @@ def check_logits(output, case, vocab, bounds):
     require(all(math.isfinite(value) and abs(value) <= bounds["max_abs_logit"] for value in values),
             "non-finite or implausible logits")
     require(all(a >= b for a, b in zip(values, values[1:])), "logits not sorted")
-    require(ids[0] == case["top_ids"][0], "top-1 %d, HF %d" % (ids[0], case["top_ids"][0]))
+    if require_top1:
+        require(ids[0] == case["top_ids"][0], "top-1 %d, HF %d" % (ids[0], case["top_ids"][0]))
     overlap = top5_overlap(ids, case["top_ids"], case["top_logits"], values)
     require(overlap >= bounds["top5_overlap"],
             "top-5 overlap %d/5 below bound %d" % (overlap, bounds["top5_overlap"]))

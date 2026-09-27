@@ -429,6 +429,126 @@ class Qwen35Consumer(unittest.TestCase):
                 self.assertEqual(baseline.missing_gate_models(), [])
 
 
+class Qwen35QualityConsumer(unittest.TestCase):
+    """tests/baseline_qwen35.py on the Qwen3.5-0.8B Q4_K_M, held first to its committed file-exact goldens and then to its own quality bounds against its model's."""
+
+    FILE = "Qwen3.5-0.8B-Q4_K_M.gguf"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.spec = baseline.pinned_fixture(cls.FILE)
+        cls.docs = baseline_qwen35.goldens_for(cls.FILE)[1]
+        cls.exact = baseline_qwen35.file_exact_goldens(cls.spec)
+        cls.tokenizer = baseline_qwen35.load_golden(baseline_qwen35.TOKENIZER_GOLDEN)
+        templates = json.loads((baseline_qwen35.DATA / "baseline_chat_template.json").read_text(encoding="utf-8"))["templates"]
+        cls.template = next(t["template"] for t in templates if t["sha256"] == cls.docs["baseline_chat.json"]["template_sha256"])
+
+    def double(self, exact_swaps, model_swaps, calls):
+        """llmx on the file: the file-exact run's six rankings and its perplexity first, then the model goldens' eight rankings and perplexity, each as HF's but with the top two ids swapped on its first `*_swaps` rankings; each command is recorded in `calls`."""
+        ids = {case["text"]: case["ids"] for case in self.tokenizer["cases"]}
+        for docs in (self.docs, self.exact):
+            ids.update((case["text"], case["token_ids"]) for case in docs["baseline_logits.json"]["cases"])
+        ids.update((case["text"], case["token_ids"]) for case in self.docs["baseline_chat.json"]["cases"])
+        exact_ppl = len(common.ppl_cases(self.exact[baseline_qwen35.PPL_GOLDENS[512]])) * len(common.PPL_MODES)
+
+        def ranked(cases, text, swaps):
+            index, case = next((i, c) for i, c in enumerate(cases) if c["text"] == text)
+            ids = list(case["top_ids"])
+            if index < swaps:
+                ids[:2] = reversed(ids[:2])
+            return logits_text(dict(case, top_ids=ids))
+
+        def llmx(command, **kwargs):
+            calls.append(command[1])
+            logits, ppls = calls.count("logits"), calls.count("perplexity")
+            exact = logits <= 6 and ppls <= exact_ppl
+            docs = self.exact if exact else self.docs
+            doc = docs[baseline_qwen35.PPL_GOLDENS[512]]
+            out = "llmx 0\n"
+            if command[1] == "tokenize":
+                out = " ".join(map(str, ids.get(command[3], [0] * doc["n_tokens"])))
+            elif command[1] == "logits":
+                text = Path(command[command.index("--file") + 1]).read_text(encoding="utf-8") if "--file" in command else command[3]
+                cases = docs["baseline_logits.json"]["cases"] + (self.docs["baseline_chat.json"]["cases"] if not exact else [])
+                out = ranked(cases, text, exact_swaps if exact else model_swaps)
+            elif command[1] == "perplexity":
+                window = (int(command[command.index("--ctx-size") + 1]) if "--ctx-size" in command else 0,
+                          int(command[command.index("--chunks") + 1]) if "--chunks" in command else 0)
+                case = next(case for case in common.ppl_cases(doc) if (case["context_size"], case["max_chunks"]) == window)
+                out = ppl_text(case, context=baseline_qwen35.MODEL_CONTEXT, tokens=doc["n_tokens"])
+            return subprocess.CompletedProcess(command, 0, out.encode("utf-8"), b"")
+
+        return llmx
+
+    def simulate(self, root, exact_swaps=0, model_swaps=0, digest=None):
+        """main() on the file under `root`: its exit code, its report and the commands it ran."""
+        calls = []
+        gguf = unittest.mock.MagicMock()
+        gguf.return_value.value.return_value = self.template
+        args = ["--exe", str(root / "llmx"), "--model", str(root / self.FILE), "--output-dir", str(root / "result")]
+        with patch.object(baseline_qwen35, "file_sha256", return_value=digest or self.spec["sha256"]), \
+             patch.object(baseline_qwen35, "check_ids_digest", side_effect=lambda output, n, digest: {"tokens": n}), \
+             patch.object(baseline_qwen35.spec_decode, "GGUF", gguf), \
+             patch.object(baseline_qwen35.subprocess, "run", side_effect=self.double(exact_swaps, model_swaps, calls)), \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            code = baseline_qwen35.main(args)
+        return code, json.loads((root / "result/report.json").read_text()), calls
+
+    def test_goldens_are_the_files_own(self):
+        for doc in self.exact.values():
+            self.assertEqual(doc["weights"]["sha256"], self.spec["sha256"])
+        self.assertEqual(baseline_qwen35.goldens_for(self.FILE)[0], "qwen35-0.8b")
+        self.assertIsNone(baseline_qwen35.file_exact_goldens(baseline.pinned_fixture("Qwen3.5-0.8B-Q8_0.gguf")))
+
+    def test_quality_bounds_are_this_files_alone(self):
+        self.assertEqual(baseline_qwen35.bounds_for(self.spec), baseline_qwen35.QWEN35_08B_Q4_K_M_QUALITY)
+        self.assertIsNone(baseline_qwen35.bounds_for(dict(self.spec, sha256="0" * 64)))
+        self.assertNotIn("top1_matches", baseline_qwen35.bounds_for(baseline.pinned_fixture("Qwen3.5-0.8B-Q8_0.gguf")))
+        self.assertTrue(all("top1_matches" not in bounds for bounds in baseline_qwen35.BOUNDS.values()))
+
+    def test_two_top1_swaps_pass_and_three_fail(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, report, _ = self.simulate(Path(directory), model_swaps=2)
+        # 54 checks against the file-exact goldens, then the 59 against the model's and the count of top-1 matches.
+        self.assertEqual((code, report["status"], len(report["checks"])), (0, "pass", 114))
+        self.assertEqual(sum(check["label"].startswith("file-exact-") for check in report["checks"]), 54)
+        self.assertEqual(report["checks"][-5]["label"], "top1")
+        with tempfile.TemporaryDirectory() as directory:
+            code, report, _ = self.simulate(Path(directory), model_swaps=3)
+        self.assertEqual((code, report["status"]), (1, "fail"))
+        self.assertEqual([check["label"] for check in report["checks"] if check["status"] == "fail"], ["top1"])
+
+    def test_file_exact_failure_cannot_pass_on_quality_bounds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, report, calls = self.simulate(Path(directory), exact_swaps=1)
+        self.assertEqual((code, report["status"]), (1, "fail"))
+        self.assertEqual([check["label"] for check in report["checks"] if check["status"] == "fail"], ["file-exact-logits-00"])
+        # The model's rankings never ran: six logits commands, the file-exact run's.
+        self.assertEqual(calls.count("logits"), 6)
+        self.assertFalse(any(not check["label"].startswith("file-exact-") for check in report["checks"]))
+
+    def test_every_top1_stays_required_elsewhere(self):
+        case = self.docs["baseline_logits.json"]["cases"][0]
+        swapped = logits_text(dict(case, top_ids=[case["top_ids"][1], case["top_ids"][0]] + case["top_ids"][2:]))
+        bounds = dict(baseline_qwen35.BOUNDS["Qwen3.5-0.8B-Q8_0.gguf"], max_abs_logit=100.0)
+        with self.assertRaisesRegex(ValueError, "top-1"):
+            common.check_logits(swapped, case, baseline_qwen35.VOCAB_SIZE, bounds)
+        self.assertEqual(common.check_logits(swapped, case, baseline_qwen35.VOCAB_SIZE, bounds, False)["top1"], case["top_ids"][1])
+
+    def test_nll_bounds_hold_at_their_edges(self):
+        doc = self.docs[baseline_qwen35.PPL_GOLDENS[512]]
+        bounds = dict(baseline_qwen35.QWEN35_08B_Q4_K_M_QUALITY, max_abs_logit=100.0)
+        for case in common.ppl_cases(doc):
+            bound = 0.025 if case["context_size"] else 0.021
+            for error, accepted in ((bound - 0.0005, True), (bound + 0.0005, False)):
+                output = ppl_text(case, case["mean_nll"] + error, doc["n_tokens"], baseline_qwen35.MODEL_CONTEXT)
+                if accepted:
+                    common.check_ppl(output, case, doc["n_tokens"], baseline_qwen35.MODEL_CONTEXT, bounds)
+                else:
+                    with self.assertRaises(ValueError):
+                        common.check_ppl(output, case, doc["n_tokens"], baseline_qwen35.MODEL_CONTEXT, bounds)
+
+
 class LayeredConsumer(unittest.TestCase):
     """tests/baseline_layered.py: the layered HF reference's goldens, chosen by the model's SHA-256 and checked by the 8B consumer's run."""
 
@@ -505,7 +625,7 @@ class LayeredConsumer(unittest.TestCase):
 
 
 def run():
-    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceConsumer, Qwen35Consumer, LayeredConsumer))
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceConsumer, Qwen35Consumer, Qwen35QualityConsumer, LayeredConsumer))
     result = unittest.TextTestRunner(stream=sys.stdout).run(suite)
     return result.wasSuccessful()
 

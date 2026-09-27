@@ -139,14 +139,15 @@ class ReferenceGenerator(unittest.TestCase):
         # The gate is the models with bounds, in the file's order, each family's by its own: Qwen3's in tests/baseline.py, the qwen35 files' hosted ones in tests/baseline_qwen35.py.
         self.assertEqual([spec["file"] for spec in baseline.BASELINE_MODELS], [spec["file"] for spec in pinned if spec["gate"] and spec["family"] == "qwen3"])
         self.assertEqual([spec["file"] for spec in pinned if spec["gate"] and spec["family"] == "qwen35"],
-                         [spec["file"] for spec in pinned if spec["family"] == "qwen35" and spec["hosted"] and spec["file"] in baseline_qwen35.BOUNDS])
+                         [spec["file"] for spec in pinned if spec["family"] == "qwen35" and spec["hosted"] and baseline_qwen35.bounds_for(spec)])
         # The six Qwen3 files pinned ahead of their types join the gate with them: the hosted HF job is to download UD-Q8_K_XL, IQ4_XS and Q2_K, and the other three are checked by hand.
         later = [spec for spec in pinned if not spec["gate"] and spec["family"] == "qwen3"]
         self.assertEqual(sorted(spec["file"] for spec in later if spec["hosted"]),
                          ["Qwen3-0.6B-IQ4_XS.gguf", "Qwen3-0.6B-Q2_K.gguf", "Qwen3-0.6B-UD-Q8_K_XL.gguf"])
         self.assertEqual(sorted(spec["file"] for spec in later if not spec["hosted"]),
                          ["Qwen3-0.6B-BF16.gguf", "Qwen3-0.6B-IQ4_NL.gguf", "Qwen3-0.6B-Q3_K_S.gguf"])
-        # The qwen35 files: the two 0.8B files hosted, the Q8_0 in the gate with its bounds and the Q4_K_M out of it without them, the 4B by hand, and each a file of a checkpoint QWEN35_MODELS pins.
+        # The qwen35 files: the two 0.8B files hosted and in the gate, the Q4_K_M with its committed file-exact goldens and its own quality bounds, the 4B by hand, and each a file of a checkpoint QWEN35_MODELS pins.
+        self.assertEqual(sorted(spec["file"] for spec in pinned if spec["family"] == "qwen35" and spec["gate"]), ["Qwen3.5-0.8B-Q4_K_M.gguf", "Qwen3.5-0.8B-Q8_0.gguf"])
         qwen35 = [spec for spec in pinned if spec["family"] == "qwen35"]
         self.assertEqual(sorted(spec["file"] for spec in qwen35 if spec["hosted"]), ["Qwen3.5-0.8B-Q4_K_M.gguf", "Qwen3.5-0.8B-Q8_0.gguf"])
         self.assertEqual(sorted(spec["file"] for spec in qwen35 if not spec["hosted"]), ["Qwen3.5-4B-Q4_K_M.gguf"])
@@ -337,6 +338,21 @@ class ReferenceGenerator(unittest.TestCase):
             self.assertEqual([(case["name"], case["messages"]) for case in chat["cases"]], [(name, messages) for name, messages in generator.QWEN35_CHATS])
             for context, name in baseline_qwen35.PPL_GOLDENS.items():
                 self.assertEqual((docs[name]["chars"], docs[name]["chunk_cases"][0]["context_size"]), (generator.QWEN35_PPL[context], context))
+        # A file's committed file-exact goldens hold the generator's prompts and 512-token excerpt, run on the checkpoint its entry names with that very file's weights.
+        import baseline
+        for sha256, directory in baseline_qwen35.FILE_EXACT.items():
+            spec = next(spec for spec in baseline.PINNED if spec["sha256"] == sha256)
+            model = next(model for model in generator.QWEN35_MODELS.values() if spec["file"] in model["gguf_files"])
+            docs = {path.name: json.loads(path.read_text(encoding="utf-8")) for path in (Path(generator.OUT_DIR) / directory).glob("*.json")}
+            self.assertEqual(sorted(docs), ["baseline_logits.json", baseline_qwen35.PPL_GOLDENS[512]])
+            pinned.update(directory + "/" + name for name in docs)
+            for name, doc in docs.items():
+                with self.subTest(golden=directory + "/" + name):
+                    self.assertEqual((doc["reference_repo"], doc["reference_revision"]), (model["repo"], model["revision"]))
+                    self.assertEqual((doc["weights"]["file"], doc["weights"]["sha256"]), (spec["file"], sha256))
+                    self.assertEqual((doc["reference_dtype"], doc["attention"], doc["transformers_version"]), ("float32", "eager", generator.QWEN35_ENV["transformers"]))
+            self.assertEqual([case["text"] for case in docs["baseline_logits.json"]["cases"]], generator.LOGIT_PROMPTS)
+            self.assertEqual(docs[baseline_qwen35.PPL_GOLDENS[512]]["chars"], generator.QWEN35_PPL[512])
         self.assertEqual(pinned | {baseline_qwen35.TOKENIZER_GOLDEN}, set(baseline_qwen35.GOLDEN_SHA256))
 
     @unittest.skipUnless(sys.platform == "win32", "Windows short-path aliases")

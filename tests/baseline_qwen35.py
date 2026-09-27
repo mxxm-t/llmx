@@ -34,16 +34,25 @@ GOLDEN_SHA256 = {
     "qwen35-4b/baseline_chat.json": "0fc52ab64ddb855c00bd441a702d91d7fb2c40bcafa6320636baf21740f5bab8",
     "qwen35-4b/baseline_perplexity.json": "bea1ad500f60333c546c328523efb0d9edf24deb7d8f99decb1b6e67e3359cbb",
     "qwen35-4b/baseline_perplexity_4096.json": "e19d2510d6acccb10fb292c530899e47843d7caff97915e1a93cb9d544af01e4",
+    "qwen35-0.8b-q4_k_m-file-exact/baseline_logits.json": "28535cbbebbcf561e90a7e92ae57edacaae479d29a5e14d4d7fc4b8ac8014720",
+    "qwen35-0.8b-q4_k_m-file-exact/baseline_perplexity.json": "d723cbe8fc1a2eff5cac8b81d35dd0fa03ffeda182ceaf86b2fa82e38c9aafa7",
 }
 
 # Each file's bounds against its model's goldens, set from llmx's first measurement on it, the largest NLL delta over both window lengths, both cache types and both ways of scoring plus a margin (docs/ASSETS.md); a file without them is measured and fails.
-# The 0.8B Q4_K_M has none: its own quantization moves HF's top-1 on two prompts, which its file-exact goldens show (docs/STATUS.md).
+# Every top-1 must be HF's.
 BOUNDS = {
     "Qwen3.5-0.8B-Q8_0.gguf": {"top5_overlap": 5, "continuous_nll": 0.02, "window_nll": 0.02},
     "Qwen3.5-4B-Q4_K_M.gguf": {"top5_overlap": 4, "continuous_nll": 0.07, "window_nll": 0.08},
 }
 # A file against its file-exact goldens is held to this file's bounds whatever its type, since the format's loss is on both sides.
 FILE_EXACT_BOUNDS = "Qwen3.5-0.8B-Q8_0.gguf"
+
+# The Qwen3.5-0.8B Q4_K_M, whose own quantization moves HF's top-1 on two of its eight rankings (docs/STATUS.md).
+# Its correctness gate is its committed file-exact goldens at FILE_EXACT_BOUNDS; against its model's goldens it is held to its own quantization's cost, which the user approved on 2026-09-27 for this file's SHA-256 alone: the top-1 of six rankings of eight, the top-5 overlap measured, and the NLL deltas measured, 0.0189 whole and 0.0235 in windows, plus 11 and 6 percent.
+QWEN35_08B_Q4_K_M_SHA256 = "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+QWEN35_08B_Q4_K_M_QUALITY = {"top1_matches": 6, "top5_overlap": 4, "continuous_nll": 0.021, "window_nll": 0.025}
+# Each file's committed file-exact goldens, by its SHA-256, a directory under tests/data whose goldens GOLDEN_SHA256 pins.
+FILE_EXACT = {QWEN35_08B_Q4_K_M_SHA256: "qwen35-0.8b-q4_k_m-file-exact"}
 MAX_PLAUSIBLE_LOGIT = 100.0
 # What a file without bounds is measured at: every rule of the validators except the bounds themselves.
 MEASURE_ONLY = {"top5_overlap": 0, "max_abs_logit": MAX_PLAUSIBLE_LOGIT, "continuous_nll": math.inf, "window_nll": math.inf}
@@ -70,8 +79,8 @@ def load_golden(name):
 
 
 def goldens_for(file):
-    """The directory of the goldens made for the pinned file `file`, which lists it in each of them, and those goldens by name."""
-    for directory in sorted({name.split("/")[0] for name in GOLDEN_SHA256 if "/" in name}):
+    """The directory of the model goldens made for the pinned file `file`, which lists it in each of them, and those goldens by name."""
+    for directory in sorted({name.split("/")[0] for name in GOLDEN_SHA256 if "/" in name} - set(FILE_EXACT.values())):
         docs = {name.split("/")[1]: load_golden(name) for name in GOLDEN_SHA256 if name.startswith(directory + "/")}
         if all(file in doc["gguf_files"] for doc in docs.values()):
             return directory, docs
@@ -100,25 +109,58 @@ def check_ids_digest(output, n_tokens, digest):
     return {"tokens": len(ids)}
 
 
+def bounds_for(spec):
+    """The bounds the pinned file `spec` is held to against its model's goldens: the 0.8B Q4_K_M's own for that file's SHA-256, else its entry in BOUNDS, None until they are set."""
+    if spec["sha256"] == QWEN35_08B_Q4_K_M_SHA256:
+        return QWEN35_08B_Q4_K_M_QUALITY
+    return BOUNDS.get(spec["file"])
+
+
+def file_exact_goldens(spec, directory=None):
+    """The logit and 512-token perplexity goldens tools/gen_baseline.py file-exact made from the pinned file `spec` itself: those in `directory`, or the committed ones of FILE_EXACT, pinned by SHA-256; None where it has none."""
+    names = ("baseline_logits.json", PPL_GOLDENS[512])
+    if directory:
+        docs = {name: json.loads(Path(directory, name).read_text(encoding="utf-8")) for name in names}
+    elif spec["sha256"] in FILE_EXACT:
+        docs = {name: load_golden(FILE_EXACT[spec["sha256"]] + "/" + name) for name in names}
+    else:
+        return None
+    for doc in docs.values():
+        require(doc.get("weights", {}).get("sha256") == spec["sha256"], "the goldens in %s were not made from %s" % (directory or FILE_EXACT[spec["sha256"]], spec["file"]))
+    return docs
+
+
 def model_goldens(model, file_exact=None):
     """The goldens the pinned qwen35 file `model` is held to, by name, and their bounds, None until they are set.
-    They are its model's goldens, or with `file_exact` the logit and 512-token perplexity goldens tools/gen_baseline.py file-exact made from this very file, at the Q8_0 file's bounds whatever the file's type."""
+    They are its model's goldens, or with `file_exact` the file-exact goldens in that directory, at the Q8_0 file's bounds whatever the file's type."""
     spec = pinned(model)
     if not file_exact:
-        return goldens_for(spec["file"])[1], BOUNDS.get(spec["file"])
-    docs = {}
-    for name in ("baseline_logits.json", PPL_GOLDENS[512]):
-        doc = json.loads(Path(file_exact, name).read_text(encoding="utf-8"))
-        require(doc.get("weights", {}).get("sha256") == spec["sha256"], "the goldens in %s were not made from %s" % (file_exact, spec["file"]))
-        docs[name] = doc
-    return docs, BOUNDS.get(FILE_EXACT_BOUNDS)
+        return goldens_for(spec["file"])[1], bounds_for(spec)
+    return file_exact_goldens(spec, file_exact), BOUNDS.get(FILE_EXACT_BOUNDS)
+
+
+def check_top1(matched, total, needed):
+    """A file whose bounds name the top-1 matches it keeps: `matched` of the `total` rankings must be HF's, at least `needed`."""
+    require(matched >= needed, "top-1 matches HF on %d of %d rankings, below the %d this file keeps" % (matched, total, needed))
+    return {"top1_matches": matched, "rankings": total}
+
+
+def first_id(output):
+    """The top token id of `llmx logits` output, None where it has none."""
+    lines = output.strip().splitlines()
+    try:
+        return int(lines[1].split()[0])
+    except (IndexError, ValueError):
+        return None
 
 
 def check_file(model, context, run, check, write, docs, bounds):
     """Every check of the pinned qwen35 file `model` against the goldens `docs` at `bounds`, with perplexity windows of `context` tokens.
     `run(label, arguments)` runs llmx and gives (exit code, output), `check(label, validator, *arguments)` records one check, and `write(name, data)` keeps a file beside the results and gives its path.
+    Every ranking's top-1 must be HF's, unless `bounds` names how many a file keeps (`top1_matches`), which one more check counts over them all.
     Returns "skip" when llmx does not run the architecture here (qwen35.REFUSALS), "unbounded" when there are no bounds yet, which measures every check at MEASURE_ONLY, and "checked" otherwise."""
     limits = dict(bounds or MEASURE_ONLY, max_abs_logit=MAX_PLAUSIBLE_LOGIT)
+    top1_needed = limits.get("top1_matches")
 
     def output(label, arguments):
         rc, out = run(label, arguments)
@@ -145,18 +187,45 @@ def check_file(model, context, run, check, write, docs, bounds):
     prompts = [("logits-%02d" % i, case, ["logits", model, case["text"]]) for i, case in enumerate(docs["baseline_logits.json"]["cases"])]
     for index, case in enumerate(chats):
         prompts.append(("chat-%02d" % index, case, ["logits", model, "--file", write("chat-%02d.txt" % index, case["text"].encode("utf-8"))]))
+    matched = 0
     for label, case, arguments in prompts:
         rc, out = run(label, arguments + ["--top", "10", "--threads", "6"])
         if refusal(rc, out):
             return "skip"
         require(rc == 0, "%s failed (exit %d): %s" % (label, rc, out.strip()[-200:]))
-        check(label, common.check_logits, out, case, VOCAB_SIZE, limits)
+        check(label, common.check_logits, out, case, VOCAB_SIZE, limits, top1_needed is None)
+        matched += first_id(out) == case["top_ids"][0]
+    if top1_needed is not None:
+        check("top1", check_top1, matched, len(prompts), top1_needed)
     excerpt = write("excerpt.txt", text.encode("utf-8"))
     for index, case in enumerate(common.ppl_cases(doc)):
         for mode in common.PPL_MODES:
             label = "ppl-%02d" % index + ("-per-token" if mode == "per-token" else "")
             check(label, common.check_ppl, output(label, common.ppl_command(model, excerpt, case, mode)), case, doc["n_tokens"], MODEL_CONTEXT, limits)
     return "checked" if bounds else "unbounded"
+
+
+def check_pinned(model, context, run, check, write, file_exact=None):
+    """Every check of the pinned qwen35 file `model` as check_file runs them: against the file-exact goldens in `file_exact` when given, and otherwise against its model's goldens, after its committed file-exact goldens where it has them.
+    `check` returns whether its check passed. A file whose committed file-exact goldens fail is not held to its model's goldens, so it cannot pass on its quality bounds; the file-exact checks' labels start with "file-exact-".
+    Returns check_file's status, or "failed" when the committed file-exact goldens failed."""
+    spec = pinned(model)
+    if file_exact:
+        return check_file(model, 512, run, check, write, file_exact_goldens(spec, file_exact), BOUNDS.get(FILE_EXACT_BOUNDS))
+    committed = file_exact_goldens(spec)
+    if committed:
+        failed = []
+
+        def exact(label, validator, *arguments):
+            passed = check("file-exact-" + label, validator, *arguments)
+            if not passed:
+                failed.append(label)
+            return passed
+
+        status = check_file(model, 512, run, exact, write, committed, BOUNDS.get(FILE_EXACT_BOUNDS))
+        if status == "skip" or failed:
+            return status if status == "skip" else "failed"
+    return check_file(model, context, run, check, write, goldens_for(spec["file"])[1], bounds_for(spec))
 
 
 def pinned(model):
@@ -191,8 +260,10 @@ def run_hosted():
             count[0] += 1
             try:
                 validator(*arguments)
+                return True
             except (ValueError, OverflowError) as error:
                 failures.append("%s: %s" % (label, error))
+                return False
 
         with tempfile.TemporaryDirectory(prefix="llmx_qwen35_") as directory:
             def write(file, data):
@@ -202,7 +273,7 @@ def run_hosted():
                 return path
 
             try:
-                status = check_file(model, 512, run, check, write, *model_goldens(model))
+                status = check_pinned(model, 512, run, check, write)
             except ValueError as error:
                 failures.append(str(error))
                 status = "failed"
@@ -228,7 +299,7 @@ def main(argv=None):
     parser.add_argument("--output-dir", required=True, type=Path, help="new directory for raw output and report")
     parser.add_argument("--context", type=int, choices=sorted(PPL_GOLDENS), default=512, help="the perplexity windows to score, in tokens")
     parser.add_argument("--device", help="run the commands that take --device on this device or comma-separated list, e.g. vulkan:0")
-    parser.add_argument("--file-exact", metavar="DIR", help="hold the file to the goldens tools/gen_baseline.py file-exact made from it, at 512-token windows")
+    parser.add_argument("--file-exact", metavar="DIR", help="hold the file to the goldens tools/gen_baseline.py file-exact made from it in DIR, at 512-token windows, in place of its model's")
     args = parser.parse_args(argv)
     if args.file_exact and args.context != 512:
         parser.error("file-exact goldens score 512-token windows")
@@ -270,6 +341,7 @@ def main(argv=None):
             result = dict(status="fail", error=str(error))
         report["checks"].append(dict(label=label, **result))
         save()
+        return result["status"] == "pass"
 
     def write(name, data):
         (out / name).write_bytes(data)
@@ -282,9 +354,8 @@ def main(argv=None):
         rc, version = run("version", ["--version"])
         require(rc == 0, "llmx --version failed")
         report["version"] = version.strip()
-        docs, bounds = model_goldens(str(model), args.file_exact)
-        report["bounds"] = bounds
-        status = check_file(str(model), args.context, run, check, write, docs, bounds)
+        report["bounds"] = model_goldens(str(model), args.file_exact)[1]
+        status = check_pinned(str(model), args.context, run, check, write, args.file_exact)
         failures = [item["label"] for item in report["checks"] if item["status"] == "fail"]
         require(not failures, "failed checks: " + ", ".join(failures))
         if status == "skip":

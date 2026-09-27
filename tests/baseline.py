@@ -48,7 +48,7 @@ assert len({spec["file"] for spec in PINNED}) == len(PINNED), "tests/data/fixtur
 assert all(spec["family"] in ("qwen3", "qwen35") for spec in PINNED), "tests/data/fixtures.json names a family without goldens"
 GATE_FILES = sorted(spec["file"] for spec in PINNED if spec["gate"] and spec["family"] == "qwen3")
 assert GATE_FILES == sorted(BOUNDS), "tests/data/fixtures.json gates %s, but tests/baseline.py bounds %s" % (GATE_FILES, sorted(BOUNDS))
-assert all(spec["file"] in baseline_qwen35.BOUNDS for spec in PINNED if spec["gate"] and spec["family"] == "qwen35"), "tests/data/fixtures.json gates a qwen35 model without bounds in tests/baseline_qwen35.py"
+assert all(baseline_qwen35.bounds_for(spec) for spec in PINNED if spec["gate"] and spec["family"] == "qwen35"), "tests/data/fixtures.json gates a qwen35 model without bounds in tests/baseline_qwen35.py"
 # The hosted HF job downloads and requires every gate model, so a model it is to leave out joins the gate only with a change that lets the job leave it out.
 assert all(spec["hosted"] for spec in PINNED if spec["gate"]), "tests/data/fixtures.json gates a model the hosted HF job does not download"
 BASELINE_MODELS = [dict(spec, **BOUNDS[spec["file"]]) for spec in PINNED if spec["gate"] and spec["family"] == "qwen3"]

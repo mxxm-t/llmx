@@ -4,6 +4,48 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## A prompt row's bits no longer follow the compiler's choice to fuse a dot's tail (2026-09-27, branch fix/placement-ubsan)
+
+- **Found:** built by GCC 14.2, the compiler of `docker/Dockerfile`'s image, with the hosted UBSan job's flags, `placement` fails on main `7d16fa6`, as it did at `4ad199a`: `a row of a pass in flight differs from its sequence run alone`.
+  It passes without the sanitizer, and the hosted UBSan job, whose runner builds with GCC 13, passes.
+- **The first differing row:** at 2 stages, 2 pass slots and seed 1202, the first request's last prompt row, of its 138th token, from a pass that held only its last 3 prompt tokens; 14 of its 16 logits differ, by at most 1.5e-7.
+  Run alone, those 3 tokens were the second and third columns of a three-column group and the one-column remainder of the prompt's last chunk of 10; in the pass they were one three-column group.
+- **The op:** the F32 prompt matmul of `ffn_down`, the tiny model's only matmul whose input width, 12, is not a multiple of 8, so the first value to differ is layer 0's `ffn_down` output on the first stage; every op before it computes a row alike wherever the batch puts it.
+  Through `CpuBackend::matmul` in the same UBSan build, at input widths 10, 11, 12, 13, 15 and 20, the third column of every `dot_f32_x4x3` group differs from the same column alone (`dot_f32_x4`), while its first two columns and both of `dot_f32_x4x2`'s do not; at widths 8, 9 and 16 no column differs.
+  Writing only `dot_f32_x4x3`'s tail as FMAs makes the UBSan build pass `placement`, and makes the plain build fail it, whose other two dots do not fuse their tails the same way.
+- **Cause, not undefined behaviour:** UBSan reports nothing, ASan fails alike and reports nothing, and every one of these passes: `-ffp-contract=off` with or without UBSan, UBSan at `-O0`, UBSan or ASan with `--param avoid-fma-max-bits=0` (GCC 14's generic tuning sets 256), and UBSan without its pointer-overflow, alignment and null checks.
+  The tails were `v += a * b`, which the compiler fuses into an FMA or keeps apart at its own choice, copy by copy.
+  In the GCC 14 UBSan build the disassembly (`objdump -dl`) shows `dot_f32_x4x3`'s tail, inlined into `matmul_raw`, as 64 FMAs beside 4 multiplies and 4 adds apart, and the tails of `dot_f32_x4x2` and `dot_f32_x4` as FMAs alone.
+  The other builds give every copy one shape, so their columns agree: plain GCC 14 and plain GCC 13.3 multiply 4 products at a time in a vector (`vmulps`) and add them in order, fusing the rest (`vfmadd231ss`); GCC 13.3 under UBSan keeps every multiply and add apart; GCC 13.3 passes `placement` plain and under UBSan and ASan.
+- **Rule:** every multiply-add in a CPU kernel's scalar tail is an explicit FMA (`std::fma`), never `a * b + c`, as the norm, rope and qwen35 kernels already were; a tail then rounds alike in every kernel, every inlined copy and every build, whatever the compiler contracts.
+  Batch invariance needs the three prompt dots to give a column the same bits, and a tail left to the compiler holds that only while each copy happens to take one shape.
+- **Done:**
+  - `90697273` (test): `backend-group` holds every column of `dot_f32_x4x3`, `dot_f32_x4x2` and `dot_f32_x4` to one oracle, FMAs per lane, the lanes added in order, then the tail's FMAs in order; the test is built with `-ffp-contract=off`, so a tail the kernels leave to the compiler fails it on any compiler.
+  - `473800da` (CI): the hosted UBSan job builds with `g++-14`, where `placement` failed on main.
+  - `e8f3dfda` (fix): the tails of `dot_f32`, `dot_f32_x4`, `dot_f32_x4x2`, `dot_f32_x4x3`, `dot_f32_f16` and attention's two value loops are `std::fma`; the `cpu` page and CI say the rule.
+    Qwen3's widths are multiples of 8 and reach none of these tails; on the tiny test models a build that kept a tail's products apart now fuses them, a change in the last bits.
+- **Gates** (host tier; head gated at `e8f3dfda`, from which the head differs in this block alone; test commits `90697273` and `473800da`; main `7d16fa6`; each built from a tree of its own at its commit, the head's binaries `llmx 0.1.0+ge8f3dfda2e23` and main's `llmx 0.1.0+g7d16fa64305c`; on the Linux machine's CPU in a container of 6 CPUs from the build image, GCC 14.2, without cards; load average 12 to 20 on 16 threads from other work throughout):
+  - The test commits fail on main's kernels: `473800da` built with the hosted UBSan job's flags passes 27 of 29 CTests, failing `backend-group` (`a column of the three-column prompt dot differs from the ordered FMA oracle`) and `placement`; the same `backend-group` on main's kernels built without the sanitizer fails alike.
+  - Clean builds of the head with Vulkan off, with it on and under UBSan, and of main with Vulkan off: 0 warnings and 0 errors each.
+  - CTest: 29 of 29 with Vulkan off, 32 of 32 with it on (`backend-vulkan` and `vulkan-lifetime` skipping without a device), and 29 of 29 under UBSan.
+  - The Python suite with `--no-perf-floor --require-tools`, on the build with Vulkan off and on the UBSan build as the hosted UBSan job runs it: every component passes, `qwen35` skipping (llmx refuses the architecture) and the real-model baselines skipping without their fixtures.
+  - `placement` from the head's sources built by GCC 14.2 plain, with `-ffp-contract=off`, under UBSan, under UBSan at `-O0`, under UBSan with `-ffp-contract=off` and under ASan: passes in all six, where main's fails under UBSan and ASan.
+  - Byte identity with main on Qwen3-0.6B Q8_0 at `--threads 6`: `generate` greedy and seeded (`--temp 0.8 --seed 7`) on a 5-token prompt and on the first 600 characters of `tests/data/wiki.test.raw`, `logits --top 20` of its first 1600 characters, whole and `--last 4`, `logits --last 5` of the 5-token prompt, and `perplexity` of the 1600 characters at context 256, batched and `--per-token`, and of the 600 at context 12: 10 of 10 the same.
+  - One timing round, main, head, head, main: the synthetic bench `tests/perf.py` runs (`bench --size 2048 --iters 5 --threads 1`) and `bench --model` on Qwen3-0.6B Q8_0 at `--threads 6 --p 512 --n 128 --r 3`.
+    No cell reaches a changed tail (widths 2048, 256, 1024 and 32, and 0.6B's 1024, 3072 and 128), so the arms differ in code layout alone.
+    Three or four other test runs of llmx took 3 to 4.6 cores each throughout (load average 17 to 20 on 16 threads), and the spread within the arms is wider than between them:
+
+    | Cell | Main | Head | Head | Main |
+    |---|---:|---:|---:|---:|
+    | 0.6B pp512, tok/s | 172.13 +- 5.72 | 195.35 +- 6.43 | 173.85 +- 4.17 | 166.03 +- 3.71 |
+    | 0.6B tg128, tok/s | 22.46 +- 5.97 | 20.39 +- 3.29 | 21.26 +- 2.85 | 28.10 +- 6.37 |
+    | synthetic matmul 2048, GFLOPS | 46.72 | 47.12 | 47.19 | 24.95 |
+    | synthetic prefill 64, tok/s | 7727.9 | 6319.8 | 7750.0 | 2782.6 |
+    | synthetic decode 64, tok/s | 7033.2 | 7012.4 | 7099.1 | 3617.8 |
+- **Left:** products outside a tail are still the compiler's to fuse: the `mins` sums of the Q4_1 and Q4_K decode dots (`q8_dots.hpp`), the float reference K-quant dots' `d * sum - m * sum`, and attention's vector value sums (`_mm256_add_ps` of a `_mm256_mul_ps`, which GCC treats as plain vector arithmetic).
+  In the GCC 14 builds, plain and UBSan, every copy of the first two takes one shape and attention has one copy, so no row differs today; writing them as FMAs changes decode bits on real models wherever a build keeps them apart, so it needs its own identity gate.
+- **Gotchas:** a hint that a bitwise difference is contraction: it passes with `-ffp-contract=off` and at `-O0`, and fails under ASan as under UBSan with neither reporting anything.
+
 ## The available host memory honours the cgroup and job object memory limits (2026-09-27, branch fix/host-memory-limit, merged at `618c505`)
 
 - **Why:** `core::host_memory_available()` read the host's free memory alone, `MemAvailable` on Linux and `GlobalMemoryStatusEx`'s available physical memory on Windows, while its page called it what the process can still take.

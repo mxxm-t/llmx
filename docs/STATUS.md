@@ -491,7 +491,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
       - main, with the old sampler: 0.125 to 0.128 ms greedy, 0.256 to 0.258 at the defaults, 1.47 to 1.48 greedy with a penalty of 1.1, 1.56 to 1.57 at the defaults with it, 12.6 to 12.7 with top-k 0, and 12.7 to 13.7 with top-k 0 and top-p 0.95.
       - `perf/sampler-select`: 0.124 to 0.132, 0.216 to 0.221, 0.142 to 0.227, 0.234 to 0.240, 0.85 with top-k 0, and 6.0 to 6.1 with top-k 0 and top-p 0.95. That last figure is on uniform logits, which keep nearly every token under top-p.
       - The row copy is 0.017 to 0.025 ms.
-      - The server's own host gap, which step 0 timed on the 8B, is 0.28 to 0.70 ms a row greedy and at the defaults, 37 to 59 percent of a greedy row being the copy out of the mapped logits, so the 25 microseconds a pass that the server's step 5 timing build recorded did not hold (step 0).
+      - The server's own host gap, which step 0 timed on the 8B, is 0.26 to 0.71 ms a row greedy and at the defaults, 37 to 59 percent of a greedy row being the copy out of the mapped logits, so the 25 microseconds a pass that the server's step 5 timing build recorded did not hold (step 0).
   - Host share of a round, modeled: the busiest host thread's work per round over the round, for 8B at P = S with today's decode cost, the worst of 16, 32 and 64 users, read as the defaults / the defaults with a penalty of 1.1, from step 0's sampler medians at a load average of 11 to 12. Recording is scaled from 0.6B's measured recording (about 0.9 to 2.2 ms a pass at 8B's 36 layers), and a crossing costs 0.11 to 0.17 ms. Step 0 measured the 8B's own recording at 2.6 to 5.2 ms a one-card pass (step 0), above that scaling, so this table is low by the difference.
 
     | Host | S = 2 | S = 3 | S = 4 |
@@ -719,7 +719,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
        | 16 | 5.76-11.3 | 4.50-8.27 | 24.1-30.0 | 1.95-4.44 | 73.9-80.0 |
        | 32 | 10.4-19.4 | 9.42-16.2 | 45.1-59.5 | 3.95-10.8 | 145.6-155.1 |
 
-       - That is 0.28 to 0.70 ms a row greedy and at the defaults, and 1.41 to 1.95 at top-k 0 with top-p 0.95, against 6.0 on uniform logits in the sampler bench (Found). The loop's own work between the last row sampled and the next `forward` is 3 to 25 microseconds, so the gap is sampling, and the copy of each row out of the mapped logits (0.13 to 0.34 ms a row) is 37 to 59 percent of a greedy row. The step 5 figure of 25 microseconds in `docs/SERVER.md` did not hold.
+       - That is 0.26 to 0.71 ms a row greedy and at the defaults, and 1.41 to 1.95 at top-k 0 with top-p 0.95, against 6.0 on uniform logits in the sampler bench (Found). The loop's own work between the last row sampled and the next `forward` is 3 to 25 microseconds, so the gap is sampling, and the copy of each row out of the mapped logits (0.13 to 0.34 ms a row) is 37 to 59 percent of a greedy row. The step 5 figure of 25 microseconds in `docs/SERVER.md` did not hold.
        - On one card the gap is serial with the device: 2 to 3 percent of a greedy pass at 1 user and 7 to 14 percent at 8 to 32 users, and 25 to 31 percent at top-k 0 with 8 to 32 users. The 16-slot build's pass lies within the two 4-slot builds' range at every count, and its forward call, which no full ring holds, is the recording above.
        - **What they decide for step 7:** these are the rule's inputs, one thread against a thread per stage and the thread's working share.
          - At P = S no driver reaches 90 percent everywhere: a thread per stage gives 67 to 97 percent and one thread in the round's order 52 to 88, while that thread works only 22 to 49 percent of the time, since at P = S a device idles whenever a pass is on the host being sampled. At P = S + 1, one thread in the round's order, recording onto busy devices as designed, reaches 88 to 100 percent on 4 slots and 91 to 105 on 16, at or above a thread per stage (83 to 98). So step 3's P = S would measure under 90 percent, and the bench points to the rule's first answer, P = S + 1. The bench's round waits on each ticket as the design does, so on these numbers P = S + 1 gets there without the relay that does not block.
@@ -3473,7 +3473,7 @@ above; they were not included in the help implementation commit.
   A second context could hide only the last column, and there is nothing
   there to hide: greedy sampling over the vocabulary is tens of
   microseconds.
-  Layer split phase 3's step 0 later timed this host time on Qwen3-8B-Q8_0 on one MI50 at 0.28 to 0.70 ms a row, nearly all of it sampling, so these tens of microseconds did not hold; a second context still would not hide it, since the next pass's tokens come from this one (`docs/SERVER.md`).
+  Layer split phase 3's step 0 later timed this host time on Qwen3-8B-Q8_0 on one MI50 at 0.26 to 0.71 ms a row, nearly all of it sampling, so these tens of microseconds did not hold; a second context still would not hide it, since the next pass's tokens come from this one (`docs/SERVER.md`).
   The same build with one submission per pass instead of
   one every 64 dispatches puts pure recording at 0.7 ms per pass at one
   sequence and 1.7 at eight, the rest of the `forward` column being the

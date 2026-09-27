@@ -1,6 +1,6 @@
 # `src/core/cpus.hpp` - the CPUs a process may use and the automatic worker count
 
-`core::automatic_threads()` is the worker count a pool takes when it is given none, the one owner of that count: the CPU backend's constructor takes it ([cpu](backends-cpu.md)), so `--threads` omitted or 0 means it in every command, `serve` and `bench` included (`docs/USAGE.md`, Threads).
+`core::automatic_threads()` is the worker count a pool takes when it is given none, the one owner of that count: the CPU backend's constructor takes it ([cpu](backends-cpu.md)), so `--threads` omitted or 0 means it in every command, `serve` and `bench` included (`docs/USAGE.md`, Threads), and the server's scheduler sizes its sampling threads by it: four, or one fewer than it, whichever is fewer ([server](server.md)).
 It is the fewest of three counts, each taken only when it could be read, 4 when none could, and never below 1 or above 64:
 
 - the hardware threads, `std::thread::hardware_concurrency()`;

@@ -73,6 +73,9 @@ server/
   policy.hpp     the policy core: the pools' blocks, the growth rule,
                  make_room, the round's stages, the decode share and the
                  logits rows, as free functions
+  sampling_pool.hpp
+                 the scheduler's sampling threads, which draw a retiring
+                 pass's rows beside the scheduler thread
   api.hpp        the routes and their JSON: /v1/generate, /v1/chat,
                  /v1/tokenize, /v1/detokenize, /v1/health, /v1/models,
                  /v1/chat/completions, /v1/completions
@@ -225,7 +228,7 @@ Each value is the log-softmax of the logits row the sampler reads for that token
 So a token's value does not depend on how it was sampled, and a greedy token's is the largest at its position unless a repetition penalty moved it.
 For a request that asks, the scheduler sends that row with the id on the request's token channel (`Request::Token`), and `Request::next` computes the values in the thread that reads the channel, with `inference/logprobs.hpp`, the functions perplexity scores with, in double and rounded once to float.
 A row costs a pass of `exp` over the vocabulary, about a millisecond for Qwen3's 151936 tokens, so no pass of the batch waits for it, and the native tests read the values from the channel where the routes do.
-Once 8 tokens wait on a channel with their rows (`Request::kRowsWaiting`), as when a client stops reading its stream, the scheduler's sampling threads compute the next tokens' values from the rows in place and send them in the row's place: the same values, and a request then holds at most ten rows however far its reader falls behind.
+Once 8 tokens wait on a channel with their rows (`Request::kRowsWaiting`), as when a client stops reading its stream, the scheduler's sampling threads compute the next tokens' values from the rows in place, and the scheduler thread sends them in the row's place: the same values, and a request then holds at most ten rows however far its reader falls behind.
 A row the reader has finished with goes back to the request for a later pass to fill, and a cancelled request's rows are dropped unread.
 Every value is written as the shortest decimal that reads back as that float.
 In the native shape a value JSON has no number for, minus infinity for a token given no probability, is `null`; the compatible shapes type the field as a number, so they write -9999 for any value below it, minus infinity included, and for a NaN.

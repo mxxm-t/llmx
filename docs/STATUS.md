@@ -44,7 +44,14 @@ Eight-sequence 8B decode gains 80.79/83.98 percent across mirrored blocks, with 
     `shutdown` could not be the wake: it does not wake a blocked accept on Windows or macOS, and closing the socket to wake the accept is the race itself; a pipe cannot be polled beside a socket by `WSAPoll`.
     The price is a close that waits up to 100 ms for a waiting accept, and an idle accept loop that wakes every 100 ms; a client that arrives is taken at once, and `llmx serve` never closes its listener before it exits.
     The connection accept returns is made blocking, since macOS and Winsock hand it the listener's non-blocking mode.
-- **Left:** the host tier's gates with the TSan runs, and the Windows build and `http` test.
+- **Gates** (host tier; fix `1dc8c316`, from which the head differs in this block alone; test commit `94c85728`; main `c82e901a`; each built from a tree of its own at its commit, the fix's binaries `llmx 0.1.0+g1dc8c316e875`; on the Linux machine's CPU in containers of 6 CPUs from the build image, GCC 14.2, load average 19 to 28 on 16 threads from other work throughout):
+  - The test commit fails on main's listener under TSan, `http` exiting 66 in 5 of 5 runs with the two reports above, and passes 3 of 3 built without the sanitizer.
+  - Fresh builds of the fix with Vulkan off and on: 0 warnings and 0 errors each; its TSan build of `http` and `server-passes-cpu` warns only at `infer::footprint`, as main's does.
+  - CTest 30 of 30 with Vulkan off and 33 of 33 with it on (`backend-vulkan` and `vulkan-lifetime` skipping without a device).
+  - The suite's `docs`, `dead-code` and `server` components pass (`--no-perf-floor --require-tools`), the server's real-model pass skipping without its fixture, and `tests/dead_code.py --linked` passes against the list.
+  - Under TSan: `http` clean in 20 of 20 runs, and `server-passes-cpu` clean, 66633 checks in 6 min 18 s.
+  - Windows (MSVC 19.50, a fresh build directory with `--clean-first`): every target builds, the only warnings main's in `tests/q8_dots.cpp` and `tests/hub_transport.cpp`; `http` passes 5 of 5 in 324 to 368 ms, and the suite's `server` component passes, its real-model pass on Qwen3-0.6B Q8_0 included.
+- **Left:** the hosted run on `gate/merge-61`, and the merge.
 - **Gotchas:** ThreadSanitizer on the Linux machine's kernel, as on the hosted runner's, fails at start unless address randomization is off: `setarch "$(uname -m)" -R`, which in a container needs `--security-opt seccomp=unconfined`.
   The TSan build of `server-passes-cpu` warns once, `-Wstringop-overflow` at `infer::footprint` (`src/model/place.hpp`), on main as on the branch; the builds without the sanitizer do not.
 

@@ -54,7 +54,7 @@ static_assert(offsetof(KernelStatx, dio_mem_align) == 152 && sizeof(KernelStatx)
 
 class FileReader {
 public:
-    // With `direct`, reads go around the file cache and must start, end and land on granule(); a file system that does not take them throws DirectUnavailable.
+    // With `direct`, reads go around the file cache, start and end on granule() and land on a page; a file system that does not take them throws DirectUnavailable.
     explicit FileReader(const std::string& path, bool direct = false) : path_(path), direct_(direct) {
 #if defined(_WIN32)
         const std::wstring wide = std::filesystem::u8path(path).wstring();

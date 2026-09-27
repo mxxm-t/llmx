@@ -73,7 +73,7 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
     progress. `bytes_of(m, tensors)` is their bytes, padding excluded. Whether to warm at all is the loader's rule
     ([load](inference-load.md)).
 
-This is the format the CLI and the `infer::Model` layer consume. Metadata reads
+This is the format the CLI reads; the model takes its weights as `ModelWeights`, which `gguf_weights` in `src/model/arch/registry.hpp` builds from a file. Metadata reads
 and seeks throw on stream failure; mapped payloads follow the lifetime contract below. Read/write paths are UTF-8 and converted through
 `std::filesystem::u8path` so Unicode cache paths also work on Windows.
 The internal `Reader` obtains the extent from the

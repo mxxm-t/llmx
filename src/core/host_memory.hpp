@@ -83,37 +83,57 @@ inline std::optional<uint64_t> file_number(std::string_view text) {
 // A limit less what is charged against it, 0 past it.
 inline size_t memory_room(uint64_t limit, uint64_t used) { return (size_t)(limit > used ? limit - used : 0); }
 
-}  // namespace detail
-
-// Bytes a cgroup v2 memory.max text leaves over its memory.current text, the limit less the usage and 0 past it; nothing for "max", no limit, or a text it cannot read.
-inline std::optional<size_t> cgroup_v2_memory_room(std::string_view memory_max, std::string_view memory_current) {
-    const auto limit = detail::file_number(memory_max), used = detail::file_number(memory_current);
-    if (!limit || !used) return std::nullopt;
-    return detail::memory_room(*limit, *used);
+// The value on the line of a memory.stat text that `key` starts; nothing when no line does or its value is not one decimal number.
+inline std::optional<uint64_t> stat_value(std::string_view stat, std::string_view key) {
+    std::optional<uint64_t> value;
+    bool found = false;
+    each_line(stat, [&](std::string_view line) {
+        std::string_view f[2];
+        const size_t n = fields(line, f, 2);
+        if (found || !n || f[0] != key) return;
+        found = true;
+        if (n == 2) value = number(f[1]);
+    });
+    return value;
 }
 
-// Bytes a cgroup v1 memory.limit_in_bytes text leaves over its memory.usage_in_bytes text, the same way; nothing for a limit of 2^62 bytes or more, which is how v1 writes no limit, or a text it cannot read.
-inline std::optional<size_t> cgroup_v1_memory_room(std::string_view limit_in_bytes, std::string_view usage_in_bytes) {
-    const auto limit = detail::file_number(limit_in_bytes), used = detail::file_number(usage_in_bytes);
-    if (!limit || *limit >= (uint64_t(1) << 62) || !used) return std::nullopt;
-    return detail::memory_room(*limit, *used);
+// A cgroup's limit less its working set, 0 past the limit: its usage less the inactive file pages its memory.stat gives under `key`, which the kernel reclaims before it would kill the process, or the usage whole when the stat does not give them.
+inline std::optional<size_t> cgroup_room(std::optional<uint64_t> limit, std::optional<uint64_t> usage, std::string_view stat, std::string_view key) {
+    if (!limit || !usage) return std::nullopt;
+    const auto inactive = stat_value(stat, key);
+    return memory_room(*limit, inactive ? (*usage > *inactive ? *usage - *inactive : 0) : *usage);
+}
+
+}  // namespace detail
+
+// Bytes a cgroup v2 memory.max text leaves over its memory.current and memory.stat texts, the limit less the usage less the stat's inactive_file, and 0 past it; the usage whole when the stat, empty for none, does not give inactive_file; nothing for "max", no limit, or a limit or usage it cannot read.
+inline std::optional<size_t> cgroup_v2_memory_room(std::string_view memory_max, std::string_view memory_current, std::string_view memory_stat) {
+    return detail::cgroup_room(detail::file_number(memory_max), detail::file_number(memory_current), memory_stat, "inactive_file");
+}
+
+// Bytes a cgroup v1 memory.limit_in_bytes text leaves over its memory.usage_in_bytes and memory.stat texts the same way, with the stat's total_inactive_file, which covers the cgroups under it as the usage does; nothing for a limit of 2^62 bytes or more, which is how v1 writes no limit.
+inline std::optional<size_t> cgroup_v1_memory_room(std::string_view limit_in_bytes, std::string_view usage_in_bytes, std::string_view memory_stat) {
+    const auto limit = detail::file_number(limit_in_bytes);
+    if (limit && *limit >= (uint64_t(1) << 62)) return std::nullopt;
+    return detail::cgroup_room(limit, detail::file_number(usage_in_bytes), memory_stat, "total_inactive_file");
 }
 
 // Bytes the cgroup memory limits over a process leave it, the fewest, from its /proc/self/cgroup and /proc/self/mountinfo texts and `read`, which gives a file's text or nothing.
-// A limit on any cgroup above the process's holds it too, so each is read up to its mount's point; a cgroup whose limit or usage cannot be read is passed over.
+// A limit on any cgroup above the process's holds it too, so each is read up to its mount's point with its own memory.stat; a cgroup whose limit or usage cannot be read is passed over.
 template <class Read>
 std::optional<size_t> cgroup_memory_room(std::string_view proc_self_cgroup, std::string_view mountinfo, Read&& read) {
     std::optional<size_t> fewest;
     const auto take = [&](std::optional<size_t> n) { if (n && (!fewest || *n < *fewest)) fewest = n; };
+    const auto stat = [&](const std::string& dir) { return read(dir + "/memory.stat").value_or(std::string()); };
     for (const auto& dir : cgroup_v2_directories(proc_self_cgroup, mountinfo)) {
         const auto max = read(dir + "/memory.max");
         if (!max) continue;
-        if (const auto current = read(dir + "/memory.current")) take(cgroup_v2_memory_room(*max, *current));
+        if (const auto current = read(dir + "/memory.current")) take(cgroup_v2_memory_room(*max, *current, stat(dir)));
     }
     for (const auto& dir : cgroup_v1_directories(proc_self_cgroup, mountinfo, "memory")) {
         const auto limit = read(dir + "/memory.limit_in_bytes");
         if (!limit) continue;
-        if (const auto usage = read(dir + "/memory.usage_in_bytes")) take(cgroup_v1_memory_room(*limit, *usage));
+        if (const auto usage = read(dir + "/memory.usage_in_bytes")) take(cgroup_v1_memory_room(*limit, *usage, stat(dir)));
     }
     return fewest;
 }

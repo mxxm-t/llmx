@@ -11,14 +11,16 @@ The CPU backend reports it as `memory_available()`, which a placement over sever
 ## The cgroup memory limits (Linux)
 
 `cgroup_memory_room(proc_self_cgroup, mountinfo, read)` reads the limits in the process's own cgroup and in each above it up to its mount's point, which [cgroup](core-cgroup.md) finds from the text of `/proc/self/cgroup` and `/proc/self/mountinfo`, through `read`, which gives a file's text or nothing; `cgroup_memory_room()` passes the real files and reader, and returns nothing off Linux.
-Each cgroup's room is its limit less its usage, 0 when the usage is past the limit, and the fewest over every cgroup read wins, since a limit on a parent holds every cgroup under it:
+Each cgroup's room is its limit less its working set, 0 when the working set is past the limit, and the fewest over every cgroup read wins, since a limit on a parent holds every cgroup under it.
+The working set is the usage less the inactive file pages the cgroup's own `memory.stat` gives, 0 when those are more than the usage.
+A cgroup's usage counts the page cache charged to it, and the kernel reclaims its inactive file pages before it would kill the process, so they are available in the sense `MemAvailable` counts the host's reclaimable cache available: a model file read once in a container leaves the next load, or the loader's copy decision, what the limit leaves beside the process's own memory, where the limit less the usage would leave almost nothing.
 
-- cgroup v2 (`cgroup_v2_memory_room`): `memory.max` less `memory.current`, where "max" is no limit;
-- cgroup v1 (`cgroup_v1_memory_room`), in the hierarchy mounted with the `memory` controller: `memory.limit_in_bytes` less `memory.usage_in_bytes`, where a limit of 2^62 bytes or more is no limit, since v1 writes none as the largest signed 64-bit value rounded down to a page (9223372036854771712 with 4 KiB pages).
+- cgroup v2 (`cgroup_v2_memory_room`): `memory.max` less `memory.current` less `inactive_file`, where "max" is no limit;
+- cgroup v1 (`cgroup_v1_memory_room`), in the hierarchy mounted with the `memory` controller: `memory.limit_in_bytes` less `memory.usage_in_bytes` less `total_inactive_file`, which counts the cgroups under it as the usage does, where a limit of 2^62 bytes or more is no limit, since v1 writes none as the largest signed 64-bit value rounded down to a page (9223372036854771712 with 4 KiB pages).
 
-A file that is not one decimal number, a limit without its usage and a cgroup whose files are missing are passed over, so a limit that cannot be read changes nothing, and with none read the host's figure stands.
-A cgroup's usage counts the page cache charged to it, which the kernel reclaims before it would kill the process, so the room is the smaller figure: a file read in the same container earlier is counted as used until its pages are reclaimed, where `MemAvailable` counts the host's reclaimable cache as available.
-`memory.high`, which throttles rather than kills, and swap limits are not read.
+A `memory.stat` that is missing, lacks the key or gives it as anything but one decimal number leaves the usage whole, the limit less the usage.
+A limit or usage that is not one decimal number, a limit without its usage and a cgroup whose files are missing are passed over, so a limit that cannot be read changes nothing, and with none read the host's figure stands.
+Active file pages count as used, since the kernel takes them back only once they turn inactive, and `memory.high`, which throttles rather than kills, and swap limits are not read.
 
 ## The job object's memory limits (Windows)
 

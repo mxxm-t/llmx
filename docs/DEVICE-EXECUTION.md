@@ -262,8 +262,8 @@ rather than on taste. In a single-device forward pass there is nothing to
 overlap: layer N+1 consumes layer N's output, so the graph is a chain and a
 deeper async model has no second thing to run. The one win actually available
 is not draining the pipeline once per op, and a single implicit stream takes
-all of it. Host work that could overlap - sampling, detokenizing - is
-microseconds against matmuls that stream hundreds of MB.
+all of it.
+Host work that could overlap - sampling, detokenizing - is small against matmuls that stream hundreds of MB: sampling one sequence's row, its copy out of the mapped logits included, is 2 to 3 percent of a greedy Qwen3-8B-Q8_0 pass on one MI50 (layer split phase 3's step 0 in [STATUS](STATUS.md)).
 
 Overlap appears where there are two things to run at once, and both are
 roadmap items rather than this one:

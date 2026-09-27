@@ -211,12 +211,12 @@ Other generators that hold several configurations, such as Ninja Multi-Config or
 | `LLMX_HAS_BACKEND_VULKAN` | `OFF` | Builds the Vulkan backend into `llmx`, with every shader compiled by `glslc` at build time and embedded in the binary, so there are no shader files to ship |
 | `BUILD_TESTING` | `ON` | Builds the native tests and tools and registers the tests with CTest; `OFF` builds only `llmx` and, in a Vulkan build, the backend library it links |
 
-With `BUILD_TESTING` on, every build has `llmx` and the `llmx-*-test` programs behind the CTests; `llmx-prefill-placement-test` is built on Windows only.
+With `BUILD_TESTING` on, every build has `llmx`, the `llmx-*-test` programs behind the CTests and the tool `llmx-split-check`, which is not a test and takes Vulkan devices when the build has them; `llmx-prefill-placement-test` is built on Windows only.
 These targets exist only with `LLMX_HAS_BACKEND_VULKAN=ON`:
 
 - `llmx-vulkan`, the backend library the binary, tests and tools link, and `llmx-vulkan-shaders`, the step that compiles the shaders.
 - `llmx-backend-vulkan-test`, the CTest `backend-vulkan`, and `llmx-vulkan-lifetime-test`, the CTests `vulkan-buffer` and `vulkan-lifetime`.
-- The tools `llmx-split-check`, `llmx-multi-device-bench`, `llmx-moe-kernel-bench` and `llmx-vk-handoff`, which are not tests.
+- The tools `llmx-multi-device-bench`, `llmx-moe-kernel-bench` and `llmx-vk-handoff`, which are not tests.
 
 CTest runs the native tests in every configuration, and the Vulkan build adds the device tests above.
 

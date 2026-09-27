@@ -199,10 +199,9 @@ with one token each; the two mix freely.
 
 The CLI keeps one `Sequence` and one `ExecContext`, and `step` and
 `prefill` become wrappers over `forward`, so `generate`, `chat` and
-`perplexity` do not change. Two contexts are what the server uses to keep
-a device busy: a prefill of new requests in one while the host samples the
-decode batch of the other. The CPU cost per step in this runtime is small
-against a device pass, so that gain is measured before it is claimed.
+`perplexity` do not change.
+Two contexts would let the server keep a device busy: a prefill of new requests in one while the host samples the decode batch of the other.
+The server runs one context ([SERVER](SERVER.md), step 5), and the host's sampling between its passes measured 7 to 14 percent of a greedy Qwen3-8B-Q8_0 pass on one MI50 at 8 to 32 sequences (layer split phase 3's step 0 in [STATUS](STATUS.md)).
 
 ### Placement
 

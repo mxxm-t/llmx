@@ -4,7 +4,7 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## Experts on the CPU refused alike on every backend (2026-09-26, branch fix/moe-flags-every-backend)
+## Experts on the CPU refused alike on every backend (2026-09-26, branch fix/moe-flags-every-backend, merged at `dfd8db6`)
 
 - **Goal:** the experts flags honoured alike on every backend or refused, and the experts placement asking the backend the question it means. A guidelines audit of main at `007b504` found `--n-cpu-moe` and `--cpu-moe` on a model without routed layers refused on a Vulkan device and silently accepted with `--device cpu`, where USAGE says such a model refuses them and the flag set is honoured identically on every backend or refused. `tests/placement.cpp` required the acceptance, and the refusal named `--n-cpu-moe` when `--cpu-moe` was given.
   The experts placement also took `Backend::reads_in_place` to mean "is the CPU", which holds for the two backends there are and not for a device that reads host memory in place, and `--moe-stream-from 1` streams the same prompts as 2, since a prompt of one new token never streams, which no page said.
@@ -18,7 +18,8 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Builds with Vulkan on and off, configured fresh: 0 warnings each. CTest 23/23 on the CPU build and 26/26 on the Vulkan build with the MI50, `backend-vulkan` and `vulkan-lifetime` included.
   - `run_tests.py --no-perf-floor --only cli,moe,split` on the CPU build passes 3 of 3 (`cli` with 142 flag lines taken and 482 refused, `moe` at a largest error of 6.3e-7, `split` 24 runs bit-identical to one backend); `--device vulkan:0 --only cli,moe` on the Vulkan build passes 2 of 2, `cli` refusing on the CPU and on the MI50 and `moe` at 7.0e-7 with its experts on the CPU and streamed.
   - Windows: a clean Visual Studio build of the same tree with Vulkan on, 32 targets, with no warning in a file this branch touches (its 8 warnings are all in `tests/backend_vulkan.cpp` and `tests/hub_transport.cpp`).
-- **Left:** the rest of the suite and the hosted jobs, and the Radeon VII run the merge rules ask of a placement change.
+- **Merge gates**, on the same source at `fc446a8` against main `31532c0`, each tree built from its own sha: on one MI50, CTest 26 of 26 with the card, the suite with `--device vulkan:0` 18 of 18, and `generate`, `logits` and `perplexity` byte-identical to main on 0.6B Q8_0, 8B Q8_0 and 30B-A3B Q4_K_M with `--n-cpu-moe 12` and with `--moe-stream-from 32` beside it, 20 of 20; on the CPU, the suite 17 of 18 with the server component's uncapped check timing out as main's does on the busy host, and that component passing alone on the branch; on the Radeon VII, the same five commands byte-identical on 0.6B, 8B and 30B-A3B with `--cpu-moe`, `--n-cpu-moe 12` and `--moe-stream-from 32`, the refusals' messages as written, and bench level with main; a green hosted run on the branch rebased onto main `4e00bc9`, where its source lines are unchanged.
+- **Left:** nothing.
 - **Gotchas:** a test backend that derives from `CpuBackend` to play a device inherits `is_cpu()` true, so it must override `is_cpu()` to false beside `reads_in_place()`; otherwise experts on the CPU placed beside it stay on it with no refusal, and only a test that counts the crossings, as `placement` does, sees it.
 
 ## The sampler selects only what top-k and top-p keep (2026-09-26, branch perf/sampler-select, merged at `edd9c19`)

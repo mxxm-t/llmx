@@ -8,6 +8,7 @@
 #include "model/weights.hpp"
 #include "model/architecture.hpp"
 #include "model/arch/qwen3.hpp"
+#include "model/arch/qwen35.hpp"
 
 // The architectures llmx runs, by the name a file gives: the one place such a name is read and accepted, and the one step from a file's metadata to its architecture.
 
@@ -22,6 +23,7 @@ struct ArchEntry {
 inline const ArchEntry kArchitectures[] = {
     {"qwen3", qwen3::open_dense},
     {"qwen3moe", qwen3::open_routed},
+    {"qwen35", qwen35::open_dense},
 };
 
 // The entry a file's general.architecture names; a file without the key is read as qwen3, since the tests' fixtures write none.

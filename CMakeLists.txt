@@ -285,6 +285,12 @@ if(BUILD_TESTING)
     add_test(NAME kv-cache COMMAND llmx-kv-cache-test)
     set_tests_properties(kv-cache PROPERTIES TIMEOUT 30)
 
+    add_executable(llmx-arch-qwen35-test tests/arch_qwen35.cpp)
+    target_include_directories(llmx-arch-qwen35-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    list(APPEND LLMX_TARGETS llmx-arch-qwen35-test)
+    add_test(NAME arch-qwen35 COMMAND llmx-arch-qwen35-test)
+    set_tests_properties(arch-qwen35 PROPERTIES TIMEOUT 60)
+
     add_executable(llmx-placement-test tests/placement.cpp)
     target_include_directories(llmx-placement-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-placement-test)

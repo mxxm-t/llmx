@@ -12,11 +12,6 @@ test-only | src/backends/cpu/cpu_backend.hpp | CpuBackend::set_decode_activation
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_name | 1 | the device's name, which only the Vulkan test prints; its comment still names the CLI, which no longer calls it; goes with cleanup/known-findings
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_profile | 1 | the device profile, which only the Vulkan test reads to predict the backend's kernel choice; kept as the test's probe or folded into it with cleanup/known-findings
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representations | 1 | the kernels' driver representations, which only the Vulkan test's --isa writes out; bench --profile captures them for nothing; decided with cleanup/known-findings
-test-only | src/backends/backend.hpp | Backend::causal_conv_silu | 1 | the qwen35 conv, which only qwen35-ops calls until the model's linear-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
-test-only | src/backends/backend.hpp | Backend::gated_delta_rule | 1 | the qwen35 recurrence, which only qwen35-ops calls until the model's linear-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4, on the architecture refactor's module; goes with that step
-test-only | src/backends/backend.hpp | Backend::gated_rms_norm | 1 | the qwen35 gated norm, which only qwen35-ops calls until the model's linear-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
-test-only | src/backends/backend.hpp | Backend::norm_rope_partial | 1 | the qwen35 partial rope, which only qwen35-ops calls until the model's full-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
-test-only | src/backends/backend.hpp | Backend::sigmoid_mul | 1 | the qwen35 output gate, which only qwen35-ops calls until the model's full-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
 test-only | src/backends/backend.hpp | Backend::state_copy | 1 | a slot copied to a slot, which the take-back resume and the checkpoints of the Qwen 3.5, 3.6 and 3.8 plan's step 8 call; goes with step 8b
 
 # Shader switches that change nothing: no CMake entry sets the define, so only the default is ever built.
@@ -24,11 +19,6 @@ shader | src/backends/vulkan/shaders/attention_tile.comp | #ifndef TK | 1 | the 
 shader | src/backends/vulkan/shaders/matmul_tile_q.comp | #ifndef STEP | 1 | the blocks staged per barrier as an overridable default, whose value the host code also assumes; becomes a plain constant with cleanup/known-findings
 
 # Overrides product code never calls.
-override | src/backends/cpu/cpu_backend.hpp | CpuBackend::causal_conv_silu | 1 | the qwen35 conv on the CPU, which only qwen35-ops calls until the model's linear-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
-override | src/backends/cpu/cpu_backend.hpp | CpuBackend::gated_delta_rule | 1 | the qwen35 recurrence on the CPU, which only qwen35-ops calls until the model's linear-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
-override | src/backends/cpu/cpu_backend.hpp | CpuBackend::gated_rms_norm | 1 | the qwen35 gated norm on the CPU, which only qwen35-ops calls until the model's linear-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
-override | src/backends/cpu/cpu_backend.hpp | CpuBackend::norm_rope_partial | 1 | the qwen35 partial rope on the CPU, which only qwen35-ops calls until the model's full-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
-override | src/backends/cpu/cpu_backend.hpp | CpuBackend::sigmoid_mul | 1 | the qwen35 output gate on the CPU, which only qwen35-ops calls until the model's full-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
 
 # Functions no executable keeps, from the linked build (tests/dead_code.py --linked, in the Vulkan job).
 linked-unreached | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::kh(unsigned long, int) const | 1 | the const overload of kh; only the other one is called; goes with cleanup/known-findings

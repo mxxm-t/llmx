@@ -5,6 +5,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "format/gguf.hpp"
 
@@ -73,6 +74,50 @@ inline bool boolean(const gguf::GGUFModel& m, const std::string& k, bool fallbac
     if (!v) return fallback;
     if (v->vtype != gguf::V_BOOL) throw std::runtime_error("inference: invalid boolean type " + k);
     return v->b;
+}
+
+// A value of any of the four integer types from 0 up to INT_MAX, which `count` and `counts` read.
+inline int count_value(const gguf::MetaValue& v, const std::string& k) {
+    int64_t n;
+    if (v.vtype == gguf::V_UINT32 || v.vtype == gguf::V_UINT64) {
+        if (v.u > uint64_t(std::numeric_limits<int>::max())) throw std::runtime_error("inference: integer outside supported range " + k);
+        n = int64_t(v.u);
+    } else if (v.vtype == gguf::V_INT32 || v.vtype == gguf::V_INT64) {
+        if (v.i < 0 || v.i > int64_t(std::numeric_limits<int>::max())) throw std::runtime_error("inference: integer outside supported range " + k);
+        n = v.i;
+    } else {
+        throw std::runtime_error("inference: invalid integer type " + k);
+    }
+    return int(n);
+}
+
+// A count, which may be zero, from any of the four integer types up to INT_MAX; an absent key takes `fallback`.
+inline int count(const gguf::GGUFModel& m, const std::string& k, int fallback) {
+    const auto* v = m.find(k);
+    return v ? count_value(*v, k) : fallback;
+}
+
+// An array of counts, each as `count` reads one; an absent key gives none.
+inline std::vector<int> counts(const gguf::GGUFModel& m, const std::string& k) {
+    const auto* v = m.find(k);
+    if (!v) return {};
+    if (v->vtype != gguf::V_ARRAY) throw std::runtime_error("inference: invalid array type " + k);
+    std::vector<int> out;
+    for (const gguf::MetaValue& e : v->arr) out.push_back(count_value(e, k));
+    return out;
+}
+
+// An array of booleans; an absent key gives none.
+inline std::vector<bool> booleans(const gguf::GGUFModel& m, const std::string& k) {
+    const auto* v = m.find(k);
+    if (!v) return {};
+    if (v->vtype != gguf::V_ARRAY) throw std::runtime_error("inference: invalid array type " + k);
+    std::vector<bool> out;
+    for (const gguf::MetaValue& e : v->arr) {
+        if (e.vtype != gguf::V_BOOL) throw std::runtime_error("inference: invalid boolean type " + k);
+        out.push_back(e.b);
+    }
+    return out;
 }
 
 } // namespace infer::metadata

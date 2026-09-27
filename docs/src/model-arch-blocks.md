@@ -6,7 +6,8 @@ handed. None names a tensor, a metadata key or an architecture
 (`tests/arch_boundary.py` holds every header under `model/arch/` that the
 registry does not include to that), so a module calls them with its own
 roles and slots ([ADDING-AN-ARCHITECTURE](../ADDING-AN-ARCHITECTURE.md),
-One owner). [qwen3](model-arch-qwen3.md) runs them.
+One owner). [qwen3](model-arch-qwen3.md) and [qwen35](model-arch-qwen35.md)
+run them.
 
 - `projection(weight, out)`: a weight's product into `out` for
   `matmul_group` and `matmul_experts`, the buffer passed by raw pointer so

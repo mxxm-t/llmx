@@ -1,4 +1,4 @@
-// format::FileReader and core::HostPages: reads at any offset and length give the file's bytes, a read past the end is short by exactly what the file lacks, empty and tiny files read, several threads reading one reader at once each get their own range, direct reads where the file system takes them, and reserved pages committed and decommitted by range.
+// format::FileReader and core::HostPages: reads at any offset and length give the file's bytes, a read past the end is short by exactly what the file lacks, empty and tiny files read, several threads reading one reader at once each get their own range, direct reads where the file system takes them, reserved pages committed and decommitted by range, and a size no whole number of pages holds refused.
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -54,6 +54,24 @@ int main(int argc, char** argv) {
         uint8_t* held = moved.data();
         core::HostPages taken(std::move(moved));
         require(taken.data() == held && !moved.data() && !moved.size(), "moving host pages did not hand them over");
+
+        // A size past the largest whole number of pages a size_t holds has no whole-page rounding: owned pages and a reservation both refuse it by name rather than wrap it to nothing.
+        // The largest size that rounds is itself a whole number of pages, so it is not refused as a size, and the operating system refuses to give it.
+        {
+            const size_t page = core::page_size();
+            const auto make = [](bool reserve, size_t bytes) { return reserve ? core::HostPages::reserved(bytes) : core::HostPages(bytes); };
+            for (const bool reserve : {false, true}) {
+                const std::string what = reserve ? "a reservation of " : "host pages of ";
+                for (const size_t bytes : {SIZE_MAX, SIZE_MAX - page + 2}) {
+                    std::string refused;
+                    try { make(reserve, bytes); } catch (const std::length_error& e) { refused = e.what(); }
+                    require(refused.find(std::to_string(bytes)) != std::string::npos, what + std::to_string(bytes) + " bytes was not refused by its size");
+                }
+                bool os_refused = false;
+                try { make(reserve, SIZE_MAX - page + 1); } catch (const std::runtime_error&) { os_refused = true; }
+                require(os_refused, what + std::to_string(SIZE_MAX - page + 1) + " bytes was given");
+            }
+        }
 
         // Reserved pages: address space rounded to pages, memory for a committed range only, which may start and end inside a page and be committed again, and back to the reservation on decommit.
         {

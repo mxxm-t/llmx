@@ -39,7 +39,8 @@ struct DeviceProfile {
     uint32_t k45_row_lanes = 32;
     // Columns the widest build of the Q8_0 decode kernel on the integer dot holds, which reads a weight once for that many generated tokens: its columns a subgroup times the column groups that take the same rows, and a subgroup that keeps more columns holds more registers and runs fewer waves (docs/VULKAN.md).
     uint32_t q8_decode_cols = 8;
-    // Forms of the Q8_0 decode kernel a build may take (the Vulkan backend's kQ8Tree, kQ8Hoist and kQ8Quad): the first gives the subgroup reduction's bits only where that reduction takes the pairs it writes out, so it is set only where the pairs were read in the disassembly (docs/VULKAN.md).
+    // Forms of the Q8_0 decode kernel a build may take (the Vulkan backend's kQ8Tree and kQ8Half): the first gives the subgroup reduction's bits only where that reduction takes the pairs it writes out, so it is set only where the pairs were read in the disassembly (docs/VULKAN.md).
+    // The second is the half-block order, which every build takes where it is set; it sums a column's products in another order than the quarter layout, so setting it changes the device's decode results once.
     uint32_t q8_decode_forms = 0;
     // Prompt extent from which attention takes its tiled kernel; the query rows a tile holds are the kernel's own.
     size_t attention_tile_rows = 32;
@@ -99,7 +100,7 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.tile_tall_per_cu = 4;
              p.tile_tall_per_cu_narrow = 8;
              p.q8_decode_cols = 32;
-             p.q8_decode_forms = 7;
+             p.q8_decode_forms = 3;
          }},
     };
     count = sizeof(table) / sizeof(table[0]);

@@ -1537,7 +1537,7 @@ size_t check_kernels(backend::Backend& vk) {
 // Every row is a generated token's, so every width stays on the row kernels: plain calls of 1 to 64 columns, the residual add and a group of three projections at widths that reach every build and chunk, and routed entries of 1 to 32 tokens against each token alone.
 // Each type the row kernels decode at rows 4096 and 1280 wide, the block types also at a row of an odd block count, Q8_0 also 2560 wide, and the output head of the types that keep a 16-bit twin for it.
 // At 4096 every lane of a 64-lane subgroup takes the same number of steps, and at 1280 some lanes take 3 and every lane of a 32-lane subgroup 5, so a build that takes steps in pairs also takes a single step after them.
-// At 2560 every lane of a Q8_0 build that takes steps in pairs takes two pairs and then a single step.
+// At 2560 every lane of a Q8_0 build that takes steps in pairs takes two pairs and then a single step, and under the half-block order a lane takes 3 steps or 2.
 // 300 outputs leave the last workgroup rows past the end, and the grouped projections of 37 and 129 rows a subgroup that holds rows past the end.
 size_t check_decode_columns(backend::Backend& vk) {
     const size_t nout = 300, widest = 64;
@@ -1711,8 +1711,7 @@ struct ContractionChecks {
 };
 
 // A Q8_0 decode build's float operations as its shape and forms give them (matmul_vec_q8.comp), where its one-column build takes `levels` shuffled adds a reduction and `extra` multiplies other than its products'.
-// A product is a multiply and a multiply-add, or a fused one in the one-column build's proportion, once for each step in the code: STEPS steps and, past one, a single step after them, again for the columns of a group past the first half of a build of up to 8 columns, whose copy checks each column, and again in the hoisted steps, which rows of an even block count take.
-// There the quad-shared scale products take one multiply for a column's four rows.
+// A product is a multiply and a multiply-add, or a fused one in the one-column build's proportion, once for each step in the code: STEPS steps and, past one, a single step after them, again for the columns of a group past the first half of a build of up to 8 columns, whose copy checks each column, and once more in the half-block order's step, which rows of an even block count take.
 // Without the transposed reduction each row and column is reduced as the one-column build reduces one, and takes one plain add, the residual add's.
 // With it the build's R rows and C columns take the six levels' pairs, R * C - 1 adds and one for each level past log2(R * C), which the driver may take as shuffled or plain adds, and one residual add for each 64 values.
 struct DecodeOps {
@@ -1722,7 +1721,7 @@ struct DecodeOps {
 // A Q8_0 decode build as the backend made it, read from the first line of its representation (vulkan_kernel_representations): the columns and rows a subgroup takes, the steps of weights a lane loads before using any, and its forms.
 struct DecodeBuild {
     unsigned cols = 0, rows = 0, steps = 0;
-    bool tree = false, hoist = false, quad = false;
+    bool tree = false, half = false;
 };
 bool decode_build(const std::string& text, DecodeBuild& b) {
     const std::string head = "; q8_decode_build";
@@ -1736,12 +1735,10 @@ bool decode_build(const std::string& text, DecodeBuild& b) {
         v = unsigned(std::stoul(line.substr(p + at.size())));
         return true;
     };
-    unsigned tree = 0, hoist = 0, quad = 0;
-    if (!field("cols", b.cols) || !field("rows", b.rows) || !field("steps", b.steps) || !field("tree", tree) || !field("hoist", hoist) || !field("quad", quad))
-        return false;
+    unsigned tree = 0, half = 0;
+    if (!field("cols", b.cols) || !field("rows", b.rows) || !field("steps", b.steps) || !field("tree", tree) || !field("half", half)) return false;
     b.tree = tree != 0;
-    b.hoist = hoist != 0;
-    b.quad = quad != 0;
+    b.half = half != 0;
     return b.cols && b.rows && b.steps;
 }
 DecodeOps decode_ops(const DecodeBuild& b, size_t levels, size_t extra) {
@@ -1751,10 +1748,8 @@ DecodeOps decode_ops(const DecodeBuild& b, size_t levels, size_t extra) {
     if (b.cols <= 8)
         for (size_t g = group; g < b.cols; g += group)
             if (2 * g >= b.cols) cols += group;
-    const size_t path = b.rows * cols * (b.steps + (b.steps > 1 ? 1 : 0));
-    n.products = path * (b.hoist ? 2 : 1);
-    const bool quad = b.hoist && b.quad && b.rows == 4;
-    n.mul = extra + n.products - (quad ? path - path / b.rows : 0);
+    n.products = b.rows * cols * (b.steps + (b.steps > 1 ? 1 : 0) + (b.half ? 1 : 0));
+    n.mul = extra + n.products;
     n.tree = b.tree;
     if (!b.tree) {
         n.lane_add = rc * levels;
@@ -1826,9 +1821,9 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                 // The one-column build's own counts give its reduction's shuffled adds and the multiplies beside its products.
                 const size_t rc1 = size_t(one_shape->rows) * one_shape->cols, levels = ref.lane_add / rc1;
                 const DecodeOps want1 = decode_ops(*one_shape, levels, 0);
-                if (one_shape->tree || one_shape->hoist || ref.add != rc1 || ref.lane_add != rc1 * levels || ref.mad + ref.fused != want1.products ||
-                    ref.mul < want1.mul)
+                if (one_shape->tree || ref.add != rc1 || ref.lane_add != rc1 * levels || ref.mad + ref.fused != want1.products || ref.mul < want1.mul)
                     fail("the Q8_0 decode kernel's one-column build does not hold the counts its shape gives");
+                if (shape->half != one_shape->half) fail("a Q8_0 decode build's order differs from its one-column build's");
                 const DecodeOps want = decode_ops(*shape, levels, ref.mul - want1.mul);
                 char counts[256];
                 std::snprintf(counts, sizeof counts, " (multiplies %zu, multiply-adds %zu, fused %zu, adds %zu, shuffled adds %zu; its shape and forms give %zu, %zu products, %zu adds)",

@@ -248,6 +248,11 @@ It reads cgroup v2's `cpu.max` ("max 100000" as no limit, "600000 100000" as 6 C
 Over a file system held in a map it reads the quota in the process's own cgroup, found under its mount by taking the mount's root off its path, and in each cgroup above it up to the mount point, v1, v2 and both, the smallest winning: a child cgroup inside a container is read, a cgroup inside one that shares a name with the container's path on the host is not, and a path no mount's root holds reads nothing.
 It reads a job object's CPU rate hard cap as CPUs of the active processors, rounded up, and takes the automatic count as the fewest of the hardware threads, the affinity and the quota, 4 when none was read, from 1 to 64.
 
+`host-memory` holds what `core/host_memory.hpp` counts as the memory a process can still take, on file texts and field values rather than a real cgroup or job object.
+It reads cgroup v2's `memory.max` less `memory.current` ("max" as no limit) and v1's `memory.limit_in_bytes` less `memory.usage_in_bytes` (a limit of 2^62 bytes or more as none), usage past a limit as 0 and every malformed text as nothing.
+Over a file system held in a map it reads the room in the process's own cgroup and in each above it up to the mount point, v1, v2 and both, the smallest winning: a parent's tighter limit is taken, v1 is read in the memory controller's cgroup and not the cpu controller's, and a limit without its usage or a malformed file is passed over while the cgroups above are still read.
+It reads a job object's process and job memory limits less the process's and the job's commit, and takes the figure as the fewer of the host's available memory and that room, each only when it was read, so a container limited to 8 GiB is given what its limit leaves and, without the limit's files, the host's figure stands.
+
 `sampler` calls `infer::sample` on hand-picked logits with expectations taken from the definitions.
 Temperature 0 takes the largest score and the lowest id on a tie.
 The repetition penalty divides a seen token's positive score and multiplies a negative one, by the penalty and once however often the token was seen, so a repeated leader loses to the runner-up.

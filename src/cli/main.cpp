@@ -865,7 +865,9 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          several, comma separated, split the model by layers\n"
             << "                          over them in that order, fitted to their free memory\n"
             << "  --layer-shares A,B      With several devices, their proportions of the layers\n"
-            << "  --threads N             CPU workers; 0 selects automatically (default: " << defaults.threads << ")\n";
+            << "  --threads N             CPU workers; 0 takes the fewest of the hardware threads\n"
+            << "                          and the CPUs the affinity and the CPU quota allow,\n"
+            << "                          at most 64 (default: " << defaults.threads << ")\n";
         if (batch_threads) out
             << "  --threads-batch N, -tb  CPU prefill workers; default follows --threads\n";
         out

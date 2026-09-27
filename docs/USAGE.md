@@ -44,9 +44,8 @@ change the release number, or embed timestamps.
   element (`"The capital of France is"`).
 - Token ids in `detokenize` and in a `logits --then-ids` file are separated by commas or any whitespace.
   Any other character, or an id outside the vocabulary, is refused.
-- `--threads` omitted or zero keeps the CPU backend's automatic hardware
-  thread count, including in `bench`. Specify a positive count for matched
-  performance comparisons.
+- `--threads` omitted or zero takes the CPU backend's automatic count, including in `bench` and `serve`: the CPUs the process may use, from its hardware threads, its affinity and its CPU quota ([Threads](#threads-generation-vs-prefill)).
+  Specify a positive count for matched performance comparisons.
 
 ## `llmx pull <owner/repo>:<quant>`
 
@@ -249,6 +248,15 @@ scoring modes elsewhere that exclude a warmup half-window; compare scores only w
 identical input bytes, token IDs, window boundaries and target selection.
 
 ## Threads: generation vs prefill
+
+With `--threads` omitted or 0 the count is automatic, the fewest of:
+
+- the hardware threads;
+- the CPUs the process's affinity allows: `sched_getaffinity` on Linux; on Windows the process affinity mask when the process's threads lie in one processor group, and every processor of their groups when they span several;
+- the CPUs its CPU quota allows, rounded up: on Linux its cgroup CPU quota, `cpu.max` on cgroup v2 and `cpu.cfs_quota_us` over `cpu.cfs_period_us` on v1, in the process's own cgroup and each above it that its cgroup mount shows; on Windows the CPU rate hard cap of its job object, which a process-isolated container's `--cpus` sets.
+
+It is at least 1 and at most 64, and a quota or affinity that cannot be read changes nothing.
+So a container limited to 6 CPUs on a 16-thread host starts 6 workers rather than 16 workers sharing 6 CPUs of quota, and one limited to 1.5 CPUs starts 2.
 
 For `generate` and `chat`, `--threads` is the CPU worker count for **decode** and
 `--threads-batch` / `-tb` is the count for **prefill**, defaulting to

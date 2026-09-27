@@ -166,7 +166,6 @@ inline std::optional<std::string> cgroup_v1_cpu_path(std::string_view proc_self_
 // A cgroup hierarchy's directory `root` mounted at `point`.
 struct CgroupMount {
     std::string root, point;
-    bool operator==(const CgroupMount& o) const { return root == o.root && point == o.point; }
 };
 
 namespace detail {

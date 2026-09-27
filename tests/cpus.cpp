@@ -19,6 +19,12 @@ void require(bool ok, const std::string& message) {
 
 std::string shown(const std::optional<unsigned>& n) { return n ? std::to_string(*n) : "nothing"; }
 std::string shown(const std::optional<std::string>& s) { return s ? "\"" + *s + "\"" : "nothing"; }
+bool same(const std::vector<core::CgroupMount>& a, const std::vector<core::CgroupMount>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i)
+        if (a[i].root != b[i].root || a[i].point != b[i].point) return false;
+    return true;
+}
 std::string shown(const std::vector<core::CgroupMount>& mounts) {
     std::string out = "[";
     for (const auto& m : mounts) out += (out.size() > 1 ? ", " : "") + m.root + " at " + m.point;
@@ -117,8 +123,8 @@ void mounts() {
     };
     for (const auto& c : cases) {
         const M v2 = core::cgroup_v2_mounts(c.mountinfo), v1 = core::cgroup_v1_cpu_mounts(c.mountinfo);
-        require(v2 == c.v2, std::string(c.name) + ": v2 mounts " + shown(v2) + ", expected " + shown(c.v2));
-        require(v1 == c.v1, std::string(c.name) + ": v1 cpu mounts " + shown(v1) + ", expected " + shown(c.v1));
+        require(same(v2, c.v2), std::string(c.name) + ": v2 mounts " + shown(v2) + ", expected " + shown(c.v2));
+        require(same(v1, c.v1), std::string(c.name) + ": v1 cpu mounts " + shown(v1) + ", expected " + shown(c.v1));
     }
 }
 

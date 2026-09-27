@@ -4,6 +4,14 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Host pages refuse a size they cannot round to whole pages (2026-09-27, branch fix/host-pages-round)
+
+- **Found** in review: `core::HostPages(bytes)` and `HostPages::reserved(bytes)` rounded up with `(bytes + page - 1) / page * page`, which wraps to 0 for a size past the largest whole number of pages a `size_t` holds, so they returned an empty object instead of refusing it.
+  Nothing in llmx passes such a size, but a caller computing one from a file header could.
+- **Done:** `file-reader` asks both for a `std::length_error` naming the size at `SIZE_MAX` and at `SIZE_MAX - page + 2`, the smallest that wraps, and for the operating system's refusal at `SIZE_MAX - page + 1`, the largest that rounds; the test commit fails on main.
+  The rounding has one owner, the private `HostPages::whole_pages`, which refuses those sizes with `std::length_error`, as a container refuses a size past its `max_size`.
+  `commit` and `decommit` need no check of their own: the size is a whole number of pages, so at most `SIZE_MAX - page + 1`, and with the range inside it their `offset + bytes + page - 1` and `offset + page - 1` stay within `SIZE_MAX`.
+
 ## A prompt row's bits no longer follow the compiler's choice to fuse a dot's tail (2026-09-27, branch fix/placement-ubsan, merged at `9b6413ea`)
 
 - **Found:** built by GCC 14.2, the compiler of `docker/Dockerfile`'s image, with the hosted UBSan job's flags, `placement` fails on main `7d16fa6` and `6ae9a24c`, as it did at `4ad199a`: `a row of a pass in flight differs from its sequence run alone`.

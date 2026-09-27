@@ -205,7 +205,7 @@ inline std::optional<size_t> host_memory_available() { return host_memory_availa
 class HostPages {
 public:
     HostPages() = default;
-    explicit HostPages(size_t bytes) : size_((bytes + page_size() - 1) / page_size() * page_size()) {
+    explicit HostPages(size_t bytes) : size_(whole_pages(bytes)) {
         if (!size_) return;
 #if defined(_WIN32)
         data_ = (uint8_t*)VirtualAlloc(nullptr, size_, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -234,7 +234,7 @@ public:
     // `bytes` of address space, rounded up to whole pages, with no memory behind it until commit gives some: a layout whose parts are filled one by one, such as the direct load's copy of the weights a host reads.
     static HostPages reserved(size_t bytes) {
         HostPages p;
-        p.size_ = (bytes + page_size() - 1) / page_size() * page_size();
+        p.size_ = whole_pages(bytes);
         if (!p.size_) return p;
 #if defined(_WIN32)
         p.data_ = (uint8_t*)VirtualAlloc(nullptr, p.size_, MEM_RESERVE, PAGE_NOACCESS);
@@ -273,6 +273,13 @@ public:
     }
 
 private:
+    // `bytes` rounded up to whole pages; a size past the largest whole number of pages a size_t holds has no such rounding and is refused as a length no object can have, as a container refuses one past its max_size, rather than wrapped to 0.
+    static size_t whole_pages(size_t bytes) {
+        const size_t page = page_size();
+        if (bytes > SIZE_MAX - (page - 1)) throw std::length_error("host pages: " + std::to_string(bytes) + " bytes cannot be rounded up to whole pages");
+        return (bytes + page - 1) / page * page;
+    }
+
     void release() noexcept {
         if (!data_) return;
 #if defined(_WIN32)

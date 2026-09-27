@@ -1,0 +1,506 @@
+{
+  "date": "2026-09-27",
+  "base": "dbafdec75c8547e164e09220c35e54230baa19b0",
+  "scope": "MI50 normalization and Q8 consumer float-control diagnostics; production integration incomplete",
+  "producer": {
+    "blocks": 4381,
+    "values_per_twin": 140192,
+    "failed16": 0,
+    "failed8": 0,
+    "identical_word_lane_words": 43810,
+    "range": "285 boundary blocks plus 4096 seeded finite float peaks"
+  },
+  "combined": {
+    "public_values": 9120,
+    "failed": 0,
+    "kernel_outputs": 26512868,
+    "decode_columns": 118832,
+    "scope": "quantize_x normalized; matmul_vec_q8 DenormPreserve32 and SignedZeroInfNanPreserve32; other modules unchanged"
+  },
+  "baseline_corrected_test": {
+    "values": 9120,
+    "failed": 936,
+    "exit": 1
+  },
+  "bound_correction": "The original public bound used an ideal scale floored at denorm_min. Corrected bound rounds the independent f32 scale upward until 127*scale covers the peak. At peak 128*denorm_min the stored scale must be 2*denorm_min; an odd input may differ by one denorm_min. This correction leaves unchanged main failing 936 values.",
+  "all_shaders": "All variants compile with the shared normalized producer; no production consumer modes added",
+  "commands": {
+    "activation-controls-01": {
+      "started": "2026-09-27T19:17:54.191185",
+      "scope": "Diagnostic float controls only, unchanged arithmetic",
+      "jobs": [
+        {
+          "name": "quantize_x",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "glslc",
+            "-fshader-stage=compute",
+            "--target-env=vulkan1.2",
+            "-O",
+            "-mfmt=num",
+            "-I",
+            "/work/activation-controls-01/shaders",
+            "-o",
+            "/work/activation-controls-01/generated/vulkan/quantize_x.inc",
+            "/work/activation-controls-01/shaders/quantize_x.comp"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "matmul_vec_q8",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "glslc",
+            "-fshader-stage=compute",
+            "--target-env=vulkan1.2",
+            "-O",
+            "-mfmt=num",
+            "-I",
+            "/work/activation-controls-01/shaders",
+            "-o",
+            "/work/activation-controls-01/generated/vulkan/matmul_vec_q8.inc",
+            "/work/activation-controls-01/shaders/matmul_vec_q8.comp"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "producer-build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/activation-controls-01/generated",
+            "-I/work/build-base-main/generated",
+            "-I/work/base-main/src",
+            "/work/activation-producer-01/probe.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-controls-01/producer"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "producer",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-controls-01/producer"
+          ],
+          "exit": 1
+        },
+        {
+          "name": "public-build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/activation-controls-01/generated",
+            "-I/work/build-base-main/generated",
+            "-I/work/base-main/src",
+            "/work/activation-public-01/backend_vulkan.cpp",
+            "/work/base-main/src/backends/vulkan/vulkan_backend.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-controls-01/public"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "public",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-controls-01/public"
+          ],
+          "exit": 1
+        }
+      ],
+      "completed": "2026-09-27T19:18:22.653795"
+    },
+    "activation-normalize-01": {
+      "started": "2026-09-27T19:20:33.655208",
+      "scope": "Diagnostic producer normalization; no float controls or Float64",
+      "jobs": [
+        {
+          "name": "shader",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "glslc",
+            "-fshader-stage=compute",
+            "--target-env=vulkan1.2",
+            "-O",
+            "-mfmt=num",
+            "-I",
+            "/work/activation-normalize-01/shaders",
+            "-o",
+            "/work/activation-normalize-01/generated/vulkan/quantize_x.inc",
+            "/work/activation-normalize-01/shaders/quantize_x.comp"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "producer-build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/activation-normalize-01/generated",
+            "-I/work/build-base-main/generated",
+            "-I/work/base-main/src",
+            "/work/activation-producer-01/probe.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-normalize-01/producer"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "producer",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-normalize-01/producer"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "public-build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/activation-normalize-01/generated",
+            "-I/work/build-base-main/generated",
+            "-I/work/base-main/src",
+            "/work/activation-public-01/backend_vulkan.cpp",
+            "/work/base-main/src/backends/vulkan/vulkan_backend.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-normalize-01/public"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "public",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-normalize-01/public"
+          ],
+          "exit": 1
+        }
+      ],
+      "completed": "2026-09-27T19:21:00.677510"
+    },
+    "activation-combined-01": {
+      "started": "2026-09-27T19:21:58.689975",
+      "jobs": [
+        {
+          "name": "build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/activation-combined-01/generated",
+            "-I/work/build-base-main/generated",
+            "-I/work/base-main/src",
+            "/work/activation-public-01/backend_vulkan.cpp",
+            "/work/base-main/src/backends/vulkan/vulkan_backend.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-combined-01/public"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "test",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-combined-01/public"
+          ],
+          "exit": 1
+        }
+      ],
+      "completed": "2026-09-27T19:22:20.833694"
+    },
+    "activation-normalize-02": {
+      "started": "2026-09-27T19:25:01.475299",
+      "jobs": [
+        {
+          "name": "shader",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "glslc",
+            "-fshader-stage=compute",
+            "--target-env=vulkan1.2",
+            "-O",
+            "-mfmt=num",
+            "-I",
+            "/work/activation-normalize-02/shaders",
+            "-o",
+            "/work/activation-normalize-02/generated/vulkan/quantize_x.inc",
+            "/work/activation-normalize-02/shaders/quantize_x.comp"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "producer-build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/activation-normalize-02/generated",
+            "-I/work/build-base-main/generated",
+            "-I/work/base-main/src",
+            "/work/activation-producer-01/probe.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-normalize-02/producer"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "producer",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-normalize-02/producer"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "public-build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/activation-normalize-02/generated",
+            "-I/work/build-base-main/generated",
+            "-I/work/base-main/src",
+            "/work/activation-normalize-02/backend_vulkan.cpp",
+            "/work/base-main/src/backends/vulkan/vulkan_backend.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-normalize-02/public"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "public",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-normalize-02/public"
+          ],
+          "exit": 0
+        }
+      ],
+      "completed": "2026-09-27T19:25:37.571215"
+    },
+    "activation-normalize-03": {
+      "started": "2026-09-27T19:26:45.719434",
+      "jobs": [
+        {
+          "name": "tile-shader",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "glslc",
+            "-fshader-stage=compute",
+            "--target-env=vulkan1.2",
+            "-O",
+            "-mfmt=num",
+            "-I",
+            "/work/activation-normalize-03/shaders",
+            "-o",
+            "/work/activation-normalize-03/generated/vulkan/quantize_x8.inc",
+            "/work/activation-normalize-03/shaders/quantize_x8.comp"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "producer-build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-pthread",
+            "-I/work/activation-normalize-03/generated",
+            "-I/work/build-base-main/generated",
+            "-I/work/base-main/src",
+            "/work/activation-normalize-03/producer.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-normalize-03/producer"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "producer",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-normalize-03/producer"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "base-public-build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/build-base-main/generated",
+            "-I/work/base-main/src",
+            "/work/activation-normalize-02/backend_vulkan.cpp",
+            "/work/base-main/src/backends/vulkan/vulkan_backend.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-normalize-03/base-public"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "base-public",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-normalize-03/base-public"
+          ],
+          "exit": 1
+        }
+      ],
+      "completed": "2026-09-27T19:27:19.007094"
+    },
+    "activation-all-shaders-01": {
+      "started": "2026-09-27T19:28:29.868224",
+      "base": "dbafdec75c8547e164e09220c35e54230baa19b0",
+      "scope": "Compile all shader variants with shared normalized producer; no consumer modes integrated",
+      "jobs": [
+        {
+          "name": "configure",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "cmake",
+            "-S",
+            "/work/src-activation",
+            "-B",
+            "/work/build-activation",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DLLMX_HAS_BACKEND_VULKAN=ON"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "shaders",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "cmake",
+            "--build",
+            "/work/build-activation",
+            "--target",
+            "llmx-vulkan-shaders",
+            "--parallel",
+            "2"
+          ],
+          "exit": 0
+        }
+      ],
+      "completed": "2026-09-27T19:28:37.263402"
+    }
+  },
+  "archive": {
+    "path": "/opt/claude-work/llmx-p2-x-mxfp4-vulkan/vulkan-activation-normalization-20260927.tar.gz",
+    "sha256": "7915f0dfcb6ee803044ec26ff43681f245d144a3fc759c83a9cb38976c0bf067",
+    "size": 5281651
+  },
+  "limitations": [
+    "MI50 only, no Radeon test",
+    "Consumer capability requirements not integrated",
+    "Fused producer arithmetic and whole-model output identity still need gates",
+    "Native suite timing output is diagnostic only, not a matched performance result",
+    "HF, monitored matched performance, full Markdown review and hosted gates remain"
+  ]
+}

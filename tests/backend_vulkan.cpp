@@ -116,8 +116,10 @@ size_t check_activation_range(backend::Backend& b) {
         const auto y = b.alloc(output.size() * sizeof(float));
         b.matmul(quant::GGML_TYPE_Q8_0, {w.get(), 0}, {x.get(), 0}, {y.get(), 0}, width, width, 1);
         b.read(*y, 0, output.data(), output.size() * sizeof(float));
-        // Both supported twins fit the 8-bit error bound; a scale too small for f32 needs the smallest positive f32 instead.
-        const double step = std::max(double(peak) / 127, double(std::numeric_limits<float>::denorm_min()));
+        // A tiny block needs a representable scale rounded up so its peak fits the integer range; both twins fit this 8-bit bound.
+        float representable = float(double(peak) / 127);
+        if (double(representable) * 127 < double(peak)) representable = std::nextafter(representable, std::numeric_limits<float>::max());
+        const double step = std::max(double(representable), double(std::numeric_limits<float>::denorm_min()));
         for (size_t j = 0; j < width; ++j) {
             const double bound = .50001 * step + 3e-7 * std::abs(double(input[j]));
             if (!std::isfinite(output[j]) || std::abs(double(output[j]) - input[j]) > bound) {

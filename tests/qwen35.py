@@ -32,8 +32,16 @@ FIXTURES = [
 EOS = VOCAB - 1
 # Physical batches that cut the texts into passes; under one of them the last row of every text of three or more tokens runs alone after a batched pass, as a decode step after a prefill does.
 UBATCHES = (1, 2, 3, 5, 16)
-# llmx's refusal of an architecture it does not run, which skips this component rather than failing or passing it.
-REFUSAL = "unsupported metadata general.architecture"
+# llmx's refusals of a qwen35 file: of the architecture, where it does not run it, and at load on a device whose backend lacks the linear attention's ops.
+# Either skips this component, and the real-model checks, rather than failing or passing them.
+REFUSALS = ("unsupported metadata general.architecture", "which the backend of its device does not implement")
+# The server's refusal of a model whose layers keep a recurrent state, until its scheduler holds states.
+SERVE_REFUSAL = "serve: the model's layers keep a recurrent state, which the server does not hold yet"
+
+
+def refusal(rc, out):
+    """The refusal a failed llmx command gave, if it is one of REFUSALS, else None."""
+    return next((text for text in REFUSALS if rc != 0 and text in out), None)
 
 
 def full_attention(layer):
@@ -247,9 +255,16 @@ def run():
     with tempfile.TemporaryDirectory(prefix="llmx_qwen35_") as directory:
         models = {spec["name"]: write_fixture(directory, spec) for spec in FIXTURES}
         rc, out = cli(["logits", models["hv1"], TEXTS[0], "--top", str(VOCAB)])
-        if rc != 0 and REFUSAL in out:
-            print("qwen35: SKIP - llmx refuses the qwen35 architecture (%s), so nothing was compared" % REFUSAL)
+        if refusal(rc, out):
+            print("qwen35: SKIP - llmx does not run the qwen35 architecture here (%s), so nothing was compared" % refusal(rc, out))
             return common.SKIPPED
+        # The server refuses the model before it listens, so the command ends rather than serving.
+        p = common.run_process(["serve", models["hv1"], "--port", "0"], text=True, timeout=120)
+        assert p.returncode != 0 and SERVE_REFUSAL in p.stderr, "qwen35 serve not refused: exit %d, %s" % (p.returncode, p.stderr[-300:])
+        # The bench holds a state slot for each sequence it decodes at once.
+        rc, out = cli(["bench", "--model", models["hv3"], "--p", "4", "--n", "2", "--r", "1", "--seqs", "3"])
+        reports = re.findall(r"^bench: (.+?)\s+\S+ \+- \S+ tok/s  \((\d+) runs\)$", out, re.M)
+        assert rc == 0 and reports == [("pp4", "1"), ("x3 tg2", "1")], "qwen35 bench --seqs 3 failed: " + out
         for spec in FIXTURES:
             name = "qwen35 " + spec["name"]
             fixture = fixtures[spec["name"]]
@@ -265,7 +280,7 @@ def run():
                     printed = [cli(["logits", models[which], text, "--top", str(VOCAB)]) for which in (fixture["base"], spec["name"])]
                     assert printed[0] == printed[1], "%s logits differ from %s's on %r" % (name, fixture["base"], text)
     print("qwen35: all 257 logits vs HF's token-by-token goldens, Hv = Hk tied and Hv = 3 Hk untied, ubatches, threads, --last rows, "
-          "NLL batched and per token, greedy decode after a prefill, and an MTP block that leaves the logits as they were; max error %.8f  [ok]" % worst)
+          "NLL batched and per token, greedy decode after a prefill, an MTP block that leaves the logits as they were, serve refused and bench --seqs 3; max error %.8f  [ok]" % worst)
     return True
 
 

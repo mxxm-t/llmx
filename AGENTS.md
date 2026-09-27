@@ -623,7 +623,8 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   The fixtures are Hv = Hk with a tied head, Hv = 3 Hk with its own head, and that model with one MTP block, whose file must print the bytes the file without it prints.
   The writer makes the weights as HF holds them and applies the converter's transforms itself (docs/QWEN35.md, GGUF conventions).
   Beyond the F32 checks, the NLL is scored in passes of three tokens and one token at a time, and greedy decode after a prefill must give HF's greedy tokens.
-  Until llmx runs the architecture it refuses the files, and the component reports SKIP, which `run_tests.py` counts as neither a pass nor a failure (`common.SKIPPED`).
+  `serve` must refuse the file before it listens, since the scheduler does not hold a recurrent state yet, and `bench --seqs 3` must hold a state slot for each of its sequences.
+  On a device whose backend lacks the linear attention's ops the files are refused as they load, and the component reports SKIP, which `run_tests.py` counts as neither a pass nor a failure (`common.SKIPPED`), as it does where llmx refuses the architecture (`qwen35.REFUSALS`).
 - **Baseline** (`tests/baseline.py`): real-model EXTERNAL ground truth.
   Compares llmx against golden fixtures generated once from the HF reference by `tools/gen_baseline.py` and committed to `tests/data/`.
   Needs a real model, so it SKIPS when none is on disk; point it at one with `LLMX_BASELINE_GGUF`.
@@ -638,7 +639,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   Making those goldens also needs numpy.
   The other entries of `tests/data/fixtures.json` pin the models of tensor types llmx does not read yet, each with `gate` false until its type has bounds, and `hosted` marks the ones the hosted HF job is to download then; `tools/fetch_test_models.py --all` fetches them with the gate's models.
   Each entry names its family: `qwen3`, whose goldens are the ones above, or `qwen35`, whose goldens, vocabulary and context `tests/baseline_qwen35.py` holds, with the qwen35 files' bounds once they are set.
-  For each hosted qwen35 file on disk it runs that check at 512-token windows: the family's tokenizer golden, the file's chat template, the ids of its model's chat renders, prompts and excerpt, then logits and perplexity, with one skip line while llmx refuses the architecture; a file without bounds is measured and fails.
+  For each hosted qwen35 file on disk it runs that check at 512-token windows: the family's tokenizer golden, the file's chat template, the ids of its model's chat renders, prompts and excerpt, then logits and perplexity, with one skip line where llmx does not run the architecture, on a device whose backend lacks its ops; a file without bounds is measured and fails.
 - **Reference generator** (`tests/reference_generator.py`): standard-library checks for pinned reference selection, separate alternate-model output and forwarding the revision/float32/eager settings to the HF loaders.
   Actual reference generation and model correctness remain separate checks.
   For `file-exact` it checks the argument combinations it refuses, that `tests/baseline.py --file-exact` fails when the device has no kernel for the file, the HF parameters a few GGUF tensor names take under the one map `tests/f32.py` holds for the tiny models and file-exact alike, and a tiny GGUF's tensors reaching their parameters with reversed dimensions and unchanged values.
@@ -653,9 +654,9 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   The committed qwen35 goldens must hold the generator's checkpoints, files, prompts, conversations, templates and excerpts, and the consumer must pin every one of them.
   For the layered qwen35 reference (`tools/gen_layered_reference.py`) it checks the arguments it refuses, that it runs offline in that environment check on its threads and refuses what the check refuses, the checkpoint keys it refuses (a stray key, a missing one, a converted one and two for one parameter), its count of float32 steps between two values, that it names an F32 tensor it had nothing to compare with, that the committed Qwen3.5-0.8B record shows every input's logits and every parameter equal to HF's full forward, and that the committed 9B and 27B goldens hold the generator's texts, windows and versions.
 - **Reference consumer** (`tests/reference_consumer.py`): standard-library rejection tests for changed 8B fixtures, damaged logits/PPL, top-5 boundary swaps beyond those `common.top5_overlap` forgives, wrong model identity and failed launches, and a passing run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
-  For `tests/baseline_qwen35.py` it checks changed goldens, the digest that stands for the excerpt's ids, one skip when llmx refuses the architecture after 47 checks, a run of 59 checks failing without bounds and passing with them, a wrong file digest or chat template, and file-exact goldens made from another file.
+  For `tests/baseline_qwen35.py` it checks changed goldens, the digest that stands for the excerpt's ids, one skip after 47 checks when llmx refuses the architecture or a device refuses its ops, a run of 59 checks failing without bounds and passing with them, a wrong file digest or chat template, and file-exact goldens made from another file.
   The suite's form must skip only a file not on disk or refused, and fail a file without bounds; `--require-baseline` must count a qwen35 gate model as it counts a Qwen3 one.
-  For the layered qwen35 goldens (`tests/baseline_layered.py`) it requires each model's goldens to record its GGUF's SHA-256 and every F32 tensor of the GGUF compared and equal to the checkpoint's but for `ssm_a` values one float32 step off, which the model's provenance line counts, a passing run of 41 checks per model, one skip line while llmx refuses the architecture, and a failure for a model with no goldens, for another error and for a check failed before the refusal.
+  For the layered qwen35 goldens (`tests/baseline_layered.py`) it requires each model's goldens to record its GGUF's SHA-256 and every F32 tensor of the GGUF compared and equal to the checkpoint's but for `ssm_a` values one float32 step off, which the model's provenance line counts, a passing run of 41 checks per model, one skip line for either refusal, and a failure for a model with no goldens, for another error and for a check failed before the refusal.
   It is included in the ordinary suite; it does not load or download the 8B model or the qwen35 models.
 - **Fixture downloader** (`tests/fetch_models.py`): seventeen offline tests
   of `tools/fetch_test_models.py` against simulated responses: a verified
@@ -691,9 +692,9 @@ python -X utf8 tests/baseline_qwen35.py --exe build/llmx --model path/to/Qwen3.5
 ```
 
 `--context` picks the 512-token or the 4096-token windows, and `--file-exact DIR` holds the file to the goldens `tools/gen_baseline.py file-exact` made from it instead.
-It prints one skip line while llmx refuses the architecture, and until a file has bounds it measures every check and fails, so the first measurement sets them.
+It prints one skip line where llmx does not run the architecture, on a device whose backend lacks its ops, and a file without bounds is measured and fails, so the first measurement sets them.
 
-`tests/baseline_layered.py` runs the same checks on the Qwen3.5-9B and Qwen3.6-27B Q4_K_M files against the layered HF reference's goldens, chosen by the file's SHA-256, and skips in one line while llmx refuses the qwen35 architecture (`docs/ASSETS.md`, The layered qwen35 reference).
+`tests/baseline_layered.py` runs the same checks on the Qwen3.5-9B and Qwen3.6-27B Q4_K_M files against the layered HF reference's goldens, chosen by the file's SHA-256, and skips in one line where llmx does not run the qwen35 architecture (`docs/ASSETS.md`, The layered qwen35 reference).
 
 The two project gates are external and are defined in `docs/ROADMAP.md` #8:
 **correctness is the HF reference**, and **performance must be at least

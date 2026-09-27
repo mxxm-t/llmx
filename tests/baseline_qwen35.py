@@ -10,6 +10,7 @@ import sys
 import common
 from common import device_args, require
 from baseline_8b import file_sha256
+from qwen35 import refusal
 import spec_decode
 
 # The qwen35 family's real-model check: llmx on a pinned Qwen3.5 file against the HF goldens of its model, which tools/gen_baseline.py qwen35 made with HF's full forward in float32 on the pinned checkpoint.
@@ -74,11 +75,6 @@ def goldens_for(file):
     raise ValueError("no qwen35 goldens are made for " + file)
 
 
-def refuses_architecture(rc, out):
-    """True when llmx refused the model's architecture, which this check reports as one skip."""
-    return rc != 0 and "unsupported metadata general.architecture" in out
-
-
 def check_chat_template(model, expected):
     """The chat template in the file `model` must be the one the chat golden was rendered with."""
     template = spec_decode.GGUF(model).value("tokenizer.chat_template")
@@ -117,7 +113,7 @@ def model_goldens(model, file_exact=None):
 def check_file(model, context, run, check, write, docs, bounds):
     """Every check of the pinned qwen35 file `model` against the goldens `docs` at `bounds`, with perplexity windows of `context` tokens.
     `run(label, arguments)` runs llmx and gives (exit code, output), `check(label, validator, *arguments)` records one check, and `write(name, data)` keeps a file beside the results and gives its path.
-    Returns "skip" when llmx refuses the architecture, "unbounded" when there are no bounds yet, which measures every check at MEASURE_ONLY, and "checked" otherwise."""
+    Returns "skip" when llmx does not run the architecture here (qwen35.REFUSALS), "unbounded" when there are no bounds yet, which measures every check at MEASURE_ONLY, and "checked" otherwise."""
     limits = dict(bounds or MEASURE_ONLY, max_abs_logit=MAX_PLAUSIBLE_LOGIT)
 
     def output(label, arguments):
@@ -147,7 +143,7 @@ def check_file(model, context, run, check, write, docs, bounds):
         prompts.append(("chat-%02d" % index, case, ["logits", model, "--file", write("chat-%02d.txt" % index, case["text"].encode("utf-8"))]))
     for label, case, arguments in prompts:
         rc, out = run(label, arguments + ["--top", "10", "--threads", "6"])
-        if refuses_architecture(rc, out):
+        if refusal(rc, out):
             return "skip"
         require(rc == 0, "%s failed (exit %d): %s" % (label, rc, out.strip()[-200:]))
         check(label, common.check_logits, out, case, VOCAB_SIZE, limits)
@@ -212,7 +208,7 @@ def run_hosted():
                 print("    " + failure)
             return False
         if status == "skip":
-            print("%s: SKIP - llmx refuses the qwen35 architecture (%d tokenizer and chat id checks pass)" % (name, count[0]))
+            print("%s: SKIP - llmx does not run the qwen35 architecture here (%d tokenizer and chat id checks pass)" % (name, count[0]))
         elif status == "unbounded":
             print("%s: FAIL - no bounds in tests/baseline_qwen35.py; set them from `tests/baseline_qwen35.py --model` on this file" % name)
             return False
@@ -289,7 +285,7 @@ def main(argv=None):
         require(not failures, "failed checks: " + ", ".join(failures))
         if status == "skip":
             report["status"] = "skip"
-            print("qwen35 HF check SKIP - llmx refuses the qwen35 architecture; %d tokenizer and chat id checks pass" % len(report["checks"]), flush=True)
+            print("qwen35 HF check SKIP - llmx does not run the qwen35 architecture here; %d tokenizer and chat id checks pass" % len(report["checks"]), flush=True)
         elif status == "unbounded":
             report["status"] = "unbounded"
             print("qwen35 HF check FAIL - %s has no bounds in tests/baseline_qwen35.py; %d checks measured, see report.json"

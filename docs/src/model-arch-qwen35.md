@@ -7,7 +7,8 @@ reaches through `open_dense`. It implements the architecture contract
 names it. The math, the files' conventions and the recurrent state are in
 [QWEN35](../QWEN35.md); the plan and its steps are in `docs/STATUS.md`.
 It runs on the CPU; a device backend refuses it as it loads, since it
-lacks the linear-attention ops (`LayerPlan::ops`),.
+lacks the linear-attention ops (`LayerPlan::ops`), and `llmx serve`
+refuses it (`server::require_servable`).
 
 - `Config`, `read_config(file, prefix)`: the configuration, read under the
   prefix the registry hands it through [metadata](model-arch-metadata.md).

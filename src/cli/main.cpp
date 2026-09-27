@@ -818,8 +818,9 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
-    // A template the renderer refuses stops the server before it listens, as it stops chat before a turn.
+    // A template the renderer refuses stops the server before it listens, as it stops chat before a turn, and so does a model the scheduler cannot hold.
     loaded->chat.require();
+    server::require_servable(model);
     server::Config c = cfg;
     // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();

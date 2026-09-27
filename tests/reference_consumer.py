@@ -31,6 +31,11 @@ def ppl_text(case, nll=None, tokens=247, context=consumer.MODEL_CONTEXT):
         case["context_size"] or context, nll, math.exp(nll))
 
 
+# llmx's two refusals of a qwen35 file that a consumer skips on (qwen35.REFUSALS): of the architecture, and on a device whose backend lacks its ops.
+ARCHITECTURE_REFUSAL = "error: inference: unsupported metadata general.architecture\n"
+DEVICE_REFUSAL = "error: inference: layer 0's mixer needs causal_conv_silu, which the backend of its device does not implement\n"
+
+
 def simulated_llmx(docs, tokens, context, refuse=None):
     """A stand-in for subprocess.run that answers every command of a consumer's run from the goldens `docs`, as a passing llmx would.
     With `refuse`, every `logits` and `perplexity` command fails with that error instead."""
@@ -268,8 +273,8 @@ class Qwen35Consumer(unittest.TestCase):
         cls.template = next(t["template"] for t in templates if t["sha256"] == cls.docs["baseline_chat.json"]["template_sha256"])
         cls.spec = baseline.pinned_fixture(cls.FILE)
 
-    def double(self, refuse=False):
-        """llmx simulated on the pinned file, given a command with the executable first: every text tokenized as the goldens say, and logits and perplexity as HF's, unless `refuse` refuses the architecture."""
+    def double(self, refuse=None):
+        """llmx simulated on the pinned file, given a command with the executable first: every text tokenized as the goldens say, and logits and perplexity as HF's, unless `refuse`, one of the refusals, refuses the model."""
         ids = {case["text"]: case["ids"] for case in self.tokenizer["cases"]}
         cases = self.docs["baseline_logits.json"]["cases"] + self.docs["baseline_chat.json"]["cases"]
         ids.update((case["text"], case["token_ids"]) for case in cases)
@@ -284,7 +289,7 @@ class Qwen35Consumer(unittest.TestCase):
             if command[1] == "tokenize":
                 out = " ".join(map(str, ids.get(command[3], [0] * doc["n_tokens"])))
             elif command[1] == "logits" and refuse:
-                rc, err = 1, "error: inference: unsupported metadata general.architecture\n"
+                rc, err = 1, refuse
             elif command[1] == "logits":
                 text = Path(flag(command, "--file")).read_text(encoding="utf-8") if "--file" in command else command[3]
                 out = logits_text(by_text[text])
@@ -298,7 +303,7 @@ class Qwen35Consumer(unittest.TestCase):
 
         return llmx
 
-    def simulate(self, root, refuse=False, digest=None, bounds=None, template=None):
+    def simulate(self, root, refuse=None, digest=None, bounds=None, template=None):
         """main() on the pinned file under `root` with llmx simulated by double()."""
         llmx = self.double(refuse)
         doc = self.docs[baseline_qwen35.PPL_GOLDENS[512]]
@@ -337,12 +342,13 @@ class Qwen35Consumer(unittest.TestCase):
                 baseline_qwen35.check_ids_digest(output, 3, baseline_qwen35.ids_sha256(ids))
 
     def test_refused_architecture_is_one_skip(self):
-        with tempfile.TemporaryDirectory() as directory:
-            code, report = self.simulate(Path(directory), refuse=True)
-        # The 37 tokenizer cases, the file's chat template, and the ids of both chat renders, of the six prompts and of the perplexity excerpt.
-        self.assertEqual((code, report["status"], len(report["checks"])), (0, "skip", 47))
-        self.assertTrue(all(check["status"] == "pass" for check in report["checks"]))
-        self.assertEqual([record["label"] for record in report["commands"] if "logits" in record["command"]], ["logits-00"])
+        for refusal in (ARCHITECTURE_REFUSAL, DEVICE_REFUSAL):
+            with self.subTest(refusal=refusal), tempfile.TemporaryDirectory() as directory:
+                code, report = self.simulate(Path(directory), refuse=refusal)
+                # The 37 tokenizer cases, the file's chat template, and the ids of both chat renders, of the six prompts and of the perplexity excerpt.
+                self.assertEqual((code, report["status"], len(report["checks"])), (0, "skip", 47))
+                self.assertTrue(all(check["status"] == "pass" for check in report["checks"]))
+                self.assertEqual([record["label"] for record in report["commands"] if "logits" in record["command"]], ["logits-00"])
 
     def test_measured_run_needs_bounds(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -361,7 +367,7 @@ class Qwen35Consumer(unittest.TestCase):
         self.assertEqual((code, report["status"]), (1, "fail"))
         self.assertIn("pinned SHA-256", report["error"])
         with tempfile.TemporaryDirectory() as directory:
-            code, report = self.simulate(Path(directory), refuse=True, template=self.template + " ")
+            code, report = self.simulate(Path(directory), refuse=ARCHITECTURE_REFUSAL, template=self.template + " ")
         self.assertEqual((code, report["status"]), (1, "fail"))
         self.assertEqual([check["label"] for check in report["checks"] if check["status"] == "fail"], ["chat-template"])
 
@@ -372,7 +378,7 @@ class Qwen35Consumer(unittest.TestCase):
             with patch.object(baseline_qwen35, "file_sha256", return_value=self.spec["sha256"]), self.assertRaisesRegex(ValueError, "not made from"):
                 baseline_qwen35.model_goldens(str(Path(directory) / self.FILE), directory)
 
-    def hosted(self, root, refuse=False, bounds=None, present=True):
+    def hosted(self, root, refuse=None, bounds=None, present=True):
         """run_hosted, the suite's form, with the pinned file the one qwen35 fixture, on disk under `root` when `present`, and llmx simulated by double(): its result and what it printed."""
         llmx = self.double(refuse)
 
@@ -399,9 +405,10 @@ class Qwen35Consumer(unittest.TestCase):
         name = "baseline-qwen35[%s]: " % self.FILE
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(self.hosted(Path(directory), present=False), (True, name + "SKIP - fixture model not on disk\n"))
-        with tempfile.TemporaryDirectory() as directory:
-            self.assertEqual(self.hosted(Path(directory), refuse=True),
-                             (True, name + "SKIP - llmx refuses the qwen35 architecture (47 tokenizer and chat id checks pass)\n"))
+        for refusal in (ARCHITECTURE_REFUSAL, DEVICE_REFUSAL):
+            with tempfile.TemporaryDirectory() as directory:
+                self.assertEqual(self.hosted(Path(directory), refuse=refusal),
+                                 (True, name + "SKIP - llmx does not run the qwen35 architecture here (47 tokenizer and chat id checks pass)\n"))
         # Once llmx runs the model, a file without bounds fails the suite, and one with bounds passes all 59 checks.
         with tempfile.TemporaryDirectory() as directory:
             ok, printed = self.hosted(Path(directory))
@@ -470,16 +477,18 @@ class LayeredConsumer(unittest.TestCase):
                 self.assertIn(golden["name"] + " HF check PASS", printed)
 
     def test_refusal_of_the_architecture_is_one_skip_line(self):
-        refusal = "error: inference: unsupported metadata general.architecture\n"
+        refusal = ARCHITECTURE_REFUSAL
         digest, golden = next(iter(layered.GOLDENS.items()))
         docs = consumer.load_goldens(golden["data"], golden["fixture_sha256"])
-        code, report, printed, _ = self.consume(digest, simulated_llmx(docs, docs["baseline_perplexity.json"]["n_tokens"], layered.MODEL_CONTEXT, refuse=refusal))
-        self.assertEqual((code, report["status"]), (0, "skip"))
-        self.assertEqual([line for line in printed.splitlines() if "HF check" in line],
-                         [golden["name"] + " HF check SKIP: llmx does not run this model yet (" + refusal.strip() + ")"])
-        # The tokenizer cases ran before the first logits command was refused, and passed.
-        self.assertEqual(len(report["checks"]), 21)
-        self.assertTrue(all(item["status"] == "pass" for item in report["checks"]))
+        for skipped in (ARCHITECTURE_REFUSAL, DEVICE_REFUSAL):
+            with self.subTest(refusal=skipped):
+                code, report, printed, _ = self.consume(digest, simulated_llmx(docs, docs["baseline_perplexity.json"]["n_tokens"], layered.MODEL_CONTEXT, refuse=skipped))
+                self.assertEqual((code, report["status"]), (0, "skip"))
+                self.assertEqual([line for line in printed.splitlines() if "HF check" in line],
+                                 [golden["name"] + " HF check SKIP: llmx does not run this model yet (" + skipped.strip() + ")"])
+                # The tokenizer cases ran before the first logits command was refused, and passed.
+                self.assertEqual(len(report["checks"]), 21)
+                self.assertTrue(all(item["status"] == "pass" for item in report["checks"]))
         # A check that failed before the refusal fails the run, and any other error is a failure, not a skip.
         answer = simulated_llmx(docs, docs["baseline_perplexity.json"]["n_tokens"], layered.MODEL_CONTEXT, refuse=refusal)
         first = docs["baseline_tokenizer.json"]["cases"][0]["text"]

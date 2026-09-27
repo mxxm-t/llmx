@@ -59,6 +59,7 @@ scheduler are the runtime's own.
 - `api.hpp`: the routes and `serve(model, tok, format, config, listener)`.
   `Config` carries the scheduler's `passes` and `timing` beside its queue and sequence limits, and `serve` prints the passes the scheduler keeps in flight as it starts.
   `/v1/health` adds a timed scheduler's figures as `timing` (`timing_json`): each time a mean over the rounds, each stage's idle share over the span its device time was read in, and the device-bound rate, the rows the passes carried over the busiest stage's device time.
+  `require_servable(model)` refuses a model whose layers keep a recurrent state (`Model::keeps_state`), since the scheduler forks donors, reuses prefixes and recomputes a paused request's rows, none of which carries a state yet; `llmx serve` calls it before the server listens.
   Native `/v1/generate`, `/v1/chat` and `/v1/health`; the OpenAI-compatible `/v1/chat/completions`, `/v1/completions` and `/v1/models`, one parse, one request and one drain loop shared with the native routes, with the clients' synonyms accepted and errors in their shape.
   Every POST route reads its body through `body_of`, which refuses anything but a JSON object with 400.
   `encode` gives a prompt's ids to the generating routes and `/v1/tokenize` alike, refusing a text the tokenizer cannot encode with 400.

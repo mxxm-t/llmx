@@ -68,10 +68,10 @@ def main(argv=None):
                    lambda digest: qwen3_8b() if digest == MODEL_SHA256 else None)
 
 
-def consume(argv, description, select, refusal=None):
+def consume(argv, description, select, refusals=()):
     """Hold llmx on a model to the HF goldens that `select` gives for its SHA-256, and write report.json and each command's output into a new directory.
     A model `select` gives no goldens for fails, as do a golden whose text changed, a failed command and a check out of bounds.
-    With `refusal`, a command that fails with that text in its error ends the run as a skip, exit 0, unless a check had already failed."""
+    A command that fails with one of the texts of `refusals` in its error ends the run as a skip, exit 0, unless a check had already failed."""
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--exe", required=True, type=Path)
     parser.add_argument("--model", required=True, type=Path)
@@ -117,7 +117,7 @@ def consume(argv, description, select, refusal=None):
         (out / (label + ".stderr")).write_bytes(stderr)
         save()
         error = stderr.decode("utf-8", "replace").strip()
-        if refusal and record.get("returncode") not in (None, 0) and refusal in error:
+        if record.get("returncode") not in (None, 0) and any(text in error for text in refusals):
             raise Refused(error)
         require(record.get("returncode") == 0, label + " failed: " + record["status"])
         return stdout.decode("utf-8")

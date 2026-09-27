@@ -11,7 +11,9 @@ Phases:
     cli       the first requests through `llmx generate --temp 0` on the same devices, whose prompt runs as one transaction and, on a split, pipelined over the stages
 
 Every request that runs to its end must give its ids alone, the CLI its text; a client that left must leave nothing active.
---ids writes every phase's ids, so two builds can be compared byte for byte.
+--logprobs asks every request of these phases for its log-probabilities and top five too, which must equal alone's as its ids do.
+--ids writes every phase's ids, with --logprobs beside their values, so two builds can be compared byte for byte.
+--passes N serves with N passes in flight, which a layer split takes above one.
 
 --uncapped runs other phases on a pool too small for its requests: 12 uncapped greedy requests through /v1/completions, streamed with logprobs 5, with --max-seqs 6 and --ctx-size 4096 unless given.
 Each runs alone, where it never pauses, then all at once, where requests are paused and resumed; each must give its tokens and every log-probability alone.
@@ -46,8 +48,8 @@ def health(port):
         return json.loads(r.read().decode("utf-8"))
 
 
-def requests_from(text, count, rng):
-    """`count` requests: prompts of a sentence, a paragraph or pages, cut from `text` at random offsets, with replies of 8 to 128 tokens."""
+def requests_from(text, count, rng, logprobs=False):
+    """`count` requests: prompts of a sentence, a paragraph or pages, cut from `text` at random offsets, with replies of 8 to 128 tokens, and with `logprobs` each asking for its log-probabilities and top five."""
     out = []
     for i in range(count):
         chars = [120, 1500, 6000, 12000][i % 4]
@@ -55,7 +57,14 @@ def requests_from(text, count, rng):
         # A leading '-' would read as a flag to `llmx generate`.
         prompt = text[start:start + chars].lstrip("-")
         out.append({"prompt": prompt, "max_tokens": [128, 32, 64, 8][(i // 4) % 4], "temperature": 0})
+        if logprobs:
+            out[-1].update({"logprobs": True, "top_logprobs": 5})
     return out
+
+
+def answer(reply):
+    """What a phase compares of a reply: its ids, and with log-probabilities asked their values and top five beside them."""
+    return [reply["ids"], reply["logprobs"], reply["top_logprobs"]] if "logprobs" in reply else reply["ids"]
 
 
 def run_together(port, reqs, delays=None, leavers=()):
@@ -67,7 +76,7 @@ def run_together(port, reqs, delays=None, leavers=()):
             common.leave_mid_stream(port, reqs[i], 600)
             return
         try:
-            results[i] = post(port, reqs[i])["ids"]
+            results[i] = answer(post(port, reqs[i]))
         except Exception as e:  # reported below as a mismatch
             results[i] = "error: %s" % e
     for i in range(len(reqs)):
@@ -163,6 +172,8 @@ def main():
     p.add_argument("--ctx-size", type=int, help="the pool of the uncapped phases, 4096 by default")
     p.add_argument("--seed", type=int, help="1, or 7 with --uncapped")
     p.add_argument("--uncapped", action="store_true", help="the uncapped phases in place of the others")
+    p.add_argument("--logprobs", action="store_true", help="the capped phases compare log-probabilities and the top five beside the ids")
+    p.add_argument("--passes", type=int, help="passes in flight, the server's own number when not given")
     p.add_argument("--cli", type=int, default=4,
                    help="requests also checked against the CLI; the first four cover every prompt length, the last two several ubatch chunks")
     p.add_argument("--ids", metavar="PATH", help="write the ids of every phase as JSON, the skewed phase's clients that left as null; with --uncapped each token's text and values")
@@ -172,18 +183,19 @@ def main():
     with open(args.text, encoding="utf-8", errors="replace") as f:
         text = f.read()
     flags = ["--device", args.device] + (["--layer-shares", args.layer_shares] if args.layer_shares else [])
+    serving = flags + (["--passes", str(args.passes)] if args.passes else [])
     if args.uncapped:
-        return uncapped(args, text, flags)
+        return uncapped(args, text, serving)
     rng = random.Random(1 if args.seed is None else args.seed)
-    reqs = requests_from(text, args.requests or 16, rng)
-    proc, port, log = common.start_server([common.EXE, "serve", args.model, "--max-seqs", str(args.max_seqs or 8)] + flags,
+    reqs = requests_from(text, args.requests or 16, rng, args.logprobs)
+    proc, port, log = common.start_server([common.EXE, "serve", args.model, "--max-seqs", str(args.max_seqs or 8)] + serving,
                                           wait=1800)
     failures = []
     phases = {}
     try:
         replies = [post(port, r) for r in reqs]
-        alone = [r["ids"] for r in replies]
-        print("alone: %d requests, %d tokens" % (len(reqs), sum(len(a) for a in alone)), flush=True)
+        alone = [answer(r) for r in replies]
+        print("alone: %d requests, %d tokens" % (len(reqs), sum(len(r["ids"]) for r in replies)), flush=True)
 
         got = run_together(port, reqs)
         phases["alone"], phases["together"] = alone, [got.get(i) for i in range(len(reqs))]
@@ -204,7 +216,7 @@ def main():
             time.sleep(0.2)
         if health(port)["active"] != 0:
             failures.append("clients that left stayed active")
-        if post(port, reqs[0])["ids"] != alone[0]:
+        if answer(post(port, reqs[0])) != alone[0]:
             failures.append("the first request differs after the load")
     finally:
         common.stop_server(proc, log)

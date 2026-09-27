@@ -1,12 +1,15 @@
 // A model on one device against the same model split by layers over several, compared as raw float logits: every position of a scored text through the prompt path, then a prefill in chunks of the ubatch, which a split pipelines over its stages, and greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phases 1 and 2).
-// Then the prompt and the steps replayed by class on each, as a paused request's resume recomputes them, which must give the decode's logits.
+// Then the prompt and the steps replayed by class on each, as a paused request's resume recomputes them, which must give the decode's logits, and passes in flight through the pass API, which must give what the same passes give one after another.
 // Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type]; a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default when left out.
+#include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <thread>
 #include <vector>
 #include "backends/devices.hpp"
 #include "inference/load.hpp"
@@ -84,6 +87,136 @@ static size_t replay(infer::Model& m, const std::vector<uint32_t>& ids, size_t p
     return differ;
 }
 
+// One entry of a pass: a sequence, where in the text its tokens start, how many, whether it wants the logits after its last, and its extent.
+struct Planned {
+    size_t seq, at, n;
+    bool want;
+    size_t extent;
+};
+
+// Passes in flight through the pass API (docs/MULTI-DEVICE.md): 2P sequences, each a prompt of its own length cut from `ids` in chunks of up to 32 tokens and then 8 generated tokens taken from `ids` too, grouped four entries to a pass with P passes in flight, each stage recorded after a random host delay so how far each device runs ahead varies.
+// Each device runs its passes in formation order and a pass retires the round after its last stage, as the server's round has them; every logits row must then equal the same passes run one after another through forward on the split and on the single device, bit for bit.
+// Returns the rows that differ from the split's own forward in `split_differ` and from the single device in `one_differ`, and the passes run.
+static size_t in_flight(infer::Model& one, infer::Model& two, const std::vector<uint32_t>& ids, size_t P, uint32_t seed, size_t& split_differ, size_t& one_differ) {
+    one.reset();
+    two.reset();
+    const size_t S = two.stage_count(), K = 2 * P, vocab = two.n_vocab(), kChunk = 32, kSteps = 8, kPer = 4;
+    uint32_t state = seed;
+    const auto rng = [&state] { state = state * 1664525u + 1013904223u; return state >> 8; };
+    // Each sequence's work, in order: its prompt's chunks, then its generated tokens one a pass.
+    std::vector<std::vector<Planned>> work(K);
+    for (size_t q = 0; q < K; ++q) {
+        const size_t len = 1 + rng() % std::min<size_t>(80, ids.size() - kSteps - 1), start = rng() % (ids.size() - len - kSteps);
+        for (size_t at = 0; at < len; at += kChunk) {
+            const size_t n = std::min(kChunk, len - at);
+            work[q].push_back({q, start + at, n, at + n == len, len});
+        }
+        for (size_t g = 0; g < kSteps; ++g) work[q].push_back({q, start + len + g, 1, true, 1});
+    }
+    std::vector<size_t> next(K, 0);
+    std::vector<char> flying(K, 0);
+    infer::ExecContext ctx;
+    two.reserve_passes(ctx, P, kPer * kChunk, P * kPer);
+    std::vector<infer::Sequence> seqs;
+    for (size_t q = 0; q < K; ++q) seqs.push_back(two.make_sequence());
+    struct Slot {
+        bool live = false;
+        uint64_t formed = 0;
+        size_t ran = 0;
+        std::vector<Planned> entries;
+    };
+    std::vector<Slot> slots(P);
+    std::vector<std::vector<Planned>> formed;         // every pass, in formation order
+    std::vector<std::vector<std::vector<float>>> rows; // its logits rows, as the pass API gave them
+    const auto pause = [&] { std::this_thread::sleep_for(std::chrono::microseconds(rng() % 3000)); };
+    for (bool more = true; more;) {
+        // From the last stage down, each stage takes its oldest waiting pass; passes whose last stage ran in an earlier round retire.
+        std::vector<std::pair<size_t, size_t>> advance;
+        for (size_t s = S; s-- > 1;) {
+            size_t pick = P;
+            for (size_t k = 0; k < P; ++k)
+                if (slots[k].live && slots[k].ran == s && (pick == P || slots[k].formed < slots[pick].formed)) pick = k;
+            if (pick < P) advance.push_back({pick, s});
+        }
+        std::vector<size_t> retire;
+        for (size_t k = 0; k < P; ++k)
+            if (slots[k].live && slots[k].ran == S) retire.push_back(k);
+        std::sort(retire.begin(), retire.end(), [&](size_t a, size_t b) { return slots[a].formed < slots[b].formed; });
+        for (const auto& a : advance) {
+            pause();
+            two.run_pass_stage(ctx, a.first, a.second);
+            ++slots[a.first].ran;
+        }
+        for (size_t k : retire) {
+            Slot& sl = slots[k];
+            std::vector<std::vector<float>>& got = rows[sl.formed - 1];
+            size_t w = 0;
+            for (const Planned& e : sl.entries)
+                if (e.want) {
+                    const float* row = two.pass_logits(ctx, k, w++);
+                    got.emplace_back(row, row + vocab);
+                }
+            two.end_pass(ctx, k);
+            for (const Planned& e : sl.entries) flying[e.seq] = 0;
+            sl.live = false;
+        }
+        // New passes in the free slots, each of up to four sequences not in flight, their next work in turn.
+        for (size_t k = 0; k < P; ++k) {
+            if (slots[k].live) continue;
+            std::vector<Planned> entries;
+            for (size_t q0 = rng() % K, i = 0; i < K && entries.size() < kPer; ++i) {
+                const size_t q = (q0 + i) % K;
+                if (!flying[q] && next[q] < work[q].size()) entries.push_back(work[q][next[q]]);
+            }
+            if (entries.empty()) break;
+            std::vector<infer::BatchEntry> batch;
+            for (const Planned& e : entries) {
+                infer::BatchEntry b{&seqs[e.seq], ids.data() + e.at, e.n, e.want};
+                b.extent = e.extent;
+                batch.push_back(b);
+                flying[e.seq] = 1;
+                ++next[e.seq];
+            }
+            // Each slot's pass writes its own four logits rows.
+            Slot& sl = slots[k];
+            sl.live = true;
+            sl.formed = formed.size() + 1;
+            sl.ran = 0;
+            sl.entries = entries;
+            formed.push_back(entries);
+            rows.emplace_back();
+            two.begin_pass(ctx, k, batch.data(), batch.size(), k * kPer);
+            pause();
+            two.run_pass_stage(ctx, k, 0);
+            ++sl.ran;
+        }
+        more = false;
+        for (size_t k = 0; k < P; ++k) more = more || slots[k].live;
+        for (size_t q = 0; q < K; ++q) more = more || next[q] < work[q].size();
+    }
+    for (auto& s : seqs) two.reset(s);
+    // The same passes one after another through forward, on the split and on the single device.
+    const auto serial = [&](infer::Model& m, size_t& differ) {
+        infer::ExecContext x;
+        std::vector<infer::Sequence> own;
+        for (size_t q = 0; q < K; ++q) own.push_back(m.make_sequence());
+        for (size_t p = 0; p < formed.size(); ++p) {
+            std::vector<infer::BatchEntry> batch;
+            for (const Planned& e : formed[p]) {
+                infer::BatchEntry b{&own[e.seq], ids.data() + e.at, e.n, e.want};
+                b.extent = e.extent;
+                batch.push_back(b);
+            }
+            m.forward(x, batch.data(), batch.size());
+            for (size_t w = 0; w < rows[p].size(); ++w) differ += std::memcmp(x.logits(w), rows[p][w].data(), vocab * sizeof(float)) != 0;
+        }
+        for (auto& s : own) m.reset(s);
+    };
+    serial(two, split_differ);
+    serial(one, one_differ);
+    return formed.size();
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) {
         std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch] [f16|f32]\n");
@@ -145,7 +278,21 @@ int main(int argc, char** argv) {
         const size_t replay_differ = steps ? replay(one, history, ids.size(), a, forked) + replay(two, history, ids.size(), b, forked) : 0;
         std::printf("replay by class: the prompt and %d steps on one device and the split, whole and %zu from a fork at a block, %zu differ from the decode\n", steps, forked, replay_differ);
         const size_t mixed_differ = mixed(one, two, ids);
-        const bool same = !differ && !steps_differ && !replay_differ && !mixed_differ;
+        // Passes in flight at P = S, S + 1 and 2S, on a split that takes them and a text long enough for their prompts and steps.
+        size_t flight_differ = 0;
+        const size_t S = two.stage_count();
+        if (two.pipelined() && ids.size() >= 12) {
+            for (size_t P : {S, S + 1, 2 * S}) {
+                size_t split_differ = 0, one_differ = 0;
+                const size_t passes = in_flight(one, two, ids, P, 20260927u + (uint32_t)P, split_differ, one_differ);
+                std::printf("passes in flight: P = %zu, %zu passes with random host delays, %zu logits rows differ from forward on the split and %zu from the single device\n",
+                            P, passes, split_differ, one_differ);
+                flight_differ += split_differ + one_differ;
+            }
+        } else {
+            std::printf("passes in flight: not run, the split %s\n", two.pipelined() ? "text is too short" : "takes one pass at a time");
+        }
+        const bool same = !differ && !steps_differ && !replay_differ && !mixed_differ && !flight_differ;
         std::printf("%s\n", same ? "bit-identical" : "DIFFERENT");
         return same ? 0 : 1;
     } catch (const std::exception& e) {

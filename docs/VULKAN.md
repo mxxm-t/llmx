@@ -684,11 +684,12 @@ HF gate measures the cost of it.
 - **embed**: a workgroup per gathered row, dequantizing it on the way.
 - **The qwen35 layers** (docs/QWEN35.md): `sigmoid_mul` and `gated_rms_norm`,
   which write the copy of their output the next matmul reads as `silu_mul`
-  and `rms_norm_rows` do; `causal_conv_silu`, its outputs one invocation per
-  (row, channel) and then each view's carried rows one per (view, channel);
-  and the gated delta rule, a prologue that norms q and k and makes the gates
-  into scratch, then the per-token recurrence, one workgroup per (view, V
-  head, 32 V columns), eight lanes a column with 16 of its rows each in
+  and `rms_norm_rows` do; `causal_conv_silu`, one dispatch of an invocation
+  per (chunk of 16 rows, channel), whose view's first chunk alone reads and
+  leaves the carried rows; and the gated delta rule, one dispatch, a
+  workgroup per (view, V head, 32 V columns) that stages each block of 16
+  tokens' normed q and k, gates and v in shared memory and then runs the
+  per-token recurrence, eight lanes a column with 16 of its rows each in
   registers, summed in row order within a lane and through one butterfly
   across the eight, so a sequence gives the same bits however its rows are
   batched or cut into passes. The state is read from slot `src` and written

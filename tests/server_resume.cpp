@@ -1,4 +1,5 @@
 // Requests the scheduler pauses and resumes give, token for token, the ids and log-probabilities they give alone, over the synthetic Q8_0 model whose prompt and decode rows take different CPU paths, and room goes by first admission (docs/SERVER.md).
+// A request cancelled, or a scheduler stopped, while a pass is in flight leaves every block to come back and every donor free to fork.
 // Usage: llmx-server-resume-test [cpu|device]; both by default, the device cases on Vulkan device 0 when it opens.
 #include <chrono>
 #include <cstdint>
@@ -32,6 +33,8 @@ struct Shape {
 const Shape kCpu{2, 64, 128, 4, 2, 16, 64};
 // Heads of 128, which take the device's wide attention for a prompt and its per-row attention for a generated token.
 const Shape kDevice{2, 256, 512, 2, 1, 128, 256};
+// The CPU shape with a layer for each of up to four stages, for the cases that split it over three CPUs.
+const Shape kSplit{4, 64, 128, 4, 2, 16, 64};
 
 // The synthetic model with a token list and no end token, so an uncapped reply runs to what the request may hold.
 gguf::GGUFModel served(const Shape& s) {
@@ -178,6 +181,24 @@ std::vector<backend::BackendPtr> cpus(size_t n) {
         auto c = std::make_shared<backend::CpuBackend>();
         c->set_threads(1);
         v.push_back(c);
+    }
+    return v;
+}
+
+// A CPU backend that runs `hook` whenever the model submits its work, which under the scheduler happens only inside a pass's stages, so a case acts in the scheduler's own thread while that pass is in flight.
+struct Hooked : backend::CpuBackend {
+    std::function<void()> hook;
+    backend::Ticket submit() override {
+        if (hook) hook();
+        return CpuBackend::submit();
+    }
+};
+
+std::vector<std::shared_ptr<Hooked>> hooked(size_t n) {
+    std::vector<std::shared_ptr<Hooked>> v;
+    for (size_t i = 0; i < n; ++i) {
+        v.push_back(std::make_shared<Hooked>());
+        v.back()->set_threads(1);
     }
     return v;
 }
@@ -382,6 +403,81 @@ void cancel_while_paused_donor(const Make& make, const bpe::Tokenizer& tok, uint
         runner.join();
     }
     require(model->kv_used_bytes() == 0, "a pool holds blocks once the scheduler has stopped, after a paused request was cancelled");
+}
+
+// Once the scheduler has stopped, the model's own history takes the whole pool of `tokens`, so every block has come back, a block of a request whose handle is still held included.
+void whole_pool_free(infer::Model& model, size_t tokens, uint32_t vocab, const std::string& what) {
+    try {
+        model.prefill(prompt_of(7, tokens, vocab));
+    } catch (const std::exception& e) {
+        require(false, what + ": a prompt as long as the pool failed once the scheduler had stopped (" + e.what() + ")");
+    }
+    model.reset();
+}
+
+// On a split of `stages` CPUs, a request cancelled from inside a stage of its pass, at the last device's tenth submission, is in flight until a later round retires that pass.
+// It ends then with its history kept as a donor, which a request repeating its prompt forks, and once the scheduler has stopped the whole pool is free.
+void cancelled_in_flight(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, size_t stages) {
+    const std::string what = "a request cancelled in flight on " + std::to_string(stages) + " CPUs";
+    const std::vector<std::shared_ptr<Hooked>> devices = hooked(stages);
+    auto model = on(weights, [&devices] { return std::vector<backend::BackendPtr>(devices.begin(), devices.end()); })(1024, 0);
+    const Req v{prompt_of(1, 130, vocab), 300}, f{prompt_of(1, 130, vocab), 4};
+    std::shared_ptr<server::Request> hv;
+    size_t submits = 0;
+    {
+        server::Scheduler sched(*model, tok, 3, 64);
+        hv = sched.submit(v.prompt, params_of(v));
+        devices.back()->hook = [&submits, &hv] { if (++submits == 10) hv->cancel(); };
+        std::thread runner([&] { sched.run(); });
+        try {
+            size_t got = 0;
+            server::Request::Token t;
+            server::Request::Next next;
+            while ((next = hv->next(t, server::Request::Clock::now() + std::chrono::seconds(120))) == server::Request::Next::id) ++got;
+            require(next == server::Request::Next::end && hv->finish() == "cancel" && got < 300,
+                    what + ": it ended with " + hv->finish() + " after " + std::to_string(got) + " tokens, against cancel before 300");
+            const Reply forked = drain(*sched.submit(f.prompt, params_of(f)));
+            const auto s = sched.stats();
+            require(forked.size() == 4 && s.prefix_hits == 1 && s.prefix_tokens == kBlock,
+                    what + ": a request repeating its prompt gave " + std::to_string(forked.size()) + " tokens and reused " + std::to_string(s.prefix_tokens) +
+                    ", against 4 and " + std::to_string(kBlock));
+            ledger(s, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    devices.back()->hook = nullptr;
+    whole_pool_free(*model, 1024, vocab, what);
+}
+
+// On `stages` CPUs, a stop from inside the first stage of a pass, at the first device's sixth submission, finds the pass in flight.
+// The scheduler abandons it before it releases the request, which ends cancelled, and the whole pool is free while the request's handle still holds its sequence.
+void stopped_in_flight(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, size_t stages) {
+    const std::string what = "a stop with a pass in flight on " + std::to_string(stages) + " CPU" + (stages == 1 ? "" : "s");
+    const std::vector<std::shared_ptr<Hooked>> devices = hooked(stages);
+    auto model = on(weights, [&devices] { return std::vector<backend::BackendPtr>(devices.begin(), devices.end()); })(1024, 0);
+    const Req v{prompt_of(1, 130, vocab), 300};
+    std::shared_ptr<server::Request> hv;
+    {
+        server::Scheduler sched(*model, tok, 3, 64);
+        hv = sched.submit(v.prompt, params_of(v));
+        size_t submits = 0;
+        devices.front()->hook = [&submits, &sched] { if (++submits == 6) sched.stop(); };
+        std::thread runner([&] { sched.run(); });
+        runner.join();
+        devices.front()->hook = nullptr;
+        server::Request::Token t;
+        while (hv->next(t, server::Request::Clock::now() + std::chrono::seconds(10)) == server::Request::Next::id) {}
+        require(hv->finish() == "cancel", what + ": the request ended with " + hv->finish());
+        const auto s = sched.stats();
+        require(s.active == 0 && s.queued == 0 && s.paused == 0 && s.donors == 0, what + ": requests or donors were left once it stopped");
+        for (size_t p = 0; p < s.reserved.size(); ++p) require(s.reserved[p] == 0, what + ": the ledger holds blocks once it stopped");
+    }
+    whole_pool_free(*model, 1024, vocab, what);
 }
 
 // Every request submitted before the scheduler starts, so its first admission takes them in order and their prompts share its first pass.
@@ -656,6 +752,9 @@ int main(int argc, char** argv) {
             prefilling_victim(one, tok, vocab);
             follow_up(one, tok, vocab);
             three_uncapped(on(weights, [] { return cpus(2); }), tok, vocab, "a two-CPU layer split");
+            const gguf::GGUFModel deep = served(kSplit);
+            for (size_t stages = 2; stages <= 3; ++stages) cancelled_in_flight(deep, tok, vocab, stages);
+            for (size_t stages = 1; stages <= 3; stages += 2) stopped_in_flight(deep, tok, vocab, stages);
             cancelled_while_paused(one, tok, vocab);
             take_back(one, tok, vocab);
             take_back_follow_up(one, tok, vocab);

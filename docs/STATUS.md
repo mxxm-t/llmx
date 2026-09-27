@@ -2385,7 +2385,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
        - Goldens for the Qwen3.5-9B and Qwen3.6-27B Q4_K_M files, in `tests/data/qwen3.5-9b` and `tests/data/qwen3.6-27b`, run the checkpoints' bf16 weights widened to float32, as the 8B's do, and record each GGUF's SHA-256 and the match of its F32 tensors with the checkpoint's.
        - `tests/baseline_layered.py` reads them and skips in one line while llmx refuses qwen35.
          Its bounds are the 0.6B Q4_K_M fixture's, declared before any llmx comparison.
-       - The 27B Q4_K_M on the Linux host has no known Hub source; its F32 tensors equal the checkpoint's but for 28 of its `ssm_a` values, each one float32 step from torch's exp, as the host's other third-party 27B files hold them.
+       - The 27B Q4_K_M on the Linux host has no known Hub source; its F32 tensors equal the checkpoint's but for 28 of its `ssm_a` values, each one float32 step from torch's exp, as the host's other third-party 27B files hold them and as 7 `ssm_a` values of the pinned 0.8B Q4_K_M differ.
          The plan keeps the host's 0.8B Q4_K_M out of the gates for having no known Hub source, so gating on this 27B file, or on a pinned Hub 27B Q4_K_M, which needs its own download and a new run of the goldens, is for the user to decide.
   5. **`feat/qwen35-vulkan`:** the device ops (conv, the per-token recurrence with source, destination and checkpoint-row push constants, the gated norm, `sigmoid_mul`, and the copy and tag rules), the projection groups, device state storage, attention at head dim 256, strided partial rope, the CLI's layer split with states, and a CLI mode for `tools/long_context_check.py` (two fresh `generate` runs, plus `logits --last` on the baseline).
      - Gates:

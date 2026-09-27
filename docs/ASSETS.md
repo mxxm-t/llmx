@@ -767,8 +767,8 @@ It also refuses an installed `kernels`, `fla` or `causal_conv1d` package, since 
 **Equal to the full forward.**
 `python tools/gen_layered_reference.py equality --output tests/data/layered_equality.json` runs `Qwen/Qwen3.5-0.8B` at `2fc06364715b967f1860aea9cf38778875588b17` both ways, `from_pretrained` in float32 and the layered forward, on every input the goldens take: the six logit prompts, the 243-token excerpt whole, and the eight windows of its three windowed cases, four of 64 tokens, the first two of those again, and two of 123.
 All 15 rows' logits at every position are equal bit for bit, as are all 321 parameters and the rotary inverse frequencies, and the record keeps the SHA-256 of each row's logits both ways.
-Four runs on the Linux host's CPU, in a container of six CPUs, gave the same record.
-The layered forward took 165, 161, 477 and 80 s and the full forward 229, 286, 258 and 75 s, at load averages of 35 to 84 on the host's 16 threads from other work, and the process peaked at 7.4 GiB with both models in it.
+Five runs on the Linux host's CPU, in a container of six CPUs, gave the same record, the fifth with the tool refusing `fla` and `causal_conv1d` too.
+The layered forward took 165, 161, 477, 80 and 49 s and the full forward 229, 286, 258, 75 and 46 s, at load averages of 35 to 84 on the host's 16 threads from other work, and the process peaked at 7.4 GiB with both models in it.
 
 **Goldens.**
 `tests/data/qwen3.5-9b` and `tests/data/qwen3.6-27b` hold the three goldens of `tests/data/qwen3-8b`, with the same texts and windows, written by `tools/gen_baseline.py`'s writers from the layered forward.
@@ -790,6 +790,7 @@ The 27B checkpoint stores `A_log` in bf16, where the 9B's is float32.
 The other 22 are `ssm_a`, which differ from -exp(`A_log`) as torch computes it in float32 on the host in 28 of their 1,056 values, each by one float32 step; the other 26 `ssm_a` equal it.
 The Linux host's Qwen3.6-27B Q8_0, Q5_1 and the two MTP files hold the Q4_K_M's `ssm_a` bytes in all 48 layers, so they share its conversion, while the host's own conversions of the same commit, `Qwen3.6-27B-6a9e13bd-BF16.gguf` and `Qwen3.6-27B-6a9e13bd-Q4_K-pure.gguf`, equal torch's exp in all 48.
 Neither set is float64's exp rounded to float32, which differs from the Q4_K_M in 19 values and from the host's conversions in 9, so the 28 are one exp's rounding against another's, not other weights.
+A goldens run of the tool on Qwen3.5-0.8B, whose checkpoint stores `A_log` in float32, against the pinned `unsloth/Qwen3.5-0.8B-GGUF` Q4_K_M found the same: 126 of its 133 F32 tensors equal, and 7 `ssm_a` tensors one float32 step off in one value each.
 The 27B goldens are for the Qwen3.6-27B Q4_K_M; the Linux host's Qwen3.6-27B Q8_0 and Qwen3.8-27B Q8_0 have none.
 
 The runs, on the Linux host's CPU in a container of six CPUs, one at a time, each started with at least 20 GiB of memory available:

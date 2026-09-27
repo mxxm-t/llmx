@@ -14,7 +14,7 @@ import baseline_8b
 DATA = Path(__file__).resolve().parent / "data"
 VOCAB_SIZE = 248320
 MODEL_CONTEXT = 262144
-# Declared before any llmx comparison, as the 8B's were: the Qwen3-0.6B Q4_K_M fixture's budget in tests/baseline.py, the same file type against its full-precision reference.
+# The Qwen3-0.6B Q4_K_M fixture's budget in tests/baseline.py, the same file type against its full-precision reference.
 BOUNDS = {"top5_overlap": 4, "max_abs_logit": 100.0, "continuous_nll": 0.13, "window_nll": 0.25}
 # llmx's error for a file whose architecture it does not run.
 REFUSAL = "unsupported metadata general.architecture"

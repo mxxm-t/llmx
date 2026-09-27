@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "server/scheduler.hpp"
+#include "server/policy.hpp"
 
 namespace {
 

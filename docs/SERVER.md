@@ -69,6 +69,7 @@ server/
                  chunked stream; blocking sockets, one thread per connection
   scheduler.hpp  the request queue, admission, batch assembly, the forward
                  loop, sampling, token channels
+  policy.hpp     the policy core: make_room, who gives up blocks for whom
   api.hpp        the routes and their JSON: /v1/generate, /v1/chat,
                  /v1/tokenize, /v1/detokenize, /v1/health, /v1/models,
                  /v1/chat/completions, /v1/completions

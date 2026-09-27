@@ -1,6 +1,6 @@
 # `src/server/` - the multi-user server
 
-`llmx serve`, in three headers above the inference layer, designed in
+`llmx serve`, in four headers above the inference layer, designed in
 `docs/SERVER.md`. No external libraries: sockets, HTTP/1.1, JSON and the
 scheduler are the runtime's own.
 
@@ -33,12 +33,14 @@ scheduler are the runtime's own.
   A finished request's history stays as a donor: a later prompt repeating its tokens forks the shared full blocks and prefills only the rest.
   The donor a request forks is chosen before room is made and the other donors go first; if the pool is still short the chosen one is consumed: only the shared blocks pass to the request and the rest are freed, so shared blocks are reserved once and a follow-up turn keeps the history it repeats.
   A request sharing every full block of its donor, a follow-up turn or a resume, consumes it before any other donor goes, so an unrelated donor stays whenever consuming that one makes room.
-  `make_room`, a free function over the ledger (each pool's blocks and what is reserved, each donor's blocks, and each running request as a `Holder`: its first admission, whether it is uncapped, its reservation and what its donor would keep), is the one owner of who gives up blocks for whom: donors oldest first, the forked one last or first, then, only for a request that grows, uncapped requests admitted after it, latest first, each one's headroom and then, if short, its donor; it returns what it takes (`Taken`) only when that is enough.
+  `make_room` (in `policy.hpp`) is the one owner of who gives up blocks for whom.
   `enter` admits a queued or paused request with it and `grow` gives growing requests their steps with it, the earliest admitted first, before anything is admitted in the same iteration; a request it cannot give a step to sits out the pass (`stalled_`), keeping its cache, and nothing resumes or is admitted while one does.
   The admission number is set at a request's first admission and never renewed, and `active` and the paused requests (`paused_`, the scheduler thread's, outside `--max-queue`) are kept in its order; paused requests resume oldest first and stop at the first that does not fit, and the queue is admitted only once none is paused.
   `Stats` and `/v1/health` count `paused`, `stalls`, `recomputed` and `taken_back` beside `pauses`, `Stats` also gives the ledger per pool (`reserved`) beside the blocks the donors hold (`donor_blocks`), and the `server-room` CTest drives `make_room` through a simulation of these rules.
   The `server-resume` CTest drives the scheduler directly with the synthetic Q8_0 model and reads the values from the channels, a paused request's against its run alone.
   Cancellation is a flag seen at the next iteration, which ends a queued or paused request wherever it waits (`leave`, which drops a paused request's own donor when it holds less than a block) and drops an active one from the batch; blocks return once the device has retired the pass that read them.
+- `policy.hpp`: the scheduler's policy core, a free function over plain data that the scheduler calls with its requests.
+  `make_room`, over the ledger (each pool's blocks and what is reserved, each donor's blocks, and each running request as a `Holder`: its first admission, whether it is uncapped, its reservation and what its donor would keep), is the one owner of who gives up blocks for whom: donors oldest first, the forked one last or first, then, only for a request that grows, uncapped requests admitted after it, latest first, each one's headroom and then, if short, its donor; it returns what it takes (`Taken`) only when that is enough.
 - `api.hpp`: the routes and `serve(model, tok, format, config, listener)`.
   Native `/v1/generate`, `/v1/chat` and `/v1/health`; the OpenAI-compatible `/v1/chat/completions`, `/v1/completions` and `/v1/models`, one parse, one request and one drain loop shared with the native routes, with the clients' synonyms accepted and errors in their shape.
   Every POST route reads its body through `body_of`, which refuses anything but a JSON object with 400.

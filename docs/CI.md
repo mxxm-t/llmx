@@ -13,8 +13,12 @@ It contains six independent checks:
 | CPU (windows-2022) | MSVC, CMake Release and `build.bat`, synthetic tests and benchmark smoke on both binaries, and the `build.bat` binary reporting the same version as the CMake one |
 | CPU (macos-15-intel) | Apple Clang, CMake Release, synthetic tests and benchmark smoke |
 | CPU (Linux UBSan) | GCC undefined-behavior checks, including mixed-tensor float alignment |
-| Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan` and `vulkan-lifetime` skipping without a driver, while `vulkan-buffer`, whose fake device supplies every Vulkan call, needs no loader and runs; then the Python suite with `--require-tools` on the CPU path (`--device cpu`) of the Vulkan-enabled binary, the build Linux GPU users make |
+| Vulkan backend (build, Linux) | The backend and every shader compiled with `-DLLMX_HAS_BACKEND_VULKAN=ON`, the headers and `glslc` from the LunarG repository, pinned there since the distribution's compiler is older than the shader extensions the kernels use and has not been retried; CTest with `backend-vulkan` and `vulkan-lifetime` skipping without a driver, while `vulkan-buffer`, whose fake device supplies every Vulkan call, needs no loader and runs; then the Python suite with `--require-tools` on the CPU path (`--device cpu`) of the Vulkan-enabled binary, the build Linux GPU users make; then the dead-code check of the linked binaries, `tests/dead_code.py --linked`, on a build of its own at -O0 |
 | HF reference (CPU) | Linux build plus the four pinned gate models: tokenizer, logits, continuous/chunked PPL, and the real-model server checks on the Q8_0 (limits, uncapped requests pausing, a prompt paused while prefilling, prefix reuse over a conversation, clients leaving, a chat turn, the tokenize routes against `llmx tokenize` and `llmx detokenize` on the tokenizer golden's texts and `messages` against the chat template goldens); the suite's HF chat and thread replies run here as in every CPU job. Then the `baseline` component again with f32 caches, `llmx-split-check` on the Q8_0 over two CPU backends, and many users through the server on the Q8_0. No CTest: the Ubuntu job runs it on the same build |
+
+Every job that runs the Python suite starts it with the dead-code and stale-docs checks, the `dead-code` and `docs` components, and every build makes an unused function of one translation unit, or an unused local, a compile error (AGENTS.md, Dead code and stale docs).
+The Vulkan job's extra step builds every target again at -O0 with every inline function emitted and links each executable with `--gc-sections`, so the functions only tests keep show; it adds about two minutes to the job.
+A finding fails its job unless `tests/data/known_findings.txt` lists it with a reason, and a listed finding that no longer occurs fails it too.
 
 Every CTest a CPU build registers runs in every job's "Backend tests" step but the HF job's, which builds what the Ubuntu job builds, so the KV cache, placement, HTTP layer, server UTF-8 repair and prefill-scope checks are covered on all three platforms and under UBSan.
 The three Vulkan-only CTests run in the Vulkan job alone, where `backend-vulkan` and `vulkan-lifetime` skip without a device.
@@ -83,7 +87,7 @@ The qwen35 pretokenizer is held to HF in every job all the same, with no model: 
 The Python suite also checks reference-generator argument safeguards and that the requested commit, float32 dtype and eager attention reach the HF loader.
 It checks that the qwen35 tokenizer golden keeps every merge its texts reach and gives the added tokens the files' types, that a tokenizer file with another SHA-256 is refused, and that the committed golden holds the generator's texts, commit and digests.
 These use standard-library test doubles; CI does not generate new HF goldens or download larger models.
-The ordinary suite now has 18 components, including `raw-blocks`, the spec decoders' checks, `server-load`, the load tool's self-test, and `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
+The ordinary suite now has 20 components, including `dead-code` and `docs`, the source and Markdown checks, `raw-blocks`, the spec decoders' checks, `server-load`, the load tool's self-test, and `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
 These tests use small committed JSON fixtures and doubles, without 8B inference.
 Default real-model downloads are the four pinned 0.6B GGUFs: Q8_0, Q4_0, Q5_K_M and Q4_K_M.
 Six more models are pinned there ahead of their tensor types, with `gate` false, and no job downloads them yet.
@@ -153,12 +157,13 @@ python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-too
 python -X utf8 tools/fetch_test_models.py
 python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools --require-baseline
 python -X utf8 tests/run_tests.py --exe build/llmx --require-baseline --cache-type f32 --only baseline
+python -X utf8 tests/dead_code.py --linked build-linked
 build/llmx-split-check <Q8_0 fixture> <excerpt> cpu cpu,cpu 8 64
 python -X utf8 tools/server_mix_check.py --exe build/llmx --model <Q8_0 fixture> --text tests/data/wiki.test.raw --requests 8 --cli 2
 ```
 
 The Ubuntu job also runs each `tools/*.py` with `--help`.
-The Vulkan job runs the suite with `--device cpu` on its build, `-DLLMX_HAS_BACKEND_VULKAN=ON`.
+The Vulkan job runs the suite with `--device cpu` on its build, `-DLLMX_HAS_BACKEND_VULKAN=ON`, and the linked dead-code check, which needs Linux, GCC, binutils and the Vulkan headers and shader compiler.
 The Q8_0 fixture is `baseline.find_fixture(baseline.BASELINE_MODELS[0])`, under `~/.cache/huggingface/hub`, and the excerpt is the `text` of `tests/data/baseline_perplexity.json` written to a file as it is, which the HF job's "Q8_0 fixture path and perplexity excerpt" step does.
 
 For MSVC, use `--exe build/Release/llmx.exe` and `build/Release/llmx-split-check.exe`.

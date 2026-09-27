@@ -8,6 +8,8 @@ import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import dead_code
+import docs_check
 import roundtrip
 import raw_blocks
 import perf
@@ -64,7 +66,9 @@ def main():
         missing = [s["file"] for s in baseline.BASELINE_MODELS if not baseline.find_fixture(s)]
         if missing:
             parser.error("missing required HF fixtures: " + ", ".join(missing))
-    components = [("version", version.run),
+    components = [("dead-code", dead_code.run),
+                  ("docs", docs_check.run),
+                  ("version", version.run),
                   ("cli", cli.run),
                   ("reference-generator", reference_generator.run),
                   ("reference-consumer", reference_consumer.run),

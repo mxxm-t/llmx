@@ -303,10 +303,14 @@ foreach(target IN LISTS LLMX_TARGETS)
         endif()
     endif()
 
+    # An unused function of one translation unit, or an unused local, fails the build, since nothing reaches it (AGENTS.md, Dead code and stale docs).
     if(MSVC)
-        target_compile_options(${target} PRIVATE /W4)
+        target_compile_options(${target} PRIVATE /W4 /we4505 /we4101 /we4189)
     else()
-        target_compile_options(${target} PRIVATE -Wall -Wextra)
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable)
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            target_compile_options(${target} PRIVATE -Werror=unused-private-field)
+        endif()
     endif()
 
     target_link_libraries(${target} PRIVATE Threads::Threads)

@@ -363,3 +363,75 @@ def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=
             error = abs(float(perplexity_fields(out)["mean NLL"]) - case["mean_nll"])
             assert math.isfinite(error) and error < 1e-5, "%s/HF NLL error: %.8f" % (name, error)
     return worst, count
+
+
+# The directories the dead-code and docs checks read, beside the files at the root; build trees and other untracked output at the root are left out.
+TREE_DIRS = ("src", "tests", "tools", "docs", "cmake", "docker", ".github")
+# Files read as text; any other file is only known to exist.
+TEXT_SUFFIXES = (".hpp", ".cpp", ".h", ".comp", ".glsl", ".py", ".md", ".txt", ".yml", ".yaml", ".cmake", ".in", ".bat")
+
+
+def read_tree(root=ROOT):
+    """(texts, paths): every text file of the tree by its path from `root` with '/' separators, and the set of every file path.
+    The evidence under docs/benchmarks/ and the test data are dated or generated, so their files are paths only; line endings are read as line feeds, so a checkout with CR LF reads the same."""
+    texts, paths = {}, set()
+    names = [n for n in os.listdir(root) if os.path.isfile(os.path.join(root, n))]
+    for top in TREE_DIRS:
+        for directory, dirs, files in os.walk(os.path.join(root, top)):
+            dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+            rel = os.path.relpath(directory, root).replace(os.sep, "/")
+            names += [rel + "/" + f for f in files if not f.endswith(".pyc")]
+    for path in names:
+        paths.add(path)
+        if path.endswith(TEXT_SUFFIXES) and not path.startswith(("docs/benchmarks/", "tests/data/")):
+            with open(os.path.join(root, path), encoding="utf-8", errors="replace") as f:
+                texts[path] = f.read()
+    return texts, paths
+
+
+CPP_BLANKS = re.compile(r"""//[^\n]*|/\*.*?\*/|(?:u8|u|U|L)?R"([^(\s]*)\(.*?\)\1"|(?:u8|u|U|L)?"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])+'""", re.S)
+
+
+def cpp_code(text, keep_strings=False):
+    """C++ or GLSL `text` with its comments blanked and, unless `keep_strings`, its string and character literals emptied, every line feed kept so that line numbers hold."""
+    def blank(m):
+        s = m.group(0)
+        keep = "\n" * s.count("\n")
+        if s.startswith("/"):
+            return " " + keep
+        return s if keep_strings else ('""' + keep if not s.startswith("'") else "' '" + keep)
+    return CPP_BLANKS.sub(blank, text)
+
+
+# The findings the dead-code and docs checks still report, each with why it is still there (AGENTS.md, Dead code and stale docs).
+KNOWN_FINDINGS = os.path.join(ROOT, "tests", "data", "known_findings.txt")
+
+
+def known_findings(text):
+    """The entries of the known-findings list `text`: (check, file, name) -> reason.
+    A line is `check | file | name | reason`; `#` starts a comment line, and an entry without a reason, or listed twice, is refused."""
+    entries = {}
+    for n, line in enumerate(text.splitlines(), 1):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        fields = [f.strip() for f in line.split(" | ")]
+        if len(fields) != 4 or not all(fields):
+            raise ValueError("known findings line %d: expected 'check | file | name | reason': %s" % (n, line))
+        key = tuple(fields[:3])
+        if key in entries:
+            raise ValueError("known findings line %d lists %s again" % (n, " | ".join(key)))
+        entries[key] = fields[3]
+    return entries
+
+
+def settle_findings(found, checks, listed, say=print):
+    """Hold `found`, (check, file, name) -> where it was seen, to the entries of `listed` whose check is one of `checks`.
+    Says each finding the list lacks and each entry of those checks that no longer occurs, and returns True when there are neither."""
+    mine = {k: v for k, v in listed.items() if k[0] in checks}
+    new = sorted(k for k in found if k not in mine)
+    gone = sorted(k for k in mine if k not in found)
+    for k in new:
+        say("  new finding: %s | %s | %s  (%s)" % (k + (found[k],)))
+    for k in gone:
+        say("  listed but no longer found, so its line in tests/data/known_findings.txt goes: %s | %s | %s" % k)
+    return not new and not gone

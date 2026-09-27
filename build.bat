@@ -34,7 +34,7 @@ ver >nul
     echo #pragma once
     echo #define LLMX_BUILD_REVISION "%LLMX_BUILD_ID%"
 ) || ( echo [build] cannot write version header & popd & exit /b 1 )
-cl /nologo /std:c++17 /O2 /EHsc /W4 /arch:AVX2 /I build\plain-generated /I src /Fe:llmx.exe src\cli\main.cpp
+cl /nologo /std:c++17 /O2 /EHsc /W4 /we4505 /we4101 /we4189 /arch:AVX2 /I build\plain-generated /I src /Fe:llmx.exe src\cli\main.cpp
 set "LLMX_BUILD_EXIT=%errorlevel%"
 popd
 exit /b %LLMX_BUILD_EXIT%

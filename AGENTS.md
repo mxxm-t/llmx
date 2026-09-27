@@ -563,6 +563,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   `logits --file` must print what the same prompt inline does.
   The `--last` rows of the prompt, in one pass and in several, and of its first three tokens continued by `--then-ids`, are held to the HF bound at their positions.
   Each row is printed once, and the rows over several passes and after `--then-ids` are the bytes of the one-pass rows at the same positions.
+  The same rows read with `--per-token`, every token through a decode step, are held to the HF bound too, the prompt's and its head's continued by `--then-ids` the same bytes, and without `--last` it prints the last row's list.
 - **MoE** (`tests/moe.py`): the same for a tiny `qwen3moe` model against HF `Qwen3MoeForCausalLM` (`tools/gen_baseline.py moe`), two routed layers and one dense, across batch widths and threads and, on a device, with the experts of one or every routed layer on the CPU (`--n-cpu-moe`, `--cpu-moe`).
   On a device it also streams those layers to the device for prompts from a length on (`--moe-stream-from`): from 0, from 1, which streams what 2 does since neither a generated token nor a one-token prompt streams, and from 4, which only the longer prompts reach.
 - **Qwen 3.5** (`tests/qwen35.py`): the same for tiny `qwen35` models against HF `Qwen3_5ForCausalLM` (`tools/gen_baseline.py qwen35-tiny`), whose goldens come from HF's token-by-token cached forward, which runs the recurrence llmx runs per token.

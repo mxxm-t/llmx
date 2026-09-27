@@ -176,7 +176,7 @@ comma-separated list on one line.
 
 Decode a comma- or whitespace-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> ("<text>" | --file <path>) [--then-ids F] [--last N] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
+## `llmx logits <in.gguf> ("<text>" | --file <path>) [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
 
 Print the top-N next-token logits for `text`, one `id value` pair per line after a `tokens:` header.
 The list is most likely first, a tie going to the lower id.
@@ -184,6 +184,7 @@ The list is most likely first, a tie going to the lower id.
 `--file <path>` (`-f`) in place of the text reads it from a UTF-8 file, as `perplexity` does, for a text longer than a command line holds.
 `--then-ids F` appends the token ids in `F`, separated by commas or whitespace, after the text's tokens, so a generated reply is read as the tokens it was.
 `--last N` prints each of the last `N` positions instead, one line of its position followed by its top-N `id value` pairs, from the batched passes a prompt takes; `tools/long_context_check.py` reads a device's reply this way.
+`--per-token` reads every token one at a time through decode steps, the path a generated token takes, instead of the batched passes a prompt takes, as `perplexity --per-token` does; on a device the two paths run different kernels, so a reply's `--then-ids` read this way gives the logits its decode steps gave.
 `--top` and `--last` are at least 1.
 
 This exists for the correctness gate. Comparing llmx against a reference

@@ -507,10 +507,11 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, const
     return 0;
 }
 
-// `then_ids` appends exact generated IDs without re-tokenizing their text; `last` reports the final positions through batched passes.
+// `then_ids` appends exact generated IDs without re-tokenizing their text; `last` reports the final positions.
+// Positions go through the batched passes a prompt takes, or with `per_token` one at a time through step, the decode path a generated token takes.
 // These logits support the external correctness gate in docs/ROADMAP.md #8.
 int cmd_logits(const std::string& model_path, const std::string& text,
-               int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0) {
+               int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0, bool per_token = false) {
     const auto loaded = open_model(model_path, exec, false, exec.threads);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
@@ -524,19 +525,27 @@ int cmd_logits(const std::string& model_path, const std::string& text,
 
     // Ranked by the top list the server's log-probabilities take, a tie to the lower id; the values printed are the raw logits.
     auto top = [&](const float* logits) { return infer::top_logprobs(logits, model.n_vocab(), 0.0, (size_t)topn); };
+    const size_t from = ids.size() - std::min(last, ids.size());
+    auto row = [&](size_t pos, const float* logits) {
+        if (pos < from) return;
+        printf("%zu", pos);
+        for (const auto& t : top(logits)) printf(" %u %.6f", t.id, logits[t.id]);
+        printf("\n");
+    };
     printf("tokens: %zu\n", ids.size());
-    if (last) {
-        const size_t from = ids.size() - std::min(last, ids.size());
-        model.score(ids, [&](size_t pos, const float* logits) {
-            if (pos < from) return;
-            printf("%zu", pos);
-            for (const auto& t : top(logits)) printf(" %u %.6f", t.id, logits[t.id]);
-            printf("\n");
-        });
-        return 0;
+    std::vector<float> logits;
+    if (per_token) {
+        for (size_t pos = 0; pos < ids.size(); ++pos) {
+            logits = model.step((int)ids[pos]);
+            if (last) row(pos, logits.data());
+        }
+    } else if (last) {
+        model.score(ids, row);
+    } else {
+        logits = model.prefill(ids);
     }
-    std::vector<float> logits = model.prefill(ids);
-    for (const auto& t : top(logits.data())) printf("%u %.6f\n", t.id, logits[t.id]);
+    if (!last)
+        for (const auto& t : top(logits.data())) printf("%u %.6f\n", t.id, logits[t.id]);
     return 0;
 }
 
@@ -953,7 +962,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
         else out
             << "  --top N                 Number of logits to print (default: " << kLogitsTop << ")\n"
             << "  --then-ids PATH         Append these token IDs, comma or whitespace separated\n"
-            << "  --last N                Print each of the last N positions, one per line\n";
+            << "  --last N                Print each of the last N positions, one per line\n"
+            << "  --per-token             Read every token through decode steps; default uses batched passes\n";
         model_options(ppl);
         out << "\nExample: llmx " << command << " model.gguf "
             << (ppl ? "--file corpus.txt --ctx-size 512 --chunks 4\n"
@@ -1154,6 +1164,7 @@ int main(int argc, char** argv) {
             int topn = kLogitsTop;
             std::string then_ids;
             size_t last = 0;
+            bool per_token = false;
             GivenFlags given;
             const int first = text_arg(argc, argv);
             for (int i = first; i < argc; i++) {
@@ -1164,12 +1175,13 @@ int main(int argc, char** argv) {
                 if (f == "--top") topn = int_arg(argc, argv, i, a, 1);
                 else if (f == "--then-ids") then_ids = nonempty_value(argc, argv, i, a, "a path");
                 else if (f == "--last") last = (size_t)int_arg(argc, argv, i, a, 1);
+                else if (f == "--per-token") per_token = true;
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
                 given.take(a, i > at);
             }
             const std::string text = first == 5 ? read_text_file(argv[4], cmd) : argv[3];
-            return cmd_logits(argv[2], text, topn, exec, then_ids, last);
+            return cmd_logits(argv[2], text, topn, exec, then_ids, last, per_token);
         }
 
         if (cmd == "tokenize") {

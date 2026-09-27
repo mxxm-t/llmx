@@ -4,6 +4,55 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## One order for a Q4_1 block's two terms (2026-09-27, branch fix/q4_1-row-order)
+
+- **Why:** a generated token must compute the same bits whatever else shares its pass ([VULKAN](VULKAN.md), Batch invariance), and on the Radeon VII a Q4_1 one did not.
+  The Q4_1 row kernel without the integer dot wrote `acc += dm.x * (xb.x * dot) + dm.y * xb.y`, and the AMD proprietary driver, which reassociates float sums that carry no `precise` and compiles each build on its own, folded the two terms into the sum one at a time in the one-column build and added them together first in the wide and grouped builds.
+  So a token's Q4_1 products depended on how many tokens shared its pass, and a prompt short enough for the row kernel gave other bits in one pass than read a row at a time.
+  `perf/decode-columns` found it with its decode-column check and fixed it in its commit `3fc95b1`, which waited there for the user because it changes the one-column result on other drivers; the user decided on 2026-09-27 to merge the fix now, on its own, while that branch stays on hold.
+- **Done:**
+  - `backend-vulkan` holds every Q4_1 decode column to the same column alone, bit for bit: plain calls and the output head of 1 to 64 generated tokens, the residual add and a group of three projections at 10 widths from 1 to 64, on rows 4096 and 224 wide, and 8 experts routed 2 a token over 1 to 32 tokens on rows 4096 wide, 12,680 columns in all.
+    It is `perf/decode-columns`' check for every row kernel type narrowed to Q4_1, at the widths that reach main's one-column, 8-column and grouped builds.
+  - `matmul_row.comp`'s Q4_1 path without the integer dot writes `acc = (acc + dm.y * xb.y) + dm.x * (xb.x * dot)`, the minimum's term first, the order of the Radeon VII's one-column build, which that driver compiles to the same two fused multiply-adds in every build; the integer-dot path keeps the one addition, which RADV compiles the same way in every build.
+  - VULKAN (Batch invariance) gives the order and the check, AGENTS (Tests) the check.
+- **The one-time change on drivers that keep source order:** there the new order is the one-column build's as well, so every Q4_1 result of the row kernel without the integer dot changes once, in the last bits, and stays batch-invariant.
+  That path is every device's whose profile does not prefer the integer dot; the Radeon VII under the AMD proprietary driver keeps its one-column bits.
+  - `perf/decode-columns` measured it on an MI50 under RADV with its profile off the integer dot: 3319 of 4800 outputs of rows 4096 wide and 2424 of 4800 of rows 2560 wide differ from main's, and main's order under `precise`, which no driver may reassociate or fuse, changes 3100 and 2115 of them, so no form keeps both drivers' one-column bits.
+    On Qwen3-0.6B Q4_0, whose three `ffn_down` weights are Q4_1, the 8 prompts of `tools/server_load.py` at 128 greedy tokens each with the end of text ignored gave main's tokens, 0 of 1024 changed, and the HF baseline component passed on both builds, the per-token perplexities moving in the fourth significant digit.
+  - This branch on the same build, the MI50 row of `device_profile.hpp` set off the integer dot in main's tree and in the head's: 300 Q4_1 rows against 16 columns, each column alone and all in one call, give 3296 of 4800 outputs of rows 4096 wide and 2510 of 4800 of rows 2560 wide unlike main's, at most 1.5e-5 and 7.6e-6 apart, and on both builds the call's columns equal the columns alone.
+    `backend-vulkan` passes on the head's build, and the same 8 prompts at 128 greedy tokens give main's text on all 8 on Qwen3-30B-A3B Q4_1 and on all 8 on Qwen3-0.6B Q4_0.
+- **Gates** (device tier; head gated at `3d35360`, from which the head differs in this block alone; test commit `a2439dd`; main `02c0a37`; each arm built in a tree of its own at its commit):
+  - Radeon VII (Windows, `vulkan:0`, AMD proprietary driver):
+    - The test commit alone fails on the card, `a decode column differs from the same column alone` at column 0 of a two-column plain call on rows 4096 wide; with the fix it passes, 12,680 columns.
+    - Fresh Visual Studio builds of the head and main: no errors and the same 8 compiler warnings in each, none new.
+      CTest 32/32 from a fresh build of the head, `backend-vulkan` on the card; a build of the same commit under the scratch directory failed `hub-pull` alone, on the path length Windows allows.
+    - Byte identity with main, 20 runs: `generate` greedy and seeded (`--temp 0.8 --seed 7`) on a 5-token prompt and on a 134-token one, `logits` of a 367-token excerpt whole and at its last 4 positions, `logits --last 5` of the 5-token prompt, and `perplexity` at context 256, at 12 and per token, on Qwen3-30B-A3B Q4_1 with the experts of 12 layers on the CPU and on Qwen3-0.6B Q4_0.
+      15 are the same; the 5 whose prompt rows take the row kernel's wide build change, as the fix means them to: `logits --last 5` by at most 0.0011 on the Q4_1 file and 0.0017 on the Q4_0 file with every top 10 in the same order, `perplexity` at context 12 from 91.2505 to 91.2824 and from 287.529 to 287.537, and the seeded Q4_1 reply after 49 of its 64 tokens.
+      Run again at `--ubatch 1`, where every prompt row takes the one-column build, all 5 give main's bytes on both builds, and the head gives the same bytes at its default ubatch as at 1, which main does not.
+    - Q4_1 rows against 16 columns, each alone and all in one call: main's call equals the columns alone in 1474 of 4800 outputs of rows 4096 wide and 2173 of 4800 of rows 2560 wide, the head's in 4800 of 4800 at both, and the head's columns alone are main's bits.
+    - Timing against main on Qwen3-30B-A3B Q4_1 with the experts of 12 layers on the CPU at 8 threads, `bench --model --r 3`, each round started once no other llmx, compiler, linker or CTest process had run for three checks at a CPU load under 20 percent, and the CPU at 3 to 26 percent around each run: a round in the order main, head, head, main, then the cells that read the head lower in the order head, main, main, head.
+      One head run of pp512 printed no result and was run again beside a main run.
+      The only processes of those kinds seen beside the runs were five idle MSBuild nodes of another build in the first round and one process, not identified, before the second round's first run.
+
+      | Cell, tok/s, mean of the runs | Main | Head | Change |
+      |---|---:|---:|---:|
+      | pp512, 3 and 2 runs | 175.8 | 177.3 | +0.9% |
+      | tg128 after it | 44.31 | 44.05 | -0.6% |
+      | pp32, 4 runs each | 102.3 | 101.9 | -0.4% |
+      | tg32 after it | 44.70 | 44.61 | -0.2% |
+      | pp128 of `--seqs 8`, 4 runs each | 130.9 | 126.1 | -3.7% |
+      | x8 tg128 of `--seqs 8` | 71.03 | 70.54 | -0.7% |
+
+      pp32 is the cell whose prompt takes the Q4_1 row kernel's wide and grouped builds, and it is level; tg takes the one-column build.
+      pp128 takes only the tile kernels, which `bench --profile` shows on both arms and the change does not touch, and one profiled run each read 132.8 and 132.7, so its gap is not the kernel's; the experts of 12 layers run on the CPU, whose code is the same source in binaries that differ in the embedded shaders and the build identifier (AGENTS.md, Principles, on code layout).
+  - MI50 (Linux, rocm-smi GPU[2], RADV; load average 22 to 36 from other work, recorded with each run):
+    - Builds with and without Vulkan, 0 warnings each; CTest 28/28 on the CPU build, and 31/31 on the Vulkan build with `backend-vulkan` on the card.
+      That build's first CTest run failed `server-resume` once, a paused request beside a donor holding its reply as prompt rows recomputing 305 rows against 384; 6 runs of the whole test on each of main and the head, 3 of its device half on each and CTest's run of it on each all passed, and a second CTest run passed 31/31, so it is not this change's: the test's models hold no Q4_1 weights.
+    - Byte identity with main, the same 10 runs as on the Radeon VII on Qwen3-30B-A3B Q4_1, Qwen3-0.6B Q4_0 and Qwen3-0.6B Q8_0: 30 of 30 the same.
+    - The suite's `dead-code` and `docs` components pass at the head, and `tests/dead_code.py --linked` finds the 24 listed findings.
+- **Left:** `perf/decode-columns` carries the same fix and a wider check, so its rebase takes this branch's test and fix as its own.
+  The one `server-resume` failure on the MI50 above did not come back in 15 runs of the whole test, 8 on the head and 7 on main; it is recorded here in case it does.
+
 ## The automatic worker count honours the affinity and the cgroup CPU quota (2026-09-27, branch fix/threads-cpu-quota, merged at `535bada`)
 
 - **Why:** the CPU backend's automatic count was `std::thread::hardware_concurrency()` capped at 64, which ignores the CPUs a process may use.

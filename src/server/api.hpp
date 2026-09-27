@@ -147,18 +147,18 @@ private:
     // A timed scheduler's figures (--timing): each of the thread's times as a mean over the rounds, each stage's idle share over the span its device time was read in, and the device-bound rate, the rows the passes in that span carried over the busiest stage's device time.
     static std::string timing_json(const Scheduler::Timing& t) {
         const double n = t.rounds ? (double)t.rounds : 1.0;
-        const auto mean = [n](double ms) { return jmini::number(ms / n); };
+        const auto mean = [n](double ms) { return jmini::number((float)(ms / n)); };
         std::string idle;
         double busiest = 0;
         for (size_t s = 0; s < t.stage_ms.size() && t.span_ms > 0; ++s) {
-            idle += (idle.empty() ? "" : ",") + jmini::number(std::max(0.0, 1.0 - t.stage_ms[s] / t.span_ms));
+            idle += (idle.empty() ? "" : ",") + jmini::number((float)std::max(0.0, 1.0 - t.stage_ms[s] / t.span_ms));
             busiest = std::max(busiest, t.stage_ms[s]);
         }
         return "{\"rounds\":" + std::to_string(t.rounds) + ",\"round_ms\":" + mean(t.round_ms) + ",\"recording_ms\":" + mean(t.recording_ms) +
                ",\"relaying_ms\":" + mean(t.relaying_ms) + ",\"sampling_ms\":" + mean(t.sampling_ms) + ",\"assembly_ms\":" + mean(t.assembly_ms) +
                ",\"receive_wait_ms\":" + mean(t.receive_wait_ms) + ",\"staging_wait_ms\":" + mean(t.staging_wait_ms) +
                ",\"open_wait_ms\":" + mean(t.open_wait_ms) + ",\"logits_wait_ms\":" + mean(t.logits_wait_ms) + ",\"stage_idle\":[" + idle +
-               "],\"device_bound_rows_per_s\":" + jmini::number(busiest > 0 ? 1000.0 * (double)t.rows / busiest : 0.0) + "}";
+               "],\"device_bound_rows_per_s\":" + jmini::number((float)(busiest > 0 ? 1000.0 * (double)t.rows / busiest : 0.0)) + "}";
     }
     // The list clients read the model id from, with the file's context length and vocabulary beside the standard fields.
     void models(http::Connection& c) {

@@ -94,7 +94,7 @@ Commands and their entry points:
 `bench` retains the backend's automatic count for zero or omitted threads, and without `--model` prints that resolved count on stdout.
 
 Generate/chat render the loading progress on stderr when attached to a terminal or when verbose, and `serve` always does (`progress_bar`).
-"Reading model metadata..." comes before the file is read, the bar counts the payload read in, and "Preparing model..." follows it once, while the weights are uploaded and the model is placed.
+"Reading model metadata..." comes before the file is read, the bar counts the payload read in, and "Preparing model..." follows it once, when the payload is complete, while the rest of the load runs: in `mapped`, which reads before it builds, the uploads and the placement; in `auto` and `direct`, which place the model before they read, only the loader's last steps.
 They show processing before prefill and generating before sampling.
 `emit_text` writes and flushes inference text chunks to stdout; the caller appends a newline per reply.
 

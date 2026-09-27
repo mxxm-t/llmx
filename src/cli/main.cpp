@@ -253,7 +253,7 @@ infer::ModelOptions model_options(const ExecOptions& exec) {
     return o;
 }
 
-// The loading progress on stderr: the share of the payload read, then "Preparing model..." once it is complete, while the model is placed.
+// The loading progress on stderr: the share of the payload read, then "Preparing model..." once it is complete, while the rest of the load runs (the placement too in mapped mode, which reads first).
 // A second report of completion prints nothing.
 format::LoadProgress progress_bar() {
     return [previous = -1, finished = false](size_t completed, size_t total) mutable {

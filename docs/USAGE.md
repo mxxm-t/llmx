@@ -305,6 +305,7 @@ share the layers as evenly as that allows; the CPU, whose weights read the
 mapped file in place, takes only the layers the others cannot hold. A
 model that does not fit is refused with the layer count that has no room.
 `--verbose` prints what each device was given.
+The CPU reports what the process can still take of the host's memory: the host's available memory, or less where a container's cgroup or a job object's memory limit leaves less; the loader's "available memory" below is the same figure.
 
 ```powershell
 .\llmx.exe generate Qwen3-32B-Q8_0.gguf "The capital of France is" --device vulkan:0,vulkan:1 --verbose

@@ -148,7 +148,7 @@ A compile without them stops at one `#error` at the top of the header.
   `set_decode_activations8(false)`, a prompt's entries take one batched float
   matmul per expert over its gathered rows (`matmul_raw`, the matmul on host
   addresses, reaches an expert's matrix inside the stacked tensor).
-- `memory_available()`: the host's available physical memory (`core/host_memory.hpp`). Weights on the CPU read the mapped file in place, so what counts against it is caches, activations and what a loader materializes. `reads_in_place()` is true: `adopt` aliases the caller's bytes. `is_cpu()` is true, so experts on the CPU beside it stay on it.
+- `memory_available()`: the host memory the process can still take, the host's available physical memory or less where a cgroup or job object memory limit leaves less (`core/host_memory.hpp`). Weights on the CPU read the mapped file in place, so what counts against it is caches, activations and what a loader materializes. `reads_in_place()` is true: `adopt` aliases the caller's bytes. `is_cpu()` is true, so experts on the CPU beside it stay on it.
 - `make_cpu_backend()` factory.
 
 The AVX-512 path is deferred (no dev hardware to benchmark/prove lossless); a

@@ -1,13 +1,13 @@
 # `src/core/cgroup.hpp` - the cgroups over a process and where their files are read
 
 On Linux a process's limits, a container's among them, are set on the cgroups it lies in, and a limit on any cgroup above the process's holds it too.
-`core/cgroup.hpp` finds those cgroups' directories, the one owner of that reading; what is read in them is its reader's: the CPU quota's ([cpus](core-cpus.md)).
+`core/cgroup.hpp` finds those cgroups' directories, the one owner of that reading; what is read in them is its readers': the CPU quota's ([cpus](core-cpus.md)) and the memory limits' ([host memory](core-host_memory.md)).
 Everything here is a function of the text of `/proc/self/cgroup` and of `/proc/self/mountinfo`, so the tests hold it without a real cgroup; `detail::read_text` gives a file's text on Linux, and a reader passes those two files' texts and reads the files it names through it.
 
 ## The directories
 
 `cgroup_v2_directories(proc_self_cgroup, mountinfo)` gives the directory of the process's cgroup v2 and of each cgroup above it, up to its mount's point, its own first.
-`cgroup_v1_directories(proc_self_cgroup, mountinfo, controller)` gives the same for its v1 cgroup of `controller`, such as `cpu`, in the hierarchy mounted with that controller.
+`cgroup_v1_directories(proc_self_cgroup, mountinfo, controller)` gives the same for its v1 cgroup of `controller`, `cpu` or `memory`, in the hierarchy mounted with that controller.
 Either is empty when the process has no such cgroup, the hierarchy is not mounted or no mount holds the cgroup, so a reader over them reads nothing and a limit it cannot find changes nothing.
 A reader takes the smallest limit over all of them; a hybrid machine, v1 controllers beside a v2 hierarchy, is read both ways, and the files that exist give the limit.
 
@@ -22,4 +22,4 @@ The mounts are read from mountinfo lines of any number of optional fields, their
 So a v1 container's cgroup `/c` mounted at `/sys/fs/cgroup/cpu,cpuacct` is read at the mount point, a child cgroup `/c/inner` under it at `/sys/fs/cgroup/cpu,cpuacct/inner`, and a cgroup inside the container that happens to share a name with a directory on the host's path is never taken for the process's own.
 From that directory each cgroup is read up to the mount point; cgroups above the mount's root are not visible there and are not read.
 
-`tests/cpus.cpp` (CTest `cpus`) holds the paths, the mounts and, through the CPU quota, the directories on file texts.
+`tests/cpus.cpp` (CTest `cpus`) holds the paths, the mounts and, through the CPU quota, the directories on file texts; `tests/host_memory.cpp` (CTest `host-memory`) holds the directories again through the memory limits, v1's in the `memory` controller's hierarchy beside the `cpu` controller's.

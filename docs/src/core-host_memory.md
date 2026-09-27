@@ -1,8 +1,35 @@
-# `src/core/host_memory.hpp` - available host memory, the page size and owned pages
+# `src/core/host_memory.hpp` - the host memory a process can still take, the page size and owned pages
 
-`core::host_memory_available()` returns the bytes of physical memory the operating system says a process can still take without swapping: `GlobalMemoryStatusEx`'s available physical memory on Windows, `MemAvailable` from `/proc/meminfo` on Linux (free memory plus page cache the kernel can reclaim), falling back to available pages from `sysconf`, and nothing (`std::nullopt`) when none of these can be read.
+`core::host_memory_available()` returns the bytes of memory this process can still take without swapping or passing a memory limit, read now: the fewer of the host's available memory and the room the process's memory limits leave, each only when it could be read, and nothing (`std::nullopt`) when neither could (`host_memory_available(host, room)` combines the two).
+A container run with `--memory 8g` on a host with 26 GiB available is given what is left of its 8 GiB; outside a limit it is the host's figure.
+
+- The host's available memory, `system_memory_available()`: `GlobalMemoryStatusEx`'s available physical memory on Windows, `MemAvailable` from `/proc/meminfo` on Linux (free memory plus page cache the kernel can reclaim), falling back to available pages from `sysconf`.
+- The room the memory limits leave, `memory_limit_room()`: the cgroup memory limits on Linux (`cgroup_memory_room`) and the job object's memory limits on Windows (`job_memory_room`), below; nothing without a limit or when it cannot be read.
 
 The CPU backend reports it as `memory_available()`, which a placement over several devices is fitted against (`docs/MULTI-DEVICE.md`); `infer::place_model` passes it to the fit as the host's free memory, and `infer::load_model` leaves a payload larger than it unread rather than reading its pages twice, reads around the file cache in `auto` when the bytes it streams are more than it, and refuses a direct load whose host reads more weights in place than it ([load](inference-load.md)). Weights on the host read the mapped file in place, so they are not what this bounds, except in a direct load, where they are the loader's own copy; caches, activations and anything else a loader materializes are. The figure is a moment's reading on a machine with other work, not a reservation.
+
+## The cgroup memory limits (Linux)
+
+`cgroup_memory_room(proc_self_cgroup, mountinfo, read)` reads the limits in the process's own cgroup and in each above it up to its mount's point, which [cgroup](core-cgroup.md) finds from the text of `/proc/self/cgroup` and `/proc/self/mountinfo`, through `read`, which gives a file's text or nothing; `cgroup_memory_room()` passes the real files and reader, and returns nothing off Linux.
+Each cgroup's room is its limit less its usage, 0 when the usage is past the limit, and the fewest over every cgroup read wins, since a limit on a parent holds every cgroup under it:
+
+- cgroup v2 (`cgroup_v2_memory_room`): `memory.max` less `memory.current`, where "max" is no limit;
+- cgroup v1 (`cgroup_v1_memory_room`), in the hierarchy mounted with the `memory` controller: `memory.limit_in_bytes` less `memory.usage_in_bytes`, where a limit of 2^62 bytes or more is no limit, since v1 writes none as the largest signed 64-bit value rounded down to a page (9223372036854771712 with 4 KiB pages).
+
+A file that is not one decimal number, a limit without its usage and a cgroup whose files are missing are passed over, so a limit that cannot be read changes nothing, and with none read the host's figure stands.
+A cgroup's usage counts the page cache charged to it, which the kernel reclaims before it would kill the process, so the room is the smaller figure: a file read in the same container earlier is counted as used until its pages are reclaimed, where `MemAvailable` counts the host's reclaimable cache as available.
+`memory.high`, which throttles rather than kills, and swap limits are not read.
+
+## The job object's memory limits (Windows)
+
+`job_memory_room()` asks `QueryInformationJobObject` for the extended limits of the process's own job; a job it is nested in is not read.
+With the process memory limit flag (`job_limit_process_memory`, `JOB_OBJECT_LIMIT_PROCESS_MEMORY`) the room is the process memory limit less the process's commit charge (`GetProcessMemoryInfo`'s `PagefileUsage`); with the job memory limit flag (`job_limit_job_memory`, `JOB_OBJECT_LIMIT_JOB_MEMORY`) it is the job memory limit less the job's committed memory (`JobObjectLimitViolationInformation`'s `JobMemory`); with both, the fewer.
+Both limits bound committed memory, not physical memory, so beside the host's available physical memory the fewer of the two is what a process can take; a limit whose commit cannot be read is passed over.
+`job_memory_room(limit_flags, process_limit, process_commit, job_limit, job_commit)` reads the fields, 0 past a limit and nothing without either flag.
+
+`tests/host_memory.cpp` (CTest `host-memory`) holds the file texts, the walk over a file system held in a map, the job's fields and the combination, and prints what this process can take, the host's figure and its limits' room.
+
+## The page size and owned pages
 
 `core::page_size()` is the size of a page of memory (`GetSystemInfo`'s `dwPageSize` on Windows, `sysconf(_SC_PAGESIZE)` elsewhere), read once; it throws when the operating system gives no positive size, since every use steps or multiplies by it. `format::MappedFile::drop` releases whole pages of it, and `gguf::warm` reads one byte of every page.
 

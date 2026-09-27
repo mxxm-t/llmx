@@ -5,7 +5,10 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
+
+#include "core/cgroup.hpp"
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -15,12 +18,13 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <psapi.h>
 #else
 #include <sys/mman.h>
 #include <unistd.h>
 #endif
 
-// What the host can still give a process, as its operating system reports it now, the page its memory comes in, and pages the process owns (docs/src/core-host_memory.md).
+// What memory this process can still take, as its operating system and its memory limits give it now, the page its memory comes in, and pages the process owns (docs/src/core-host_memory.md).
 
 namespace core {
 
@@ -41,8 +45,8 @@ inline size_t page_size() {
     return page;
 }
 
-// Bytes of physical memory available without swapping: what Windows reports as available, what Linux reports as MemAvailable (free memory plus reclaimable page cache); nothing when neither can be read.
-inline std::optional<size_t> host_memory_available() {
+// Bytes of physical memory the whole host has available without swapping: what Windows reports as available, what Linux reports as MemAvailable (free memory plus reclaimable page cache); nothing when neither can be read.
+inline std::optional<size_t> system_memory_available() {
 #if defined(_WIN32)
     MEMORYSTATUSEX s{};
     s.dwLength = sizeof(s);
@@ -66,6 +70,115 @@ inline std::optional<size_t> host_memory_available() {
     return std::nullopt;
 #endif
 }
+
+namespace detail {
+
+// The one decimal number a small file's text holds; nothing when it holds anything else.
+inline std::optional<uint64_t> file_number(std::string_view text) {
+    std::string_view f[1];
+    if (fields(text, f, 1) != 1) return std::nullopt;
+    return number(f[0]);
+}
+
+// A limit less what is charged against it, 0 past it.
+inline size_t memory_room(uint64_t limit, uint64_t used) { return (size_t)(limit > used ? limit - used : 0); }
+
+}  // namespace detail
+
+// Bytes a cgroup v2 memory.max text leaves over its memory.current text, the limit less the usage and 0 past it; nothing for "max", no limit, or a text it cannot read.
+inline std::optional<size_t> cgroup_v2_memory_room(std::string_view memory_max, std::string_view memory_current) {
+    const auto limit = detail::file_number(memory_max), used = detail::file_number(memory_current);
+    if (!limit || !used) return std::nullopt;
+    return detail::memory_room(*limit, *used);
+}
+
+// Bytes a cgroup v1 memory.limit_in_bytes text leaves over its memory.usage_in_bytes text, the same way; nothing for a limit of 2^62 bytes or more, which is how v1 writes no limit, or a text it cannot read.
+inline std::optional<size_t> cgroup_v1_memory_room(std::string_view limit_in_bytes, std::string_view usage_in_bytes) {
+    const auto limit = detail::file_number(limit_in_bytes), used = detail::file_number(usage_in_bytes);
+    if (!limit || *limit >= (uint64_t(1) << 62) || !used) return std::nullopt;
+    return detail::memory_room(*limit, *used);
+}
+
+// Bytes the cgroup memory limits over a process leave it, the fewest, from its /proc/self/cgroup and /proc/self/mountinfo texts and `read`, which gives a file's text or nothing.
+// A limit on any cgroup above the process's holds it too, so each is read up to its mount's point; a cgroup whose limit or usage cannot be read is passed over.
+template <class Read>
+std::optional<size_t> cgroup_memory_room(std::string_view proc_self_cgroup, std::string_view mountinfo, Read&& read) {
+    std::optional<size_t> fewest;
+    const auto take = [&](std::optional<size_t> n) { if (n && (!fewest || *n < *fewest)) fewest = n; };
+    for (const auto& dir : cgroup_v2_directories(proc_self_cgroup, mountinfo)) {
+        const auto max = read(dir + "/memory.max");
+        if (!max) continue;
+        if (const auto current = read(dir + "/memory.current")) take(cgroup_v2_memory_room(*max, *current));
+    }
+    for (const auto& dir : cgroup_v1_directories(proc_self_cgroup, mountinfo, "memory")) {
+        const auto limit = read(dir + "/memory.limit_in_bytes");
+        if (!limit) continue;
+        if (const auto usage = read(dir + "/memory.usage_in_bytes")) take(cgroup_v1_memory_room(*limit, *usage));
+    }
+    return fewest;
+}
+
+// Bytes this process's cgroup memory limits leave it, on Linux; nothing elsewhere, without a limit or when the files cannot be read.
+inline std::optional<size_t> cgroup_memory_room() {
+#if defined(__linux__)
+    const auto cgroup = detail::read_text("/proc/self/cgroup"), mountinfo = detail::read_text("/proc/self/mountinfo");
+    if (!cgroup || !mountinfo) return std::nullopt;
+    return cgroup_memory_room(*cgroup, *mountinfo, detail::read_text);
+#else
+    return std::nullopt;
+#endif
+}
+
+// A job object's memory limit flags that job_memory_room reads, with the values Windows gives them.
+inline constexpr uint32_t job_limit_process_memory = 0x100, job_limit_job_memory = 0x200;
+#if defined(_WIN32)
+static_assert(job_limit_process_memory == JOB_OBJECT_LIMIT_PROCESS_MEMORY && job_limit_job_memory == JOB_OBJECT_LIMIT_JOB_MEMORY);
+#endif
+
+// Bytes a job object's memory limits leave a process: with the process memory limit flag, `process_limit` less the process's committed `process_commit`, with the job memory limit flag, `job_limit` less the job's committed `job_commit`, the fewer when both, 0 past a limit; nothing without either flag.
+inline std::optional<size_t> job_memory_room(uint32_t limit_flags, uint64_t process_limit, uint64_t process_commit, uint64_t job_limit, uint64_t job_commit) {
+    std::optional<size_t> fewest;
+    const auto take = [&](size_t n) { if (!fewest || n < *fewest) fewest = n; };
+    if (limit_flags & job_limit_process_memory) take(detail::memory_room(process_limit, process_commit));
+    if (limit_flags & job_limit_job_memory) take(detail::memory_room(job_limit, job_commit));
+    return fewest;
+}
+
+// Bytes the memory limits of this process's own job object leave it, on Windows; nothing elsewhere, outside a job or without a memory limit.
+// A limit whose commit cannot be read is passed over.
+inline std::optional<size_t> job_memory_room() {
+#if defined(_WIN32)
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+    if (!QueryInformationJobObject(nullptr, JobObjectExtendedLimitInformation, &limits, sizeof limits, nullptr)) return std::nullopt;
+    uint32_t flags = limits.BasicLimitInformation.LimitFlags & (job_limit_process_memory | job_limit_job_memory);
+    PROCESS_MEMORY_COUNTERS process{};
+    if ((flags & job_limit_process_memory) && !GetProcessMemoryInfo(GetCurrentProcess(), &process, sizeof process)) flags &= ~job_limit_process_memory;
+    JOBOBJECT_LIMIT_VIOLATION_INFORMATION job{};
+    if ((flags & job_limit_job_memory) && !QueryInformationJobObject(nullptr, JobObjectLimitViolationInformation, &job, sizeof job, nullptr))
+        flags &= ~job_limit_job_memory;
+    return job_memory_room(flags, limits.ProcessMemoryLimit, process.PagefileUsage, limits.JobMemoryLimit, job.JobMemory);
+#else
+    return std::nullopt;
+#endif
+}
+
+// Bytes this process's memory limits leave it: its cgroup memory limits on Linux, its job object's memory limits on Windows.
+inline std::optional<size_t> memory_limit_room() {
+#if defined(_WIN32)
+    return job_memory_room();
+#else
+    return cgroup_memory_room();
+#endif
+}
+
+// What a process can still take: the fewer of the host's available memory and the room its memory limits leave, each only when it was read; nothing when neither was.
+inline std::optional<size_t> host_memory_available(std::optional<size_t> host, std::optional<size_t> room) {
+    if (host && room) return *host < *room ? host : room;
+    return host ? host : room;
+}
+
+// Bytes of memory this process can still take without swapping or passing a memory limit, read now (docs/src/core-host_memory.md).
+inline std::optional<size_t> host_memory_available() { return host_memory_available(system_memory_available(), memory_limit_room()); }
 
 // Page-aligned memory the process owns, rounded up to whole pages and given back when it goes.
 // A read into it can go around the file cache, and a device copies out of it as out of any host memory (docs/src/core-host_memory.md).

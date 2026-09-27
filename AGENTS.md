@@ -355,6 +355,7 @@ With `--isa` every row kernel build must then hold its one-column build's counts
 The Q8_0 decode builds are held to those counts only where the one-column build reduces over both shuffled and plain adds, and elsewhere to its kinds of operation alone; their multiplies also count the one-column build's multiplies beyond its products, and the transposed reduction is accepted only where the one-column build's reduction takes six levels.
 The counts are a screen on how the driver contracts and reduces a column's sums; a reassociation that keeps them shows only in the decode-column comparison below, which is what holds batch invariance.
 CTest runs `backend-vulkan` without `--isa`, and no hosted runner has a GPU, so `llmx-backend-vulkan-test --isa DIR` is run by hand on an MI50 under RADV and on the Radeon VII under the AMD proprietary driver at every change to a row kernel, its builds or how a pass is chunked.
+Tiled attention covers heads 128 wide, and 256 wide six to a KV head as qwen35's 27B has them, over 32, 45 and 100 query rows after histories of 0, 70 and 600 tokens in f32 and f16 caches.
 Attention additionally covers 80 combinations of head widths 32/40/64/128/256,
 query/KV head ratios 1/2/4/8 and all four F32/F16 cache-side pairs, with nonzero
 inputs at long histories. Both rows of a mixed short/long pass must equal the

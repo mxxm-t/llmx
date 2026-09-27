@@ -630,12 +630,19 @@ HF gate measures the cost of it.
   history: Qwen3-8B Q8_0 30.0 to 42.8 tok/s (the reference 44.5), 0.6B
   86.1 to 129.4, 30B-A3B 31.7 to 59.1; from an empty history level or
   better (0.6B 352 to 363).
+  qwen35's heads, 256 wide, take its `_d256` builds, which read a token's
+  row with 32 lanes, 8 streams a workgroup, with the arithmetic of each
+  lane unchanged.
 - **attention_tile**, for a wide pass of 128-wide heads: a workgroup
   per 32 query rows and head, the head's K and V streamed through shared
   memory in 16-token tiles so a tile is read once per 32 rows rather
   than once per row. It took a 16384-token prompt on Qwen3-0.6B from
-  155 to 513 tok/s, level with the reference's 514. Other head widths
-  and narrow passes take the per-row kernel.
+  155 to 513 tok/s, level with the reference's 514. Its `_d256` builds
+  take qwen35's 256-wide heads with 8-key tiles, which keep K and V at
+  16 KiB of shared memory, inside the 32 KiB some drivers give a
+  workgroup; the tile's key count sets where the online softmax rescales,
+  so it is a constant of the head width. Other head widths and narrow
+  passes take the per-row kernel.
 
   Eight lanes share a query row. Lane l owns dimensions 32k + 4l to 32k + 4l + 3, so a row's lanes read a staged token as one contiguous 128-byte run per k, and K and V are staged eight values per load.
 

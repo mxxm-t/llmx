@@ -1,7 +1,7 @@
 #version 450
-// Causal GQA for rows that attend one at a time (decode and short prompts), as attention.comp computes it, for heads 128 wide.
+// Causal GQA for rows that attend one at a time (decode and short prompts), as attention.comp computes it, for heads 128 wide, or 256 wide in the LLMX_D256 build.
 // One workgroup per (batch row, block of heads, split), a block being up to four query heads that read one KV head (LLMX_G4) or one head.
-// A token's key and value are read by 16 lanes, eight values each in one load, so a subgroup reads several tokens at once; each such group of lanes keeps its own online softmax over the tokens it takes, and the groups merge in a fixed order at the end.
+// A token's key and value are read by 16 lanes, or 32 at width 256, eight values each in one load, so a subgroup reads several tokens at once; each such group of lanes keeps its own online softmax over the tokens it takes, and the groups merge in a fixed order at the end.
 // The parts a row's history splits into follow from its length alone, as in attention.comp, so a row computes the same whatever else is in the dispatch.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
@@ -53,7 +53,7 @@ void v_load8(uint i, out float x[8]) {
 layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
 layout(set = 0, binding = 5) writeonly buffer S { float scratch[]; };
 #include "views.glsl"
-// Streams are the groups of lanes that each take one token at a time, 16 of them; their accumulations fill 2048 floats.
+// Streams are the groups of lanes that each take one token at a time, 16 of them, or 8 at width 256; their accumulations fill 2048 floats.
 shared float qs[HG][256];
 shared float ms[HG][64];
 shared float ls[HG][64];
@@ -68,8 +68,12 @@ void main() {
     view_of_row(g, v, b);
     uint kvh = h0 / (p.n_head / p.n_head_kv);
     uint lid = gl_LocalInvocationID.x;
-    // Heads 128 wide, every Qwen3's, read by 16 lanes a token: a width known here lets the lanes' exchanges compile to fixed cross-lane moves.
+    // Heads 128 wide, every Qwen3's, read by 16 lanes a token, and qwen35's 256 by 32: a width known here lets the lanes' exchanges compile to fixed cross-lane moves.
+#ifdef LLMX_D256
+    const uint lanes = 32u;
+#else
     const uint lanes = 16u;
+#endif
     uint streams = 256u / lanes;
     uint stream = lid / lanes, d0 = (lid - stream * lanes) * 8u;
     uint qstride = p.n_head * p.dim;

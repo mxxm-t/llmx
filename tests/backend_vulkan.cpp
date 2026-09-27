@@ -599,12 +599,13 @@ size_t check_kernels(backend::Backend& vk) {
             values += close(qc, qv, 1e-5, "norm_rope_kv q differs beyond 1e-5");
             values += close(ac, av, 1e-4, "norm_rope_kv attention differs beyond 1e-4");
         }
-        // attention over a wide pass of 128-wide heads takes the tiled kernel: 32, 45 and 100 query rows (one full tile, then partial ones whose last rows mask part of a K/V tile) after histories of 0, 70 and 600 tokens, against the CPU at 1e-4.
+        // attention over a wide pass of 128-wide heads, and of 256-wide heads six to a KV head as qwen35's 27B has them, takes the tiled kernel: 32, 45 and 100 query rows (one full tile, then partial ones whose last rows mask part of a K/V tile) after histories of 0, 70 and 600 tokens, against the CPU at 1e-4.
         // The queries are scaled so a row's scores spread over about ten, peaked as a trained model's are rather than the near-uniform softmax of unit random values, and the cache is taken both as f32 and as f16.
+        for (int head_dim : {128, 256})
         for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16})
         for (size_t hist : {size_t(0), size_t(70), size_t(600)}) {
             for (size_t nq : {size_t(32), size_t(45), size_t(100)}) {
-                const int n_head = 4, n_head_kv = 2, head_dim = 128;
+                const int n_head = head_dim == 128 ? 4 : 12, n_head_kv = 2;
                 const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
                 const auto hk = uniform((hist + nq) * kvw, 50 + (uint32_t)nq), hv = uniform((hist + nq) * kvw, 51 + (uint32_t)nq);
                 const auto qq = uniform(nq * qw, 52 + (uint32_t)hist, -6.0f, 6.0f);
@@ -636,7 +637,7 @@ size_t check_kernels(backend::Backend& vk) {
                 try {
                     values += close(ac, av, 1e-4, "tiled attention differs beyond 1e-4");
                 } catch (const std::runtime_error&) {
-                    std::fprintf(stderr, "  tiled attention hist %zu rows %zu cache %s\n", hist, nq, backend::kv_type_name(kt));
+                    std::fprintf(stderr, "  tiled attention width %d hist %zu rows %zu cache %s\n", head_dim, hist, nq, backend::kv_type_name(kt));
                     throw;
                 }
             }

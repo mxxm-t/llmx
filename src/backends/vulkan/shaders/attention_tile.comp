@@ -1,10 +1,11 @@
 #version 450
 // Causal GQA for a wide pass over every view of a batch: one workgroup per (tile of 32 query rows of one view, head), the head's K and V streamed through shared memory in tiles of TK tokens.
 // Row b of a view attends through its hist + b; tokens past that are masked and later tiles are not read.
-// The head width is fixed at 128; other widths take the per-row kernel.
+// The head width is fixed at 128, or at 256 in the LLMX_D256 build, whose K and V tiles hold 8 tokens so both fit 16 KiB of shared memory; other widths take the per-row kernel.
 // Workgroups are laid out view by view, so a tile never straddles two views.
 //
 // Eight lanes share a query row, lane l owning dimensions 32k + 4l .. 32k + 4l + 3, so a row reads a staged token as contiguous 128-byte runs.
+// TK sets where the online softmax rescales, so it is a constant of the head width, never of the batch.
 // Per K tile: partial dots eight tokens at a time, a butterfly that finishes the sums and deals one to each lane, then one online-softmax step per tile, and the probabilities through shared memory for the weighted sum of V.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
@@ -42,10 +43,12 @@ layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
 layout(set = 0, binding = 5) writeonly buffer XQ { uint xq[]; };
 #include "views.glsl"
 #include "xquant.glsl"
-#ifndef TK
-#define TK 16u
+#ifdef LLMX_D256
+const uint DIM = 256u, TK = 8u;
+#else
+const uint DIM = 128u, TK = 16u;
 #endif
-const uint DIM = 128u, TQ = 32u, LANES = 8u, OWN = TK / LANES;
+const uint TQ = 32u, LANES = 8u, OWN = TK / LANES, RUNS = DIM / 32u;
 shared vec4 ks[TK * DIM / 4u];
 shared vec4 vs[TK * DIM / 4u];
 shared float ps[TQ * TK];
@@ -70,8 +73,8 @@ void main() {
     bool live = b < nq;
     uint qstride = p.n_head * DIM;
     uint qbase = (row0 + min(b, nq - 1u)) * qstride + h * DIM;
-    vec4 qv[4], acc[4];
-    for (uint k = 0u; k < 4u; ++k) {
+    vec4 qv[RUNS], acc[RUNS];
+    for (uint k = 0u; k < RUNS; ++k) {
         uint d = 32u * k + 4u * lane;
         qv[k] = vec4(q[qbase + d], q[qbase + d + 1u], q[qbase + d + 2u], q[qbase + d + 3u]) * p.scale;
         acc[k] = vec4(0.0);
@@ -104,7 +107,7 @@ void main() {
             float part[8];
             for (uint j = 0u; j < 8u; ++j) {
                 float s = 0.0;
-                for (uint k = 0u; k < 4u; ++k) s += dot(qv[k], ks[((8u * g + j) * DIM + 32u * k + 4u * lane) / 4u]);
+                for (uint k = 0u; k < RUNS; ++k) s += dot(qv[k], ks[((8u * g + j) * DIM + 32u * k + 4u * lane) / 4u]);
                 part[j] = s;
             }
             for (uint half_ = 4u; half_ >= 1u; half_ /= 2u) {
@@ -134,22 +137,22 @@ void main() {
         sum += subgroupShuffleXor(sum, 4u);
         l = l * corr + sum;
         m = mn;
-        for (uint k = 0u; k < 4u; ++k) acc[k] *= corr;
+        for (uint k = 0u; k < RUNS; ++k) acc[k] *= corr;
         // A row's eight lanes are one subgroup, so their probabilities are visible to each other past this point.
         subgroupMemoryBarrierShared();
         subgroupBarrier();
         // Phase two: the weighted sum of the tile's values.
         for (uint j = 0u; j < TK; ++j) {
             float w = ps[r * TK + j];
-            for (uint k = 0u; k < 4u; ++k) acc[k] += w * vs[(j * DIM + 32u * k + 4u * lane) / 4u];
+            for (uint k = 0u; k < RUNS; ++k) acc[k] += w * vs[(j * DIM + 32u * k + 4u * lane) / 4u];
         }
         barrier();
     }
-    for (uint k = 0u; k < 4u; ++k) {
+    for (uint k = 0u; k < RUNS; ++k) {
         uint d = 32u * k + 4u * lane;
         vec4 a = acc[k] / l;
         if (live) { o[qbase + d] = a.x; o[qbase + d + 1u] = a.y; o[qbase + d + 2u] = a.z; o[qbase + d + 3u] = a.w; }
-        // Dimensions 32k .. 32k + 31 of head h are block 4h + k of the row, held by its eight lanes in order.
-        if (p.quant != 0u) xquant_word(live ? a : vec4(0.0), live, lane, (row0 + b) * (qstride / 32u) + 4u * h + k, p.rows * qstride);
+        // Dimensions 32k .. 32k + 31 of head h are block RUNS h + k of the row, held by its eight lanes in order.
+        if (p.quant != 0u) xquant_word(live ? a : vec4(0.0), live, lane, (row0 + b) * (qstride / 32u) + RUNS * h + k, p.rows * qstride);
     }
 }

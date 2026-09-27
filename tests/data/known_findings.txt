@@ -15,7 +15,6 @@ test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representatio
 test-only | src/backends/backend.hpp | Backend::state_copy | 1 | a slot copied to a slot, which the take-back resume and the checkpoints of the Qwen 3.5, 3.6 and 3.8 plan's step 8 call; goes with step 8b
 
 # Shader switches that change nothing: no CMake entry sets the define, so only the default is ever built.
-shader | src/backends/vulkan/shaders/attention_tile.comp | #ifndef TK | 1 | the tile's key count as an overridable default; becomes a plain constant with cleanup/known-findings
 shader | src/backends/vulkan/shaders/matmul_tile_q.comp | #ifndef STEP | 1 | the blocks staged per barrier as an overridable default, whose value the host code also assumes; becomes a plain constant with cleanup/known-findings
 
 # Overrides product code never calls.

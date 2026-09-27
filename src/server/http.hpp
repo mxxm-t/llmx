@@ -1,7 +1,7 @@
 #pragma once
 // HTTP/1.1 over blocking sockets, enough for the server in docs/SERVER.md: listen, accept, read one request with a Content-Length body, write one response or a chunked stream, and tell whether the client has left.
 // One thread per connection, no keep-alive beyond one request, no TLS, no external library: a reverse proxy does the rest when the server faces a network.
-// Windows uses Winsock, everything else BSD sockets; the two differ only in the handle type, in how a socket is closed or polled and in their error codes, which is what the few #if blocks below cover.
+// Windows uses Winsock, everything else BSD sockets; the two differ only in the handle type, in how a socket is closed, polled or made non-blocking and in their error codes, which is what the few #if blocks below cover.
 #include <atomic>
 #include <cerrno>
 #include <chrono>
@@ -26,6 +26,7 @@
 #pragma comment(lib, "ws2_32.lib")
 #else
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
@@ -45,13 +46,17 @@ inline int last_error() { return WSAGetLastError(); }
 inline bool per_client(int e) { return e == WSAECONNRESET || e == WSAEINTR; }
 // A failed read that says nothing about the connection: no data yet, or an interrupted call.
 inline bool transient(int e) { return e == WSAEWOULDBLOCK || e == WSAEINTR; }
-// Whether a read would return at once, with data, an end of stream or an error, asked without waiting.
+// Waits up to `wait_ms` for a read to return at once, with data, an end of stream or an error, or on a listening socket for a client to take: 1 when one would, 0 when the time ran out, -1 on a failure.
 // Normal data only, since POLLIN also takes out-of-band data, which the blocking peek in peer_closed would wait past; an end of stream or a reset is still reported, since WSAPoll sets POLLHUP and POLLERR whatever is asked.
-inline bool readable(Socket s) {
+inline int wait_readable(Socket s, int wait_ms) {
     WSAPOLLFD p{};
     p.fd = s;
     p.events = POLLRDNORM;
-    return WSAPoll(&p, 1, 0) > 0;
+    return WSAPoll(&p, 1, wait_ms);
+}
+inline bool set_blocking(Socket s, bool blocking) {
+    u_long nonblocking = blocking ? 0 : 1;
+    return ioctlsocket(s, FIONBIO, &nonblocking) == 0;
 }
 // Winsock wants one startup per process; the first listener does it and nothing undoes it, since the process ends with the server.
 inline void platform_init() {
@@ -70,12 +75,16 @@ inline int last_error() { return errno; }
 inline bool per_client(int e) { return e == ECONNABORTED || e == EINTR || e == EPROTO; }
 // A failed read that says nothing about the connection: no data yet, or an interrupted call.
 inline bool transient(int e) { return e == EAGAIN || e == EWOULDBLOCK || e == EINTR; }
-// Whether a read would return at once, with data, an end of stream or an error, asked without waiting.
-inline bool readable(Socket s) {
+// Waits up to `wait_ms` for a read to return at once, with data, an end of stream or an error, or on a listening socket for a client to take: 1 when one would, 0 when the time ran out, -1 on a failure.
+inline int wait_readable(Socket s, int wait_ms) {
     pollfd p{};
     p.fd = s;
     p.events = POLLIN;
-    return ::poll(&p, 1, 0) > 0;
+    return ::poll(&p, 1, wait_ms);
+}
+inline bool set_blocking(Socket s, bool blocking) {
+    const int flags = fcntl(s, F_GETFL, 0);
+    return flags >= 0 && fcntl(s, F_SETFL, blocking ? flags & ~O_NONBLOCK : flags | O_NONBLOCK) == 0;
 }
 // A write to a socket the peer has closed raises SIGPIPE and ends the process unless the process ignores it; a client leaving mid-stream is ordinary here, so the signal is ignored once and every send also passes MSG_NOSIGNAL where the platform has it.
 inline void platform_init() {
@@ -83,6 +92,8 @@ inline void platform_init() {
     std::call_once(once, [] { signal(SIGPIPE, SIG_IGN); });
 }
 #endif
+// Whether a read would return at once, asked without waiting.
+inline bool readable(Socket s) { return wait_readable(s, 0) > 0; }
 #if defined(MSG_NOSIGNAL)
 constexpr int kSendFlags = MSG_NOSIGNAL;
 #else
@@ -272,6 +283,7 @@ private:
 
 // A listening socket.
 // Port 0 asks the system for a free one; port() says which, for tests.
+// accept() and close() may run on different threads: accept() holds m_ while it uses the socket, which is non-blocking so that it can poll it and look for close() every kCloseCheckMs, and close() takes m_ to close the socket, so it closes it only once no accept() uses it.
 class Listener {
 public:
     Listener(const std::string& host, uint16_t port) {
@@ -295,7 +307,7 @@ public:
             close_socket(s_);
             throw std::runtime_error("http: bind to " + host + ":" + std::to_string(port) + " failed");
         }
-        if (::listen(s_, 64) != 0) {
+        if (::listen(s_, 64) != 0 || !set_blocking(s_, false)) {
             close_socket(s_);
             throw std::runtime_error("http: listen failed");
         }
@@ -314,38 +326,47 @@ public:
 
     uint16_t port() const { return port_; }
 
-    // Blocks for the next client; an invalid connection means the listener was closed from another thread, which is how the server stops.
-    // Any other failure is retried while the listener is open: at once when it was one client's, and after 50 ms otherwise, so a shortage of descriptors or buffers can pass and an error that persists cannot spin a core.
+    // Blocks for the next client; an invalid connection means the listener was closed, from this thread or another, which is how the server stops.
+    // Any other failure is retried while the listener is open: at once when it was one client's or said only that no client was waiting, and after 50 ms otherwise, so a shortage of descriptors or buffers can pass and an error that persists cannot spin a core.
     Connection accept() {
-        for (;;) {
-            const Socket c = ::accept(s_, nullptr, nullptr);
-            if (c != kInvalid) {
-                int one = 1;
-                setsockopt(c, IPPROTO_TCP, TCP_NODELAY, (const char*)&one, sizeof(one));
-                return Connection(c);
+        std::lock_guard<std::mutex> hold(m_);
+        while (!closed_.load()) {
+            const int ready = wait_readable(s_, kCloseCheckMs);
+            if (ready == 0) continue;
+            if (ready > 0) {
+                const Socket c = ::accept(s_, nullptr, nullptr);
+                if (c != kInvalid) {
+                    // macOS and Winsock give the new socket the listener's non-blocking mode, which the connection's blocking reads and writes must not have; Linux does not.
+                    if (!set_blocking(c, true)) {
+                        close_socket(c);
+                        continue;
+                    }
+                    int one = 1;
+                    setsockopt(c, IPPROTO_TCP, TCP_NODELAY, (const char*)&one, sizeof(one));
+                    return Connection(c);
+                }
             }
             const int e = last_error();
-            if (closed_.load()) return Connection(kInvalid);
-            if (!per_client(e)) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            if (!per_client(e) && !transient(e)) std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
+        return Connection(kInvalid);
     }
+    // Ends every accept(), then closes the socket once none uses it, which takes up to kCloseCheckMs while one waits for a client.
     void close() {
         closed_.store(true);
+        std::lock_guard<std::mutex> hold(m_);
         if (s_ != kInvalid) {
-#if defined(_WIN32)
-            shutdown(s_, SD_BOTH);
-#else
-            shutdown(s_, SHUT_RDWR);
-#endif
             close_socket(s_);
             s_ = kInvalid;
         }
     }
 
 private:
+    static constexpr int kCloseCheckMs = 100;
     Socket s_ = kInvalid;
     uint16_t port_ = 0;
-    std::atomic<bool> closed_{false};   // set before the socket closes, so a failing accept knows the stop from a passing error
+    std::atomic<bool> closed_{false};   // set by close() before it takes m_, which a waiting accept() holds until it sees this
+    std::mutex m_;   // held by accept() while it uses the socket and by close() to close it
 };
 
 // The client side, for the tests: one request, the whole response read to the end, chunked bodies decoded.

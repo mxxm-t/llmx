@@ -38,7 +38,13 @@ Eight-sequence 8B decode gains 80.79/83.98 percent across mirrored blocks, with 
   - Test: `http` also closes a listener while its thread waits in accept, which must return no connection within seconds, and then asks a closed listener for a connection, which must give none.
     No run without the sanitizer shows the race: it needs the close to land between the accept loop reading the socket and the call using it.
     So the hosted workflow gets a TSan job, which builds `http` and `server-passes-cpu` with `-fsanitize=thread` and runs both with address randomization off; on main's listener it fails on `http`.
-- **Left:** the fix, and the host tier's gates with the TSan runs and the Windows build and `http` test.
+    On the Linux machine the test commit's `http` under TSan exits 66 in 5 of 5 runs with two reports each, one per order: the server thread's accept reading the socket after the main thread's close wrote it, while serving, and the main thread's close writing it after the waiting thread's accept read it.
+    `server-passes-cpu` under TSan passes on main, 66633 checks in 5 min 44 s on 6 CPUs.
+  - Fix: the listening socket is non-blocking, and `Listener::accept` polls it, looking for `close()` every 100 ms (`kCloseCheckMs`), while it holds the listener's mutex; `close()` raises the flag and then takes the mutex, so it closes the socket only once no accept uses it, and an accept that starts after it sees the flag before it touches the socket.
+    `shutdown` could not be the wake: it does not wake a blocked accept on Windows or macOS, and closing the socket to wake the accept is the race itself; a pipe cannot be polled beside a socket by `WSAPoll`.
+    The price is a close that waits up to 100 ms for a waiting accept, and an idle accept loop that wakes every 100 ms; a client that arrives is taken at once, and `llmx serve` never closes its listener before it exits.
+    The connection accept returns is made blocking, since macOS and Winsock hand it the listener's non-blocking mode.
+- **Left:** the host tier's gates with the TSan runs, and the Windows build and `http` test.
 - **Gotchas:** ThreadSanitizer on the Linux machine's kernel, as on the hosted runner's, fails at start unless address randomization is off: `setarch "$(uname -m)" -R`, which in a container needs `--security-opt seccomp=unconfined`.
   The TSan build of `server-passes-cpu` warns once, `-Wstringop-overflow` at `infer::footprint` (`src/model/place.hpp`), on main as on the branch; the builds without the sanitizer do not.
 

@@ -5,10 +5,13 @@
 scheduler are the runtime's own.
 
 - `http.hpp`: `Listener`, `Connection`, `Request`.
-  Blocking BSD or Winsock sockets, one thread per connection; a request is read with size limits (413 and 431 past them, 400 for a malformed line), a reply is written whole or as a chunked stream, and a client's disconnect surfaces as a failed write, which throws `ClientGone`, rather than a signal.
+  Blocking BSD or Winsock sockets for the connections, one thread each; a request is read with size limits (413 and 431 past them, 400 for a malformed line), a reply is written whole or as a chunked stream, and a client's disconnect surfaces as a failed write, which throws `ClientGone`, rather than a signal.
   `peer_closed` asks without writing, blocking or taking a byte whether the client has closed the connection: `poll` or `WSAPoll` with no wait, then a one-byte `MSG_PEEK` (with `MSG_DONTWAIT` where the platform has it) whose end of stream or reset means closed and whose data means open, so a client that shuts only its sending side reads as closed.
   On Windows the poll asks for normal data only (`POLLRDNORM`), since its `POLLIN` also takes urgent (out-of-band) data, and the peek there, which has no `MSG_DONTWAIT`, would then wait for normal data that may never come.
-  `Listener::accept` returns no connection only once `close()` has run, and any other failure is retried: at once when it is one client's (a connection aborted before it was taken, an interrupted call), and after 50 ms otherwise, so a client's aborted connection never stops the server and an error that persists cannot spin a core.
+  The listening socket is non-blocking: `Listener::accept` polls it, looking for `close()` every 100 ms (`kCloseCheckMs`), and holds the listener's mutex while it does, so `close()`, from any thread, closes the socket only once no accept uses it, and an accept never reads a socket that is closed or that a new one has taken the place of.
+  `close()` therefore takes up to 100 ms while an accept waits for a client, and the accept loop wakes every 100 ms while no client comes; a client that arrives is taken at once.
+  `accept` returns no connection only once `close()` has been called, and any other failure is retried: at once when it is one client's (a connection aborted before it was taken, an interrupted call) or says only that no client was waiting after all, and after 50 ms otherwise, so a client's aborted connection never stops the server and an error that persists cannot spin a core.
+  The connection it returns is made blocking, since macOS and Winsock hand it the listener's non-blocking mode, where Linux does not.
   `respond` throws while a stream is open, since a second head would land inside the chunked body.
   The `http` CTest drives it with its own client.
 - `scheduler.hpp`: `Request`, `Scheduler` and `SampleParams`.

@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|tokenizer-qwen35|qwen35-tiny]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|tokenizer-qwen35|qwen35-tiny]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
 
@@ -14,6 +14,7 @@ Real-model logits/PPL use CPU float32 eager attention and --threads (default 6).
 qwen35 writes the logit, chat and PPL goldens of a pinned Qwen3.5 checkpoint (QWEN35_MODELS) into tests/data/<its directory>, and is not part of all.
 file-exact writes the logit and PPL goldens of the reference model holding a qwen3 or qwen35 GGUF file's own weights, every tensor decoded to f32 by tests/spec_decode.py and, for qwen35, the converter's changes undone, so llmx can be held on that file to Q8_0-class bounds.
 The independent synthetic f32 and moe fixtures use one thread; only --output-dir applies to those modes.
+moe-q8 writes the goldens of tests/moe.py's Q8_0 model, HF holding each variant's file's own weights as tests/spec_decode.py decodes them, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
 all includes both regardless of --repo.
 tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenizer.json and tokenizer_config.json, takes only --output-dir, and is not part of all.
 qwen35-tiny writes the goldens of the tiny qwen35 fixtures of tests/qwen35.py from HF Qwen3_5ForCausalLM's token-by-token cached forward, takes only --output-dir, and is not part of all.
@@ -680,10 +681,10 @@ def gen_chat_qwen35(args, loaded):
     print("wrote %s (%s)" % (path, ", ".join("%s %d tokens" % (case["name"], case["n_tokens"]) for case in cases)))
 
 
-def _write(path, doc):
+def _write(path, doc, indent=1):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with io.open(path, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(doc, f, ensure_ascii=False, indent=1)
+        json.dump(doc, f, ensure_ascii=False, indent=indent)
         f.write("\n")
 
 
@@ -800,6 +801,93 @@ def gen_moe(output_dir=OUT_DIR):
         "weights_sha256": weight_hash(weights), "min_routing_gap": min(gaps),
         "cases": cases, "perplexity": perplexity})
     print("wrote %s (full logits and windowed NLL; smallest routing gap %.2e)" % (path, min(gaps)))
+
+
+def moe_q8_state(path, torch):
+    """A qwen3moe GGUF file's tensors as HF Qwen3MoeForCausalLM parameters, each decoded to f32 by tests/spec_decode.py's numpy form: a stacked expert tensor split into its experts' projections and the router named as HF names it."""
+    import spec_decode
+    from f32 import hf_name
+    model = spec_decode.GGUF(path)
+    if model.value("general.architecture") != "qwen3moe":
+        raise SystemExit("%s does not hold a qwen3moe model" % path)
+    state = {}
+    for t in model.tensors:
+        if t.name == "unused.weight":
+            continue
+        shape = list(reversed(t.shape))
+        values = model.decode(t).reshape(shape)
+        experts = re.fullmatch(r"blk\.(\d+)\.ffn_(gate|up|down)_exps\.weight", t.name)
+        if experts:
+            for e in range(shape[0]):
+                state["model.layers.%s.mlp.experts.%d.%s_proj.weight" % (experts[1], e, experts[2])] = torch.from_numpy(values[e].copy())
+            continue
+        router = re.fullmatch(r"blk\.(\d+)\.ffn_gate_inp\.weight", t.name)
+        state["model.layers.%s.mlp.gate.weight" % router[1] if router else hf_name(t.name)] = torch.from_numpy(values.copy())
+    return state
+
+
+def gen_moe_q8(output_dir=OUT_DIR):
+    """The goldens of tests/moe.py's Q8_0 model: each variant written by the test's own writer and read back through tests/spec_decode.py into HF Qwen3MoeForCausalLM.
+    For each prompt, HF's greedy continuation of Q8_STEPS ids, then every logit from the prompt's last position through them with each row's top id and top-two gap, and the smallest margin between a token's k-th and next router logit over every position and routed layer."""
+    import numpy
+    import torch
+    import transformers
+    from transformers import Qwen3MoeConfig, Qwen3MoeForCausalLM
+    from moe import DENSE_LAYERS, Q8_CONFIG, Q8_MIN_ROUTING_GAP, Q8_PROMPTS, Q8_SEED, Q8_STEPS, Q8_VARIANTS, write_q8_model
+
+    torch.set_num_threads(1)
+    c = Q8_CONFIG
+    config = Qwen3MoeConfig(vocab_size=257, hidden_size=c["embedding_length"], intermediate_size=c["feed_forward_length"],
+                            moe_intermediate_size=c["expert_feed_forward_length"], num_hidden_layers=c["block_count"],
+                            num_attention_heads=c["attention.head_count"], num_key_value_heads=c["attention.head_count_kv"],
+                            head_dim=c["attention.key_length"], max_position_embeddings=c["context_length"], rope_theta=10000.0,
+                            rms_norm_eps=1e-6, tie_word_embeddings=False, attention_dropout=0.0,
+                            num_experts=c["expert_count"], num_experts_per_tok=c["expert_used_count"],
+                            norm_topk_prob=True, decoder_sparse_step=1, mlp_only_layers=list(DENSE_LAYERS))
+    config._attn_implementation = "eager"
+    k = c["expert_used_count"]
+    variants = []
+    with tempfile.TemporaryDirectory(prefix="llmx_moe_q8_") as directory:
+        for name, scale in Q8_VARIANTS:
+            path = os.path.join(directory, name + ".gguf")
+            sha256 = write_q8_model(path, scale)
+            model = Qwen3MoeForCausalLM(config).float().eval()
+            model.load_state_dict(moe_q8_state(path, torch), strict=True)
+            margins, cases = [], []
+
+            def watch(_, __, out):
+                top = out.double().sort(dim=-1, descending=True).values
+                margins.append((top[:, k - 1] - top[:, k]).min().item())
+
+            with torch.inference_mode():
+                for prompt in Q8_PROMPTS:
+                    ids = list(prompt.encode("ascii"))
+                    # Greedy takes the lowest id among equal logits, as argmax does.
+                    for _ in range(Q8_STEPS):
+                        ids.append(int(model(torch.tensor([ids]), use_cache=False).logits[0, -1].argmax()))
+                    hooks = [layer.mlp.gate.register_forward_hook(watch) for layer in model.model.layers if hasattr(layer.mlp, "gate")]
+                    rows = model(torch.tensor([ids]), use_cache=False).logits[0, len(prompt) - 1:]
+                    for hook in hooks:
+                        hook.remove()
+                    top = rows.double().sort(dim=-1, descending=True)
+                    forced = ids[len(prompt):]
+                    if top.indices[:Q8_STEPS, 0].tolist() != forced:
+                        raise SystemExit("moe-q8 %s: the whole forward's greedy ids are not the step-by-step ones for %r" % (name, prompt))
+                    cases.append({"prompt": prompt, "forced_ids": forced, "top_ids": top.indices[:, 0].tolist(),
+                                  "gaps": (top.values[:, 0] - top.values[:, 1]).tolist(),
+                                  "rows": [[round(v, 7) for v in row] for row in rows.tolist()]})
+            gated = name == "gated"
+            if gated != (min(margins) >= Q8_MIN_ROUTING_GAP):
+                raise SystemExit("moe-q8 %s: the smallest router margin is %.2e; change Q8_SEED or the variant's router scale" % (name, min(margins)))
+            variants.append({"name": name, "router_scale": scale, "file_sha256": sha256, "min_routing_gap": min(margins), "cases": cases})
+            print("moe-q8 %s: smallest router margin %.2e, greedy %s" % (name, min(margins), [case["forced_ids"] for case in cases]))
+    path = os.path.join(output_dir, "baseline_moe_q8.json")
+    _write(path, {
+        "_comment": "Generated by tools/gen_baseline.py moe-q8 using HF Qwen3MoeForCausalLM holding each variant's Q8_0 file's own weights, decoded by tests/spec_decode.py's numpy form.",
+        "torch_version": torch.__version__, "transformers_version": transformers.__version__, "numpy_version": numpy.__version__,
+        "dtype": "float32", "attention": "eager", "config": Q8_CONFIG, "dense_layers": list(DENSE_LAYERS),
+        "seed": Q8_SEED, "steps": Q8_STEPS, "variants": variants}, indent=None)
+    print("wrote %s (%d variants, %d prompts each)" % (path, len(variants), len(Q8_PROMPTS)))
 
 
 # The smallest gap allowed between a greedy step's top two logits, since a nearer tie could turn over under other rounding.
@@ -1008,6 +1096,7 @@ def gen_qwen35_tiny(output_dir=OUT_DIR):
 FIXED_KINDS = {
     "f32": "uses fixed synthetic weights and one thread",
     "moe": "uses fixed synthetic weights and one thread",
+    "moe-q8": "uses fixed synthetic weights and one thread",
     "tokenizer-qwen35": "reads its own pinned tokenizer files",
     "qwen35-tiny": "uses fixed synthetic weights and one thread",
 }
@@ -1015,7 +1104,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "tokenizer-qwen35", "qwen35-tiny", "qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "tokenizer-qwen35", "qwen35-tiny", "qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1116,6 +1205,8 @@ def main(argv=None):
         gen_f32(args.output_dir)
     if args.kind in ("all", "moe"):
         gen_moe(args.output_dir)
+    if args.kind == "moe-q8":
+        gen_moe_q8(args.output_dir)
     if args.kind == "tokenizer-qwen35":
         gen_tokenizer_qwen35(args.output_dir)
     if args.kind == "qwen35-tiny":

@@ -2368,6 +2368,15 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
        - `reference-generator` holds the generator to its version, float32, eager attention, no replacement packages and its key checks, and maps the 4B's `dt_bias` onto its GGUF through the writer's tiled order bit for bit.
        - An independent float64 reading of the written files matched the goldens within 7.9e-7, and each of nine misreadings missed them by at least 0.10.
          Put in the CLI's place, that reading passed the whole `qwen35` component, and failed it with either of two misreadings.
+     - **The real-model references exist** (`work/qwen35-ref-real`, 2026-09-27), as ASSETS, "The qwen35 real-model references", records.
+       - Both 0.8B files and the 4B Q4_K_M are pinned in `tests/data/fixtures.json` as the `qwen35` family, the 0.8B files hosted; every entry now names its family.
+       - `tools/gen_baseline.py qwen35` writes each model's logit, chat and 512- and 4096-token perplexity goldens from HF's float32 full forward on the pinned checkpoint, tokenized as the qwen35 tokenizer golden is.
+         `file-exact` undoes the converter's transforms, so a qwen35 file's own weights run in HF.
+       - `tests/baseline_qwen35.py` holds a pinned file to its model's goldens, and `tests/baseline.py` runs it on the hosted files at 512 tokens.
+         It reports one skip line while llmx refuses the architecture, and a file without bounds fails measured, so the first llmx measurement sets them.
+       - The 4B's full forward ran whole in float32, within the memory rule: it holds 16 to 19 GiB, peaks at 24 GiB while loading, and was started under the shared memory lock with 47 GiB available.
+         Its goldens took 37 minutes at a load average of 18 to 50; a first 4B run gave the same logit, chat and 512-token goldens, and a second 0.8B run the 0.8B goldens byte for byte.
+       - The 0.8B and 4B Q4_K_M files undone by `file-exact` give back every F32 tensor of their checkpoints bit for bit but `A_log`, whose -exp the file rounds, and one value in each of three of the 4B's layer norms, where float32(1 + w) rounds a tiny w.
   5. **`feat/qwen35-vulkan`:** the device ops (conv, the per-token recurrence with source, destination and checkpoint-row push constants, the gated norm, `sigmoid_mul`, and the copy and tag rules), the projection groups, device state storage, attention at head dim 256, strided partial rope, the CLI's layer split with states, and a CLI mode for `tools/long_context_check.py` (two fresh `generate` runs, plus `logits --last` on the baseline).
      - Gates:
        - The tiny fixtures, the 0.8B and the 4B within bounds on both cards.

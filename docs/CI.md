@@ -95,6 +95,9 @@ Default real-model downloads are the four pinned 0.6B GGUFs: Q8_0, Q4_0, Q5_K_M 
 Six more models are pinned there ahead of their tensor types, with `gate` false, and no job downloads them yet.
 When their types join the gate, the three marked `hosted` (UD-Q8_K_XL, IQ4_XS and Q2_K, 1.51 GB) join the HF job's downloads and its cache key, and the other three (BF16, IQ4_NL and Q3_K_S) are checked by hand after `tools/fetch_test_models.py --all`.
 The job downloads and requires every gate model, so `tests/baseline.py` refuses a gate model not marked `hosted`, and one of those three joins the gate only with a change that lets the job leave it out.
+Three qwen35 files are pinned too, each naming the `qwen35` family: the two Qwen3.5-0.8B files marked `hosted` (Q8_0 and Q4_K_M, 1.34 GB), which join the HF job's downloads with their bounds in `tests/baseline_qwen35.py`, and the Qwen3.5-4B Q4_K_M, checked by hand.
+Until then the `baseline` component reports each hosted one as skipped when it is absent, and as one skip line while llmx refuses the architecture when it is present.
+Every entry now names its family, so the key changed once with that field, which costs the HF job one fresh download of the gate's four files.
 
 The separate 8B consumer requires an existing model and a new output directory:
 

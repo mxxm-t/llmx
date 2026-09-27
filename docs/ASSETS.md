@@ -443,6 +443,7 @@ The file is local and not hosted; regenerate it and compare the digest.
 It runs on the CPU in float32 with eager attention.
 `python -X utf8 tests/baseline.py --file-exact DIR --model FILE` then holds llmx on that file to the Q8_0 fixture's bounds, since the format's loss is on both sides.
 These goldens were generated on Windows with torch 2.5.1+cpu and transformers 4.55.2 and are not committed; each type's branch commits the ones it is gated on.
+A pinned qwen35 file takes its own checkpoint instead, with the converter's changes undone (The qwen35 real-model references, below).
 
 | File | Reference mean NLL over the excerpt | Windows of 64, two windows of 64, windows of 123 |
 |---|---:|---|
@@ -471,7 +472,7 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 
 ### Generating pinned HF references
 
-`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `tokenizer-qwen35` or `qwen35-tiny` (default `all`).
+`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `tokenizer-qwen35`, `qwen35-tiny` or `qwen35` (default `all`).
 Real-model modes default to `Qwen/Qwen3-0.6B` at commit `c1899de289a04d12100db370d81485cdf75e47ca`.
 Both model and tokenizer loaders receive that revision.
 Logits and PPL use CPU float32 eager attention with six threads by default; `--threads N` selects another positive count.
@@ -551,6 +552,67 @@ With V heads read in the grouped order it failed on `hv3` (0.30), after passing 
 - **The GGUF's side:** the 32 values of `blk.0.ssm_dt.bias`, F32, of the Linux machine's `Qwen3.5-4B-Q4_K_M.gguf` (2,707,513,696 bytes, SHA-256 `25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c`), read with `tests/spec_decode.py`.
   By size it is none of the Q4_K_M files of `unsloth/Qwen3.5-4B-GGUF` or `bartowski/Qwen_Qwen3.5-4B-GGUF`, so it has no known Hub source; the tensor is F32, which quantization leaves as converted.
 - `tests/reference_generator.py` requires the writer's tiled order with Hk = 16 and Hv = 32 to map the one onto the other bit for bit, and HF's own order not to.
+
+#### The qwen35 real-model references
+
+`qwen35 --model Qwen3.5-0.8B` or `--model Qwen3.5-4B` writes the real-model goldens of a pinned checkpoint into `tests/data/qwen35-0.8b` or `tests/data/qwen35-4b`, accepts only `--model`, `--output-dir` and `--threads` (six by default), and is not part of `all`.
+It runs in the qwen35 venv above, offline, and refuses another torch, transformers or tokenizers version, and an installed `kernels`, `fla` or `causal_conv1d` package, which transformers would run in place of its torch forms.
+
+- **The checkpoints** (`QWEN35_MODELS` in `tools/gen_baseline.py`), each file the reference reads refused unless it has its SHA-256:
+  - Qwen3.5-0.8B: `Qwen/Qwen3.5-0.8B` at `2fc06364715b967f1860aea9cf38778875588b17`, with `config.json` `b90b86f35c8e6925ef74ee04d0e758f0a845c83a42089ad82bbaa948de9b4204`, `model.safetensors.index.json` `d8a08838a613b025eb7952ed9db11696213e57e76a375661ef5c12f9dd5dcf4e` and `model.safetensors-00001-of-00001.safetensors` `04b1c301231dd422b8860db31311ab2721511346a32cb1e079c4c4e5f1fe4696`.
+  - Qwen3.5-4B: `Qwen/Qwen3.5-4B` at `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`, with `config.json` `ddc63e1c717afa86c865bb5e01313d89d72bb53b97ad4a8a03ba8510c0621670`, `model.safetensors.index.json` `cf3f798ee02ba45f9622aa8892a47369ab667d0afbf154ee7c2212de42e6302d`, `model.safetensors-00001-of-00002.safetensors` `26a93f066e1916adb13453dae5a0c707c0fbc71299ed98779571a907b8e74c61` and `model.safetensors-00002-of-00002.safetensors` `cb544bd9bfae93dc59b0f22b292f5933573854a7f9b97835c67060d7d910e188`, and a `tokenizer.json` equal to the 0.8B's.
+- **The files the goldens are for,** pinned in `tests/data/fixtures.json` with family `qwen35`, each named in every golden of its model:
+
+  | file | repository at commit | bytes | SHA-256 | checked |
+  |---|---|---:|---|---|
+  | `Qwen3.5-0.8B-Q8_0.gguf` | `unsloth/Qwen3.5-0.8B-GGUF` at `6ab461498e2023f6e3c1baea90a8f0fe38ab64d0` | 811,843,840 | `0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c` | hosted, 512-token windows |
+  | `Qwen3.5-0.8B-Q4_K_M.gguf` | the same | 532,517,120 | `bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517` | hosted, 512-token windows |
+  | `Qwen3.5-4B-Q4_K_M.gguf` | `lmstudio-community/Qwen3.5-4B-GGUF` at `f9f88ac3e234be915e23811a6d28ea287bdb927e` | 2,707,513,696 | `25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c` | by hand |
+
+  The Hub's LFS records give these digests, and the Linux machine's `Qwen3.5-4B-Q4_K_M.gguf` has the 4B's, so that file is lmstudio-community's.
+  The machine's own 0.8B Q4_K_M (527,502,816 bytes) is another build and is not pinned.
+- **The model** is `Qwen3_5ForCausalLM.from_pretrained` on the checkpoint's directory with `dtype=torch.float32` and eager attention, which must take every parameter from the checkpoint and may leave unused only its `mtp.*` and `model.visual.*` keys.
+- **The forward** of every golden is HF's full forward, whose linear-attention layers run transformers' chunked form, 64 rows a chunk in float32.
+  A hook counts that form's calls and the run fails if it never ran, and transformers' token-by-token recurrence is refused.
+- **The tokenizer** is the one the qwen35 tokenizer golden holds: the pinned `tokenizer.json` read with `tokenizers`, plus the 7 control tokens only `tokenizer_config.json` adds, one id each.
+- **The goldens** of each model, 11 KB for the 0.8B:
+  - `baseline_logits.json`: HF's top 10 logits after each of the six prompts of `tests/baseline.py`, with the prompts' ids.
+  - `baseline_chat.json`: one turn with a system message, and two turns with an earlier reply that holds its reasoning, each rendered with a generation prompt by transformers 5.17.0's renderer (the reference of `tools/gen_chat_baseline.py`) under the chat template the model's files carry, taken by SHA-256 from `tests/data/baseline_chat_template.json`; each case keeps the render, its ids and HF's top 10 logits after it.
+  - `baseline_perplexity.json`: the first 5,000 characters of `wiki.test.raw`, 1,216 tokens, scored whole and in windows of 512 tokens, which the hosted job checks.
+  - `baseline_perplexity_4096.json`: the first 20,000 characters, 4,575 tokens, scored whole and in windows of 4096 tokens, checked by hand.
+  - The perplexity goldens keep the excerpt's length and the SHA-256 of its text and of its ids in place of the ids, and apply the head to 512 positions at a time.
+
+| model | mean NLL, 1,216 tokens whole | windows of 512 | 4,575 tokens whole | windows of 4096 |
+|---|---:|---:|---:|---:|
+| Qwen3.5-0.8B | 2.275162124 | 3.167013051 | 2.760240642 | 2.813587394 |
+| Qwen3.5-4B | 1.844163831 | 2.519526005 | 2.216166791 | 2.269156456 |
+
+`tests/baseline_qwen35.py` pins every golden by SHA-256 and a file by its entry's, and finds a file's goldens by the files they name.
+`tests/baseline.py` runs it on each hosted file on disk at 512-token windows, and it runs by hand on any pinned file at either window (`AGENTS.md`, Tests).
+While llmx refuses the architecture it runs the 47 id checks (37 tokenizer texts, the file's chat template, the two renders, the six prompts and the excerpt) and reports one skip line.
+Each file's bounds come from llmx's first measurement on it, and a file without them is measured and fails.
+
+`file-exact --weights-gguf FILE` with a pinned qwen35 file loads the checkpoint whose entry names the file, and gives HF the file's own tensors, decoded by `tests/spec_decode.py` with the converter's changes undone:
+
+- every norm but `ssm_norm` less 1, and `A_log` as log(-`ssm_a`);
+- the V heads taken back from the tiled order in the v rows of `attn_qkv`, the v channels of `ssm_conv1d` with its middle axis restored, the rows of `attn_gate`, `ssm_alpha` and `ssm_beta`, the entries of `ssm_a` and `ssm_dt.bias`, and the input columns of `ssm_out`;
+- the MTP block left out, since HF has no module for it.
+
+A file whose `dt_bias` does not come back as the checkpoint's is refused, since that F32 tensor matches bit for bit only in the tiled order.
+It writes the logit and 512-token perplexity goldens, and `tests/baseline_qwen35.py --file-exact DIR` holds the file to them at the Q8_0 file's bounds.
+Undone and compared with the checkpoints tensor by tensor, the 0.8B and 4B Q4_K_M files give back every F32 tensor bit for bit except `A_log`, within 1.9e-8 relative from the rounding of -exp, and one value in each of three of the 4B's layer norms, a w under 4e-6 that float32(1 + w) rounds; the quantized tensors differ by their formats' loss, at most 0.006 relative for Q8_0, 0.019 for Q6_K, 0.041 for Q5_K and 0.089 for Q4_K.
+These goldens are not committed.
+
+| 0.8B file-exact goldens | mean NLL, 1,216 tokens whole | windows of 512 |
+|---|---:|---:|
+| Q8_0 | 2.275702628 | 3.166686977 |
+| Q4_K_M | 2.283967299 | 3.189821103 |
+
+They were made on 2026-09-27 on the Linux machine's CPU, in a container of 6 CPUs, with the load average beside each time:
+
+- the 0.8B goldens in 510 s at a load of 35 to 42, peaking near 6 GiB, byte for byte a first run's;
+- the 4B goldens in 2,246 s at a load of 18 to 50, under the shared memory lock and started with 47 GiB available, the float32 model holding 16 to 19 GiB after a 24 GiB peak while loading, with a first run's logit, chat and 512-token goldens the same;
+- the 0.8B files' file-exact goldens in 230 s (Q8_0) and 498 s (Q4_K_M) at a load of 41 to 59, the same as a first run's.
 
 The local 8B GGUF is not an independent HF reference. On 2026-09-20, original
 `Qwen/Qwen3-8B` weights/config at revision

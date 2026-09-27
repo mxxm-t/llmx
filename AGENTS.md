@@ -540,6 +540,8 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   A device with no kernel for the file fails a file-exact run, where the gate's own checks skip.
   Making those goldens also needs numpy.
   The other entries of `tests/data/fixtures.json` pin the models of tensor types llmx does not read yet, each with `gate` false until its type has bounds, and `hosted` marks the ones the hosted HF job is to download then; `tools/fetch_test_models.py --all` fetches them with the gate's models.
+  Each entry names its family: `qwen3`, whose goldens are the ones above, or `qwen35`, whose goldens, vocabulary and context `tests/baseline_qwen35.py` holds, with the qwen35 files' bounds once they are set.
+  For each hosted qwen35 file on disk it runs that check at 512-token windows: the family's tokenizer golden, the file's chat template, the ids of its model's chat renders, prompts and excerpt, then logits and perplexity, with one skip line while llmx refuses the architecture; a file without bounds is measured and fails.
 - **Reference generator** (`tests/reference_generator.py`): standard-library checks for pinned reference selection, separate alternate-model output and forwarding the revision/float32/eager settings to the HF loaders.
   Actual reference generation and model correctness remain separate checks.
   For `file-exact` it checks the argument combinations it refuses, that `tests/baseline.py --file-exact` fails when the device has no kernel for the file, the HF parameters a few GGUF tensor names take under the one map `tests/f32.py` holds for the tiny models and file-exact alike, and a tiny GGUF's tensors reaching their parameters with reversed dimensions and unchanged values.
@@ -549,7 +551,10 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   The qwen35 tokenizer golden, on a made-up vocabulary, must keep a merge that joins across a cut HF makes and drop one no text reaches.
   It must give an added token the GGUF files' type, control for a special one or one written `<|name|>` and user-defined otherwise, and keep a token only the config adds apart.
   The generator must refuse a tokenizer file whose SHA-256 is not the pinned one, and the committed golden must hold the generator's texts, commit and digests, so neither changes without regenerating it.
+  For `qwen35` it checks the selections it refuses, a tiny qwen35 file written as the converter writes one (norms as 1 + w, `ssm_a` as -exp(A_log), three V heads to each K head in the tiled order, and an MTP block) coming back as HF's tensors, and the loader against doubles: the versions, float32, eager attention, no `kernels`, `fla` or `causal_conv1d` package, the keys a load may leave out, the recurrence refused and the checkpoint files held to their digests.
+  The committed qwen35 goldens must hold the generator's checkpoints, files, prompts, conversations, templates and excerpts, and the consumer must pin every one of them.
 - **Reference consumer** (`tests/reference_consumer.py`): standard-library rejection tests for changed 8B fixtures, damaged logits/PPL, top-5 boundary swaps beyond those `common.top5_overlap` forgives, wrong model identity and failed launches, and a passing run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
+  For `tests/baseline_qwen35.py` it checks changed goldens, the digest that stands for the excerpt's ids, one skip when llmx refuses the architecture after 47 checks, a run of 59 checks failing without bounds and passing with them, a wrong file digest or chat template, and file-exact goldens made from another file.
   It is included in the ordinary suite; it does not load or download the 8B model.
 - **Fixture downloader** (`tests/fetch_models.py`): seventeen offline tests
   of `tools/fetch_test_models.py` against simulated responses: a verified
@@ -577,6 +582,15 @@ These prospective Q8 bounds were frozen before the 8B comparison.
 Since 2026-09-25 the overlap, here and in `tests/baseline.py`, counts a swap at the 5th place as agreement when the reference puts both tokens within 0.1 logits of its 5th value (`common.top5_overlap`): such near ties reorder with any summation order.
 It also counts the reference's 5th and 6th trading places when llmx's own logits for the two are within 0.1, a tie the quantized weights can create where the reference has none: on an MI50 and CPU split, 0.6B Q8_0 puts " black" and " orange" 0.076 apart for "The three primary colors are red," against the reference's 0.203.
 See `docs/ASSETS.md` for provenance and scope: short rankings/excerpts do not establish full-corpus or deep-context correctness, and the exact original GGUF conversion revision is undocumented.
+
+The qwen35 files are checked the same way by hand, one pinned file at a time, against the goldens of the checkpoint their entry names (`docs/ASSETS.md`, The qwen35 real-model references):
+
+```
+python -X utf8 tests/baseline_qwen35.py --exe build/llmx --model path/to/Qwen3.5-4B-Q4_K_M.gguf --output-dir qwen35-review --context 4096
+```
+
+`--context` picks the 512-token or the 4096-token windows, and `--file-exact DIR` holds the file to the goldens `tools/gen_baseline.py file-exact` made from it instead.
+It prints one skip line while llmx refuses the architecture, and until a file has bounds it measures every check and fails, so the first measurement sets them.
 
 The two project gates are external and are defined in `docs/ROADMAP.md` #8:
 **correctness is the HF reference**, and **performance must be at least

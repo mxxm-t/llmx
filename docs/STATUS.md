@@ -2361,14 +2361,14 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
        - `bench --seqs` and a two-CPU `llmx-split-check`, including a stage that holds only states.
        - Logits and greedy text on the Qwen3 files byte-identical to main.
      - Size: about 1.3.
-     - **The tiny references exist** (`work/qwen35-ref-tiny`, 2026-09-26), as ASSETS, "The tiny qwen35 references", records.
+     - **The tiny references exist** (2026-09-26), as ASSETS, "The tiny qwen35 references", records.
        - `tests/qwen35.py` writes Hv = Hk with a tied head, Hv = 3 Hk with its own head, and that model with one MTP block, applying the converter's transforms itself.
          `tools/gen_baseline.py qwen35-tiny` writes `tests/data/baseline_qwen35.json` from HF's token-by-token cached forward at transformers 5.17.0, 152 recurrent steps for each of the two models without an MTP block, with the full forward 4.0e-7 and 4.9e-7 away.
        - The consumer, the `qwen35` component, holds llmx to the gate's bounds once llmx runs the architecture, and reports SKIP until then.
        - `reference-generator` holds the generator to its version, float32, eager attention, no replacement packages and its key checks, and maps the 4B's `dt_bias` onto its GGUF through the writer's tiled order bit for bit.
        - An independent float64 reading of the written files matched the goldens within 7.9e-7, and each of nine misreadings missed them by at least 0.10.
          Put in the CLI's place, that reading passed the whole `qwen35` component, and failed it with either of two misreadings.
-     - **The real-model references exist** (`work/qwen35-ref-real`, 2026-09-27), as ASSETS, "The qwen35 real-model references", records.
+     - **The real-model references exist** (2026-09-27), as ASSETS, "The qwen35 real-model references", records.
        - Both 0.8B files and the 4B Q4_K_M are pinned in `tests/data/fixtures.json` as the `qwen35` family, the 0.8B files hosted; every entry now names its family.
        - `tools/gen_baseline.py qwen35` writes each model's logit, chat and 512- and 4096-token perplexity goldens from HF's float32 full forward on the pinned checkpoint, tokenized as the qwen35 tokenizer golden is.
          `file-exact` undoes the converter's transforms, so a qwen35 file's own weights run in HF.
@@ -2380,13 +2380,30 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
          Its goldens took 37 minutes at a load average of 18 to 66, during which other work brought the memory available down to 5 GiB at times.
          A first 4B run gave the same logit, chat and 512-token goldens and was stopped during its 4096-token part, after the memory available had fallen to 4 GiB; a second 0.8B run gave the 0.8B goldens byte for byte.
        - The 0.8B and 4B Q4_K_M files undone by `file-exact` give back every F32 tensor of their checkpoints bit for bit but `A_log`, whose -exp the file rounds, and one value in each of three of the 4B's layer norms, where float32(1 + w) rounds a tiny w.
-     - **The layered HF reference exists** (branch `work/qwen35-ref-layered`, tools, tests and data only), as [ASSETS](ASSETS.md), The layered qwen35 reference, records with its pins, hashes and runs:
+     - **The layered HF reference exists** (tools, tests and data only), as [ASSETS](ASSETS.md), The layered qwen35 reference, records with its pins, hashes and runs:
        - `tools/gen_layered_reference.py` runs HF's own Qwen3.5 decoder layers one at a time from the safetensors, and on Qwen3.5-0.8B equals HF's full forward bit for bit on all 15 inputs the goldens take and all 321 parameters (`tests/data/layered_equality.json`).
        - Goldens for the Qwen3.5-9B and Qwen3.6-27B Q4_K_M files, in `tests/data/qwen3.5-9b` and `tests/data/qwen3.6-27b`, run the checkpoints' bf16 weights widened to float32, as the 8B's do, and record each GGUF's SHA-256 and the match of its F32 tensors with the checkpoint's.
        - `tests/baseline_layered.py` reads them and skips in one line while llmx refuses qwen35.
          Its bounds are the 0.6B Q4_K_M fixture's, declared before any llmx comparison.
        - The 27B Q4_K_M on the Linux host has no known Hub source; its F32 tensors equal the checkpoint's but for 28 of its `ssm_a` values, each one float32 step from torch's exp, as the host's other third-party 27B files hold them and as 7 `ssm_a` values of the pinned 0.8B Q4_K_M differ.
          The plan keeps the host's 0.8B Q4_K_M out of the gates for having no known Hub source, so gating on this 27B file, or on a pinned Hub 27B Q4_K_M, which needs its own download and a new run of the goldens, is for the user to decide.
+     - **The three references are combined on this branch** (2026-09-27), every commit of each kept, with these changes where they met:
+       - The tiny goldens' mode is `qwen35-tiny`, since the real-model goldens record `qwen35`, and the tiny golden's comment names it.
+       - Each rule the three brought a copy of has one owner.
+         `tools/gen_baseline.py` owns the environment check (`qwen35_environment` over `QWEN35_ENV`, transformers pinned as the chat renderer pins it, and the three packages that replace HF's torch code) and the keys a load may leave unused (`QWEN35_UNUSED`).
+         `tests/qwen35.py` owns the converter's tensor names, transforms and tiled V-head order, which file-exact and the layered reference's GGUF comparison read, and the qwen35 perplexity goldens take the window rule and text reader the others take.
+       - The real-model references made the golden writers read a field the layered reference's writer arguments lack, which stopped a layered goldens run at its logit golden; the writers now add a pinned checkpoint's record only when its loader made one.
+       - On the Linux machine's CPU, in containers of six CPUs, at one-minute load averages of 17 to 27:
+         - A CPU-only build, ctest (23 of 23), the byte compile and every tool's `--help`, `tests/fetch_models.py`, and the ordinary suite, whose `qwen35` component reports SKIP and whose 18 others pass.
+         - `reference-generator` (29 tests) and `reference-consumer` (18 tests) pass in the qwen35 venv as in the suite.
+         - With the pinned 0.8B files in the HF cache, `baseline` passes the 47 id checks of each and skips each in one line, and `--require-baseline` lists only the four absent Qwen3 files.
+         - `tests/baseline_qwen35.py` on the 4B at 4096-token windows passes its 47 id checks and skips, and `tests/baseline_layered.py` on the 9B and 27B passes 21 checks each and skips, 86 s for the three.
+         - Regenerated at this branch's code, the tiny goldens (7 s), the equality record (61 s, peak 7.4 GiB) and the 0.8B goldens (419 s) are byte for byte the committed files, and the 0.8B Q8_0 file-exact goldens (90 s) and the layered goldens of the pinned 0.8B Q4_K_M (48 s) are byte for byte the earlier runs' outputs.
+           The tiny writer's three GGUF files are byte for byte the ones the tiny references wrote.
+       - Left to this step's C++ work, beyond its gates above:
+         - Bounds for the three pinned qwen35 files in `tests/baseline_qwen35.py`, from llmx's first measurement, and `gate` set on the 0.8B files; until then a file llmx runs is measured and fails.
+         - llmx's own render of the chat golden's two conversations, compared with transformers' render, which the consumer does not check yet.
+         - The `qwen35` component, `tests/baseline_qwen35.py` and `tests/baseline_layered.py` skip only on the CPU's architecture refusal, so once the CPU runs qwen35 and the device backends refuse it, their device runs fail rather than skip unless this step makes them skip on that refusal too.
   5. **`feat/qwen35-vulkan`:** the device ops (conv, the per-token recurrence with source, destination and checkpoint-row push constants, the gated norm, `sigmoid_mul`, and the copy and tag rules), the projection groups, device state storage, attention at head dim 256, strided partial rope, the CLI's layer split with states, and a CLI mode for `tools/long_context_check.py` (two fresh `generate` runs, plus `logits --last` on the baseline).
      - Gates:
        - The tiny fixtures, the 0.8B and the 4B within bounds on both cards.

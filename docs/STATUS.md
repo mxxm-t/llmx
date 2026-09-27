@@ -27,6 +27,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Refusal texts:** every file and shape main refuses is refused with the same exit status, and the texts the tests match are kept.
   Three texts are now `row_bytes`' own: a type the registry does not name reads `quant: unsupported tensor type N`, where `data_size` said `unsupported tensor type in data_size` and `row_bytes` said `unknown`; a row that ends inside a block reads `quant: a row of N values is not whole T blocks`, where it read `GGUF quantized row is not a whole number of blocks`; and a byte count past 64 bits reads `quant: row size overflows`, where it read `GGUF size multiplication overflow`, unless the element count overflows first, which keeps its text.
   The checks run in main's order, the type, then the row, then the element count, then the bytes, so every file is refused for the reason main gives.
+  The owner accepted the three texts on 2026-09-27, so they are the only output that differs from main.
 - **Gates** (2026-09-27, on the Linux machine in the build image with 6 CPUs, the CPU and one MI50, against main `c17d043` built beside it, at a load average of 20 to 45 on 16 threads; the tree gated is `12e90c2`, and the rebase after it is the last item):
   - Builds with Vulkan on and off, of the branch, of main and of `536090a`, the conversion move alone, with no warning.
     The Windows Visual Studio build (MSVC 14.50) with Vulkan on, built clean, compiles all 32 targets; its warnings are C4456 at four declarations in `tests/backend_vulkan.cpp`, shadowing that main has, one of them on a line where this branch renames a type's namespace, C4996 at four `getenv` calls in `tests/hub_transport.cpp`, which the branch does not change, and a standard-library C4244 reached from lines of the `q8-dots` test that the branch does not change.
@@ -44,8 +45,6 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Rebased onto main `a9195e4` after these: its commits since `c17d043` change `tools/multi_device_bench.cpp`, a comment in `CMakeLists.txt` and docs, so `src/` and the tests are the ones gated above.
     On the rebased tree, at a load average of 9 to 12, both builds pass without a warning, CTest passes 23 of 23 and 26 of 26 on the MI50, and the Windows build compiles every target, the bench without a warning.
 - **Left:**
-  - The owner's acceptance of the three refusal texts above, before any merge, since output is to stay byte-identical to main.
-    If main's file texts are kept instead, `row_bytes` words them, as their one owner, with no second type or row check in `data_size`, and the backends' refusals then change from their texts on main; either way one path's texts change, so the owner picks one wording for both.
   - The Radeon VII gate, which the merge rules set for a branch that changes the backends, the model and the loader's size check: CTest and the suites on that card, and greedy text and logits against main on the pinned fixtures there.
   - pp and tg against main on an MI50 and on the Radeon VII, with a layout-perturbed control, since the include and definition order of the one translation unit changes (AGENTS, Code layout is part of the measurement); the MI50 the branch is tested on is shared with another test lane, which allows tests but no timing.
   - The merge.

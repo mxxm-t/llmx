@@ -4,7 +4,7 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## One order for a Q4_1 block's two terms (2026-09-27, branch fix/q4_1-row-order)
+## One order for a Q4_1 block's two terms (2026-09-27, branch fix/q4_1-row-order, merged at `92de07d`)
 
 - **Why:** a generated token must compute the same bits whatever else shares its pass ([VULKAN](VULKAN.md), Batch invariance), and on the Radeon VII a Q4_1 one did not.
   The Q4_1 row kernel without the integer dot wrote `acc += dm.x * (xb.x * dot) + dm.y * xb.y`, and the AMD proprietary driver, which reassociates float sums that carry no `precise` and compiles each build on its own, folded the two terms into the sum one at a time in the one-column build and added them together first in the wide and grouped builds.
@@ -50,6 +50,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
       That build's first CTest run failed `server-resume` once, a paused request beside a donor holding its reply as prompt rows recomputing 305 rows against 384; 6 runs of the whole test on each of main and the head, 3 of its device half on each and CTest's run of it on each all passed, and a second CTest run passed 31/31, so it is not this change's: the test's models hold no Q4_1 weights.
     - Byte identity with main, the same 10 runs as on the Radeon VII on Qwen3-30B-A3B Q4_1, Qwen3-0.6B Q4_0 and Qwen3-0.6B Q8_0: 30 of 30 the same.
     - The suite's `dead-code` and `docs` components pass at the head, and `tests/dead_code.py --linked` finds the 24 listed findings.
+- **Merged** at `92de07d` on main `1f7aa85` after a green hosted run on `gate/merge-23`, rebased with no conflict from `02c0a37`, the base its gates ran on; the commits between touch no Vulkan file, backend test or `docs/VULKAN.md`.
 - **Left:** `perf/decode-columns` carries the same fix and a wider check, so its rebase takes this branch's test and fix as its own.
   The one `server-resume` failure on the MI50 above did not come back in 15 runs of the whole test, 8 on the head and 7 on main; it is recorded here in case it does.
 

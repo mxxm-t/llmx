@@ -164,12 +164,21 @@ class Tree:
         self.components = dict(re.findall(r'\("([\w-]+)",\s*(?:lambda:\s*)?(\w+)\.run', runner))
         self.build_text = "\n".join(t for p, t in texts.items() if p in ("CMakeLists.txt", "build.bat") or p.startswith(("cmake/", ".github/", "docker/")))
         self.tool_flags = {}
+        parsed = {}
         for p, t in texts.items():
             if p.startswith(("tools/", "tests/")) and p.endswith(".py"):
-                flags = set()
+                parsed[p] = set()
                 for m in re.finditer(r"add_argument\(([^)]*)", t):
-                    flags |= set(re.findall(r"""["'](-{1,2}[A-Za-z][\w-]*)["']""", m.group(1)))
-                self.tool_flags[p] = flags or set(re.findall(r"""["'](--?[A-Za-z][\w-]*)["']""", t))
+                    parsed[p] |= set(re.findall(r"""["'](-{1,2}[A-Za-z][\w-]*)["']""", m.group(1)))
+        for p, t in texts.items():
+            if p in parsed:
+                flags = set(parsed[p])
+                # A script without a parser of its own takes the flags it names, and those of the modules beside it that it imports, one of which may parse its arguments.
+                if not flags:
+                    flags = set(re.findall(r"""["'](--?[A-Za-z][\w-]*)["']""", t))
+                    for name in re.findall(r"^(?:import|from)\s+(\w+)", t, re.M):
+                        flags |= parsed.get(p.rsplit("/", 1)[0] + "/" + name + ".py", set())
+                self.tool_flags[p] = flags
             elif p.startswith(("tools/", "tests/")) and p.endswith(".cpp"):
                 self.tool_flags[p] = set(re.findall(r'"(--?[A-Za-z][\w-]*)"', t))
         # The planted copies whose code changes take the help pages already read.

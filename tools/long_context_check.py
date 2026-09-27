@@ -266,8 +266,16 @@ def main():
     print(f"accuracy: {args.baseline} read {len(reply)} generated tokens in {time.time() - start:.0f} s; "
           f"its top choice {agree}/{len(reply)}, largest gap {worst:.3f} logits at token {worst_at}, "
           f"{len(beyond)} beyond {args.margin}", flush=True)
+    # A position past the margin with both readings of it: the baseline's top candidates and the device's own, from the device reading the same tokens, so a near-tie is told from a wrong kernel.
+    device_rows = None
+    if beyond:
+        device_rows = baseline_logits(args.exe, args.model, args.device, prompt, reply,
+                                      ["--threads", str(args.threads)] if args.threads else [])
     for j, gap in beyond[:10]:
-        print(f"  token {j}: {gap:.3f} below the baseline's top", flush=True)
+        print(f"  token {j}: {gap:.3f} below the baseline's top; the device took {reply[j]}", flush=True)
+        for name, found in ((args.baseline, rows), (args.device, device_rows)):
+            if found and len(found) == len(reply):
+                print(f"    {name:10s} " + ", ".join(f"{t} {l:.3f}" for t, l in found[j][1][:3]), flush=True)
     accuracy_ok = not beyond
     print(f"\n{'PASS' if repeat_ok and accuracy_ok else 'FAIL'}: repeatability {'ok' if repeat_ok else 'failed'}, "
           f"accuracy {'ok' if accuracy_ok else 'failed'}")

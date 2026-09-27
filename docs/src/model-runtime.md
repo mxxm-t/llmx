@@ -50,21 +50,28 @@ to a `backend::Backend`.
   payload its owner released. A view's data is null while its tensor's file
   is not mapped (`gguf::map_payload`). The loader and the two GGUF
   constructors call it.
-- `TensorIndex`: the views by name, built once by the model over its
-  `QwenWeights`. It refuses a repeated name ("duplicate tensor"), `find`
-  gives an absent name as `nullopt` and `at` refuses it ("missing tensor"),
-  so the plan and the resolution share one index and one text for each.
+- `TensorIndex`: the views by name, which `plan_model` builds once over a
+  `QwenWeights` for the plan and for setting each role's tensor. It refuses
+  a repeated name ("duplicate tensor"), `find` gives an absent name as
+  `nullopt` and `at` refuses it with `missing(name)` ("missing tensor"), the
+  text the model's resolution also gives for a role without a tensor, so
+  each has one owner.
 - The plan: `Role` (the id a resolved weight is indexed by, its `Part` -
   `embed`, `mixer`, `ffn` or `head` - its `RoleKind`, its tensor name and an
   alias taken when the name is absent, its expected `in`, `out` and
-  `experts`, and its `Stream`), `LayerPlan` (the architecture's own kind for
+  `experts`, and its `Stream`; then `tensor` and `aliased`, the view it
+  reads and whether that is the alias's, which `plan_model` sets),
+  `LayerPlan` (the architecture's own kind for
   a layer, whether its feed-forward part is routed, and its roles in adoption
   order) and `ModelPlan` (the size of a row of resolved weights, the
-  vocabulary, the pass's roles and each layer's). A `RoleKind` says how a
-  role's tensor is checked: `norm` is F32 `[in]`, `matrix` is `[in, out]`
-  read by a product, `gather` is checked as a matrix and gathered by the
-  embedding, and `experts` is exactly `[in, out, experts]`; a norm or matrix
-  takes trailing axes of one up to rank four. A `Stream` says what a routed
+  vocabulary, the pass's roles and each layer's, and what the fit counts
+  beside the weights: the residual row, the arena's slot widths, the K and V
+  heads and head width of every layer, and the position tables' sizes). A
+  `RoleKind` says how a role's tensor is checked and whether the fit counts
+  it as a product: `norm` is F32 `[in]`, `matrix` is `[in, out]` read by a
+  product, `gather` is checked as a matrix and gathered by the embedding,
+  and `experts` is exactly `[in, out, experts]`; a norm or matrix takes
+  trailing axes of one up to rank four. A `Stream` says what a routed
   layer run beside its mixer for a long prompt does with a role: nothing, a
   copy adopted on the mixer's device at load, or a copy written into that
   device's window in each pass that needs it.
@@ -77,7 +84,18 @@ to a `backend::Backend`.
   its feed-forward norm, then the router and three expert stacks or the
   three dense matrices; a routed layer's norm and router are `copy` roles
   and its stacks `window` roles. The head's `output.weight` takes
-  `token_embd.weight` as its alias, which is the tie.
+  `token_embd.weight` as its alias, which is the tie. The residual is the
+  embedding width, the slots are `slot_widths` with the dense width counted
+  when some layer is dense, and the two RoPE tables hold the context's
+  positions at half a head each. `plan_model(weights)`: the plan of a
+  model's weights, which `place_model` makes once and hands to the fit, the
+  experts placement and the model. It indexes the views by name once, has
+  the plan built over that index, and sets each role's `tensor`, its name's
+  or else its alias's (`aliased`), so neither the fit nor the resolution
+  looks a name up again. A plan whose slot 0 is not as wide as the
+  residual, or with a role id past `role_ids`, is the architecture's error
+  (`std::logic_error`), since the runtime strides the residual by one and
+  sizes slot 0 by the other, and indexes rows by the id.
 - `AdoptWeight`: `std::function<BufferPtr(size_t tensor, Backend&)>`, how
   the model's builder puts a tensor on a backend. The model calls it once
   for each backend that hosts a weight's role, and without one it calls
@@ -96,10 +114,10 @@ to a `backend::Backend`.
   instead of rebuilding `"blk.N."` and hashing a tensor name for every
   projection of every layer of every token, and a device backend recognizes
   the same weight across calls. See `docs/DEVICE-EXECUTION.md` step 1.
-- `footprint(weights, options)`: what this architecture asks of memory, for a split fitted to devices (`model/layer_split.hpp`): each layer's matrices from its `blk.N.` tensors, those a product reads marked by their role (the attention and feed-forward projections and the router, whatever their rank), the embedding, the head's matrix and norm and whether it is tied, one layer's cache for the budgeted positions at the options' cache types, the RoPE tables, a row of the arena and a row of the residual stream handed between devices. The arena's feed-forward slots are as wide as a dense layer's when some layer is not routed (`routed_layers`), as the model resolves it. `placement_for(split)` turns a `LayerSplit` into a `Placement`. `synthetic_model(...)`: a model of this architecture with a given shape and random weights, Q8_0 matrices and F32 norms, which `bench` times without a file.
-- `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(cfg, options)` and `kv_bytes_per_position(cfg, options)`: the positions the caches are budgeted for, which the fit and the cache allocation take, and one position's key and value bytes at the options' cache types, which only the fit and `kv_used_bytes` take: the allocation passes the token budget and the two types to `kv_alloc`, and the backend's storage turns them into blocks and bytes (`backends/kv_storage.hpp`). `routed_layers(weights)`: the layers whose router tensor (`blk.N.ffn_gate_inp.weight`) is present.
-- `place_model(weights, backends, request, options, adopt = {})`: the one place a model is placed over the backends its caller made, returning the model with the request's ubatch set and, for a split, its plan (`LayerSplit::describe`). A request that names `histories` of `history_tokens` each, as `bench --model` does its sequences, has them counted in whole blocks of each backend, each up to the model's context, which no run passes: where the options' budget would leave any storage short, the budget becomes what they take in the largest blocks, which the fit and every storage then use, and otherwise it is unchanged. With several backends or layer shares it fits the split for `request.ubatch` (default `kDefaultUbatch`) plus `request.decode_rows` rows and `request.slots` pass slots, whose handoff buffers the host holds (`budgets_for`, `split_layers`, `placement_for`); with one backend that is not the CPU (`Backend::is_cpu`) and `PlacementRequest::cpu_moe`, the CPU becomes device 0 beside it and the first `cpu_moe` routed layers' feed-forward blocks (every one at -1) run there, with `stream_from` as the placement's; otherwise the model is on the one backend, the CPU with its experts on it included. Experts on the CPU on a model without routed layers are refused whatever the backends, the CPU included, and so are experts on the CPU with several devices, each refusal naming the flag the request stands for (`--cpu-moe` at -1, `--n-cpu-moe` otherwise); so is a nonzero `stream_from` without experts on the CPU, which would have nothing to stream. `adds_host_for_experts(backends, request)` is the rule for when it adds the CPU for experts, which asks whether the backend is the CPU and not whether it reads its weights in place, since a device may read host memory in place, and `host_reads_in_place(backends, request)` says whether any backend of the placement reads weights in place, one of `backends` or that CPU, which the loader asks before it decides what to map. The CLI, `bench --model`, the server and `llmx-split-check` all build their model through it by way of `infer::load_model` ([load](inference-load.md)), as does `compare_cpu`. A routed layer's experts are streamed to the device only where attention runs on a backend that copies its weights and the experts on one that reads them in place (`Backend::reads_in_place`).
-- `slot_widths(config, dense)`: the floats one row takes in each of the arena's twelve slots, which `ensure` allocates and `footprint` counts.
+- `footprint(weights, plan, options)`: what a model asks of memory, for a split fitted to devices (`model/layer_split.hpp`), counted from its plan: each layer's matrices are the tensors its roles take, in the file's order and each once, marked as products where a role reads them as a matrix, whatever their rank, so a tensor no role takes costs nothing; the embedding is the embed part's table, the output the head's matrix and the output norm the head's norm, and the head is tied when its role took the alias, its output then the embedding counted as a product; a pass role of any other part and kind, or a second role for one of those three, throws `std::logic_error`, so a new kind of pass role extends `Footprint` rather than fitting a split it overruns; it reads each role's tensor as `plan_model` set it and looks no name up; one layer's cache is the budgeted positions at the plan's K and V geometry and the options' cache types, the tables the plan's, a row of the arena the plan's slots and a row of the residual stream handed between devices the plan's residual. `placement_for(split)` turns a `LayerSplit` into a `Placement`. `synthetic_model(...)`: a model of this architecture with a given shape and random weights, Q8_0 matrices and F32 norms, which `bench` times without a file.
+- `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(cfg, options)` and `kv_bytes_per_position(plan, options)`: the positions the caches are budgeted for, which the fit and the cache allocation take, and one position's key and value bytes at the plan's geometry and the options' cache types, which only the fit and `kv_used_bytes` take: the allocation passes the token budget and the two types to `kv_alloc`, and the backend's storage turns them into blocks and bytes (`backends/kv_storage.hpp`).
+- `place_model(weights, backends, request, options, adopt = {})`: the one place a model is placed over the backends its caller made, returning the model with the request's ubatch set and, for a split, its plan (`LayerSplit::describe`). It plans the weights once (`plan_model`), and the fit, the experts placement and the model it builds read that plan. A request that names `histories` of `history_tokens` each, as `bench --model` does its sequences, has them counted in whole blocks of each backend, each up to the model's context, which no run passes: where the options' budget would leave any storage short, the budget becomes what they take in the largest blocks, which the fit and every storage then use, and otherwise it is unchanged. With several backends or layer shares it fits the split for `request.ubatch` (default `kDefaultUbatch`) plus `request.decode_rows` rows and `request.slots` pass slots, whose handoff buffers the host holds (`budgets_for`, `split_layers`, `placement_for`); with one backend that is not the CPU (`Backend::is_cpu`) and `PlacementRequest::cpu_moe`, the CPU becomes device 0 beside it and the feed-forward blocks of the first `cpu_moe` layers the plan marks routed (every one at -1) run there, with `stream_from` as the placement's; otherwise the model is on the one backend, the CPU with its experts on it included. Experts on the CPU on a model whose plan marks no layer routed are refused whatever the backends, the CPU included, and so are experts on the CPU with several devices, each refusal naming the flag the request stands for (`--cpu-moe` at -1, `--n-cpu-moe` otherwise); so is a nonzero `stream_from` without experts on the CPU, which would have nothing to stream. `adds_host_for_experts(backends, request)` is the rule for when it adds the CPU for experts, which asks whether the backend is the CPU and not whether it reads its weights in place, since a device may read host memory in place, and `host_reads_in_place(backends, request)` says whether any backend of the placement reads weights in place, one of `backends` or that CPU, which the loader asks before it decides what to map. The CLI, `bench --model`, the server and `llmx-split-check` all build their model through it by way of `infer::load_model` ([load](inference-load.md)), as does `compare_cpu`. A routed layer's experts are streamed to the device only where attention runs on a backend that copies its weights and the experts on one that reads them in place (`Backend::reads_in_place`).
+- `slot_widths(config, dense)`: the floats one row takes in each of the arena's twelve slots, which the plan holds, `ensure` allocates and `footprint` counts.
 - `Placement`: a device index per tensor role: each layer's attention and
   feed-forward block, the embedding table and the output head. Empty means
   everything on device 0. Per role rather than per layer so expert offload
@@ -155,7 +173,8 @@ to a `backend::Backend`.
   server set it, so a prompt computes the same in one pass or in slices.
   An entry of many generated tokens at extent 1, which is how the server recomputes a paused request's reply, takes the decode kernels for every one of them.
 - `Model`: built from `QwenWeights` over several backends with a
-  `Placement` and an optional `AdoptWeight`. Two constructors take a
+  `Placement` and an optional `AdoptWeight`, planning the weights itself
+  or given their plan (`plan_model`), as `place_model` gives it. Two constructors take a
   `GGUFModel` instead, over one backend or over several with a placement,
   and forward through `gguf_weights`; the fixtures and the synthetic bench
   use them. The model keeps no view and no reference to the file. Each
@@ -271,10 +290,10 @@ to a `backend::Backend`.
   - Before model activation/KV/RoPE allocation, `gguf_weights` checks
     tensor-name uniqueness, offset count/alignment/ranges and supported
     storage types, and construction checks all required layouts.
-    Construction builds a `TensorIndex` for itself alone and the plan from
-    it, and `resolve_tensors` walks the plan's roles in order - the pass's,
-    then each layer's followed by a streamed layer's copies - looking each
-    up by its name or else its alias, checking it by its kind and returning
+    `resolve_tensors` walks the plan's roles in order - the pass's,
+    then each layer's followed by a streamed layer's copies - refusing a
+    role whose tensor is absent with `TensorIndex`'s text, checking each by
+    its kind and returning
     its `Weight` from the same check, so a resolved handle is well-formed by
     construction and no other path produces one. Each weight goes to the
     device of its part, and a tensor two roles take on one device is adopted

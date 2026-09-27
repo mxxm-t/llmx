@@ -1,11 +1,9 @@
 #pragma once
 #include <algorithm>
-#include <array>
 #include <memory>
 #include <functional>
 #include <cstdint>
 #include <cstring>
-#include <cstdlib>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -196,8 +194,8 @@ inline QwenWeights gguf_weights(const gguf::GGUFModel& m) {
     return w;
 }
 
-// The tensors a model is built from, by name, which an architecture's plan and the model's resolution both look names up in.
-// Built once over the views, it refuses a repeated name, and a lookup of an absent one gives the one missing-tensor text; it lives no longer than the views it refers to.
+// The tensors a model is built from, by name, which plan_model builds once over the views for the architecture's plan and for setting each role's tensor.
+// It refuses a repeated name, and owns the one text for an absent one; it lives no longer than the views it refers to.
 class TensorIndex {
 public:
     explicit TensorIndex(const std::vector<TensorView>& tensors) : tensors_(&tensors) {
@@ -213,10 +211,12 @@ public:
     }
     size_t at(const std::string& name) const {
         const auto it = index_.find(name);
-        if (it == index_.end()) throw std::runtime_error("inference: missing tensor " + name);
+        if (it == index_.end()) throw missing(name);
         return it->second;
     }
     const TensorView& view(size_t i) const { return (*tensors_)[i]; }
+    // The refusal of a tensor the views lack, which the model's resolution also gives for a role without one.
+    static std::runtime_error missing(const std::string& name) { return std::runtime_error("inference: missing tensor " + name); }
 
 private:
     const std::vector<TensorView>* tensors_;
@@ -226,7 +226,7 @@ private:
 // The part of a pass a role runs with: a layer is a mixer part (attention) then a feed-forward part, which a placement may put on another device, and the embedding and the head are parts of the pass.
 enum class Part : uint8_t { embed, mixer, ffn, head };
 
-// How the model checks a role's tensor.
+// How the model checks a role's tensor, and whether the fit counts it as a product.
 enum class RoleKind : uint8_t {
     norm,     // F32, [in], trailing axes of one
     matrix,   // [in, out], trailing axes of one, read by a matrix product
@@ -238,6 +238,7 @@ enum class RoleKind : uint8_t {
 enum class Stream : uint8_t { none, copy, window };
 
 // A tensor the model reads: the id its resolved weight is indexed by, the part it runs with, how it is checked, its name and the name taken when that is absent (a tied head reads the embedding), its expected shape and what streaming does with it.
+// The architecture leaves the last two fields as they are; plan_model sets them.
 struct Role {
     uint16_t id;
     Part part;
@@ -245,6 +246,8 @@ struct Role {
     std::string name, alias;
     uint64_t in = 0, out = 1, experts = 0;
     Stream stream = Stream::none;
+    std::optional<size_t> tensor = std::nullopt;   // the view it reads, its name's or else its alias's, absent when the file has neither
+    bool aliased = false;                          // that view is its alias's
 };
 
 // A decoder layer as the model runs it: the architecture's own kind for it, whether its feed-forward part holds routed experts, and its roles in the order they are adopted.
@@ -254,13 +257,28 @@ struct LayerPlan {
     std::vector<Role> roles;
 };
 
-// What an architecture declares of a model's tensors: the size of every resolved row of weights, the vocabulary, the roles of the pass (the embedding's and the head's) and each layer's.
+// What an architecture declares of a model: the size of every resolved row of weights, the vocabulary, the roles of the pass (the embedding's and the head's) and each layer's, and what the fit counts beside the weights.
+// Every role id is below role_ids, and slot 0 is as wide as the residual, which plan_model holds every plan to.
 struct ModelPlan {
     size_t role_ids = 0;
     size_t vocab = 0;
     std::vector<Role> pass;
     std::vector<LayerPlan> layers;
+    size_t residual = 0;                // floats in a residual row: slot 0, a handoff row
+    std::vector<size_t> slots;          // floats one row takes in each arena slot; slot 0 is the residual
+    size_t kv_heads = 0, head_dim = 0;  // K and V of every layer: heads, and each head's width
+    std::vector<size_t> tables;         // floats in each position table
 };
+
+// The floats one row of a pass takes in each slot of an activation arena (ExecContext::Scratch), which the plan gives the arena and the fit.
+// Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn, 9 router scores, 10 expert ids, 11 expert weights.
+// The feed-forward slots hold a dense layer's hidden rows or a routed layer's k expert rows per token, whichever is wider.
+inline std::vector<size_t> slot_widths(const QwenConfig& cfg, bool dense) {
+    const size_t q = (size_t)cfg.n_head * cfg.head_dim, kv = (size_t)cfg.n_head_kv * cfg.head_dim;
+    const size_t ff = std::max(dense ? (size_t)cfg.n_ff : 0, (size_t)cfg.n_expert_used * (size_t)cfg.n_ff_exp);
+    const size_t e = (size_t)cfg.n_embd, k = (size_t)cfg.n_expert_used;
+    return {e, e, q, kv, kv, q, ff, ff, ff, (size_t)cfg.n_expert, k, k};
+}
 
 namespace qwen3 {
 
@@ -274,6 +292,7 @@ enum Kind : uint8_t { dense, routed };
 
 // The plan of a file's tensors under a configuration: the embedding gives the vocabulary, and a layer with a router is routed, which a dense architecture refuses, as a dense layer is refused without the dense width.
 // A layer's roles are its attention's, its feed-forward norm, then its router and expert stacks or its three dense matrices; a routed layer copies its norm and router beside its mixer and writes its stacks into a window.
+// The arena's feed-forward slots are as wide as a dense layer's when some layer is dense, and the two rope tables cover the context at half a head each.
 inline ModelPlan plan(const QwenConfig& cfg, const TensorIndex& tensors) {
     const TensorView& embedding = tensors.view(tensors.at("token_embd.weight"));
     if (embedding.shape.size() < 2 || !embedding.shape[1] ||
@@ -288,6 +307,7 @@ inline ModelPlan plan(const QwenConfig& cfg, const TensorIndex& tensors) {
               {output, Part::head, RoleKind::matrix, "output.weight", "token_embd.weight", E, p.vocab},
               {output_norm, Part::head, RoleKind::norm, "output_norm.weight", "", E}};
     p.layers.resize((size_t)cfg.n_layer);
+    bool any_dense = false;
     for (int l = 0; l < cfg.n_layer; ++l) {
         const std::string pre = "blk." + std::to_string(l) + ".";
         LayerPlan& layer = p.layers[(size_t)l];
@@ -316,11 +336,38 @@ inline ModelPlan plan(const QwenConfig& cfg, const TensorIndex& tensors) {
             layer.roles.push_back({ffn_up, Part::ffn, RoleKind::matrix, pre + "ffn_up.weight", "", E, F});
             layer.roles.push_back({ffn_down, Part::ffn, RoleKind::matrix, pre + "ffn_down.weight", "", F, E});
         }
+        any_dense = any_dense || !layer.routed;
     }
+    p.slots = slot_widths(cfg, any_dense);
+    p.residual = (size_t)cfg.n_embd;
+    p.kv_heads = (size_t)cfg.n_head_kv;
+    p.head_dim = (size_t)cfg.head_dim;
+    p.tables.assign(2, (size_t)cfg.context_length * (size_t)(cfg.head_dim / 2));
     return p;
 }
 
 } // namespace qwen3
+
+// The plan of a model's weights: their tensors indexed once, a repeated name refused there, the architecture's plan over them, and each role's tensor, its name's or else its alias's, which the fit, the experts placement and the model all read.
+// A plan whose slot 0 is not the residual's width, or with a role id past its row of weights, is the architecture's error.
+inline ModelPlan plan_model(const QwenWeights& weights) {
+    const TensorIndex tensors(weights.tensors);
+    ModelPlan plan = qwen3::plan(weights.config, tensors);
+    if (plan.slots.empty() || plan.slots[0] != plan.residual)
+        throw std::logic_error("inference: a plan whose slot 0 is not the residual");
+    auto resolve = [&](Role& role) {
+        if (role.id >= plan.role_ids) throw std::logic_error("inference: a plan role's id past its row of weights " + role.name);
+        role.tensor = tensors.find(role.name);
+        if (!role.tensor && !role.alias.empty()) {
+            role.tensor = tensors.find(role.alias);
+            role.aliased = role.tensor.has_value();
+        }
+    };
+    for (Role& role : plan.pass) resolve(role);
+    for (LayerPlan& layer : plan.layers)
+        for (Role& role : layer.roles) resolve(role);
+    return plan;
+}
 
 // How the model's builder puts tensor `tensor` of its QwenWeights on backend `b`, returning the buffer the model reads.
 // The model calls it once for each backend that hosts a weight's role; without one it calls b.adopt(view.data, view.bytes).
@@ -457,32 +504,8 @@ inline size_t kv_tokens(const QwenConfig& cfg, const ModelOptions& options) {
 }
 
 // The bytes one position of one layer's cache takes, key and value, at the options' cache types.
-inline size_t kv_bytes_per_position(const QwenConfig& cfg, const ModelOptions& options) {
-    return (size_t)cfg.n_head_kv * (size_t)cfg.head_dim * (backend::kv_elem_bytes(options.kv_k) + backend::kv_elem_bytes(options.kv_v));
-}
-
-// Which layers route their feed-forward block through experts, found by their router tensor.
-inline std::vector<bool> routed_layers(const QwenWeights& weights) {
-    std::vector<bool> routed((size_t)weights.config.n_layer, false);
-    const std::string suffix = ".ffn_gate_inp.weight";
-    for (const auto& t : weights.tensors) {
-        if (t.name.compare(0, 4, "blk.") != 0 || t.name.size() <= suffix.size() ||
-            t.name.compare(t.name.size() - suffix.size(), suffix.size(), suffix) != 0)
-            continue;
-        const size_t l = (size_t)std::strtoull(t.name.c_str() + 4, nullptr, 10);
-        if (l < routed.size()) routed[l] = true;
-    }
-    return routed;
-}
-
-// The floats one row of a pass takes in each slot of an activation arena (ExecContext::Scratch), for the arena itself and for a split's fit.
-// Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn, 9 router scores, 10 expert ids, 11 expert weights.
-// The feed-forward slots hold a dense layer's hidden rows or a routed layer's k expert rows per token, whichever is wider.
-inline std::array<size_t, ExecContext::kSlots> slot_widths(const QwenConfig& cfg, bool dense) {
-    const size_t q = (size_t)cfg.n_head * cfg.head_dim, kv = (size_t)cfg.n_head_kv * cfg.head_dim;
-    const size_t ff = std::max(dense ? (size_t)cfg.n_ff : 0, (size_t)cfg.n_expert_used * (size_t)cfg.n_ff_exp);
-    const size_t e = (size_t)cfg.n_embd, k = (size_t)cfg.n_expert_used;
-    return {e, e, q, kv, kv, q, ff, ff, ff, (size_t)cfg.n_expert, k, k};
+inline size_t kv_bytes_per_position(const ModelPlan& plan, const ModelOptions& options) {
+    return plan.kv_heads * plan.head_dim * (backend::kv_elem_bytes(options.kv_k) + backend::kv_elem_bytes(options.kv_v));
 }
 
 // A model of this architecture with the given shape and random weights, Q8_0 matrices and F32 norms, for timing the backend without a file (bench without --model).
@@ -551,48 +574,50 @@ inline gguf::GGUFModel synthetic_model(int n_layer, int n_embd, int n_ff, int n_
     return m;
 }
 
-// What this architecture asks of the memory of the devices it runs on, for a split fitted to them (model/layer_split.hpp).
-// The cache is counted for every position the options budget; activations are the slots of ExecContext's arena.
-inline Footprint footprint(const QwenWeights& weights, const ModelOptions& options) {
-    const QwenConfig& cfg = weights.config;
-    Footprint fp;
-    fp.layers.resize((size_t)cfg.n_layer);
-    bool output = false;
-    // The roles a matrix product reads as its weights: a layer's projections and router, and the head; the embedding is gathered, norms are vectors and stacked experts are routed.
-    // By role, not by rank, since a projection may carry trailing singleton axes.
-    auto product = [](const std::string& name) {
-        if (name == "output.weight") return true;
-        const size_t dot = name.find('.', 4);
-        if (name.compare(0, 4, "blk.") != 0 || dot == std::string::npos) return false;
-        const std::string role = name.substr(dot + 1);
-        for (const char* r : {"attn_q.weight", "attn_k.weight", "attn_v.weight", "attn_output.weight", "ffn_gate.weight",
-                              "ffn_up.weight", "ffn_down.weight", "ffn_gate_inp.weight"})
-            if (role == r) return true;
-        return false;
-    };
-    for (const TensorView& t : weights.tensors) {
-        Matrix w{t.type, t.shape.empty() ? 0 : (size_t)t.shape[0], 1, t.bytes, product(t.name)};
+// What a model asks of the memory of the devices it runs on, for a split fitted to them (model/layer_split.hpp), counted from its plan.
+// A layer lists the tensors its roles take in the file's order, each once and a product where a role reads it as a matrix, whatever its rank; a tensor no role takes costs nothing.
+// The embedding is the embed part's table, the output the head's matrix, tied when that role took its alias, and the output norm the head's norm; a pass role of any other part and kind, or a second role for one of those fields, has no field to count it in and is the plan's error.
+// The cache is counted for every position the options budget; activations are the plan's arena slots, and a handoff row is a residual row.
+inline Footprint footprint(const QwenWeights& weights, const ModelPlan& plan, const ModelOptions& options) {
+    auto matrix = [&](size_t i, bool product) {
+        const TensorView& t = weights.tensors[i];
+        Matrix w{t.type, t.shape.empty() ? 0 : (size_t)t.shape[0], 1, t.bytes, product};
         for (size_t d = 1; d < t.shape.size(); ++d) w.rows *= (size_t)t.shape[d];
-        if (t.name == "token_embd.weight") fp.embedding = w;
-        else if (t.name == "output.weight") { fp.output = w; output = true; }
-        else if (t.name == "output_norm.weight") fp.output_norm = w;
-        if (t.name.compare(0, 4, "blk.") != 0) continue;
-        const size_t l = (size_t)std::strtoull(t.name.c_str() + 4, nullptr, 10);
-        if (l < fp.layers.size()) fp.layers[l].push_back(w);
+        return w;
+    };
+    Footprint fp;
+    fp.layers.resize(plan.layers.size());
+    for (size_t l = 0; l < plan.layers.size(); ++l) {
+        std::vector<std::pair<size_t, bool>> taken;
+        for (const Role& role : plan.layers[l].roles)
+            if (role.tensor) taken.push_back({*role.tensor, role.kind == RoleKind::matrix});
+        std::sort(taken.begin(), taken.end());
+        for (size_t k = 0; k < taken.size(); ++k) {
+            if (k && taken[k].first == taken[k - 1].first) {
+                fp.layers[l].back().product = fp.layers[l].back().product || taken[k].second;
+                continue;
+            }
+            fp.layers[l].push_back(matrix(taken[k].first, taken[k].second));
+        }
     }
-    // A layer without a router is dense, as the model resolves it.
-    const std::vector<bool> routed = routed_layers(weights);
-    const bool dense = std::find(routed.begin(), routed.end(), false) != routed.end();
-    fp.tied = !output;
-    if (fp.tied) {
-        fp.output = fp.embedding;
-        fp.output.product = true;
+    std::vector<const Matrix*> counted;
+    for (const Role& role : plan.pass) {
+        Matrix* field = nullptr;
+        if (role.part == Part::embed && role.kind == RoleKind::gather) field = &fp.embedding;
+        else if (role.part == Part::head && role.kind == RoleKind::matrix) field = &fp.output;
+        else if (role.part == Part::head && role.kind == RoleKind::norm) field = &fp.output_norm;
+        if (!field || std::find(counted.begin(), counted.end(), field) != counted.end())
+            throw std::logic_error("footprint: no field of its own for the pass role " + role.name);
+        counted.push_back(field);
+        if (!role.tensor) continue;
+        *field = matrix(*role.tensor, field == &fp.output);
+        if (field == &fp.output) fp.tied = role.aliased;
     }
     fp.logits_per_row = fp.output.rows * sizeof(float);
-    fp.cache_per_layer = kv_tokens(cfg, options) * kv_bytes_per_position(cfg, options);
-    fp.tables = (size_t)cfg.context_length * (size_t)cfg.head_dim * sizeof(float);
-    fp.handoff_per_row = (size_t)cfg.n_embd * sizeof(float);
-    for (size_t w : slot_widths(cfg, dense)) fp.activations_per_row += w * sizeof(float);
+    fp.cache_per_layer = kv_tokens(weights.config, options) * kv_bytes_per_position(plan, options);
+    for (size_t n : plan.tables) fp.tables += n * sizeof(float);
+    fp.handoff_per_row = plan.residual * sizeof(float);
+    for (size_t w : plan.slots) fp.activations_per_row += w * sizeof(float);
     return fp;
 }
 
@@ -621,11 +646,14 @@ public:
           Placement placement, ModelOptions options = ModelOptions{})
         : Model(gguf_weights(m), std::move(backends), std::move(placement), options) {}
 
-    // Construct from a model's weights over several backends with a placement of every role, each weight put on the backend that hosts it by `adopt`.
+    // Construct from a model's weights over several backends with a placement of every role, each weight put on the backend that hosts it by `adopt`, planned here or given the plan plan_model made of these weights.
     // The views are not kept; the bytes a backend adopted in place must outlive the Model (Backend::adopt).
     Model(const QwenWeights& weights, std::vector<backend::BackendPtr> backends,
           Placement placement, ModelOptions options = ModelOptions{}, const AdoptWeight& adopt = {})
-        : place_(std::move(placement)), options_(options) {
+        : Model(weights, plan_model(weights), std::move(backends), std::move(placement), options, adopt) {}
+    Model(const QwenWeights& weights, ModelPlan plan, std::vector<backend::BackendPtr> backends,
+          Placement placement, ModelOptions options = ModelOptions{}, const AdoptWeight& adopt = {})
+        : place_(std::move(placement)), options_(options), plan_(std::move(plan)) {
         if (backends.empty()) throw std::runtime_error("inference: missing backend");
         for (const auto& b : backends)
             if (!b) throw std::runtime_error("inference: missing backend");
@@ -699,10 +727,7 @@ public:
         if ((size_t)place_.output_device != at) devices_[at]->sends = true;
 
         try {
-            const TensorIndex tensors(weights.tensors);
-            plan_ = qwen3::plan(cfg, tensors);
-            for (const LayerPlan& layer : plan_.layers) any_dense_ = any_dense_ || !layer.routed;
-            resolve_tensors(weights, tensors, adopt);
+            resolve_tensors(weights, adopt);
 
             // Each device that runs attention gets a storage for exactly its layers, with its own block size and pool.
             // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it.
@@ -1023,7 +1048,7 @@ public:
         return n;
     }
     size_t kv_used_bytes() const {
-        return seq_.length() * (size_t)cfg.n_layer * kv_bytes_per_position(cfg, options_);
+        return seq_.length() * plan_.layers.size() * kv_bytes_per_position(plan_, options_);
     }
 
 private:
@@ -1057,7 +1082,6 @@ private:
     int q_dim_ = 0;
     int ubatch_ = kDefaultUbatch;
     ModelOptions options_;
-    bool any_dense_ = false;   // some layer has a dense feed-forward block
     ModelPlan plan_;
     std::vector<Weight> pass_;                  // the pass's roles by role id, on the embedding's and the head's devices
     std::vector<std::vector<Weight>> home_;     // per layer, its roles by role id, each on the device of its part
@@ -1070,15 +1094,15 @@ private:
     ExecContext ctx_;
 
     // Resolve every role of the plan to a Weight, in plan order: the pass's roles, then each layer's followed by a streamed layer's copies.
-    // Each role's tensor is its name's, or its alias's when the name is absent, checked by the role's kind in the same step, so a resolved handle is well-formed by construction and the forward pass never looks a tensor up by name.
+    // Each role reads the tensor plan_model set, a role without one refused here, checked by the role's kind in the same step, so a resolved handle is well-formed by construction and the forward pass never looks a tensor up by name.
     // Each weight is put on the backend that runs its part, by the caller's hook when it gave one, and a tensor two roles take on one device is put there once, as a tied head beside the embedding reads the embedding's buffer.
-    void resolve_tensors(const QwenWeights& weights, const TensorIndex& tensors, const AdoptWeight& adopt) {
+    void resolve_tensors(const QwenWeights& weights, const AdoptWeight& adopt) {
         const size_t n_devices = devices_.size();
         std::vector<backend::BufferPtr> taken(weights.tensors.size() * n_devices);
         auto resolve = [&](const Role& role, size_t device) -> Weight {
-            const std::optional<size_t> named = tensors.find(role.name);
-            const size_t i = named ? *named : tensors.at(role.alias.empty() ? role.name : role.alias);
-            const TensorView& t = tensors.view(i);
+            if (!role.tensor) throw TensorIndex::missing(role.alias.empty() ? role.name : role.alias);
+            const size_t i = *role.tensor;
+            const TensorView& t = weights.tensors[i];
             bool valid;
             if (role.kind == RoleKind::experts) {
                 valid = t.shape.size() == 3 && t.shape[0] == role.in && t.shape[1] == role.out && t.shape[2] == role.experts;
@@ -1354,9 +1378,8 @@ private:
         for (size_t d = 0; d < devices_.size(); ++d) {
             ExecContext::Scratch& sc = ctx.scratch[d];
             if (!devices_[d]->used || (sc.arena && sc.rows >= rows)) continue;
-            const auto widths = slot_widths(cfg, any_dense_);
             size_t counts[ExecContext::kSlots];
-            for (size_t i = 0; i < ExecContext::kSlots; ++i) counts[i] = mul(rows, widths[i]);
+            for (size_t i = 0; i < ExecContext::kSlots; ++i) counts[i] = mul(rows, plan_.slots[i]);
             size_t offsets[ExecContext::kSlots];
             backend::BufferPtr arena = alloc_arena(*devices_[d]->b, counts, offsets);
             // A pass through this context may still run on the arena being replaced: nothing else waits for a pass that wanted no logits.
@@ -1580,13 +1603,11 @@ inline PlacedModel place_model(const QwenWeights& weights, std::vector<backend::
     if (backends.empty()) throw std::runtime_error("placement: no device");
     if (request.stream_from && !request.cpu_moe)
         throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
+    const ModelPlan plan = plan_model(weights);
     // A model without routed layers has no experts to put on the CPU, so every placement refuses the flags, on the CPU as beside a device.
     const std::string experts_flag = request.cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe";
-    if (request.cpu_moe) {
-        const std::vector<bool> routed = routed_layers(weights);
-        if (std::none_of(routed.begin(), routed.end(), [](bool r) { return r; }))
-            throw std::runtime_error(experts_flag + ": the model has no expert layers");
-    }
+    if (request.cpu_moe && std::none_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.routed; }))
+        throw std::runtime_error(experts_flag + ": the model has no expert layers");
     // A storage has the blocks the budget fills at its backend's block size, and each history takes whole ones, so the request's histories are counted in each backend's blocks.
     // Where any storage would fall short, the budget becomes what they take in the largest blocks, which every other size divides, so every storage holds them and the fit counts them.
     // No history holds more than the model's context, so one that asks for more is counted at the context: the pool does not grow for tokens no run can hold, and the run is refused where it passes the context.
@@ -1610,26 +1631,25 @@ inline PlacedModel place_model(const QwenWeights& weights, std::vector<backend::
             throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
         const std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
         const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
-        const LayerSplit split = split_layers(footprint(weights, options), budgets, rows, request.shares, core::host_memory_available(), request.slots);
-        placed = {std::make_unique<Model>(weights, std::move(backends), placement_for(split), options, adopt), split.describe(budgets)};
+        const LayerSplit split = split_layers(footprint(weights, plan, options), budgets, rows, request.shares, core::host_memory_available(), request.slots);
+        placed = {std::make_unique<Model>(weights, plan, std::move(backends), placement_for(split), options, adopt), split.describe(budgets)};
     } else if (!adds_host_for_experts(backends, request)) {
-        placed.model = std::make_unique<Model>(weights, std::move(backends), Placement{}, options, adopt);
+        placed.model = std::make_unique<Model>(weights, plan, std::move(backends), Placement{}, options, adopt);
     } else {
-        const QwenConfig& cfg = weights.config;
+        const size_t n_layer = plan.layers.size();
         Placement place;
-        place.attn_device.assign((size_t)cfg.n_layer, 1);
-        place.ffn_device.assign((size_t)cfg.n_layer, 1);
+        place.attn_device.assign(n_layer, 1);
+        place.ffn_device.assign(n_layer, 1);
         place.embed_device = place.output_device = 1;
         place.stream_from = request.stream_from;
-        const std::vector<bool> routed = routed_layers(weights);
         int seen = 0;
-        for (int l = 0; l < cfg.n_layer; ++l) {
-            if (!routed[(size_t)l]) continue;
-            if (request.cpu_moe < 0 || seen < request.cpu_moe) place.ffn_device[(size_t)l] = 0;
+        for (size_t l = 0; l < n_layer; ++l) {
+            if (!plan.layers[l].routed) continue;
+            if (request.cpu_moe < 0 || seen < request.cpu_moe) place.ffn_device[l] = 0;
             ++seen;
         }
         std::vector<backend::BackendPtr> both{backend::make_cpu_backend(), std::move(backends[0])};
-        placed.model = std::make_unique<Model>(weights, std::move(both), place, options, adopt);
+        placed.model = std::make_unique<Model>(weights, plan, std::move(both), place, options, adopt);
     }
     placed.model->set_ubatch(request.ubatch);
     return placed;

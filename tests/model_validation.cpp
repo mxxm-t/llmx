@@ -215,15 +215,35 @@ gguf::GGUFModel routed_only() {
     return m;
 }
 
-// The fit counts a pass's activation rows as the model allocates them: a layer with a router is routed, so the dense ffn_gate it also carries does not widen the feed-forward slots.
+// The fit counts what the model reads: a layer with a router is routed, so the dense matrices it also carries neither widen the feed-forward slots nor count among its weights.
 void fit_width_checks() {
     const auto m = routed_fixture(6);
+    const infer::QwenWeights weights = infer::gguf_weights(m);
     size_t routed = 0;
     for (size_t w : infer::slot_widths(infer::load_config(m), false)) routed += w * sizeof(float);
-    require(infer::footprint(infer::gguf_weights(m), infer::ModelOptions{}).activations_per_row == routed,
-            "the fit widens a routed layer's slots for the dense ffn_gate it also carries");
+    const infer::Footprint fp = infer::footprint(weights, infer::plan_model(weights), infer::ModelOptions{});
+    require(fp.activations_per_row == routed, "the fit widens a routed layer's slots for the dense ffn_gate it also carries");
+    // The layer's four norms, four attention projections, router and three expert stacks.
+    require(fp.layers.size() == 1 && fp.layers[0].size() == 12, "the fit counts the dense matrices a routed layer does not read");
     infer::Model model(m);
     ++checks;
+}
+
+// A wrong plan is the architecture's error, not a refusal of the file: the fit has a field for every pass role and one role for each.
+void plan_checks() {
+    const auto file = fixture();
+    const infer::QwenWeights weights = infer::gguf_weights(file);
+    auto wrong = [&](const std::string& label, const std::function<void()>& work) {
+        try { work(); } catch (const std::logic_error&) { ++checks; return; }
+        throw std::runtime_error("accepted a wrong plan: " + label);
+    };
+    auto fit = [&](const std::function<void(infer::ModelPlan&)>& edit) {
+        infer::ModelPlan plan = infer::plan_model(weights);
+        edit(plan);
+        infer::footprint(weights, plan, infer::ModelOptions{});
+    };
+    wrong("a pass role the fit has no field for", [&] { fit([](infer::ModelPlan& p) { p.pass[0].kind = infer::RoleKind::norm; }); });
+    wrong("a second head matrix", [&] { fit([](infer::ModelPlan& p) { p.pass.push_back(p.pass[1]); }); });
 }
 
 // Layer 0's attention on a device and its experts on a host, streamed to the device from one new token.
@@ -754,6 +774,7 @@ int main(int argc, char** argv) {
         loading_window_checks();
         reader_checks();
         fit_width_checks();
+        plan_checks();
         hook_checks();
         if (write) {
             std::ofstream out(argv[2], std::ios::binary);

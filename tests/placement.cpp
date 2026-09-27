@@ -131,7 +131,8 @@ void layer_split_fits() {
     const auto weights = fixture();
     const infer::ModelOptions options;
     const size_t GiB = size_t(1) << 30, MiB = size_t(1) << 20;
-    const infer::Footprint fp = infer::footprint(infer::gguf_weights(weights), options);
+    const infer::QwenWeights views = infer::gguf_weights(weights);
+    const infer::Footprint fp = infer::footprint(views, infer::plan_model(views), options);
     // The fixture's two layers of equal shape, and no output.weight, so the head reads the embedding.
     size_t layer0 = 0, layer1 = 0;
     for (const auto& m : fp.layers.at(0)) layer0 += m.bytes;
@@ -286,7 +287,8 @@ void layer_split_fits() {
     auto singleton = weights;
     for (auto& t : singleton.tensors)
         if (t.name.compare(0, 4, "blk.") == 0 && t.ne.size() == 2) t.ne.push_back(1);
-    const infer::Footprint fs = infer::footprint(infer::gguf_weights(singleton), options);
+    const infer::QwenWeights singleton_views = infer::gguf_weights(singleton);
+    const infer::Footprint fs = infer::footprint(singleton_views, infer::plan_model(singleton_views), options);
     size_t products = 0, singleton_products = 0;
     for (size_t l = 0; l < fp.layers.size(); ++l)
         for (size_t i = 0; i < fp.layers[l].size(); ++i) {

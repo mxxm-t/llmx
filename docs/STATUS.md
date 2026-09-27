@@ -4,7 +4,9 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## Host pages refuse a size they cannot round to whole pages (2026-09-27, branch fix/host-pages-round)
+## Host pages refuse a size they cannot round to whole pages (2026-09-27, branch fix/host-pages-round, merged at `464ed604`)
+
+- **Merged** at `464ed604` on main `ede8fd7f` after a green hosted run on `gate/merge-37` (run 36346736543, all six jobs) and the other developer's review, which found nothing.
 
 - **Found** in review: `core::HostPages(bytes)` and `HostPages::reserved(bytes)` rounded up with `(bytes + page - 1) / page * page`, which wraps to 0 for a size past the largest whole number of pages a `size_t` holds, so they returned an empty object instead of refusing it.
   Nothing in llmx passes such a size, but a caller computing one from a file header could.

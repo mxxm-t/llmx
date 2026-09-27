@@ -7,6 +7,8 @@ translation unit (`vulkan_backend.cpp`, built only with
 opened at run time, so a build carries no link dependency; the design,
 kernel notes and measurements are `docs/VULKAN.md`.
 
+The lifetime and packed-quantization tests include the implementation and use test-only friends to inspect private storage and dispatch kernels; there is no runtime probe API.
+
 - `make_vulkan_backend(index, diagnostics)`, `vulkan_device_name`: open
   the loader, pick the device, require what the kernels need (Vulkan 1.2,
   subgroups of 32 lanes or more, 16-bit integers, timeline semaphores,

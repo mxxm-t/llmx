@@ -325,6 +325,15 @@ if(BUILD_TESTING)
         add_test(NAME vulkan-buffer COMMAND llmx-vulkan-lifetime-test)
         add_test(NAME vulkan-lifetime COMMAND llmx-vulkan-lifetime-test --queue)
         set_tests_properties(vulkan-buffer vulkan-lifetime PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
+        # Reads the private packed activation buffers, before consumer float arithmetic can flush them.
+        add_executable(llmx-vulkan-quantization-test tests/vulkan_quantization.cpp)
+        add_dependencies(llmx-vulkan-quantization-test llmx-vulkan-shaders)
+        target_include_directories(llmx-vulkan-quantization-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_BINARY_DIR}/generated ${LLMX_VULKAN_INCLUDE_DIR})
+        target_link_libraries(llmx-vulkan-quantization-test PRIVATE ${CMAKE_DL_LIBS})
+        list(APPEND LLMX_TARGETS llmx-vulkan-quantization-test)
+        add_test(NAME vulkan-quantization COMMAND llmx-vulkan-quantization-test)
+        set_tests_properties(vulkan-quantization PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
         # Not a test: times the routed expert projections against dense matmuls of the same bytes.
         add_executable(llmx-moe-kernel-bench tools/moe_kernel_bench.cpp)
         target_link_libraries(llmx-moe-kernel-bench PRIVATE llmx-vulkan)

@@ -349,6 +349,13 @@ It takes the inputs directly, through SiLU and through RMSNorm; the latter two c
 Its 27360 outputs are bounded by half an 8-bit step plus float-rounding allowance, with the independent f32 scale rounded upward to fit the block peak and floored at the smallest positive f32; it does not take expected values from the runtime quantizer.
 It is the failing regression for `fix/vulkan-activation-range` until that branch supplies the repair (docs/STATUS.md, Vulkan finite activation range).
 
+`vulkan-quantization` reads the packed activation buffers before consumer arithmetic.
+It checks both 8-bit and 16-bit twins against the original finite inputs, using a representable-scale reconstruction bound independent of the runtime quantizer.
+Inputs cover every f32 exponent, reciprocal and normalization boundaries, seeded finite peaks and mixed exponents within a block.
+It checks the stored whole and half sums against double products of the encoded scale and integer sums, output guards and alignment padding, and exact agreement of the word-wise and lane-wise 8-bit writers.
+It needs a Vulkan device but no float-preservation capability; without a device it exits 77.
+This covers the producer, not the subsequent dot products or model correctness.
+
 `vulkan-buffer` checks constructor cleanup on a fake device that supplies every Vulkan call it makes, so it needs no loader and runs wherever the backend builds.
 `vulkan-lifetime` opens a device, intercepts transfers and injects allocation failures to check queued storage ownership during KV growth, padded-copy creation/replacement/invalidation and argument-arena overflow.
 It checks retry and unchanged KV accounting after failed growth.

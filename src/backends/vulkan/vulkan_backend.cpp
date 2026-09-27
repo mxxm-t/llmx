@@ -725,6 +725,7 @@ VulkanBuffer& as_vulkan(Buffer& b) {
 
 class VulkanBackend final : public Backend {
     friend struct VulkanLifetimeTest;
+    friend struct VulkanQuantizationTest;
 public:
     explicit VulkanBackend(int index, bool diagnostics = false) : dev_(std::make_shared<Device>()), timed_(diagnostics) {
         Device& d = *dev_;

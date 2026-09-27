@@ -4,7 +4,7 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## Raw conversion in the format layer, type ids in the quant layer (2026-09-26, branch refactor/raw-convert-to-format)
+## Raw conversion in the format layer, type ids in the quant layer (2026-09-26, branch refactor/raw-convert-to-format, merged at `9f33346`)
 
 - **Goal:** each layer depends only on those below it and a type's sizes are written once, with behaviour and output unchanged but for the three refusal texts below; found by a guidelines audit on 2026-09-26.
   `quant/convert.hpp` opened `model.json` and `model.bin` and called `gguf::read_gguf` and `gguf::write_gguf` from below the format layer, against ARCHITECTURE's rule that nothing below the format layer knows what a file is.
@@ -44,6 +44,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Markdown: the pages that name the moved files, the type ids or `data_size` were read against the code; nothing else changes.
   - Rebased onto main `a9195e4` after these: its commits since `c17d043` change `tools/multi_device_bench.cpp`, a comment in `CMakeLists.txt` and docs, so `src/` and the tests are the ones gated above.
     On the rebased tree, at a load average of 9 to 12, both builds pass without a warning, CTest passes 23 of 23 and 26 of 26 on the MI50, and the Windows build compiles every target, the bench without a warning.
+- **Merge gates**, rebased onto main `dcf2561` with no change to its source: builds with and without Vulkan with no warning; the suite's dead-code, docs, cli, roundtrip, raw-blocks, f32, moe and shards components; `generate`, `logits` and `perplexity` on 0.6B Q8_0 at `--threads 6` the same as main; a green hosted run. Before the rebase: on the Radeon VII, 22 of 22 outputs the same as main on 0.6B, 8B and 30B-A3B with `--cpu-moe`, the six files of types llmx does not read refused alike under `info` and `dequantize` with only the accepted texts differing, and bench level; on one MI50, bench level on 0.6B and 8B.
 - **Left:**
   - The Radeon VII gate, which the merge rules set for a branch that changes the backends, the model and the loader's size check: CTest and the suites on that card, and greedy text and logits against main on the pinned fixtures there.
   - pp and tg against main on an MI50 and on the Radeon VII, with a layout-perturbed control, since the include and definition order of the one translation unit changes (AGENTS, Code layout is part of the measurement); the MI50 the branch is tested on is shared with another test lane, which allows tests but no timing.

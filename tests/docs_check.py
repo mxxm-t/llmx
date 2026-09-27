@@ -173,11 +173,12 @@ class Tree:
         for p, t in texts.items():
             if p in parsed:
                 flags = set(parsed[p])
-                # A script without a parser of its own takes the flags it names, and those of the modules beside it that it imports, one of which may parse its arguments.
+                # A script without a parser of its own takes the flags it names, and those of a module beside it that it hands its arguments to, as `module.function(argv, ...)`.
                 if not flags:
                     flags = set(re.findall(r"""["'](--?[A-Za-z][\w-]*)["']""", t))
-                    for name in re.findall(r"^(?:import|from)\s+(\w+)", t, re.M):
-                        flags |= parsed.get(p.rsplit("/", 1)[0] + "/" + name + ".py", set())
+                    aliases = {alias or name: name for name, alias in re.findall(r"^import\s+(\w+)(?:\s+as\s+(\w+))?\s*$", t, re.M)}
+                    for name in re.findall(r"\b(\w+)\.\w+\(\s*(?:sys\.)?argv\b", t):
+                        flags |= parsed.get(p.rsplit("/", 1)[0] + "/" + aliases.get(name, name) + ".py", set())
                 self.tool_flags[p] = flags
             elif p.startswith(("tools/", "tests/")) and p.endswith(".cpp"):
                 self.tool_flags[p] = set(re.findall(r'"(--?[A-Za-z][\w-]*)"', t))
@@ -807,7 +808,7 @@ def planted(tree, plants):
 
 
 def self_test(tree, found, listed):
-    """The planted faults: a dangling path, a broken link, an unpinned line number, a command line with a flag it does not take, a heading reference without backticks in a record, a missing heading of the same doc, a comment naming a doc that does not exist, a qualified name whose member only a string holds, a wrong flag and a wrong default in USAGE.md, a page for a file that does not exist, two CTests removed while AGENTS.md describes them, and a stale list entry.
+    """The planted faults: a dangling path, a broken link, an unpinned line number, a command line with a flag it does not take, a script given a flag of a module it imports without handing it its arguments, a heading reference without backticks in a record, a missing heading of the same doc, a comment naming a doc that does not exist, a qualified name whose member only a string holds, a wrong flag and a wrong default in USAGE.md, a page for a file that does not exist, two CTests removed while AGENTS.md describes them, and a stale list entry.
     A correct pinned line reference must give no finding.
     The faults one check reports share a copy of the tree, so each check runs once."""
     page = "docs/src/core-utf8.md"
@@ -816,6 +817,7 @@ def self_test(tree, found, listed):
         ("docs/BUILD.md", "\n## ", "\nSee [the plan](PLANTED.md#nothing).\n"),
         ("docs/SERVER.md", "\n## ", "\nThe route is at `server/api.hpp:12`.\n"),
         ("docs/BUILD.md", "\n## ", "\n```\nllmx generate model.gguf hi --planted-flag 3\n```\n"),
+        ("docs/BUILD.md", "\n## ", "\n```\npython tests/server.py --file-exact planted\n```\n"),
         ("docs/STATUS.md", None, "\nThe rule is in (AGENTS.md, Planted heading).\n"),
         ("docs/BUILD.md", "\n## ", "\nAs the planted steps say (Planted heading, above).\n"),
         ("src/core/utf8.hpp", None, "\n// The rules are in docs/PLANTED.md.\n"),
@@ -832,6 +834,7 @@ def self_test(tree, found, listed):
             ("a broken link", ("link", "docs/BUILD.md", "PLANTED.md#nothing")),
             ("an unpinned line number", ("line-pin", "docs/SERVER.md", "server/api.hpp:12")),
             ("a command line with a flag it does not take", ("command", "docs/BUILD.md", "generate --planted-flag")),
+            ("a script given a flag of a module it imports without handing it its arguments", ("command", "docs/BUILD.md", "tests/server.py --file-exact")),
             ("a heading reference without backticks in a record", ("section", "docs/STATUS.md", "AGENTS.md, Planted heading")),
             ("a missing heading of the same doc", ("section", "docs/BUILD.md", "Planted heading, above")),
             ("a comment naming a doc that does not exist", ("path", "src/core/utf8.hpp", "docs/PLANTED.md")),

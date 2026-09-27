@@ -1,5 +1,6 @@
 import math
 import os
+import re
 import struct
 import tempfile
 
@@ -76,6 +77,14 @@ def run():
             assert int(fields["context size"]) == context
             assert abs(float(fields["mean NLL"]) - expected) < 1e-5
             assert math.isclose(float(fields["perplexity"]), math.exp(expected), rel_tol=1e-5)
+            # --verbose adds a line for each window, in order, with its scored tokens and their mean NLL; the totals stay as they were.
+            rc, verbose = cli(["perplexity", model, text, "--verbose"] + flags)
+            assert rc == 0, verbose
+            rows = re.findall(r"^chunk (\d+): scored (\d+), mean NLL (\S+)$", verbose, re.M)
+            assert [(int(k), int(n)) for k, n, _ in rows] == [(k + 1, len(w) - 1) for k, w in enumerate(windows)], (text, context, limit, rows)
+            for (_, _, mean), w in zip(rows, windows):
+                assert abs(float(mean) - sum(logsum - logits[ord(t)] for t in w[1:]) / (len(w) - 1)) < 1e-5, (text, w, mean)
+            assert {k: v for k, v in perplexity_fields(verbose).items() if not k.startswith("chunk ")} == fields, verbose
         path = os.path.join(directory, "corpus \u00fc.txt")
         with open(path, "wb") as f:
             f.write(b"ab\r\ncd\nef")
@@ -104,7 +113,7 @@ def run():
                 f.write(text)
             got = cli(["logits", model, "a", "--then-ids", ids, "--threads", "1"])
             assert (got == inline) if accepted else got[0] == 1, (text, got)
-    print("perplexity: analytic NLL, window boundaries, file parity and invalid flags; logits text from a file and appended ids  [ok]")
+    print("perplexity: analytic NLL, each window's under --verbose, window boundaries, file parity and invalid flags; logits text from a file and appended ids  [ok]")
     return True
 
 

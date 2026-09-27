@@ -74,10 +74,17 @@ Q8_PROMPTS = ("a", "abcdefg", "abcdefghijklm")
 Q8_STEPS = 16
 # How each case is read: batched in one pass and three rows a pass, the prompt path, and every token through a decode step.
 Q8_MODES = (("batched", []), ("batched by 3", ["--ubatch", "3"]), ("decode", ["--per-token"]))
-# The CPU calibration the bound is fixed from, once (docs/STATUS.md, the half-block order): the gated variant's largest logit error over every case and mode, read by llmx built without Vulkan from 6da7bd57, main's arithmetic with this branch's perplexity and logits output, on the Linux machine's CPU.
+# The rule the gated variant is held to, fixed by both developers before either device order was read (docs/STATUS.md, the half-block order): a coarse fixture correctness bound, not losslessness or model-quality equivalence.
+# Its CPU calibration, once: the largest logit error over every case and mode, from llmx built without Vulkan from 6da7bd57, main's arithmetic with this branch's perplexity and logits output, on the Linux machine's CPU; each variant's file is held to its SHA-256.
 Q8_CALIBRATION = {"commit": "6da7bd57", "llmx_sha256": "0a70f69d76690f34aca106b02a4daae871535b972c2701085d71c6903a31b10a", "max_error": 0.063473}
-# The agreed bound is max(2e-5, 10 x that error), at most 2e-4; the calibration asks for 0.63473, above the cap, so no bound is set until the developers fix one, and until then the gated variant's errors are printed as the near-tie variant's are.
-Q8_BOUND = None
+Q8_FILES = {"gated": "d547bb5bf6f06f156998e459eb93ceb688390584f33b0ae24c0aabe1874fc751",
+            "near-tie": "93491ced5b64b1948540f8b3e1ce9d71f48a378213353e075e22fdc955589285"}
+# Every logit within Q8_BOUND of HF, twice the calibration: the factor is an empirical engineering allowance for a device rounding the same 8-bit activations in its own order, not a guarantee, and the bound is never recomputed.
+Q8_BOUND = 0.127
+# Each prompt's mean NLL of its forced ids within Q8_NLL_BOUND of HF's on every path, so errors of opposite sign in two prompts cannot cancel.
+Q8_NLL_BOUND = 0.01
+# HF's greedy id wherever HF's top two lie more than twice the bound apart: 4, 5 and 5 rows of the three prompts, held so the condition cannot become empty.
+Q8_GREEDY_ROWS = (4, 5, 5)
 
 
 def q8_tensors(router_scale, seed=Q8_SEED):
@@ -132,13 +139,13 @@ def write_q8_model(path, router_scale):
 
 def q8_errors(directory, golden, variant):
     """One variant of the Q8_0 model against its goldens, every case read in every one of Q8_MODES.
-    Returns, per mode, the largest logit error, where it lies, and each row's (HF top-two gap, whether llmx's greedy id is HF's), then the mean NLL of the forced ids, llmx's and HF's."""
+    Returns, per mode, one entry per prompt: its largest logit error and the row it lies in, each row's (HF top-two gap, whether llmx's greedy id is HF's), and the mean NLL of its forced ids, llmx's and HF's."""
     doc = next(v for v in golden["variants"] if v["name"] == variant)
     model = os.path.join(directory, "tiny-moe-q8-%s.gguf" % variant)
-    assert write_q8_model(model, doc["router_scale"]) == doc["file_sha256"], "Q8_0 MoE fixture %s changed" % variant
+    assert write_q8_model(model, doc["router_scale"]) == doc["file_sha256"] == Q8_FILES[variant], "Q8_0 MoE fixture %s changed" % variant
     report = {}
     for mode, args in Q8_MODES:
-        worst, where, ids, nll, hf_nll = 0.0, None, [], [], []
+        report[mode] = []
         for case in doc["cases"]:
             path = os.path.join(directory, "forced.ids")
             with open(path, "w") as f:
@@ -149,6 +156,7 @@ def q8_errors(directory, golden, variant):
             lines = out.splitlines()
             first = len(case["prompt"]) - 1
             assert lines[0] == "tokens: %d" % (first + 1 + Q8_STEPS) and len(lines) == Q8_STEPS + 2, out
+            worst, row, ids, nll, hf_nll = 0.0, 0, [], [], []
             for r, (line, expected) in enumerate(zip(lines[1:], case["rows"])):
                 fields = line.split()
                 assert int(fields[0]) == first + r, line
@@ -156,36 +164,39 @@ def q8_errors(directory, golden, variant):
                 assert set(got) == set(range(257)) and all(math.isfinite(v) for v in got.values()), line
                 error = max(abs(got[i] - v) for i, v in enumerate(expected))
                 if error > worst:
-                    worst, where = error, (case["prompt"], r)
+                    worst, row = error, r
                 ids.append((case["gaps"][r], int(fields[1]) == case["top_ids"][r]))
                 if r < Q8_STEPS:
                     target = case["forced_ids"][r]
                     nll.append(math.log(sum(math.exp(v) for v in got.values())) - got[target])
                     hf_nll.append(math.log(sum(math.exp(v) for v in expected)) - expected[target])
-        report[mode] = (worst, where, ids, sum(nll) / len(nll), sum(hf_nll) / len(hf_nll))
+            report[mode].append({"prompt": case["prompt"], "worst": worst, "row": row, "ids": ids,
+                                 "nll": sum(nll) / len(nll), "hf_nll": sum(hf_nll) / len(hf_nll)})
     return report
 
 
 def check_q8(directory, golden):
-    """The gated variant: every logit within Q8_BOUND of HF, and HF's greedy id wherever HF's top two lie more than twice that apart; the near-tie variant is printed and not held to anything."""
+    """The gated variant on every path: every logit within Q8_BOUND of HF, each prompt's forced NLL within Q8_NLL_BOUND of HF's, and HF's greedy id at the Q8_GREEDY_ROWS rows HF parts by more than twice the bound.
+    The near-tie variant is printed and held to nothing."""
     assert golden["config"] == Q8_CONFIG and golden["dense_layers"] == list(DENSE_LAYERS), "Q8_0 MoE fixture config changed"
     assert golden["seed"] == Q8_SEED and golden["steps"] == Q8_STEPS, "Q8_0 MoE fixture seed or steps changed"
     assert [(v["name"], v["router_scale"], [c["prompt"] for c in v["cases"]]) for v in golden["variants"]] == [(n, s, list(Q8_PROMPTS)) for n, s in Q8_VARIANTS]
-    # The bound is the calibration's rule or unset, never another number.
-    wanted = max(2e-5, 10 * Q8_CALIBRATION["max_error"])
-    assert Q8_BOUND is None if wanted > 2e-4 else Q8_BOUND == wanted, "Q8_BOUND is not the calibration's"
-    if Q8_BOUND is None:
-        print("moe: Q8_0 bound unset: the CPU calibration at %s gives %.6f, which asks for %.6f, above the cap of 2e-4" % (
-            Q8_CALIBRATION["commit"], Q8_CALIBRATION["max_error"], wanted))
+    assert Q8_BOUND == round(2 * Q8_CALIBRATION["max_error"], 3), "Q8_BOUND is not the frozen rule's"
     for variant, _ in Q8_VARIANTS:
-        for mode, (worst, where, ids, nll, hf_nll) in q8_errors(directory, golden, variant).items():
-            line = ("moe: Q8_0 %s, %s: max error %.8f (%r, row %d), HF's greedy id at %d of %d rows, forced NLL %.6f against HF's %.6f"
-                    % (variant, mode, worst, where[0], where[1], sum(same for _, same in ids), len(ids), nll, hf_nll))
-            if variant == "gated" and Q8_BOUND is not None:
-                held = [same for gap, same in ids if gap > 2 * Q8_BOUND]
-                assert worst <= Q8_BOUND and all(held), line
-                line += ", within %.0e with HF's id at all %d rows HF parts by more than twice that" % (Q8_BOUND, len(held))
-            print(line + ("  [ok]" if variant == "gated" and Q8_BOUND is not None else "  [reported, no bound]"))
+        for mode, prompts in q8_errors(directory, golden, variant).items():
+            gated = variant == "gated"
+            parts = []
+            for p in prompts:
+                held = [same for gap, same in p["ids"] if gap > 2 * Q8_BOUND]
+                parts.append("%r max %.6f (row %d), NLL error %+.6f, HF's id %d of %d rows, %d of %d beyond 2E" % (
+                    p["prompt"], p["worst"], p["row"], p["nll"] - p["hf_nll"], sum(s for _, s in p["ids"]), len(p["ids"]), sum(held), len(held)))
+                if gated:
+                    assert p["worst"] <= Q8_BOUND and abs(p["nll"] - p["hf_nll"]) <= Q8_NLL_BOUND and all(held),                         "Q8_0 %s, %s: %s" % (variant, mode, parts[-1])
+            if gated:
+                assert tuple(sum(gap > 2 * Q8_BOUND for gap, _ in p["ids"]) for p in prompts) == Q8_GREEDY_ROWS, "Q8_0 MoE greedy rows changed"
+            aggregate = sum(p["nll"] - p["hf_nll"] for p in prompts) / len(prompts)
+            print("moe: Q8_0 %s, %s: %s; aggregate NLL error %+.6f%s" % (
+                variant, mode, "; ".join(parts), aggregate, "  [ok]" if gated else "  [sensitivity, no bound]"))
 
 
 def run():

@@ -63,6 +63,9 @@ names it.
     the output projection added into the residual); the feed-forward block,
     dense or routed by the layer's kind, reading whichever row of weights it
     is handed; and the head over the rows that want logits, compacted first.
+    The embedding, the dense block and the head are the shared pieces of
+    [blocks](model-arch-blocks.md), and so is the projection the grouped
+    and routed products take.
     - `attention` runs over the paged KV cache; score scratch, causal
       masking and head scheduling belong to the backend. `norm_rope_kv`
       norms and rotates q and k and writes k and v into the views' blocks in

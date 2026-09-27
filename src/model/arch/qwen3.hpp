@@ -15,6 +15,7 @@
 #include "model/weights.hpp"
 #include "model/architecture.hpp"
 #include "model/arch/metadata.hpp"
+#include "model/arch/blocks.hpp"
 
 // Qwen3's architecture, from scratch: dense Qwen3 and its mixture-of-experts form, qwen3moe, which the registry (model/arch/registry.hpp) reaches through open_dense and open_routed.
 // Dense matrices use supported block quants or F32; normalization weights are F32.
@@ -200,10 +201,7 @@ public:
         }
     }
 
-    void embed(const Step& s, const uint32_t* ids) const override {
-        const Weight& embedding = s.w[token_embd];
-        s.b.embed(s.x, embedding.type, embedding.slice(), embedding.nin, embedding.nout, ids, s.rows);
-    }
+    void embed(const Step& s, const uint32_t* ids) const override { blocks::embed(s, s.w[token_embd], ids); }
 
     // The slots are those of slot_widths.
     void mixer(const Step& s) const override {
@@ -215,9 +213,9 @@ public:
 
         b.rms_norm_rows(h, x, w[attn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
 
-        b.matmul_group({projection(w[attn_q], q),
-                        projection(w[attn_k], k),
-                        projection(w[attn_v], v)}, h, E, s.rows, s.runs);
+        b.matmul_group({blocks::projection(w[attn_q], q),
+                        blocks::projection(w[attn_k], k),
+                        blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs);
 
         const backend::Backend::RopeArgs rope{{s.tables[0].get(), 0}, {s.tables[1].get(), 0},
                                               half, s.pos, cfg_.rms_eps};
@@ -247,8 +245,8 @@ public:
             b.matmul(router.type, router.slice(), h, scores, E, n_expert, s.rows, s.runs);
             b.route_experts(scores, s.rows, n_expert, k, cfg_.expert_norm, ids, weights);
             const backend::Backend::Routing routing{ids, weights, k, n_expert};
-            b.matmul_experts({projection(w[ffn_gate_exps], gate),
-                              projection(w[ffn_up_exps], up)}, h, E, s.rows, routing, s.runs);
+            b.matmul_experts({blocks::projection(w[ffn_gate_exps], gate),
+                              blocks::projection(w[ffn_up_exps], up)}, h, E, s.rows, routing, s.runs);
             // The routed down projection reads the SiLU's output as k entries a token row, each of its token's prompt.
             std::vector<backend::RowRun>& entry_runs = *s.scratch;
             entry_runs.clear();
@@ -258,30 +256,13 @@ public:
                                  ff, E, s.rows, routing, s.runs);
             return;
         }
-        b.matmul_group({projection(w[ffn_gate], gate),
-                        projection(w[ffn_up], up)}, h, E, s.rows, s.runs);
-        b.silu_mul(ffn, gate, up, s.rows * (size_t)cfg_.n_ff, s.runs);
-        b.matmul_add(w[ffn_down].type, w[ffn_down].slice(), ffn, x,
-                     w[ffn_down].nin, w[ffn_down].nout, s.rows, s.runs);
+        blocks::swiglu(s, w[ffn_gate], w[ffn_up], w[ffn_down], h, gate, up, ffn);
     }
 
-    // The rows that want logits are not contiguous once entries mix, so they are compacted first and the head runs once over exactly those rows.
-    void head(const HeadStep& s) const override {
-        const size_t E = (size_t)cfg_.n_embd;
-        const Weight& norm = s.w[output_norm];
-        const Weight& head = s.w[output];
-        s.b.gather_rows(s.slot(1), s.x, E, s.pick, s.want);
-        s.b.rms_norm_rows(s.slot(1), s.slot(1), norm.slice(), s.want, E, E, cfg_.rms_eps);
-        s.b.matmul_logits(head.type, head.slice(), s.slot(1), s.logits, head.nin, head.nout, s.want, s.head_runs);
-    }
+    void head(const HeadStep& s) const override { blocks::head(s, s.w[output_norm], s.w[output], cfg_.rms_eps, s.slot(1)); }
 
 private:
     Config cfg_;
-
-    // The buffer is passed by raw pointer, not by handle, so building a projection copies no shared pointer on the per-token path.
-    static backend::Projection projection(const Weight& w, backend::Slice out) {
-        return {w.type, {w.data.get(), 0}, out, w.nout};
-    }
 };
 
 // The registry's readers: a qwen3 file's architecture, and a qwen3moe file's.

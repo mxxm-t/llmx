@@ -850,17 +850,42 @@ public:
                         CSlice w_s, float eps, CSlice cos_s, CSlice sin_s,
                         size_t half, const uint32_t* pos) override {
         float* x = at(x_s);
-        const float* w = at(w_s);
-        const float* cos = at(cos_s);
-        const float* sin = at(sin_s);
-        const size_t head_dim = half * 2;
+        norm_rope_raw(x, stride, x, stride, 2 * half, rows, heads, 2 * half, half, at(w_s), eps, at(cos_s), at(sin_s), pos);
+    }
+
+    void norm_rope_partial(Slice dst_s, CSlice src_s, size_t rows, size_t src_stride, size_t src_head_stride,
+                           size_t heads, size_t head_dim, size_t rope_dim, CSlice w_s, float eps,
+                           CSlice cos_s, CSlice sin_s, const uint32_t* pos) override {
+        if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
+            throw std::runtime_error("backend: invalid partial rope dimensions");
+        if (rows && !pos) throw std::runtime_error("backend: partial rope without positions");
+        if (!rows) return;
+        const size_t width = size_mul(heads, head_dim);
+        span(*dst_s.buffer, dst_s.offset * sizeof(float), size_mul(size_mul(rows, width), sizeof(float)));
+        const size_t last = size_add(size_add(size_mul(rows - 1, src_stride), size_mul(heads - 1, src_head_stride)), head_dim);
+        span(*src_s.buffer, src_s.offset * sizeof(float), size_mul(last, sizeof(float)));
+        span(*w_s.buffer, w_s.offset * sizeof(float), size_mul(head_dim, sizeof(float)));
+        const size_t table = size_mul(size_add(*std::max_element(pos, pos + rows), 1), rope_dim / 2 * sizeof(float));
+        span(*cos_s.buffer, cos_s.offset * sizeof(float), table);
+        span(*sin_s.buffer, sin_s.offset * sizeof(float), table);
+        float* dst = at(dst_s);
+        const float* src = at(src_s);
+        if ((const float*)dst == src && (src_stride != width || src_head_stride != head_dim))
+            throw std::runtime_error("backend: partial rope in place over heads that are not contiguous");
+        norm_rope_raw(dst, width, src, src_stride, src_head_stride, rows, heads, head_dim, rope_dim / 2,
+                      at(w_s), eps, at(cos_s), at(sin_s), pos);
+    }
+
+    // RMS norm over each head's head_dim floats, then RoPE on its first 2 * half, from src's heads at src_head_stride into dst's at head_dim; in place when dst is src with contiguous heads.
+    void norm_rope_raw(float* dst, size_t dst_stride, const float* src, size_t src_stride, size_t src_head_stride,
+                       size_t rows, size_t heads, size_t head_dim, size_t half, const float* w, float eps,
+                       const float* cos, const float* sin, const uint32_t* pos) {
         spread(rows, [&](size_t r) {
-            float* row = x + r * stride;
             const float* c = cos + (size_t)pos[r] * half;
             const float* s = sin + (size_t)pos[r] * half;
             for (size_t h = 0; h < heads; h++) {
-                float* head = row + h * head_dim;
-                rms_norm_raw(head, head, w, head_dim, eps);
+                float* head = dst + r * dst_stride + h * head_dim;
+                rms_norm_raw(head, src + r * src_stride + h * src_head_stride, w, head_dim, eps);
                 rope_raw(head, c, s, (int)half);
             }
         });
@@ -887,11 +912,256 @@ public:
         float* dst = at(dst_s);
         const float* gate = at(gate_s);
         const float* up = at(up_s);
-        // std::exp per element, since a vectorized approximation would shift the logits (docs/src/backends-cpu.md).
         chunk(n, [&](size_t begin, size_t end) {
             for (size_t i = begin; i < end; i++)
-                dst[i] = gate[i] / (1.0f + std::exp(-gate[i])) * up[i];
+                dst[i] = silu_of(gate[i]) * up[i];
         });
+    }
+
+    // The transcendental steps of the elementwise ops, each computed here only, with std::exp per element, since a vectorized approximation would shift the logits (docs/src/backends-cpu.md).
+    static float silu_of(float x) { return x / (1.0f + std::exp(-x)); }
+    static float sigmoid_of(float x) { return 1.0f / (1.0f + std::exp(-x)); }
+    // log(1 + exp(x)), taken as x above 20.
+    static float softplus_of(float x) { return x > 20.0f ? x : std::log1p(std::exp(x)); }
+    // The linear attention's decay factor exp(g), 0 below 2^-126 as on every backend, whatever the host's denormal handling (docs/QWEN35.md, Linear attention).
+    static float decay_of(float g) {
+        const float d = std::exp(g);
+        return d < std::numeric_limits<float>::min() ? 0.0f : d;
+    }
+
+    void gated_rms_norm(Slice dst_s, CSlice x_s, CSlice z_s, CSlice w_s, size_t rows, size_t heads, size_t dim, float eps,
+                        RowRuns = {}) override {
+        if (!heads || !dim) throw std::runtime_error("backend: invalid gated norm dimensions");
+        const size_t bytes = size_mul(size_mul(size_mul(rows, heads), dim), sizeof(float));
+        span(*dst_s.buffer, dst_s.offset * sizeof(float), bytes);
+        span(*x_s.buffer, x_s.offset * sizeof(float), bytes);
+        span(*z_s.buffer, z_s.offset * sizeof(float), bytes);
+        span(*w_s.buffer, w_s.offset * sizeof(float), dim * sizeof(float));
+        if (!rows) return;
+        float* dst = at(dst_s);
+        const float* x = at(x_s);
+        const float* z = at(z_s);
+        const float* w = at(w_s);
+        spread(rows, [&](size_t r) {
+            for (size_t h = 0; h < heads; ++h) {
+                const size_t o = (r * heads + h) * dim;
+                rms_norm_raw(dst + o, x + o, w, dim, eps);
+                for (size_t i = 0; i < dim; ++i) dst[o + i] = dst[o + i] * silu_of(z[o + i]);
+            }
+        });
+    }
+
+    void sigmoid_mul(Slice dst_s, CSlice x_s, CSlice gate_s, size_t rows, size_t heads, size_t dim,
+                     size_t gate_stride, size_t gate_head_stride, RowRuns = {}) override {
+        if (!heads || !dim) throw std::runtime_error("backend: invalid sigmoid gate dimensions");
+        if (!rows) return;
+        const size_t width = size_mul(heads, dim), bytes = size_mul(size_mul(rows, width), sizeof(float));
+        span(*dst_s.buffer, dst_s.offset * sizeof(float), bytes);
+        span(*x_s.buffer, x_s.offset * sizeof(float), bytes);
+        const size_t last = size_add(size_add(size_mul(rows - 1, gate_stride), size_mul(heads - 1, gate_head_stride)), dim);
+        span(*gate_s.buffer, gate_s.offset * sizeof(float), size_mul(last, sizeof(float)));
+        float* dst = at(dst_s);
+        const float* x = at(x_s);
+        const float* gate = at(gate_s);
+        spread(rows, [&](size_t r) {
+            for (size_t h = 0; h < heads; ++h) {
+                const float* g = gate + r * gate_stride + h * gate_head_stride;
+                const size_t o = r * width + h * dim;
+                for (size_t d = 0; d < dim; ++d) dst[o + d] = x[o + d] * sigmoid_of(g[d]);
+            }
+        });
+    }
+
+    // One invocation per (view, channel): the channel's carried rows, then its rows in order through a window of the last kConvTaps - 1 raw values, which it leaves in slot dst.
+    void causal_conv_silu(Slice out_s, CSlice x_s, CSlice w_s, size_t layer, const StateView* views, size_t n_views) override {
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        const StateShape& shape = views[0].storage->shape();
+        const size_t C = shape.channels(), T = kConvTaps, carried = size_mul(shape.v_heads, shape.matrix_floats());
+        const size_t bytes = size_mul(size_mul(rows, C), sizeof(float));
+        span(*out_s.buffer, out_s.offset * sizeof(float), bytes);
+        span(*x_s.buffer, x_s.offset * sizeof(float), bytes);
+        span(*w_s.buffer, w_s.offset * sizeof(float), size_mul(size_mul(C, T), sizeof(float)));
+        float* out = at(out_s);
+        const float* x = at(x_s);
+        const float* w = at(w_s);
+        std::vector<size_t> first(n_views);
+        std::vector<const float*> srcs(n_views);
+        std::vector<float*> dsts(n_views);
+        for (size_t i = 0; i < n_views; ++i) {
+            if (i) first[i] = first[i - 1] + views[i - 1].nq;
+            srcs[i] = state_slot(*views[i].storage, layer, views[i].src) + carried;
+            dsts[i] = state_slot(*views[i].storage, layer, views[i].dst) + carried;
+        }
+        const auto task = [&](size_t t) {
+            const size_t vi = t / C, c = t % C;
+            const StateView& v = views[vi];
+            const float* src = srcs[vi];
+            float* dst = dsts[vi];
+            float win[kConvTaps - 1];
+            for (size_t j = 0; j + 1 < T; ++j) win[j] = v.length + j >= T - 1 ? src[j * C + c] : 0.0f;
+            const float* wc = w + c * T;
+            for (size_t b = 0; b < v.nq; ++b) {
+                const size_t row = (first[vi] + b) * C + c;
+                const float now = x[row];
+                float acc = wc[0] * win[0];
+                for (size_t j = 1; j + 1 < T; ++j) acc = std::fma(wc[j], win[j], acc);
+                acc = std::fma(wc[T - 1], now, acc);
+                out[row] = silu_of(acc);
+                for (size_t j = 0; j + 2 < T; ++j) win[j] = win[j + 1];
+                win[T - 2] = now;
+            }
+            for (size_t j = 0; j + 1 < T; ++j) dst[j * C + c] = win[j];
+        };
+        const size_t tasks = n_views * C;
+        const size_t nt = (size_t)std::max(threads_, 1);
+        if (nt <= 1 || rows * C < ((size_t)1 << 15)) {
+            for (size_t t = 0; t < tasks; ++t) task(t);
+            return;
+        }
+        const size_t per = (tasks + nt - 1) / nt;
+        run_parallel([&](int wk) {
+            for (size_t t = (size_t)wk * per, e = std::min(tasks, t + per); t < e; ++t) task(t);
+        });
+    }
+
+    // A prologue over the rows (the normed q and k of every K head, each V head's beta and decay), then one task per (view, V head), each on one thread, so no thread count or grouping of rows changes a bit.
+    void gated_delta_rule(Slice out_s, CSlice qkv_s, CSlice alpha_s, CSlice b_s, CSlice a_s, CSlice dt_bias_s,
+                          size_t layer, const StateView* views, size_t n_views) override {
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        const StateShape& shape = views[0].storage->shape();
+        const size_t Hk = shape.k_heads, Hv = shape.v_heads, Dk = shape.k_dim, Dv = shape.v_dim, C = shape.channels();
+        const size_t qk = size_mul(Hk, Dk), matrix = shape.matrix_floats();
+        span(*out_s.buffer, out_s.offset * sizeof(float), size_mul(size_mul(rows, Hv * Dv), sizeof(float)));
+        span(*qkv_s.buffer, qkv_s.offset * sizeof(float), size_mul(size_mul(rows, C), sizeof(float)));
+        for (const CSlice* g : {&alpha_s, &b_s})
+            span(*g->buffer, g->offset * sizeof(float), size_mul(size_mul(rows, Hv), sizeof(float)));
+        for (const CSlice* g : {&a_s, &dt_bias_s}) span(*g->buffer, g->offset * sizeof(float), Hv * sizeof(float));
+        float* out = at(out_s);
+        const float* qkv = at(qkv_s);
+        const float* alpha = at(alpha_s);
+        const float* b = at(b_s);
+        const float* a = at(a_s);
+        const float* dt_bias = at(dt_bias_s);
+        normed_.resize(size_mul(rows, 2 * qk));
+        gates_.resize(size_mul(rows, 2 * Hv));
+        const float scale = (float)(1.0 / std::sqrt((double)Dk));
+        spread(rows, [&](size_t r) {
+            for (size_t h = 0; h < 2 * Hk; ++h) {
+                const float* in = qkv + r * C + h * Dk;
+                float* n = normed_.data() + r * 2 * qk + h * Dk;
+                float s = 0.0f;
+                for (size_t i = 0; i < Dk; ++i) s = std::fma(in[i], in[i], s);
+                const float inv = 1.0f / std::sqrt(s + kL2NormEps);
+                for (size_t i = 0; i < Dk; ++i) n[i] = h < Hk ? in[i] * inv * scale : in[i] * inv;
+            }
+            for (size_t j = 0; j < Hv; ++j) {
+                gates_[r * 2 * Hv + j] = sigmoid_of(b[r * Hv + j]);
+                gates_[r * 2 * Hv + Hv + j] = decay_of(a[j] * softplus_of(alpha[r * Hv + j] + dt_bias[j]));
+            }
+        });
+        std::vector<size_t> first(n_views);
+        std::vector<const float*> srcs(n_views);
+        std::vector<float*> dsts(n_views);
+        for (size_t i = 0; i < n_views; ++i) {
+            if (i) first[i] = first[i - 1] + views[i - 1].nq;
+            srcs[i] = state_slot(*views[i].storage, layer, views[i].src);
+            dsts[i] = state_slot(*views[i].storage, layer, views[i].dst);
+        }
+        parallel_for((int)(n_views * Hv), [&](int t) {
+            const size_t vi = (size_t)t / Hv, j = (size_t)t % Hv, kh = j % Hk, r0 = first[vi];
+            const StateView& v = views[vi];
+            float* S = dsts[vi] + j * matrix;
+            if (!v.length) std::fill(S, S + matrix, 0.0f);
+            else if (v.src != v.dst) std::memcpy(S, srcs[vi] + j * matrix, matrix * sizeof(float));
+            const float* normed = normed_.data() + r0 * 2 * qk;
+            const float* beta = gates_.data() + r0 * 2 * Hv + j;
+            delta_rule_head(S, Dk, Dv, v.nq, normed + kh * Dk, normed + qk + kh * Dk, 2 * qk,
+                            qkv + r0 * C + 2 * qk + j * Dv, C, beta, beta + Hv, 2 * Hv, out + r0 * Hv * Dv + j * Dv, Hv * Dv);
+        });
+    }
+
+    // The per-token recurrence of one (sequence, V head) over n rows, on the state S laid out [K row][V column] and updated in place: decay first, m from the decayed state, the rank-1 write, then the read.
+    // Each V column's arithmetic is its own and every multiply-add an explicit FMA, so columns run 32, 8 or 1 at a time with the same bits, and the sums over K run in row order.
+    static void delta_rule_head(float* S, size_t Dk, size_t Dv, size_t n, const float* qn, const float* kn, size_t normed_stride,
+                                const float* v, size_t v_stride, const float* betas, const float* decays, size_t gate_stride,
+                                float* out, size_t out_stride) {
+        size_t c = 0;
+        for (; c + 32 <= Dv; c += 32) {
+            for (size_t t = 0; t < n; ++t) {
+                const float* q = qn + t * normed_stride;
+                const float* k = kn + t * normed_stride;
+                const __m256 decay = _mm256_set1_ps(decays[t * gate_stride]), beta = _mm256_set1_ps(betas[t * gate_stride]);
+                __m256 m[4] = {_mm256_setzero_ps(), _mm256_setzero_ps(), _mm256_setzero_ps(), _mm256_setzero_ps()};
+                for (size_t i = 0; i < Dk; ++i) {
+                    float* row = S + i * Dv + c;
+                    const __m256 ki = _mm256_set1_ps(k[i]);
+                    for (int u = 0; u < 4; ++u) {
+                        const __m256 s = _mm256_mul_ps(_mm256_loadu_ps(row + 8 * u), decay);
+                        _mm256_storeu_ps(row + 8 * u, s);
+                        m[u] = _mm256_fmadd_ps(s, ki, m[u]);
+                    }
+                }
+                __m256 d[4], o[4];
+                for (int u = 0; u < 4; ++u) {
+                    d[u] = _mm256_mul_ps(beta, _mm256_sub_ps(_mm256_loadu_ps(v + t * v_stride + c + 8 * u), m[u]));
+                    o[u] = _mm256_setzero_ps();
+                }
+                for (size_t i = 0; i < Dk; ++i) {
+                    float* row = S + i * Dv + c;
+                    const __m256 ki = _mm256_set1_ps(k[i]), qi = _mm256_set1_ps(q[i]);
+                    for (int u = 0; u < 4; ++u) {
+                        const __m256 s = _mm256_fmadd_ps(ki, d[u], _mm256_loadu_ps(row + 8 * u));
+                        _mm256_storeu_ps(row + 8 * u, s);
+                        o[u] = _mm256_fmadd_ps(s, qi, o[u]);
+                    }
+                }
+                for (int u = 0; u < 4; ++u) _mm256_storeu_ps(out + t * out_stride + c + 8 * u, o[u]);
+            }
+        }
+        for (; c + 8 <= Dv; c += 8) {
+            for (size_t t = 0; t < n; ++t) {
+                const float* q = qn + t * normed_stride;
+                const float* k = kn + t * normed_stride;
+                const __m256 decay = _mm256_set1_ps(decays[t * gate_stride]), beta = _mm256_set1_ps(betas[t * gate_stride]);
+                __m256 m = _mm256_setzero_ps();
+                for (size_t i = 0; i < Dk; ++i) {
+                    const __m256 s = _mm256_mul_ps(_mm256_loadu_ps(S + i * Dv + c), decay);
+                    _mm256_storeu_ps(S + i * Dv + c, s);
+                    m = _mm256_fmadd_ps(s, _mm256_set1_ps(k[i]), m);
+                }
+                const __m256 d = _mm256_mul_ps(beta, _mm256_sub_ps(_mm256_loadu_ps(v + t * v_stride + c), m));
+                __m256 o = _mm256_setzero_ps();
+                for (size_t i = 0; i < Dk; ++i) {
+                    const __m256 s = _mm256_fmadd_ps(_mm256_set1_ps(k[i]), d, _mm256_loadu_ps(S + i * Dv + c));
+                    _mm256_storeu_ps(S + i * Dv + c, s);
+                    o = _mm256_fmadd_ps(s, _mm256_set1_ps(q[i]), o);
+                }
+                _mm256_storeu_ps(out + t * out_stride + c, o);
+            }
+        }
+        for (; c < Dv; ++c) {
+            for (size_t t = 0; t < n; ++t) {
+                const float* q = qn + t * normed_stride;
+                const float* k = kn + t * normed_stride;
+                const float decay = decays[t * gate_stride], beta = betas[t * gate_stride];
+                float m = 0.0f;
+                for (size_t i = 0; i < Dk; ++i) {
+                    const float s = S[i * Dv + c] * decay;
+                    S[i * Dv + c] = s;
+                    m = std::fma(s, k[i], m);
+                }
+                const float d = beta * (v[t * v_stride + c] - m);
+                float o = 0.0f;
+                for (size_t i = 0; i < Dk; ++i) {
+                    const float s = std::fma(k[i], d, S[i * Dv + c]);
+                    S[i * Dv + c] = s;
+                    o = std::fma(s, q[i], o);
+                }
+                out[t * out_stride + c] = o;
+            }
+        }
     }
 
     void add(Slice dst_s, CSlice src_s, size_t n) override {
@@ -1131,6 +1401,14 @@ private:
         }
     }
 
+    // Slot `slot` of a state storage's layer as host floats.
+    static float* state_slot(const StateStorage& s, size_t layer, size_t slot) {
+        auto* b = dynamic_cast<CpuBuffer*>(&s.layer(layer));
+        if (!b) throw std::runtime_error("backend: state storage does not belong to the CPU backend");
+        return (float*)b->host_address() + slot * s.shape().slot_floats();
+    }
+
+    std::vector<float> normed_, gates_;   // the gated delta rule's prologue: q and k normed per row, then beta and the decay per row
     std::vector<float> expert_x_, expert_y_, expert_out_;
     std::vector<size_t> expert_rows_;   // each grouped entry's activation row
     std::vector<float*> expert_outs_;   // where each grouped entry's products go

@@ -224,6 +224,13 @@ strict; ordinary SIMD controls allow its existing float-rounding error.
 These run under gradual underflow;
 they do not establish nonfinite-input handling or flush-to-zero behavior.
 
+`qwen35-ops` checks the CPU backend's ops of the qwen35 layers (`backends/backend.hpp`, `docs/QWEN35.md`) against references the test writes from the math in double precision, each within a bound stated beside it as a count of F32 units of the values' magnitude.
+It covers the causal conv and the raw rows it carries, which must be the inputs bit for bit, and the gated delta rule's rows and state, at Hv = Hk and Hv = 3 Hk with the tiny fixtures' widths, at a width that takes the 32-column blocks and at the files' 128 by 128: fresh sequences whose slots hold NaN, histories shorter than the conv's window, one-token entries and a verify that reads one slot and writes another, side by side in one call.
+A decay factor below 2^-126 must be flushed to 0 and one just above it kept.
+It also checks the gated norm, the partial rope, reading q between its gates and k in place, with the rope sections in the reference and equal to `norm_rope_rows` at the full rotary width, and `sigmoid_mul` as the output gate and as a scale of one value per row.
+Every result must be the same bit for bit at thread counts from 1 to 16, for a row alone and beside others, with the views in another order, and with a sequence cut into passes of 1, 2 and 3 rows that carry its state in its slot, so k one-row calls equal one call of k rows.
+`state_alloc` must zero-fill its slots and `state_copy` copy one slot in every layer, malformed views must be refused before anything is written, and `Backend`'s own form of each op, which the Vulkan backend runs, must refuse it by name.
+
 `prefill-scope` uses self-generated model fixtures to check caller-once execution,
 nesting/thread guards, allocation and microbatch boundaries, error draining and
 scope reuse. Windows-only `prefill-placement` covers real eligible topology,

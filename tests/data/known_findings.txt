@@ -1,7 +1,7 @@
 # The findings of the dead-code and docs checks (tests/dead_code.py, tests/docs_check.py) that the tree still has, and why each is still here.
 # One per line: check | file | name | times | reason, where times is how often the finding occurs.
 # A finding not listed here fails its check, and so do one that occurs another number of times than its line says and a line here whose finding no longer occurs, so the change that removes a finding removes its line (AGENTS.md, Dead code and stale docs).
-# Every line below goes with cleanup/known-findings, planned in docs/STATUS.md to follow refactor/arch-modules; the line for src/model/arch_qwen.hpp waits for that refactor, which moves the file.
+# Every line below goes with cleanup/known-findings, planned in docs/STATUS.md to follow refactor/arch-modules, but the qwen35 lines, which go with the steps of the Qwen 3.5, 3.6 and 3.8 plan they name; the line for src/model/arch_qwen.hpp waits for that refactor, which moves the file.
 
 # Functions only the tests reach, found by name.
 test-only | src/backends/cpu/cpu_backend.hpp | CpuBackend::workers_started | 1 | the pool's start count, a probe backend-errors and model-validation read to pin when workers start; kept until the tests take the count another way, with cleanup/known-findings
@@ -16,10 +16,18 @@ test-only | src/model/arch_qwen.hpp | Model::run_pass_stage | 1 | the pass API, 
 test-only | src/model/arch_qwen.hpp | Model::pass_logits | 1 | the pass API, which only the placement tests drive until the scheduler runs passes through it in layer split phase 3, step 2; goes in that step
 test-only | src/model/arch_qwen.hpp | Model::end_pass | 1 | the pass API, which only the placement tests drive until the scheduler runs passes through it in layer split phase 3, step 2; goes in that step
 test-only | src/model/arch_qwen.hpp | Model::abort_pass | 1 | the pass API, which only the placement tests drive until the scheduler runs passes through it in layer split phase 3, step 2; goes in that step
+test-only | src/backends/backend.hpp | Backend::gated_delta_rule | 1 | the qwen35 recurrence, which only qwen35-ops calls until the model's linear-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4, on the architecture refactor's module; goes with that step
+test-only | src/backends/backend.hpp | Backend::gated_rms_norm | 1 | the qwen35 gated norm, which only qwen35-ops calls until the model's linear-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
+test-only | src/backends/cpu/cpu_backend.hpp | CpuBackend::gated_rms_norm | 1 | the CPU's form of that op, an override the name check reads as a plain function; goes with the same step
+test-only | src/backends/backend.hpp | Backend::state_alloc | 1 | the recurrent state's storage, which the model allocates at load in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
+test-only | src/backends/backend.hpp | Backend::state_copy | 1 | a slot copied to a slot, which the take-back resume and the checkpoints of the Qwen 3.5, 3.6 and 3.8 plan's step 8 call; goes with step 8b
 
 # Shader switches that change nothing: no CMake entry sets the define, so only the default is ever built.
 shader | src/backends/vulkan/shaders/attention_tile.comp | #ifndef TK | 1 | the tile's key count as an overridable default; becomes a plain constant with cleanup/known-findings
 shader | src/backends/vulkan/shaders/matmul_tile_q.comp | #ifndef STEP | 1 | the blocks staged per barrier as an overridable default, whose value the host code also assumes; becomes a plain constant with cleanup/known-findings
+
+# Overrides product code never calls.
+override | src/backends/cpu/cpu_backend.hpp | CpuBackend::causal_conv_silu | 1 | the qwen35 conv on the CPU, which only qwen35-ops calls until the model's linear-attention layers call it in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
 
 # Functions no executable keeps, from the linked build (tests/dead_code.py --linked, in the Vulkan job).
 linked-unreached | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::kh(unsigned long, int) const | 1 | the const overload of kh; only the other one is called; goes with cleanup/known-findings
@@ -33,6 +41,7 @@ linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::k(u
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::kraw(unsigned long, int) const | 1 | the const overload of kraw, which only tests call; goes with cleanup/known-findings
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::v(unsigned long, int) const | 1 | the const overload of v, which only tests call; goes with cleanup/known-findings
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::vraw(unsigned long, int) const | 1 | the const overload of vraw, which only tests call; goes with cleanup/known-findings
+linked-test-only | src/backends/backend.hpp | backend::StateStorage::StateStorage(std::vector, unsigned long, backend::StateShape const&) | 1 | the state storage's constructor, which only state_alloc calls, and that only qwen35-ops until the model allocates its state at load in the Qwen 3.5, 3.6 and 3.8 plan's step 4; goes with that step
 linked-test-only | src/backends/kv_storage.hpp | backend::BlockKVStorage::block_tokens() const | 1 | the storage's block size, which only tests read; goes with cleanup/known-findings
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::kernel_representations() const | 1 | what vulkan_kernel_representations returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::name() const | 1 | what vulkan_device_name returns; goes with it

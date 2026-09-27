@@ -8,6 +8,8 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 // Backends own storage and parallelize primitive ops; models use buffer handles and own multi-device placement.
 // The execution and ownership contracts are in docs/DEVICE-EXECUTION.md.
@@ -149,6 +151,80 @@ struct KVView {
     size_t nq;
     size_t extent = 0;
 };
+
+// The width of the linear-attention layers' causal conv, 4 in every qwen35 file; a slot carries the kConvTaps - 1 raw rows before a sequence's next token.
+inline constexpr size_t kConvTaps = 4;
+
+// The epsilon of the linear-attention layers' L2 norms of q and k, which no file carries (docs/QWEN35.md, What the converter folds).
+inline constexpr float kL2NormEps = 1e-6f;
+
+// One linear-attention layer's recurrent state for one sequence (docs/QWEN35.md, The recurrent state): K heads of k_dim and V heads of v_dim, V head j reading K head j mod k_heads.
+struct StateShape {
+    size_t k_heads = 0, v_heads = 0, k_dim = 0, v_dim = 0;
+    // The conv's channels, those of a raw projection row [q: k_heads k_dim | k: k_heads k_dim | v: v_heads v_dim].
+    size_t channels() const { return size_add(size_mul(2 * k_heads, k_dim), size_mul(v_heads, v_dim)); }
+    // Floats of each V head's matrix, laid out [K row][V column].
+    size_t matrix_floats() const { return size_mul(k_dim, v_dim); }
+    // Floats of a slot: every V head's matrix, V head by V head, then the conv's kConvTaps - 1 carried rows of channels(), oldest first.
+    size_t slot_floats() const {
+        return size_add(size_mul(v_heads, matrix_floats()), size_mul(kConvTaps - 1, channels()));
+    }
+};
+
+// The recurrent state of `layers` linear-attention layers, made whole by Backend::state_alloc and never grown: one buffer per layer, holding every slot back to back, all F32.
+class StateStorage {
+public:
+    StateStorage(std::vector<BufferPtr> buffers, size_t slots, const StateShape& shape)
+        : buffers_(std::move(buffers)), slots_(slots), shape_(shape) {}
+    size_t layers() const { return buffers_.size(); }
+    size_t slots() const { return slots_; }
+    const StateShape& shape() const { return shape_; }
+    Buffer& layer(size_t l) const {
+        if (l >= buffers_.size()) throw std::runtime_error("backend: state layer outside the storage");
+        return *buffers_[l];
+    }
+
+private:
+    std::vector<BufferPtr> buffers_;
+    size_t slots_;
+    StateShape shape_;
+};
+
+// One sequence's rows of a pass in one StateStorage: `nq` rows, in view order, continue a history of `length` tokens.
+// The state is read from slot `src` and written to slot `dst`, the same slot except in a verify, and length 0 reads a zero state whatever `src` holds, so a recycled slot needs no clearing.
+struct StateView {
+    StateStorage* storage;
+    size_t src, dst;
+    size_t length;
+    size_t nq;
+};
+
+// Throws unless every view has rows, names a storage holding `layer` with slots inside it and the first view's shape, and writes a slot no other view reads or writes, so the views do not depend on their order.
+// Returns the rows of all the views.
+inline size_t check_state_views(const StateView* views, size_t n_views, size_t layer) {
+    if (n_views && !views) throw std::runtime_error("backend: state op without views");
+    size_t rows = 0;
+    for (size_t i = 0; i < n_views; ++i) {
+        const StateView& v = views[i];
+        if (!v.storage) throw std::runtime_error("backend: state view without storage");
+        if (layer >= v.storage->layers()) throw std::runtime_error("backend: state layer outside the storage");
+        if (v.src >= v.storage->slots() || v.dst >= v.storage->slots())
+            throw std::runtime_error("backend: state slot outside the storage");
+        if (!v.nq) throw std::runtime_error("backend: state view without rows");
+        const StateShape& a = v.storage->shape();
+        const StateShape& b = views[0].storage->shape();
+        if (a.k_heads != b.k_heads || a.v_heads != b.v_heads || a.k_dim != b.k_dim || a.v_dim != b.v_dim)
+            throw std::runtime_error("backend: state views of different shapes");
+        for (size_t j = 0; j < i; ++j) {
+            const StateView& u = views[j];
+            if (u.storage != v.storage) continue;
+            if (u.dst == v.dst || u.dst == v.src || u.src == v.dst)
+                throw std::runtime_error("backend: a state slot written by one view is used by another");
+        }
+        rows = size_add(rows, v.nq);
+    }
+    return rows;
+}
 
 class Backend {
 public:
@@ -347,6 +423,75 @@ public:
     // The weighted sum is formed first and then added, so a row's result does not depend on how its slots were computed.
     virtual void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout,
                                     size_t nrows, const Routing& routing, RowRuns runs = {}) = 0;
+
+    // The ops of the qwen35 layers (docs/QWEN35.md, The forward pass), which a backend without them refuses by name.
+
+    // The recurrent state of `layers` linear-attention layers with `slots` slots each, allocated now and zero-filled, so no pass allocates state.
+    std::unique_ptr<StateStorage> state_alloc(size_t layers, size_t slots, const StateShape& shape) {
+        if (!layers || !slots || !shape.k_heads || !shape.k_dim || !shape.v_dim || !shape.v_heads || shape.v_heads % shape.k_heads)
+            throw std::runtime_error("backend: invalid state shape");
+        const size_t bytes = size_mul(size_mul(slots, shape.slot_floats()), sizeof(float));
+        std::vector<BufferPtr> buffers;
+        for (size_t l = 0; l < layers; ++l) buffers.push_back(alloc(bytes));
+        return std::make_unique<StateStorage>(std::move(buffers), slots, shape);
+    }
+
+    // Slot `src` into slot `dst` in every layer of `s`, enqueued as copy is: a checkpoint restored, or a state taken back into a live slot.
+    void state_copy(StateStorage& s, size_t dst, size_t src) {
+        if (dst >= s.slots() || src >= s.slots()) throw std::runtime_error("backend: state slot outside the storage");
+        if (dst == src) return;
+        const size_t bytes = s.shape().slot_floats() * sizeof(float);
+        for (size_t l = 0; l < s.layers(); ++l) copy(s.layer(l), dst * bytes, s.layer(l), src * bytes, bytes);
+    }
+
+    // The linear-attention layers' causal conv, then SiLU: out[t][c] = silu(sum over tap i of w[c * kConvTaps + i] * x[t - kConvTaps + 1 + i][c]), w being `ssm_conv1d` as stored, so tap kConvTaps - 1 multiplies row t.
+    // x and out are the views' rows of the storage's channels(), in view order; a view reads the rows before its first from slot src, rows before its sequence's start being zero, and leaves its last kConvTaps - 1 raw rows in slot dst.
+    virtual void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) {
+        (void)out; (void)x; (void)w; (void)layer; (void)views; (void)n_views;
+        lacks("causal_conv_silu");
+    }
+
+    // The gated delta rule of the linear-attention layers (docs/QWEN35.md, Linear attention, steps 3 to 5), token by token for every (view, V head) from slot src's matrices into slot dst's.
+    // qkv holds the conv's output rows [q | k | v] of channels(); alpha and b are the rows of `ssm_alpha` and `ssm_beta`, and a and dt_bias `ssm_a` and `ssm_dt.bias`, v_heads floats each; out is v_heads * v_dim floats a row.
+    // q and k are L2-normed with kL2NormEps and q scaled by 1 / sqrt(k_dim), beta is sigmoid(b), and the decay exp(a * softplus(alpha + dt_bias)) is 0 below 2^-126.
+    virtual void gated_delta_rule(Slice out, CSlice qkv, CSlice alpha, CSlice b, CSlice a, CSlice dt_bias,
+                                  size_t layer, const StateView* views, size_t n_views) {
+        (void)out; (void)qkv; (void)alpha; (void)b; (void)a; (void)dt_bias; (void)layer; (void)views; (void)n_views;
+        lacks("gated_delta_rule");
+    }
+
+    // dst = RMSNorm(x; w) * silu(z) over each of `heads` heads of `dim` floats in each of `rows` rows, w being one dim-wide weight every head shares.
+    // dst may alias x only if identical, and never z; `runs` as for rms_norm_rows.
+    virtual void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps,
+                                RowRuns runs = {}) {
+        (void)dst; (void)x; (void)z; (void)w; (void)rows; (void)heads; (void)dim; (void)eps; (void)runs;
+        lacks("gated_rms_norm");
+    }
+
+    // Per-head RMS norm over `head_dim` floats, then RoPE on the first `rope_dim` of them only, pairs (i, i + rope_dim / 2) at pos[r] in `cos`/`sin` tables of rope_dim / 2 entries a position.
+    // Source head h of row r starts at src + r * src_stride + h * src_head_stride, and the heads are written contiguously, heads * head_dim floats a row of dst.
+    // For text the rope sections give every frequency the same position, so they reduce to this (docs/QWEN35.md, Gated attention); dst may alias src only if identical and src's heads are contiguous.
+    virtual void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
+                                   size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
+                                   CSlice cos, CSlice sin, const uint32_t* pos) {
+        (void)dst; (void)src; (void)rows; (void)src_stride; (void)src_head_stride; (void)heads; (void)head_dim;
+        (void)rope_dim; (void)w; (void)eps; (void)cos; (void)sin; (void)pos;
+        lacks("norm_rope_partial");
+    }
+
+    // dst[r][h][d] = x[r][h][d] * sigmoid(gate[r * gate_stride + h * gate_head_stride + d]), x and dst being `rows` rows of heads * dim floats.
+    // The output gate reads each query head's gate in place from `attn_q`'s rows; a scale of one value per row is heads = the row's width, dim = 1 and gate_head_stride = 0.
+    // dst may alias x only if identical; `runs` as for silu_mul.
+    virtual void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim,
+                             size_t gate_stride, size_t gate_head_stride, RowRuns runs = {}) {
+        (void)dst; (void)x; (void)gate; (void)rows; (void)heads; (void)dim; (void)gate_stride; (void)gate_head_stride; (void)runs;
+        lacks("sigmoid_mul");
+    }
+
+private:
+    [[noreturn]] static void lacks(const char* op) {
+        throw std::runtime_error(std::string("backend: ") + op + " is not implemented on this backend");
+    }
 };
 
 using BackendPtr = std::shared_ptr<Backend>;

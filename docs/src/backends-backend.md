@@ -154,6 +154,24 @@ placement contracts in `docs/EXECUTION.md`.
 - `matmul_experts_add(type, data, X, Y, nin, nout, nrows, routing, runs)`:
   the routed down projection joining the residual, row `r` of `Y` adding
   the weighted sum of its k slots, formed in slot order before the add.
+- The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass.
+  Each has a form in `Backend` that throws naming the op, which a backend without it runs: the Vulkan backend until the qwen35 plan's step 5 (`docs/STATUS.md`).
+  The CPU implements them all (`backends-cpu.md`).
+  - `StateShape`: one linear-attention layer's state for one sequence, K and V heads and their widths; `channels()` is the conv's width, the raw projection row `[q | k | v]`, and `slot_floats()` a slot, every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32.
+    `kConvTaps` is the conv's width, 4 in every qwen35 file, and `kL2NormEps` the L2 norms' epsilon, 1e-6, which no file carries.
+  - `state_alloc(layers, slots, shape)`: a `StateStorage` of one buffer per layer holding every slot back to back, allocated through `alloc` and zero-filled when it is made and never grown, so no pass allocates state.
+    It refuses a shape with a zero width or V heads that are no multiple of the K heads.
+    `state_copy(s, dst, src)` copies one slot to another in every layer through `copy`, enqueued as copy is, for a checkpoint restored or a state taken back into a live slot.
+    Both are the same on every backend, over its own `alloc` and `copy`.
+  - `StateView`: one sequence's `nq` rows of a pass continuing a history of `length` tokens, read from slot `src` and written to slot `dst`, which differ only in a verify.
+    Length 0 reads a zero state whatever `src` holds, so a recycled slot needs no clearing.
+    `check_state_views(views, n_views, layer)` is every backend's check of them: rows in every view, the layer and slots inside a storage, one shape, and no slot written by one view and read or written by another, so the views do not depend on their order.
+  - `causal_conv_silu(out, x, w, layer, views, n_views)`: the causal conv of width `kConvTaps` over each view's carried rows and rows, then SiLU, with `w` as `ssm_conv1d` stores it and rows before a sequence's start zero; each view leaves its last raw rows in slot `dst`.
+  - `gated_delta_rule(out, qkv, alpha, b, a, dt_bias, layer, views, n_views)`: the L2 norms of q and k, beta and the decay, then the recurrence token by token for every (view, V head), V head `j` reading K head `j mod k_heads`, from slot `src`'s matrices into slot `dst`'s; the decay is 0 below 2^-126.
+  - `gated_rms_norm(dst, x, z, w, rows, heads, dim, eps, runs)`: the RMS norm of each head of `x` against `w`, which every head shares, times SiLU of `z`.
+  - `norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos)`: per-head RMS norm over `head_dim`, then RoPE on the first `rope_dim` dims only, from heads read at a stride of their own, so q is read between its gates in `attn_q`'s rows, into contiguous heads.
+    For text the rope sections give every frequency the same position, so they reduce to this.
+  - `sigmoid_mul(dst, x, gate, rows, heads, dim, gate_stride, gate_head_stride, runs)`: `x * sigmoid(gate)`, the gate addressed by row, head and element: the output gate reads each query head's gate in place, and a scale of one value per row is `heads` the width, `dim` 1 and `gate_head_stride` 0.
 - `BackendPtr`: the shared handle a backend is held by. The factories live
   with their backends, `make_cpu_backend` in `cpu/cpu_backend.hpp` and
   `make_vulkan_backend` in `vulkan/vulkan_backend.hpp`, and `devices.hpp`

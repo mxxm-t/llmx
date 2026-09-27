@@ -71,9 +71,18 @@ A compile without them stops at one `#error` at the top of the header.
   finite. Do not "simplify" the Q8_0 kernel into the same shape: measured at
   q=127 and x=2^123 the accumulate-first form reaches 4.3e40 where the exact
   answer is finite. `tests/fused_dot_overflow.cpp` pins both families.
-- The `rms_norm_raw` helper under `rms_norm_rows` and `norm_rope_rows`, and
-  `rope_raw` under `norm_rope_rows`: AVX2 vectorized with scalar tails for
+- The `rms_norm_raw` helper under `rms_norm_rows`, `gated_rms_norm` and `norm_rope_raw`, and
+  `rope_raw` under `norm_rope_raw`: AVX2 vectorized with scalar tails for
   non-multiples of 8.
+  `norm_rope_raw` norms each head and rotates its first dims from heads read at a stride of their own into contiguous heads, the one norm and rope of both `norm_rope_rows`, in place at the full rotary width, and `norm_rope_partial`.
+- `silu_of`, `sigmoid_of`, `softplus_of` and `decay_of`: the elementwise ops' transcendental steps, each computed in one place with `std::exp` per element.
+  `softplus_of` takes its argument as it is above 20, and `decay_of` gives 0 for a decay factor below 2^-126, as every backend does, whatever the host's denormal handling.
+- The qwen35 layers' ops (`backends-backend.md`), each on the pool with every value computed by one routine whatever the thread count, so the thread count and the grouping of rows into calls change no bit.
+  - `causal_conv_silu`: one task per (view, channel), which reads the channel's carried rows from slot `src`, zero before the sequence's start, walks the view's rows through a window of the last raw values and leaves that window in slot `dst`; on the calling thread below 32K row values.
+  - `gated_delta_rule`: a prologue over the rows writes the L2-normed q and k of every K head and each V head's beta and decay into scratch, then one task per (view, V head) copies its matrix from slot `src` into slot `dst`, or zeroes it at length 0, and runs the recurrence there token by token (`delta_rule_head`).
+    Each V column's arithmetic is its own, with every multiply-add an explicit FMA and the sums over K in row order, so the columns run 32, 8 or 1 at a time with the same bits, and a block of 32 columns of a 128-row matrix stays in the first-level cache over a whole view's tokens.
+  - `gated_rms_norm`, `norm_rope_partial` and `sigmoid_mul`: row by row through `spread`; the row runs are not read, since the CPU keeps no activation copies.
+  - `state_slot` resolves a slot of a state storage's layer to host floats and refuses storage of another backend; the conv and the recurrence resolve every view's slots before they write anything.
 - `rms_norm_rows`, `norm_rope_rows`, `silu_mul`, `add`: the batched forms the model calls.
   Private helpers decide dispatch.
   `spread` keeps a stage on the calling thread below two rows per worker; `chunk` keeps elementwise spans under 32K elements there; `split_rows` hands the row dots of a decode matmul, `matvec_q8x`, `matmul_group` and the routed decode entries to the pool in one contiguous range per worker, and keeps them on the caller below eight rows per worker, except an F32 decode matmul, which splits as the batched float path does, from `DOT_ROWS` rows per worker in whole `DOT_ROWS` chunks.

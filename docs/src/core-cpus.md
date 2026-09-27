@@ -8,7 +8,7 @@ It is the fewest of three counts, each taken only when it could be read, 4 when 
 - the CPUs the process's CPU quota allows, rounded up (`quota_cpus`): its cgroup CPU quotas on Linux (`cgroup_cpus`), its job object's CPU rate hard cap on Windows (`job_cpus`), below.
 
 A container started with `--cpus 6` on a 16-thread host is allowed 6 CPUs of time by its quota while its affinity still lists all 16, so the hardware threads and the affinity alone start 16 workers that the quota throttles together; the quota makes it 6.
-The sources are read each time it is called, which is once per CPU backend, so a count changed on a running container reaches the next backend made.
+The sources are read each time it is called, which is once per CPU backend and once per server scheduler, so a count changed on a running container reaches the next backend made.
 
 ## The affinity
 

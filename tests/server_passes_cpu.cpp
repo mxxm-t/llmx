@@ -1,7 +1,7 @@
 // The scheduler with passes in flight (docs/SERVER.md, the round) over the synthetic Q8_0 model on one CPU and split over two and three, at P = 1, S, S + 1 and 2S: every request's ids and log-probabilities equal its run alone on one CPU with one pass in flight.
 // The load mixes prompts longer than the ubatch with short ones, capped and uncapped requests on a pool that pauses them, and greedy and seeded sampling with top_logprobs 5.
 // A request cancelled from inside a stage ends cancelled with its reply so far, a stage that fails once ends only its own pass's requests with the error, and a stop from inside a stage ends every request cancelled, each leaving every block free.
-// The passes of a load that never pauses are replayed in their order through Model::forward on a fresh model of the same placement, every logits row bit for bit, and without logprobs, drawn in place from the passes' logits, it gives the same ids.
+// The passes of a load that never pauses are replayed in their order through Model::forward on a fresh model of the same placement, every logits row bit for bit, and without logprobs, so no row is copied out of the passes' logits, it gives the same ids.
 #include <cstring>
 #include <iostream>
 #include <map>
@@ -144,7 +144,7 @@ void replayed(const Make& one, const std::function<Make(size_t)>& split, const b
     }
 }
 
-// The steady load at every run without logprobs, so each pass's rows are drawn in place from its logits: every id its id alone, where the row is copied for its values, and no values.
+// The steady load at every run without logprobs, so no row is copied out of a pass's logits: every id its id alone, where the row is copied for its values, and no values.
 void in_place(const Make& one, const std::function<Make(size_t)>& split, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 32 * kBlock;
     const std::vector<Req> reqs = steady_load(vocab);

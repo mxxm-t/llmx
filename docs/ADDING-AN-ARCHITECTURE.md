@@ -142,7 +142,7 @@ When a layer needs math the op set lacks, the op is added to `src/backends/backe
 - a `backend-vulkan` case against the CPU. That case is exact where the arithmetic is the same operations in the same order, and holds a stated tolerance where a transcendental or a reduction order differs.
 
 A backend without the op refuses the model at load, naming the op; no backend substitutes other arithmetic.
-The runtime makes that check from the ops the plan says each part issues. That field arrives with its first user (Qwen 3.x step 4).
+The op joins `backend::Op`, and the plan names the ops each part of a layer issues from that list (`LayerPlan::ops`), which the runtime checks against each part's device (`Backend::implements`) before it adopts a weight.
 The op's kernels keep the batch-invariance rule below.
 
 ### Drafters

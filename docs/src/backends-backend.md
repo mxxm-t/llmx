@@ -162,6 +162,8 @@ placement contracts in `docs/EXECUTION.md`.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass.
   Each has a form in `Backend` that throws naming the op, which a backend without it runs: the Vulkan backend until the qwen35 plan's step 5 (`docs/STATUS.md`).
   The CPU implements them all (`backends-cpu.md`).
+  - `Op` names each of these five and `op_name(op)` spells it; `implements(op)` says whether a backend runs it, false unless the backend says otherwise and true for every op on the CPU.
+    A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`), so no pass reaches the refusing forms.
   - `StateShape`: one linear-attention layer's state for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, `slot_floats()` a slot, every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32, and `layer_bytes(slots)` one layer's buffer of that many slots.
     `kConvTaps` is the conv's width, 4 in every qwen35 file, and `kL2NormEps` the L2 norms' epsilon, 1e-6, which no file carries.
   - `state_alloc(layers, slots, shape)`: a `StateStorage` of one buffer per layer holding every slot back to back, allocated through `alloc` and zero-filled when it is made and never grown, so no pass allocates state.

@@ -43,12 +43,19 @@ struct Role {
 // What a layer keeps for each sequence from one pass to the next: keys and values for every position it has read, a recurrent state of fixed size, or nothing.
 enum class Cache : uint8_t { kv, state, none };
 
-// A decoder layer as the model runs it: the architecture's own kind for it, handed back on every call for the layer, whether its feed-forward part holds routed experts, what its mixer keeps between passes, and its roles in the order they are adopted.
+// An op a part issues beyond those every backend has, which the backend of the part's device must implement.
+struct OpUse {
+    Part part;
+    backend::Op op;
+};
+
+// A decoder layer as the model runs it: the architecture's own kind for it, handed back on every call for the layer, whether its feed-forward part holds routed experts, what its mixer keeps between passes, its roles in the order they are adopted, and the ops of its parts that some backends lack.
 struct LayerPlan {
     uint8_t kind = 0;
     bool routed = false;
     Cache cache = Cache::kv;
     std::vector<Role> roles;
+    std::vector<OpUse> ops;
 };
 
 // What an architecture declares of a model: the size of every resolved row of weights, the vocabulary, the roles of the pass (the embedding's and the head's) and each layer's, the positions a sequence may reach, and what the arena, the caches and the tables take.

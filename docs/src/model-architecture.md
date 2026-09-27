@@ -15,8 +15,9 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   a layer, handed back on every call for that layer, whether its
   feed-forward part is routed, what its mixer keeps for each sequence
   between passes, its `Cache`: keys and values for every position, a
-  recurrent state of fixed size, or nothing, and its roles in adoption
-  order) and
+  recurrent state of fixed size, or nothing, its roles in adoption order,
+  and the ops of its parts that some backends lack, each an `OpUse`: the
+  part and the `backend::Op`) and
   `ModelPlan` (the size of a row of resolved weights, the vocabulary, the
   pass's roles and each layer's, the context length, and what the arena,
   the caches and the tables take: the residual row, the arena's slot

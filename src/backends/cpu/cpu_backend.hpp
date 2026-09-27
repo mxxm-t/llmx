@@ -126,6 +126,7 @@ public:
     std::optional<size_t> memory_available() const override { return core::host_memory_available(); }
     bool reads_in_place() const override { return true; }
     bool is_cpu() const override { return true; }
+    bool implements(Op) const override { return true; }
 
     void run_prefill(const std::function<void()>& work) override {
         if (prefill_active_) throw std::runtime_error("Nested CPU prefill is unsupported");

@@ -231,6 +231,15 @@ public:
                              (role.part == Part::mixer ? "mixer" : "feed-forward part"));
                 if (role.stream != Stream::none && !accepts(role, a)) streamed = false;
             }
+            // Every op a part issues beyond the common set runs on its device; a stream destination without one of the feed-forward part's leaves the layer at home, as a type does.
+            for (const OpUse& u : layer.ops) {
+                if (u.part == Part::mixer) {
+                    if (!backends[a]->implements(u.op)) refuse_op(l, u);
+                    continue;
+                }
+                if (!backends[f]->implements(u.op)) refuse_op(l, u);
+                if (!backends[a]->implements(u.op)) streamed = false;
+            }
             if (streamed) stream_device_[l] = (int)a;
         }
         devices_.reserve(backends.size());
@@ -754,6 +763,11 @@ private:
 
     // Physical prompt microbatch size, used to bound matrix width and scratch storage.
     int ubatch() const { return ubatch_; }
+
+    [[noreturn]] static void refuse_op(size_t l, const OpUse& u) {
+        throw std::runtime_error("inference: layer " + std::to_string(l) + "'s " + (u.part == Part::mixer ? "mixer" : "feed-forward part") +
+                                 " needs " + backend::op_name(u.op) + ", which the backend of its device does not implement");
+    }
 
     // The history a pass continues: the first stage's committed length, which a pipelined prompt's chunk commits first; outside a prompt every stage agrees.
     size_t history(const Sequence& s) const { return s.length_[0]; }

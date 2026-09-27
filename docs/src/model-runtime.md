@@ -223,6 +223,12 @@ delegated to a `backend::Backend`.
     destination supports every copied or windowed role. If a streamed type
     is unsupported, the whole layer stays on its host; other eligible layers
     can still stream. `resolve_tensors` reuses this decision.
+    In the same pass over the layers, every op a layer's plan names
+    (`LayerPlan::ops`) must be one the backend of its part's device
+    implements (`Backend::implements`), or the model is refused with a text
+    naming the layer, the part and the op; a stream destination that lacks
+    one of a routed feed-forward part's ops leaves the layer on its host, as
+    a type it lacks does.
     `resolve_tensors` walks the plan's roles in order - the pass's, then
     each layer's followed by a streamed layer's copies - refusing a role
     whose tensor is absent with `TensorIndex`'s text, checking each by its

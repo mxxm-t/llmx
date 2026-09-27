@@ -814,12 +814,11 @@ private:
         if (marked < n_entries) throw std::logic_error("inference: a sequence listed twice in a pass");
         if (ctx.slots && (rows > ctx.pass_rows || want > ctx.logit_rows || logits_base > ctx.logit_rows - want))
             throw std::logic_error("inference: a pass beyond the rows or logits rows reserve_passes reserved");
-        // Every entry holds a state slot from its first pass on, so a pass never runs short of one; a pass that cannot take them all, or is refused, takes none.
+        // Every entry holds a state slot from its first pass on, so a pass never runs short of one; a pass that cannot take them all, is refused or fails to plan takes none.
         size_t fresh = 0;
         for (size_t e = 0; state_layers_ && e < n_entries; ++e) fresh += !entries[e].seq->state_.held();
         if (fresh > slots_.available()) throw std::runtime_error("inference: every recurrent state slot is held");
         if (!ctx.slots) ensure(ctx, rows, want, handoffs(1));
-        for (size_t e = 0; fresh && e < n_entries; ++e) entries[e].seq->state_.take(slots_);
         p.entries.assign(entries, entries + n_entries);
         p.start.resize(n_entries);
         p.rows = rows;
@@ -862,6 +861,8 @@ private:
         }
         p.long_runs = false;
         for (size_t e = 0; e < n_entries; ++e) p.long_runs = p.long_runs || streams(p, e);
+        // Last, once nothing can fail: the check above left a free slot for each.
+        for (size_t e = 0; fresh && e < n_entries; ++e) entries[e].seq->state_.take(slots_);
     }
 
     // Stage s of a pass: its storage's blocks reserved, the residual embedded or received from the stage before, its layers, then the head after the last stage or the residual sent on, its submissions, and the commit of its length and its storage.

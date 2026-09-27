@@ -64,7 +64,7 @@ def main():
     if args.load_mode:
         os.environ["LLMX_LOAD_MODE"] = args.load_mode
     if args.require_baseline:
-        missing = [s["file"] for s in baseline.BASELINE_MODELS if not baseline.find_fixture(s)]
+        missing = baseline.missing_gate_models()
         if missing:
             parser.error("missing required HF fixtures: " + ", ".join(missing))
     components = [("dead-code", dead_code.run),

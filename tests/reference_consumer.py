@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import math
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -195,8 +196,8 @@ class Qwen35Consumer(unittest.TestCase):
         cls.template = next(t["template"] for t in templates if t["sha256"] == cls.docs["baseline_chat.json"]["template_sha256"])
         cls.spec = baseline.pinned_fixture(cls.FILE)
 
-    def simulate(self, root, refuse=False, digest=None, bounds=None, template=None):
-        """main() on the pinned file under `root` with llmx simulated: every text tokenized as the goldens say, and logits and perplexity as HF's, unless `refuse` refuses the architecture."""
+    def double(self, refuse=False):
+        """llmx simulated on the pinned file, given a command with the executable first: every text tokenized as the goldens say, and logits and perplexity as HF's, unless `refuse` refuses the architecture."""
         ids = {case["text"]: case["ids"] for case in self.tokenizer["cases"]}
         cases = self.docs["baseline_logits.json"]["cases"] + self.docs["baseline_chat.json"]["cases"]
         ids.update((case["text"], case["token_ids"]) for case in cases)
@@ -223,6 +224,12 @@ class Qwen35Consumer(unittest.TestCase):
                 out = "llmx 0\n"
             return subprocess.CompletedProcess(command, rc, out.encode("utf-8"), err.encode("utf-8"))
 
+        return llmx
+
+    def simulate(self, root, refuse=False, digest=None, bounds=None, template=None):
+        """main() on the pinned file under `root` with llmx simulated by double()."""
+        llmx = self.double(refuse)
+        doc = self.docs[baseline_qwen35.PPL_GOLDENS[512]]
         gguf = unittest.mock.MagicMock()
         gguf.return_value.value.return_value = self.template if template is None else template
         args = ["--exe", str(root / "llmx"), "--model", str(root / self.FILE), "--output-dir", str(root / "result")]
@@ -292,6 +299,55 @@ class Qwen35Consumer(unittest.TestCase):
                 Path(directory, name).write_text(json.dumps({"weights": {"sha256": "0" * 64}}), encoding="utf-8")
             with patch.object(baseline_qwen35, "file_sha256", return_value=self.spec["sha256"]), self.assertRaisesRegex(ValueError, "not made from"):
                 baseline_qwen35.model_goldens(str(Path(directory) / self.FILE), directory)
+
+    def hosted(self, root, refuse=False, bounds=None, present=True):
+        """run_hosted, the suite's form, with the pinned file the one qwen35 fixture, on disk under `root` when `present`, and llmx simulated by double(): its result and what it printed."""
+        llmx = self.double(refuse)
+
+        def run(arguments):
+            process = llmx(["llmx"] + arguments)
+            return process.returncode, (process.stdout + (process.stderr if process.returncode else b"")).decode("utf-8")
+
+        path = root / self.FILE
+        if present:
+            path.write_bytes(b"")
+        gguf = unittest.mock.MagicMock()
+        gguf.return_value.value.return_value = self.template
+        printed = io.StringIO()
+        with patch.dict(os.environ), patch.object(baseline, "PINNED", [self.spec]), patch.object(baseline, "snapshot_path", return_value=path), \
+             patch.object(baseline_qwen35, "file_sha256", return_value=self.spec["sha256"]), \
+             patch.object(baseline_qwen35, "check_ids_digest", return_value={"tokens": self.docs[baseline_qwen35.PPL_GOLDENS[512]]["n_tokens"]}), \
+             patch.object(baseline_qwen35.spec_decode, "GGUF", gguf), patch.object(baseline_qwen35, "BOUNDS", bounds or {}), \
+             patch.object(baseline_qwen35.common, "run", side_effect=run), contextlib.redirect_stdout(printed):
+            os.environ.pop("LLMX_BASELINE_GGUF", None)
+            ok = baseline_qwen35.run_hosted()
+        return ok, printed.getvalue()
+
+    def test_suite_form_skips_only_what_it_cannot_run(self):
+        name = "baseline-qwen35[%s]: " % self.FILE
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(self.hosted(Path(directory), present=False), (True, name + "SKIP - fixture model not on disk\n"))
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(self.hosted(Path(directory), refuse=True),
+                             (True, name + "SKIP - llmx refuses the qwen35 architecture (47 tokenizer and chat id checks pass)\n"))
+        # Once llmx runs the model, a file without bounds fails the suite, and one with bounds passes all 59 checks.
+        with tempfile.TemporaryDirectory() as directory:
+            ok, printed = self.hosted(Path(directory))
+        self.assertFalse(ok)
+        self.assertTrue(printed.startswith(name + "FAIL - no bounds"), printed)
+        bounds = {self.FILE: {"top5_overlap": 5, "continuous_nll": 0.01, "window_nll": 0.02}}
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(self.hosted(Path(directory), bounds=bounds), (True, name + "59 checks  [ok]\n"))
+
+    def test_required_baseline_counts_qwen35_gate_models(self):
+        # A qwen35 file that joins the gate is required as a Qwen3 one is, though the Qwen3 gate's list leaves it out.
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / self.FILE
+            with patch.object(baseline, "PINNED", [dict(self.spec, gate=True)]), patch.object(baseline, "BASELINE_MODELS", []), \
+                 patch.object(baseline, "snapshot_path", return_value=path):
+                self.assertEqual(baseline.missing_gate_models(), [self.FILE])
+                path.write_bytes(b"")
+                self.assertEqual(baseline.missing_gate_models(), [])
 
 
 def run():

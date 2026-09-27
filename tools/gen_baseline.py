@@ -1059,8 +1059,8 @@ def parse_args(argv=None):
         if pinned and pinned["family"] == "qwen35":
             # A qwen35 file's reference is the pinned checkpoint whose goldens are for it.
             model = next((name for name, spec in QWEN35_MODELS.items() if args.gguf_file in spec["gguf_files"]), None)
-            if model is None or args.repo != TOKENIZER_REPO:
-                parser.error("a qwen35 file takes the pinned checkpoint of QWEN35_MODELS that lists it, not --repo")
+            if model is None or args.repo != TOKENIZER_REPO or args.revision != REFERENCE_REVISION:
+                parser.error("a qwen35 file takes the pinned checkpoint of QWEN35_MODELS that lists it, not --repo or --revision")
             return qwen35_args(parser, args, model, args.output_dir)
     else:
         if args.repo != TOKENIZER_REPO and not args.gguf_repo:
@@ -1079,6 +1079,11 @@ def qwen35_args(parser, args, model, output_dir):
     args.family, args.qwen35_model = "qwen35", model
     args.repo, args.revision = spec["repo"], spec["revision"]
     args.output_dir = os.path.abspath(output_dir)
+    # Each directory of committed goldens under tests/data is written only by the mode and model it belongs to.
+    own = os.path.join(OUT_DIR, spec["directory"]) if args.kind == "qwen35" else None
+    for directory in [OUT_DIR] + [os.path.join(OUT_DIR, s["directory"]) for s in QWEN35_MODELS.values()]:
+        if directory != own and os.path.normcase(os.path.realpath(args.output_dir)) == os.path.normcase(os.path.realpath(directory)):
+            parser.error("%s holds committed goldens of another mode or model" % directory)
     if not args.weights_gguf:
         from baseline import pinned_fixture
         args.gguf_file = spec["gguf_files"][0]

@@ -235,6 +235,13 @@ def find_model(spec):
     return str(path) if path.exists() else None
 
 
+def missing_gate_models():
+    """The gate models of every family that a run finds no file for, which a run that requires the baseline refuses."""
+    qwen35 = [spec for spec in PINNED if spec["gate"] and spec["family"] == "qwen35"]
+    return ([spec["file"] for spec in BASELINE_MODELS if not find_fixture(spec)] +
+            [spec["file"] for spec in qwen35 if not snapshot_path(spec["repo"], spec["revision"], spec["file"]).exists()])
+
+
 def run():
     return run_tokenizer() and run_logits() and run_perplexity() and baseline_qwen35.run_hosted()
 

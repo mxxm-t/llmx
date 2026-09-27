@@ -555,6 +555,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   The committed qwen35 goldens must hold the generator's checkpoints, files, prompts, conversations, templates and excerpts, and the consumer must pin every one of them.
 - **Reference consumer** (`tests/reference_consumer.py`): standard-library rejection tests for changed 8B fixtures, damaged logits/PPL, top-5 boundary swaps beyond those `common.top5_overlap` forgives, wrong model identity and failed launches, and a passing run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
   For `tests/baseline_qwen35.py` it checks changed goldens, the digest that stands for the excerpt's ids, one skip when llmx refuses the architecture after 47 checks, a run of 59 checks failing without bounds and passing with them, a wrong file digest or chat template, and file-exact goldens made from another file.
+  The suite's form must skip only a file not on disk or refused, and fail a file without bounds; `--require-baseline` must count a qwen35 gate model as it counts a Qwen3 one.
   It is included in the ordinary suite; it does not load or download the 8B model.
 - **Fixture downloader** (`tests/fetch_models.py`): seventeen offline tests
   of `tools/fetch_test_models.py` against simulated responses: a verified

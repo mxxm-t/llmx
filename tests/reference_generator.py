@@ -160,13 +160,16 @@ class ReferenceGenerator(unittest.TestCase):
                    ["qwen35", "--model", "Qwen3.5-0.8B", "--repo", "Qwen/Qwen3.5-4B", "--revision", "a" * 40],
                    ["qwen35", "--model", "Qwen3.5-0.8B", "--gguf-repo", "a/b", "--gguf-file", "c.gguf"],
                    ["qwen35", "--model", "Qwen3.5-0.8B", "--weights-gguf", str(SCRIPT)],
-                   ["qwen35", "--model", "Qwen3.5-0.8B", "--threads", "0"]]
+                   ["qwen35", "--model", "Qwen3.5-0.8B", "--threads", "0"],
+                   # The Qwen3 goldens and another model's goldens are not this model's to write.
+                   ["qwen35", "--model", "Qwen3.5-0.8B", "--output-dir", generator.OUT_DIR],
+                   ["qwen35", "--model", "Qwen3.5-0.8B", "--output-dir", os.path.join(generator.OUT_DIR, "qwen35-4b")]]
         with contextlib.redirect_stderr(io.StringIO()):
             for argv in invalid:
                 with self.subTest(argv=argv), self.assertRaises(SystemExit) as error:
                     generator.parse_args(argv)
                 self.assertEqual(error.exception.code, 2)
-        # A pinned qwen35 file's file-exact reference is the checkpoint whose goldens are for it, which --repo cannot replace.
+        # A pinned qwen35 file's file-exact reference is the checkpoint whose goldens are for it, which --repo and --revision cannot replace, and its goldens never go over committed ones.
         with tempfile.TemporaryDirectory(prefix="llmx_reference_qwen35_file_exact_") as directory:
             path = os.path.join(directory, "Qwen3.5-0.8B-Q4_K_M.gguf")
             Path(path).write_bytes(b"GGUF")
@@ -174,8 +177,13 @@ class ReferenceGenerator(unittest.TestCase):
             args = generator.parse_args(["file-exact", "--weights-gguf", path, "--output-dir", out])
             self.assertEqual((args.family, args.qwen35_model, args.repo, args.gguf_repo, args.gguf_file),
                              ("qwen35", "Qwen3.5-0.8B", "Qwen/Qwen3.5-0.8B", "unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"))
-            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-                generator.parse_args(["file-exact", "--weights-gguf", path, "--output-dir", out, "--repo", "Qwen/Qwen3.5-4B", "--revision", "a" * 40])
+            for extra in (["--repo", "Qwen/Qwen3.5-4B", "--revision", "a" * 40], ["--revision", "a" * 40]):
+                with self.subTest(extra=extra), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                    generator.parse_args(["file-exact", "--weights-gguf", path, "--output-dir", out] + extra)
+                self.assertEqual(error.exception.code, 2)
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                generator.parse_args(["file-exact", "--weights-gguf", path, "--output-dir", os.path.join(generator.OUT_DIR, "qwen35-0.8b")])
+            self.assertEqual(error.exception.code, 2)
 
     def test_qwen35_tensors_undo_the_converter(self):
         import spec_decode
@@ -253,15 +261,15 @@ class ReferenceGenerator(unittest.TestCase):
         # load_qwen35 against doubles: the versions, float32 and eager attention, transformers' torch forms, and the keys a load may leave out.
         dtype = object()
 
-        def load(transformers_version="5.17.0", installed=(), missing=(), unexpected=()):
+        def load(torch_version="2.5.1+cpu", transformers_version="5.17.0", tokenizers_version="0.23.2", installed=(), missing=(), mismatched=(), unexpected=()):
             model = MagicMock()
             model.cpu.return_value = model
-            info = {"missing_keys": list(missing), "mismatched_keys": [],
+            info = {"missing_keys": list(missing), "mismatched_keys": list(mismatched),
                     "unexpected_keys": ["mtp.fc.weight", "model.visual.blocks.0.attn.qkv.weight"] + list(unexpected)}
             causal = SimpleNamespace(from_pretrained=MagicMock(return_value=(model, info)))
             modeling = SimpleNamespace(torch_chunk_gated_delta_rule=MagicMock(return_value="chunked"), torch_recurrent_gated_delta_rule=MagicMock())
-            torch = SimpleNamespace(__version__="2.5.1+cpu", float32=dtype, set_num_threads=MagicMock())
-            modules = {"torch": torch, "tokenizers": SimpleNamespace(__version__="0.23.2"),
+            torch = SimpleNamespace(__version__=torch_version, float32=dtype, set_num_threads=MagicMock())
+            modules = {"torch": torch, "tokenizers": SimpleNamespace(__version__=tokenizers_version),
                        "transformers": SimpleNamespace(__version__=transformers_version, Qwen3_5ForCausalLM=causal),
                        "transformers.models": SimpleNamespace(), "transformers.models.qwen3_5": SimpleNamespace(modeling_qwen3_5=modeling),
                        "transformers.models.qwen3_5.modeling_qwen3_5": modeling}
@@ -282,8 +290,11 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(args.chunked_calls, 1)
         with self.assertRaisesRegex(SystemExit, "recurrence"):
             modeling.torch_recurrent_gated_delta_rule(1)
-        refusals = [({"transformers_version": "5.16.0"}, "5.17.0"), ({"installed": ("kernels",)}, "kernels"),
-                    ({"installed": ("fla",)}, "fla"), ({"missing": ("model.norm.weight",)}, "model.norm.weight"),
+        refusals = [({"torch_version": "2.6.0+cpu"}, "2.5.1"), ({"transformers_version": "5.16.0"}, "5.17.0"),
+                    ({"tokenizers_version": "0.22.1"}, "0.23.2"), ({"installed": ("kernels",)}, "kernels"),
+                    ({"installed": ("fla",)}, "fla"), ({"installed": ("causal_conv1d",)}, "causal_conv1d"),
+                    ({"missing": ("model.norm.weight",)}, "model.norm.weight"),
+                    ({"mismatched": ("model.layers.0.linear_attn.A_log",)}, "model.layers.0.linear_attn.A_log"),
                     ({"unexpected": ("model.language_model.extra",)}, "model.language_model.extra")]
         for change, message in refusals:
             with self.subTest(change=change), self.assertRaisesRegex(SystemExit, message):

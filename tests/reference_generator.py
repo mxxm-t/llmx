@@ -572,6 +572,15 @@ class LayeredReference(unittest.TestCase):
             self.assertEqual(sorted(order), list(range(v_heads)))
             self.assertTrue(all(order[j] // (v_heads // k_heads) == j % k_heads for j in range(v_heads)))
 
+    @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy, which the GGUF comparison reads tensors with")
+    def test_float32_steps_count_across_zero(self):
+        import numpy
+        below_one = struct.unpack("<f", struct.pack("<I", 0x3F7FFFFF))[0]
+        tiny = struct.unpack("<f", struct.pack("<I", 1))[0]
+        a = numpy.array([1.0, 1.0, -1.0, 0.0, -0.0, tiny, -2.5], dtype=numpy.float32)
+        b = numpy.array([1.0, below_one, -below_one, -0.0, tiny, -tiny, -2.5], dtype=numpy.float32)
+        self.assertEqual(layered.float32_steps(a, b).tolist(), [0, 1, 1, 0, 1, 2, 0])
+
     def test_label_keeps_the_writers_fields_in_order(self):
         extra = {"gguf_repo": None, "gguf_file": "m.gguf", "gguf_sha256": "0" * 64}
         with tempfile.TemporaryDirectory(prefix="llmx_layered_label_") as directory:

@@ -232,9 +232,20 @@ class Layered:
         return SimpleNamespace(logits=self.logits[key])
 
 
+def float32_steps(a, b):
+    """How many float32 steps separate each pair of `a` and `b`, counted across zero, with -0 and +0 the same value."""
+    import numpy
+
+    def ordered(x):
+        bits = numpy.ascontiguousarray(x, dtype=numpy.float32).view(numpy.int32).astype(numpy.int64)
+        return numpy.where(bits < 0, -(bits & 0x7FFFFFFF), bits)
+    return numpy.abs(ordered(a) - ordered(b))
+
+
 class Provenance:
     """A GGUF file's F32 tensors against the checkpoint's parameters under the converter's conventions (docs/QWEN35.md, What the converter folds).
     Every norm but ssm_norm is stored as 1 + w summed in float32, ssm_a as -exp(A_log), ssm_conv1d without its middle axis, and the V side in tiled order.
+    ssm_a is computed as torch computes exp in float32 here, and another machine's exp can round a value to the next float32, so a differing tensor records how many values differ and by how many float32 steps at most.
     ssm_dt.bias is also compared in HF's grouped order, which a file converted in tiled order with Hv above Hk must not match."""
 
     def __init__(self, path, config):
@@ -256,10 +267,13 @@ class Provenance:
 
     def compare(self, name, expected):
         got = self.values(name)
-        if got.shape == expected.shape and self.np.array_equal(got, expected):
+        if got.shape != expected.shape:
+            self.differ.append({"tensor": name, "shape": list(got.shape), "expected_shape": list(expected.shape)})
+        elif self.np.array_equal(got, expected):
             self.equal += 1
         else:
-            self.differ.append(name)
+            steps = float32_steps(got, expected)
+            self.differ.append({"tensor": name, "values": int((steps != 0).sum()), "of": int(steps.size), "max_float32_steps": int(steps.max())})
 
     def __call__(self, name, module):
         np = self.np

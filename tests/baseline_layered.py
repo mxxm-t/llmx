@@ -19,8 +19,7 @@ BOUNDS = {"top5_overlap": 4, "max_abs_logit": 100.0, "continuous_nll": 0.13, "wi
 # llmx's error for a file whose architecture it does not run.
 REFUSAL = "unsupported metadata general.architecture"
 SCOPE = "20 tokenizer cases, six short prefill rankings and four NLL cases, each scored in batched passes and per token; not full-corpus or deep-context coverage"
-PROVENANCE = ("The GGUF's Hub repository and commit, when known, are in its goldens; its %d F32 tensors equal the checkpoint's under the converter's conventions, "
-              "and its quantized tensors are not compared.")
+UNCOMPARED = "; its quantized tensors are not compared."
 
 # Each GGUF's goldens by the GGUF's SHA-256, with each golden's SHA-256 with LF line ends.
 GOLDENS = {
@@ -31,7 +30,19 @@ GOLDENS = {
             "baseline_logits.json": "02b8adba52a6fb354cd04a2e9c6b382c0d480922ced82243c1ffa15b3fc16903",
             "baseline_perplexity.json": "3f084ab54634182dfcdd441c42eed0ea7d3369e2c7a9747af168c1aa512a2f5f",
         },
-        "bounds": BOUNDS, "vocab": VOCAB_SIZE, "context": MODEL_CONTEXT, "scope": SCOPE, "provenance_limit": PROVENANCE % 177,
+        "bounds": BOUNDS, "vocab": VOCAB_SIZE, "context": MODEL_CONTEXT, "scope": SCOPE,
+        "provenance_limit": "The GGUF's Hub repository and commit are in its goldens, and its 177 F32 tensors equal the checkpoint's under the converter's conventions" + UNCOMPARED,
+    },
+    "876d304664f4615db8924b421a9a88df51f29be9ce413f0bfd059e0480e8f7fe": {
+        "name": "Qwen3.6-27B Q4_K_M", "data": DATA / "qwen3.6-27b",
+        "fixture_sha256": {
+            "baseline_tokenizer.json": "25d59bac8e2fb151278664c66d1b5ebb42510cd735ca163920ced24096481689",
+            "baseline_logits.json": "6715db5e42b2ae7386de25ec6a1b7c8fe3b9c658f6ea78afb464fdd060424ea7",
+            "baseline_perplexity.json": "c014a20c804d68f3e68824df6d34ffff8e90ec66e3b62ff99fab4be59267aa36",
+        },
+        "bounds": BOUNDS, "vocab": VOCAB_SIZE, "context": MODEL_CONTEXT, "scope": SCOPE,
+        "provenance_limit": ("The GGUF has no known Hub source; 331 of its 353 F32 tensors equal the checkpoint's under the converter's conventions, "
+                             "and its other 22 ssm_a tensors differ in 28 values, each one float32 step from -exp(A_log) as torch computes it here" + UNCOMPARED),
     },
 }
 

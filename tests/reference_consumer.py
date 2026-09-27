@@ -384,8 +384,17 @@ class LayeredConsumer(unittest.TestCase):
                 # One checkpoint gives all three: the tokenizer's repository and commit are the model's.
                 ran = {(doc["reference_repo"], doc["reference_revision"]) for name, doc in docs.items() if name != "baseline_tokenizer.json"}
                 self.assertEqual(ran, {(docs["baseline_tokenizer.json"]["tokenizer_repo"], docs["baseline_tokenizer.json"]["tokenizer_revision"])})
-                for name in ("baseline_logits.json", "baseline_perplexity.json"):
-                    self.assertEqual(docs[name]["layered"]["gguf_provenance"]["differ"], [])
+                # The GGUF was converted from these weights: every F32 tensor equals the checkpoint's but for ssm_a values one float32 step from the exp here, which the consumer's provenance line counts.
+                record = docs["baseline_logits.json"]["layered"]["gguf_provenance"]
+                self.assertEqual(docs["baseline_perplexity.json"]["layered"]["gguf_provenance"], record)
+                self.assertEqual(record["f32_tensors_compared"], record["equal"] + len(record["differ"]))
+                for item in record["differ"]:
+                    self.assertRegex(item["tensor"], r"^blk\.\d+\.ssm_a$")
+                    self.assertTrue(0 < item["values"] <= item["of"] and item["max_float32_steps"] == 1)
+                counts = "%d F32 tensors equal" % record["equal"] if not record["differ"] else "%d of its %d F32 tensors equal" % (record["equal"], record["f32_tensors_compared"])
+                self.assertIn(counts, golden["provenance_limit"])
+                if record["differ"]:
+                    self.assertIn("%d ssm_a tensors differ in %d values" % (len(record["differ"]), sum(item["values"] for item in record["differ"])), golden["provenance_limit"])
 
     def test_passing_run_for_each_model(self):
         for digest, golden in layered.GOLDENS.items():

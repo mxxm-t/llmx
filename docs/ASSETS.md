@@ -522,7 +522,8 @@ Its ids therefore differ from `tokenizer.json` on text with combining marks (Tha
 
 `qwen35-tiny` writes `tests/data/baseline_qwen35.json` (73,812 bytes) for the tiny models of `tests/qwen35.py`, accepts only `--output-dir` and is not part of `all`.
 It runs in the qwen35 venv above, offline (`HF_HUB_OFFLINE` and `TRANSFORMERS_OFFLINE`, in a container without a network), with one thread.
-It refuses a transformers version other than 5.17.0, and an installed `kernels`, `fla` or `causal_conv1d` package, which HF's qwen3_5 code would run in place of its own torch functions.
+Like every qwen35 reference it passes the one environment check of `tools/gen_baseline.py` (`qwen35_environment` over `QWEN35_ENV`): it refuses torch other than 2.5.1+cpu, transformers other than 5.17.0, the version `tools/gen_chat_baseline.py` pins for the chat renderer, and tokenizers other than 0.23.2, and an installed `kernels`, `fla` or `causal_conv1d` package, which HF's qwen3_5 code would run in place of its own torch functions.
+The converter's tensor names and transforms have one owner, `tests/qwen35.py`, which the writer here and file-exact both read, and so has its tiled V-head order, which the layered reference's GGUF comparison reads too.
 
 - **The models.** 37 wide, 4 layers alternating linear and full attention (`full_attention_interval` 2), FFN 19, vocabulary 257 and context 16.
   Full attention has 4 query and 2 KV heads of 40, with a rotary width of 8 at base 100 and sections [2, 1, 1, 0].
@@ -549,14 +550,15 @@ With V heads read in the grouped order it failed on `hv3` (0.30), after passing 
 
 - **HF's side:** the 32 values of `model.language_model.layers.0.linear_attn.dt_bias` of `Qwen/Qwen3.5-4B` at commit `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`, stored as bf16 and widened to float32.
   They were read by HTTP range requests, the safetensors header then the tensor's 64 bytes, from `model.safetensors-00002-of-00002.safetensors` (3,990,429,408 bytes, SHA-256 `cb544bd9bfae93dc59b0f22b292f5933573854a7f9b97835c67060d7d910e188` as the Hub records it), with no other part of the file downloaded.
+  The whole shard, downloaded since for the real-model references and matching that SHA-256, gives the same 32 values, and all 24 of its linear-attention layers map onto the GGUF's bit for bit in the tiled order and in none in HF's grouped order.
 - **The GGUF's side:** the 32 values of `blk.0.ssm_dt.bias`, F32, of the Linux machine's `Qwen3.5-4B-Q4_K_M.gguf` (2,707,513,696 bytes, SHA-256 `25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c`), read with `tests/spec_decode.py`.
-  By size it is none of the Q4_K_M files of `unsloth/Qwen3.5-4B-GGUF` or `bartowski/Qwen_Qwen3.5-4B-GGUF`, so it has no known Hub source; the tensor is F32, which quantization leaves as converted.
+  That is the file of `lmstudio-community/Qwen3.5-4B-GGUF` at `f9f88ac3e234be915e23811a6d28ea287bdb927e`, whose LFS record gives the same SHA-256, pinned in `tests/data/fixtures.json` (The qwen35 real-model references, below); the tensor is F32, which quantization leaves as converted.
 - `tests/reference_generator.py` requires the writer's tiled order with Hk = 16 and Hv = 32 to map the one onto the other bit for bit, and HF's own order not to.
 
 #### The qwen35 real-model references
 
 `qwen35 --model Qwen3.5-0.8B` or `--model Qwen3.5-4B` writes the real-model goldens of a pinned checkpoint into `tests/data/qwen35-0.8b` or `tests/data/qwen35-4b`, accepts only `--model`, `--output-dir` and `--threads` (six by default), and is not part of `all`.
-It runs in the qwen35 venv above, offline, and refuses another torch, transformers or tokenizers version, and an installed `kernels`, `fla` or `causal_conv1d` package, which transformers would run in place of its torch forms.
+It runs in the qwen35 venv above, offline, and passes the same environment check as the tiny references, which refuses another torch, transformers or tokenizers version and an installed `kernels`, `fla` or `causal_conv1d` package, which transformers would run in place of its torch forms.
 
 - **The checkpoints** (`QWEN35_MODELS` in `tools/gen_baseline.py`), each file the reference reads refused unless it has its SHA-256:
   - Qwen3.5-0.8B: `Qwen/Qwen3.5-0.8B` at `2fc06364715b967f1860aea9cf38778875588b17`, with `config.json` `b90b86f35c8e6925ef74ee04d0e758f0a845c83a42089ad82bbaa948de9b4204`, `model.safetensors.index.json` `d8a08838a613b025eb7952ed9db11696213e57e76a375661ef5c12f9dd5dcf4e` and `model.safetensors-00001-of-00001.safetensors` `04b1c301231dd422b8860db31311ab2721511346a32cb1e079c4c4e5f1fe4696`.
@@ -759,9 +761,9 @@ The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_
 From the 9B up, a qwen35 model's float32 forward does not fit the Linux host's free memory whole, so `tools/gen_layered_reference.py` runs HF's own modules one decoder layer at a time (STATUS, Qwen 3.5, 3.6 and 3.8, Decided 2).
 It makes the calls of transformers' `Qwen3_5TextModel.forward` in its order: the embedding, the model's own rotary embedding and masks (`create_causal_mask`, `create_recurrent_attention_mask`), each decoder layer, the final norm and the head.
 It builds `Qwen3_5ForCausalLM` on the meta device and gives each module its weights just before it runs, read from the checkpoint's safetensors and widened from bf16 to float32 as `from_pretrained` does, then drops them once the module has run every input.
-The checkpoint's keys are renamed by transformers' own loading rules for the model, and the tool refuses a rule that would reshape a tensor, any key the model neither takes nor ignores (it ignores `mtp.*` and `model.visual.*`), and any parameter no key gives other than a tied head.
+The checkpoint's keys are renamed by transformers' own loading rules for the model, and the tool refuses a rule that would reshape a tensor, any key the model neither takes nor ignores (it ignores `mtp.*` and `model.visual.*`, the keys every qwen35 reference may leave unused), and any parameter no key gives other than a tied head.
 Every input runs alone, a batch of one, with eager attention and the torch fallbacks of the linear-attention layers, as HF's full forward runs it.
-It runs offline from the HF cache and refuses any transformers other than 5.17.0 and any torch other than 2.5.1+cpu; it uses the qwen35 venv of the tokenizer reference above.
+It runs offline from the HF cache in the qwen35 venv of the tokenizer reference above, through the environment check every qwen35 reference passes (`qwen35_environment` in `tools/gen_baseline.py`), so it refuses any torch other than 2.5.1+cpu, transformers other than 5.17.0 and tokenizers other than 0.23.2.
 It also refuses an installed `kernels`, `fla` or `causal_conv1d` package, since transformers 5.17.0 runs hub kernels, then those two packages, before its torch code for the conv and the gated delta rule; the venv has none of them.
 
 **Equal to the full forward.**

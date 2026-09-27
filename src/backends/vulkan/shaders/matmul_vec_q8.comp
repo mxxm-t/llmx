@@ -39,6 +39,8 @@ layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 // Columns whose activations a lane loads together: their loads issue back to back, and a group past the pushed count is skipped whole.
 // A plain pass gives a build more than half its columns (for_each_column_chunk), so only a grouped build, or a group past the first half, can be past the count; no other group ends a block before its loads.
 const uint GROUP = MAX_COLS < 4u ? MAX_COLS : 4u;
+// Whether a group past the first half that the count leaves part full skips its surplus columns' products, each behind a uniform check; the 16-column build keeps one copy of its products, which a second copy slowed (docs/VULKAN.md).
+const bool PARTIAL = MAX_COLS <= 8u;
 
 void main() {
     uint wg = gl_WorkGroupID.x;
@@ -76,6 +78,11 @@ void main() {
     const uint SB = S >> 2u;
     float acc[ROWS][MAX_COLS];
     [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) acc[r][c] = 0.0;
+// Column g + J's products of step d, one for each row, added to its accumulators.
+#define COLUMN_PRODUCTS(J) [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
+        int s = dotPacked4x8EXT(int(w0[d][r]), int(xa[J].x)) + dotPacked4x8EXT(int(w1[d][r]), int(xa[J].y)); \
+        acc[r][g + (J)] += dw[d][r] * dx[J] * float(s); \
+    }
 // NS steps of a lane from block b: every row's words for all NS steps first, then per group of columns the NS steps in order, so each column still adds its blocks in order.
 // No branch separates the loads, so every weight load of the batch is issued before the first product.
 #define QUARTER_STEPS(NS) { \
@@ -104,11 +111,11 @@ void main() {
                     xa[j] = xq4[(col * p.nin + bd * 32u + q * 8u) / 8u]; \
                     dx[j] = xt2[xtab + col * nblk + bd].x; \
                 } \
-                [[unroll]] for (uint j = 0u; j < GROUP; ++j) \
-                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
-                        int s = dotPacked4x8EXT(int(w0[d][r]), int(xa[j].x)) + dotPacked4x8EXT(int(w1[d][r]), int(xa[j].y)); \
-                        acc[r][g + j] += dw[d][r] * dx[j] * float(s); \
-                    } \
+                if (!PARTIAL || 2u * g < MAX_COLS || g + GROUP <= ncols) { \
+                    [[unroll]] for (uint j = 0u; j < GROUP; ++j) COLUMN_PRODUCTS(j) \
+                } else { \
+                    [[unroll]] for (uint j = 0u; j < GROUP; ++j) if (g + j < ncols) COLUMN_PRODUCTS(j) \
+                } \
             } \
         } \
     }

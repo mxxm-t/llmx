@@ -21,9 +21,8 @@ kernel notes and measurements are `docs/VULKAN.md`.
   the driver's disassembly of each kernel, which
   `vulkan_kernel_representations` returns and `backend-vulkan --isa DIR`
   writes one file per kernel, then holds each row kernel build to its
-  one-column build's float multiply and add kinds and each Q8_0 decode
-  build to its counts per row and column. On a queue that timestamps it
-  the backend also times the
+  one-column build's counts of float multiplies and adds (AGENTS.md,
+  Tests). On a queue that timestamps it the backend also times the
   dispatches: `vulkan_kernel_times` returns device milliseconds per kernel
   since the last reading, waiting for the queue, and
   `vulkan_timed_dispatches` how many dispatches that reading covered, the
@@ -76,11 +75,12 @@ kernel notes and measurements are `docs/VULKAN.md`.
   kernel, the norm, the SiLU or the attention, writes beside its output
   and tags. The twin is 16-bit, or on a device whose profile prefers the
   integer dot 8-bit for every quantized family, except the Q4_0, Q4_1 and
-  Q6_K rows of the output head (`matmul_logits`). Each row kernel is built
-  for eight columns and for one (specialization constant 0), the
-  one-column build taken when a chunk is one wide, except the wide Q8_0
-  kernel, and a third pipeline is the eight-column build grouped by expert
-  (specialization constant 8, Mixture of experts below). For integer-dot
+  Q6_K rows of the output head (`matmul_logits`). Each row kernel but the
+  Q8_0 decode kernel is built for eight columns and for one
+  (specialization constant 0), the one-column build taken when a chunk is
+  one wide, except the wide Q8_0 kernel, and a third pipeline is the
+  eight-column build grouped by expert (specialization constant 8,
+  Mixture of experts below). For integer-dot
   devices the Q4 (Q4_0 and Q4_1) and Q6_K families are built again with
   `LLMX_DOT` over the 16-bit twin, which only their output head takes, and
   with `LLMX_DOT` and `LLMX_X8` over the 8-bit twin, whose rows take at
@@ -88,8 +88,9 @@ kernel notes and measurements are `docs/VULKAN.md`.
   8-bit dot build, whose rows take at most `k45_row_lanes`. There Q8_0 rows
   take `shaders/matmul_vec_q8.comp`, the four-wide dot over the 8-bit twin,
   and F32 rows the plain build.
-  The Q8_0 decode kernel is built for 1, 2, 4, 8 and 16 columns, with the rows a subgroup takes and the steps of weights a lane loads ahead as specialization constants 9 and 11 (`kVecBuilds`), and a dispatch's rows per workgroup follow the build.
+  The Q8_0 decode kernel is built for 1, 2, 4, 8 and 16 columns, with the rows a subgroup takes and the steps of weights a lane loads ahead as specialization constants 9 and 10 (`kVecBuilds`); `sg_rows` gives the rows a subgroup takes in any row kernel build, which a dispatch's rows per workgroup follow.
   `for_each_column_chunk` splits a pass's columns: chunks of the widest build the kernel has on the device (the profile's `q8_decode_cols` for this kernel) while more columns remain than it holds, then the rest in the narrowest build that holds them.
+  Each Q8_0 decode build holds twice the next narrower's columns, so a chunk fills more than half its build, and a plain build checks the column count only before the groups of columns past its first half; a build of up to 8 columns also skips the products of the columns past the count in a group the pass fills in part.
   Every build computes a column as the one-column build does, so the split changes only the time; `backend-vulkan` checks each column against the same column alone.
   The lanes that share a wide Q8_0 block pair (four) and a K-quant block (eight) are fixed by `matmul_row.comp`, and the host mirrors them in constants beside the tile heights rather than in the profile.
 - Wide batches take a tile kernel. Where the profile sets

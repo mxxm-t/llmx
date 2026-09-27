@@ -299,6 +299,13 @@ if(BUILD_TESTING)
         target_link_libraries(llmx-split-check PRIVATE llmx-vulkan)
     endif()
     list(APPEND LLMX_TARGETS llmx-split-check)
+    # Not a CTest either: a fixture's forced reply read through the decode path of a real model, run by hand (AGENTS.md, Tests).
+    add_executable(llmx-decode-probe tools/decode_probe.cpp)
+    target_include_directories(llmx-decode-probe PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(LLMX_HAS_BACKEND_VULKAN)
+        target_link_libraries(llmx-decode-probe PRIVATE llmx-vulkan)
+    endif()
+    list(APPEND LLMX_TARGETS llmx-decode-probe)
 
     if(LLMX_HAS_BACKEND_VULKAN)
         # Exits 77 when there is no loader or no device, which CTest reports as skipped rather than passed.

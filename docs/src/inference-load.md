@@ -1,7 +1,7 @@
 # `src/inference/load.hpp` - loading a model file
 
 The one sequence that turns a model file into a model ready to run, in namespace `infer`.
-The CLI's commands that run a model, `llmx-split-check` and `compare_cpu` all load through it, and none of them repeats its steps.
+The CLI's commands that run a model, `llmx-split-check`, `llmx-decode-probe` and `compare_cpu` all load through it, and none of them repeats its steps.
 
 - `LoadMode { automatic, mapped, direct }`, `load_mode_of(name)` and `load_mode_name(mode)`: how a load reads the weights, the CLI's `--load-mode` (`auto`, `mapped` or `direct`), the same on every backend; the first is the default, which the CLI's `ExecOptions` and `load_model` both take from `LoadMode{}`. An unknown name throws.
 - `LoadTimes`: where a load's time went, for the CLI's timing line: the mode, the files the weights were streamed from through the file cache (`files`) and around it (`direct_files`), the bytes read for them and those the devices copied straight out of the reads (`copied`), and the seconds spent building the model (`construct`), in the busiest reader thread's reads (`read`), in the uploads (`upload`) and in the uploads' waits for a read (`wait`).

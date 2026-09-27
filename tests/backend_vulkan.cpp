@@ -1534,11 +1534,14 @@ size_t check_kernels(backend::Backend& vk) {
 }
 
 // Decode columns: a row kernel's builds differ only in how many columns and rows share a weight read, so every column of a call must be, bit for bit, that column computed alone, which takes the narrowest build (docs/VULKAN.md, batch invariance).
-// Every row is a generated token's, so every width stays on the row kernels: plain calls of 1 to 64 columns, the residual add and a group of three projections at widths that reach every build and chunk, and routed entries against each token alone.
-// Each type the row kernels decode, the block types also at a row of an odd block count, and the output head of the types that keep a 16-bit twin for it; 300 outputs leave the last workgroup rows past the end.
+// Every row is a generated token's, so every width stays on the row kernels: plain calls of 1 to 64 columns, the residual add and a group of three projections at widths that reach every build and chunk, and routed entries of 1 to 32 tokens against each token alone.
+// Each type the row kernels decode at rows 4096 and 1280 wide, the block types also at a row of an odd block count, and the output head of the types that keep a 16-bit twin for it.
+// At 4096 every lane of a 64-lane subgroup takes the same number of steps, and at 1280 some lanes take 3 and every lane of a 32-lane subgroup 5, so a build that takes steps in pairs also takes a single step after them.
+// 300 outputs leave the last workgroup rows past the end, and the grouped projections of 37 and 129 rows a subgroup that holds rows past the end.
 size_t check_decode_columns(backend::Backend& vk) {
     const size_t nout = 300, widest = 64;
-    const size_t widths[] = {1, 3, 8, 9, 13, 16, 29, 32, 40, 64};
+    // Each width's remainder past the widest Q8_0 decode build, 8 or 16 columns, takes the 1-, 2-, 4-, 8- or 16-column build.
+    const size_t widths[] = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 34, 40, 64};
     const uint32_t f32 = quant::GGML_TYPE_F32, q8 = quant::GGML_TYPE_Q8_0, q40 = quant::GGML_TYPE_Q4_0, q41 = quant::GGML_TYPE_Q4_1;
     const uint32_t q4k = quant::GGML_TYPE_Q4_K, q5k = quant::GGML_TYPE_Q5_K, q6k = quant::GGML_TYPE_Q6_K;
     size_t columns = 0;
@@ -1558,8 +1561,9 @@ size_t check_decode_columns(backend::Backend& vk) {
     };
 
     struct Case { uint32_t type; size_t nin; };
-    for (const Case& c : {Case{f32, 4096}, Case{f32, 224}, Case{q8, 4096}, Case{q8, 224}, Case{q40, 4096}, Case{q40, 224},
-                          Case{q41, 4096}, Case{q41, 224}, Case{q4k, 4096}, Case{q5k, 4096}, Case{q6k, 4096}}) {
+    for (const Case& c : {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{q8, 4096}, Case{q8, 1280}, Case{q8, 224},
+                          Case{q40, 4096}, Case{q40, 1280}, Case{q40, 224}, Case{q41, 4096}, Case{q41, 1280}, Case{q41, 224},
+                          Case{q4k, 4096}, Case{q4k, 1280}, Case{q5k, 4096}, Case{q5k, 1280}, Case{q6k, 4096}, Case{q6k, 1280}}) {
         const uint32_t type = c.type;
         const size_t nin = c.nin, rows[3] = {nout, 37, 129};
         const auto x = uniform(widest * nin, 300 + uint32_t(nin)), base = uniform(widest * nout, 301);
@@ -1622,54 +1626,60 @@ size_t check_decode_columns(backend::Backend& vk) {
 
     // Routed: 8 experts, 2 a token, 1 to 32 tokens, so a pass's entries take the one-column path below two an expert and the grouped build from there.
     // Gate and up in one call, and the down projection added into the residual through the combine, each token's against the same token alone.
-    // Rows are 4096 wide, so a lane adds several blocks of every type and an order that differs shows.
-    const size_t n_expert = 8, k = 2, tokens = 32, rin = 4096;
-    const auto scores = uniform(tokens * n_expert, 310, -3.0f, 3.0f);
-    const auto x = uniform(tokens * rin, 311), x2 = uniform(tokens * k * rin, 312), base = uniform(tokens * nout, 313);
+    // Rows are 4096 and 1280 wide, so a lane adds several blocks of every type and an order that differs shows, as do steps in pairs and a single step after them.
+    const size_t n_expert = 8, k = 2, tokens = 32;
+    const auto scores = uniform(tokens * n_expert, 310, -3.0f, 3.0f), base = uniform(tokens * nout, 313);
     const auto sb = vk.adopt(scores.data(), scores.size() * sizeof(float));
-    const auto xb = vk.adopt(x.data(), x.size() * sizeof(float)), x2b = vk.adopt(x2.data(), x2.size() * sizeof(float));
     const auto ids = vk.alloc(tokens * k * sizeof(float)), wts = vk.alloc(tokens * k * sizeof(float));
     vk.route_experts({sb.get(), 0}, tokens, n_expert, k, true, {ids.get(), 0}, {wts.get(), 0});
     auto routing = [&](size_t first) { return backend::Backend::Routing{{ids.get(), first * k}, {wts.get(), first * k}, k, n_expert}; };
-    for (uint32_t type : {f32, q8, q40, q41, q4k, q5k, q6k}) {
-        try {
-            const auto g = matrix(type, rin, n_expert * nout, 314), u = matrix(type, rin, n_expert * nout, 315), d = matrix(type, rin, n_expert * nout, 316);
-            const auto gb = vk.adopt(g.data(), g.size()), ub = vk.adopt(u.data(), u.size()), db = vk.adopt(d.data(), d.size());
-            // Tokens first .. first + n: gate and up entries, then the down projection's rows added onto their base rows.
-            auto routed = [&](size_t first, size_t n) {
-                const backend::RowRun decode{n, 1};
-                const auto go = vk.alloc(n * k * nout * sizeof(float)), uo = vk.alloc(n * k * nout * sizeof(float));
-                const auto yo = vk.alloc(n * nout * sizeof(float));
-                vk.write(*yo, 0, base.data() + first * nout, n * nout * sizeof(float));
-                vk.matmul_experts({{type, {gb.get(), 0}, {go.get(), 0}, nout}, {type, {ub.get(), 0}, {uo.get(), 0}, nout}},
-                                  {xb.get(), first * rin}, rin, n, routing(first), {&decode, 1});
-                vk.matmul_experts_add(type, {db.get(), 0}, {x2b.get(), first * k * rin}, {yo.get(), 0}, rin, nout, n, routing(first), {&decode, 1});
-                std::vector<std::vector<float>> out = {floats(go, n * k * nout), floats(uo, n * k * nout), floats(yo, n * nout)};
-                return out;
-            };
-            std::vector<std::vector<float>> one(3);
-            for (size_t t = 0; t < tokens; ++t) {
-                const auto r = routed(t, 1);
-                for (size_t i = 0; i < 3; ++i) one[i].insert(one[i].end(), r[i].begin(), r[i].end());
+    for (size_t rin : {size_t(4096), size_t(1280)}) {
+        const auto x = uniform(tokens * rin, 311), x2 = uniform(tokens * k * rin, 312);
+        const auto xb = vk.adopt(x.data(), x.size() * sizeof(float)), x2b = vk.adopt(x2.data(), x2.size() * sizeof(float));
+        for (uint32_t type : {f32, q8, q40, q41, q4k, q5k, q6k}) {
+            try {
+                const auto g = matrix(type, rin, n_expert * nout, 314), u = matrix(type, rin, n_expert * nout, 315), d = matrix(type, rin, n_expert * nout, 316);
+                const auto gb = vk.adopt(g.data(), g.size()), ub = vk.adopt(u.data(), u.size()), db = vk.adopt(d.data(), d.size());
+                // Tokens first .. first + n: gate and up entries, then the down projection's rows added onto their base rows.
+                auto routed = [&](size_t first, size_t n) {
+                    const backend::RowRun decode{n, 1};
+                    const auto go = vk.alloc(n * k * nout * sizeof(float)), uo = vk.alloc(n * k * nout * sizeof(float));
+                    const auto yo = vk.alloc(n * nout * sizeof(float));
+                    vk.write(*yo, 0, base.data() + first * nout, n * nout * sizeof(float));
+                    vk.matmul_experts({{type, {gb.get(), 0}, {go.get(), 0}, nout}, {type, {ub.get(), 0}, {uo.get(), 0}, nout}},
+                                      {xb.get(), first * rin}, rin, n, routing(first), {&decode, 1});
+                    vk.matmul_experts_add(type, {db.get(), 0}, {x2b.get(), first * k * rin}, {yo.get(), 0}, rin, nout, n, routing(first), {&decode, 1});
+                    std::vector<std::vector<float>> out = {floats(go, n * k * nout), floats(uo, n * k * nout), floats(yo, n * nout)};
+                    return out;
+                };
+                std::vector<std::vector<float>> one(3);
+                for (size_t t = 0; t < tokens; ++t) {
+                    const auto r = routed(t, 1);
+                    for (size_t i = 0; i < 3; ++i) one[i].insert(one[i].end(), r[i].begin(), r[i].end());
+                }
+                for (size_t n = 1; n <= tokens; ++n) {
+                    const auto r = routed(0, n);
+                    same(r[0], one[0], n * k, nout, "a routed gate entry differs from the same token alone");
+                    same(r[1], one[1], n * k, nout, "a routed up entry differs from the same token alone");
+                    same(r[2], one[2], n, nout, "a routed down projection's row differs from the same token alone");
+                }
+            } catch (const std::runtime_error&) {
+                std::fprintf(stderr, "  decode columns: routed type %u, nin %zu\n", type, rin);
+                throw;
             }
-            for (size_t n = 1; n <= tokens; ++n) {
-                const auto r = routed(0, n);
-                same(r[0], one[0], n * k, nout, "a routed gate entry differs from the same token alone");
-                same(r[1], one[1], n * k, nout, "a routed up entry differs from the same token alone");
-                same(r[2], one[2], n, nout, "a routed down projection's row differs from the same token alone");
-            }
-        } catch (const std::runtime_error&) {
-            std::fprintf(stderr, "  decode columns: routed type %u\n", type);
-            throw;
         }
     }
     return columns;
 }
 
 // A kernel's float multiplies and adds, counted over the lines of its disassembly that start with an instruction: multiplies, multiply-adds that round the product first (v_mad_f32, v_mac_f32), fused ones (v_fma, v_fmac, and v_mad_mix_f32, which fuses on gfx906), adds, and adds over lanes shuffled in the same instruction (DPP).
+// A multiply by 0x4f7ffffe scales an integer division's reciprocal, which a grouped build divides by more often, so it is not counted.
 struct FloatOps {
     size_t mul = 0, mad = 0, fused = 0, add = 0, lane_add = 0;
-    unsigned kinds() const { return unsigned(mul > 0) | unsigned(mad > 0) << 1 | unsigned(fused > 0) << 2 | unsigned(add + lane_add > 0) << 3; }
+    unsigned kinds() const {
+        return unsigned(mul > 0) | unsigned(mad > 0) << 1 | unsigned(fused > 0) << 2 | unsigned(add > 0) << 3 | unsigned(lane_add > 0) << 4;
+    }
+    bool operator==(const FloatOps& o) const { return mul == o.mul && mad == o.mad && fused == o.fused && add == o.add && lane_add == o.lane_add; }
 };
 FloatOps float_ops(const std::string& text) {
     FloatOps n;
@@ -1681,10 +1691,12 @@ FloatOps float_ops(const std::string& text) {
             size_t end = at;
             while (end < eol && (std::isalnum((unsigned char)text[end]) || text[end] == '_')) ++end;
             const std::string op = text.substr(at, end - at);
+            std::string line = text.substr(at, eol - at);
+            for (char& ch : line) ch = char(std::tolower((unsigned char)ch));
             auto starts = [&](const char* p) { return op.rfind(p, 0) == 0; };
             if (((starts("v_fma") || starts("v_fmac")) && op.find("f32") != std::string::npos) || starts("v_mad_mix_f32")) ++n.fused;
             else if (starts("v_mad_f32") || starts("v_mac_f32") || starts("v_mad_legacy_f32") || starts("v_mac_legacy_f32")) ++n.mad;
-            else if (starts("v_mul_f32") || starts("v_mul_legacy_f32")) ++n.mul;
+            else if (starts("v_mul_f32") || starts("v_mul_legacy_f32")) n.mul += line.find("0x4f7ffffe") == std::string::npos ? 1 : 0;
             else if (starts("v_add_f32")) ++(op.find("_dpp") != std::string::npos ? n.lane_add : n.add);
         }
         from = eol + 1;
@@ -1692,41 +1704,82 @@ FloatOps float_ops(const std::string& text) {
     return n;
 }
 
-// Every build of a row kernel holds its one-column build's float multiply and add kinds, so no build contracts a column's products and sums differently (docs/VULKAN.md, batch invariance).
-// The Q8_0 decode kernel's builds, where the reduction shows as shuffled adds, also hold its counts per row and column: each reduction the one-column build's shuffled adds and one add, a whole number of multiply-adds, and a multiply beside each.
-// A kernel's builds are named after it: the wide build plain, then `_grouped` and `_<N>col`; a kernel without a one-column build, or whose driver gives no disassembly, is not checked.
-// Returns the builds checked for kinds and, of those, the ones checked for counts.
-std::pair<size_t, size_t> check_contraction(const std::vector<std::pair<std::string, std::string>>& representations) {
-    size_t builds = 0, counted = 0;
-    const std::string one_suffix = "_1col";
-    for (const auto& one : representations) {
-        const std::string& name = one.first;
-        if (name.size() <= one_suffix.size() || name.compare(name.size() - one_suffix.size(), one_suffix.size(), one_suffix) != 0) continue;
-        const std::string kernel = name.substr(0, name.size() - one_suffix.size());
-        const FloatOps ref = float_ops(one.second);
+// The row kernel builds check_contraction checked, by how.
+struct ContractionChecks {
+    size_t same = 0, whole_columns = 0, per_row_column = 0, kinds_only = 0, grouped = 0;
+};
+
+// Every build of a row kernel holds its one-column build's float multiply and add counts, and a grouped build its wide build's: a screen on how the driver contracts and reduces a column's products and sums, which sees a change only where it changes the counts.
+// Reassociation that keeps the counts shows only in the decode-column check, which is what holds batch invariance (docs/VULKAN.md, batch invariance).
+// A build of `matmul_row.comp` holds the one-column build's counts exactly where the driver keeps the column loop rolled, and otherwise those counts and N - 1 copies of one column's, N its columns.
+// The Q8_0 decode kernel's builds differ in rows and steps too, so where its one-column build reduces over shuffled adds each build holds that build's counts per row and column: one plain add for the residual add and the one-column build's shuffled adds, multiply-adds and fused ones a whole number of steps of the one-column build's, and as many multiplies beside them.
+// A kernel's builds are named after it: the wide build plain, then `_grouped` and `_<N>col`; a kernel whose driver gives no disassembly is not checked.
+ContractionChecks check_contraction(const std::vector<std::pair<std::string, std::string>>& representations) {
+    ContractionChecks n;
+    std::vector<std::pair<std::string, FloatOps>> ops;
+    for (const auto& kr : representations) ops.push_back({kr.first, float_ops(kr.second)});
+    auto find = [&](const std::string& name) -> const FloatOps* {
+        for (const auto& o : ops)
+            if (o.first == name) return &o.second;
+        return nullptr;
+    };
+    auto ends = [](const std::string& s, const std::string& suffix) {
+        return s.size() > suffix.size() && s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
+    };
+    const std::string vec = "matmul_vec_q8", one_suffix = "_1col", grouped_suffix = "_grouped";
+    for (const auto& o : ops) {
+        if (!ends(o.first, grouped_suffix)) continue;
+        const std::string wide = o.first.substr(0, o.first.size() - grouped_suffix.size());
+        const FloatOps* w = find(wide);
+        if (!w || wide == vec) continue;
+        if (!(o.second == *w)) throw std::runtime_error("a grouped build's float multiplies and adds differ from its wide build's: " + o.first);
+        ++n.grouped;
+    }
+    for (const auto& one : ops) {
+        if (!ends(one.first, one_suffix)) continue;
+        const std::string kernel = one.first.substr(0, one.first.size() - one_suffix.size());
+        const FloatOps& ref = one.second;
         if (!ref.kinds()) continue;
-        const bool counts = kernel == "matmul_vec_q8" && ref.add > 0 && ref.lane_add > 0 && ref.lane_add % ref.add == 0;
-        for (const auto& build : representations) {
+        for (const auto& build : ops) {
             const std::string& b = build.first;
-            bool of_kernel = b == kernel || b == kernel + "_grouped";
-            if (!of_kernel && b.size() > kernel.size() + 4 && b.compare(0, kernel.size() + 1, kernel + "_") == 0 && b.compare(b.size() - 3, 3, "col") == 0 && b != name) {
+            size_t cols = b == kernel || b == kernel + grouped_suffix ? 8 : 0;
+            if (!cols && b != one.first && b.size() > kernel.size() + 4 && b.compare(0, kernel.size() + 1, kernel + "_") == 0 && ends(b, "col")) {
                 const std::string digits = b.substr(kernel.size() + 1, b.size() - kernel.size() - 4);
-                of_kernel = digits.find_first_not_of("0123456789") == std::string::npos;
+                if (!digits.empty() && digits.find_first_not_of("0123456789") == std::string::npos) cols = std::stoul(digits);
             }
-            if (!of_kernel) continue;
-            const FloatOps got = float_ops(build.second);
-            if (got.kinds() != ref.kinds())
-                throw std::runtime_error("a build's float multiply and add kinds differ from its one-column build's: " + b);
-            ++builds;
-            if (!counts || !got.lane_add) continue;
-            // got.add is the build's rows times columns, one add closing each reduction.
-            if (!got.add || got.lane_add != got.add * (ref.lane_add / ref.add) || !got.mad || got.mad % got.add != 0 ||
-                got.mul + ref.mad != ref.mul + got.mad)
-                throw std::runtime_error("a build's float multiplies and adds per row and column differ from its one-column build's: " + b);
-            ++counted;
+            if (cols < 2) continue;
+            const FloatOps& got = build.second;
+            auto fail = [&](const char* what) { throw std::runtime_error(std::string(what) + ": " + b); };
+            if (got.kinds() != ref.kinds()) fail("a build's float multiply and add kinds differ from its one-column build's");
+            if (kernel == vec) {
+                if (!ref.add || !ref.lane_add) {
+                    ++n.kinds_only;
+                    continue;
+                }
+                // got.add is the build's rows times columns, one add each for the residual add; steps is how many of the one-column build's steps each row and column takes.
+                const size_t rc = got.add, rc1 = ref.add, unit = ref.mad ? ref.mad : ref.fused, got_unit = ref.mad ? got.mad : got.fused;
+                const size_t per1 = unit % rc1 == 0 ? unit / rc1 : 0;
+                const bool whole = rc && per1 && ref.mad % rc1 == 0 && ref.fused % rc1 == 0 && got_unit % (rc * per1) == 0;
+                const size_t steps = whole ? got_unit / (rc * per1) : 0;
+                if (!steps || !got.lane_add || got.lane_add * rc1 != ref.lane_add * rc || got.mad != steps * rc * (ref.mad / rc1) ||
+                    got.fused != steps * rc * (ref.fused / rc1) || got.mul + ref.mad + ref.fused != ref.mul + got.mad + got.fused)
+                    fail("a build's float multiplies and adds per row and column differ from its one-column build's");
+                ++n.per_row_column;
+                continue;
+            }
+            if (got == ref) {
+                ++n.same;
+                continue;
+            }
+            // Each kind the one-column build's and a whole number of one column's copies, one column's no more than the one-column build holds.
+            const size_t g[5] = {got.mul, got.mad, got.fused, got.add, got.lane_add}, r[5] = {ref.mul, ref.mad, ref.fused, ref.add, ref.lane_add};
+            for (int i = 0; i < 5; ++i)
+                if (g[i] < r[i] || (g[i] - r[i]) % (cols - 1) != 0 || (g[i] - r[i]) / (cols - 1) > r[i])
+                    fail("a build's float multiplies and adds are not its one-column build's and whole columns of it");
+            ++n.whole_columns;
         }
     }
-    return {builds, counted};
+    return n;
 }
 
 std::vector<uint8_t> pattern(size_t bytes, uint32_t seed) {
@@ -1920,7 +1973,7 @@ size_t check_refusals(backend::Backend& vk) {
 }
 }
 
-// `--isa DIR` opens the backend for diagnostics and writes the driver's representation of every kernel it compiled, one file per kernel, after the checks, then checks each row kernel build's float multiply and add kinds against its one-column build's.
+// `--isa DIR` opens the backend for diagnostics and writes the driver's representation of every kernel it compiled, one file per kernel, after the checks, then checks each row kernel build's float multiplies and adds against its one-column build's (check_contraction).
 int main(int argc, char** argv) {
     const std::string isa_dir = argc == 3 && std::strcmp(argv[1], "--isa") == 0 ? argv[2] : "";
     backend::BackendPtr b;
@@ -2037,9 +2090,10 @@ int main(int argc, char** argv) {
                 written += f.good() ? 1 : 0;
             }
             std::cout << "backend-vulkan: " << written << " kernel representations written to " << isa_dir << "\n";
-            const auto checked = check_contraction(representations);
-            std::cout << "backend-vulkan: " << checked.first << " row kernel builds hold their one-column build's float multiply and add kinds, "
-                      << checked.second << " of them its multiplies and adds per row and column\n";
+            const ContractionChecks c = check_contraction(representations);
+            std::cout << "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: " << c.same << " the same, "
+                      << c.whole_columns << " those and whole columns, " << c.per_row_column << " per row and column, " << c.kinds_only
+                      << " their kinds only; " << c.grouped << " grouped builds the same as their wide build\n";
         }
         return 0;
     } catch (const std::exception& e) {

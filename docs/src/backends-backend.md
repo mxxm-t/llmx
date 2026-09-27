@@ -165,10 +165,10 @@ placement contracts in `docs/EXECUTION.md`.
   the routed down projection joining the residual, row `r` of `Y` adding
   the weighted sum of its k slots, formed in slot order before the add.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass, with `norm_rope_partial` above.
-  Each but `norm_rope_partial` has a form in `Backend` that throws naming the op, which a backend without it runs: the Vulkan backend until the qwen35 plan's step 5 (`docs/STATUS.md`).
-  The CPU implements them all (`backends-cpu.md`).
-  - `Op` names each of these five and `op_name(op)` spells it; `implements(op)` says whether a backend runs it, false unless the backend says otherwise, true for every op on the CPU and for `norm_rope_partial` on the Vulkan backend.
-    A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`), so no pass reaches the refusing forms; a stream destination without one of a routed feed-forward part's ops leaves that layer on its host.
+  Every backend implements them: the CPU (`backends-cpu.md`) and the Vulkan backend (`backends-vulkan.md`).
+  - `Op` names each of these five and `op_name(op)` spells it; `implements(op)` says whether a backend runs it, false unless the backend says otherwise and true for every op on the CPU and on the Vulkan backend.
+    A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`); a stream destination without one of a routed feed-forward part's ops leaves that layer on its host.
+    It is the seam an architecture's new op comes through while one backend lacks it (`docs/ADDING-AN-ARCHITECTURE.md`, New backend ops); these five are pure virtual now that both backends run them.
   - `StateShape`: one linear-attention layer's state for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, `slot_floats()` a slot, every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32, and `layer_bytes(slots)` one layer's buffer of that many slots.
     `kConvTaps` is the conv's width, 4 in every qwen35 file, and `kL2NormEps` the L2 norms' epsilon, 1e-6, which no file carries.
   - `state_alloc(layers, slots, shape)`: a `StateStorage` of one buffer per layer holding every slot back to back, allocated through `alloc` and zero-filled when it is made and never grown, so no pass allocates state.

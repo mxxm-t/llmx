@@ -682,6 +682,18 @@ HF gate measures the cost of it.
 - **silu_mul, add, gather_rows**: elementwise or gather kernels, one invocation per output float, or four a lane where the integer-dot tile reads `silu_mul`'s output next.
 - **rms_norm_rows**: a row over one or more workgroups, each summing the whole row's squares in a tree and writing its own chunks.
 - **embed**: a workgroup per gathered row, dequantizing it on the way.
+- **The qwen35 layers** (docs/QWEN35.md): `sigmoid_mul` and `gated_rms_norm`,
+  which write the copy of their output the next matmul reads as `silu_mul`
+  and `rms_norm_rows` do; `causal_conv_silu`, its outputs one invocation per
+  (row, channel) and then each view's carried rows one per (view, channel);
+  and the gated delta rule, a prologue that norms q and k and makes the gates
+  into scratch, then the per-token recurrence, one workgroup per (view, V
+  head, 32 V columns), eight lanes a column with 16 of its rows each in
+  registers, summed in row order within a lane and through one butterfly
+  across the eight, so a sequence gives the same bits however its rows are
+  batched or cut into passes. The state is read from slot `src` and written
+  to slot `dst` through a view table like the KV cache's. How these kernels
+  measure is in STATUS, the qwen35 plan's step 5.
 
 ### KV layout on the device
 

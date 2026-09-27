@@ -1,0 +1,50 @@
+#version 450
+// One workgroup per (row, head): dst = x * rsqrt(mean(x^2) + eps) * w * silu(z) over the head's dim values, silu(z) = z / (1 + exp(-z)), w shared by every head.
+// The sum of squares is a tree through shared memory in a fixed order, so a head computes the same in every build and beside any other rows.
+// With `quant` 1, dim is a multiple of 32 and the output's 16-bit twin is written beside it (xquant.glsl); with `quant` 2 the integer-dot tile reads the rows next, and a lane writes four values of the twin at a time.
+// dst may be x: every value is read for the sum before the barrier, and after it each lane reads and writes only its own values.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint heads; uint dim; float eps; uint quant; uint n; } p;
+layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer X { float x[]; };
+layout(set = 0, binding = 2) readonly buffer Z { float z[]; };
+layout(set = 0, binding = 3) readonly buffer W { float w[]; };
+layout(set = 0, binding = 4) writeonly buffer Q { uint xq[]; };
+#include "xquant.glsl"
+shared float red[256];
+float gated(uint o, uint i, float r) {
+    float zz = z[o + i];
+    return x[o + i] * r * w[i] * (zz / (1.0 + exp(-zz)));
+}
+void main() {
+    uint lid = gl_LocalInvocationID.x;
+    uint o = gl_WorkGroupID.x * p.dim;
+    float s = 0.0;
+    for (uint i = lid; i < p.dim; i += 256u) { float v = x[o + i]; s += v * v; }
+    red[lid] = s;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) red[lid] += red[lid + k];
+        barrier();
+    }
+    float r = 1.0 / sqrt(red[0] / float(p.dim) + p.eps);
+    if (p.quant == 2u) {
+        // A head is whole blocks, so a block's eight lanes take the loop together.
+        for (uint j = lid; j < p.dim / 4u; j += 256u) {
+            vec4 v = vec4(gated(o, 4u * j, r), gated(o, 4u * j + 1u, r), gated(o, 4u * j + 2u, r), gated(o, 4u * j + 3u, r));
+            dst[o + 4u * j] = v.x;
+            dst[o + 4u * j + 1u] = v.y;
+            dst[o + 4u * j + 2u] = v.z;
+            dst[o + 4u * j + 3u] = v.w;
+            xquant_word(v, true, j & 7u, (o / 4u + j) / 8u, p.n);
+        }
+        return;
+    }
+    for (uint i = lid; i < p.dim; i += 256u) {
+        float v = gated(o, i, r);
+        dst[o + i] = v;
+        if (p.quant != 0u) xquant_twin(o + i, v, p.n);
+    }
+}

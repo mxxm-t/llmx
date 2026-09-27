@@ -302,8 +302,8 @@ device `N`, counted as the loader lists them, in a build configured with
 `-DLLMX_HAS_BACKEND_VULKAN=ON` (`docs/VULKAN.md`); a build without it says
 so rather than falling back. `generate`, `chat`, `logits`, `perplexity`,
 `serve` and `bench` take the flag. A model whose layers need an op the
-device's backend lacks is refused as it loads, naming the op: a `qwen35`
-file runs on the CPU only for now. On a device `--threads` and `--threads-batch` do
+device's backend lacks is refused as it loads, naming the op; every op the
+`qwen3` and `qwen35` files need runs on a Vulkan device. On a device `--threads` and `--threads-batch` do
 nothing and `--verbose` reports 0 threads, unless experts run on the CPU
 beside it (below); `--ubatch` keeps its meaning.
 
@@ -568,7 +568,7 @@ to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request
 `--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage by default, so every device works on some pass while the host samples another; one elsewhere, where a number above 1 is refused as the server starts.
 The server prints the number it keeps, and passes whose buffers the memory cannot hold are dropped at start with a line on stderr.
 `--timing` times the rounds and each device's work for `/v1/health`, its dispatches between timestamps, which slows serving: throughput is read from a server without it.
-A model whose layers keep a recurrent state, a `qwen35` file such as Qwen3.5 or Qwen3.6-27B, is refused before the server listens until the scheduler holds states; the other commands run it on the CPU.
+A model whose layers keep a recurrent state, a `qwen35` file such as Qwen3.5 or Qwen3.6-27B, is refused before the server listens until the scheduler holds states; the other commands run it on the CPU and on a Vulkan device.
 The server draws a pass's tokens on its scheduler thread and up to four sampling threads beside it, one fewer sampling thread than the CPUs the process may use where that is fewer, whatever `--threads` says, which counts the CPU backend's workers; it prints the number of sampling threads as it starts.
 
 | Route | Body | Reply |

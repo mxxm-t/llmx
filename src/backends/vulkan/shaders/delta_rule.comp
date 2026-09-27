@@ -1,0 +1,112 @@
+#version 450
+// The gated delta rule's per-token recurrence (backend.hpp, gated_delta_rule; docs/QWEN35.md, Linear attention), after delta_prep.comp has normed q and k and made each row's gates.
+// One workgroup per (view, V head j, block of 32 V columns): eight consecutive lanes hold one column, each of them rows part, part + 8, ... of the head's k_dim x v_dim matrix in registers, read from slot src (zero at length 0) and written to slot dst.
+// Per token, in HF's order: the matrix decayed, m from the decayed matrix, d = beta (v - m), the rank-1 write, then o from the updated matrix, V head j reading K head j mod k_heads.
+// A lane sums its rows with fused multiply-adds in row order and the eight lanes of a column add through one butterfly, the same arithmetic for every row whatever else is in the call, so a prompt gives the same bits however its rows are cut into passes.
+// o_t and the next token's m are both sums over the matrix after token t, so their butterflies run together, each of them the sum it would be alone.
+// The view table (vulkan_backend.cpp, state_table) holds the view count, then per view its first batch row, rows, history length, source slot and destination slot.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_EXT_control_flow_attributes : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint C; uint k_heads; uint v_heads; uint k_dim; uint v_dim; uint slot; uint gates0; uint blocks; } p;
+layout(set = 0, binding = 0) writeonly buffer O { float o[]; };
+layout(set = 0, binding = 1) readonly buffer U { float u[]; };
+layout(set = 0, binding = 2) readonly buffer N { float scratch[]; };
+layout(set = 0, binding = 3) buffer S { float st[]; };
+layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
+uint view_row0(uint v) { return tab[1u + 5u * v]; }
+uint view_nq(uint v) { return tab[2u + 5u * v]; }
+uint view_len(uint v) { return tab[3u + 5u * v]; }
+uint view_src(uint v) { return tab[4u + 5u * v]; }
+uint view_dst(uint v) { return tab[5u + 5u * v]; }
+// Rows of the matrix a lane holds: k_dim at most 8 of these (the backend refuses a wider K head).
+#define ROWS 16u
+// The sum over the eight lanes of a column; every lane gets the same bits, since each step adds the same two partials.
+float lanes8(float x) {
+    precise float a = x + subgroupShuffleXor(x, 1u);
+    precise float b = a + subgroupShuffleXor(a, 2u);
+    precise float c = b + subgroupShuffleXor(b, 4u);
+    return c;
+}
+void main() {
+    uint wg = gl_WorkGroupID.x, per_view = p.v_heads * p.blocks;
+    uint v = wg / per_view, rest = wg - v * per_view;
+    uint j = rest / p.blocks, blk = rest - j * p.blocks;
+    uint lid = gl_LocalInvocationID.x, part = lid & 7u, c = blk * 32u + (lid >> 3u);
+    // A column past the head is a whole group of eight lanes, which no other group waits on.
+    if (c >= p.v_dim) return;
+    uint qk = p.k_heads * p.k_dim, kh = j % p.k_heads;
+    uint qoff = kh * p.k_dim, koff = qk + kh * p.k_dim, voff = 2u * qk + j * p.v_dim + c;
+    uint gstride = 2u * p.v_heads, ostride = p.v_heads * p.v_dim;
+    uint row0 = view_row0(v), nq = view_nq(v);
+    uint matrix = j * p.k_dim * p.v_dim + c;
+    uint src = view_src(v) * p.slot + matrix, dst = view_dst(v) * p.slot + matrix;
+    bool fresh = view_len(v) == 0u;
+    precise float s[ROWS];
+    float kk[ROWS], qq[ROWS], nk[ROWS], nqq[ROWS];
+    [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+        uint i = part + 8u * ii;
+        bool live = i < p.k_dim;
+        s[ii] = live && !fresh ? st[src + i * p.v_dim] : 0.0;
+        kk[ii] = live ? scratch[row0 * 2u * qk + koff + i] : 0.0;
+        qq[ii] = live ? scratch[row0 * 2u * qk + qoff + i] : 0.0;
+        nk[ii] = 0.0;
+        nqq[ii] = 0.0;
+    }
+    // Token 0's decay and m.
+    float decay = scratch[p.gates0 + row0 * gstride + p.v_heads + j];
+    precise float mp = 0.0;
+    [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii)
+        if (part + 8u * ii < p.k_dim) {
+            s[ii] = s[ii] * decay;
+            mp = fma(s[ii], kk[ii], mp);
+        }
+    float m = lanes8(mp);
+    float beta = scratch[p.gates0 + row0 * gstride + j];
+    float vv = u[row0 * p.C + voff];
+    for (uint t = 0u; t < nq; ++t) {
+        uint r = row0 + t;
+        bool next = t + 1u < nq;
+        // The next token's inputs, loaded before this token's arithmetic needs the loads to land.
+        float ndecay = 0.0, nbeta = 0.0, nv = 0.0;
+        if (next) {
+            [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+                uint i = part + 8u * ii;
+                bool live = i < p.k_dim;
+                nk[ii] = live ? scratch[(r + 1u) * 2u * qk + koff + i] : 0.0;
+                nqq[ii] = live ? scratch[(r + 1u) * 2u * qk + qoff + i] : 0.0;
+            }
+            ndecay = scratch[p.gates0 + (r + 1u) * gstride + p.v_heads + j];
+            nbeta = scratch[p.gates0 + (r + 1u) * gstride + j];
+            nv = u[(r + 1u) * p.C + voff];
+        }
+        precise float d = beta * (vv - m);
+        precise float op = 0.0;
+        [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii)
+            if (part + 8u * ii < p.k_dim) {
+                s[ii] = fma(kk[ii], d, s[ii]);
+                op = fma(s[ii], qq[ii], op);
+            }
+        precise float np = 0.0;
+        if (next)
+            [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii)
+                if (part + 8u * ii < p.k_dim) {
+                    s[ii] = s[ii] * ndecay;
+                    np = fma(s[ii], nk[ii], np);
+                }
+        float res = lanes8(op);
+        m = lanes8(np);
+        if (part == 0u) o[r * ostride + j * p.v_dim + c] = res;
+        [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+            kk[ii] = nk[ii];
+            qq[ii] = nqq[ii];
+        }
+        beta = nbeta;
+        vv = nv;
+    }
+    [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+        uint i = part + 8u * ii;
+        if (i < p.k_dim) st[dst + i * p.v_dim] = s[ii];
+    }
+}

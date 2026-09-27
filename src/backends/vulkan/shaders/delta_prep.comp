@@ -1,0 +1,45 @@
+#version 450
+// The gated delta rule's prologue over the rows of a call (backend.hpp, gated_delta_rule), one invocation per (row, item):
+// items below 2 k_heads L2-norm a K head of the conv's output, the q heads first and scaled by `scale`, into `normed`, 2 k_heads k_dim values a row;
+// the next v_heads items write each V head's beta = sigmoid(b) and decay = exp(a * softplus(alpha + dt_bias)) into `gates`, 2 v_heads values a row from `gates0`, the decay 0 below 2^-126 so no driver's denormal handling decides it.
+// The sums are fused multiply-add chains in order, the CPU's, and every step is `precise`, so a row computes the same whatever else is in the call.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint C; uint k_heads; uint v_heads; uint k_dim; float scale; float eps; uint gates0; } p;
+layout(set = 0, binding = 0) readonly buffer U { float u[]; };
+layout(set = 0, binding = 1) readonly buffer AL { float alpha[]; };
+layout(set = 0, binding = 2) readonly buffer B { float b[]; };
+layout(set = 0, binding = 3) readonly buffer A { float a[]; };
+layout(set = 0, binding = 4) readonly buffer DT { float dt_bias[]; };
+layout(set = 0, binding = 5) writeonly buffer N { float scratch[]; };
+// log(1 + y) without the cancellation of 1 + y for a small y.
+float log1p_of(float y) {
+    precise float up = 1.0 + y;
+    precise float down = up - 1.0;
+    return up == 1.0 ? y : log(up) * (y / down);
+}
+void main() {
+    uint items = 2u * p.k_heads + p.v_heads;
+    uint g = gl_GlobalInvocationID.x;
+    if (g >= p.rows * items) return;
+    uint row = g / items, item = g - row * items;
+    if (item < 2u * p.k_heads) {
+        uint in0 = row * p.C + item * p.k_dim, out0 = row * 2u * p.k_heads * p.k_dim + item * p.k_dim;
+        precise float s = 0.0;
+        for (uint i = 0u; i < p.k_dim; ++i) s = fma(u[in0 + i], u[in0 + i], s);
+        precise float inv = 1.0 / sqrt(s + p.eps);
+        bool q = item < p.k_heads;
+        for (uint i = 0u; i < p.k_dim; ++i) {
+            precise float n = u[in0 + i] * inv;
+            scratch[out0 + i] = q ? n * p.scale : n;
+        }
+        return;
+    }
+    uint j = item - 2u * p.k_heads;
+    float bj = b[row * p.v_heads + j];
+    precise float beta = 1.0 / (1.0 + exp(-bj));
+    precise float x = alpha[row * p.v_heads + j] + dt_bias[j];
+    precise float sp = x > 20.0 ? x : log1p_of(exp(x));
+    precise float decay = exp(a[j] * sp);
+    scratch[p.gates0 + row * 2u * p.v_heads + j] = beta;
+    scratch[p.gates0 + row * 2u * p.v_heads + p.v_heads + j] = decay < 1.17549435e-38 ? 0.0 : decay;
+}

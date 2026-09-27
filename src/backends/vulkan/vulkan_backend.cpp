@@ -283,6 +283,23 @@ const uint32_t kSpvMoeCombine[] = {
 const uint32_t kSpvMoeGroup[] = {
 #include "vulkan/moe_group.inc"
 };
+// The qwen35 layers' ops (docs/QWEN35.md).
+const uint32_t kSpvSigmoidMul[] = {
+#include "vulkan/sigmoid_mul.inc"
+};
+const uint32_t kSpvGatedRmsNorm[] = {
+#include "vulkan/gated_rms_norm.inc"
+};
+const uint32_t kSpvCausalConvSilu[] = {
+#include "vulkan/causal_conv_silu.inc"
+};
+const uint32_t kSpvDeltaPrep[] = {
+#include "vulkan/delta_prep.inc"
+};
+const uint32_t kSpvDeltaRule[] = {
+#include "vulkan/delta_rule.inc"
+};
+
 enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_PARTIAL, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
                 K_MATMUL_ROW_K4, K_MATMUL_ROW_K5, K_MATMUL_ROW_K, K_NORM_ROPE_KV, K_ATTENTION_TILE,
@@ -297,7 +314,8 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_P
                 K_MATMUL_TILE_Q8, K_MATMUL_TILE_Q8_TALL,
                 K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_MATMUL_ROW_Q4_DOT8,
                 K_ATTENTION_G4, K_ATTENTION_K16_G4, K_ATTENTION_V16_G4, K_ATTENTION_KV16_G4,
-                K_ATTENTION_VEC, K_ATTENTION_VEC_K16, K_ATTENTION_VEC_V16, K_ATTENTION_VEC_KV16, K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, K_ATTENTION_VEC_V16_G4, K_ATTENTION_VEC_KV16_G4, K_MATMUL_ROW_F32, K_COUNT };
+                K_ATTENTION_VEC, K_ATTENTION_VEC_K16, K_ATTENTION_VEC_V16, K_ATTENTION_VEC_KV16, K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, K_ATTENTION_VEC_V16_G4, K_ATTENTION_VEC_KV16_G4, K_MATMUL_ROW_F32,
+                K_SIGMOID_MUL, K_GATED_RMS_NORM, K_CAUSAL_CONV_SILU, K_DELTA_PREP, K_DELTA_RULE, K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
 // F32 rows have no dot form, and Q8_0 rows take matmul_vec_q8.comp where the dot is preferred.
@@ -464,6 +482,7 @@ const char* const kKernelNames[K_COUNT] = {
     "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group", "matmul_row_k_dot8", "matmul_row_q4_dot8",
     "attention_g4", "attention_k16_g4", "attention_v16_g4", "attention_kv16_g4",
     "attention_vec", "attention_vec_k16", "attention_vec_v16", "attention_vec_kv16", "attention_vec_g4", "attention_vec_k16_g4", "attention_vec_v16_g4", "attention_vec_kv16_g4", "matmul_row_f32",
+    "sigmoid_mul", "gated_rms_norm", "causal_conv_silu", "delta_prep", "delta_rule",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -531,6 +550,11 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvAttentionVecKV16G4, sizeof(kSpvAttentionVecKV16G4), 7, nullptr},
     // F32 shares the row source, but not the optional Q8 float-preservation modes.
     {kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts},
+    {kSpvSigmoidMul, sizeof(kSpvSigmoidMul), 4, nullptr},
+    {kSpvGatedRmsNorm, sizeof(kSpvGatedRmsNorm), 5, nullptr},
+    {kSpvCausalConvSilu, sizeof(kSpvCausalConvSilu), 5, nullptr},
+    {kSpvDeltaPrep, sizeof(kSpvDeltaPrep), 6, nullptr},
+    {kSpvDeltaRule, sizeof(kSpvDeltaRule), 5, nullptr},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -1173,8 +1197,8 @@ public:
         return out;
     }
 
-    // Of the qwen35 layers' ops only the partial rope has its kernels here so far.
-    bool implements(Op op) const override { return op == Op::norm_rope_partial; }
+    // Every op of the qwen35 layers has its kernels here.
+    bool implements(Op) const override { return true; }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
@@ -1449,6 +1473,110 @@ public:
         dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? xq_for(n) : bind(dst)}, pc, sizeof(pc),
                  groups(tile ? n / 4 : n, 256), 1, twin_variant());
         if (quant) xq_tag_ = XqTag{bind(dst), n, !tile && want_x8_};
+    }
+
+    // The output gate, and a scale of one value per row, one invocation per element; like silu_mul it writes the copy the matmul reading dst next takes (shaders/sigmoid_mul.comp).
+    void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim,
+                     size_t gate_stride, size_t gate_head_stride, RowRuns runs = {}) override {
+        if (!heads || !dim) throw std::runtime_error("vulkan: invalid sigmoid gate dimensions");
+        if (!rows) return;
+        const size_t width = size_mul(heads, dim), n = size_mul(rows, width);
+        const size_t last = size_add(size_add(size_mul(rows - 1, gate_stride), size_mul(heads - 1, gate_head_stride)), dim);
+        if (floats_from(dst) < n || floats_from(x) < n || floats_from(gate) < last)
+            throw std::runtime_error("vulkan: sigmoid gate operand outside its allocation");
+        const bool quant = width % 32 == 0;
+        const bool tile = quant && tile_reads(width, rows, runs);
+        struct { uint32_t n, quant, width, dim, gate_stride, gate_head_stride; }
+            pc{u32(n), tile ? 2u : quant ? 1u : 0u, u32(width), u32(dim), u32(gate_stride), u32(gate_head_stride)};
+        dispatch(K_SIGMOID_MUL, {bind(dst), bind(x), bind(gate), quant ? xq_for(n) : bind(dst)},
+                 &pc, sizeof(pc), groups(tile ? n / 4 : n, 256), 1, twin_variant());
+        if (quant) xq_tag_ = XqTag{bind(dst), n, !tile && want_x8_};
+    }
+
+    // One workgroup per (row, head); like rms_norm_rows it writes the copy the matmul reading dst next takes (shaders/gated_rms_norm.comp).
+    void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps,
+                        RowRuns runs = {}) override {
+        if (!heads || !dim) throw std::runtime_error("vulkan: invalid gated norm dimensions");
+        const size_t width = size_mul(heads, dim), n = size_mul(rows, width);
+        if (floats_from(dst) < n || floats_from(x) < n || floats_from(z) < n || floats_from(w) < dim)
+            throw std::runtime_error("vulkan: gated norm operand outside its allocation");
+        if (!rows) return;
+        const bool quant = dim % 32 == 0;
+        const bool tile = quant && tile_reads(width, rows, runs);
+        struct { uint32_t heads, dim; float eps; uint32_t quant, n; }
+            pc{u32(heads), u32(dim), eps, tile ? 2u : quant ? 1u : 0u, u32(n)};
+        dispatch(K_GATED_RMS_NORM, {bind(dst), bind(x), bind(z), bind(w), quant ? xq_for(n) : bind(dst)},
+                 &pc, sizeof(pc), u32(rows * heads), 1, twin_variant());
+        if (quant) xq_tag_ = XqTag{bind(dst), n, !tile && want_x8_};
+    }
+
+    // The storage of a call's state views, which must all be one, and the table the state kernels read: the view count, then per view its first batch row, rows, history length, source slot and destination slot.
+    // check_state_views has checked the slots against the storage; the slots' floats must be addressable in 32 bits.
+    struct StateTable {
+        StateStorage* storage = nullptr;
+        std::vector<uint32_t> words;
+    };
+    static StateTable state_table(const StateView* views, size_t n_views) {
+        StateTable t;
+        t.words.push_back(u32(n_views));
+        size_t row0 = 0;
+        for (size_t i = 0; i < n_views; ++i) {
+            const StateView& v = views[i];
+            if (t.storage && t.storage != v.storage) throw std::runtime_error("vulkan: state views of two storages in one call");
+            t.storage = v.storage;
+            t.words.insert(t.words.end(), {u32(row0), u32(v.nq), u32(v.length), u32(v.src), u32(v.dst)});
+            row0 += v.nq;
+        }
+        u32(size_mul(t.storage->slots(), t.storage->shape().slot_floats()));
+        return t;
+    }
+
+    // The conv's outputs, one invocation per (row, channel), then each view's carried rows, one per (view, channel), once every output has read the source slot (shaders/causal_conv_silu.comp).
+    void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) override {
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        const StateTable t = state_table(views, n_views);
+        const StateShape& sh = t.storage->shape();
+        const size_t C = sh.channels();
+        if (floats_from(out) < size_mul(rows, C) || floats_from(x) < size_mul(rows, C) || floats_from(w) < size_mul(C, kConvTaps))
+            throw std::runtime_error("vulkan: conv operand outside its allocation");
+        const VkDescriptorBufferInfo state = bind(CSlice{&t.storage->layer(layer), 0});
+        const VkDescriptorBufferInfo tab = args(t.words.data(), t.words.size() * sizeof(uint32_t));
+        struct { uint32_t C, slot, carried, mode, total; }
+            pc{u32(C), u32(sh.slot_floats()), u32(sh.v_heads * sh.matrix_floats()), 0, u32(rows * C)};
+        dispatch(K_CAUSAL_CONV_SILU, {bind(out), bind(x), bind(w), state, tab}, &pc, sizeof(pc), groups(rows * C, 256));
+        pc.mode = 1;
+        pc.total = u32(n_views * C);
+        dispatch(K_CAUSAL_CONV_SILU, {bind(out), bind(x), bind(w), state, tab}, &pc, sizeof(pc), groups(n_views * C, 256));
+    }
+
+    // The prologue's normed q and k and gates into scratch, one invocation per (row, K head or V head), then the recurrence, one workgroup per (view, V head, 32 columns) (shaders/delta_prep.comp, shaders/delta_rule.comp).
+    void gated_delta_rule(Slice out, CSlice qkv, CSlice alpha, CSlice b, CSlice a, CSlice dt_bias,
+                          size_t layer, const StateView* views, size_t n_views) override {
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        const StateTable t = state_table(views, n_views);
+        const StateShape& sh = t.storage->shape();
+        const size_t Hk = sh.k_heads, Hv = sh.v_heads, Dk = sh.k_dim, Dv = sh.v_dim, C = sh.channels();
+        // The recurrence holds a column's rows in registers, 16 in each of eight lanes.
+        if (Dk > 128) throw std::runtime_error("vulkan: a linear-attention K head wider than 128");
+        if (floats_from(out) < size_mul(rows, Hv * Dv) || floats_from(qkv) < size_mul(rows, C) || floats_from(alpha) < size_mul(rows, Hv) ||
+            floats_from(b) < size_mul(rows, Hv) || floats_from(a) < Hv || floats_from(dt_bias) < Hv)
+            throw std::runtime_error("vulkan: delta rule operand outside its allocation");
+        const size_t normed = size_mul(rows, 2 * Hk * Dk), gates = size_mul(rows, 2 * Hv);
+        const size_t bytes = size_mul(size_add(normed, gates), sizeof(float));
+        if (!delta_ || delta_->size() < bytes) grow(delta_, bytes);
+        const VkDescriptorBufferInfo scratch{delta_->handle(), 0, VK_WHOLE_SIZE};
+        struct { uint32_t rows, C, k_heads, v_heads, k_dim; float scale, eps; uint32_t gates0; }
+            pp{u32(rows), u32(C), u32(Hk), u32(Hv), u32(Dk), (float)(1.0 / std::sqrt((double)Dk)), kL2NormEps, u32(normed)};
+        dispatch(K_DELTA_PREP, {bind(qkv), bind(alpha), bind(b), bind(a), bind(dt_bias), scratch}, &pp, sizeof(pp),
+                 groups(size_mul(rows, 2 * Hk + Hv), 256));
+        const size_t blocks = (Dv + 31) / 32;
+        struct { uint32_t C, k_heads, v_heads, k_dim, v_dim, slot, gates0, blocks; }
+            rp{u32(C), u32(Hk), u32(Hv), u32(Dk), u32(Dv), u32(sh.slot_floats()), u32(normed), u32(blocks)};
+        dispatch(K_DELTA_RULE,
+                 {bind(out), bind(qkv), scratch, bind(CSlice{&t.storage->layer(layer), 0}), args(t.words.data(), t.words.size() * sizeof(uint32_t))},
+                 &rp, sizeof(rp), groups(size_mul(n_views * Hv, blocks), 1));
     }
 
     void gather_rows(Slice dst, CSlice src, size_t width, const uint32_t* rows,
@@ -2699,6 +2827,7 @@ private:
     bool logits_ = false;                     // inside matmul_logits
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
+    std::shared_ptr<VulkanBuffer> delta_;     // the delta rule's normed q and k and its gates (shaders/delta_prep.comp)
     // Which ids moe_tab_ groups: their location and count, cleared by every routing, by anything that writes a buffer from the host and by a new buffer (drop_tags).
     struct GroupTag { VkDescriptorBufferInfo ids{}; size_t entries = 0, n_expert = 0, chunk = 0; };
     GroupTag group_tag_;

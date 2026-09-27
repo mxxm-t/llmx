@@ -464,7 +464,7 @@ public:
     virtual void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout,
                                     size_t nrows, const Routing& routing, RowRuns runs = {}) = 0;
 
-    // The ops of the qwen35 layers (docs/QWEN35.md, The forward pass) but norm_rope_partial above, which a backend without them refuses by name.
+    // The ops of the qwen35 layers (docs/QWEN35.md, The forward pass), with norm_rope_partial above.
 
     // The recurrent state of `layers` linear-attention layers with `slots` slots each, allocated now and zero-filled, so no pass allocates state.
     std::unique_ptr<StateStorage> state_alloc(size_t layers, size_t slots, const StateShape& shape) {
@@ -486,41 +486,24 @@ public:
 
     // The linear-attention layers' causal conv, then SiLU: out[t][c] = silu(sum over tap i of w[c * kConvTaps + i] * x[t - kConvTaps + 1 + i][c]), w being `ssm_conv1d` as stored, so tap kConvTaps - 1 multiplies row t.
     // x and out are the views' rows of the storage's channels(), in view order; a view reads the rows before its first from slot src, rows before its sequence's start being zero, and leaves its last kConvTaps - 1 raw rows in slot dst.
-    virtual void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) {
-        (void)out; (void)x; (void)w; (void)layer; (void)views; (void)n_views;
-        lacks("causal_conv_silu");
-    }
+    virtual void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) = 0;
 
     // The gated delta rule of the linear-attention layers (docs/QWEN35.md, Linear attention, steps 3 to 5), token by token for every (view, V head) from slot src's matrices into slot dst's.
     // qkv holds the conv's output rows [q | k | v] of channels(); alpha and b are the rows of `ssm_alpha` and `ssm_beta`, and a and dt_bias `ssm_a` and `ssm_dt.bias`, v_heads floats each; out is v_heads * v_dim floats a row.
     // q and k are L2-normed with kL2NormEps and q scaled by 1 / sqrt(k_dim), beta is sigmoid(b), and the decay exp(a * softplus(alpha + dt_bias)) is 0 below 2^-126.
     virtual void gated_delta_rule(Slice out, CSlice qkv, CSlice alpha, CSlice b, CSlice a, CSlice dt_bias,
-                                  size_t layer, const StateView* views, size_t n_views) {
-        (void)out; (void)qkv; (void)alpha; (void)b; (void)a; (void)dt_bias; (void)layer; (void)views; (void)n_views;
-        lacks("gated_delta_rule");
-    }
+                                  size_t layer, const StateView* views, size_t n_views) = 0;
 
     // dst = RMSNorm(x; w) * silu(z) over each of `heads` heads of `dim` floats in each of `rows` rows, w being one dim-wide weight every head shares.
     // dst may alias x only if identical, and never z; `runs` as for rms_norm_rows.
     virtual void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps,
-                                RowRuns runs = {}) {
-        (void)dst; (void)x; (void)z; (void)w; (void)rows; (void)heads; (void)dim; (void)eps; (void)runs;
-        lacks("gated_rms_norm");
-    }
+                                RowRuns runs = {}) = 0;
 
     // dst[r][h][d] = x[r][h][d] * sigmoid(gate[r * gate_stride + h * gate_head_stride + d]), x and dst being `rows` rows of heads * dim floats.
     // The output gate reads each query head's gate in place from `attn_q`'s rows; a scale of one value per row is heads = the row's width, dim = 1 and gate_head_stride = 0.
     // dst may alias x only if identical; `runs` as for silu_mul.
     virtual void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim,
-                             size_t gate_stride, size_t gate_head_stride, RowRuns runs = {}) {
-        (void)dst; (void)x; (void)gate; (void)rows; (void)heads; (void)dim; (void)gate_stride; (void)gate_head_stride; (void)runs;
-        lacks("sigmoid_mul");
-    }
-
-private:
-    [[noreturn]] static void lacks(const char* op) {
-        throw std::runtime_error(std::string("backend: ") + op + " is not implemented on this backend");
-    }
+                             size_t gate_stride, size_t gate_head_stride, RowRuns runs = {}) = 0;
 };
 
 using BackendPtr = std::shared_ptr<Backend>;

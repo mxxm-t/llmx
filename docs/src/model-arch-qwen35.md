@@ -6,10 +6,8 @@ reaches through `open_dense`. It implements the architecture contract
 ([architecture](model-architecture.md)); nothing outside `model/arch/`
 names it. The math, the files' conventions and the recurrent state are in
 [QWEN35](../QWEN35.md); the plan and its steps are in `docs/STATUS.md`.
-It runs on the CPU; a device backend refuses it as it loads, since only
-the CPU implements the five ops its plan names (`LayerPlan::ops`:
-`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`,
-`norm_rope_partial` and `sigmoid_mul`), and `llmx serve` refuses it
+It runs on the CPU and on a Vulkan device, whose backends both implement
+the ops each part names (`LayerPlan::ops`), and `llmx serve` refuses it
 (`server::require_servable`).
 
 - `Config`, `read_config(file, prefix)`: the configuration, read under the

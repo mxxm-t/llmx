@@ -75,7 +75,7 @@ public:
     }
 
     // Checks a view for an op on `layer`: the layer exists and the view's table covers its length plus its rows.
-    // A writing op then backs the blocks its rows land in, in position order; a reading op requires every block the view reaches to be written.
+    // A writing op then backs the blocks its rows land in, in position order; a reading op requires every block the view reaches to be backed, which growth may have done before any write reached it, so which positions hold data is the caller's to know.
     // Returns the blocks the view reaches.
     size_t check_view(const KVView& view, size_t layer, bool writing) {
         const size_t sequence = size_add(view.length, view.nq);

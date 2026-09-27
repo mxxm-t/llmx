@@ -73,7 +73,7 @@ private:
 
 // One sequence's block table and committed length.
 // Blocks for a step are taken before the write and committed after the whole step succeeds, so a step that fails leaves the previous history valid and returns the blocks it took.
-// A sequence owns its blocks: it cannot be copied, and destroying or moving from it returns them to the pool.
+// A sequence owns its blocks: it cannot be copied, moving it transfers them, and destroying it or moving another sequence into it returns them to the pool.
 class KVSequence {
 public:
     KVSequence() = default;

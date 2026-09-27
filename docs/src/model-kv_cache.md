@@ -28,7 +28,8 @@ computes an offset into them.
 - Ownership: neither class is copyable and the pool is not movable, since
   sequences hold its address; `configure` sets the budget in place and is
   refused while blocks are held. A sequence returns its blocks when destroyed
-  or moved from, and `prepare` on an unbound sequence is rejected. Vectors
+  or when another is moved into it, a move transfers them, and `prepare` on
+  an unbound sequence is rejected. Vectors
   are reserved to the budget, so `alloc`, `release`, `abort` and `reset`
   never allocate and cannot fail half way. `Model` is not copyable or
   movable for the same reason.

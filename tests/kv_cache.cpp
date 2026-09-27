@@ -602,7 +602,7 @@ void release_syncs() {
     const auto weights = fixture();
     auto cpu = std::make_shared<FailingCpu>();
     cpu->set_threads(1);
-    infer::Model model(weights, cpu);
+    infer::Model model(infer::gguf_weights(weights), cpu);
     model.set_ubatch(2);
 
     // A successful pass is one submission, waited on for its logits, which leave through host-visible memory rather than a read op.
@@ -649,7 +649,7 @@ void batched_forward() {
     const auto weights = fixture();
     auto cpu = std::make_shared<backend::CpuBackend>();
     cpu->set_threads(1);
-    infer::Model joint(weights, cpu), alone(weights, cpu);
+    infer::Model joint(infer::gguf_weights(weights), cpu), alone(infer::gguf_weights(weights), cpu);
     infer::Sequence a = joint.make_sequence(), b = joint.make_sequence();
     infer::Sequence a2 = alone.make_sequence(), b2 = alone.make_sequence();
     infer::ExecContext ctx, ctx2;
@@ -694,7 +694,7 @@ void model_fork() {
     const auto weights = fixture();
     auto cpu = std::make_shared<backend::CpuBackend>();
     cpu->set_threads(1);
-    infer::Model model(weights, cpu), fresh(weights, cpu);
+    infer::Model model(infer::gguf_weights(weights), cpu), fresh(infer::gguf_weights(weights), cpu);
     const size_t bt = cpu->kv_layout().block_tokens;
     std::vector<uint32_t> history(bt + 3);
     for (size_t i = 0; i < history.size(); ++i) history[i] = (uint32_t)(1 + i % 15);
@@ -734,7 +734,7 @@ void replay_by_class() {
     const gguf::GGUFModel weights = infer::synthetic_model(2, 64, 128, 4, 2, 16, 64, 7u);
     auto cpu = std::make_shared<backend::CpuBackend>();
     cpu->set_threads(2);
-    infer::Model model(weights, cpu);
+    infer::Model model(infer::gguf_weights(weights), cpu);
     const size_t prompt = 40, steps = 199, bt = cpu->kv_layout().block_tokens, V = model.n_vocab();
     std::vector<uint32_t> ids(prompt);
     for (size_t i = 0; i < prompt; ++i) ids[i] = (uint32_t)((i * 11 + 3) % V);
@@ -820,7 +820,7 @@ void model_transaction() {
     // The history's bytes are counted below as f32 sides.
     infer::ModelOptions f32;
     f32.kv_k = f32.kv_v = backend::KVType::f32;
-    infer::Model model(weights, cpu, f32), control(weights, plain, f32);
+    infer::Model model(infer::gguf_weights(weights), cpu, f32), control(infer::gguf_weights(weights), plain, f32);
     model.set_ubatch(2);
     control.set_ubatch(2);
 
@@ -870,7 +870,7 @@ void model_transaction() {
     model.set_ubatch(3);
     control.set_ubatch(3);
     {
-        infer::Model fresh(weights, plain, f32);
+        infer::Model fresh(infer::gguf_weights(weights), plain, f32);
         fresh.set_ubatch(3);
         // The arena for ubatch 3 on this fixture is 1216 bytes; nothing else allocated during prefill comes close, so this selects it alone.
         fail_min_bytes = 1024;

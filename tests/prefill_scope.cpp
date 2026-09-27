@@ -160,7 +160,7 @@ void check_model(bool tied) {
     const auto weights = tiny_qwen(1, 32, tied);
     auto cpu = std::make_shared<ObservedCpu>(), reference = std::make_shared<ObservedCpu>();
     cpu->set_threads(6); reference->set_threads(6); reference->passthrough = true;
-    infer::Model model(weights, cpu), control(weights, reference);
+    infer::Model model(infer::gguf_weights(weights), cpu), control(infer::gguf_weights(weights), reference);
     model.set_ubatch(2); control.set_ubatch(2);
     bool caught = false;
     try { model.prefill({}); } catch (const std::runtime_error&) { caught = true; }

@@ -127,7 +127,7 @@ gguf::GGUFModel fixture(bool tied = false, uint32_t type = 0, bool odd = false,
 void construct(const gguf::GGUFModel& m, bool step = false) {
     auto cpu = std::make_shared<backend::CpuBackend>();
     cpu->set_threads(1);
-    infer::Model model(m, cpu);
+    infer::Model model(infer::gguf_weights(m), cpu);
     if (step) {
         const auto logits = model.step(0);
         require(logits.size() == 5, "valid fixture vocabulary changed");
@@ -155,7 +155,7 @@ void loading_lifetime_checks() {
             expected = "injected cache allocation failure";
         }
         std::string caught;
-        try { infer::Model model(m, b); }
+        try { infer::Model model(infer::gguf_weights(m), b); }
         catch (const std::runtime_error& e) { caught = e.what(); }
         require(caught == expected, "loading exception was lost or replaced");
         require(b->state->releases > 0 && b->state->premature == 0 && b->state->drains > 0,
@@ -171,7 +171,7 @@ void loading_lifetime_checks() {
     placement.attn_device = {0}; placement.ffn_device = {1};
     placement.embed_device = 0; placement.output_device = 1;
     b->fail_adopt = 4;
-    rejects("split loading failure", [&] { infer::Model model(m, {a, b, unused}, placement); });
+    rejects("split loading failure", [&] { infer::Model model(infer::gguf_weights(m), {a, b, unused}, placement); });
     for (const auto& device : {a, b})
         require(device->state->releases > 0 && device->state->premature == 0 && device->state->drains > 0,
                 "split loading failure did not drain each used backend before release");
@@ -179,7 +179,7 @@ void loading_lifetime_checks() {
     b->fail_adopt = 0;
     const int drained = a->state->drains + b->state->drains;
     {
-        infer::Model model(m, {a, b, unused}, placement);
+        infer::Model model(infer::gguf_weights(m), {a, b, unused}, placement);
         require(a->state->pending && b->state->pending, "successful loading unexpectedly became synchronous");
         require(a->state->drains + b->state->drains == drained, "successful loading added a drain");
     }
@@ -218,21 +218,39 @@ gguf::GGUFModel routed_only() {
 // The fit counts what the model reads: a layer with a router is routed, so the dense matrices it also carries neither widen the feed-forward slots nor count among its weights.
 void fit_width_checks() {
     const auto m = routed_fixture(6);
-    const infer::QwenWeights weights = infer::gguf_weights(m);
-    size_t routed = 0;
-    for (size_t w : infer::slot_widths(infer::load_config(m), false)) routed += w * sizeof(float);
+    auto only = m;
+    for (const char* name : {"blk.0.ffn_gate.weight", "blk.0.ffn_up.weight", "blk.0.ffn_down.weight"}) erase_tensor(only, name);
+    const infer::ModelWeights weights = infer::gguf_weights(m), routed = infer::gguf_weights(only);
     const infer::Footprint fp = infer::footprint(weights, infer::plan_model(weights), infer::ModelOptions{});
-    require(fp.activations_per_row == routed, "the fit widens a routed layer's slots for the dense ffn_gate it also carries");
+    const infer::Footprint alone = infer::footprint(routed, infer::plan_model(routed), infer::ModelOptions{});
+    require(fp.activations_per_row == alone.activations_per_row, "the fit widens a routed layer's slots for the dense ffn_gate it also carries");
     // The layer's four norms, four attention projections, router and three expert stacks.
     require(fp.layers.size() == 1 && fp.layers[0].size() == 12, "the fit counts the dense matrices a routed layer does not read");
-    infer::Model model(m);
+    infer::Model model(weights);
     ++checks;
 }
 
-// A wrong plan is the architecture's error, not a refusal of the file: the fit has a field for every pass role and one role for each.
+// An architecture that hands the runtime another's plan after `edit`, for the checks every plan passes through.
+struct EditedPlan final : infer::Architecture {
+    EditedPlan(std::shared_ptr<const infer::Architecture> a, std::function<void(infer::ModelPlan&)> e) : arch(std::move(a)), edit(std::move(e)) {}
+    infer::ModelPlan plan(const infer::TensorIndex& tensors) const override {
+        infer::ModelPlan p = arch->plan(tensors);
+        edit(p);
+        return p;
+    }
+    void fill_tables(std::vector<std::vector<float>>& tables) const override { arch->fill_tables(tables); }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { arch->embed(s, ids); }
+    void mixer(const infer::Step& s) const override { arch->mixer(s); }
+    void ffn(const infer::Step& s) const override { arch->ffn(s); }
+    void head(const infer::HeadStep& s) const override { arch->head(s); }
+    std::shared_ptr<const infer::Architecture> arch;
+    std::function<void(infer::ModelPlan&)> edit;
+};
+
+// A wrong plan is the architecture's error, not a refusal of the file: the fit has a field for every pass role and one role for each, and every plan has slot 0 as wide as the residual and its role ids inside its rows of weights.
 void plan_checks() {
     const auto file = fixture();
-    const infer::QwenWeights weights = infer::gguf_weights(file);
+    const infer::ModelWeights weights = infer::gguf_weights(file);
     auto wrong = [&](const std::string& label, const std::function<void()>& work) {
         try { work(); } catch (const std::logic_error&) { ++checks; return; }
         throw std::runtime_error("accepted a wrong plan: " + label);
@@ -244,6 +262,13 @@ void plan_checks() {
     };
     wrong("a pass role the fit has no field for", [&] { fit([](infer::ModelPlan& p) { p.pass[0].kind = infer::RoleKind::norm; }); });
     wrong("a second head matrix", [&] { fit([](infer::ModelPlan& p) { p.pass.push_back(p.pass[1]); }); });
+    auto planned = [&](std::function<void(infer::ModelPlan&)> edit) {
+        infer::ModelWeights edited = weights;
+        edited.arch = std::make_shared<const EditedPlan>(weights.arch, std::move(edit));
+        infer::plan_model(edited);
+    };
+    wrong("slot 0 narrower than the residual", [&] { planned([](infer::ModelPlan& p) { --p.slots[0]; }); });
+    wrong("a role id past its row of weights", [&] { planned([](infer::ModelPlan& p) { p.layers[0].roles[0].id = uint16_t(p.role_ids); }); });
 }
 
 // Layer 0's attention on a device and its experts on a host, streamed to the device from one new token.
@@ -263,7 +288,7 @@ void loading_window_checks() {
         device->set_threads(1); host->set_threads(1);
         device->fail_alloc = failure;
         std::string caught;
-        try { infer::Model model(m, {device, host}, placement); }
+        try { infer::Model model(infer::gguf_weights(m), {device, host}, placement); }
         catch (const std::runtime_error& e) { caught = e.what(); }
         require(caught == "injected window allocation failure", "streamed window failure was not reached");
         require(device->state->allocations == failure && device->state->releases > 0,
@@ -285,7 +310,7 @@ void reader_checks() {
         std::vector<int> takes;
         std::string order;
     };
-    auto read_in_place = [](const infer::QwenWeights& weights, std::vector<backend::BackendPtr> backends, infer::Placement placement) {
+    auto read_in_place = [](const infer::ModelWeights& weights, std::vector<backend::BackendPtr> backends, infer::Placement placement) {
         Reads r;
         r.takes.assign(weights.tensors.size(), 0);
         std::vector<const backend::Backend*> ids;
@@ -331,7 +356,7 @@ void reader_checks() {
             "a tied head across two devices took its weights in another order: " + tied.order);
     require(device->workers_started() == 0 && second->workers_started() == 0, "a one-thread model started worker threads");
     const auto routed = routed_fixture();
-    const infer::QwenWeights weights = infer::gguf_weights(routed);
+    const infer::ModelWeights weights = infer::gguf_weights(routed);
     auto host = std::make_shared<backend::CpuBackend>();
     device = std::make_shared<LoadingBackend>();
     device->set_threads(1); host->set_threads(1);
@@ -366,7 +391,7 @@ void metadata_checks() {
         "context_length", "attention.value_length", "rope.dimension_count"};
     for (const auto& key : required) {
         auto m = base; erase_key(m, "qwen3." + key);
-        rejects("missing " + key, [&] { infer::load_config(m); });
+        rejects("missing " + key, [&] { infer::gguf_weights(m); });
     }
     auto keys = required;
     keys.insert(keys.end(), optional.begin(), optional.end());
@@ -379,7 +404,7 @@ void metadata_checks() {
                 integer(2, gguf::V_UINT8), integer(2, gguf::V_INT8),
                 integer(2, gguf::V_UINT16), integer(2, gguf::V_INT16)}) {
             auto m = base; set(m, "qwen3." + key, value);
-            rejects("invalid integer " + key, [&] { infer::load_config(m); });
+            rejects("invalid integer " + key, [&] { infer::gguf_weights(m); });
         }
     }
     for (uint32_t type : {gguf::V_UINT32, gguf::V_INT32, gguf::V_UINT64, gguf::V_INT64}) {
@@ -394,11 +419,11 @@ void metadata_checks() {
                 real(std::numeric_limits<float>::infinity(), gguf::V_FLOAT32),
                 real(std::numeric_limits<float>::quiet_NaN(), gguf::V_FLOAT32), text("1"), integer(1)}) {
             auto m = base; set(m, key, value);
-            rejects(std::string("invalid float ") + key, [&] { infer::load_config(m); });
+            rejects(std::string("invalid float ") + key, [&] { infer::gguf_weights(m); });
         }
         for (uint32_t type : {gguf::V_FLOAT32, gguf::V_FLOAT64}) {
             auto m = base; set(m, key, real(0.5, type));
-            infer::load_config(m); ++checks;
+            infer::gguf_weights(m); ++checks;
         }
     }
     for (const auto& item : std::vector<std::pair<std::string, std::string>>{
@@ -407,7 +432,7 @@ void metadata_checks() {
         auto m = base; set(m, item.first, text(item.second)); construct(m); ++checks;
         for (const auto& value : {text("unsupported"), text(""), integer(1)}) {
             m = base; set(m, item.first, value);
-            rejects("invalid " + item.first, [&] { infer::load_config(m); });
+            rejects("invalid " + item.first, [&] { infer::gguf_weights(m); });
         }
     }
     for (const char* key : {"qwen3.rope.scaling.factor", "qwen3.rope.scale_linear"}) {
@@ -415,7 +440,7 @@ void metadata_checks() {
                 real(std::numeric_limits<double>::infinity()), real(std::numeric_limits<double>::quiet_NaN()),
                 integer(1), text("1")}) {
             auto m = base; set(m, key, value);
-            rejects(std::string("invalid ") + key, [&] { infer::load_config(m); });
+            rejects(std::string("invalid ") + key, [&] { infer::gguf_weights(m); });
         }
         for (uint32_t type : {gguf::V_FLOAT32, gguf::V_FLOAT64}) {
             auto m = base; set(m, key, real(1, type)); construct(m); ++checks;
@@ -430,7 +455,7 @@ void metadata_checks() {
     construct(m, true);
     ++checks;
     set(m, "qwen3.embedding_length", integer(7));
-    rejects("indivisible default head width", [&] { infer::load_config(m); });
+    rejects("indivisible default head width", [&] { infer::gguf_weights(m); });
     m = base;
     set(m, "qwen3.attention.value_length", integer(4));
     set(m, "qwen3.rope.dimension_count", integer(4));
@@ -442,7 +467,7 @@ void metadata_checks() {
         m = base;
         if (item.first == "attention.head_count") set(m, "qwen3.attention.head_count_kv", integer(2));
         set(m, "qwen3." + item.first, integer(item.second));
-        rejects("incompatible geometry " + item.first, [&] { infer::load_config(m); });
+        rejects("incompatible geometry " + item.first, [&] { infer::gguf_weights(m); });
     }
     m = base;
     const uint64_t limit = uint64_t(std::numeric_limits<int>::max());
@@ -452,10 +477,10 @@ void metadata_checks() {
     // Only a vector limit below the widths the reader takes reaches this refusal, so its text is held here rather than in the list every platform shares.
     if (limit * (limit - 1) > std::vector<float>().max_size()) {
         std::string caught;
-        try { infer::load_config(m); } catch (const std::runtime_error& e) { caught = e.what(); }
+        try { infer::gguf_weights(m); } catch (const std::runtime_error& e) { caught = e.what(); }
         require(caught == "inference: context storage exceeds allocation limit", "KV float capacity not refused with its text");
     } else {
-        infer::load_config(m);
+        infer::gguf_weights(m);
     }
     ++checks;
 }
@@ -485,7 +510,7 @@ void tensor_checks() {
     construct(base, true); ++checks;
     construct(fixture(true), true); ++checks;
     construct(fixture(false, 0, true), true); ++checks;
-    rejects("null backend", [&] { infer::Model model(base, backend::BackendPtr{}); });
+    rejects("null backend", [&] { infer::Model model(infer::gguf_weights(base), backend::BackendPtr{}); });
     for (size_t i = 0; i < base.tensors.size(); ++i) {
         const auto name = base.tensors[i].name;
         missing_and_shapes(base, i);
@@ -558,17 +583,17 @@ void moe_metadata_checks() {
     for (const char* key : {"block_count", "embedding_length", "attention.head_count",
                             "expert_count", "expert_used_count", "expert_feed_forward_length"}) {
         auto m = base; erase_key(m, std::string("qwen3moe.") + key);
-        rejects(std::string("missing qwen3moe.") + key, [&] { infer::load_config(m); });
+        rejects(std::string("missing qwen3moe.") + key, [&] { infer::gguf_weights(m); });
     }
     for (const char* key : {"expert_count", "expert_used_count", "expert_feed_forward_length"})
         for (const auto& value : {integer(0), text("2")}) {
             auto m = base; set(m, std::string("qwen3moe.") + key, value);
-            rejects(std::string("invalid integer qwen3moe.") + key, [&] { infer::load_config(m); });
+            rejects(std::string("invalid integer qwen3moe.") + key, [&] { infer::gguf_weights(m); });
         }
     auto m = base; set(m, "qwen3moe.expert_used_count", integer(3));
-    rejects("more experts a token than the layer has", [&] { infer::load_config(m); });
+    rejects("more experts a token than the layer has", [&] { infer::gguf_weights(m); });
     m = base; set(m, "qwen3moe.expert_count", integer(300)); set(m, "qwen3moe.expert_used_count", integer(257));
-    rejects("more than 256 experts a token", [&] { infer::load_config(m); });
+    rejects("more than 256 experts a token", [&] { infer::gguf_weights(m); });
     for (const bool norm : {false, true}) {
         gguf::MetaValue v; v.vtype = gguf::V_BOOL; v.b = norm;
         m = base; set(m, "qwen3moe.expert_weights_norm", v);
@@ -576,20 +601,20 @@ void moe_metadata_checks() {
         ++checks;
     }
     m = base; set(m, "qwen3moe.expert_weights_norm", integer(1));
-    rejects("invalid qwen3moe.expert_weights_norm", [&] { infer::load_config(m); });
+    rejects("invalid qwen3moe.expert_weights_norm", [&] { infer::gguf_weights(m); });
     m = base; set(m, "qwen3moe.expert_gating_func", integer(1)); construct(m); ++checks;
     for (const auto& value : {integer(2), integer(1, gguf::V_INT32), text("softmax")}) {
         m = base; set(m, "qwen3moe.expert_gating_func", value);
-        rejects("invalid qwen3moe.expert_gating_func", [&] { infer::load_config(m); });
+        rejects("invalid qwen3moe.expert_gating_func", [&] { infer::gguf_weights(m); });
     }
     for (const char* key : {"qwen3moe.expert_shared_count", "qwen3moe.expert_shared_feed_forward_length"}) {
         m = base; set(m, key, integer(1));
-        rejects(std::string("present ") + key, [&] { infer::load_config(m); });
+        rejects(std::string("present ") + key, [&] { infer::gguf_weights(m); });
     }
     m = base; set(m, "qwen3moe.expert_weights_scale", real(1)); construct(m); ++checks;
     for (const auto& value : {real(2), real(0.5), text("1")}) {
         m = base; set(m, "qwen3moe.expert_weights_scale", value);
-        rejects("invalid qwen3moe.expert_weights_scale", [&] { infer::load_config(m); });
+        rejects("invalid qwen3moe.expert_weights_scale", [&] { infer::gguf_weights(m); });
     }
     m = routed_only(); erase_key(m, "qwen3moe.feed_forward_length"); construct(m, true); ++checks;
     m = base; erase_key(m, "qwen3moe.feed_forward_length"); erase_tensor(m, "blk.0.ffn_gate_inp.weight");
@@ -696,7 +721,7 @@ void context_checks() {
     auto cpu = std::make_shared<backend::CpuBackend>();
     cpu->set_threads(1);
     const auto file = fixture();
-    infer::Model model(file, cpu);
+    infer::Model model(infer::gguf_weights(file), cpu);
     rejects("a prompt past the context", [&] { model.prefill(std::vector<uint32_t>(9, 0)); });
     model.prefill(std::vector<uint32_t>(8, 0));
     rejects("a step past the context", [&] { model.step(0); });
@@ -721,8 +746,8 @@ void compare_refusals(const std::string& path) {
 // Without deferring (the mapped load) the backend adopts each weight as the model resolves it.
 void hook_checks() {
     const auto m = fixture();
-    const infer::QwenWeights weights = infer::gguf_weights(m);
-    // The model adopts the RoPE tables it computes itself, whatever the hook; `tables` counts those adoptions.
+    const infer::ModelWeights weights = infer::gguf_weights(m);
+    // The model adopts the position tables it computes itself, whatever the hook; `tables` counts those adoptions.
     int tables = -1;
     for (const bool defer : {true, false}) {
         auto device = std::make_shared<LoadingBackend>();
@@ -739,12 +764,12 @@ void hook_checks() {
     }
     auto missing = fixture();
     erase_tensor(missing, "blk.0.ffn_down.weight");
-    const infer::QwenWeights partial = infer::gguf_weights(missing);
+    const infer::ModelWeights partial = infer::gguf_weights(missing);
     for (const bool cache : {false, true}) {
         auto device = std::make_shared<LoadingBackend>();
         device->set_threads(1);
         device->fail_cache = cache;
-        const infer::QwenWeights& w = cache ? weights : partial;
+        const infer::ModelWeights& w = cache ? weights : partial;
         std::string caught;
         infer::WeightPlan plan;
         try { infer::Model model(w, {device}, infer::Placement{}, {}, infer::planning_adopt(w, 1, plan, true)); }

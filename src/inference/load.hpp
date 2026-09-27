@@ -81,7 +81,7 @@ struct WeightPlan {
 // The adoption hook load_model builds the model with: a backend that reads in place adopts a weight where it lies and plan.host_reads[i] is set.
 // A backend that copies adopts the weight there and then unless `defer`; with `defer` it gets storage the loader streams the weight into once the model is built (Backend::alloc_weight), recorded in plan.uploads.
 // The model hands each tensor to each of `backends` at most once, and the records are sized for that before the model is built, so recording cannot fail while a buffer is held.
-inline AdoptWeight planning_adopt(const QwenWeights& weights, size_t backends, WeightPlan& plan, bool defer) {
+inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, WeightPlan& plan, bool defer) {
     plan.host_reads.assign(weights.tensors.size(), 0);
     plan.uploads.clear();
     plan.uploads.reserve(defer ? weights.tensors.size() * backends : 0);
@@ -365,7 +365,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     if (mode == LoadMode::mapped) detail::warm(file, every, progress);
     loaded->tok.emplace(file);
     loaded->chat = chat::chat_format(file, *loaded->tok);
-    QwenWeights weights = gguf_weights(file);
+    ModelWeights weights = gguf_weights(file);
     // A direct load gives a host a copy of each file laid out as the file, so every weight keeps the offset within its page the mapping would give it: address space now, memory once the model says which weights the host reads.
     if (mode == LoadMode::direct && host) {
         // Each copy covers its file as its header gave it, rounded up to the reads' granule, since the last read ends on it.

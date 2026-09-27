@@ -55,13 +55,13 @@ void split_matches_single() {
     auto one = std::make_shared<CountingCpu>();
     auto a = std::make_shared<CountingCpu>(), b = std::make_shared<CountingCpu>();
     for (auto& c : {one, a, b}) c->set_threads(1);
-    infer::Model single(weights, one);
+    infer::Model single(infer::gguf_weights(weights), one);
     infer::Placement p;
     p.attn_device = {0, 1};
     p.ffn_device = {1, 0};
     p.embed_device = 0;
     p.output_device = 0;
-    infer::Model split(weights, {a, b}, p);
+    infer::Model split(infer::gguf_weights(weights), {a, b}, p);
     single.set_ubatch(2);
     split.set_ubatch(2);
 
@@ -115,7 +115,7 @@ void split_matches_single() {
     embed_apart.attn_device = embed_apart.ffn_device = {1, 1};
     embed_apart.embed_device = 0;
     embed_apart.output_device = 1;
-    infer::Model apart(weights, {a, b}, embed_apart);
+    infer::Model apart(infer::gguf_weights(weights), {a, b}, embed_apart);
     infer::Sequence sa = apart.make_sequence();
     infer::ExecContext ca;
     const infer::BatchEntry ea{&sa, x1, 2, true};
@@ -131,7 +131,7 @@ void layer_split_fits() {
     const auto weights = fixture();
     const infer::ModelOptions options;
     const size_t GiB = size_t(1) << 30, MiB = size_t(1) << 20;
-    const infer::QwenWeights views = infer::gguf_weights(weights);
+    const infer::ModelWeights views = infer::gguf_weights(weights);
     const infer::Footprint fp = infer::footprint(views, infer::plan_model(views), options);
     // The fixture's two layers of equal shape, and no output.weight, so the head reads the embedding.
     size_t layer0 = 0, layer1 = 0;
@@ -287,7 +287,7 @@ void layer_split_fits() {
     auto singleton = weights;
     for (auto& t : singleton.tensors)
         if (t.name.compare(0, 4, "blk.") == 0 && t.ne.size() == 2) t.ne.push_back(1);
-    const infer::QwenWeights singleton_views = infer::gguf_weights(singleton);
+    const infer::ModelWeights singleton_views = infer::gguf_weights(singleton);
     const infer::Footprint fs = infer::footprint(singleton_views, infer::plan_model(singleton_views), options);
     size_t products = 0, singleton_products = 0;
     for (size_t l = 0; l < fp.layers.size(); ++l)
@@ -315,8 +315,8 @@ void layer_split_fits() {
     auto one_cpu = std::make_shared<backend::CpuBackend>();
     auto a = std::make_shared<backend::CpuBackend>(), b = std::make_shared<backend::CpuBackend>();
     for (auto& c : {one_cpu, a, b}) c->set_threads(1);
-    infer::Model single(weights, one_cpu);
-    infer::Model fitted(weights, {a, b}, placed);
+    infer::Model single(infer::gguf_weights(weights), one_cpu);
+    infer::Model fitted(infer::gguf_weights(weights), {a, b}, placed);
     const std::vector<uint32_t> prompt{2, 7, 1, 8, 2, 8};
     exact(single.prefill(prompt), fitted.prefill(prompt), "fitted split prefill differs from one device");
     for (int t : {3, 14, 1}) exact(single.step(t), fitted.step(t), "fitted split step differs from one device");
@@ -392,7 +392,7 @@ void layer_split_fits() {
     experts_on_cpu.names = {"cpu"};
     experts_on_cpu.cpu_moe = -1;
     const infer::PlacedModel experts_here = infer::place_model(infer::gguf_weights(moe), {cpu_counted}, experts_on_cpu, options);
-    const std::vector<float> routed = infer::Model(moe, cpu_plain).prefill(prompt);
+    const std::vector<float> routed = infer::Model(infer::gguf_weights(moe), cpu_plain).prefill(prompt);
     exact(routed, experts_here.model->prefill(prompt), "experts on the CPU beside a CPU differ from the model without them");
     require(cpu_counted->copies == 0 && cpu_counted->writes == 0, "experts on the CPU beside a CPU crossed to another backend");
     // Reading weights in place does not make a backend the CPU: experts on the CPU beside such a device run on a CPU placed beside it, the residual crossing each way, with the same logits.
@@ -429,7 +429,7 @@ void pipelined_matches_single() {
         for (const PipelinedSplit& ps : kPipelined) {
             auto one = std::make_shared<backend::CpuBackend>();
             one->set_threads(1);
-            infer::Model single(weights, one);
+            infer::Model single(infer::gguf_weights(weights), one);
             single.set_ubatch(3);
             std::vector<backend::BackendPtr> cpus;
             for (size_t i = 0; i < ps.shares.size(); ++i) cpus.push_back(std::make_shared<backend::CpuBackend>());
@@ -489,7 +489,7 @@ void pipelined_failure_rolls_back() {
     for (const PipelinedSplit& ps : kPipelined) {
         auto plain = std::make_shared<backend::CpuBackend>();
         plain->set_threads(1);
-        infer::Model control(weights, plain);
+        infer::Model control(infer::gguf_weights(weights), plain);
         control.set_ubatch(3);
         std::vector<std::shared_ptr<FailingCpu>> stages;
         for (size_t i = 0; i < ps.shares.size(); ++i) stages.push_back(std::make_shared<FailingCpu>());
@@ -576,7 +576,7 @@ void replay_over_stages() {
     const gguf::GGUFModel weights = infer::synthetic_model(2, 64, 128, 4, 2, 16, 64, 11u);
     auto one = std::make_shared<backend::CpuBackend>();
     one->set_threads(1);
-    infer::Model single(weights, one);
+    infer::Model single(infer::gguf_weights(weights), one);
     std::vector<backend::BackendPtr> two{std::make_shared<backend::CpuBackend>(), std::make_shared<backend::CpuBackend>()};
     infer::PlacementRequest request;
     request.names = {"cpu", "cpu"};
@@ -624,7 +624,7 @@ void bad_placements_refused() {
     auto a = std::make_shared<backend::CpuBackend>(), b = std::make_shared<backend::CpuBackend>();
     auto rejects = [&](infer::Placement p, const char* what) {
         bool caught = false;
-        try { infer::Model m(weights, {a, b}, p); } catch (const std::runtime_error&) { caught = true; }
+        try { infer::Model m(infer::gguf_weights(weights), {a, b}, p); } catch (const std::runtime_error&) { caught = true; }
         require(caught, what);
         ++checked;
     };
@@ -642,16 +642,16 @@ void bad_placements_refused() {
     infer::Placement split;
     split.attn_device = split.ffn_device = {0, 1, 0};
     bool split_refused = false;
-    try { infer::Model m(three, {a, b}, split); } catch (const std::runtime_error&) { split_refused = true; }
+    try { infer::Model m(infer::gguf_weights(three), {a, b}, split); } catch (const std::runtime_error&) { split_refused = true; }
     require(split_refused, "a device's attention layers split in two accepted");
     ++checked;
     bool caught = false;
-    try { infer::Model m(weights, {a, nullptr}, infer::Placement{}); }
+    try { infer::Model m(infer::gguf_weights(weights), {a, nullptr}, infer::Placement{}); }
     catch (const std::runtime_error&) { caught = true; }
     require(caught, "null backend accepted");
     ++checked;
     // A sequence of another model, even one of the same shape, is refused by forward and by reset: its block ids belong to the other pool.
-    infer::Model m1(weights, a), m2(weights, b);
+    infer::Model m1(infer::gguf_weights(weights), a), m2(infer::gguf_weights(weights), b);
     infer::Sequence s = m1.make_sequence();
     infer::ExecContext ctx;
     const uint32_t id = 1;
@@ -730,7 +730,7 @@ void passes_run(const gguf::GGUFModel& weights, size_t S, size_t P, uint32_t see
     for (auto& q : reqs) q.gen = tokens(1 + below(6));
     auto one = std::make_shared<backend::CpuBackend>();
     one->set_threads(1);
-    infer::Model single(weights, one, options);
+    infer::Model single(infer::gguf_weights(weights), one, options);
     single.set_ubatch((int)kPassUbatch);
     for (auto& q : reqs) {
         std::vector<uint32_t> all(reqs[0].prompt.begin(), reqs[0].prompt.begin() + (std::ptrdiff_t)q.prefix);
@@ -944,7 +944,7 @@ void passes_refused() {
     infer::Model& m = *placed.model;
     auto cpu = std::make_shared<backend::CpuBackend>();
     cpu->set_threads(1);
-    infer::Model single(weights, cpu);
+    infer::Model single(infer::gguf_weights(weights), cpu);
     single.set_ubatch(4);
     const size_t V = single.n_vocab();
     auto refused = [&](const std::function<void()>& call, const char* what) {
@@ -961,7 +961,7 @@ void passes_refused() {
     refused([&] { m.begin_pass(ctx, 0, &ea, 1, 0); }, "a pass began in a context not reserved for passes");
     auto own = std::make_shared<backend::CpuBackend>();
     own->set_threads(1);
-    infer::Model alone(weights, own);
+    infer::Model alone(infer::gguf_weights(weights), own);
     infer::ExecContext one;
     refused([&] { alone.reserve_passes(one, 2, 4, 2); }, "two passes in flight reserved on one device");
     refused([&] { m.reserve_passes(ctx, 0, 4, 2); }, "a reservation without a slot");

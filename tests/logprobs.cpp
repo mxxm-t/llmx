@@ -179,7 +179,7 @@ void channel() {
     constexpr size_t waiting = server::Request::kRowsWaiting;
     require((size_t)asked.max_tokens > waiting, "the reply must outrun the rows a channel holds");
     {
-        infer::Model model(weights, cpu);
+        infer::Model model(infer::gguf_weights(weights), cpu);
         server::Scheduler sched(model, tok, 2, 4);
         std::thread runner([&] { sched.run(); });
         try {
@@ -218,7 +218,7 @@ void channel() {
     }
 
     // The reply's ids fed to a second model, each value checked against the raw row its token was sampled from; the positions whose id is not the row's greedy choice.
-    infer::Model control(weights, cpu);
+    infer::Model control(infer::gguf_weights(weights), cpu);
     const auto rows_match = [&](const std::vector<server::Request::Token>& reply, const std::string& what) {
         infer::Sequence seq = control.make_sequence();
         infer::ExecContext ctx;

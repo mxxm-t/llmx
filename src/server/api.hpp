@@ -145,7 +145,7 @@ private:
         c.respond(200, "application/json",
                   "{\"object\":\"list\",\"data\":[{\"id\":" + jmini::quote(cfg_.model_name) +
                   ",\"object\":\"model\",\"created\":" + std::to_string(started_) + ",\"owned_by\":\"llmx\"" +
-                  ",\"context_length\":" + std::to_string(model_.config().context_length) +
+                  ",\"context_length\":" + std::to_string(model_.context_length()) +
                   ",\"vocab\":" + std::to_string(model_.n_vocab()) + "}]}");
     }
 

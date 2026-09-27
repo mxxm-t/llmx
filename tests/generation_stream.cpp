@@ -60,7 +60,7 @@ void check(const std::vector<uint32_t>& sequence, const std::string& stop, int l
            size_t fed, bool ignore_eos = false) {
     auto weights = fixture(sequence);
     bpe::Tokenizer tok(weights);
-    infer::Model model(weights);
+    infer::Model model(infer::gguf_weights(weights));
     model.set_threads(1);
     infer::GenParams gp;
     gp.temp = 0;
@@ -94,7 +94,7 @@ int main() {
         check({1, 2, 3, 4}, "ZA", 8, "A\xc3\xa9ZA", 5, 4, true);
         auto weights = fixture({1});
         bpe::Tokenizer tok(weights);
-        infer::Model model(weights);
+        infer::Model model(infer::gguf_weights(weights));
         model.set_threads(1);
         infer::GenParams gp;
         gp.temp = 0;

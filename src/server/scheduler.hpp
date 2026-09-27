@@ -206,7 +206,7 @@ public:
 
     // Tokens one request may hold, prompt and reply together: the model context or the KV pool, whichever is smaller.
     size_t token_limit() const {
-        return std::min((size_t)model_.config().context_length, model_.kv_tokens_total());
+        return std::min((size_t)model_.context_length(), model_.kv_tokens_total());
     }
 
     // Queue a request; the handle's channel delivers its tokens.

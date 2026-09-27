@@ -64,7 +64,7 @@ Generalize to an architecture registry keyed by `general.architecture`:
   The Qwen family (`qwen3`, `qwen3moe`, `qwen35`, `qwen35moe`) is one model path, extended per architecture as `qwen3moe` was, since its stages, pools, forks, arena and placement do not depend on the architecture.
 
 ## 3. More formats
-The model is built from `infer::QwenWeights`, which a second format's
+The model is built from `infer::ModelWeights`, which a second format's
 reader produces as `infer::gguf_weights` does for GGUF, and the loader reads
 the weights it streams from `format::FileSpan`s, which
 `gguf::GGUFModel::span` gives for GGUF. A second format is such a reader plus

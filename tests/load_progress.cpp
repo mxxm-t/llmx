@@ -168,17 +168,17 @@ void loader_checks(const std::string& path) {
     gguf::write_gguf(source, path);
     {
         gguf::GGUFModel file = gguf::read_gguf(path);
-        const infer::QwenWeights unmapped = infer::gguf_weights(file);
+        const infer::ModelWeights unmapped = infer::gguf_weights(file);
         require(std::all_of(unmapped.tensors.begin(), unmapped.tensors.end(), [](const infer::TensorView& t) { return !t.data; }),
                 "a weight had bytes before its file was mapped");
         gguf::map_payload(file);
-        const infer::QwenWeights mapped = infer::gguf_weights(file);
+        const infer::ModelWeights mapped = infer::gguf_weights(file);
         for (size_t i = 0; i < mapped.tensors.size(); ++i)
             require(mapped.tensors[i].data && std::memcmp(mapped.tensors[i].data, source.tensor_data(i), source.tensor_bytes(i)) == 0,
                     "a mapped weight's bytes differ from the file's");
     }
     const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
-    const std::vector<float> expected = infer::Model(source, backend::make_cpu_backend()).prefill(ids);
+    const std::vector<float> expected = infer::Model(infer::gguf_weights(source), backend::make_cpu_backend()).prefill(ids);
     size_t payload = 0;
     for (size_t i = 0; i < source.tensors.size(); ++i) payload += source.tensor_bytes(i);
     for (const infer::LoadMode mode : load_modes(path)) {
@@ -254,7 +254,7 @@ void experts_checks(const std::string& path) {
     const gguf::GGUFModel source = tiny_moe();
     gguf::write_gguf(source, path);
     const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
-    const std::vector<float> expected = infer::Model(source, backend::make_cpu_backend()).prefill(ids);
+    const std::vector<float> expected = infer::Model(infer::gguf_weights(source), backend::make_cpu_backend()).prefill(ids);
     for (const infer::LoadMode mode : load_modes(path)) {
         infer::PlacementRequest request;
         request.names = {"cpu"};
@@ -273,7 +273,7 @@ void split_checks(const std::string& path) {
     const gguf::GGUFModel source = with_tokens(tiny_qwen(2, 2 * 128, true));
     gguf::write_gguf(source, path);
     const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
-    const std::vector<float> expected = infer::Model(source, backend::make_cpu_backend()).prefill(ids);
+    const std::vector<float> expected = infer::Model(infer::gguf_weights(source), backend::make_cpu_backend()).prefill(ids);
     size_t embedding = 0;
     while (source.tensors[embedding].name != "token_embd.weight") ++embedding;
     for (const infer::LoadMode mode : load_modes(path)) {
@@ -351,7 +351,7 @@ void shard_checks(const std::filesystem::path& dir) {
         gguf::write_gguf(shard, paths.back());
     }
     const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
-    const std::vector<float> expected = infer::Model(source, backend::make_cpu_backend()).prefill(ids);
+    const std::vector<float> expected = infer::Model(infer::gguf_weights(source), backend::make_cpu_backend()).prefill(ids);
     for (const infer::LoadMode mode : load_modes(paths[0], paths[1])) {
         for (const int arm : {0, 1, 2}) {
             const bool copying = arm != 0;

@@ -46,7 +46,6 @@ linked-test-only | src/backends/kv_storage.hpp | backend::BlockKVStorage::block_
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::kernel_representations() const | 1 | what vulkan_kernel_representations returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::name() const | 1 | what vulkan_device_name returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::profile() const | 1 | what vulkan_device_profile returns; goes with it
-linked-test-only | src/model/runtime.hpp | infer::Model::Model(gguf::GGUFModel const&, std::vector, infer::Placement, infer::ModelOptions) | 1 | a constructor from a file and a placement that only tests use; waits for refactor/arch-modules, which moves this file, then goes with cleanup/known-findings
 linked-test-only | src/model/kv_cache.hpp | infer::BlockPool::BlockPool(unsigned long) | 1 | a sizing constructor only tests use; goes with cleanup/known-findings
 linked-test-only | src/model/runtime.hpp | infer::Model::pipelined() const | 1 | whether a placement takes several passes in flight, which only the placement tests read until the server refuses --passes above 1 on a placement that is not pipelined in layer split phase 3, step 3; goes in that step
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::n_blocks() const | 1 | the block count, which only tests read; goes with cleanup/known-findings

@@ -666,7 +666,7 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     {
         const int nl = 2, ne = 256, nf = 1024, nh = 8, nk = 2, hd = 32, nv = 512;
         gguf::GGUFModel sm = infer::synthetic_model(nl, ne, nf, nh, nk, hd, nv, 12345u);
-        infer::Model model(sm, b);
+        infer::Model model(infer::gguf_weights(sm), b);
 
         const int P = prefill, G = decode;
         model.reset();

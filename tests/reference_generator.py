@@ -6,6 +6,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import struct
 import sys
 import tempfile
@@ -463,7 +464,7 @@ class ReferenceGenerator(unittest.TestCase):
             self.assertEqual(sorted(c.args[0] for c in find.call_args_list), ["causal_conv1d", "fla", "kernels"])
         for change in ({"torch": "2.6.0+cpu"}, {"transformers": "5.16.0"}, {"tokenizers": "0.22.1"}):
             with self.subTest(change=change), patch.dict(os.environ), patch.dict(sys.modules, modules(**change)), \
-                 patch.object(generator.importlib.util, "find_spec", return_value=None), self.assertRaisesRegex(SystemExit, list(change.values())[0]):
+                 patch.object(generator.importlib.util, "find_spec", return_value=None), self.assertRaisesRegex(SystemExit, re.escape(list(change.values())[0])):
                 generator.qwen35_environment()
         for package in generator.QWEN35_REPLACEMENTS:
             with self.subTest(package=package), patch.dict(os.environ), patch.dict(sys.modules, modules()), \

@@ -134,7 +134,8 @@ belongs to `format/`, so locally supplied and downloaded shards load identically
 - **Backends** are the *only* compile-time concern: GPU backends pull in heavy
   SDKs, so they are opt-in via `LLMX_HAS_BACKEND_*` in `config.hpp`. CPU is
   always on (no external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan
-  backend; the ROCm, CUDA and SYCL options define macros only.
+  backend, the only optional backend today; ROCm, CUDA and SYCL are planned and
+  each gets its option with its implementation.
 - **Model architectures** are compiled in and selected from metadata by
   `model/arch/registry.hpp`; today qwen3 and qwen3moe.
 - **Split mode** is a runtime parameter: `--device` with several devices

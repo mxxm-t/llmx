@@ -75,9 +75,9 @@ one branch in `infer::load_model`; the CLI, the tokenizer and the chat format st
 - safetensors is HF-native and unlocks most of the Hub; see #9b
 
 ## 4. Backends
-GPU backends are the only compile-time concern (heavy SDKs); `config.hpp`
-`LLMX_HAS_BACKEND_*` names are reserved for those gates. Vulkan is
-implemented; the ROCm, CUDA and SYCL options build no code yet. The vendor
+GPU backends are the only compile-time concern (heavy SDKs), each gated by an
+`LLMX_HAS_BACKEND_*` option in `config.hpp` that arrives with its implementation.
+Vulkan is implemented and is the only such option today. The vendor
 targets are ROCm, CUDA, SYCL (Intel) and Vulkan. This splits into two phases - the device
 execution model has to land before any vendor backend is worth writing.
 

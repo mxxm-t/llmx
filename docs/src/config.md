@@ -7,8 +7,9 @@ Single place for compile-time build knobs.
   uses. Keep the two in sync when adding build knobs.
 - **Backends** are the only things that need compile-time config, because GPU
   backends pull in heavyweight SDKs (ROCm/CUDA/SYCL/Vulkan). CPU is always on (no
-  external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan backend; the
-  ROCm, CUDA and SYCL names reserve future gates and build no code.
+  external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan backend, the
+  only optional backend today; ROCm, CUDA and SYCL get their options when they
+  are implemented.
 - **Model architectures** are *not* here: the model reads
   `general.architecture` at run time; dense Qwen3 and `qwen3moe` are
   implemented.

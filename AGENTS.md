@@ -756,7 +756,7 @@ In the code: code that runs but serves nothing, paths for inputs or devices that
 
 - **Backends** are the only compile-time concern (GPU SDKs are heavy). Gated by
   `LLMX_HAS_BACKEND_*` in `src/config.hpp` (see `cmake/llmx-config.hpp.in`).
-  Vulkan is implemented; the ROCm, CUDA and SYCL options exist without code.
+  Vulkan is the only optional backend today; ROCm, CUDA and SYCL are planned and each gets its option with its implementation.
 - **Model architectures** are compiled in and selected from metadata by
   `src/model/arch/registry.hpp`, one module per architecture under `src/model/arch/`
   on a runtime they share; today qwen3 and qwen3moe. A new one follows

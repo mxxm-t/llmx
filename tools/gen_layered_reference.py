@@ -340,6 +340,12 @@ def label_golden(path, extra):
     generator._write(path, labelled)
 
 
+def writer_args(args):
+    """The arguments tools/gen_baseline.py's golden writers read, for the checkpoint and GGUF of a goldens run."""
+    return SimpleNamespace(repo=args.repo, revision=args.revision, threads=args.threads, output_dir=args.output_dir,
+                           gguf_repo=args.gguf_repo, gguf_file=os.path.basename(args.gguf), weights_gguf=None)
+
+
 def goldens(args):
     torch, transformers = runtime(args.threads)
     from transformers import AutoTokenizer
@@ -359,8 +365,7 @@ def goldens(args):
     print("layered forward: %d rows, %d distinct, %.1f s, peak RSS %.2f GiB"
           % (len(rows), len(layered.logits), time.time() - start, peak_gib()), flush=True)
     print("GGUF provenance: %s" % json.dumps(provenance.record()), flush=True)
-    writer = SimpleNamespace(repo=args.repo, revision=args.revision, threads=args.threads, output_dir=args.output_dir,
-                             gguf_repo=args.gguf_repo, gguf_file=os.path.basename(args.gguf), weights_gguf=None)
+    writer = writer_args(args)
     os.makedirs(args.output_dir, exist_ok=True)
     generator.gen_tokenizer(writer)
     generator.gen_logits(writer, (torch, transformers, tok, layered))

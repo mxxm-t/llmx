@@ -380,8 +380,8 @@ def reference_metadata(args, torch, transformers):
                 "reference_dtype": "float32", "attention": "eager", "device": "cpu",
                 "threads": args.threads, "torch_version": torch.__version__,
                 "transformers_version": transformers.__version__}
-    if args.family == "qwen35":
-        metadata.update(args.qwen35)
+    # Only the loader of a pinned qwen35 checkpoint records its files, tokenizer and linear-attention form; the layered reference's writer arguments carry none.
+    metadata.update(getattr(args, "qwen35", None) or {})
     if args.weights_gguf:
         metadata["weights"] = args.weights
     return metadata

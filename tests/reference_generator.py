@@ -581,6 +581,17 @@ class LayeredReference(unittest.TestCase):
                         layered.parse_args(argv)
                     self.assertEqual(error.exception.code, 2)
 
+    def test_writers_record_only_the_checkpoint_the_layered_run_names(self):
+        # tools/gen_baseline.py's writers take the layered run's own arguments, which hold no pinned qwen35 checkpoint's loader record, so the goldens name only the checkpoint that ran.
+        with tempfile.TemporaryDirectory(prefix="llmx_layered_writer_") as directory:
+            gguf = os.path.join(directory, "model.gguf")
+            Path(gguf).write_bytes(b"GGUF")
+            args = layered.parse_args(["goldens", "--repo", "Qwen/Qwen3.5-9B", "--revision", "a" * 40, "--gguf", gguf, "--output-dir", os.path.join(directory, "goldens")])
+        torch, transformers = (SimpleNamespace(__version__=generator.QWEN35_ENV[name]) for name in ("torch", "transformers"))
+        self.assertEqual(generator.reference_metadata(layered.writer_args(args), torch, transformers),
+                         {"reference_repo": "Qwen/Qwen3.5-9B", "reference_revision": "a" * 40, "reference_dtype": "float32", "attention": "eager", "device": "cpu",
+                          "threads": 6, "torch_version": generator.QWEN35_ENV["torch"], "transformers_version": generator.QWEN35_ENV["transformers"]})
+
     def test_runtime_is_the_qwen35_environment_on_its_threads(self):
         # The layered reference runs offline in tools/gen_baseline.py's qwen35 environment, so it refuses what that refuses.
         torch = SimpleNamespace(__version__=generator.QWEN35_ENV["torch"], set_num_threads=MagicMock())

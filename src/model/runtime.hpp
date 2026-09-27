@@ -66,18 +66,19 @@ struct ModelOptions {
     size_t kv_tokens = 0;
 };
 
-// One request's history in a model's cache, made by Model::make_sequence for that model's pools and block sizes: a block table per storage, the committed length, and per device the ticket of the last pass that touched it, which a release waits on rather than draining the device (docs/EXECUTION.md).
+// One request's history in a model's cache, made by Model::make_sequence for that model's pools and block sizes: the committed length of each stage, a block table per KV storage, and per device the ticket of the last pass that touched it, which a release waits on rather than draining the device (docs/EXECUTION.md).
 // Movable, not copyable; from Model::begin_pass until its end_pass or abort_pass it is in flight, when no other pass, reset or fork takes it and it must not move, since the pass holds its address.
 class Sequence {
 public:
     Sequence() = default;
-    // Storage 0's committed length.
-    // The storages can disagree while a pass is part way through its stages, and the model continues a history from the first stage's storage (Model::history).
-    size_t length() const { return kv_.empty() ? 0 : kv_[0].length(); }
+    // The first stage's committed length.
+    // The stages can disagree while a pass is part way through them, and the model continues a history from the first stage's (Model::history).
+    size_t length() const { return length_.empty() ? 0 : length_[0]; }
     bool in_flight() const { return in_flight_; }
 private:
     friend class Model;
-    std::vector<KVSequence> kv_;
+    std::vector<size_t> length_;          // per stage, whatever its layers keep
+    std::vector<KVSequence> kv_;          // per KV storage
     std::vector<backend::Ticket> last_;
     const Model* owner_ = nullptr;
     bool in_flight_ = false;
@@ -238,7 +239,10 @@ public:
         for (int l = 0; l < (int)n_layer; ++l) {
             Device& a = *devices_[device_index(place_.mixer_device[(size_t)l])];
             ++a.mixer_layers;
-            if (plan_.layers[(size_t)l].cache == Cache::kv) a.local_layer[(size_t)l] = a.kv_layers++;
+            if (plan_.layers[(size_t)l].cache == Cache::kv) {
+                a.local_layer[(size_t)l] = a.kv_layers++;
+                ++kv_layers_;
+            }
             a.used = true;
             devices_[device_index(place_.ffn_device[(size_t)l])]->used = true;
         }
@@ -281,14 +285,12 @@ public:
         try {
             resolve_tensors(weights, adopt);
 
-            // Each device that runs a mixer gets a storage for exactly its layers that keep KV, with its own block size and pool.
+            // Each device whose mixer layers keep KV gets a storage for exactly those layers, with its own block size and pool.
             // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it.
             const size_t budget = kv_tokens(plan_, options_);
             for (auto& dp : devices_) {
                 Device& d = *dp;
-                if (!d.mixer_layers) continue;
-                // A stage's committed history is its storage's, so each stage keeps KV in some layer.
-                if (!d.kv_layers) throw std::logic_error("inference: a stage whose layers keep no KV");
+                if (!d.kv_layers) continue;
                 // A shared prefix ends on a whole block of the largest size (kv_block_tokens), which is whole in every storage only when the sizes nest.
                 for (const Device* other : storages_) {
                     const size_t a = d.b->kv_layout().block_tokens, b = other->b->kv_layout().block_tokens;
@@ -309,8 +311,9 @@ public:
             tables_.resize(plan_.tables.size());
             for (size_t t = 0; t < tables_.size(); ++t) tables_[t].assign(plan_.tables[t], 0.0f);
             arch_->fill_tables(tables_);
-            for (Device* d : storages_)
-                for (const std::vector<float>& t : tables_) d->tables.push_back(d->b->adopt(t.data(), t.size() * sizeof(float)));
+            for (auto& d : devices_)
+                if (d->mixer_layers)
+                    for (const std::vector<float>& t : tables_) d->tables.push_back(d->b->adopt(t.data(), t.size() * sizeof(float)));
         } catch (...) {
             // Constructor members still exist here, so pending uploads retire before unwinding releases them.
             retire();
@@ -327,7 +330,7 @@ public:
     // CPU worker counts, applied to every backend; a device backend ignores them.
     void set_threads(int n) { for (auto& d : devices_) d->b->set_threads(n); }
 
-    // The cache pools a scheduler admits against, one per device that runs a mixer, each counted in its own blocks (docs/SERVER.md, docs/MULTI-DEVICE.md).
+    // The cache pools a scheduler admits against, one per device whose mixer layers keep KV, each counted in its own blocks (docs/SERVER.md, docs/MULTI-DEVICE.md).
     size_t kv_pools() const { return storages_.size(); }
     size_t kv_pool_block_tokens(size_t s) const { return storages_.at(s)->b->kv_layout().block_tokens; }
     size_t kv_pool_blocks(size_t s) const { return storages_.at(s)->pool.max_blocks(); }
@@ -363,7 +366,9 @@ public:
     Sequence fork(const Sequence& src, size_t length) {
         if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
         if (src.in_flight_) throw std::logic_error("inference: a fork of a sequence in flight");
+        if (length > src.length()) throw std::logic_error("KV cache: a fork takes whole blocks of the history");
         Sequence f;
+        f.length_.assign(stages_.size(), length);
         f.kv_.reserve(storages_.size());
         for (const KVSequence& kv : src.kv_) f.kv_.push_back(kv.fork(length));
         f.last_ = src.last_;
@@ -371,9 +376,10 @@ public:
         return f;
     }
 
-    // A fresh history over this model's cache: one table per storage.
+    // A fresh history over this model's cache: a length per stage and a table per KV storage.
     Sequence make_sequence() {
         Sequence s;
+        s.length_.assign(stages_.size(), 0);
         s.kv_.reserve(storages_.size());
         for (Device* d : storages_)
             s.kv_.emplace_back(&d->pool, d->b->kv_layout().block_tokens);
@@ -488,7 +494,7 @@ public:
         if (s.in_flight_) throw std::logic_error("inference: a reset of a sequence in flight");
         for (size_t d = 0; d < devices_.size(); ++d)
             if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
-        for (auto& kv : s.kv_) kv.reset();
+        truncate(s, 0);
     }
 
     // The single-sequence entry points the CLI uses: one sequence and one context owned here, and one entry per pass.
@@ -548,7 +554,7 @@ public:
             scoped(0, work);
         } catch (...) {
             retire();
-            for (auto& kv : seq_.kv_) kv.truncate(start);
+            truncate(seq_, start);
             throw;
         }
         return row(ctx_, 0);
@@ -595,7 +601,7 @@ public:
         return n;
     }
     size_t kv_used_bytes() const {
-        return seq_.length() * plan_.layers.size() * kv_bytes_per_position(plan_, options_);
+        return seq_.length() * kv_layers_ * kv_bytes_per_position(plan_, options_);
     }
 
 private:
@@ -623,7 +629,8 @@ private:
 
     Placement place_;
     std::vector<std::unique_ptr<Device>> devices_;
-    std::vector<Device*> storages_;              // the devices that run a mixer
+    std::vector<Device*> storages_;              // the devices whose mixer layers keep KV
+    size_t kv_layers_ = 0;                       // the model's layers that keep KV
     std::vector<Stage> stages_;
     bool pipelined_ = false;                     // a prompt's chunks flow through the stages together (prefill)
     int ubatch_ = kDefaultUbatch;
@@ -723,9 +730,13 @@ private:
     // Physical prompt microbatch size, used to bound matrix width and scratch storage.
     int ubatch() const { return ubatch_; }
 
-    // The history a pass continues: the committed length of the first stage's storage, which a pipelined prompt's chunk commits first; outside a prompt every storage agrees.
-    size_t history(const Sequence& s) const {
-        return s.kv_[(size_t)devices_[stages_.front().device]->storage_index].length();
+    // The history a pass continues: the first stage's committed length, which a pipelined prompt's chunk commits first; outside a prompt every stage agrees.
+    size_t history(const Sequence& s) const { return s.length_[0]; }
+
+    // A history back to `length` in every stage and storage, the blocks beyond it returned.
+    static void truncate(Sequence& s, size_t length) noexcept {
+        for (size_t& n : s.length_) n = std::min(n, length);
+        for (auto& kv : s.kv_) kv.truncate(length);
     }
 
     // A pass's plan: its rows in entry order, their positions after each history, and the rows the head reads, from logits row `logits_base` on, with nothing reserved yet, since each stage reserves the blocks of the storage it writes.
@@ -792,17 +803,17 @@ private:
         for (size_t e = 0; e < n_entries; ++e) p.long_runs = p.long_runs || streams(p, e);
     }
 
-    // Stage s of a pass: its storage's blocks reserved, the residual embedded or received from the stage before, its layers, then the head after the last stage or the residual sent on, its submissions, and the storage's commit.
+    // Stage s of a pass: its storage's blocks reserved, the residual embedded or received from the stage before, its layers, then the head after the last stage or the residual sent on, its submissions, and the commit of its length and its storage.
     // A sequence listed twice fails at the first reservation, since its second finds the first still pending.
     void run_stage(ExecContext& ctx, Pass& p, size_t s) {
         const Stage& st = stages_[s];
         Device& home = *devices_[st.device];
-        const size_t storage = (size_t)home.storage_index;
-        for (size_t e = 0; e < p.entries.size(); ++e) {
-            KVSequence& kv = p.entries[e].seq->kv_[storage];
+        const int storage = home.storage_index;
+        for (size_t e = 0; storage >= 0 && e < p.entries.size(); ++e) {
+            KVSequence& kv = p.entries[e].seq->kv_[(size_t)storage];
             kv.prepare(p.entries[e].n);
-            p.views[storage][e] = kv.view(home.storage.get());
-            p.views[storage][e].extent = p.runs[e].extent;
+            p.views[(size_t)storage][e] = kv.view(home.storage.get());
+            p.views[(size_t)storage][e].extent = p.runs[e].extent;
         }
         size_t cur = st.device;
         const backend::RowRuns all{p.runs.data(), p.runs.size()};
@@ -838,7 +849,8 @@ private:
         for (size_t d : st.touches) ctx.tickets[d] = devices_[d]->b->submit();
         p.sent = ctx.tickets[cur];
         for (const BatchEntry& en : p.entries) {
-            en.seq->kv_[storage].commit();
+            en.seq->length_[s] += en.n;
+            if (storage >= 0) en.seq->kv_[(size_t)storage].commit();
             for (size_t d : st.touches) en.seq->last_[d] = ctx.tickets[d];
         }
     }
@@ -854,8 +866,7 @@ private:
     // A failed pass: every device drained, then every entry's histories back to where the pass found them, the blocks its stages reserved or committed returned.
     void roll_back(const Pass& p) noexcept {
         retire();
-        for (size_t e = 0; e < p.entries.size(); ++e)
-            for (auto& kv : p.entries[e].seq->kv_) kv.truncate(p.start[e]);
+        for (size_t e = 0; e < p.entries.size(); ++e) truncate(*p.entries[e].seq, p.start[e]);
     }
 
     // The pass in a reserved context's slot, which must be in flight.
@@ -1029,13 +1040,16 @@ private:
                     rows, runs, w, kind, nullptr, 0, 0, nullptr, d.tables.data(), &ctx.entry_runs};
     }
 
-    // Layer l's mixer over every row of the pass, with the cache views of its device's storage and the rows' positions.
+    // Layer l's mixer over every row of the pass, with the cache views of its device's storage when the layer keeps KV, and the rows' positions.
     Step mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const {
         const Device& d = *devices_[dev];
-        Step s = part(ctx, dev, home_[(size_t)l].data(), plan_.layers[(size_t)l].kind, 0, p.rows, {p.runs.data(), p.runs.size()});
-        s.views = p.views[(size_t)d.storage_index].data();
-        s.n_views = p.entries.size();
-        s.kv_layer = (size_t)d.local_layer[(size_t)l];
+        const LayerPlan& layer = plan_.layers[(size_t)l];
+        Step s = part(ctx, dev, home_[(size_t)l].data(), layer.kind, 0, p.rows, {p.runs.data(), p.runs.size()});
+        if (layer.cache == Cache::kv) {
+            s.views = p.views[(size_t)d.storage_index].data();
+            s.n_views = p.entries.size();
+            s.kv_layer = (size_t)d.local_layer[(size_t)l];
+        }
         s.pos = p.pos.data();
         return s;
     }

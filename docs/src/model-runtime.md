@@ -19,7 +19,7 @@ delegated to a `backend::Backend`.
   as wide as the residual, or with a role id past `role_ids`, is the
   architecture's error (`std::logic_error`), since the runtime strides the
   residual by one and sizes slot 0 by the other, and indexes rows by the id.
-- `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(plan, options)` and `kv_bytes_per_position(plan, options)`: the positions the caches are budgeted for, the options' or else the plan's context, which the fit and the cache allocation take, and one position's key and value bytes at the plan's geometry and the options' cache types, which only the fit and `kv_used_bytes` take: the allocation passes the token budget and the two types to `kv_alloc`, and the backend's storage turns them into blocks and bytes (`backends/kv_storage.hpp`).
+- `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(plan, options)` and `kv_bytes_per_position(plan, options)`: the positions the caches are budgeted for, the options' or else the plan's context, which the fit and the cache allocation take, and one position's key and value bytes at the plan's geometry and the options' cache types, which only the fit and `kv_used_bytes`, over the layers that keep KV, take: the allocation passes the token budget and the two types to `kv_alloc`, and the backend's storage turns them into blocks and bytes (`backends/kv_storage.hpp`).
 - `Placement`: a device index per tensor role: each layer's mixer
   (`mixer_device`) and feed-forward block (`ffn_device`), the embedding
   table and the output head. Empty means everything on device 0. Per role
@@ -42,12 +42,12 @@ delegated to a `backend::Backend`.
   `KVType::f16`, the runtime's one default: the CLI, the server, the
   synthetic bench and the split check all start from it.
 - `Sequence`: one request's history over a model's cache, made by
-  `Model::make_sequence`: a block table per storage and the committed
-  length, and per device the ticket of the last pass that touched it, which
-  a reset waits on. Movable, not copyable. The server keeps one per request;
-  the CLI's model keeps one. `length()` is storage 0's committed length;
-  the storages can disagree while a pass is part way through its stages,
-  and the model continues a history from the first stage's storage.
+  `Model::make_sequence`: the committed length of each stage, a block table
+  per KV storage, and per device the ticket of the last pass that touched
+  it, which a reset waits on. Movable, not copyable. The server keeps one
+  per request; the CLI's model keeps one. `length()` is the first stage's
+  committed length; the stages can disagree while a pass is part way
+  through them, and the model continues a history from the first stage's.
   `in_flight()` holds from `begin_pass` until `end_pass` or `abort_pass`,
   when no other pass, reset or fork may take the sequence and it must not
   move.
@@ -95,8 +95,8 @@ delegated to a `backend::Backend`.
   runs of consecutive layers whose mixer sits on one device, each
   writing that device's storage. A device's mixer layers must form one
   run, or the placement is refused; a model on one device has one stage.
-  A stage's committed history is its storage's, so each stage keeps KV in
-  some layer, a stage without one being the plan's error. The
+  Each stage commits its own length, whatever its layers keep, so a stage
+  whose layers keep no KV has no storage and still runs. The
   residual stream crosses devices wherever the placement changes, in two
   halves: the source copies the rows into its handoff buffer inside its own
   work (`send`), and the destination waits that submission's ticket and
@@ -151,8 +151,8 @@ delegated to a `backend::Backend`.
     to the pool after waiting on its last ticket; a sequence in flight is
     refused.
   - `kv_pools()`, `kv_pool_block_tokens(s)`, `kv_pool_blocks(s)`: the
-    cache pools a scheduler admits against, one per device that runs a
-    mixer, each in its own blocks; `kv_tokens_total()` is the tokens
+    cache pools a scheduler admits against, one per device whose mixer
+    layers keep KV, each in its own blocks; `kv_tokens_total()` is the tokens
     every pool can hold, and `kv_block_tokens()` the largest block, which a
     reusable prefix ends on.
   - `fork(sequence, length)`: a second history holding the first `length`
@@ -175,7 +175,7 @@ delegated to a `backend::Backend`.
     thread: step t runs stage s of chunk t-s, the first stage first, so
     every device has its next chunk queued before it finishes the one it
     runs, and each takes its chunks in order, which is what lets them share
-    its arena. A prompt's positions follow the first stage's storage, which
+    its arena. A prompt's positions follow the first stage's length, which
     a chunk commits first. That needs the embedding on the first stage's
     device, the head on the last's and every feed-forward block beside its
     mixer, as every fitted split has; any other placement runs its

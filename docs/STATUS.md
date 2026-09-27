@@ -2372,10 +2372,13 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
        - Both 0.8B files and the 4B Q4_K_M are pinned in `tests/data/fixtures.json` as the `qwen35` family, the 0.8B files hosted; every entry now names its family.
        - `tools/gen_baseline.py qwen35` writes each model's logit, chat and 512- and 4096-token perplexity goldens from HF's float32 full forward on the pinned checkpoint, tokenized as the qwen35 tokenizer golden is.
          `file-exact` undoes the converter's transforms, so a qwen35 file's own weights run in HF.
+         The design of the HF reference above names transformers' tokenizer, whose qwen2 regex differs from the files' on combining marks; on the 12 texts these goldens tokenize (the six prompts, the four chat renders and the two excerpts), transformers' tokenizers of the 0.8B and the 4B give the same ids.
        - `tests/baseline_qwen35.py` holds a pinned file to its model's goldens, and `tests/baseline.py` runs it on the hosted files at 512 tokens.
          It reports one skip line while llmx refuses the architecture, and a file without bounds fails measured, so the first llmx measurement sets them.
-       - The 4B's full forward ran whole in float32, within the memory rule: it holds 16 to 19 GiB, peaks at 24 GiB while loading, and was started under the shared memory lock with 47 GiB available.
-         Its goldens took 37 minutes at a load average of 18 to 50; a first 4B run gave the same logit, chat and 512-token goldens, and a second 0.8B run the 0.8B goldens byte for byte.
+         Its chat checks hold the file to the template transformers rendered with and to the render's ids; llmx's own render of the two conversations is not compared, and is left to this step's gate.
+       - The 4B's full forward ran whole in float32, so the 4B needs no layered run: the model holds 16 to 19 GiB after a 24 GiB peak while loading, and the run started with 47 GiB of the Linux machine's memory available and no other heavy reference run holding memory.
+         Its goldens took 37 minutes at a load average of 18 to 66, during which other work brought the memory available down to 5 GiB at times.
+         A first 4B run gave the same logit, chat and 512-token goldens and was stopped during its 4096-token part, after the memory available had fallen to 4 GiB; a second 0.8B run gave the 0.8B goldens byte for byte.
        - The 0.8B and 4B Q4_K_M files undone by `file-exact` give back every F32 tensor of their checkpoints bit for bit but `A_log`, whose -exp the file rounds, and one value in each of three of the 4B's layer norms, where float32(1 + w) rounds a tiny w.
   5. **`feat/qwen35-vulkan`:** the device ops (conv, the per-token recurrence with source, destination and checkpoint-row push constants, the gated norm, `sigmoid_mul`, and the copy and tag rules), the projection groups, device state storage, attention at head dim 256, strided partial rope, the CLI's layer split with states, and a CLI mode for `tools/long_context_check.py` (two fresh `generate` runs, plus `logits --last` on the baseline).
      - Gates:

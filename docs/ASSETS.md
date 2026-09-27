@@ -575,6 +575,7 @@ It runs in the qwen35 venv above, offline, and refuses another torch, transforme
 - **The forward** of every golden is HF's full forward, whose linear-attention layers run transformers' chunked form, 64 rows a chunk in float32.
   A hook counts that form's calls and the run fails if it never ran, and transformers' token-by-token recurrence is refused.
 - **The tokenizer** is the one the qwen35 tokenizer golden holds: the pinned `tokenizer.json` read with `tokenizers`, plus the 7 control tokens only `tokenizer_config.json` adds, one id each.
+  transformers' own tokenizers of the 0.8B and the 4B give the same ids on all 12 texts the goldens tokenize: the six prompts, the four chat renders and the two excerpts.
 - **The goldens** of each model, 11 KB for the 0.8B:
   - `baseline_logits.json`: HF's top 10 logits after each of the six prompts of `tests/baseline.py`, with the prompts' ids.
   - `baseline_chat.json`: one turn with a system message, and two turns with an earlier reply that holds its reasoning, each rendered with a generation prompt by transformers 5.17.0's renderer (the reference of `tools/gen_chat_baseline.py`) under the chat template the model's files carry, taken by SHA-256 from `tests/data/baseline_chat_template.json`; each case keeps the render, its ids and HF's top 10 logits after it.
@@ -590,6 +591,7 @@ It runs in the qwen35 venv above, offline, and refuses another torch, transforme
 `tests/baseline_qwen35.py` pins every golden by SHA-256 and a file by its entry's, and finds a file's goldens by the files they name.
 `tests/baseline.py` runs it on each hosted file on disk at 512-token windows, and it runs by hand on any pinned file at either window (`AGENTS.md`, Tests).
 While llmx refuses the architecture it runs the 47 id checks (37 tokenizer texts, the file's chat template, the two renders, the six prompts and the excerpt) and reports one skip line.
+The chat checks hold the file to the template transformers rendered with and to the render's ids; llmx's own render of the two conversations is not compared here, and the `chat-template` test holds the renderer to transformers' on that template over other conversations.
 Each file's bounds come from llmx's first measurement on it, and a file without them is measured and fails.
 
 `file-exact --weights-gguf FILE` with a pinned qwen35 file loads the checkpoint whose entry names the file, and gives HF the file's own tensors, decoded by `tests/spec_decode.py` with the converter's changes undone:
@@ -600,7 +602,7 @@ Each file's bounds come from llmx's first measurement on it, and a file without 
 
 A file whose `dt_bias` does not come back as the checkpoint's is refused, since that F32 tensor matches bit for bit only in the tiled order.
 It writes the logit and 512-token perplexity goldens, and `tests/baseline_qwen35.py --file-exact DIR` holds the file to them at the Q8_0 file's bounds.
-Undone and compared with the checkpoints tensor by tensor, the 0.8B and 4B Q4_K_M files give back every F32 tensor bit for bit except `A_log`, within 1.9e-8 relative from the rounding of -exp, and one value in each of three of the 4B's layer norms, a w under 4e-6 that float32(1 + w) rounds; the quantized tensors differ by their formats' loss, at most 0.006 relative for Q8_0, 0.019 for Q6_K, 0.041 for Q5_K and 0.089 for Q4_K.
+Undone and compared with the checkpoints tensor by tensor, the 0.8B and 4B Q4_K_M files give back every F32 tensor bit for bit except `A_log`, within 1.9e-8 relative from the rounding of -exp, and one value in each of three of the 4B's layer norms, a w under 4e-6 that float32(1 + w) rounds; the quantized tensors differ by their formats' loss, at most 0.0062 relative for Q8_0, 0.020 for Q6_K, 0.041 for Q5_K and 0.090 for Q4_K.
 These goldens are not committed.
 
 | 0.8B file-exact goldens | mean NLL, 1,216 tokens whole | windows of 512 |
@@ -611,7 +613,7 @@ These goldens are not committed.
 They were made on 2026-09-27 on the Linux machine's CPU, in a container of 6 CPUs, with the load average beside each time:
 
 - the 0.8B goldens in 510 s at a load of 35 to 42, peaking near 6 GiB, byte for byte a first run's;
-- the 4B goldens in 2,246 s at a load of 18 to 50, under the shared memory lock and started with 47 GiB available, the float32 model holding 16 to 19 GiB after a 24 GiB peak while loading, with a first run's logit, chat and 512-token goldens the same;
+- the 4B goldens in 2,246 s at a load of 18 to 66, started with 47 GiB available and no other heavy reference run holding memory, the float32 model holding 16 to 19 GiB after a 24 GiB peak while loading; a first run, stopped during its 4096-token part after the memory available fell to 4 GiB, gave the same logit, chat and 512-token goldens;
 - the 0.8B files' file-exact goldens in 230 s (Q8_0) and 498 s (Q4_K_M) at a load of 41 to 59, the same as a first run's.
 
 The local 8B GGUF is not an independent HF reference. On 2026-09-20, original

@@ -12,7 +12,7 @@ scheduler are the runtime's own.
   `respond` throws while a stream is open, since a second head would land inside the chunked body.
   The `http` CTest drives it with its own client.
 - `scheduler.hpp`: `Request`, `Scheduler` and `SampleParams`.
-  `SampleParams` is `infer::Sampling` (`inference/sampler.hpp`), with its defaults and ranges, plus what only a request has: a list of stop texts and `until_limit`, a request without a cap.
+  `SampleParams` is `infer::Sampling` (`inference/sampler.hpp`), with its defaults and ranges, plus what only a request has: a list of stop texts, `until_limit`, a request without a cap, and `logprobs` and `top_logprobs`, the log-probabilities it asks for.
   A request's token is drawn through `infer::sample(logits, params, eos_id, ...)`, the call `infer::generate` makes, so `ignore_eos` masks the end of text here as it does in the CLI.
   Connection threads submit requests and drain their token channels; the scheduler thread is the single caller of `Model::forward`.
   `Request::next` waits for a token or the end only until a deadline, so a connection thread can look at its client between tokens.
@@ -21,7 +21,7 @@ scheduler are the runtime's own.
   A reader can fall behind, as a connection thread does while a client that stops reading holds its write: once `kRowsWaiting` (8) tokens wait with their rows (`rows_waiting`), `step` computes the next token's values itself with the same `fill` and sends them without the row, so a request holds at most that many rows on its channel and two more in all, however long its reply.
   `next` hands each row it has finished with back to the request, and `push` gives one to `step` in place of the row it moved out, so the next pass fills it rather than a new allocation; a cancelled request's rows are dropped without their values.
   `next` reads `top_logprobs` from the request's parameters, which nothing changes once the request is made.
-  The KV pool holds `--ctx-size` tokens in total, and `submit` owns what one request may hold (`token_limit`): it refuses a prompt plus `max_tokens` past it, or an uncapped prompt that fills it, and sets an uncapped request's `max_tokens` to the room its prompt leaves; past `--max-queue` waiting requests a new one is refused with 503.
+  The KV pool holds `--ctx-size` tokens in total, and `submit` owns what one request may hold (`token_limit`): it refuses a prompt plus `max_tokens` past it, or an uncapped prompt that fills it, and sets an uncapped request's `max_tokens` to the room its prompt leaves; past `--max-queue` queued requests a new one is refused with 503, paused requests not counted.
   The scheduler takes `--max-seqs` and `--max-queue` as it is given them, and the CLI refuses either below 1.
   Each iteration gives the growth steps that fall due their room, admits queued requests the pool can hold (a capped request's prompt plus `max_tokens`, an uncapped one's prompt plus a step it grows by as it generates; a paused request's history stays as a donor and it resumes from it), assembles one pass of every decoding request's next token plus, for every other request, a slice of what its cache lacks up to the model's prompt batch (`Model::prefill_batch`), samples per request with its own seeded state, and finishes on EOS, a stop string or the token limit.
   A request's prompt and generated tokens are never rewritten, and its cache's length is its progress.

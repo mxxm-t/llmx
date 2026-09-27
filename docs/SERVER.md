@@ -36,13 +36,8 @@ is measured against the single-sequence path and the reference.
   placement can differ), which is whole in every storage because a model
   refuses block sizes that do not nest. A live request's growing history
   is never shared.
-- **A memory budget that admits, not crashes.** The KV pool holds
-  `--ctx-size` tokens in total, the model context by default. A capped
-  request is admitted when the pool can hold its prompt and its
-  `max_tokens`, an uncapped one (a compatible route without `max_tokens`)
-  when it can hold its prompt and a growth step, reserving more as it
-  generates; otherwise it waits in the queue, and past `--max-queue`
-  waiting requests a new one is refused with 503.
+- **A memory budget that admits, not crashes.** The KV pool holds `--ctx-size` tokens in total, the model context by default.
+  A capped request is admitted when the pool can hold its prompt and its `max_tokens`, an uncapped one (a compatible route without `max_tokens`) when it can hold its prompt and a growth step, reserving more as it generates; otherwise it waits in the queue, and past `--max-queue` queued requests a new one is refused with 503, paused requests not counted.
   A request's donor is chosen before room is made for it, and the other donors are evicted, oldest first, when it needs their blocks.
   If the pool is still short, its donor is consumed: the request forks it and the donor goes, so the blocks they share are reserved once rather than for each, and a follow-up turn keeps the history it repeats however many donors fill the pool.
   A request that shares every full block of its donor, a follow-up turn or a resume, consumes that donor before any other is evicted, since all the donor holds beyond what the request keeps is a partial last block; the other donors go only if that does not make room.
@@ -99,13 +94,13 @@ accept thread ---> connection thread (one per socket)
 scheduler thread   the only caller of Model::forward for its devices
 ```
 
-A `Request` carries the prompt ids, the sampling parameters, a `Sequence`, the stop conditions and a channel: a mutex, a condition variable and a deque of sampled ids that the connection thread drains.
+A `Request` carries the prompt ids, the sampling parameters, a `Sequence`, the stop conditions and a channel: a mutex, a condition variable and a deque of sampled tokens that the connection thread drains, each an id with, for a request that asks for log-probabilities, the logits row they come from or the values themselves (`Request::Token`, Log-probabilities below).
 Cancellation is a flag the connection thread sets once its client has gone, which it learns in one of two ways: a write to the client fails, or a look at the socket finds the connection closed.
 The thread waits on the channel for at most 100 ms at a time and looks at the socket whenever 100 ms have passed since its last look, token or not, so a departed client is noticed within about 100 ms wherever its request is: waiting in the queue, prefilling, building a whole reply or streaming.
 The look takes no byte and never blocks: an end of stream or a reset from the client is gone, and nothing to read, data waiting or only urgent (out-of-band) data is present.
 So a client that shuts only its sending side after the request is taken as gone, since that arrives as the same end of stream, and one that has sent bytes past its request is taken as present until a write to it fails.
 A client taken as gone gets no answer, not even an error: its request is cancelled and the connection closes, so a client that shut only its sending side and still reads sees the end of the connection.
-The scheduler sees the flag at its next iteration, after the pass in flight: a queued request leaves the queue wherever it waits, and an active one is dropped from the batch and its sequence released, which returns its blocks once the last pass that read them has retired.
+The scheduler sees the flag at its next iteration, after the pass in flight: a queued or paused request ends wherever it waits, and an active one is dropped from the batch and its sequence released, which returns its blocks once the last pass that read them has retired.
 
 ### The scheduler loop
 
@@ -144,7 +139,7 @@ loop:
            request asked for logprobs; commit the sequence; finish on EOS,
            a stop string or max_tokens, and keep the history as a donor
            when it holds a full block, else release
-  repeat while any request is active; otherwise block on the queue
+  repeat while any request is active or paused; otherwise block on the queue
 ```
 
 Prefill of a long prompt is chunked at `ubatch`, so a 16k prompt does not
@@ -287,5 +282,5 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 | 6 | The compatible routes: `/v1/chat/completions`, `/v1/completions`, `/v1/models` in the OpenAI clients' shape (**done**) | The `server` component: greedy equality with the CLI through `/v1/completions` whole and streamed, usage counts, the role in the first chat chunk and the finish reason in the last, text content parts, the refusals' shape; CPU and device |
 | 7 | `/v1/tokenize` and `/v1/detokenize`, and `messages` rendered by the chat template in place of a text (**done**) | The `server` component against `llmx tokenize` and `llmx detokenize` on the synthetic model and the Q8_0 fixture: text beyond ASCII, special tokens, an empty text, ids ending inside a character, a reply's ids giving back its text, the chat fixture's goldens under the file's template and a chat request reading the same count, the refusals |
 | 8 | Log-probabilities on every generating route, in the compatible shapes and a native one (**done**) | The `logprobs` CTest: the log-softmax against a double-precision reference and the scheduler's channel against a second model's logits, read at once or left to fall behind; the `server` component: each route's shape whole and streamed, the ids unchanged, the values repeating byte for byte and equal alone and four at a time, greedy's token the most likely, and a reply that does not ask byte-identical to one that never names them |
-| 9 | An exact resume: each request's row classes, a resume taking its own donor back whole when it survived, or forking only rows of its own classes and recomputing the rest in them (**done**) | `server-resume`: uncapped requests paused beside others give every id and value they give alone, on the CPU, a two-CPU split and a device, a follow-up turn's forked reply rows and a prefix of another extent included; a donor taken back recomputing nothing, a follow-up turn's among them, part of a history kept after its donor went, and a paused request cancelled; the `server` component's uncapped checks by value; `tools/server_mix_check.py --uncapped` checks the same by value, its runs on the cards left before merge (`docs/STATUS.md`) |
+| 9 | An exact resume: each request's row classes, a resume taking its own donor back whole when it survived, or forking only rows of its own classes and recomputing the rest in them (**done**) | `server-resume`: uncapped requests paused beside others give every id and value they give alone, on the CPU, a two-CPU split and a device, a follow-up turn's forked reply rows and a prefix of another extent included; a donor taken back recomputing nothing, a follow-up turn's among them, part of a history kept after its donor went, and a paused request cancelled; the `server` component's uncapped checks by value; `tools/server_mix_check.py --uncapped` checks the same by value, run before the merge on one MI50, a split over three MI50s and the Radeon VII (`docs/STATUS.md`) |
 | 10 | Room by first admission: `make_room` as the one owner of who gives up blocks for whom, growth that stalls rather than pausing itself, paused requests apart from the queue (**done**) | `server-room`: `make_room` through random admissions, growth, pauses, cancellations and ends over two pools of 64- and 128-token blocks, the ledger adding up, the oldest request never refused room younger requests or donors hold, no empty pass while requests are active, every request ending; `server-resume` unchanged in its values, with its stall, waiting and fork-by-class cases on the scheduler itself |

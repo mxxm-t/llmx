@@ -362,7 +362,7 @@ against 311 on the CPU, while at 247 the CPU is ahead (268 against 223);
 on the Radeon VII the two meet at about 512. `512` suits a machine that
 mostly reads long documents.
 The count is the whole prompt's length, a reused conversation prefix included, so every row a prompt computes takes the same path in every slice, alone or beside other requests, and whether or not a server had part of it cached.
-The rows a server forks from a cached prefix keep the path their own prompt took (`docs/SERVER.md`, Open gaps).
+The rows a server forks from a cached prefix keep the path they were computed on: the earlier request's prompt rows the path its prompt took, and its generated tokens the CPU (`docs/SERVER.md`, Open gaps).
 A short follow-up in a long chat therefore streams too and pays the copy, and `serve` makes that copy inside the pass that carries every other request's next token, so it delays every request sharing that pass, not only the follow-up.
 With `bench --depth` the depth counts toward the length as well.
 Generated tokens never stream, and neither does a one-token prompt, so `1` streams the prompts `2` does.

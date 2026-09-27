@@ -79,7 +79,7 @@ to a `backend::Backend`.
   everything on device 0. Per role rather than per layer so expert offload
   puts a layer's experts on the CPU while its attention stays on the device
   (`docs/EXECUTION.md`). `stream_from` is the prompt length (`BatchEntry::extent`) from which such
-  a layer runs on its attention device instead for every row the prompt computes, whatever prefix the history already held, 1 counting as 2 since a one-token prompt never streams; rows a server forks from a donor keep the path the donor's prompt took (`docs/SERVER.md`, Open gaps). The norm and router get a
+  a layer runs on its attention device instead for every row the prompt computes, whatever prefix the history already held, 1 counting as 2 since a one-token prompt never streams; rows a server forks from a donor keep the path they were computed on, the one the donor's prompt took for its prompt rows and the host for its generated tokens (`docs/SERVER.md`, Open gaps). The norm and router get a
   copy there at load, the experts are written into a per-device window
   (one buffer per projection, sized to the largest such layer) once per
   pass that needs them, and `ffn_split` runs a pass's consecutive entries
@@ -158,8 +158,8 @@ to a `backend::Backend`.
   - `fork(sequence, length)`: a second history holding the first `length`
     tokens, which must be whole blocks in every storage, sharing every block
     below `length` on every storage and allocating and copying nothing; the
-    server forks a donor at the blocks a prompt shares with it. A forked
-    sequence continues exactly as a fresh one fed the same tokens would.
+    server forks a donor at the blocks a prompt shares with it.
+    A forked sequence continues exactly as a fresh one fed the same tokens at the same extents would; rows another extent computed can differ from them by rounding (`docs/SERVER.md`, Open gaps).
   - `set_threads(n)` applies to every backend and `threads_available()` reports the largest count among them, the host's wherever it sits in a placement.
   - `n_tokens()`, `context_length()`. The thread getter reports the resolved backend count,
     allowing the CLI to restore automatic decode settings after prefill.

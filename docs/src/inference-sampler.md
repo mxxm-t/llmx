@@ -10,7 +10,7 @@ Its callers are `infer::generate` (`inference/generate.hpp`), which the CLI's `g
   The CLI's flags start from these defaults and read `--temp`, `--topk`, `--topp` and `--penalty` against these ranges, and the server's requests do the same for `temperature`, `top_k`, `top_p` and `penalty`, so the two take the same defaults and refuse the same values, except the `top_k` of -1 that the compatible routes take as 0.
   `ignore_eos`, off by default, is the CLI's `--ignore-eos` and a request's `ignore_eos`: a reply that ends only at its token limit or a stop text.
 - `GenParams`: `Sampling` plus the one `stop` text of the CLI's `generate` and `chat`, which is what `infer::generate` reads.
-  The server's `SampleParams` is `Sampling` plus its list of stop texts and `until_limit` (see [server](server.md)).
+  The server's `SampleParams` is `Sampling` plus its list of stop texts, `until_limit`, `logprobs` and `top_logprobs` (see [server](server.md)).
 - `sample(logits, temp, top_k, top_p, penalty, gen, rng, masked = -1) -> uint32_t`: temperature + top-k + top-p nucleus sampling with repetition penalty.
   Returns the chosen token id.
   A `masked` id of the row is passed over by every path whatever the penalty, so greedy never takes it, and a draw leaves it out before top-k, top-p and the softmax, so no rounding in the nucleus's sum can fall back on it; a row holding nothing else keeps it, and -1 or an id past the row masks nothing.

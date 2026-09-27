@@ -1332,7 +1332,7 @@ def plant(texts, path, before, add):
 
 
 def self_test(texts, found, listed):
-    """The planted faults: a dead function, a function only tests call, an unused value of an enum a template parameter shares a name with, a macro never used, an override nothing calls, an unreached shader, a flag whose value only the help prints, a flag parsed and dropped, an unreached Python function, an option only another module's namespace reads, an unbuilt test source a record names, and a stale list entry.
+    """The planted faults: a dead function, one after a function with a braced default argument, a function only tests call, an unused value of an enum a template parameter shares a name with, a macro never used, an override nothing calls, one declared over several lines and one with a braced default argument, an unreached shader, a flag whose value only the help prints, a flag parsed and dropped, an unreached Python function, an option only another module's namespace reads, an unbuilt test source a record names, and a stale list entry.
     The faults one check reports share a copy of the tree, so each check runs once."""
     # The planted flags go before the --ignore-eos branch, found by its comparison whatever the parser names its spelling.
     anchor = re.search(r'else if \(\w+ == "--ignore-eos"\)', texts[MAIN])
@@ -1340,7 +1340,9 @@ def self_test(texts, found, listed):
         raise AssertionError("dead-code self-test: main.cpp has no --ignore-eos branch to plant flags before")
     flag_line = anchor.group(0)
     names = plant(texts, "src/core/utf8.hpp", None, "\nnamespace utf8 {\ninline int planted_dead_function() { return 1; }\n"
-                  "inline int planted_probe() { return 2; }\n}\n#define PLANTED_MACRO 1\n")
+                  "inline int planted_probe() { return 2; }\nstruct PlantedArgs { int n = 0; };\n"
+                  "inline int planted_defaulted(PlantedArgs a = {}) { return a.n; }\ninline int planted_after_default() { return 4; }\n}\n"
+                  "#define PLANTED_MACRO 1\n")
     names = plant(plant(names, "tests/json.cpp", "int main(", "static int planted_use = utf8::planted_probe();\n"),
                   "src/core/json.hpp", "Null, Bool,", "PlantedKind, ")
     flags = plant(plant(texts, MAIN, flag_line, 'else if (a == "--planted-flag") exec.planted_knob = true;\n                '
@@ -1351,12 +1353,19 @@ def self_test(texts, found, listed):
     cases = [
         (name_findings, names, [
             ("a dead function", ("unused", "src/core/utf8.hpp", "planted_dead_function")),
+            ("a dead function after one with a braced default argument", ("unused", "src/core/utf8.hpp", "planted_after_default")),
             ("a function only a test calls", ("test-only", "src/core/utf8.hpp", "planted_probe")),
             ("an unused value of an enum a template parameter shares a name with", ("unused", "src/core/json.hpp", "T::PlantedKind")),
             ("a macro never used", ("macro", "src/core/utf8.hpp", "PLANTED_MACRO"))]),
-        (override_findings, plant(texts, "src/core/utf8.hpp", None, "\nnamespace utf8 {\nstruct PlantedBase { virtual int planted_virtual() = 0; };\n"
-                                  "struct PlantedImpl : PlantedBase { int planted_virtual() override { return 1; } };\n}\n"), [
-            ("an override nothing calls", ("override", "src/core/utf8.hpp", "PlantedImpl::planted_virtual"))]),
+        (override_findings, plant(texts, "src/core/utf8.hpp", None, "\nnamespace utf8 {\nstruct PlantedArg { int n = 0; };\n"
+                                  "struct PlantedBase {\n    virtual int planted_virtual() = 0;\n    virtual int planted_lines(int a,\n                              int b) = 0;\n"
+                                  "    virtual int planted_default(PlantedArg p = {}) = 0;\n};\n"
+                                  "struct PlantedImpl : PlantedBase {\n    int planted_virtual() override { return 1; }\n"
+                                  "    int planted_lines(int a,\n                      int b) override { return a + b; }\n"
+                                  "    int planted_default(PlantedArg p = {}) override { return p.n; }\n};\n}\n"), [
+            ("an override nothing calls", ("override", "src/core/utf8.hpp", "PlantedImpl::planted_virtual")),
+            ("an override declared over several lines", ("override", "src/core/utf8.hpp", "PlantedImpl::planted_lines")),
+            ("an override with a braced default argument", ("override", "src/core/utf8.hpp", "PlantedImpl::planted_default"))]),
         (shader_findings, dict(texts, **{SHADERS + "planted.comp": "#version 450\nvoid main() {}\n"}), [
             ("an unreached shader", ("shader", SHADERS + "planted.comp", "not built"))]),
         (flag_findings, flags, [

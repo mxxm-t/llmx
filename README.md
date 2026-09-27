@@ -84,7 +84,7 @@ In a build with the Vulkan backend, `--device vulkan:N` runs on Vulkan device N,
 `--device cpu` is the default, and every command that runs a model takes `--device`, `serve` included.
 The first line above runs a synthetic benchmark as a check that the device and the build work.
 A list such as `--device vulkan:0,vulkan:1` splits the model by layers over those devices to fit their free memory, the CPU can be one of them, and `--verbose` prints what each device holds.
-For a mixture-of-experts model larger than the GPU, `--n-cpu-moe N` runs the experts of the first N layers on the CPU from host memory, and `--cpu-moe` runs all of them there.
+For a mixture-of-experts model larger than the GPU, `--n-cpu-moe N` runs the experts of the first N routed layers on the CPU from host memory, and `--cpu-moe` runs all of them there.
 With `--n-cpu-moe 12`, Qwen3-30B-A3B Q4_K_M fits a 16 GB card.
 The kernels are tuned for the 64-wide subgroups of the Radeon VII and MI50, and other GPUs are untested.
 [USAGE](docs/USAGE.md) covers devices, splits and experts on the CPU, and [VULKAN](docs/VULKAN.md) describes the backend's design.

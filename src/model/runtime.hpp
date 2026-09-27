@@ -469,11 +469,7 @@ public:
         Pass& p = ctx.passes[slot];
         if (p.in_flight) throw std::logic_error("inference: a pass slot already in flight");
         begin(ctx, p, entries, n_entries, logits_base);
-        for (size_t e = 0; e < n_entries; ++e) {
-            if (!entries[e].seq->in_flight_) { entries[e].seq->in_flight_ = true; continue; }
-            while (e--) entries[e].seq->in_flight_ = false;
-            throw std::logic_error("inference: a sequence listed twice in a pass");
-        }
+        for (size_t e = 0; e < n_entries; ++e) entries[e].seq->in_flight_ = true;
         p.handoff = slot;
         p.in_flight = true;
     }
@@ -811,12 +807,19 @@ private:
             rows += en.n;
             want += en.want_logits ? (en.every_logits ? en.n : 1) : 0;
         }
-        // Every entry holds a state slot from its first pass on, taken before any work, so a pass never runs short of one.
-        for (size_t e = 0; state_layers_ && e < n_entries; ++e) entries[e].seq->state_.take(slots_);
-        if (!ctx.slots)
-            ensure(ctx, rows, want, handoffs(1));
-        else if (rows > ctx.pass_rows || want > ctx.logit_rows || logits_base > ctx.logit_rows - want)
+        // None is in flight, so the first entry found marked is listed twice; the marks come off again here.
+        size_t marked = 0;
+        for (; marked < n_entries && !entries[marked].seq->in_flight_; ++marked) entries[marked].seq->in_flight_ = true;
+        for (size_t e = 0; e < marked; ++e) entries[e].seq->in_flight_ = false;
+        if (marked < n_entries) throw std::logic_error("inference: a sequence listed twice in a pass");
+        if (ctx.slots && (rows > ctx.pass_rows || want > ctx.logit_rows || logits_base > ctx.logit_rows - want))
             throw std::logic_error("inference: a pass beyond the rows or logits rows reserve_passes reserved");
+        // Every entry holds a state slot from its first pass on, so a pass never runs short of one; a pass that cannot take them all, or is refused, takes none.
+        size_t fresh = 0;
+        for (size_t e = 0; state_layers_ && e < n_entries; ++e) fresh += !entries[e].seq->state_.held();
+        if (fresh > slots_.available()) throw std::runtime_error("inference: every recurrent state slot is held");
+        if (!ctx.slots) ensure(ctx, rows, want, handoffs(1));
+        for (size_t e = 0; fresh && e < n_entries; ++e) entries[e].seq->state_.take(slots_);
         p.entries.assign(entries, entries + n_entries);
         p.start.resize(n_entries);
         p.rows = rows;
@@ -862,7 +865,6 @@ private:
     }
 
     // Stage s of a pass: its storage's blocks reserved, the residual embedded or received from the stage before, its layers, then the head after the last stage or the residual sent on, its submissions, and the commit of its length and its storage.
-    // A sequence listed twice fails at the first reservation, since its second finds the first still pending.
     void run_stage(ExecContext& ctx, Pass& p, size_t s) {
         const Stage& st = stages_[s];
         Device& home = *devices_[st.device];

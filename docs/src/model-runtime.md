@@ -49,7 +49,7 @@ delegated to a `backend::Backend`.
   `Model::make_sequence`: a block table per KV storage, the committed length
   of each stage, which is its KV sequence's where its layers keep KV and a
   count of its own otherwise, the state slot it holds from its first pass on in a model
-  whose layers keep a state, whether a failed pass lost that state, and per
+  whose layers keep a state, taken once the pass is accepted, so a refused pass takes none, whether a failed pass lost that state, and per
   device the ticket of the last pass that touched it, which a reset waits
   on. Movable, not copyable. The server keeps one
   per request; the CLI's model keeps one. `length()` is the first stage's
@@ -125,8 +125,8 @@ delegated to a `backend::Backend`.
     blocks of the storage it writes, submits the devices it recorded on and
     commits. It is one transaction: a failure anywhere drains every device
     and returns every history to where the pass found it, stages already
-    committed included. A sequence listed twice or in flight is refused, and
-    so is a context reserved for passes.
+    committed included. A sequence listed twice or in flight is refused
+    before any work, and so is a context reserved for passes.
   - The pass API, for a scheduler that keeps passes of different sequences
     in flight so that every stage of a pipelined split works on one while
     the host samples another (`docs/MULTI-DEVICE.md`). `stage_count()` and
@@ -147,7 +147,9 @@ delegated to a `backend::Backend`.
     `begin_pass(ctx, slot, entries, n, logits_base)` plans a pass in a free
     slot, copying its tokens, and puts its sequences in flight; a sequence
     in flight or listed twice, a slot in use or beyond the reservation, and
-    more rows or logits rows than reserved are refused before any work.
+    more rows or logits rows than reserved are refused before any work, and
+    so is a pass whose sequences without a state slot outnumber the free
+    ones, which takes none.
     `run_pass_stage(ctx, slot, s)` records the pass's next stage, which must
     be `s`; a failure aborts the pass before it is rethrown, and the other
     passes go on. `pass_logits(ctx, slot, i)` waits on the pass's own head

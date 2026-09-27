@@ -210,6 +210,7 @@ public:
         free_.push_back(s);
         --held_;
     }
+    size_t available() const { return free_.size(); }
 
 private:
     std::vector<size_t> free_;   // taken from the back, slot 0 first
@@ -235,6 +236,7 @@ public:
     ~StateSlot() { release(); }
 
     size_t slot() const { return slot_; }
+    bool held() const { return pool_ != nullptr; }
     void take(SlotPool& pool) {
         if (pool_) return;
         slot_ = pool.acquire();

@@ -39,12 +39,13 @@ state), whose slots live in a `backend::StateStorage`.
 
 - `SlotPool` hands out the state slots of a model, one per sequence that
   holds a state and the same slot in every state storage: `acquire` throws
-  when every slot is held, `release` returns one, and `configure` sets the
-  count in place and is refused while any is held. A slot holds nothing a
+  when every slot is held, `release` returns one, `available` counts the
+  free ones, and `configure` sets the count in place and is refused while
+  any is held. A slot holds nothing a
   sequence must clear, since a history of length 0 reads a zero state
   whatever its slot holds. `StateSlot` is a sequence's hold on one slot,
   taken by `take` and returned by `release`, when it is moved over or when
-  it is destroyed; neither class is copyable and the pool is not movable.
+  it is destroyed, and `held` says whether it holds one; neither class is copyable and the pool is not movable.
 
 `Model` owns one pool per device that runs attention, one slot pool when a
 layer keeps a state, and one default sequence; a `Sequence` holds a table per storage and `Model::fork` forks

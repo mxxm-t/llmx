@@ -75,7 +75,7 @@ public:
                 t.row = std::vector<float>();
                 return Next::id;
             }
-            fill(t, t.row, params_.top_logprobs);
+            fill(t, t.row.data(), t.row.size(), params_.top_logprobs);
             std::lock_guard<std::mutex> lk(m_);
             spare_.push_back(std::move(t.row));
             t.row = std::vector<float>();
@@ -120,11 +120,11 @@ public:
 
 private:
     friend class Scheduler;
-    // A token's log-probability and the `top` most likely tokens at its position, from the row it was sampled from.
-    static void fill(Token& t, const std::vector<float>& row, size_t top) {
-        const double lse = infer::log_sum_exp(row.data(), row.size());
-        t.logprob = infer::logprob(row.data(), lse, t.id);
-        t.top = infer::top_logprobs(row.data(), row.size(), lse, top);
+    // A token's log-probability and the `top` most likely tokens at its position, from the row of n logits it was sampled from.
+    static void fill(Token& t, const float* row, size_t n, size_t top) {
+        const double lse = infer::log_sum_exp(row, n);
+        t.logprob = infer::logprob(row, lse, t.id);
+        t.top = infer::top_logprobs(row, n, lse, top);
     }
     // A token onto the channel; when `spare` is given, a row next has finished with comes back through it.
     void push(Token t, std::vector<float>* spare = nullptr) {
@@ -170,7 +170,7 @@ private:
     std::vector<uint32_t> gen_;
     std::string decoded_;
     infer::RNG rng_;
-    std::vector<float> logits_;
+    std::vector<float> logits_;    // with logprobs asked, the copy of the row its next token goes to the channel with
     uint64_t admission_ = 0;       // order of first admission, by which room goes; set once
     uint64_t donor_ = 0;           // the donor its last pause left, which it takes back whole on resuming unless something evicted it
     uint64_t landed_ = 0;          // the formation order of the last pass it left flight from
@@ -549,7 +549,7 @@ private:
         timing_ = round_;
     }
 
-    // The pass in slot k after its last stage: each wanting row sampled with its request's own state, in entry order, then the pass ended and the slot given back.
+    // The pass in slot k after its last stage: each wanting row sampled in place with its request's own state, in entry order, then the pass ended and the slot given back.
     // A request cancelled in flight is not sampled: its history stays what the pass computed, which its donor keeps.
     void retire(std::vector<std::shared_ptr<Request>>& active, size_t k) {
         Slot& f = slots_[k];
@@ -578,8 +578,7 @@ private:
                 const Clock::time_point read = timed_ ? Clock::now() : Clock::time_point{};
                 const float* row = model_.pass_logits(ctx_, k, w);
                 if (timed_) waited += ms_since(read);
-                r.logits_.assign(row, row + ctx_.width);
-                step(r);
+                step(r, row);
             }
             if (timed_) {
                 round_.logits_wait_ms += waited;
@@ -880,9 +879,9 @@ private:
         donors_.erase(donors_.begin() + (std::ptrdiff_t)i);
     }
 
-    // One sampled token for a request whose logits are in: pushed to its channel unless it ends the request; a request that ends is finished after the pass, once every entry's logits have been read.
-    void step(Request& r) {
-        const uint32_t id = infer::sample(r.logits_, r.params_, tok_.eos_id, r.gen_, r.rng_);
+    // One token for a request, drawn from its row of the pass's mapped logits in place, and pushed to its channel unless it ends the request; a request that ends is finished after the pass, once every entry's logits have been read.
+    void step(Request& r, const float* row) {
+        const uint32_t id = infer::sample(row, ctx_.width, r.params_, tok_.eos_id, r.gen_, r.rng_);
         if (tok_.is_eos(id)) { r.finish_pending_ = "eos"; return; }
         r.gen_.push_back(id);
         r.last_id_ = id;
@@ -891,13 +890,14 @@ private:
         if (!r.params_.logprobs) {
             r.push(std::move(t));
         } else if (r.rows_waiting() < Request::kRowsWaiting) {
-            // The row the id was sampled from goes with it, and a row the reader has finished with comes back for the next pass to fill.
+            // A copy of the row the id was sampled from goes with it, the one copy a row gets, and a row the reader has finished with comes back for the next pass to fill.
+            r.logits_.assign(row, row + ctx_.width);
             t.row = std::move(r.logits_);
             r.logits_.clear();
             r.push(std::move(t), &r.logits_);
         } else {
-            // The reader has fallen behind: the values go in the row's place, the same values the reader would compute, and the row stays for the next pass.
-            Request::fill(t, r.logits_, r.params_.top_logprobs);
+            // The reader has fallen behind: the values go in the row's place, the same values the reader would compute, taken from the row in place.
+            Request::fill(t, row, ctx_.width, r.params_.top_logprobs);
             r.push(std::move(t));
         }
         if (!r.params_.stop.empty()) {

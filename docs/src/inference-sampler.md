@@ -11,8 +11,9 @@ Its callers are `infer::generate` (`inference/generate.hpp`), which the CLI's `g
   `ignore_eos`, off by default, is the CLI's `--ignore-eos` and a request's `ignore_eos`: a reply that ends only at its token limit or a stop text.
 - `GenParams`: `Sampling` plus the one `stop` text of the CLI's `generate` and `chat`, which is what `infer::generate` reads.
   The server's `SampleParams` is `Sampling` plus its list of stop texts, `until_limit`, `logprobs` and `top_logprobs` (see [server](server.md)).
-- `sample(logits, temp, top_k, top_p, penalty, gen, rng, masked = -1) -> uint32_t`: temperature + top-k + top-p nucleus sampling with repetition penalty.
+- `sample(logits, n, temp, top_k, top_p, penalty, gen, rng, masked = -1) -> uint32_t`: temperature + top-k + top-p nucleus sampling with repetition penalty, over the `n` logits of one row.
   Returns the chosen token id.
+  It reads the row in place and never writes it, so the server draws from a pass's mapped logits without copying them.
   A `masked` id of the row is passed over by every path whatever the penalty, so greedy never takes it, and a draw leaves it out before top-k, top-p and the softmax, so no rounding in the nucleus's sum can fall back on it; a row holding nothing else keeps it, and -1 or an id past the row masks nothing.
   The mask writes nothing to the caller's logits.
   The repetition penalty is applied into a copy of the logits, made only when a token is penalized, and a token seen several times is penalized once.
@@ -29,5 +30,5 @@ Its callers are `infer::generate` (`inference/generate.hpp`), which the CLI's `g
   A nucleus leaves the heap at 512 because on rows whose nucleus runs to tens of thousands of tokens a heap pass of 4096 cost more than the selections it saves.
   With every token kept each weight is held by id as the sum takes it, in a buffer that is not zeroed, so the nucleus and the draw take no exp again; within a top-k the nucleus takes its tokens' weights again, at most k of them.
   With top-k 0 and top-p 1 nothing is ranked: one pass finds the best score, one sums the weights and the draw walks the ids in order.
-- `sample(logits, s, end, gen, rng) -> uint32_t`: the next token of a reply under the settings `s`, where `end` is the id that ends a reply (`bpe::Tokenizer::eos_id`, -1 for none), masked when `s.ignore_eos` is set.
+- `sample(logits, n, s, end, gen, rng) -> uint32_t`: the next token of a reply under the settings `s`, where `end` is the id that ends a reply (`bpe::Tokenizer::eos_id`, -1 for none), masked when `s.ignore_eos` is set.
   `infer::generate` and the scheduler both sample through it, so the rule is written once and the CLI and the server draw the same tokens for the same settings.

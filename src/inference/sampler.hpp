@@ -188,26 +188,25 @@ private:
 
 } // namespace detail
 
-// Temperature + top-k + top-p nucleus sampling with repetition penalty.
+// Temperature + top-k + top-p nucleus sampling with repetition penalty, over the n logits of one row, which it reads in place and never writes.
 // `penalty` >= 1: divide the score of each already-generated token by penalty to discourage repeats.
 // `masked`, an id of the row or -1 for none, is passed over whatever the penalty: greedy never takes it, and a draw leaves it out before top-k, top-p and the softmax, so it does not exist for the draw.
 // Returns the chosen token id.
 // Tokens rank by score, and a tie by the lower id, so no sort's handling of equal scores reaches the result.
 // Each sum of weights is taken in id order, or best first for the nucleus, so none depends on the order a selection leaves its candidates in.
-inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
+inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
                        float top_p, float penalty, const std::vector<uint32_t>& gen,
                        RNG& rng, int64_t masked = -1) {
-    const size_t n = logits.size();
     // The id every path passes over, n for none; a row holding nothing else keeps the masked id, since a draw needs a token.
     const size_t skip = (masked >= 0 && (uint64_t)masked < n && n > 1) ? (size_t)masked : n;
     const size_t m = skip < n ? n - 1 : n;  // the ids a draw can give
 
     // Repetition penalty, in a copy made only when a token is penalized.
     // A seen token's score is set from its logit, so a token seen several times is penalized once.
-    const float* score = logits.data();
+    const float* score = logits;
     std::vector<float> penalized;
     if (penalty > 0.0f && penalty != 1.0f && !gen.empty()) {
-        penalized = logits;
+        penalized.assign(logits, logits + n);
         for (uint32_t id : gen) {
             if (id >= n) continue;
             const float v = logits[id];
@@ -303,9 +302,9 @@ inline uint32_t sample(const std::vector<float>& logits, float temp, int top_k,
 
 // The next token of a reply under `s`, drawn from the logits after the tokens `gen` it holds so far.
 // `end` is the id that ends a reply (bpe::Tokenizer::eos_id, -1 for none); with s.ignore_eos it is masked, so the reply runs on to its token limit.
-inline uint32_t sample(const std::vector<float>& logits, const Sampling& s, int32_t end,
+inline uint32_t sample(const float* logits, size_t n, const Sampling& s, int32_t end,
                        const std::vector<uint32_t>& gen, RNG& rng) {
-    return sample(logits, s.temp, s.top_k, s.top_p, s.penalty, gen, rng, s.ignore_eos ? end : -1);
+    return sample(logits, n, s.temp, s.top_k, s.top_p, s.penalty, gen, rng, s.ignore_eos ? end : -1);
 }
 
 } // namespace infer

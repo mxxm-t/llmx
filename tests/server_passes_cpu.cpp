@@ -1,7 +1,7 @@
 // The scheduler with passes in flight (docs/SERVER.md, the round) over the synthetic Q8_0 model on one CPU and split over two and three, at P = 1, S, S + 1 and 2S: every request's ids and log-probabilities equal its run alone on one CPU with one pass in flight.
 // The load mixes prompts longer than the ubatch with short ones, capped and uncapped requests on a pool that pauses them, and greedy and seeded sampling with top_logprobs 5.
 // A request cancelled from inside a stage ends cancelled with its reply so far, a stage that fails once ends only its own pass's requests with the error, and a stop from inside a stage ends every request cancelled, each leaving every block free.
-// The passes of a load that never pauses are replayed in their order through Model::forward on a fresh model of the same placement, every logits row bit for bit.
+// The passes of a load that never pauses are replayed in their order through Model::forward on a fresh model of the same placement, every logits row bit for bit, and without logprobs, drawn in place from the passes' logits, it gives the same ids.
 #include <cstring>
 #include <iostream>
 #include <map>
@@ -141,6 +141,45 @@ void replayed(const Make& one, const std::function<Make(size_t)>& split, const b
         }
         for (auto& s : seqs) fresh->reset(s);
         require(rows > 0, what + ": no logits rows replayed");
+    }
+}
+
+// The steady load at every run without logprobs, so each pass's rows are drawn in place from its logits: every id its id alone, where the row is copied for its values, and no values.
+void in_place(const Make& one, const std::function<Make(size_t)>& split, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const size_t pool = 32 * kBlock;
+    const std::vector<Req> reqs = steady_load(vocab);
+    const std::vector<Reply> ref = alone(one, tok, pool, reqs);
+    for (const Run& run : runs()) {
+        const std::string what = "the steady load without logprobs on " + name(run);
+        auto model = split(run.stages)(pool, kUbatch);
+        std::vector<Reply> got;
+        {
+            server::Scheduler sched(*model, tok, kSeqs, 64, run.passes);
+            std::vector<std::shared_ptr<server::Request>> handles;
+            for (const Req& r : reqs) {
+                server::SampleParams p = params_of(r);
+                p.logprobs = false;
+                p.top_logprobs = 0;
+                handles.push_back(sched.submit(r.prompt, p));
+            }
+            std::thread runner([&] { sched.run(); });
+            try {
+                for (auto& h : handles) got.push_back(drain(*h));
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+        }
+        for (size_t i = 0; i < reqs.size(); ++i) {
+            require(got[i].size() == ref[i].size(), what + ", request " + std::to_string(i) + ": " + std::to_string(got[i].size()) + " tokens against " +
+                    std::to_string(ref[i].size()) + " alone");
+            for (size_t t = 0; t < got[i].size(); ++t)
+                require(got[i][t].id == ref[i][t].id && got[i][t].top.empty() && got[i][t].logprob == 0.0f,
+                        what + ", request " + std::to_string(i) + ": token " + std::to_string(t) + " differs from alone or carries values");
+        }
     }
 }
 
@@ -291,6 +330,7 @@ int main() {
         }
         paused(one, split, tok, vocab);
         replayed(one, split, tok, vocab);
+        in_place(one, split, tok, vocab);
         cancelled(weights, one, tok, vocab);
         failed(weights, one, tok, vocab);
         stopped(weights, tok, vocab);

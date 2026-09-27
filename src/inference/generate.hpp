@@ -23,7 +23,7 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
     std::vector<uint32_t> gen;
     std::string decoded;
     for (int t = 0; t < gp.max_tokens; t++) {
-        uint32_t id = infer::sample(logits, gp, tok.eos_id, gen, rng);
+        uint32_t id = infer::sample(logits.data(), logits.size(), gp, tok.eos_id, gen, rng);
         if (tok.is_eos(id)) break;
         gen.push_back(id);
         const std::string text = tok.decode({ id });

@@ -124,12 +124,13 @@ round:
            at most a round; a stage on the host, which computes as it is
            recorded, waits for the end of the round
   retire:  every pass whose last stage an earlier round recorded, oldest
-           first: per wanting row, the request's own sampler state;
-           push the id to its channel, with its logits row when the
-           request asked for logprobs (pass_logits waits on that pass's
-           own ticket); end_pass releases the sequences from flight;
-           return the pass's logits rows; stages already submitted and
-           committed their histories; a request cancelled in flight is not
+           first: per wanting row, the request's own sampler state,
+           reading the row in place; push the id to its channel, with a
+           copy of its logits row when the request asked for logprobs
+           (pass_logits waits on that pass's own ticket); end_pass
+           releases the sequences from flight; return the pass's logits
+           rows; stages already submitted and committed their histories;
+           a request cancelled in flight is not
            sampled; finish on EOS, a stop string or max_tokens, and keep
            the history as a donor when it holds a full block, else release
   cancel:  the active requests whose client left and that no pass in
@@ -190,6 +191,7 @@ of `ubatch`.
 
 Layer split phase 3's step 0 (`docs/STATUS.md`) timed the host time between a pass's logits and the next pass on Qwen3-8B-Q8_0 on one MI50: 0.26 to 0.71 ms a row greedy and at the defaults at 1 to 32 sequences, nearly all of it sampling and about half of a greedy row the copy out of the mapped logits, which is 7 to 14 percent of a greedy pass at 8 to 32 sequences; the 25 microseconds an earlier timing build recorded did not hold.
 For the same requests a second pass in flight would not hide that time, because the next pass's tokens come from this one, so one device keeps one pass in flight; on a split the passes in flight carry different requests, and one is sampled while the stages run the others.
+Layer split phase 3's step 4 takes the copy out: each row is read in place from the pass's mapped logits and copied only for a request that asks for log-probabilities.
 The host also spends the recording of each pass, 0.7 milliseconds at one sequence and 1.7 at eight on Qwen3-0.6B-Q8_0 and 2.6 to 5.2 at one to 32 on the 8B, which no second pass of the same requests hides; only a recorded pass replayed with new inputs would, and that is a backend change noted in STATUS, not a scheduler one.
 
 `serve --timing` times the rounds for `/v1/health` over devices made to time their work, each dispatch between two timestamps (Protocol below): the round's period and the thread's time in it, recording, relaying (the uploads that carry a residual into its next stage), sampling and forming passes, apart from where it was held, on the source's ticket in `receive`, on staging, on a free command slot and on the logits; each stage's idle share; and the device-bound rate, the rows the passes carried over the busiest stage's device time.
@@ -200,6 +202,7 @@ The timestamps and those readings slow serving, so throughput is read from a ser
 
 Sampling is per request, on the host, from the logits row the pass returns for that entry: the existing `inference/sampler.hpp` with the request's own temperature, top-k, top-p, penalty and seeded RNG, so a request with `seed` set is reproducible regardless of what it was batched with.
 The sampler ranks tokens by score with a tie going to the lower id and takes no sum in an order its selection leaves, so a seeded request gives the tokens `generate` gives with the same settings and seed.
+It reads the row in place in the pass's mapped logits, and the scheduler copies a row only for a request that asks for log-probabilities (below).
 A `top_k` of 0, which is what the compatible routes' -1 becomes, ranks only the best tokens, 64 at first and more as the nucleus `top_p` keeps needs them, and with `top_p` 1 ranks none.
 A field the request leaves out takes the default of `infer::Sampling`, the one the CLI's flag starts from, except `max_tokens` on the compatible routes, where leaving it out means no cap; a value outside the range `infer::Sampling` gives the field is refused, as the CLI refuses it, but for the `top_k` of -1 that the compatible routes take as 0.
 Greedy requests give the text the CLI gives for the same prompt, which is the first correctness gate below.
@@ -214,7 +217,7 @@ Each value is the log-softmax of the logits row the sampler reads for that token
 So a token's value does not depend on how it was sampled, and a greedy token's is the largest at its position unless a repetition penalty moved it.
 For a request that asks, the scheduler sends that row with the id on the request's token channel (`Request::Token`), and `Request::next` computes the values in the thread that reads the channel, with `inference/logprobs.hpp`, the functions perplexity scores with, in double and rounded once to float.
 A row costs a pass of `exp` over the vocabulary, about a millisecond for Qwen3's 151936 tokens, so no pass of the batch waits for it, and the native tests read the values from the channel where the routes do.
-Once 8 tokens wait on a channel with their rows (`Request::kRowsWaiting`), as when a client stops reading its stream, the scheduler computes the next tokens' values itself and sends them in the row's place: the same values, and a request then holds at most ten rows however far its reader falls behind.
+Once 8 tokens wait on a channel with their rows (`Request::kRowsWaiting`), as when a client stops reading its stream, the scheduler computes the next tokens' values itself from the rows in place and sends them in the row's place: the same values, and a request then holds at most ten rows however far its reader falls behind.
 A row the reader has finished with goes back to the request for a later pass to fill, and a cancelled request's rows are dropped unread.
 Every value is written as the shortest decimal that reads back as that float.
 In the native shape a value JSON has no number for, minus infinity for a token given no probability, is `null`; the compatible shapes type the field as a number, so they write -9999 for any value below it, minus infinity included, and for a NaN.
@@ -336,3 +339,4 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 | 10 | Room by first admission: `make_room` as the one owner of who gives up blocks for whom, growth that stalls rather than pausing itself, paused requests apart from the queue (**done**) | A property test of `make_room`, now part of `server-passes`: random admissions, growth, pauses, cancellations and ends over two pools of 64- and 128-token blocks, the ledger adding up, the oldest request never refused room younger requests or donors hold, no empty pass while requests are active, every request ending; `server-resume` unchanged in its values, with its stall, waiting and fork-by-class cases on the scheduler itself |
 | 11 | The rounds over the model's pass API with one pass in flight, and the policy core as free functions: the pools' blocks, the growth rule, `make_room`, the round's stages and the logits rows (layer split phase 3, step 2; **merged**) | `server-passes`: the policy core by hand, then the scheduler's round over it in random schedules of a simulated executor over 1 to 4 stages and 1 to 2S pass slots, with arrivals, growth, pauses, cancellations, failures and stops (`docs/STATUS.md`, layer split phase 3); `server-resume`: a request cancelled and a stop from inside a pass's stage on one to three CPU stages; every reply byte-identical to the step before, alone, together and against the CLI (`server`, `server-resume`, `tools/server_mix_check.py`) |
 | 12 | A pass in flight per stage on a pipelined split (`--passes`), the decode share, the host's stages after the devices', a cancelled request in flight not sampled and kept, a failure ending its own pass alone, `--timing` and the health fields, and a 16-slot command ring (layer split phase 3, step 3) | `server-passes` over the new round; `server-passes-cpu`: the scheduler on one to three CPUs at P = 1, S, S + 1 and 2S, every reply its reply alone, pauses and a plan waiting on a request in flight, a cancel, a failure and a stop from inside a stage, and the passes replayed through `Model::forward`; `llmx-split-check`'s passes in flight; `tools/server_mix_check.py --passes --logprobs` (`docs/STATUS.md`, layer split phase 3) |
+| 13 | A retiring pass's rows read in place from its mapped logits, a row copied only for log-probabilities (layer split phase 3, step 4) | `server-passes-cpu`: the steady load without log-probabilities, drawn in place, gives every id it gives alone; every reply byte-identical to the step before, greedy and seeded, alone, together and against the CLI (`server`, `server-resume`, `logprobs`, `tools/server_mix_check.py --ids`, with `--sampled` for the seeded replies; `docs/STATUS.md`, layer split phase 3) |

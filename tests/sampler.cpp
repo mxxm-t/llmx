@@ -30,7 +30,7 @@ constexpr int draws = 10000;
 uint32_t greedy(const std::vector<float>& logits, float penalty = 1.0f,
                 const std::vector<uint32_t>& gen = no_history, int64_t masked = -1) {
     infer::RNG rng;
-    return infer::sample(logits, 0.0f, 40, 0.95f, penalty, gen, rng, masked);
+    return infer::sample(logits.data(), logits.size(), 0.0f, 40, 0.95f, penalty, gen, rng, masked);
 }
 
 std::vector<int> counts(const std::vector<float>& logits, float temp, int top_k, float top_p,
@@ -39,7 +39,7 @@ std::vector<int> counts(const std::vector<float>& logits, float temp, int top_k,
     rng.seed(seed);
     std::vector<int> n(logits.size(), 0);
     for (int i = 0; i < draws; i++) {
-        const uint32_t id = infer::sample(logits, temp, top_k, top_p, 1.0f, no_history, rng, masked);
+        const uint32_t id = infer::sample(logits.data(), logits.size(), temp, top_k, top_p, 1.0f, no_history, rng, masked);
         if (id >= logits.size())
             throw std::runtime_error("sampled id " + std::to_string(id) + " is out of range");
         n[id]++;
@@ -103,7 +103,8 @@ void penalty() {
     require(greedy({3.0f, 1.6f, 0.0f}, 2.0f, no_history) == 0, "an empty history penalized a token");
 
     infer::RNG rng;
-    require(infer::sample({3.0f, 1.6f, 0.0f}, 1.0f, 1, 1.0f, 2.0f, seen, rng) == 1,
+    const std::vector<float> row = {3.0f, 1.6f, 0.0f};
+    require(infer::sample(row.data(), row.size(), 1.0f, 1, 1.0f, 2.0f, seen, rng) == 1,
             "the sampling path ranked the unpenalized score");
 }
 
@@ -149,7 +150,7 @@ std::vector<uint32_t> sequence(infer::RNG rng) {
     const std::vector<float> logits = {1.0f, 0.0f, 2.0f, 0.5f, -0.5f};
     std::vector<uint32_t> ids;
     for (int i = 0; i < 1000; i++)
-        ids.push_back(infer::sample(logits, 1.0f, 0, 1.0f, 1.0f, no_history, rng));
+        ids.push_back(infer::sample(logits.data(), logits.size(), 1.0f, 0, 1.0f, 1.0f, no_history, rng));
     return ids;
 }
 
@@ -202,10 +203,10 @@ void masked() {
     infer::Sampling s;
     s.temp = 0.0f;
     infer::RNG rng;
-    require(infer::sample(row, s, 1, no_history, rng) == 1, "the end id was masked without ignore_eos");
+    require(infer::sample(row.data(), row.size(), s, 1, no_history, rng) == 1, "the end id was masked without ignore_eos");
     s.ignore_eos = true;
-    require(infer::sample(row, s, 1, no_history, rng) == 3, "ignore_eos drew the end id");
-    require(infer::sample(row, s, -1, no_history, rng) == 1, "ignore_eos masked a token of a model without an end id");
+    require(infer::sample(row.data(), row.size(), s, 1, no_history, rng) == 3, "ignore_eos drew the end id");
+    require(infer::sample(row.data(), row.size(), s, -1, no_history, rng) == 1, "ignore_eos masked a token of a model without an end id");
 }
 
 // infer::sample as its definition reads, slowly: every token but a masked one ranked by a full sort on score and then id, and the kept tokens' softmax summed in id order.
@@ -278,7 +279,7 @@ void agrees(const std::vector<float>& logits, float temp, int top_k, float top_p
     infer::RNG fast = seeded(seed), slow = seeded(seed);
     std::vector<uint32_t> gen;
     for (int i = 0; i < steps; i++) {
-        const uint32_t got = infer::sample(logits, temp, top_k, top_p, penalty, gen, fast, masked);
+        const uint32_t got = infer::sample(logits.data(), logits.size(), temp, top_k, top_p, penalty, gen, fast, masked);
         const uint32_t want = reference(logits, temp, top_k, top_p, penalty, gen, slow, masked);
         if (got != want || fast.s != slow.s) {
             char buf[256];

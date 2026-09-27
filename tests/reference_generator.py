@@ -304,15 +304,11 @@ class ReferenceGenerator(unittest.TestCase):
 
     def test_committed_qwen35_goldens_are_the_generators(self):
         # Each model's goldens record the generator's checkpoint, files, prompts, conversations, template and excerpts, and the consumer pins every one of them.
-        # A model whose files are all checked by hand may have none yet, and a model with a hosted file has all of them.
-        import baseline
         import baseline_qwen35
         pinned = set()
         for spec in generator.QWEN35_MODELS.values():
             directory = Path(generator.OUT_DIR) / spec["directory"]
             docs = {path.name: json.loads(path.read_text(encoding="utf-8")) for path in directory.glob("*.json")}
-            if not docs and not any(baseline.pinned_fixture(file)["hosted"] for file in spec["gguf_files"]):
-                continue
             self.assertEqual(sorted(docs), sorted(["baseline_logits.json", "baseline_chat.json"] + list(baseline_qwen35.PPL_GOLDENS.values())))
             pinned.update(spec["directory"] + "/" + name for name in docs)
             for name, doc in docs.items():

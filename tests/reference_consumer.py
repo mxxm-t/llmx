@@ -237,6 +237,7 @@ class Qwen35Consumer(unittest.TestCase):
 
     def test_goldens_are_pinned_and_found_by_file(self):
         self.assertEqual(baseline_qwen35.goldens_for("Qwen3.5-0.8B-Q4_K_M.gguf")[0], "qwen35-0.8b")
+        self.assertEqual(baseline_qwen35.goldens_for("Qwen3.5-4B-Q4_K_M.gguf")[0], "qwen35-4b")
         with self.assertRaisesRegex(ValueError, "no qwen35 goldens"):
             baseline_qwen35.goldens_for("Qwen3-0.6B-Q8_0.gguf")
         with tempfile.TemporaryDirectory() as directory:

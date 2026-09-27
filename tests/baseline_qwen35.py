@@ -29,6 +29,10 @@ GOLDEN_SHA256 = {
     "qwen35-0.8b/baseline_chat.json": "9d0c6903633934efcc260ae38de4185f99c10824801957b11efa4fbd6acba3b1",
     "qwen35-0.8b/baseline_perplexity.json": "42c5ef92ec3da19b8ef67b81aa5cfafd55b7c9a9413a76c4e65df9a57d8e98f4",
     "qwen35-0.8b/baseline_perplexity_4096.json": "6c8bd8601709199c5ddde46d637ece9242efe03222a403a808ab0dca0a6c789a",
+    "qwen35-4b/baseline_logits.json": "2a2fbb27a70a6344835e751432bcc5a47aae73e542cb1e11562de09a4ef7d361",
+    "qwen35-4b/baseline_chat.json": "0fc52ab64ddb855c00bd441a702d91d7fb2c40bcafa6320636baf21740f5bab8",
+    "qwen35-4b/baseline_perplexity.json": "bea1ad500f60333c546c328523efb0d9edf24deb7d8f99decb1b6e67e3359cbb",
+    "qwen35-4b/baseline_perplexity_4096.json": "e19d2510d6acccb10fb292c530899e47843d7caff97915e1a93cb9d544af01e4",
 }
 
 # Each file's bounds against its model's goldens, set from llmx's first measurement on it; a file without them is measured and fails.

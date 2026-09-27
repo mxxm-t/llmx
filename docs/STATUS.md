@@ -4,6 +4,14 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Vulkan finite activation range (2026-09-27, branch fix/vulkan-activation-range, in progress)
+
+- **Goal:** preserve finite activation blocks across the device's 8-bit and 16-bit quantization paths without changing ordinary model outputs.
+- **Done:** isolated main `dbafdec` producer probes show 46 of 285 blocks failing for the 16-bit twin and 35 for the 8-bit twin. Each block has 32 values; peaks span all f32 powers, zero, the largest finite f32 and reciprocal-overflow boundaries. Unit-scale controls pass and output guards hold. An MXFP4 prototype consuming that producer gives 0 instead of 1 for both `2^127 * 2^-127` and `2^-120 * 2^120`, while `1 * 1` passes. These are independent of the format decoder and are not whole-model failures.
+- **Failing regression:** `backend-vulkan` sends the same 285 activation blocks through a raw Q8_0 identity matrix with public matmul. It compares against the original inputs within half an 8-bit step plus float-rounding allowance, with the step floored at the smallest f32 for tiny blocks. A zero result for a nonzero block cannot satisfy that bound. This check uses no production quantizer as its oracle. Against unchanged main on the MI50 it builds without diagnostics and fails 936 of 9120 values, exit 1. [Discovery evidence](benchmarks/vulkan-activation-range-discovery-20260927.json) pins source, commands and the raw archive.
+- **Left:** repair the shared producer, verify both twins and every producer, check MI50/Radeon ordinary output identity and the backend/decode-column suites, record monitored timing, rebase over concurrent dispatch work, hosted device-tier gate and full Markdown review. No fix, merge or push yet.
+- **Gotchas:** the first probes read the packed representation directly. The public regression also reaches consumer arithmetic and can therefore expose additional flush-to-zero behavior; do not assume a producer-only patch closes the product failure. MXFP4 development stays on its own branch.
+
 ## The half-block order for the MI50's Q8_0 decode (2026-09-27, branch perf/decode-order, merged at `f2a677bb`)
 
 - **Merged** at `f2a677bb` on main `3da159b9` after a green hosted run on `gate/merge-32` (run 36349718215, all six jobs), the other developer's review of the rule tables and of the code, and the Radeon VII check: 12 of 12 outputs byte-identical to main on Qwen3-0.6B and Qwen3-8B Q8_0, the 60 kernel ISA files identical, CTest 34 of 34, the Q8_0 MoE fixture within E at a max error of 0.000167, and decode level with main once interleaved (0.993 at 8 rows; the first, planned block ran while a Visual Studio build shared the machine and is kept beside it).

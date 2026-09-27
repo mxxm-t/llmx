@@ -88,6 +88,51 @@ size_t close(const std::vector<float>& a, const std::vector<float>& b, double re
     return a.size();
 }
 
+// An identity matrix reads each activation back through the public quantized matmul, so the oracle is the original input rather than the device's quantization formula.
+size_t check_activation_range(backend::Backend& b) {
+    constexpr size_t width = 32;
+    std::vector<uint8_t> weights(width * quant::Q8_0_TYPESIZE, 0);
+    for (size_t row = 0; row < width; ++row) {
+        const uint16_t scale = 0x3c00; // Half precision 1, with one unit weight in the row.
+        std::memcpy(weights.data() + row * quant::Q8_0_TYPESIZE, &scale, sizeof(scale));
+        weights[row * quant::Q8_0_TYPESIZE + 2 + row] = 1;
+    }
+    const auto w = b.adopt(weights.data(), weights.size());
+    std::vector<float> peaks{0};
+    for (int exponent = -149; exponent <= 127; ++exponent) peaks.push_back(std::ldexp(1.0f, exponent));
+    peaks.push_back(std::numeric_limits<float>::max());
+    for (int limit : {127, 32767}) {
+        const float boundary = float(double(limit) / std::numeric_limits<float>::max());
+        peaks.push_back(std::nextafter(boundary, 0.0f));
+        peaks.push_back(boundary);
+        peaks.push_back(std::nextafter(boundary, 1.0f));
+    }
+    const float factors[] = {1, -1, 0, .5f, -.5f, 1.0f / 3, -1.0f / 7, .015625f};
+    size_t checked = 0, failed = 0;
+    for (float peak : peaks) {
+        std::vector<float> input(width), output(width);
+        for (size_t j = 0; j < width; ++j) input[j] = peak * factors[j % 8];
+        const auto x = b.adopt(input.data(), input.size() * sizeof(float));
+        const auto y = b.alloc(output.size() * sizeof(float));
+        b.matmul(quant::GGML_TYPE_Q8_0, {w.get(), 0}, {x.get(), 0}, {y.get(), 0}, width, width, 1);
+        b.read(*y, 0, output.data(), output.size() * sizeof(float));
+        // Both supported twins fit the 8-bit error bound; a scale too small for f32 needs the smallest positive f32 instead.
+        const double step = std::max(double(peak) / 127, double(std::numeric_limits<float>::denorm_min()));
+        for (size_t j = 0; j < width; ++j) {
+            const double bound = .50001 * step + 3e-7 * std::abs(double(input[j]));
+            if (!std::isfinite(output[j]) || std::abs(double(output[j]) - input[j]) > bound) {
+                if (failed < 8) std::fprintf(stderr, "activation range: peak %.9g position %zu expected %.9g device %.9g bound %.9g\n",
+                                              peak, j, input[j], output[j], bound);
+                ++failed;
+            }
+            ++checked;
+        }
+    }
+    std::cout << "backend-vulkan: " << checked << " activation reconstruction values, " << failed << " failed\n";
+    require(failed == 0, "finite activation reconstruction exceeds its quantization bound");
+    return checked;
+}
+
 // The activations as the device's row kernel sees them: each block of 32 scaled so its largest magnitude is 32767, rounded half away from zero, and back to floats (shaders/quantize_x.comp).
 // The CPU reference of a quantized-row matmul on the row kernel takes these, so the comparison is about the dot and its reduction order and not about the quantization, which is the device's choice and the HF gate's business.
 std::vector<float> row_activations(const std::vector<float>& x) {
@@ -2139,6 +2184,8 @@ int main(int argc, char** argv) {
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "an overflowing KV budget accepted");
         checks += 1;
+
+        checks += check_activation_range(*b);
 
         checks += check_refusals(*b);
 

@@ -1,0 +1,82 @@
+{
+  "date": "2026-09-27",
+  "base": "dbafdec75c8547e164e09220c35e54230baa19b0",
+  "device": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+  "scope": "Pre-fix finite activation conversion failure; no throughput or whole-model claim",
+  "producer": {
+    "blocks_per_twin": 285,
+    "values_per_twin": 9120,
+    "failed_blocks16": 46,
+    "failed_blocks8": 35,
+    "guards": "preserved"
+  },
+  "product": {
+    "cases": 3,
+    "expected": [
+      1,
+      1,
+      1
+    ],
+    "actual": [
+      1,
+      0,
+      0
+    ],
+    "limitation": "Private MXFP4 row dispatch; the activation producer is unchanged main"
+  },
+  "public_regression": {
+    "base": "dbafdec75c8547e164e09220c35e54230baa19b0",
+    "started": "2026-09-27T19:13:55.911618",
+    "jobs": [
+      {
+        "name": "build",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-vulkan",
+          "g++",
+          "-std=c++17",
+          "-O2",
+          "-mavx2",
+          "-mfma",
+          "-mf16c",
+          "-pthread",
+          "-I/work/build-base-main/generated",
+          "-I/work/base-main/src",
+          "/work/activation-public-01/backend_vulkan.cpp",
+          "/work/base-main/src/backends/vulkan/vulkan_backend.cpp",
+          "-ldl",
+          "-o",
+          "/work/activation-public-01/test"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "test",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-vulkan",
+          "/work/activation-public-01/test"
+        ],
+        "exit": 1
+      }
+    ],
+    "completed": "2026-09-27T19:14:22.154398",
+    "source_sha256": "ac931fe346c290a4b1ef31beb40ef8464ef71132e9275606b1382b7cfb514f16"
+  },
+  "public_values": 9120,
+  "public_failed_values": 936,
+  "public_oracle": "Raw Q8_0 identity matrix, original float input; error <= 0.50001*max(peak/127,denorm_min) + 3e-7*abs(input)",
+  "archive": {
+    "path": "/opt/claude-work/llmx-p2-x-mxfp4-vulkan/vulkan-activation-range-discovery-20260927.tar.gz",
+    "sha256": "3841dfc2ed706ec4b3fb61d0d77cf98bafcc4127a739d6bfbf27b35fefcdd4dd",
+    "size": 2350823
+  },
+  "limitations": [
+    "MI50 only; Radeon pending",
+    "The public path includes consumer arithmetic, so passing a repaired producer alone is insufficient",
+    "No production source was changed",
+    "Full Markdown review remains owed before merge"
+  ]
+}

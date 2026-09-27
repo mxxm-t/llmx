@@ -12,7 +12,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   The trace of the first divergences below qualifies the first point: on the dense 8B every first divergence of the prompt sets is a near tie on the decode path, but on Qwen3-30B-A3B not every one is, since the two orders route tokens to other experts at router near-ties well before the replies part; in 3 of its 18 prompts the order moves the two competing tokens by 1.3 to 2.3 logits.
   - What makes a one-time change safe to take: each build is held to the HF reference, not to the build before it, so an accepted order change does not move the reference the next change is checked against, and there is no moving-reference drift on the checks the gate covers.
   - What those checks do not cover stays a risk, numerical and behavioural, bounded only by their scope: six short rankings of 3 to 17 prompt tokens and four NLL cases over one 247-token excerpt, each case scored batched and per token, on Qwen3-0.6B Q8_0 and Qwen3-8B Q8_0 (below); the two prompt sets of 20 x 64 and 8 x 128 greedy tokens on 8B and 30B-A3B Q8_0, which compare the two orders with each other, not with HF; and the column and split checks, which hold a column to itself, not to a reference.
-    No HF reference checks a mixture of experts through this kernel: the `moe` component's tiny HF model is F32, and no reference covers Qwen3-30B-A3B, whose replies the order changes most.
+    No HF reference held to a bound checks a mixture of experts through this kernel: the `moe` component's F32 model is 37 wide, its Q8_0 model (`2e04a4a`, the merge gate's rule 2 below) has no bound yet, and no reference covers Qwen3-30B-A3B, whose replies the order changes most.
 - **Done:**
   - `1037cc7`: `backend-vulkan` also holds Q8_0 decode columns on rows 2560 wide to the same column alone.
   - `8c3a375`: on the MI50 under RADV every Q8_0 decode build takes the half-block order where a row holds an even block count: the 1- to 32-column builds, the grouped build of expert entries and the routed per-entry calls.
@@ -143,12 +143,65 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   - At 32 rows the order takes 57.2 ms, between the reference's two runs of this session (57.8 and 56.4) and at step 0's 57.3; main reads 67.5 here, as at the rebased head's gate (67.8), where the research branch's session read main's order at 63.9 and the order at 55.2, the same 1.16 to 1.18 times.
   - From 8 to 64 rows the order takes 1.16 to 1.20 times less than main, and 1.08 at one row; at 1 to 16 rows it is under the reference, and at 64 rows 115.6 ms stays 22 to 30 ms above it.
-- **Not merged** here: `gate/merge-25` carries the branch for the hosted run.
+- **Merge gate**, agreed on 2026-09-27 by both developers, which BOSS takes as agreed (devlog, LDEV DECISION re:decode order gate proposal, with XDEV's two corrections), and fixed before any new measurement:
+  1. Paired corpus: 8B Q8_0 on one MI50 and 30B-A3B Q8_0 split over two, both orders, the same corpus (`tests/data/wiki.test.raw`), ids, chunk bounds (16 of 512), cache type, placement and per-token schedule (`perplexity --per-token`), each arm run twice and required to reproduce bit for bit.
+     Pass: a token-weighted delta (new minus old) of at most +0.005 per model and no chunk worse by more than +0.03.
+     These limits are an explicit allowed quality cost, about +0.50 and +3.05 percent PPL, chosen after an exploratory one-run aggregate (30B +0.00079, 8B -0.00044) and applied only to the new repeated results; a failure or losses concentrated in a few chunks mean 64 chunks and back to the developers.
+  2. A tiny Q8_0 MoE against HF on its independently decoded weights, every matrix and expert width a multiple of 64: a bound E fixed once from a pinned CPU calibration, E = max(2e-5, 10 x that error) at most 2e-4, never recomputed from a candidate; above the cap, back with the numbers before any bound change.
+     Both device orders within E of HF on every logit, scored through the same HF forced prefix for 16 decode steps, with HF's id wherever HF's top two lie more than 2E apart; NLL reported apart, and a near-tie router variant reported for sensitivity, never called HF-passed.
+- **Rebased** onto main `7d16fa6` (the architecture modules): the order's commits are now `7554b0c` (the test), `11198a9` (the order), `1e3e18b` (the probe) and `04603f4` (this block), after four commits the gate needed: `e7685d0` and `efca8ca`, `perplexity --verbose` printing each window's scored tokens and mean NLL, and `e017cba` and `6da7bd5`, `logits --per-token` reading every token through a decode step; each test commit fails alone (no window lines; `unknown flag: --per-token`), and `perplexity`, `f32`, `cli`, `threads`, `moe`, `docs` and `dead-code` pass at `6da7bd5` on the CPU build, `f32` and `perplexity` on the MI50.
+  `2e04a4a` adds rule 2's fixture.
+- **Rule 1: PASS on both models.** Arms `6da7bd5`, main's order (llmx sha256 `9fdc5c7e`), and `04603f4`, the half-block order (`2c0fdf34`), each a git archive built the same way in the same image (`0.1.0+unknown`); `llmx perplexity M --file tests/data/wiki.test.raw --ctx-size 512 --chunks 16 --per-token --verbose`, f16 caches, 30B-A3B over rocm-smi GPU[4] and GPU[8] (`vulkan:0,vulkan:1`, layers 0-23 and 24-47 in all four runs) and 8B on GPU[6], in the order A, B, B, A, one-minute load 12 to 19.
+  Each arm's two outputs are byte for byte the same (sha256 `609cf518` and `e9afbe17` on 30B-A3B, `7af57831` and `bef18489` on 8B), so the deltas are the orders' and not noise; the totals are the exploratory run's (30B 2.5282 and 2.52899, 8B 2.69193 and 2.69149).
+  Mean NLL per chunk of 511 scored tokens, delta the half-block order's less main's:
+
+  | chunk | 30B-A3B main | 30B-A3B half-block | delta | 8B main | 8B half-block | delta |
+  |---:|---:|---:|---:|---:|---:|---:|
+  | 1 | 2.077942 | 2.083958 | +0.006016 | 2.180696 | 2.179434 | -0.001261 |
+  | 2 | 2.633318 | 2.632001 | -0.001317 | 2.754570 | 2.756457 | +0.001887 |
+  | 3 | 2.519192 | 2.523821 | +0.004629 | 2.626716 | 2.627110 | +0.000394 |
+  | 4 | 2.430510 | 2.432060 | +0.001551 | 2.646149 | 2.644923 | -0.001227 |
+  | 5 | 2.271800 | 2.259376 | -0.012424 | 2.497929 | 2.497042 | -0.000887 |
+  | 6 | 2.491731 | 2.499533 | +0.007803 | 2.644898 | 2.642979 | -0.001919 |
+  | 7 | 2.578849 | 2.584911 | +0.006062 | 2.791518 | 2.790529 | -0.000988 |
+  | 8 | 2.503819 | 2.501052 | -0.002767 | 2.758912 | 2.757597 | -0.001314 |
+  | 9 | 2.900065 | 2.899747 | -0.000318 | 3.119876 | 3.119742 | -0.000134 |
+  | 10 | 2.854842 | 2.858285 | +0.003443 | 2.931547 | 2.932164 | +0.000617 |
+  | 11 | 2.408732 | 2.413796 | +0.005064 | 2.554283 | 2.556236 | +0.001953 |
+  | 12 | 2.477736 | 2.473871 | -0.003864 | 2.601651 | 2.599914 | -0.001737 |
+  | 13 | 2.900274 | 2.902895 | +0.002620 | 3.012168 | 3.011250 | -0.000918 |
+  | 14 | 2.344141 | 2.344952 | +0.000812 | 2.536993 | 2.533879 | -0.003114 |
+  | 15 | 2.418505 | 2.427715 | +0.009210 | 2.602203 | 2.599789 | -0.002414 |
+  | 16 | 2.639749 | 2.625893 | -0.013856 | 2.810774 | 2.814716 | +0.003942 |
+  | all 8176 | 2.528200 | 2.528992 | +0.000791 | 2.691930 | 2.691485 | -0.000445 |
+
+  - 30B-A3B: token-weighted delta +0.000791 (bound +0.005), exp(delta) - 1 +0.079 percent; worst chunk 15 at +0.009210 (bound +0.03), best chunk 16 at -0.013856; 10 chunks worse, 6 better, the losses spread over the 10.
+  - 8B: token-weighted delta -0.000445, exp(delta) - 1 -0.045 percent; worst chunk 16 at +0.003942, best chunk 14 at -0.003114; 5 chunks worse, 11 better.
+- **Rule 2: stopped at the calibration, no bound set, no device run.**
+  - The fixture (`2e04a4a`, `tests/moe.py`): a qwen3moe model of 3 layers (layer 1 dense), width 128, 2 heads of 64 with one KV head, dense FFN 128, 8 experts of width 64 with 3 used, the 257-token byte vocabulary, every matrix Q8_0 with row widths 128 and 64 (4 and 2 blocks), router and norms F32 as a real Q8_0 file holds them; a generator of seed 24792, the first from 24680 whose smallest router margin between a token's 3rd and 4th expert reached 0.1 router logits (0.124, the 113th seed tried, on HF alone), the near-tie variant's router scaled to 1/16 (smallest margin 9.7e-6).
+    Goldens (`tests/data/baseline_moe_q8.json`, sha256 `edc71972`, `tools/gen_baseline.py moe-q8` in the pinned environment: torch 2.5.1+cpu, transformers 4.55.2, numpy 2.2.6): HF holding each file's weights as `tests/spec_decode.py` decodes them, for the prompts "a", "abcdefg" and "abcdefghijklm", HF's greedy 16 ids and all 257 logits from the prompt's last position on, 17 rows a prompt; the file's own sha256 is held by the test, and generating twice gave the same content.
+    Read three ways: batched in one pass, batched three rows a pass, and `logits --per-token`, every token a decode step.
+  - Calibration: llmx built without Vulkan from `6da7bd5` (main's arithmetic with the output commits above; sha256 `0a70f69d76690f34`, `0.1.0+unknown`), the Linux machine's CPU in a container of 6 CPUs at `--threads 4`, f32 caches, twice with the same numbers (load 13 to 16):
+
+    | variant | mode | max logit error | where (prompt, row) | greedy id = HF's | forced NLL | HF NLL |
+    |---|---|---:|---|---:|---:|---:|
+    | gated | batched | 0.013522 | "abcdefghijklm", 4 | 51 of 51 | 4.179848 | 4.179838 |
+    | gated | batched, 3 a pass | 0.013522 | "abcdefghijklm", 4 | 51 of 51 | 4.179848 | 4.179838 |
+    | gated | decode | 0.063473 | "abcdefghijklm", 8 | 49 of 51 | 4.178607 | 4.179838 |
+    | near-tie (sensitivity) | batched | 0.008889 | "abcdefg", 8 | 51 of 51 | 4.206876 | 4.206083 |
+    | near-tie (sensitivity) | batched, 3 a pass | 0.008889 | "abcdefg", 8 | 51 of 51 | 4.206876 | 4.206083 |
+    | near-tie (sensitivity) | decode | 0.254408 | "abcdefghijklm", 5 | 50 of 51 | 4.203401 | 4.206083 |
+
+    The gated variant's logits span -2.23 to 2.02 (standard deviation 0.59), its HF top-two gaps start at 0.0018, and the two decode rows whose greedy id is not HF's are the rows HF parts by 0.0018 and 0.0038; the near-tie variant's one is at an HF gap of 0.0095.
+  - E = max(2e-5, 10 x 0.063473) = 0.63473, above the cap of 2e-4 (the batched modes alone would ask for 0.13522), so by the rule no bound is set, the device orders were not run on the fixture, and the numbers go back to the developers; the test prints every variant's errors and holds the bound unset (`Q8_BOUND`), with the calibration recorded in `Q8_CALIBRATION`.
+  - Why the calibration is that large: the same decoded weights written as F32 read within 2.2e-6 of the goldens on both paths at the same binary, so the goldens and the model agree with llmx and the error is the Q8_0 arithmetic's: the CPU's decode dots, and its prompt path's expert entries, meet 8-bit activations (`q8_dots.hpp`), as the MI50's Q8_0 decode kernel does through the 8-bit twin; an absolute bound near 1e-4 is below what either path computes on logits of this size.
+- **Not merged**: rule 2 stopped at its calibration, so the rebased branch went to no gate branch.
 - **Left:**
+  - Rule 2: the developers to fix the fixture's bound, or another rule, from the calibration above, and then run both device orders on it; nothing of the candidate has been read on the fixture.
   - 64 rows: the order takes 115.6 ms a pass against the reference's 85.9 to 93.7 in the same session; the 32-row pass is level with the reference, the 64-row one is not.
   - The quarter layout keeps rows of an odd block count on the MI50 and every other integer-dot device; hoisted offsets or quad-shared products for it would come back from `3a203c9` if such a device or shape needed them.
 - **Gotchas:**
-  - A first divergence read through the prompt path (`logits --then-ids`) is not what the decode path gave: on 30B-A3B the research branch read p20-20 as 1.48 apart there, where the two decode paths each lead by about 0.8. Read a decode path with `llmx-decode-probe`.
+  - A first divergence read through the prompt path (`logits --then-ids`) is not what the decode path gave: on 30B-A3B the research branch read p20-20 as 1.48 apart there, where the two decode paths each lead by about 0.8. Read a decode path with `llmx-decode-probe`, which prefills the prompt as a request does, or with `logits --per-token`, which steps every token.
   - On a mixture of experts a summation-order change reaches the router, and a flipped expert at a near-tie moves the state by far more than the order's own rounding; on the 20 x 64 set the MoE's replies parted sooner and more often than the dense model's (5 of 20 unchanged against 14, 567 differing tokens against 130).
 ## Host pages refuse a size they cannot round to whole pages (2026-09-27, branch fix/host-pages-round, merged at `464ed604`)
 

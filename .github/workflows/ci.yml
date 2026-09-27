@@ -126,7 +126,9 @@ jobs:
       - name: Test on the CPU
         run: python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools --device cpu
       # Every target built again at -O0 with every inline function emitted, so the functions only tests keep show (AGENTS.md, Dead code and stale docs).
+      # It builds a tree of its own, so it runs whatever the steps before it gave, and a run reports its findings beside theirs.
       - name: Dead code in the linked binaries
+        if: ${{ !cancelled() }}
         run: python -X utf8 tests/dead_code.py --linked build-linked
 
   hf-reference:

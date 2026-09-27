@@ -371,20 +371,35 @@ TREE_DIRS = ("src", "tests", "tools", "docs", "cmake", "docker", ".github")
 TEXT_SUFFIXES = (".hpp", ".cpp", ".h", ".comp", ".glsl", ".py", ".md", ".txt", ".yml", ".yaml", ".cmake", ".in", ".bat")
 
 
-def read_tree(root=ROOT):
-    """(texts, paths): every text file of the tree by its path from `root` with '/' separators, and the set of every file path.
+def tree_files():
+    """The paths from the root, with '/' separators, of the files a commit of this tree would hold: git's tracked files still on disk and the new ones it does not ignore.
+    A copy without .git, such as an export, is walked instead, build output and caches left out."""
+    if os.path.exists(os.path.join(ROOT, ".git")):
+        r = subprocess.run(["git", "-C", ROOT, "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                           capture_output=True)
+        if r.returncode:
+            raise RuntimeError("git ls-files failed in %s: %s" % (ROOT, r.stderr.decode(errors="replace").strip()))
+        names = sorted(set(r.stdout.decode("utf-8").split("\0")) - {""})
+        return [n for n in names if os.path.isfile(os.path.join(ROOT, n))]
+    names = [n for n in os.listdir(ROOT) if os.path.isfile(os.path.join(ROOT, n))]
+    for top in TREE_DIRS:
+        for directory, dirs, files in os.walk(os.path.join(ROOT, top)):
+            dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+            rel = os.path.relpath(directory, ROOT).replace(os.sep, "/")
+            names += [rel + "/" + f for f in files if not f.endswith(".pyc")]
+    return names
+
+
+def read_tree():
+    """(texts, paths): every text file of the tree by its path from the root, and the set of every file path, the files at the root and under TREE_DIRS only.
     The evidence under docs/benchmarks/ and the test data are dated or generated, so their files are paths only; line endings are read as line feeds, so a checkout with CR LF reads the same."""
     texts, paths = {}, set()
-    names = [n for n in os.listdir(root) if os.path.isfile(os.path.join(root, n))]
-    for top in TREE_DIRS:
-        for directory, dirs, files in os.walk(os.path.join(root, top)):
-            dirs[:] = sorted(d for d in dirs if d != "__pycache__")
-            rel = os.path.relpath(directory, root).replace(os.sep, "/")
-            names += [rel + "/" + f for f in files if not f.endswith(".pyc")]
-    for path in names:
+    for path in tree_files():
+        if "/" in path and not path.startswith(tuple(d + "/" for d in TREE_DIRS)):
+            continue
         paths.add(path)
         if path.endswith(TEXT_SUFFIXES) and not path.startswith(("docs/benchmarks/", "tests/data/")):
-            with open(os.path.join(root, path), encoding="utf-8", errors="replace") as f:
+            with open(os.path.join(ROOT, path), encoding="utf-8", errors="replace") as f:
                 texts[path] = f.read()
     return texts, paths
 
@@ -403,35 +418,49 @@ def cpp_code(text, keep_strings=False):
     return CPP_BLANKS.sub(blank, text)
 
 
-# The findings the dead-code and docs checks still report, each with why it is still there (AGENTS.md, Dead code and stale docs).
+# The findings the dead-code and docs checks still report, each with how often it occurs and why it is still there (AGENTS.md, Dead code and stale docs).
 KNOWN_FINDINGS = os.path.join(ROOT, "tests", "data", "known_findings.txt")
 
 
-def known_findings(text):
-    """The entries of the known-findings list `text`: (check, file, name) -> reason.
-    A line is `check | file | name | reason`; `#` starts a comment line, and an entry without a reason, or listed twice, is refused."""
+def known_findings(text, checks):
+    """The entries of the known-findings list `text`: (check, file, name) -> (times it occurs, reason).
+    A line is `check | file | name | times | reason`; `#` starts a comment line.
+    An entry whose check is not one of `checks`, every check of both components, is refused, as are one without a reason or a count, and one listed twice."""
     entries = {}
     for n, line in enumerate(text.splitlines(), 1):
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         fields = [f.strip() for f in line.split(" | ")]
-        if len(fields) != 4 or not all(fields):
-            raise ValueError("known findings line %d: expected 'check | file | name | reason': %s" % (n, line))
+        if len(fields) != 5 or not all(fields) or not re.fullmatch(r"[1-9]\d*", fields[3]):
+            raise ValueError("known findings line %d: expected 'check | file | name | times | reason': %s" % (n, line))
+        if fields[0] not in checks:
+            raise ValueError("known findings line %d names no check the components have: %s" % (n, fields[0]))
         key = tuple(fields[:3])
         if key in entries:
             raise ValueError("known findings line %d lists %s again" % (n, " | ".join(key)))
-        entries[key] = fields[3]
+        entries[key] = (int(fields[3]), fields[4])
     return entries
 
 
+def load_known_findings():
+    """The known-findings list, each line's check held to the checks of both components, so a mistyped one fails every job rather than staying unsettled."""
+    import dead_code
+    import docs_check
+    with open(KNOWN_FINDINGS, encoding="utf-8") as f:
+        return known_findings(f.read(), dead_code.SOURCE_CHECKS + dead_code.LINKED_CHECKS + docs_check.CHECKS)
+
+
 def settle_findings(found, checks, listed, say=print):
-    """Hold `found`, (check, file, name) -> where it was seen, to the entries of `listed` whose check is one of `checks`.
-    Says each finding the list lacks and each entry of those checks that no longer occurs, and returns True when there are neither."""
+    """Hold `found`, (check, file, name) -> [where each occurrence was seen], to the entries of `listed` whose check is one of `checks`.
+    Says each finding the list lacks, each that occurs another number of times than listed, and each entry of those checks that no longer occurs, and returns True when there are none."""
     mine = {k: v for k, v in listed.items() if k[0] in checks}
     new = sorted(k for k in found if k not in mine)
+    recount = sorted(k for k in found if k in mine and len(found[k]) != mine[k][0])
     gone = sorted(k for k in mine if k not in found)
     for k in new:
-        say("  new finding: %s | %s | %s  (%s)" % (k + (found[k],)))
+        say("  new finding: %s | %s | %s  (%s)" % (k + ("; ".join(found[k]),)))
+    for k in recount:
+        say("  occurs %d times, listed %d: %s | %s | %s  (%s)" % ((len(found[k]), mine[k][0]) + k + ("; ".join(found[k]),)))
     for k in gone:
         say("  listed but no longer found, so its line in tests/data/known_findings.txt goes: %s | %s | %s" % k)
-    return not new and not gone
+    return not new and not recount and not gone

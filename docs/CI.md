@@ -17,8 +17,8 @@ It contains six independent checks:
 | HF reference (CPU) | Linux build plus the four pinned gate models: tokenizer, logits, continuous/chunked PPL, and the real-model server checks on the Q8_0 (limits, uncapped requests pausing, a prompt paused while prefilling, prefix reuse over a conversation, clients leaving, a chat turn, the tokenize routes against `llmx tokenize` and `llmx detokenize` on the tokenizer golden's texts and `messages` against the chat template goldens); the suite's HF chat and thread replies run here as in every CPU job. Then the `baseline` component again with f32 caches, `llmx-split-check` on the Q8_0 over two CPU backends, and many users through the server on the Q8_0. No CTest: the Ubuntu job runs it on the same build |
 
 Every job that runs the Python suite starts it with the dead-code and stale-docs checks, the `dead-code` and `docs` components, and every build makes an unused function of one translation unit, or an unused local, a compile error (AGENTS.md, Dead code and stale docs).
-The Vulkan job's extra step builds every target again at -O0 with every inline function emitted and links each executable with `--gc-sections`, so the functions only tests keep show; it adds about two minutes to the job.
-A finding fails its job unless `tests/data/known_findings.txt` lists it with a reason, and a listed finding that no longer occurs fails it too.
+The Vulkan job's extra step builds every target again at -O0 with every inline function emitted and links each executable with `--gc-sections`, so the functions only tests keep show; it adds about two minutes to the job, and it runs even when a step before it failed, since it builds a tree of its own.
+A finding fails its job unless `tests/data/known_findings.txt` lists it, with how often it occurs and a reason, and a listed finding that no longer occurs, or occurs another number of times, fails it too.
 
 Every CTest a CPU build registers runs in every job's "Backend tests" step but the HF job's, which builds what the Ubuntu job builds, so the KV cache, placement, HTTP layer, server UTF-8 repair and prefill-scope checks are covered on all three platforms and under UBSan.
 The three Vulkan-only CTests run in the Vulkan job alone, where `backend-vulkan` and `vulkan-lifetime` skip without a device.
@@ -163,7 +163,7 @@ python -X utf8 tools/server_mix_check.py --exe build/llmx --model <Q8_0 fixture>
 ```
 
 The Ubuntu job also runs each `tools/*.py` with `--help`.
-The Vulkan job runs the suite with `--device cpu` on its build, `-DLLMX_HAS_BACKEND_VULKAN=ON`, and the linked dead-code check, which needs Linux, GCC, binutils and the Vulkan headers and shader compiler.
+The Vulkan job runs the suite with `--device cpu` on its build, `-DLLMX_HAS_BACKEND_VULKAN=ON`, and the linked dead-code check, which needs Linux, GCC, GNU ld, binutils, CMake, the Vulkan headers and glslc.
 The Q8_0 fixture is `baseline.find_fixture(baseline.BASELINE_MODELS[0])`, under `~/.cache/huggingface/hub`, and the excerpt is the `text` of `tests/data/baseline_perplexity.json` written to a file as it is, which the HF job's "Q8_0 fixture path and perplexity excerpt" step does.
 
 For MSVC, use `--exe build/Release/llmx.exe` and `build/Release/llmx-split-check.exe`.

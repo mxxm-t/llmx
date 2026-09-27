@@ -1,8 +1,8 @@
 """Dead code: what no product path reaches, found from the source in every job and from the linked binaries in the Vulkan job.
 
 The product is `llmx` and the tools in tools/; code only tests reach is a finding too, since it is kept for nothing the product does.
-Each finding is keyed by its check, file and name, and held to tests/data/known_findings.txt, which a new finding and a listed one that no longer occurs both fail (AGENTS.md, Dead code and stale docs).
-Standard library only; the linked check also needs GCC, GNU ld and binutils on Linux.
+Each finding is keyed by its check, file and name, and held to tests/data/known_findings.txt, which a new finding, a count that differs and a listed one that no longer occurs all fail (AGENTS.md, Dead code and stale docs).
+Standard library only; the linked check also needs Linux, GCC, GNU ld, binutils, CMake, the Vulkan headers and glslc.
 """
 import argparse
 import ast
@@ -23,6 +23,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import common
+import docs_check
 
 # Several checks, and each planted copy of the tree, strip and read the same files, so both are remembered by the text.
 code_of = functools.lru_cache(maxsize=None)(common.cpp_code)
@@ -327,7 +328,9 @@ class Declarations:
                     stack.append(("class", cls))
                     head = []
                 elif bare[:1] == ["enum"]:
-                    enum = next((x for x in bare[1:] if x not in KEYWORDS and re.match(r"[A-Za-z_]", x)), "")
+                    # The name after `enum` and `class` or `struct`; an enum without one is keyed by where it is, never by its underlying type.
+                    rest = bare[1:] if bare[1:2] not in (["class"], ["struct"]) else bare[2:]
+                    enum = rest[0] if rest and re.match(r"[A-Za-z_]\w*$", rest[0]) and rest[0] not in KEYWORDS else "enum@%s:%d" % (f, t.line)
                     self.head(f, head, name, "{")
                     stack.append(("enum", enum))
                     enum_expect.append(True)
@@ -366,11 +369,14 @@ def pinned_structs(code_by_file):
     return pinned
 
 
-def integer_enums(code_by_file):
-    """Enums a value is cast to from an integer: their enumerators are reached by arithmetic, not by name."""
+def integer_enums(code_by_file, declared):
+    """The enums of `declared`, the named enums, that a value is cast to from an integer: their enumerators are reached by arithmetic, not by name.
+    A cast to a name the file takes as a template parameter is no cast to an enum of that name."""
     enums = set()
     for code in code_by_file.values():
-        enums |= set(re.findall(r"\(\s*(\w+)\s*\)\s*[\w(]", code)) | set(re.findall(r"static_cast\s*<\s*(\w+)\s*>", code))
+        params = set(re.findall(r"\b(?:class|typename)\s+(\w+)\s*(?:=[^,>]*)?[,>]", code))
+        casts = re.findall(r"\(\s*(?:\w+\s*::\s*)*(\w+)\s*\)\s*[\w(]", code) + re.findall(r"static_cast\s*<\s*(?:\w+\s*::\s*)*(\w+)\s*>", code)
+        enums |= (set(casts) & declared) - params
     return enums
 
 
@@ -382,14 +388,15 @@ def system_configured(toks, index):
     return False
 
 
-def name_findings(texts, paths, ds=None):
+def name_findings(texts):
     """`unused`: a declaration whose name nothing else names; `test-only`: one in src/ that only tests/ name; `macro`: a macro defined and never used, or an LLMX_ macro tested and set nowhere."""
     files = cpp_files(texts)
-    ds = ds or Declarations(texts, files)
+    ds = Declarations(texts, files)
     if len(ds.decls) < 1000:
         raise Layout("the name check found only %d declarations" % len(ds.decls))
     code = {f: code_of(texts[f]) for f in files}
-    pinned, enums = pinned_structs(code), integer_enums(code)
+    pinned = pinned_structs(code)
+    enums = integer_enums(code, {d["name"] for d in ds.decls if d["kind"] == "enum"})
     found = {}
     seen = set()
     for d in sorted(ds.decls, key=lambda d: (d["file"], d["line"])):
@@ -405,18 +412,18 @@ def name_findings(texts, paths, ds=None):
             check = "test-only"
         else:
             continue
-        name = (d["owner"] + "::" if d["owner"] else "") + d["name"]
+        name = (d["owner"] + "::" if d["owner"] and not d["owner"].startswith("enum@") else "") + d["name"]
         if (check, name) in seen:   # a declaration and its definition
             continue
         seen.add((check, name))
-        found[(check, d["file"], name)] = "%s:%d, a %s" % (d["file"], d["line"], d["kind"])
+        found[(check, d["file"], name)] = ["%s:%d, a %s" % (d["file"], d["line"], d["kind"])]
     # Macros: one defined and never named again, unless a system header after it reads it; an LLMX_ one tested but set nowhere.
     for name, where in sorted(ds.macros.items()):
         if sum(ds.uses.get(name, {}).values()) or name in ds.tested:
             continue
         f, line, index = where[0]
         if not system_configured(ds.tokens[f], index):
-            found[("macro", f, name)] = "%s:%d, defined and never used" % (f, line)
+            found[("macro", f, name)] = ["%s:%d, defined and never used" % (f, line)]
     build = "\n".join(t for p, t in texts.items() if p in ("CMakeLists.txt", "build.bat") or p.startswith("cmake/"))
     docs = "\n".join(t for p, t in texts.items() if p.endswith(".md"))
     for name, where in sorted(ds.tested.items()):
@@ -425,7 +432,7 @@ def name_findings(texts, paths, ds=None):
         if re.search(r"\b" + name + r"\b", build) or re.search(r"[-/]D" + name + r"\b", docs):
             continue
         f, line = where[0]
-        found[("macro", f, name)] = "%s:%d, tested but set nowhere" % (f, line)
+        found[("macro", f, name)] = ["%s:%d, tested but set nowhere" % (f, line)]
     return found
 
 
@@ -446,7 +453,7 @@ def body_end(code, start):
     return len(code)
 
 
-def override_findings(texts, paths):
+def override_findings(texts):
     """`override`: an override in src/ that neither src/ nor tools/ calls through an object (`->v(`, `.v(`), and no member of its class or a base calls unqualified."""
     code = {f: code_of(texts[f]) for f in cpp_files(texts)}
     classes = {}   # name -> {bases, spans, virtuals, overrides, file}
@@ -506,7 +513,7 @@ def override_findings(texts, paths):
                     if called:
                         break
             if not called:
-                found[("override", f, cname + "::" + v)] = "%s:%d, an override product code never calls" % (f, line)
+                found[("override", f, cname + "::" + v)] = ["%s:%d, an override product code never calls" % (f, line)]
     return found
 
 
@@ -535,13 +542,13 @@ def cmake_list(cmake, name):
     return re.sub(r"#[^\n]*", "", m.group(1)).split()
 
 
-def shader_findings(texts, paths):
+def shader_findings(texts):
     """`shader`: a source no CMake entry compiles, an include nothing includes, a module never embedded or tabled, a kernel id no dispatch names, a variant's define its source never tests, a tested define nothing sets, and an #ifndef default nothing overrides."""
     cmake, vk = texts["CMakeLists.txt"], texts[VK]
     found = {}
 
     def add(path, name, why):
-        found[("shader", path, name)] = why
+        found[("shader", path, name)] = [why]
 
     entries = {e: (e, []) for e in cmake_list(cmake, "LLMX_VK_SHADERS")}
     for e in cmake_list(cmake, "LLMX_VK_VARIANTS"):
@@ -655,11 +662,34 @@ def shader_findings(texts, paths):
 MAIN = "src/cli/main.cpp"
 
 
-def flag_findings(texts, paths):
-    """`flag`: a flag whose parse stores into a field or local that src/ never reads again."""
+def usage_span(code):
+    """Where print_usage's definition starts and ends in `code`, main.cpp's text."""
+    m = re.search(r"\bbool\s+print_usage\s*\(", code)
+    if not m:
+        raise Layout(MAIN + " no longer defines print_usage")
+    return m.start(), body_end(code, m.end())
+
+
+# What follows a name that is stored into rather than read.
+STORE = re.compile(r"\s*(?:[-+*/|&]?=(?!=)|\+\+|--)")
+
+
+def statement_at(code, pos):
+    """The line of `code` that holds `pos`."""
+    return code[code.rfind("\n", 0, pos) + 1:code.find("\n", pos)]
+
+
+def flag_findings(texts):
+    """`flag`: a flag whose parse stores nothing, or stores into a field or local that nothing uses.
+    The help printing the default is no use, nor is a refusal's condition, nor a copy into a field of the same name, which passes the value on.
+    A field of a struct main.cpp declares is looked for in main.cpp, and in all of src/ once a copy passes it on; any other field in all of src/."""
     lines = code_of(texts[MAIN], keep_strings=True).split("\n")
-    main_lines = code_of(texts[MAIN]).split("\n")
-    src = {p: code_of(t) for p, t in texts.items() if p.startswith("src/") and p.endswith(CPP_SUFFIXES) and p != MAIN}
+    main_code = code_of(texts[MAIN])
+    a, b = usage_span(main_code)
+    main_code = main_code[:a] + re.sub(r"[^\n]", " ", main_code[a:b]) + main_code[b:]
+    main_lines = main_code.split("\n")
+    local_structs = set(re.findall(r"\bstruct\s+(\w+)\s*(?::[^{;]*)?\{", main_code))
+    src = [code_of(t) for p, t in sorted(texts.items()) if p.startswith("src/") and p.endswith(CPP_SUFFIXES) and p != MAIN]
     found, sites = {}, 0
     for n, line in enumerate(lines, 1):
         for m in re.finditer(r'\b(\w+)\s*==\s*"(-{1,2}[A-Za-z][\w-]*)"', line):
@@ -681,21 +711,37 @@ def flag_findings(texts, paths):
             target = re.match(r"(?:\(\w+\)\s*)?([\w.>-]+?)\s*=(?!=)", stmt.lstrip("{").strip()) or \
                 re.search(r"(?<![\w.>-])((?:\w+(?:\.|->))+\w+)\s*=(?!=)", stmt.split("}")[0] if stmt.startswith("{") else "")
             if not target:
+                found[("flag", MAIN, flag)] = ["%s:%d parses it and stores nothing" % (MAIN, n)]
                 continue
-            name = re.split(r"\.|->", target.group(1))[-1]
-            field = name != target.group(1)
+            parts = re.split(r"\.|->", target.group(1))
+            name, field = parts[-1], len(parts) > 1
+            copy = re.compile(r"(?:\.|->)\s*" + re.escape(name) + r"\s*=(?!=)")
             # The parse's own line is no read of it.
             own = "\n".join(main_lines[:n - 1] + [""] + main_lines[n:])
-            reads = 0
-            for c in (list(src.values()) if field else []) + [own]:
+            # The type of the object a field belongs to, from its last declaration before the parse.
+            before = "\n".join(main_lines[:n - 1])
+            kinds = [d.group(1) for d in re.finditer(r"\b(\w+)\s*[&*]?\s+" + re.escape(parts[0]) + r"\s*[;,)=({]", before)
+                     if d.group(1) not in ("return", "else", "case", "throw", "delete", "new", "do", "goto", "sizeof")]
+            local = not field or bool(kinds) and kinds[-1] in local_structs
+            reads, copied = 0, False
+            for c in [own] + ([] if local else src):
                 for u in re.finditer(r"\b" + re.escape(name) + r"\b", c):
-                    if re.match(r"\s*(?:[-+*/|&]?=(?!=)|\+\+|--)", c[u.end():u.end() + 4]):
-                        continue   # a store
+                    if STORE.match(c, u.end()):
+                        continue
                     if not field and re.search(r"\b(?:bool|int|size_t|double|float|auto|uint\d+_t|std::string)\s*$", c[max(0, u.start() - 40):u.start()]):
                         continue   # the local's declaration
+                    statement = statement_at(c, u.end())
+                    if re.match(r"\s*(?:else\s+)?if\s*\(.*\)\s*throw\b", statement):
+                        continue   # a refusal's condition
+                    if copy.search(statement):
+                        copied = True
+                        continue
                     reads += 1
+            if not reads and copied and local and field:
+                reads = sum(1 for c in src for u in re.finditer(r"\b" + re.escape(name) + r"\b", c)
+                            if not STORE.match(c, u.end()) and not copy.search(statement_at(c, u.end())))
             if not reads:
-                found[("flag", MAIN, flag)] = "%s:%d stores it in %s, which nothing reads" % (MAIN, n, target.group(1))
+                found[("flag", MAIN, flag)] = ["%s:%d stores it in %s, which nothing uses" % (MAIN, n, target.group(1))]
     if not sites:
         raise Layout(MAIN + " no longer compares an argument with a flag's literal")
     return found
@@ -714,12 +760,16 @@ for _cls in (socket.socket, io.RawIOBase, io.BufferedReader, io.TextIOWrapper, h
     PY_PROTOCOLS |= {a for a in dir(_cls) if not a.startswith("_")}
 
 
-def python_findings(texts, paths):
-    """`python`: a function, class, method or module constant in tests/ or tools/ that nothing reaches, an argparse option nothing reads, and a test module no suite, workflow or doc runs."""
+# Each planted copy of the tree parses the same modules; the trees are only read, so each text is parsed once.
+parse_python = functools.lru_cache(maxsize=None)(ast.parse)
+
+
+def python_findings(texts):
+    """`python`: a function, class, method or module constant in tests/ or tools/ that nothing reaches, an argparse option that neither its module nor a module its parsed namespace goes to reads, and a test module no suite import, workflow step or live doc's command line runs."""
     modules = {}
     for p in sorted(texts):
         if p.endswith(".py") and p.count("/") == 1 and p.split("/")[0] in ("tests", "tools"):
-            modules[(p.split("/")[0], p.split("/")[1][:-3])] = (p, ast.parse(texts[p], p))
+            modules[(p.split("/")[0], p.split("/")[1][:-3])] = (p, parse_python(texts[p], p))
 
     def module(top, name):
         # Scripts put their own directory on sys.path, and tools reach tests through a path insert.
@@ -745,18 +795,18 @@ def python_findings(texts, paths):
     defs, by_name, top_defs, node_def = {}, collections.defaultdict(set), collections.defaultdict(dict), {}
     edges, roots = collections.defaultdict(set), set()
 
-    def add(mod, kind, node, qual, cls=None):
+    def add(mod, kind, node, qual):
         i = modules[mod][0] + "::" + qual
         defs[i] = {"kind": kind, "name": node.name, "file": modules[mod][0], "line": node.lineno, "qual": qual}
         by_name[node.name].add(i)
         node_def[id(node)] = i
         return i
 
-    def collect(mod, body, prefix, cls, bases):
+    def collect(mod, body, prefix, cls):
         for node in body:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 if cls is not None:
-                    i = add(mod, "method", node, prefix + node.name, cls)
+                    i = add(mod, "method", node, prefix + node.name)
                     if node.name.startswith(("__", "test", "visit_")) or node.name in PY_PROTOCOLS or node.name in PY_HOOKS:
                         roots.add(i)
                 else:
@@ -765,7 +815,7 @@ def python_findings(texts, paths):
                         top_defs[mod][node.name] = i
                 if node.decorator_list:
                     roots.add(i)
-                collect(mod, node.body, prefix + node.name + ".", None, set())
+                collect(mod, node.body, prefix + node.name + ".", None)
             elif isinstance(node, ast.ClassDef):
                 i = add(mod, "class", node, prefix + node.name)
                 if not prefix:
@@ -773,16 +823,16 @@ def python_findings(texts, paths):
                 # unittest finds a TestCase by its base.
                 if any((b.id if isinstance(b, ast.Name) else getattr(b, "attr", "")) == "TestCase" for b in node.bases):
                     roots.add(i)
-                collect(mod, node.body, prefix + node.name + ".", node.name, set())
+                collect(mod, node.body, prefix + node.name + ".", node.name)
             elif isinstance(node, (ast.If, ast.For, ast.While, ast.With, ast.Try)):
                 subs = []
                 for field in ("body", "orelse", "finalbody", "handlers"):
                     for s in getattr(node, field, None) or []:
                         subs += s.body if isinstance(s, ast.ExceptHandler) else [s]
-                collect(mod, subs, prefix, cls, bases)
+                collect(mod, subs, prefix, cls)
 
     for mod, (p, tree) in modules.items():
-        collect(mod, tree.body, "", None, set())
+        collect(mod, tree.body, "", None)
         for node in tree.body:
             targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AnnAssign) and node.value else []
             for t in targets:
@@ -795,7 +845,7 @@ def python_findings(texts, paths):
                         if n.id.startswith("__"):
                             roots.add(i)
 
-    attrs, attr_strings = collections.Counter(), set()
+    attrs, attr_strings = collections.defaultdict(collections.Counter), collections.defaultdict(set)
 
     class Refs(ast.NodeVisitor):
         def __init__(self, mod):
@@ -848,7 +898,7 @@ def python_findings(texts, paths):
 
         def visit_Attribute(self, node):
             self.generic_visit(node)
-            attrs[node.attr] += 1
+            attrs[self.mod][node.attr] += 1
             base = node.value
             if isinstance(base, ast.Name) and imports[self.mod].get(base.id, ("",))[0] == "module":
                 other = imports[self.mod][base.id][1]
@@ -865,7 +915,7 @@ def python_findings(texts, paths):
             f = node.func
             if isinstance(f, ast.Name) and f.id in ("getattr", "hasattr", "setattr") and len(node.args) >= 2 \
                     and isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str):
-                attr_strings.add(node.args[1].value)
+                attr_strings[self.mod].add(node.args[1].value)
                 edges[self.stack[-1]] |= by_name.get(node.args[1].value, set())
 
     for mod, (p, tree) in modules.items():
@@ -880,7 +930,29 @@ def python_findings(texts, paths):
     found = {}
     for i, d in defs.items():
         if i not in seen:
-            found[("python", d["file"], d["qual"])] = "%s:%d, a %s nothing reaches" % (d["file"], d["line"], d["kind"])
+            found[("python", d["file"], d["qual"])] = ["%s:%d, a %s nothing reaches" % (d["file"], d["line"], d["kind"])]
+    # An option is read where its parsed namespace goes: its own module, a module a call hands the namespace to, and a module that calls a function returning it.
+    readers = collections.defaultdict(set)
+    called = collections.defaultdict(set)   # (module, function) -> the modules that call it
+    for mod, (p, tree) in modules.items():
+        for c in ast.walk(tree):
+            if isinstance(c, ast.Call) and callee(imports[mod], c.func):
+                called[callee(imports[mod], c.func)].add(mod)
+    for mod, (p, tree) in modules.items():
+        readers[mod].add(mod)
+        if "parse_args" not in texts[p] and "parse_known_args" not in texts[p]:
+            continue
+        parsed = {t.id for node in ast.walk(tree) if isinstance(node, ast.Assign) and parses(node.value)
+                  for t in node.targets if isinstance(t, ast.Name)}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and any(isinstance(a, ast.Name) and a.id in parsed for a in node.args):
+                other = callee(imports[mod], node.func)
+                if other:
+                    readers[mod].add(other[0])
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and any(
+                    isinstance(r, ast.Return) and r.value is not None and (parses(r.value) or isinstance(r.value, ast.Name) and r.value.id in parsed)
+                    for r in ast.walk(node)):
+                readers[mod] |= called[(mod, node.name)]
     for mod, (p, tree) in modules.items():
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "add_argument":
@@ -891,9 +963,9 @@ def python_findings(texts, paths):
                 if dest is None:
                     longs = [o for o in opts if o.startswith("--")]
                     dest = (longs[0] if longs else opts[0]).lstrip("-").replace("-", "_")
-                if not attrs.get(dest) and dest not in attr_strings and "vars(" not in texts[p]:
-                    found[("python", p, max(opts, key=len))] = "%s:%d, an option nothing reads" % (p, node.lineno)
-    # A test module is run by the suite, through run_tests.py's imports, by the workflow, or by hand as a doc says.
+                if not any(attrs[r].get(dest) or dest in attr_strings[r] or "vars(" in texts[modules[r][0]] for r in readers[mod]):
+                    found[("python", p, max(opts, key=len))] = ["%s:%d, an option nothing reads" % (p, node.lineno)]
+    # A test module is run by the suite, through run_tests.py's imports, by a workflow step, or by a command line in a live section of a doc.
     run, work = set(), [("tests", "run_tests")]
     while work:
         mod = work.pop()
@@ -901,11 +973,40 @@ def python_findings(texts, paths):
             continue
         run.add(mod)
         work += [v[1] for v in imports[mod].values()]
-    named = "\n".join(t for p, t in texts.items() if p.endswith(".md") or p.startswith(".github/"))
+    commands = script_commands(texts)
     for (top, name), (p, _) in sorted(modules.items()):
-        if top == "tests" and (top, name) not in run and p not in named:
-            found[("python", p, "module")] = "%s: no suite import, workflow step or doc runs it" % p
+        if top == "tests" and (top, name) not in run and p not in commands:
+            found[("python", p, "module")] = ["%s: no suite import, workflow step or live doc's command line runs it" % p]
     return found
+
+
+def parses(node):
+    """Whether an expression is a parser's parse_args or parse_known_args call."""
+    return isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("parse_args", "parse_known_args")
+
+
+def callee(imports, f):
+    """(module, function) for a call's function from another module of tests/ or tools/, by the calling module's `imports`: `module.function` or a function imported by name; None for any other."""
+    if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
+        imp = imports.get(f.value.id)
+        return (imp[1], f.attr) if imp and imp[0] == "module" else None
+    if isinstance(f, ast.Name):
+        imp = imports.get(f.id)
+        return (imp[1], imp[2]) if imp and imp[0] == "name" else None
+    return None
+
+
+SCRIPT_RUN = re.compile(r"\bpy(?:thon3?)?(?:\s+-[A-Za-z]+(?:\s+utf8)?)*\s+((?:tests|tools)/\w+\.py)\b")
+
+
+def script_commands(texts):
+    """The scripts of tests/ and tools/ that a workflow step, or a command line in a live section of a doc, runs with Python; a record or a plan naming one runs nothing."""
+    lines = [line for p, t in texts.items() if p.startswith(".github/") for line in t.split("\n")]
+    for doc in docs_check.doc_files(texts):
+        for _, line, region, fence in docs_check.doc_lines(doc, texts[doc]):
+            if region == "live":
+                lines += [line] if fence else [m.group(2) for m in docs_check.SPAN.finditer(line)]
+    return {m.group(1) for line in lines for m in SCRIPT_RUN.finditer(line)}
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -919,22 +1020,15 @@ def include_target(texts, path, name):
     return None
 
 
-def file_findings(texts, paths):
-    """`file`: a src/ file no translation unit CMake builds includes, a test or tool source CMake does not build and no doc names, and a test or tool header nothing includes."""
+# The sources CMake does not build that the linked check builds by hand beside its targets (linked_build), as docs/ASSETS.md builds them, and the executable each makes.
+HAND_BUILT = {"tools/compare_cpu.cpp": "llmx-compare-cpu"}
+
+
+def file_findings(texts):
+    """`file`: a src/ file no translation unit CMake builds includes, a test or tool source neither CMake nor the linked check builds, and a test or tool header nothing includes."""
     cmake = texts["CMakeLists.txt"]
-    built = set(re.findall(r"\b((?:src|tests|tools)/[\w/]+\.cpp)\b", cmake))
-    docs = "\n".join(t for p, t in texts.items() if p.endswith(".md"))
+    built = set(re.findall(r"\b((?:src|tests|tools)/[\w/]+\.cpp)\b", cmake)) | set(HAND_BUILT)
     reached, work = set(), sorted(built)
-    while work:
-        p = work.pop()
-        if p in reached or p not in texts:
-            continue
-        reached.add(p)
-        work += [t for t in (include_target(texts, p, i) for i in re.findall(r'#\s*include\s+"([^"]+)"', texts[p])) if t]
-    # The sources CMake does not build that a doc names, like a comparison tool built by hand, reach their includes too.
-    for p in sorted(texts):
-        if p.startswith(("tests/", "tools/")) and p.endswith(".cpp") and p not in built and p in docs:
-            work.append(p)
     while work:
         p = work.pop()
         if p in reached or p not in texts:
@@ -944,15 +1038,15 @@ def file_findings(texts, paths):
     found = {}
     for p in sorted(texts):
         if p.endswith(CPP_SUFFIXES) and p.split("/")[0] in ("src", "tests", "tools") and p not in reached:
-            why = "no CMake target builds it and no doc names it" if p.endswith(".cpp") else "no built source includes it"
-            found[("file", p, "unreached")] = p + ": " + why
+            why = "neither CMake nor the linked check builds it" if p.endswith(".cpp") else "no built source includes it"
+            found[("file", p, "unreached")] = [p + ": " + why]
     return found
 
 
-def source_findings(texts, paths):
+def source_findings(texts):
     found = {}
     for check in (name_findings, override_findings, shader_findings, flag_findings, python_findings, file_findings):
-        found.update(check(texts, paths))
+        found.update(check(texts))
     return found
 
 
@@ -1040,8 +1134,9 @@ def platform_value(cond):
 
 
 def linux_only_names(texts):
-    """The functions src/ code calls where a Linux GCC build leaves it out: the branches of platform conditionals it does not take."""
-    names = set()
+    """The names src/ code calls only where a Linux GCC build leaves it out, in the branches of platform conditionals it does not take.
+    A name also called in code Linux compiles is left to the linker, so a common name such as size is never skipped because another platform calls it too."""
+    names, compiled = set(), set()
     for p, t in texts.items():
         if not p.startswith("src/") or not p.endswith(CPP_SUFFIXES):
             continue
@@ -1065,9 +1160,29 @@ def linux_only_names(texts):
                 elif d == "endif" and stack:
                     stack.pop()
                 continue
-            if not all(frame[1] for frame in stack):
-                names |= set(re.findall(r"([A-Za-z_]\w*)\s*\(", line))
-    return names
+            called = calls(line)
+            if all(frame[1] for frame in stack):
+                compiled |= called
+            else:
+                names |= called
+    return names - compiled
+
+
+CALL = re.compile(r"((?:[A-Za-z_]\w*\s*::\s*)*)([A-Za-z_]\w*)\s*\(")
+STATEMENT_WORDS = {"return", "else", "case", "throw", "new", "delete", "co_return", "co_await", "sizeof", "not", "and", "or", "do"}
+
+
+def calls(line):
+    """The names a line of stripped code calls; a name after a type, as a declaration or definition has it, is no call."""
+    out = set()
+    for m in CALL.finditer(line):
+        before = line[:m.start()].rstrip()
+        word = re.search(r"([A-Za-z_]\w*)$", before)
+        declared = word is not None and word.group(1) not in STATEMENT_WORDS or before.endswith(("*", "~")) \
+            or before.endswith(">") and not before.endswith("->") or before.endswith("&") and not before.endswith("&&")
+        if not declared:
+            out.add(m.group(2))
+    return out
 
 
 def source_of(src, parts):
@@ -1119,19 +1234,20 @@ def linked_build(root, build, jobs):
                     "-DCMAKE_CXX_COMPILER_LAUNCHER=%s;%s;--compile" % (sys.executable, here),
                     "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--gc-sections"], check=True, stdout=subprocess.DEVNULL)
     subprocess.run(["cmake", "--build", build, "--parallel", str(jobs)], check=True, stdout=subprocess.DEVNULL)
-    # tools/compare_cpu.cpp is built by hand against src/config.hpp (docs/ASSETS.md), so it is built here the same way.
+    # The hand-built sources are built against src/ as docs/ASSETS.md builds them.
     cxx = re.search(r"CMAKE_CXX_COMPILER:\w+=(.*)", open(os.path.join(build, "CMakeCache.txt")).read()).group(1).strip()
-    obj = os.path.join(build, "compare_cpu.o")
-    subprocess.run([cxx, "-std=c++17", "-mavx2", "-mfma", "-mf16c", "-I", os.path.join(root, "src"), "-c",
-                    os.path.join(root, "tools", "compare_cpu.cpp"), "-o", obj] + LINK_FLAGS, check=True)
-    subprocess.run([cxx, obj, "-o", os.path.join(build, "llmx-compare-cpu"), "-Wl,--gc-sections", "-pthread"], check=True)
+    for source, exe in HAND_BUILT.items():
+        obj = os.path.join(build, exe + ".o")
+        subprocess.run([cxx, "-std=c++17", "-mavx2", "-mfma", "-mf16c", "-I", os.path.join(root, "src"), "-c",
+                        os.path.join(root, source), "-o", obj] + LINK_FLAGS, check=True)
+        subprocess.run([cxx, obj, "-o", os.path.join(build, exe), "-Wl,--gc-sections", "-pthread"], check=True)
 
 
-def linked_findings(texts, root, build):
+def linked_findings(texts, build):
     """`linked-unreached`: a src/ function no executable keeps; `linked-test-only`: one only test executables keep.
-    Functions are their demangled signatures without template arguments; lambdas, function-local classes, special members nobody wrote or that are defaulted, constexpr functions and names a Linux build does not compile are left out, as are functions the name check already reports."""
+    Functions are their demangled signatures without template arguments; lambdas, function-local classes, special members nobody wrote or that are defaulted, constexpr functions and functions whose name only code a Linux build leaves out calls are left out, as are functions the name check already reports."""
     cmake = texts["CMakeLists.txt"]
-    kinds = {"llmx": "product", "llmx-compare-cpu": "product"}
+    kinds = dict({"llmx": "product"}, **{exe: "product" for exe in HAND_BUILT.values()})
     for target, source in re.findall(r"add_executable\(([\w-]+)\s+([\w/.]+)", cmake):
         kinds[target] = "product" if source.startswith(("src/", "tools/")) else "test"
     universe = set()
@@ -1157,7 +1273,7 @@ def linked_findings(texts, root, build):
         if p.startswith("src/"):
             namespaces |= set(re.findall(r"\bnamespace\s+(\w+)", t))
     src = {p: code_of(t) for p, t in texts.items() if p.startswith("src/") and p.endswith(CPP_SUFFIXES)}
-    skip, reported = linux_only_names(texts), name_findings(texts, set())
+    skip, reported = linux_only_names(texts), name_findings(texts)
     reported = {(k[1], k[2]) for k in reported if k[0] in ("unused", "test-only")}
     found = {}
     for sym in sorted(universe):
@@ -1186,7 +1302,7 @@ def linked_findings(texts, root, build):
         if (path, "::".join(parts[-2:])) in reported or (path, parts[-1]) in reported:
             continue
         check = "linked-test-only" if "test" in where else "linked-unreached"
-        found[(check, path, readable(sym))] = "kept by %s" % (", ".join(sorted(where)) or "no executable")
+        found[(check, path, readable(sym))] = ["kept by %s" % (", ".join(sorted(where)) or "no executable")]
     return found
 
 
@@ -1205,54 +1321,62 @@ def plant(texts, path, before, add):
     return copy
 
 
-def self_test(texts, paths, found, listed):
-    """The planted faults: a dead function, a function only tests call, an override nothing calls, an unreached shader, an unread flag, an unreached Python function, an unbuilt test source and a stale list entry."""
+def self_test(texts, found, listed):
+    """The planted faults: a dead function, a function only tests call, an unused value of an enum a template parameter shares a name with, a macro never used, an override nothing calls, an unreached shader, a flag whose value only the help prints, a flag parsed and dropped, an unreached Python function, an option only another module's namespace reads, an unbuilt test source a record names, and a stale list entry.
+    The faults one check reports share a copy of the tree, so each check runs once."""
+    flag_line = 'else if (a == "--ignore-eos")'
+    names = plant(texts, "src/core/utf8.hpp", None, "\nnamespace utf8 {\ninline int planted_dead_function() { return 1; }\n"
+                  "inline int planted_probe() { return 2; }\n}\n#define PLANTED_MACRO 1\n")
+    names = plant(plant(names, "tests/json.cpp", "int main(", "static int planted_use = utf8::planted_probe();\n"),
+                  "src/core/json.hpp", "Null, Bool,", "PlantedKind, ")
+    flags = plant(plant(texts, MAIN, flag_line, 'else if (a == "--planted-flag") exec.planted_knob = true;\n                '
+                        'else if (a == "--planted-noop") flag_value(argc, argv, i, a);\n                '),
+                  MAIN, '<< "  --depth N', "<< defaults.planted_knob\n            ")
+    python = plant(plant(texts, "tests/version.py", None, "\n\ndef planted_helper():\n    return 3\n"),
+                   "tools/fetch_test_models.py", "    args = parser.parse_args(argv)", '    parser.add_argument("--model", help="planted")\n')
     cases = [
-        ("a dead function", name_findings,
-         plant(texts, "src/core/utf8.hpp", None, "\nnamespace utf8 {\ninline int planted_dead_function() { return 1; }\n}\n"),
-         ("unused", "src/core/utf8.hpp", "planted_dead_function")),
-        ("a function only a test calls", name_findings,
-         plant(plant(texts, "src/core/utf8.hpp", None, "\nnamespace utf8 {\ninline int planted_probe() { return 2; }\n}\n"),
-               "tests/json.cpp", "int main(", "static int planted_use = utf8::planted_probe();\n"),
-         ("test-only", "src/core/utf8.hpp", "planted_probe")),
-        ("an override nothing calls", override_findings,
-         plant(texts, "src/core/utf8.hpp", None, "\nnamespace utf8 {\nstruct PlantedBase { virtual int planted_virtual() = 0; };\n"
-               "struct PlantedImpl : PlantedBase { int planted_virtual() override { return 1; } };\n}\n"),
-         ("override", "src/core/utf8.hpp", "PlantedImpl::planted_virtual")),
-        ("an unreached shader", shader_findings,
-         dict(texts, **{SHADERS + "planted.comp": "#version 450\nvoid main() {}\n"}),
-         ("shader", SHADERS + "planted.comp", "not built")),
-        ("an unread flag", flag_findings,
-         plant(texts, MAIN, 'else if (a == "--ignore-eos")', 'else if (a == "--planted-flag") gp.planted_knob = true;\n                '),
-         ("flag", MAIN, "--planted-flag")),
-        ("an unreached Python function", python_findings,
-         plant(texts, "tests/version.py", None, "\n\ndef planted_helper():\n    return 3\n"),
-         ("python", "tests/version.py", "planted_helper")),
-        ("a test source nothing builds", file_findings,
-         dict(texts, **{"tests/planted.cpp": "int main() { return 0; }\n"}),
-         ("file", "tests/planted.cpp", "unreached")),
+        (name_findings, names, [
+            ("a dead function", ("unused", "src/core/utf8.hpp", "planted_dead_function")),
+            ("a function only a test calls", ("test-only", "src/core/utf8.hpp", "planted_probe")),
+            ("an unused value of an enum a template parameter shares a name with", ("unused", "src/core/json.hpp", "T::PlantedKind")),
+            ("a macro never used", ("macro", "src/core/utf8.hpp", "PLANTED_MACRO"))]),
+        (override_findings, plant(texts, "src/core/utf8.hpp", None, "\nnamespace utf8 {\nstruct PlantedBase { virtual int planted_virtual() = 0; };\n"
+                                  "struct PlantedImpl : PlantedBase { int planted_virtual() override { return 1; } };\n}\n"), [
+            ("an override nothing calls", ("override", "src/core/utf8.hpp", "PlantedImpl::planted_virtual"))]),
+        (shader_findings, dict(texts, **{SHADERS + "planted.comp": "#version 450\nvoid main() {}\n"}), [
+            ("an unreached shader", ("shader", SHADERS + "planted.comp", "not built"))]),
+        (flag_findings, flags, [
+            ("a flag whose value only the help prints", ("flag", MAIN, "--planted-flag")),
+            ("a flag parsed and dropped", ("flag", MAIN, "--planted-noop"))]),
+        (python_findings, python, [
+            ("an unreached Python function", ("python", "tests/version.py", "planted_helper")),
+            ("an option only another module's namespace reads", ("python", "tools/fetch_test_models.py", "--model"))]),
+        (file_findings, plant(dict(texts, **{"tests/planted.cpp": "int main() { return 0; }\n"}), "docs/STATUS.md", None,
+                              "\n`tests/planted.cpp` was built by hand.\n"), [
+            ("an unbuilt test source a record names", ("file", "tests/planted.cpp", "unreached"))]),
     ]
-    ok = True
-    for what, check, tree, key in cases:
-        got = check(tree, paths)
-        if key not in got or key in found:
-            print("  self-test: %s was not reported as %s" % (what, " | ".join(key)))
-            ok = False
+    ok, count = True, 1
+    for check, tree, faults in cases:
+        got = check(tree)
+        for what, key in faults:
+            count += 1
+            if key not in got or key in found:
+                print("  self-test: %s was not reported as %s" % (what, " | ".join(key)))
+                ok = False
     stale = dict(listed)
-    stale[("unused", "src/core/utf8.hpp", "planted_gone")] = "a planted entry"
+    stale[("unused", "src/core/utf8.hpp", "planted_gone")] = (1, "a planted entry")
     if common.settle_findings(found, SOURCE_CHECKS, stale, say=lambda *a: None):
         print("  self-test: a listed finding that does not occur was accepted")
         ok = False
-    return ok, len(cases) + 1
+    return ok, count
 
 
 def run():
     t0 = time.time()
-    texts, paths = common.read_tree()
-    with open(common.KNOWN_FINDINGS, encoding="utf-8") as f:
-        listed = common.known_findings(f.read())
-    found = source_findings(texts, paths)
-    planted_ok, planted = self_test(texts, paths, found, listed)
+    texts, _ = common.read_tree()
+    listed = common.load_known_findings()
+    found = source_findings(texts)
+    planted_ok, planted = self_test(texts, found, listed)
     ok = common.settle_findings(found, SOURCE_CHECKS, listed)
     counts = collections.Counter(k[0] for k in found)
     print("dead-code: %d findings (%s) against the list; %d planted faults; %.1f s  [%s]" % (
@@ -1271,15 +1395,14 @@ def main():
     if not args.linked:
         return 0 if run() else 1
     if not sys.platform.startswith("linux") or not shutil.which("nm"):
-        parser.error("--linked needs Linux with GCC, GNU ld and binutils")
+        parser.error("--linked needs Linux with GCC, GNU ld, binutils, CMake, the Vulkan headers and glslc")
     t0 = time.time()
     texts, _ = common.read_tree()
     build = os.path.abspath(args.linked)
     linked_build(common.ROOT, build, args.jobs)
     t1 = time.time()
-    with open(common.KNOWN_FINDINGS, encoding="utf-8") as f:
-        listed = common.known_findings(f.read())
-    found = linked_findings(texts, common.ROOT, build)
+    listed = common.load_known_findings()
+    found = linked_findings(texts, build)
     ok = common.settle_findings(found, LINKED_CHECKS, listed)
     counts = collections.Counter(k[0] for k in found)
     print("dead-code --linked: %d findings (%s) against the list; build %.0f s, analysis %.1f s  [%s]" % (

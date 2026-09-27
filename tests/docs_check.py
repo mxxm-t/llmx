@@ -1,11 +1,12 @@
-"""Stale docs: references in the Markdown that the tree no longer has.
+"""Stale docs: references in the Markdown, and in the code's comments, that the tree no longer has.
 
 Only what a reference names is checked, never whether prose about the code is still true; that is the merge sweep's (AGENTS.md, Dead code and stale docs).
-Each finding is keyed by its check, file and name, and held to tests/data/known_findings.txt, which a new finding and a listed one that no longer occurs both fail.
+Each finding is keyed by its check, file and name, counted, and held to tests/data/known_findings.txt, which a new finding, a count that differs and a listed one that no longer occurs all fail.
 Standard library only; the command and usage checks ask the built binary for its help pages.
 """
 import ast
 import collections
+import functools
 import io
 import json
 import os
@@ -68,6 +69,7 @@ def doc_lines(doc, text):
         yield n, line, region, fence
 
 
+@functools.lru_cache(maxsize=None)
 def headings(text):
     out, fence = [], False
     for line in text.split("\n"):
@@ -77,7 +79,7 @@ def headings(text):
             m = re.match(r"#{1,6}\s+(.*?)\s*#*\s*$", line)
             if m:
                 out.append(m.group(1))
-    return out
+    return tuple(out)
 
 
 def slugs(text):
@@ -95,45 +97,49 @@ def slugs(text):
 
 ID = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 CODE_TOPS = ("src/", "tests/", "tools/", "cmake/", "docker/", ".github/")
+CPP_SOURCES = (".hpp", ".cpp", ".h", ".comp", ".glsl", ".in")
+PY_TEXT = (tokenize.STRING,) + tuple(getattr(tokenize, t) for t in ("FSTRING_START", "FSTRING_MIDDLE", "FSTRING_END") if hasattr(tokenize, t))
 
 
-def python_code(text):
-    """Python source without its comments, strings kept."""
+def python_code(text, keep_strings=True):
+    """Python source without its comments and, unless `keep_strings`, without its strings."""
     try:
-        return " ".join(t.string for t in tokenize.generate_tokens(io.StringIO(text).readline) if t.type != tokenize.COMMENT)
+        return " ".join(t.string for t in tokenize.generate_tokens(io.StringIO(text).readline)
+                        if t.type != tokenize.COMMENT and (keep_strings or t.type not in PY_TEXT))
     except (tokenize.TokenError, SyntaxError):
         return text
 
 
 class Tree:
-    def __init__(self, texts, paths, root=common.ROOT, help_pages=None):
+    def __init__(self, texts, paths, help_pages=None):
         self.texts, self.paths = texts, paths
         self.dirs = {"/".join(p.split("/")[:i]) for p in paths for i in range(1, p.count("/") + 1)}
         self.by_base = collections.defaultdict(list)
         for p in sorted(paths):
             self.by_base[p.rsplit("/", 1)[-1]].append(p)
         self.stems = {os.path.splitext(p.rsplit("/", 1)[-1])[0] for p in paths}
-        code = {}
+        # The code keeps its strings for the build options a string may carry, and drops them for identifiers and class members, since a name only a message holds is not the code's.
+        code, bare = {}, {}
         for p, t in texts.items():
             if not (p.startswith(CODE_TOPS) or p in ("CMakeLists.txt", "build.bat")) or p.endswith(".md"):
                 continue
-            if p.endswith((".hpp", ".cpp", ".h", ".comp", ".glsl", ".in")):
-                code[p] = common.cpp_code(t, keep_strings=True)
+            if p.endswith(CPP_SOURCES):
+                code[p], bare[p] = common.cpp_code(t, keep_strings=True), common.cpp_code(t)
             elif p.endswith(".py"):
-                code[p] = python_code(t)
+                code[p], bare[p] = python_code(t), python_code(t, keep_strings=False)
             else:
-                code[p] = "\n".join(line for line in t.split("\n") if not line.lstrip().startswith("#"))
-        self.code = code
+                code[p] = bare[p] = "\n".join(line for line in t.split("\n") if not line.lstrip().startswith("#"))
         self.code_text = "\n".join(code.values())
-        self.tokens = set(ID.findall(self.code_text))
+        self.bare_text = "\n".join(bare.values())
+        self.tokens = set(ID.findall(self.bare_text))
         self.json_keys = set()
         for p in sorted(paths):
-            if p.startswith("tests/data/") and p.endswith(".json") and os.path.getsize(os.path.join(root, p)) < 8000000:
-                with open(os.path.join(root, p), encoding="utf-8") as f:
+            if p.startswith("tests/data/") and p.endswith(".json") and os.path.getsize(os.path.join(common.ROOT, p)) < 8000000:
+                with open(os.path.join(common.ROOT, p), encoding="utf-8") as f:
                     self.keys(json.load(f))
         self.members, self.bases = collections.defaultdict(set), collections.defaultdict(set)
         head = re.compile(r"\b(?:struct|class|union|enum\s+class|enum|namespace)\s+(?:alignas\s*\([^)]*\)\s*)?([A-Za-z_]\w*(?:\s*::\s*[A-Za-z_]\w*)*)([^;{()]*)\{")
-        for p, c in code.items():
+        for p, c in bare.items():
             if not p.endswith((".hpp", ".cpp", ".h")):
                 continue
             for m in head.finditer(c):
@@ -148,9 +154,9 @@ class Tree:
                     self.members[name] |= body
                 if m.group(2).strip().startswith(":"):
                     self.bases[m.group(1)] |= set(re.findall(r"(?:public|private|protected)?\s*(?:\w+::)*(\w+)\s*(?:<[^>]*>)?\s*(?:,|$)", m.group(2).strip()[1:]))
-        for p, t in texts.items():
+        for p in texts:
             if p.endswith(".py") and p.startswith(("tests/", "tools/")):
-                self.members[os.path.splitext(p.rsplit("/", 1)[-1])[0]] |= set(ID.findall(code[p]))
+                self.members[os.path.splitext(p.rsplit("/", 1)[-1])[0]] |= set(ID.findall(bare[p]))
         cmake = texts["CMakeLists.txt"]
         self.ctests = dict(re.findall(r"add_test\(NAME ([\w-]+) COMMAND ([\w-]+)", cmake))
         self.targets = dict(re.findall(r"add_executable\(([\w-]+)\s+([\w/.]+)", cmake))
@@ -166,25 +172,26 @@ class Tree:
                 self.tool_flags[p] = flags or set(re.findall(r"""["'](--?[A-Za-z][\w-]*)["']""", t))
             elif p.startswith(("tools/", "tests/")) and p.endswith(".cpp"):
                 self.tool_flags[p] = set(re.findall(r'"(--?[A-Za-z][\w-]*)"', t))
+        # The planted copies whose code changes take the help pages already read.
         self.help = help_pages if help_pages is not None else read_help_pages()
-        self.commands = {c: set().union(*(g["spellings"] for g in groups)) for c, groups in self.help.items() if c}
+        self.commands = {c: set().union(*(g["spellings"] for g in groups)) for c, groups in self.help.items()}
 
-    def keys(self, o, depth=0):
+    def keys(self, o):
         if isinstance(o, dict):
             for k, v in o.items():
                 self.json_keys.add(k)
-                self.keys(v, depth + 1)
+                self.keys(v)
         elif isinstance(o, list):
             for v in o[:200]:
-                self.keys(v, depth + 1)
+                self.keys(v)
 
     def known(self, name):
-        """Whether an identifier is one the tree has: in code or a string, a test data key, a file stem or a test's name."""
+        """Whether an identifier is one the tree has: in code, a test data key, a file stem or a test's name."""
         return name in self.tokens or name in self.json_keys or name in self.stems or name in self.ctests or name in self.components \
             or name in self.targets
 
     def member(self, scope, name, seen=None):
-        if name in self.members.get(scope, ()) or (scope + "::" + name) in self.code_text:
+        if name in self.members.get(scope, ()) or (scope + "::" + name) in self.bare_text:
             return True
         seen = seen if seen is not None else set()
         for b in self.bases.get(scope, ()):
@@ -214,13 +221,11 @@ class Tree:
 
 
 def read_help_pages():
-    """Each command's option groups from the binary's help pages: [{spellings, default}], by command; the overview's commands under None."""
+    """Each command's option groups from the binary's help pages: [{spellings, default}], by command."""
     pages = {}
     with tempfile.TemporaryDirectory(prefix="llmx_docs_") as directory:
         overview = cli.help_page(None, directory)
-        commands = re.findall(r"^  ([a-z]+) ", overview, re.M)
-        pages[None] = [{"spellings": {c}, "default": None} for c in commands]
-        for c in commands:
+        for c in re.findall(r"^  ([a-z]+) ", overview, re.M):
             groups = []
             for line in cli.help_page(c, directory).splitlines():
                 m = re.match(r"  (-\S.*?)(?:  +(.*)|$)", line)
@@ -244,11 +249,15 @@ def read_help_pages():
 MD_LINK = re.compile(r"!?\[((?:[^\[\]]|\[[^\]]*\])*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 SPAN = re.compile(r"(`+)(.+?)\1")
 FILE_LINE = re.compile(r"(?<![\w/.-])((?:[\w.-]+/)*[\w.-]+\.(?:hpp|cpp|h|py|md|comp|glsl|yml|txt|cmake|in|bat|json|sh)):(\d+)")
+LINE_SUFFIX = re.compile(r":\d+(?:[-,]\d+)*$")
 PIN = re.compile(r"\bat\s+`?[0-9a-f]{7,40}\b")
 BARE_PATH = re.compile(r"(?<![\w/`.<-])((?:docs|src|tests|tools|cmake|docker|\.github)/[\w./*-]*[\w/*])")
+DOC_PATH = re.compile(r"(?<![\w/.-])(docs/[\w./-]*\.md)\b")
 ROOT_FILES = ("CMakeLists.txt", "build.bat", "README.md", "AGENTS.md", ".gitignore")
 RUNTIME = ("build/", "build\\", "generated/", "~", "<", "%", "$", "/", "C:", "c:", ".cache/", "models--")
-SECTION = re.compile(r"\(`((?:docs/)?[A-Z][\w-]*\.md)`,\s+([A-Z][^)`]*)\)")
+# A doc's heading named with its file, backticked or not: "(AGENTS.md, Tests)"; and one of the same doc: "(Tests, above)".
+SECTION = re.compile(r"\(`?((?:docs/)?[A-Z][\w-]*\.md)`?,\s+([A-Z][^)`]*)\)")
+NEAR_SECTION = re.compile(r"\(([A-Z][^()`]*?),\s+(?:above|below)\)")
 ROADMAP_ITEM = re.compile(r"ROADMAP(?:\.md)?`?\s*\(?#(\d+[a-z]?)\b")
 
 
@@ -346,27 +355,70 @@ def check_command(tree, text, prefixed=True):
     return None
 
 
+class Findings(dict):
+    """(check, file, name) -> [where each occurrence was seen]; an occurrence is counted once however many problems it has."""
+
+    def __init__(self):
+        super().__init__()
+        self.at = set()
+
+    def add(self, check, path, name, where, why, column=0):
+        if (check, path, name, where, column) not in self.at:
+            self.at.add((check, path, name, where, column))
+            self.setdefault((check, path, name), []).append("%s:%s, %s" % (path, where, why))
+
+
+def section_findings(tree, line, doc=None):
+    """The references `line` makes to a doc's heading or a ROADMAP item that the tree lacks; `doc` is the doc a heading named without its file belongs to."""
+    out = []
+    for m in SECTION.finditer(line):
+        target, title = m.group(1), m.group(2).strip().split(",")[0].strip()
+        target = target if target.startswith("docs/") or target in ROOT_FILES else "docs/" + target
+        if not has_heading(tree, target, title):
+            out.append(("%s, %s" % (m.group(1), title), m.start(), "no such heading"))
+    for m in NEAR_SECTION.finditer(line) if doc else ():
+        title = m.group(1).strip()
+        if not has_heading(tree, doc, title) and not has_label(tree, doc, title):
+            out.append(("%s, %s" % (title, line[m.end(1) + 1:m.end() - 1].strip()), m.start(), "no such heading in this doc"))
+    for m in ROADMAP_ITEM.finditer(line):
+        if not any(h.startswith(m.group(1) + ".") for h in headings(tree.texts["docs/ROADMAP.md"])):
+            out.append(("ROADMAP #" + m.group(1), m.start(), "no such item"))
+    return out
+
+
+def has_label(tree, doc, title):
+    """Whether `doc` has a bold label that starts with `title`, such as a block's **Gates**, which a reference within the doc may name as it names a heading."""
+    t = title.lower()
+    return any(b.lower().startswith(t) for b in re.findall(r"\*\*([^*\n]+)\*\*", tree.texts.get(doc, "")))
+
+
+def has_heading(tree, doc, title):
+    hs = [re.sub(r"[`*\"]", "", h).lower() for h in headings(tree.texts.get(doc, ""))]
+    return any(h.startswith(re.sub(r"[`*\"]", "", title).lower()) for h in hs)
+
+
 def reference_findings(tree):
-    """`link`, `path`, `line-pin`, `name`, `command` and `section`: what each doc's lines name that the tree lacks."""
-    found = {}
+    """`link`, `path`, `line-pin`, `name`, `command` and `section`: what each doc's lines name that the tree lacks, then the docs and headings the code's comments name."""
+    found = Findings()
     src_dirs = sorted({p.split("/")[1] for p in tree.paths if p.startswith("src/") and p.count("/") >= 2})
     slug_cache = {}
-
-    def add(check, doc, name, n, why):
-        found.setdefault((check, doc, name), "%s:%d, %s" % (doc, n, why))
 
     for doc in doc_files(tree.texts):
         lines = list(doc_lines(doc, tree.texts[doc]))
         paragraph = blocks((n, l) for n, l, _, fence in lines if not fence)
         for n, line, region, fence in lines:
             live = region == "live"
+
+            def add(check, name, why, column=0):
+                found.add(check, doc, name, n, why, column)
+
             if fence:
                 if live:
                     problems = check_command(tree, line)
                     for p in problems or ():
-                        add("command", doc, p, n, "a command line the tree does not take")
+                        add("command", p, "a command line the tree does not take")
                 continue
-            # Links, in every region.
+            # Links and references to a heading, in every region.
             for m in MD_LINK.finditer(line):
                 target = m.group(2)
                 if re.match(r"(?:https?|mailto):", target):
@@ -374,54 +426,91 @@ def reference_findings(tree):
                 path, _, anchor = target.partition("#")
                 dest = os.path.normpath(os.path.join(os.path.dirname(doc), path)).replace(os.sep, "/") if path else doc
                 if path and dest not in tree.paths and dest.rstrip("/") not in tree.dirs:
-                    add("link", doc, target, n, "no such file")
+                    add("link", target, "no such file", m.start())
                 elif anchor and dest.endswith(".md"):
                     if dest not in slug_cache:
                         slug_cache[dest] = slugs(tree.texts.get(dest, ""))
                     if anchor not in slug_cache[dest]:
-                        add("link", doc, target, n, "no such heading")
+                        add("link", target, "no such heading", m.start())
+            for name, column, why in section_findings(tree, line, doc):
+                add("section", name, why, column)
             # Line references carry the commit they point into, in every region.
             text, off = paragraph.get(n, (line, 0))
             for m in FILE_LINE.finditer(line):
                 if not PIN.search(sentence_at(text, off + m.start())):
-                    add("line-pin", doc, m.group(0), n, "a line number without the commit it points into")
+                    add("line-pin", m.group(0), "a line number without the commit it points into", m.start())
             if not live:
                 continue
             prose = MD_LINK.sub(" ", SPAN.sub(" ", line))
             for m in BARE_PATH.finditer(prose):
                 p = m.group(1).rstrip(".,;:)")
                 if not tree.resolve(p, doc) and not branch_like(p):
-                    add("path", doc, p, n, "no such path")
-            for m in SECTION.finditer(line):
-                target, title = m.group(1), m.group(2).strip().split(",")[0].strip()
-                target = target if target.startswith("docs/") or target in ROOT_FILES else "docs/" + target
-                hs = [re.sub(r"[`*\"]", "", h).lower() for h in headings(tree.texts.get(target, ""))]
-                if not any(h.startswith(re.sub(r"[`*\"]", "", title).lower()) for h in hs):
-                    add("section", doc, "%s, %s" % (m.group(1), title), n, "no such heading")
-            for m in ROADMAP_ITEM.finditer(line):
-                if not any(h.startswith(m.group(1) + ".") for h in headings(tree.texts["docs/ROADMAP.md"])):
-                    add("section", doc, "ROADMAP #" + m.group(1), n, "no such item")
-            for d in re.findall(r"(?<![\w-])-DLLMX_\w+", line):
-                if not re.search(r"\b" + d[2:] + r"\b", tree.build_text + "\n" + tree.code_text):
-                    add("command", doc, d, n, "no such build option")
+                    add("path", p, "no such path", m.start())
+            for m in re.finditer(r"(?<![\w-])-DLLMX_\w+", line):
+                if not re.search(r"\b" + m.group(0)[2:] + r"\b", tree.build_text + "\n" + tree.code_text):
+                    add("command", m.group(0), "no such build option", m.start())
             for m in SPAN.finditer(line):
-                span_findings(tree, doc, n, m.group(2).strip(), src_dirs, add)
+                span_findings(tree, doc, m.group(2).strip(), src_dirs, lambda check, name, why, c=m.start(): add(check, name, why, c))
+    for path, n, comment in code_comments(tree.texts):
+        for m in DOC_PATH.finditer(comment):
+            if m.group(1) not in tree.paths:
+                found.add("path", path, m.group(1), n, "a comment names a doc that does not exist", m.start())
+        for name, column, why in section_findings(tree, comment):
+            found.add("section", path, name, n, "a comment names a heading or item the doc lacks", column)
     return found
 
 
-def span_findings(tree, doc, n, t, src_dirs, add):
-    """What one inline code span of live text names: a path, a command, a qualified name or a call."""
+def code_comments(texts):
+    """(path, line number, text) of every comment, and every Python docstring, in the code and build files."""
+    for p, t in sorted(texts.items()):
+        if (p.startswith(CODE_TOPS) or p in ("CMakeLists.txt", "build.bat")) and not p.endswith(".md"):
+            for n, line in comments_of(p, t):
+                yield p, n, line
+
+
+@functools.lru_cache(maxsize=None)
+def comments_of(p, t):
+    """(line number, text) of each comment line of the file `p` holding `t`; each planted copy of the tree reads the same files."""
+    out = []
+    if p.endswith(CPP_SOURCES):
+        for m in common.CPP_BLANKS.finditer(t):
+            if m.group(0).startswith("/"):
+                first = t.count("\n", 0, m.start()) + 1
+                for k, line in enumerate(m.group(0).split("\n")):
+                    out.append((first + k, line))
+    elif p.endswith(".py"):
+        try:
+            for tok in tokenize.generate_tokens(io.StringIO(t).readline):
+                if tok.type == tokenize.COMMENT:
+                    out.append((tok.start[0], tok.string))
+            for node in ast.walk(ast.parse(t)):
+                if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and ast.get_docstring(node, clean=False):
+                    first = node.body[0].lineno
+                    for k, line in enumerate(ast.get_docstring(node, clean=False).split("\n")):
+                        out.append((first + k, line))
+        except (tokenize.TokenError, SyntaxError):
+            pass
+    else:
+        for n, line in enumerate(t.split("\n"), 1):
+            m = re.search(r"(?:^|\s)(?:#|::|rem\s)(.*)", line, re.I) if p.endswith(".bat") else re.search(r"(?:^|\s)#(.*)", line)
+            if m:
+                out.append((n, m.group(1)))
+    return tuple(out)
+
+
+def span_findings(tree, doc, t, src_dirs, add):
+    """What one inline code span of live text names: a path, a command, a qualified name or a call; `add(check, name, why)` takes each problem."""
     if not t:
         return
     words = t.split()
     # A program with arguments is a command line; a bare `llmx-vulkan` is a target's name.
     if re.match(r"^(\.?[/\\])?(build[/\\](Release[/\\])?)?llmx(-[\w-]+)?(\.exe)?\s", t) or re.match(r"^(python3?|py)\s", t):
         for p in check_command(tree, t) or ():
-            add("command", doc, p, n, "a command line the tree does not take")
+            add("command", p, "a command line the tree does not take")
         return
     if len(words) > 1 and (words[0] in tree.commands or words[0] in tree.ctests) and re.search(r"\s-{1,2}[A-Za-z]", t):
         for p in check_command(tree, t, prefixed=False) or ():
-            add("command", doc, p, n, "a command line the tree does not take")
+            add("command", p, "a command line the tree does not take")
         return
     m = re.fullmatch(r"((?:[\w.-]+/)*[\w.-]+\.(?:hpp|cpp|h|py|comp|glsl))(?::|\s+)([A-Za-z_~][\w:~]*)", t)
     if m:
@@ -430,15 +519,17 @@ def span_findings(tree, doc, n, t, src_dirs, add):
                 next((p for p in tree.texts if p.endswith("/" + m.group(1))), None)
             symbol = m.group(2).split("::")[-1].lstrip("~")
             if path and not re.search(r"\b" + re.escape(symbol) + r"\b", tree.texts[path]):
-                add("path", doc, t, n, "the file has no " + symbol)
+                add("path", t, "the file has no " + symbol)
         else:
-            add("path", doc, t, n, "no such path")
+            add("path", t, "no such path")
         return
-    if is_path(t):
-        if t.startswith(RUNTIME) or re.search(r"[<>%$~]", t) or not rooted(t, src_dirs) or re.fullmatch(r"[0-9a-f]{40,64}", t):
+    # A path with a line number is the path; the line number is the line-pin check's.
+    path = LINE_SUFFIX.sub("", t) if FILE_LINE.fullmatch(t) else t
+    if is_path(path):
+        if path.startswith(RUNTIME) or re.search(r"[<>%$~]", path) or not rooted(path, src_dirs) or re.fullmatch(r"[0-9a-f]{40,64}", path):
             return
-        if not tree.resolve(t, doc) and not branch_like(t):
-            add("path", doc, t, n, "no such path")
+        if not tree.resolve(path, doc) and not branch_like(path):
+            add("path", path, "no such path")
         return
     # A qualified name, with or without arguments, and a call with arguments; `name()` alone is a plain name, which may be another program's.
     qualified = re.fullmatch(r"~?[A-Za-z_]\w*(?:<[^<>]*>)?(?:::~?[A-Za-z_]\w*(?:<[^<>]*>)?)+(\(.*\))?", t)
@@ -449,19 +540,19 @@ def span_findings(tree, doc, n, t, src_dirs, add):
             parts = [p.lstrip("~") for p in head.split("::")]
             bad = [p for p in parts if not tree.known(p)]
             if bad:
-                add("name", doc, t, n, "the tree has no " + bad[0])
-            elif head not in tree.code_text and not all(tree.member(a, b) for a, b in zip(parts, parts[1:])):
-                add("name", doc, t, n, "no such member")
+                add("name", t, "the tree has no " + bad[0])
+            elif head not in tree.bare_text and not all(tree.member(a, b) for a, b in zip(parts, parts[1:])):
+                add("name", t, "no such member")
     elif call:
         callee = call.group(1)
         bad = [p for p in re.split(r"\.|->", callee) if p and not tree.known(p)]
-        if bad and callee not in tree.code_text:
-            add("name", doc, t, n, "the tree has no " + bad[0])
+        if bad and callee not in tree.bare_text:
+            add("name", t, "the tree has no " + bad[0])
     args = re.fullmatch(r"[\w:~.<>-]+\((.*)\)", t)
     if args and (qualified or call):
         for a in sorted(set(ID.findall(re.sub(r'"[^"]*"', "", args.group(1))))):
             if len(a) >= 3 and not a.isupper() and not tree.known(a):
-                add("name", doc, t, n, "an argument the tree has no name for: " + a)
+                add("name", t, "an argument the tree has no name for: " + a)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -515,10 +606,10 @@ def table_rows(lines):
 
 def usage_findings(tree):
     """`usage`: each command's flags as its help page lists them against its USAGE.md section, synopsis, table and numeric defaults, and the load tool's options against its table."""
-    found = {}
+    found = Findings()
 
     def add(name, n, why):
-        found.setdefault(("usage", USAGE, name), "%s:%d, %s" % (USAGE, n, why))
+        found.add("usage", USAGE, name, n, why)
 
     text = tree.texts[USAGE]
     sections = usage_sections(text)
@@ -589,31 +680,77 @@ def usage_findings(tree):
 # ----------------------------------------------------------------------------------------------------------------------
 # Test names, and the docs/src page of every source file.
 
+TEST_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+# Spans masked as \0N\0, listed with commas or "and".
+SPAN_LIST = r"\x00\d+\x00(?:(?:,\s*(?:and\s+)?|\s+and\s+)\x00\d+\x00)*"
+CTEST_SPANS = re.compile(r"\bCTests?\b(?:\s*[\w',]+){0,3}?\s*(" + SPAN_LIST + ")")
+COMPONENT_SPANS = re.compile(r"\bcomponents?\s+(" + SPAN_LIST + r")|(" + SPAN_LIST + r")\s+components?\b")
+# A line of AGENTS.md's Tests that opens with a test's name and what it does: "`sampler` calls ...".
+OPENER = re.compile(r"`([a-z0-9]+(?:-[a-z0-9]+)*)` [a-z]+s\b")
+
+
+def presented_tests(line):
+    """(name, 'ctest' or 'component', column) for each name `line` presents as a test: a span listed after CTest, or beside component.
+    A program's name, `llmx-...`, is no test's."""
+    spans = []
+
+    def hold(m):
+        spans.append((m.group(2).strip(), m.start()))
+        return "\x00%d\x00" % (len(spans) - 1)
+
+    masked = SPAN.sub(hold, line)
+    out = []
+    for pattern, what in ((CTEST_SPANS, "ctest"), (COMPONENT_SPANS, "component")):
+        for m in pattern.finditer(masked):
+            for i in re.findall(r"\x00(\d+)\x00", next(g for g in m.groups() if g)):
+                name, column = spans[int(i)]
+                if TEST_NAME.fullmatch(name) and not name.startswith("llmx"):
+                    out.append((name, what, column))
+    return out
+
+
 def test_name_findings(tree):
-    """`test-name`: a test's name AGENTS.md's Tests or docs/CI.md gives that the tree lacks, and a CTest or suite component AGENTS.md's Tests never describes."""
-    found = {}
+    """`test-name`: a name a live doc presents as a CTest or a suite component, or that opens a line of AGENTS.md's Tests, that the tree does not have as one; another test-like name in AGENTS.md's Tests or docs/CI.md that nothing in the tree names; and a CTest or suite component AGENTS.md's Tests never describes."""
+    found = Findings()
     agents = tree.texts["AGENTS.md"]
     start = agents.index("\n## Tests")
-    tests = agents[start:agents.index("\n## ", start + 1)]
-    for doc, text in (("AGENTS.md", tests), ("docs/CI.md", tree.texts["docs/CI.md"])):
-        for m in SPAN.finditer(text):
-            t = m.group(2).strip()
-            if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)+", t) and not tree.known(t) and t not in tree.code_text and t not in tree.build_text:
-                found[("test-name", doc, t)] = "%s, a test name the tree lacks" % doc
-    named = set(re.findall(r"`([^`\n]+)`", tests))
+    end = agents.index("\n## ", start + 1)
+    first, last = agents.count("\n", 0, start) + 2, agents.count("\n", 0, end) + 1
+    exact = {"ctest": (tree.ctests, "a CTest the tree lacks"), "component": (tree.components, "a suite component the tree lacks")}
+    for doc in doc_files(tree.texts):
+        for n, line, region, fence in doc_lines(doc, tree.texts[doc]):
+            if region != "live" or fence:
+                continue
+            in_tests = doc == "AGENTS.md" and first <= n < last
+            held = set()
+            for name, what, column in presented_tests(line):
+                held.add(column)
+                if name not in exact[what][0]:
+                    found.add("test-name", doc, name, n, exact[what][1], column)
+            m = OPENER.match(line) if in_tests else None
+            if m:
+                held.add(0)
+                if m.group(1) not in tree.ctests and m.group(1) not in tree.components:
+                    found.add("test-name", doc, m.group(1), n, "a test AGENTS.md's Tests describes that the tree lacks")
+            if in_tests or doc == "docs/CI.md":
+                for s in SPAN.finditer(line):
+                    t = s.group(2).strip()
+                    if s.start() not in held and re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)+", t) and not tree.known(t) \
+                            and t not in tree.code_text and t not in tree.build_text:
+                        found.add("test-name", doc, t, n, "a test name the tree lacks", s.start())
+    named = set(re.findall(r"`([^`\n]+)`", agents[start:end]))
     for name, target in sorted(tree.ctests.items()):
-        source = tree.targets.get(target, "")
-        if name not in named and source not in named:
-            found[("test-name", "AGENTS.md", name)] = "a CTest AGENTS.md's Tests never describes"
+        if name not in named and tree.targets.get(target, "") not in named:
+            found.add("test-name", "AGENTS.md", name, first, "a CTest AGENTS.md's Tests never describes")
     for name, module in sorted(tree.components.items()):
         if name not in named and "tests/%s.py" % module not in named:
-            found[("test-name", "AGENTS.md", name)] = "a suite component AGENTS.md's Tests never describes"
+            found.add("test-name", "AGENTS.md", name, first, "a suite component AGENTS.md's Tests never describes")
     return found
 
 
 def src_page_findings(tree):
     """`src-page`: a src/ file no docs/src page's title names, as the file or a directory holding it, or one two titles name, and a title naming a path that does not exist."""
-    found, titles = {}, {}
+    found, titles = Findings(), {}
     for p in sorted(tree.texts):
         if re.fullmatch(r"docs/src/[^/]+\.md", p):
             first = tree.texts[p].split("\n", 1)[0]
@@ -623,13 +760,13 @@ def src_page_findings(tree):
                 titles[p] = t if t.startswith("src/") else "src/" + t
     for page, t in titles.items():
         if t.rstrip("/") not in tree.paths and t.rstrip("/") not in tree.dirs:
-            found[("src-page", page, t)] = "%s names %s, which does not exist" % (page, t)
+            found.add("src-page", page, t, 1, "the title names %s, which does not exist" % t)
     for f in sorted(p for p in tree.paths if p.startswith("src/")):
         pages = [page for page, t in titles.items() if t == f or t.endswith("/") and f.startswith(t)]
         if not pages:
-            found[("src-page", f, "no page")] = "no docs/src page's title names %s or a directory holding it" % f
+            found.add("src-page", f, "no page", 1, "no docs/src page's title names it or a directory holding it")
         elif len(pages) > 1:
-            found[("src-page", f, "pages " + ", ".join(pages))] = "several pages name %s" % f
+            found.add("src-page", f, "pages " + ", ".join(pages), 1, "several pages name it")
     return found
 
 
@@ -643,58 +780,89 @@ def all_findings(tree):
 # ----------------------------------------------------------------------------------------------------------------------
 # Planted faults, then the tree.
 
-def planted(tree, path, before, add):
-    """`tree` with `add` written into the doc `path` before the first `before`; a doc is no part of the code's index, so the index is shared."""
-    texts = dict(tree.texts)
-    t = texts.get(path, "")
-    i = t.index(before) if before is not None else len(t)
-    texts[path] = t[:i] + add + t[i:]
+def plant_texts(texts, plants):
+    """A copy of `texts` with each (path, before, add) of `plants` written into its file before the first `before`, or at its end when `before` is None."""
+    out = dict(texts)
+    for path, before, add in plants:
+        t = out.get(path, "")
+        i = t.index(before) if before is not None else len(t)
+        out[path] = t[:i] + add + t[i:]
+    return out
+
+
+def planted(tree, plants):
+    """`tree` with `plants` written into its docs; a doc is no part of the code's index, so the index is shared."""
     copy = object.__new__(Tree)
-    copy.__dict__.update(tree.__dict__, texts=texts, paths=tree.paths | {path})
+    copy.__dict__.update(tree.__dict__, texts=plant_texts(tree.texts, plants), paths=tree.paths | {p for p, _, _ in plants})
     return copy
 
 
 def self_test(tree, found, listed):
-    """The planted faults: a dangling path, a broken link, a wrong flag in USAGE.md, an unpinned line number, a command line with a flag it does not take, a page for a file that does not exist, and a stale list entry."""
-    wrong_row = "| `--planted-flag N` | a flag generate does not take | 1 |\n"
-    cases = [
-        ("a dangling path", reference_findings, planted(tree, "docs/ARCHITECTURE.md", "\n## ", "\nSee `src/planted/nothing.hpp`.\n"),
-         ("path", "docs/ARCHITECTURE.md", "src/planted/nothing.hpp")),
-        ("a broken link", reference_findings, planted(tree, "docs/BUILD.md", "\n## ", "\nSee [the plan](PLANTED.md#nothing).\n"),
-         ("link", "docs/BUILD.md", "PLANTED.md#nothing")),
-        ("a wrong flag in USAGE.md", usage_findings, planted(tree, USAGE, "| `--seed N`", wrong_row),
-         ("usage", USAGE, "generate --planted-flag")),
-        ("a wrong default in USAGE.md", usage_findings, planted(tree, USAGE, "| `--iters N`", "| `--size N` | matrix width | 2048 |\n"),
-         ("usage", USAGE, "bench --size default")),
-        ("an unpinned line number", reference_findings, planted(tree, "docs/SERVER.md", "\n## ", "\nThe route is at `server/api.hpp:12`.\n"),
-         ("line-pin", "docs/SERVER.md", "server/api.hpp:12")),
-        ("a command line with a flag it does not take", reference_findings,
-         planted(tree, "docs/BUILD.md", "\n## ", "\n```\nllmx generate model.gguf hi --planted-flag 3\n```\n"),
-         ("command", "docs/BUILD.md", "generate --planted-flag")),
-        ("a page for a file that does not exist", src_page_findings,
-         planted(tree, "docs/src/core-planted.md", None, "# `src/core/planted.hpp` - nothing\n"),
-         ("src-page", "docs/src/core-planted.md", "src/core/planted.hpp")),
+    """The planted faults: a dangling path, a broken link, an unpinned line number, a command line with a flag it does not take, a heading reference without backticks in a record, a missing heading of the same doc, a comment naming a doc that does not exist, a qualified name whose member only a string holds, a wrong flag and a wrong default in USAGE.md, a page for a file that does not exist, two CTests removed while AGENTS.md describes them, and a stale list entry.
+    A correct pinned line reference must give no finding.
+    The faults one check reports share a copy of the tree, so each check runs once."""
+    page = "docs/src/core-utf8.md"
+    references = [
+        ("docs/ARCHITECTURE.md", "\n## ", "\nSee `src/planted/nothing.hpp`.\n"),
+        ("docs/BUILD.md", "\n## ", "\nSee [the plan](PLANTED.md#nothing).\n"),
+        ("docs/SERVER.md", "\n## ", "\nThe route is at `server/api.hpp:12`.\n"),
+        ("docs/BUILD.md", "\n## ", "\n```\nllmx generate model.gguf hi --planted-flag 3\n```\n"),
+        ("docs/STATUS.md", None, "\nThe rule is in (AGENTS.md, Planted heading).\n"),
+        ("docs/BUILD.md", "\n## ", "\nAs the planted steps say (Planted heading, above).\n"),
+        ("src/core/utf8.hpp", None, "\n// The rules are in docs/PLANTED.md.\n"),
+        ("src/core/utf8.hpp", None, '\nstruct PlantedHolder { const char* note = "planted_member"; };\n'),
+        ("docs/ARCHITECTURE.md", None, "\nThe note is `PlantedHolder::planted_member`.\n"),
+        (page, None, "\nThe route's parser is at `src/server/api.hpp:64` at 4e00bc9.\n"),
     ]
-    ok = True
-    for what, check, planted_tree, key in cases:
+    removed = planted(tree, [])
+    removed.ctests = {k: v for k, v in tree.ctests.items() if k not in ("sampler", "kv-cache")}
+    cases = [
+        # The references include code, so their copy is indexed again, with the help pages already read.
+        (reference_findings, Tree(plant_texts(tree.texts, references), tree.paths, tree.help), [
+            ("a dangling path", ("path", "docs/ARCHITECTURE.md", "src/planted/nothing.hpp")),
+            ("a broken link", ("link", "docs/BUILD.md", "PLANTED.md#nothing")),
+            ("an unpinned line number", ("line-pin", "docs/SERVER.md", "server/api.hpp:12")),
+            ("a command line with a flag it does not take", ("command", "docs/BUILD.md", "generate --planted-flag")),
+            ("a heading reference without backticks in a record", ("section", "docs/STATUS.md", "AGENTS.md, Planted heading")),
+            ("a missing heading of the same doc", ("section", "docs/BUILD.md", "Planted heading, above")),
+            ("a comment naming a doc that does not exist", ("path", "src/core/utf8.hpp", "docs/PLANTED.md")),
+            ("a qualified name whose member only a string holds", ("name", "docs/ARCHITECTURE.md", "PlantedHolder::planted_member"))]),
+        (usage_findings, planted(tree, [(USAGE, "| `--seed N`", "| `--planted-flag N` | a flag generate does not take | 1 |\n"),
+                                        (USAGE, "| `--iters N`", "| `--size N` | matrix width | 2048 |\n")]), [
+            ("a wrong flag in USAGE.md", ("usage", USAGE, "generate --planted-flag")),
+            ("a wrong default in USAGE.md", ("usage", USAGE, "bench --size default"))]),
+        (src_page_findings, planted(tree, [("docs/src/core-planted.md", None, "# `src/core/planted.hpp` - nothing\n")]), [
+            ("a page for a file that does not exist", ("src-page", "docs/src/core-planted.md", "src/core/planted.hpp"))]),
+        (test_name_findings, removed, [
+            ("a removed CTest AGENTS.md's Tests opens a line with", ("test-name", "AGENTS.md", "sampler")),
+            ("a removed CTest AGENTS.md names after CTest", ("test-name", "AGENTS.md", "kv-cache"))]),
+    ]
+    ok, count = True, 2
+    for check, planted_tree, faults in cases:
         got = check(planted_tree)
-        if key not in got or key in found:
-            print("  self-test: %s was not reported as %s" % (what, " | ".join(key)))
-            ok = False
+        for what, key in faults:
+            count += 1
+            if key not in got or key in found:
+                print("  self-test: %s was not reported as %s" % (what, " | ".join(key)))
+                ok = False
+        if check is reference_findings:
+            wrong = sorted(k for k in got if k[1] == page and got[k] != found.get(k))
+            if wrong:
+                print("  self-test: a correct pinned line reference was reported: %s" % "; ".join(" | ".join(k) for k in wrong))
+                ok = False
     stale = dict(listed)
-    stale[("path", "docs/ARCHITECTURE.md", "src/planted/gone.hpp")] = "a planted entry"
+    stale[("path", "docs/ARCHITECTURE.md", "src/planted/gone.hpp")] = (1, "a planted entry")
     if common.settle_findings(found, CHECKS, stale, say=lambda *a: None):
         print("  self-test: a listed finding that does not occur was accepted")
         ok = False
-    return ok, len(cases) + 1
+    return ok, count
 
 
 def run():
     t0 = time.time()
     texts, paths = common.read_tree()
     tree = Tree(texts, paths)
-    with open(common.KNOWN_FINDINGS, encoding="utf-8") as f:
-        listed = common.known_findings(f.read())
+    listed = common.load_known_findings()
     found = all_findings(tree)
     planted_ok, count = self_test(tree, found, listed)
     ok = common.settle_findings(found, CHECKS, listed)

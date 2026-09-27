@@ -326,22 +326,23 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
 
 - **Dead code** (`tests/dead_code.py`, component `dead-code`): what no product path reaches, from the source, standard library only; the product is `llmx` and the tools, so code only tests reach is a finding too.
   Its findings and the list they are held to are described in Dead code and stale docs, below.
-  `unused` is a C++ declaration in `src/`, `tests/` or `tools/` whose name no other token names, and `test-only` one in `src/` that only `tests/` names; the fields of a struct a `static_assert` pins and the values of an enum cast from an integer are left out, and a dead overload, or a name shared with a live one, is not seen.
+  `unused` is a C++ declaration in `src/`, `tests/` or `tools/` whose name no other token names, and `test-only` one in `src/` that only `tests/` names; the fields of a struct a `static_assert` pins and the values of a named enum cast from an integer are left out, a cast to a template parameter of the same name not counting, and a dead overload, or a name shared with a live one, is not seen.
   `override` is an override in `src/` that product code never calls, through an object or from a member of its class or a base.
   `shader` holds the Vulkan kernels' chain: every `.comp` compiled by a CMake entry, every `.glsl` included, every module embedded and in the kernel table, every kernel id named at a dispatch or derived by `kv_variant`, every variant's define tested by its source, every tested define set, and every `#ifndef` default overridden by some entry.
-  `flag` is a flag `src/cli/main.cpp` parses into a field or local that `src/` never reads.
-  `python` is a function, class, method or module constant in `tests/` or `tools/` that nothing reaches from a module's top level, an argparse option nothing reads, or a test module that no suite import, workflow step or doc runs.
-  `file` is a `src/` file no translation unit CMake builds includes, a test or tool source CMake does not build and no doc names, or a header nothing includes; `macro` is a macro defined and never used, unless a system header after it reads it, or an `LLMX_` macro tested but set nowhere, in the code, the build files or a doc's `-D`.
-  Planted faults show each check catching what it is for: a dead function, a function only a test calls, an unbuilt shader, an unread flag, an unreached Python function, an unbuilt test source, and a listed finding that no longer occurs.
+  `flag` is a flag `src/cli/main.cpp` parses that stores nothing, or stores into a field or local nothing uses: the help printing its default, a refusal's condition and a copy into a field of the same name are no use, and a field of a struct `main.cpp` declares is looked for in `main.cpp` until a copy passes it on.
+  `python` is a function, class, method or module constant in `tests/` or `tools/` that nothing reaches from a module's top level, an argparse option that neither its module nor a module its parsed namespace goes to reads, or a test module that no suite import, workflow step or command line in a live section of a doc runs.
+  `file` is a `src/` file no translation unit CMake builds includes, a test or tool source neither CMake nor the linked check builds, or a header nothing includes; `macro` is a macro defined and never used, unless a system header after it reads it, or an `LLMX_` macro tested but set nowhere, in the code, the build files or a doc's `-D`.
+  Planted faults show each check catching what it is for: a dead function, a function only a test calls, an unused value of an enum a template parameter shares a name with, a macro never used, an override nothing calls, an unbuilt shader, a flag whose value only the help prints, a flag parsed and dropped, an unreached Python function, an option only another module's namespace reads, an unbuilt test source a record names, and a listed finding that no longer occurs.
   `python -X utf8 tests/dead_code.py --linked DIR`, which the Vulkan job runs, builds every target with the Vulkan backend into `DIR` at -O0 with every inline and static function emitted, links each executable with `--gc-sections` and reports a `src/` function no executable keeps (`linked-unreached`) or only tests keep (`linked-test-only`), which tells the overloads and shared names apart that the name check cannot.
-  It needs Linux, GCC and binutils, and leaves out lambdas, virtual functions, templates never instantiated, special members nobody wrote or that are defaulted, constexpr functions and code a Linux build does not compile.
-- **Docs** (`tests/docs_check.py`, component `docs`): the Markdown against the tree and the binary's help pages, standard library only.
-  In every section a relative link and its anchor resolve (`link`) and a line number names its commit (`line-pin`).
-  In live sections a repository path, glob or `path:symbol` exists (`path`); a qualified name, a call with arguments and each name among the arguments are the code's (`name`); a command line of `llmx`, of a built tool or test, or of a script in `tests/` or `tools/` uses flags that program takes, and a `-DLLMX_` option exists (`command`); and a doc's heading or a ROADMAP item a reference names is there (`section`).
+  It needs Linux, GCC, GNU ld, binutils, CMake, the Vulkan headers and glslc, and leaves out lambdas, virtual functions, templates never instantiated, special members nobody wrote or that are defaulted, constexpr functions, code a Linux build does not compile, and a function whose name only such code calls.
+- **Docs** (`tests/docs_check.py`, component `docs`): the Markdown, and the code's comments, against the tree and the binary's help pages, standard library only.
+  In every section a relative link and its anchor resolve (`link`), a line number names its commit (`line-pin`), and a heading or a ROADMAP item a reference names is there (`section`): `(AGENTS.md, Tests)`, with the file backticked or not, or `(Tests, above)` for a heading or bold label of the same doc.
+  In live sections a repository path, glob or `path:symbol` exists (`path`); a qualified name, a call with arguments and each name among the arguments are the code's, a name only a string holds not counting (`name`); and a command line of `llmx`, of a built tool or test, or of a script in `tests/` or `tools/` uses flags that program takes, and a `-DLLMX_` option exists (`command`).
+  The comments and docstrings of the code, the build files and the workflow are held to the same: a `docs/` path they name exists (`path`) and a heading they name is there (`section`).
   `usage`: each flag a command's help page lists appears in its section of `docs/USAGE.md`, a synopsis without `[flags...]` lists them all, synopses and table rows name only flags the command takes, a numeric default in a table equals the help's, every command has a section, and the load tool's table lists exactly its options, with its defaults.
-  `test-name`: a test's name this list or `docs/CI.md` gives exists, and every CTest and suite component is described in this list.
+  `test-name`: a name a live doc lists after CTest is a CTest and one beside component a suite component, a line of this list that opens with a test's name and what it does names one, another test-like name this list or `docs/CI.md` gives is named somewhere in the tree, and every CTest and suite component is described in this list.
   `src-page`: every `src/` file is named by exactly one `docs/src` page title, and every title names a path that exists.
-  Planted faults show each check catching what it is for: a dangling path, a broken link, a wrong flag and a wrong default in `docs/USAGE.md`, an unpinned line number, a command line with a flag its program does not take, a page for a file that does not exist, and a listed finding that no longer occurs.
+  Planted faults show each check catching what it is for: a dangling path, a broken link, an unpinned line number, a command line with a flag its program does not take, a heading reference without backticks in a record, a missing heading of the same doc, a comment naming a doc that does not exist, a qualified name whose member only a string holds, a wrong flag and a wrong default in `docs/USAGE.md`, a page for a file that does not exist, two CTests removed while this list describes them, and a listed finding that no longer occurs; a correct pinned line reference must give no finding.
 - **Version** (`tests/version.py`): `--version` matches the CMake project
   version and build identifier format, and the usage banner starts with it.
 - **CLI** (`tests/cli.py`): the command-line surface the numerical components do not reach.
@@ -608,17 +609,18 @@ reports the embedded value, with `unknown` for builds without Git metadata.
 
 ## Dead code and stale docs
 
-What nothing reaches goes in the change that leaves it unreached (Principles), and a doc names only what the tree has: a change that removes or renames a path, a flag, a command, a test, a heading or a name in the code corrects every doc that names it.
+What nothing reaches is removed in the change that leaves it unreached (Principles), and a doc names only what the tree has: a change that removes or renames a path, a flag, a command, a test, a heading or a name in the code corrects every doc that names it.
 Every hosted job holds the tree to both, and a finding fails the job:
 
 - The compilers: an unused function of one translation unit, or an unused local, is an error in the CMake builds and in `build.bat`.
-- The suite's first two components, `dead-code` and `docs` (Tests, above), read the source and the Markdown in a few seconds.
+- The suite's first two components, `dead-code` and `docs` (Tests, above), read the source, the Markdown and the comments in a few seconds.
 - The Vulkan job also runs `python -X utf8 tests/dead_code.py --linked build-linked`, which builds every target once more to see which functions the product's executables keep.
 
 **A finding is fixed in the change that makes it**: remove the code, or correct the doc.
-Only a finding that has to stay is listed, in `tests/data/known_findings.txt`, as `check | file | name | reason`, the reason saying what it is and what removes it, such as the branch it goes with.
-A listed finding that no longer occurs fails its check too, so the change that removes one also removes its line, and the list does not rot.
+Only a finding that has to stay is listed, in `tests/data/known_findings.txt`, as `check | file | name | times | reason`, `times` being how often it occurs and the reason saying what it is and what removes it, such as the branch it goes with.
+A listed finding that no longer occurs, or occurs another number of times, fails its check too, and so does a line whose check neither component has, so the change that removes one also removes its line, and the list does not rot.
 A new line needs a reason a reviewer accepts, not a wish to merge first.
+An interface that a later step of an approved plan gives its product caller is such a reason: the line names the plan and the step, as `layer split phase 3, step 2`, and goes in that step.
 
 **What the checks rely on:**
 - A struct whose fields mirror a layout something else reads, such as a kernel's structure, is pinned by a `static_assert` with `offsetof` or `sizeof`, which tells the name check its fields are read by position.
@@ -627,6 +629,9 @@ A new line needs a reason a reviewer accepts, not a wish to merge first.
   A record's or a plan's names may be gone or not exist yet, so only their links and line numbers are checked.
   In `docs/STATUS.md` only the status table, the active blocks and the working rules are live; elsewhere a section is live unless a heading above it opens a record or a plan, and live text is held to the tree.
 - A line number in a doc names the commit it points into, `vulkan_backend.cpp:581 at 0123abc`, since the line moves with the next edit.
+- A reference to a heading of the same doc says where it is, `(Tests, above)`, and one to another doc's names the doc, `(AGENTS.md, Tests)`; a heading's name in prose without either is not seen.
+- A source CMake does not build is built by the linked check beside its targets (`HAND_BUILT` in `tests/dead_code.py`); a doc naming a source does not count as building it.
+- The tree the checks read is what a commit would hold: the files git tracks and the new ones it does not ignore, or every file of a copy without `.git`.
 - A `docs/src` page's title names its file or its directory (`` # `src/core/json.hpp` - minimal JSON parser ``), and each source file is named by exactly one title.
 
 **What no mechanical check sees** is left to the review of the Markdown at each checkpoint (Checkpoints, above) and at each merge.

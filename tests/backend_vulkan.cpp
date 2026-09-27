@@ -1535,8 +1535,9 @@ size_t check_kernels(backend::Backend& vk) {
 
 // Decode columns: a row kernel's builds differ only in how many columns and rows share a weight read, so every column of a call must be, bit for bit, that column computed alone, which takes the narrowest build (docs/VULKAN.md, batch invariance).
 // Every row is a generated token's, so every width stays on the row kernels: plain calls of 1 to 64 columns, the residual add and a group of three projections at widths that reach every build and chunk, and routed entries of 1 to 32 tokens against each token alone.
-// Each type the row kernels decode at rows 4096 and 1280 wide, the block types also at a row of an odd block count, and the output head of the types that keep a 16-bit twin for it.
+// Each type the row kernels decode at rows 4096 and 1280 wide, the block types also at a row of an odd block count, Q8_0 also 2560 wide, and the output head of the types that keep a 16-bit twin for it.
 // At 4096 every lane of a 64-lane subgroup takes the same number of steps, and at 1280 some lanes take 3 and every lane of a 32-lane subgroup 5, so a build that takes steps in pairs also takes a single step after them.
+// At 2560 every lane of a Q8_0 build that takes steps in pairs takes two pairs and then a single step.
 // 300 outputs leave the last workgroup rows past the end, and the grouped projections of 37 and 129 rows a subgroup that holds rows past the end.
 size_t check_decode_columns(backend::Backend& vk) {
     const size_t nout = 300, widest = 64;
@@ -1561,7 +1562,7 @@ size_t check_decode_columns(backend::Backend& vk) {
     };
 
     struct Case { uint32_t type; size_t nin; };
-    for (const Case& c : {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{q8, 4096}, Case{q8, 1280}, Case{q8, 224},
+    for (const Case& c : {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{q8, 4096}, Case{q8, 2560}, Case{q8, 1280}, Case{q8, 224},
                           Case{q40, 4096}, Case{q40, 1280}, Case{q40, 224}, Case{q41, 4096}, Case{q41, 1280}, Case{q41, 224},
                           Case{q4k, 4096}, Case{q4k, 1280}, Case{q5k, 4096}, Case{q5k, 1280}, Case{q6k, 4096}, Case{q6k, 1280}}) {
         const uint32_t type = c.type;

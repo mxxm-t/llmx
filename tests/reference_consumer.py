@@ -388,6 +388,7 @@ class LayeredConsumer(unittest.TestCase):
                 record = docs["baseline_logits.json"]["layered"]["gguf_provenance"]
                 self.assertEqual(docs["baseline_perplexity.json"]["layered"]["gguf_provenance"], record)
                 self.assertEqual(record["f32_tensors_compared"], record["equal"] + len(record["differ"]))
+                self.assertNotIn("f32_not_compared", record)
                 for item in record["differ"]:
                     self.assertRegex(item["tensor"], r"^blk\.\d+\.ssm_a$")
                     self.assertTrue(0 < item["values"] <= item["of"] and item["max_float32_steps"] == 1)

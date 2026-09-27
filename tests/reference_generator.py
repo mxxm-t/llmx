@@ -9,6 +9,7 @@ from pathlib import Path
 import struct
 import sys
 import tempfile
+import types
 from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch, call
@@ -571,6 +572,97 @@ class LayeredReference(unittest.TestCase):
             order = layered.tiled_order(k_heads, v_heads)
             self.assertEqual(sorted(order), list(range(v_heads)))
             self.assertTrue(all(order[j] // (v_heads // k_heads) == j % k_heads for j in range(v_heads)))
+
+    def test_runtime_refuses_other_versions_and_every_package_that_replaces_torch_code(self):
+        torch = SimpleNamespace(__version__=layered.TORCH_VERSION, set_num_threads=MagicMock())
+        transformers = SimpleNamespace(__version__=layered.TRANSFORMERS_VERSION)
+        with patch.dict(os.environ), patch.dict(sys.modules, {"torch": torch, "transformers": transformers}):
+            self.assertEqual(layered.REPLACING_PACKAGES, ("kernels", "fla", "causal_conv1d"))
+            for package in layered.REPLACING_PACKAGES:
+                with self.subTest(package=package), \
+                     patch.object(layered.importlib.util, "find_spec", side_effect=lambda name, package=package: object() if name == package else None), \
+                     self.assertRaises(SystemExit) as error:
+                    layered.runtime(2)
+                self.assertIn("the %s package" % package, str(error.exception))
+            with patch.object(layered.importlib.util, "find_spec", return_value=None):
+                self.assertEqual(layered.runtime(2), (torch, transformers))
+                torch.set_num_threads.assert_called_once_with(2)
+                self.assertEqual(os.environ["HF_HUB_OFFLINE"], "1")
+                for module, version in ((torch, "2.6.0+cpu"), (transformers, "5.18.0")):
+                    with self.subTest(version=version), patch.object(module, "__version__", version), self.assertRaises(SystemExit):
+                        layered.runtime(2)
+
+    def test_checkpoint_plan_takes_only_keys_the_model_takes_or_ignores(self):
+        # transformers' loading rules as the tool reads them: every renaming, then at most one converter, which also names the pattern it matched.
+        class WeightRenaming:
+            def __init__(self, source, target):
+                self.source, self.target = source, target
+
+        class WeightConverter:
+            __init__ = WeightRenaming.__init__
+
+        def rename_source_key(key, renamings, converters, prefix, meta):
+            for renaming in renamings:
+                key = key.replace(renaming.source, renaming.target)
+            for converter in converters:
+                if converter.source in key:
+                    return key.replace(converter.source, converter.target), converter.source
+            return key, None
+
+        core = types.ModuleType("transformers.core_model_loading")
+        core.WeightRenaming, core.WeightConverter, core.rename_source_key = WeightRenaming, WeightConverter, rename_source_key
+        conversion = types.ModuleType("transformers.conversion_mapping")
+        conversion.get_model_conversion_mapping = lambda model: [WeightRenaming("model.language_model.", "model."), WeightConverter("mlp_fused", "mlp")]
+        safetensors = types.ModuleType("safetensors")
+        safetensors.safe_open = MagicMock()
+        names = ["model.embed_tokens.weight", "model.layers.0.mlp.weight", "model.norm.weight", "lm_head.weight"]
+
+        def model(tied):
+            return SimpleNamespace(state_dict=lambda: dict.fromkeys(names), base_model_prefix="model",
+                                   _keys_to_ignore_on_load_unexpected=[r"^mtp.*", r"^model.visual.*"],
+                                   config=SimpleNamespace(tie_word_embeddings=tied))
+
+        stored = {"model.language_model.embed_tokens.weight": "a.safetensors", "model.language_model.layers.0.mlp.weight": "b.safetensors",
+                  "model.language_model.norm.weight": "b.safetensors", "lm_head.weight": "b.safetensors",
+                  "mtp.fc.weight": "b.safetensors", "model.visual.blocks.0.weight": "a.safetensors"}
+        with tempfile.TemporaryDirectory(prefix="llmx_layered_plan_") as directory, \
+             patch.dict(sys.modules, {"transformers": types.ModuleType("transformers"), "transformers.core_model_loading": core,
+                                      "transformers.conversion_mapping": conversion, "safetensors": safetensors}):
+            def plan(weight_map, tied=False):
+                with open(os.path.join(directory, "model.safetensors.index.json"), "w", encoding="utf-8") as f:
+                    json.dump({"weight_map": weight_map}, f)
+                return layered.checkpoint_plan(directory, model(tied))
+
+            found, unexpected = plan(stored)
+            self.assertEqual(found, {name: (stored[key], key) for name, key in (
+                ("model.embed_tokens.weight", "model.language_model.embed_tokens.weight"),
+                ("model.layers.0.mlp.weight", "model.language_model.layers.0.mlp.weight"),
+                ("model.norm.weight", "model.language_model.norm.weight"), ("lm_head.weight", "lm_head.weight"))})
+            self.assertEqual(unexpected, ["model.visual.blocks.0.weight", "mtp.fc.weight"])
+            untied = {key: file for key, file in stored.items() if key != "lm_head.weight"}
+            self.assertNotIn("lm_head.weight", plan(untied, tied=True)[0])
+            converted = dict(untied, **{"model.language_model.layers.0.mlp_fused.weight": "b.safetensors"})
+            del converted["model.language_model.layers.0.mlp.weight"]
+            for weight_map, tied, error in ((untied, False, "no checkpoint key gives lm_head.weight"),
+                                            (dict(stored, **{"model.language_model.layers.0.extra": "a.safetensors"}), False, "neither takes nor ignores"),
+                                            ({key: file for key, file in stored.items() if "norm" not in key}, False, "no checkpoint key gives model.norm.weight"),
+                                            (converted, True, "converts model.language_model.layers.0.mlp_fused.weight on load"),
+                                            (dict(stored, **{"model.norm.weight": "a.safetensors"}), False, "both give model.norm.weight")):
+                with self.subTest(error=error), self.assertRaises(SystemExit) as refused:
+                    plan(weight_map, tied)
+                self.assertIn(error, str(refused.exception))
+
+    def test_provenance_names_the_f32_tensors_it_had_nothing_to_compare_with(self):
+        provenance = layered.Provenance.__new__(layered.Provenance)
+        provenance.spec = SimpleNamespace(F32=0)
+        provenance.gguf = SimpleNamespace(tensors=[SimpleNamespace(name=name, type=kind) for name, kind in (
+            ("blk.0.attn_norm.weight", 0), ("blk.0.attn_qkv.weight", 12), ("blk.64.nextn.enorm.weight", 0))])
+        provenance.equal, provenance.differ, provenance.linear_layers, provenance.grouped = 1, [], 0, 0
+        provenance.k_heads = provenance.v_heads = 16
+        provenance.compared = {"blk.0.attn_norm.weight"}
+        self.assertEqual(provenance.record()["f32_not_compared"], ["blk.64.nextn.enorm.weight"])
+        provenance.compared.add("blk.64.nextn.enorm.weight")
+        self.assertNotIn("f32_not_compared", provenance.record())
 
     @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy, which the GGUF comparison reads tensors with")
     def test_float32_steps_count_across_zero(self):

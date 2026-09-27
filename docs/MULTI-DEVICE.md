@@ -80,7 +80,7 @@ Through phase 3 a prompt, like every sequence, has one pass in flight. Phase 4 l
 
 ### More requests than stages
 
-This is the normal case. Passes grow wider rather than more numerous up to the decode kernel's column width W, since up to W rows share one read of the weights: a wider pass costs more, but far less per row. The Q8_0 decode kernel keeps at most 8 columns. Measured on one MI50 with Qwen3-8B Q8_0, each further 8 rows cost about another 8-row pass, and 8 rows cost 2.5 times one row (the curve is in `docs/STATUS.md`, layer split phase 3); the 8-column build's loading and holding of every column's activations is the likely cause, not yet profiled. So phase 3 measures P = max(S, ceil(D / W)) for D decode rows against wider passes, a batch-invariant decode kernel with more columns raises W, and the scheduler caps pass width by the same predicted time, up to the KV budget.
+This is the normal case. Passes grow wider rather than more numerous up to the decode kernel's column width W, since up to W rows share one read of the weights: a wider pass costs more, but far less per row. W is the widest Q8_0 decode build the device's profile allows (`q8_decode_cols`), 16 on the MI50 under RADV. Measured on one MI50 with Qwen3-8B Q8_0 (`bench --seqs`), a pass costs 14.1 ms at 1 row, 16.2 at 2, 24.6 at 8 and 42.7 at 16, and each further 16 rows about another 16-row pass (the curve is in `docs/STATUS.md`, layer split phase 3, step 5). So phase 3 measures P = max(S, ceil(D / W)) for D decode rows against wider passes, a batch-invariant decode kernel with more columns raises W, and the scheduler caps pass width by the same predicted time, up to the KV budget.
 
 ### KV, admission and the arenas
 

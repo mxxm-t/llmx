@@ -1540,8 +1540,8 @@ size_t check_kernels(backend::Backend& vk) {
 // 300 outputs leave the last workgroup rows past the end, and the grouped projections of 37 and 129 rows a subgroup that holds rows past the end.
 size_t check_decode_columns(backend::Backend& vk) {
     const size_t nout = 300, widest = 64;
-    // Each width's remainder past the widest Q8_0 decode build, 8 or 16 columns, takes the 1-, 2-, 4-, 8- or 16-column build.
-    const size_t widths[] = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 34, 40, 64};
+    // Each width's remainder past the widest Q8_0 decode build, 8, 16 or 32 columns, takes the 1-, 2-, 4-, 8-, 16- or 32-column build, and 18 and 29 a 32-column build's second group in part.
+    const size_t widths[] = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 33, 34, 36, 40, 48, 64};
     const uint32_t f32 = quant::GGML_TYPE_F32, q8 = quant::GGML_TYPE_Q8_0, q40 = quant::GGML_TYPE_Q4_0, q41 = quant::GGML_TYPE_Q4_1;
     const uint32_t q4k = quant::GGML_TYPE_Q4_K, q5k = quant::GGML_TYPE_Q5_K, q6k = quant::GGML_TYPE_Q6_K;
     size_t columns = 0;
@@ -1706,15 +1706,48 @@ FloatOps float_ops(const std::string& text) {
 
 // The row kernel builds check_contraction checked, by how.
 struct ContractionChecks {
-    size_t same = 0, whole_columns = 0, per_row_column = 0, kinds_only = 0, grouped = 0;
+    size_t same = 0, whole_columns = 0, decode = 0, kinds_only = 0, grouped = 0;
 };
+
+// A Q8_0 decode build's float operations as its shape and forms give them (matmul_vec_q8.comp), where its one-column build takes `levels` shuffled adds a reduction and `extra` multiplies other than its products'.
+// A product is a multiply and a multiply-add, or a fused one in the one-column build's proportion, once for each step in the code: STEPS steps and, past one, a single step after them, again for the columns of a group past the first half of a build of up to 8 columns, whose copy checks each column, and again in the hoisted steps, which rows of an even block count take.
+// There the quad-shared scale products take one multiply for a column's four rows.
+// Without the transposed reduction each row and column is reduced as the one-column build reduces one, and takes one plain add, the residual add's.
+// With it the build's R rows and C columns take the six levels' pairs, R * C - 1 adds and one for each level past log2(R * C), which the driver may take as shuffled or plain adds, and one residual add for each 64 values.
+struct DecodeOps {
+    size_t products = 0, mul = 0, lane_add = 0, add = 0, reduce = 0;
+    bool tree = false;
+};
+DecodeOps decode_ops(const backend::DecodeBuild& b, size_t levels, size_t extra) {
+    DecodeOps n;
+    const size_t group = b.cols < 4 ? b.cols : 4, rc = size_t(b.rows) * b.cols;
+    size_t cols = b.cols;
+    if (b.cols <= 8)
+        for (size_t g = group; g < b.cols; g += group)
+            if (2 * g >= b.cols) cols += group;
+    const size_t path = b.rows * cols * (b.steps + (b.steps > 1 ? 1 : 0));
+    n.products = path * (b.hoist ? 2 : 1);
+    const bool quad = b.hoist && b.quad && b.rows == 4;
+    n.mul = extra + n.products - (quad ? path - path / b.rows : 0);
+    n.tree = b.tree;
+    if (!b.tree) {
+        n.lane_add = rc * levels;
+        n.add = rc;
+        return n;
+    }
+    size_t log = 0;
+    while ((size_t(1) << log) < rc) ++log;
+    for (size_t l = 0; l < 6; ++l) n.reduce += l < log ? rc >> (l + 1) : 1;
+    n.reduce += rc > 64 ? rc / 64 : 1;
+    return n;
+}
 
 // Every build of a row kernel holds its one-column build's float multiply and add counts, and a grouped build its wide build's: a screen on how the driver contracts and reduces a column's products and sums, which sees a change only where it changes the counts.
 // Reassociation that keeps the counts shows only in the decode-column check, which is what holds batch invariance (docs/VULKAN.md, batch invariance).
 // A build of `matmul_row.comp` holds the one-column build's counts exactly where the driver keeps the column loop rolled, and otherwise those counts and N - 1 copies of one column's, N its columns.
-// The Q8_0 decode kernel's builds differ in rows, steps and copies of their products too, so where its one-column build reduces over shuffled adds each build holds that build's counts per row and column: one plain add for the residual add and the one-column build's shuffled adds, multiply-adds and fused ones in the one-column build's proportion and at least its count, and as many multiplies beside them.
+// The Q8_0 decode kernel's builds differ in rows, steps, copies of their products and forms (`decode`, as the backend makes them), so where its one-column build reduces over shuffled adds each build holds the counts its shape and forms give (decode_ops), the transposed reduction only where the one-column build's reduction takes six levels.
 // A kernel's builds are named after it: the wide build plain, then `_grouped` and `_<N>col`; a kernel whose driver gives no disassembly is not checked.
-ContractionChecks check_contraction(const std::vector<std::pair<std::string, std::string>>& representations) {
+ContractionChecks check_contraction(const std::vector<std::pair<std::string, std::string>>& representations, const std::vector<backend::DecodeBuild>& decode) {
     ContractionChecks n;
     std::vector<std::pair<std::string, FloatOps>> ops;
     for (const auto& kr : representations) ops.push_back({kr.first, float_ops(kr.second)});
@@ -1756,12 +1789,26 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                     ++n.kinds_only;
                     continue;
                 }
-                // got.add is the build's rows times columns, one add each for the residual add; a row and column's products appear once for each step in its code and again where a partial group has a copy of them.
-                const size_t rc = got.add, rc1 = ref.add;
-                if (!rc || !got.lane_add || got.lane_add * rc1 != ref.lane_add * rc || got.mad * ref.fused != got.fused * ref.mad ||
-                    (got.mad + got.fused) * rc1 < (ref.mad + ref.fused) * rc || got.mul + ref.mad + ref.fused != ref.mul + got.mad + got.fused)
-                    fail("a build's float multiplies and adds per row and column differ from its one-column build's");
-                ++n.per_row_column;
+                const backend::DecodeBuild *shape = nullptr, *one_shape = nullptr;
+                for (const auto& d : decode) {
+                    if (d.name == b) shape = &d;
+                    if (d.name == one.first) one_shape = &d;
+                }
+                if (!shape || !one_shape) fail("a Q8_0 decode build the backend does not report");
+                // The one-column build's own counts give its reduction's shuffled adds and the multiplies beside its products.
+                const size_t rc1 = size_t(one_shape->rows) * one_shape->cols, levels = ref.lane_add / rc1;
+                const DecodeOps want1 = decode_ops(*one_shape, levels, 0);
+                if (one_shape->tree || one_shape->hoist || ref.add != rc1 || ref.lane_add != rc1 * levels || ref.mad + ref.fused != want1.products ||
+                    ref.mul < want1.mul)
+                    fail("the Q8_0 decode kernel's one-column build does not hold the counts its shape gives");
+                const DecodeOps want = decode_ops(*shape, levels, ref.mul - want1.mul);
+                char counts[256];
+                std::snprintf(counts, sizeof counts, " (multiplies %zu, multiply-adds %zu, fused %zu, adds %zu, shuffled adds %zu; its shape and forms give %zu, %zu products, %zu adds)",
+                              got.mul, got.mad, got.fused, got.add, got.lane_add, want.mul, want.products, want.tree ? want.reduce : want.add + want.lane_add);
+                const bool reduction = want.tree ? levels == 6 && got.add + got.lane_add == want.reduce : got.add == want.add && got.lane_add == want.lane_add;
+                if (!reduction || got.mad + got.fused != want.products || got.mad * ref.fused != got.fused * ref.mad || got.mul != want.mul)
+                    fail((std::string("a Q8_0 decode build's float multiplies and adds differ from those its shape and forms give") + counts).c_str());
+                ++n.decode;
                 continue;
             }
             if (got == ref) {
@@ -2087,10 +2134,10 @@ int main(int argc, char** argv) {
                 written += f.good() ? 1 : 0;
             }
             std::cout << "backend-vulkan: " << written << " kernel representations written to " << isa_dir << "\n";
-            const ContractionChecks c = check_contraction(representations);
+            const ContractionChecks c = check_contraction(representations, backend::vulkan_decode_builds(*b));
             std::cout << "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: " << c.same << " the same, "
-                      << c.whole_columns << " those and whole columns, " << c.per_row_column << " per row and column, " << c.kinds_only
-                      << " their kinds only; " << c.grouped << " grouped builds the same as their wide build\n";
+                      << c.whole_columns << " those and whole columns, " << c.decode << " Q8_0 decode builds those their shape and forms give, "
+                      << c.kinds_only << " their kinds only; " << c.grouped << " grouped builds the same as their wide build\n";
         }
         return 0;
     } catch (const std::exception& e) {

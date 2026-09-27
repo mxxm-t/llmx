@@ -988,6 +988,16 @@ public:
     const std::string& name() const { return dev_->caps.device; }
     const DeviceProfile& profile() const { return dev_->profile; }
 
+    // The Q8_0 decode kernel's builds on this device, as the pipelines are made (vulkan_decode_builds).
+    std::vector<DecodeBuild> decode_builds() const {
+        std::vector<DecodeBuild> out;
+        for (int v = 0; v < kVariants; ++v) {
+            const VecBuild& b = kVecBuilds[v];
+            out.push_back({kernel_variant_name(K_MATMUL_VEC_Q8, v), b.cols, b.rows, b.steps});
+        }
+        return out;
+    }
+
     // The driver's statistics for every kernel compiled so far, one line each: on AMD the vector and scalar register counts, scratch, shared memory and occupancy.
     // Empty when the device does not report them.
     std::string kernel_statistics() const {
@@ -2654,6 +2664,11 @@ size_t vulkan_timed_dispatches(const Backend& backend) {
 std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend) {
     const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
     return v ? v->kernel_representations() : std::vector<std::pair<std::string, std::string>>();
+}
+
+std::vector<DecodeBuild> vulkan_decode_builds(const Backend& backend) {
+    const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
+    return v ? v->decode_builds() : std::vector<DecodeBuild>();
 }
 
 } // namespace backend

@@ -203,7 +203,7 @@ The CLI keeps one `Sequence` and one `ExecContext`, and `step` and
 `prefill` become wrappers over `forward`, so `generate`, `chat` and
 `perplexity` do not change.
 What keeps the devices busy is one context reserved for several passes in flight (`Model::reserve_passes`), not a context per pass, whose arenas would grow with the passes: on a pipelined split each stage works on one pass while the host samples another.
-The server's scheduler reserves that context and drives its passes through the pass API with one in flight ([SERVER](SERVER.md), the round), and phase 3 of `docs/MULTI-DEVICE.md` raises that to one pass per stage.
+The server's scheduler reserves that context and drives its passes through the pass API, one in flight per stage on a pipelined split and one elsewhere ([SERVER](SERVER.md), the round).
 The host's sampling between the server's passes measured 7 to 14 percent of a greedy Qwen3-8B-Q8_0 pass on one MI50 at 8 to 32 sequences (layer split phase 3's step 0 in [STATUS](STATUS.md)).
 
 ### Placement

@@ -70,7 +70,7 @@ This is between-step filling, one scheduler and one KV manager for all passes, a
 
 ### Decode
 
-Decoding sequences are spread across the passes in flight, each sequence staying in its pass while it decodes, and new decoders going to the pass with the least work. Merging all decoders into one pass would leave all stages but one idle; spreading them keeps every stage busy, and a card reads its weights once per pass for as many of the pass's rows as the decode kernel keeps columns (More requests than stages). With fewer decoders than P, the passes are fewer and some stages idle, which is the case a tensor group serves better (below).
+Decoding sequences are spread across the passes in flight: once the passes fill the stages, a pass takes at most an even share of the decoding sequences, those in flight counted, and the sequences that left flight earliest go first, so a sequence stays in its pass while the passes are even and one held back joins the next pass (`decode_share`, `docs/SERVER.md`). Merging all decoders into one pass would leave all stages but one idle; spreading them keeps every stage busy, and a card reads its weights once per pass for as many of the pass's rows as the decode kernel keeps columns (More requests than stages). With fewer decoders than P, the passes are fewer and some stages idle, which is the case a tensor group serves better (below).
 
 ### Prefill beside decode
 

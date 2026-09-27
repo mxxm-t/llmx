@@ -526,7 +526,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
   short and long prompts with short and long replies are run alone, then
   all at once, then skewed: long prompts land while others decode and every
   fourth client leaves mid-stream. Each request that finishes must give its
-  ids alone, clients that left must leave nothing active, and the first
+  ids alone, a client that fails to leave as planned fails the run, clients that left must leave nothing active, and the first
   requests must give the same text through `generate --temp 0`, whose
   prompt a split pipelines over its stages.
   The HF job runs it on the Q8_0 fixture on the CPU with `--requests 8 --cli 2`.

@@ -303,6 +303,7 @@ implemented, as are the Vulkan backend (#4b) and the multi-user server (#7).
 A layer split over the devices `--device` lists is fitted by
 `model/layer_split.hpp` from the `footprint` of the architecture's plan
 (`model/place.hpp`) and each backend's `memory_available()`; the split knows
-no architecture and the architecture knows no device. A prompt's chunks pipeline over the stages;
-the server's passes in flight, tensor groups and a second vendor backend are
-what `MULTI-DEVICE.md` and `ROADMAP.md` #4b and #5 still carry.
+no architecture and the architecture knows no device. A prompt's chunks
+pipeline over the stages, and the server keeps a pass in flight per stage;
+tensor groups and a second vendor backend are what `MULTI-DEVICE.md` and
+`ROADMAP.md` #4b and #5 still carry.

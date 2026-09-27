@@ -174,7 +174,7 @@ round:
 
 The decode share is the decoding requests, those in flight included, over the passes, rounded up, once the passes fill the stages; with fewer passes than stages every ready decoder goes.
 So however the requests arrived, the passes in flight carry about as many decode rows each: four users on a two-stage split make two passes of two, where taking every ready decoder would leave them in whatever passes their prompts landed in.
-A decoder the share holds back waits only while every slot is taken, and then a pass retires every round, so it takes the next pass, ahead of the decoders that left flight after it.
+A decoder the share holds back waits only while every slot is taken, and once the passes fill the stages a pass retires about every round, so it takes the next pass, ahead of the decoders that left flight after it.
 
 A failed pass is abandoned in the model (`abort_pass`, which drains every device and returns each of its histories to where the pass found it), and its requests end with the error and give their blocks back; the other passes in flight go on, since their rows sit in their own storages, handoff buffers and logits rows.
 A round the scheduler's own rules cannot go on with, a pass that came out empty with nothing in flight or a pass that found no logits rows, abandons every pass in flight and ends every active request with the error, rather than leave the loop to spin; the oldest request sits a pass out only while a capped request holds room, so with nothing in flight some active request always has rows to add.

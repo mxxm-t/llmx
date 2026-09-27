@@ -1,6 +1,7 @@
 // Requests the scheduler pauses and resumes give, token for token, the ids and log-probabilities they give alone, over the synthetic Q8_0 model whose prompt and decode rows take different CPU paths, and room goes by first admission (docs/SERVER.md).
 // A request cancelled, or a scheduler stopped, while a pass is in flight leaves every block to come back and every donor free to fork.
 // Usage: llmx-server-resume-test [cpu|device]; both by default, the device cases on Vulkan device 0 when it opens.
+#include <atomic>
 #include <chrono>
 #include <iostream>
 
@@ -455,41 +456,54 @@ void refused_evicts_nothing(const Make& make, const bpe::Tokenizer& tok, uint32_
 
 // Paused requests wait apart from the queue, so they do not fill the queue --max-queue bounds.
 // With a queue of one, A's growth pauses B as in three_uncapped, and B waits for A's end; a request submitted meanwhile is queued, not refused.
-void paused_outside_queue(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
-    auto model = make(1024, 0);
-    server::Scheduler sched(*model, tok, 3, 1);
-    std::thread runner([&] { sched.run(); });
-    try {
-        const auto until = [&](const std::function<bool(const server::Scheduler::Stats&)>& done, const std::string& what) {
-            const auto limit = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-            while (!done(sched.stats())) {
-                require(std::chrono::steady_clock::now() < limit, "paused requests and the queue: " + what + " in 60 seconds");
-                std::this_thread::yield();
+// The scheduler's own thread submits B inside A's first pass, while A holds three of the pool's eight blocks, and C inside the first pass that finds B paused, so the case follows from the blocks alone and not from when the test's thread runs.
+void paused_outside_queue(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::vector<std::shared_ptr<Hooked>> devices = hooked(1);
+    auto model = on(weights, [&devices] { return std::vector<backend::BackendPtr>(devices.begin(), devices.end()); })(1024, 0);
+    {
+        server::Scheduler sched(*model, tok, 3, 1);
+        const std::shared_ptr<server::Request> a = sched.submit(prompt_of(1, 40, vocab), params_of(Req{}));
+        std::shared_ptr<server::Request> b, c;
+        std::atomic<int> submitted{0};   // 1 once B is submitted, 2 once C is, 3 once C was refused
+        devices[0]->hook = [&] {
+            const int s = submitted.load();
+            if (s == 0) {
+                b = sched.submit(prompt_of(2, 9, vocab), params_of(Req{}));
+                submitted.store(1);
+            } else if (s == 1 && sched.stats().paused > 0) {
+                try {
+                    c = sched.submit(prompt_of(3, 10, vocab), params_of(Req{{}, 4}));
+                    submitted.store(2);
+                } catch (const server::QueueFull&) {
+                    submitted.store(3);
+                }
             }
         };
-        std::vector<std::shared_ptr<server::Request>> h;
-        h.push_back(sched.submit(prompt_of(1, 40, vocab), params_of(Req{})));
-        until([](const server::Scheduler::Stats& s) { return s.queued == 0; }, "the first request not admitted");
-        h.push_back(sched.submit(prompt_of(2, 9, vocab), params_of(Req{})));
-        until([](const server::Scheduler::Stats& s) { return s.queued == 0; }, "the second request not admitted");
-        until([](const server::Scheduler::Stats& s) { return s.pauses > 0; }, "nothing paused");
+        std::thread runner([&] { sched.run(); });
         try {
-            h.push_back(sched.submit(prompt_of(3, 10, vocab), params_of(Req{{}, 4})));
-        } catch (const server::QueueFull&) {
-            require(false, "a request submitted while another was paused was refused as though the queue were full");
+            // Only a hang guard: C is submitted once B is paused, whenever this thread runs.
+            const auto limit = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+            while (submitted.load() < 2) {
+                require(std::chrono::steady_clock::now() < limit, "paused requests and the queue: nothing paused in 60 seconds");
+                std::this_thread::yield();
+            }
+            require(submitted.load() == 2, "a request submitted while another was paused was refused as though the queue were full");
+            // New requests wait until no request is paused, so the queued one starts only once B has resumed.
+            server::Request::Token t;
+            require(c->next(t, server::Request::Clock::now() + std::chrono::seconds(120)) == server::Request::Next::id, "a request queued while another was paused gave nothing");
+            require(sched.stats().paused == 0, "a request queued while another was paused started before the paused request resumed");
+            for (const auto& r : {a, b, c}) drain(*r);
+            require(sched.stats().pauses == 1, "paused requests and the queue: " + std::to_string(sched.stats().pauses) + " pauses, against one");
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            devices[0]->hook = nullptr;
+            throw;
         }
-        // New requests wait until no request is paused, so the queued one starts only once B has resumed.
-        server::Request::Token t;
-        require(h[2]->next(t, server::Request::Clock::now() + std::chrono::seconds(120)) == server::Request::Next::id, "a request queued while another was paused gave nothing");
-        require(sched.stats().paused == 0, "a request queued while another was paused started before the paused request resumed");
-        for (auto& r : h) drain(*r);
-    } catch (...) {
         sched.stop();
         runner.join();
-        throw;
     }
-    sched.stop();
-    runner.join();
+    devices[0]->hook = nullptr;
 }
 
 // A paused request whose client leaves ends where it waits, and once the scheduler stops every pool is empty again.
@@ -555,7 +569,7 @@ int main(int argc, char** argv) {
             cancel_while_paused_donor(one, tok, vocab);
             resumed_short_of_room(one, tok, vocab);
             refused_evicts_nothing(one, tok, vocab);
-            paused_outside_queue(one, tok, vocab);
+            paused_outside_queue(weights, tok, vocab);
             growth_before_admission(one, tok, vocab);
             stall_holds_room(one, tok, vocab);
             cancelled_short_donor(one, tok, vocab);

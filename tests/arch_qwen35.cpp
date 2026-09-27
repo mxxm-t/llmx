@@ -328,6 +328,76 @@ void state_rules() {
     require(same(broken.prefill(ids), want), "a reset sequence differs from a fresh one");
 }
 
+// Runs a pass through every stage of a context reserved for passes and returns its first logits row, or nothing when it wants none.
+std::vector<float> run_pass(infer::Model& model, infer::ExecContext& ctx, const infer::BatchEntry* entries, size_t n) {
+    model.begin_pass(ctx, 0, entries, n, 0);
+    for (size_t s = 0; s < model.stage_count(); ++s) model.run_pass_stage(ctx, 0, s);
+    std::vector<float> out;
+    if (entries[0].want_logits) out.assign(model.pass_logits(ctx, 0, 0), model.pass_logits(ctx, 0, 0) + VOCAB);
+    model.end_pass(ctx, 0);
+    return out;
+}
+
+// A refused pass takes no state slot: a fresh sequence in a pass refused for its rows, its logits rows, a sequence listed twice or too few slots for all its fresh sequences leaves every slot it did not hold free for the next pass.
+// A sequence with a history keeps its slot and its state through a refused pass and continues with the bytes of one never refused.
+void refused_passes_take_no_slot() {
+    const gguf::GGUFModel m = tiny();
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    const uint32_t ids[] = {3, 1, 4, 1, 5};
+    infer::ModelOptions options;
+    options.kv_tokens = 3 * 128;
+    {
+        options.state_slots = 1;
+        infer::Model model(w, backend::make_cpu_backend(), options);
+        infer::Sequence a = model.make_sequence(), b = model.make_sequence();
+        infer::ExecContext ctx;
+        model.reserve_passes(ctx, 1, 2, 1);
+        const infer::BatchEntry retry{&b, ids, 1, true};
+        const infer::BatchEntry rows{&a, ids, 3, true};
+        refuses("a pass of more rows than reserved", "a pass beyond the rows or logits rows reserve_passes reserved", [&] { model.begin_pass(ctx, 0, &rows, 1, 0); });
+        run_pass(model, ctx, &retry, 1);
+        model.reset(b);
+        const infer::BatchEntry logits{&a, ids, 2, true, true};
+        refuses("a pass of more logits rows than reserved", "a pass beyond the rows or logits rows reserve_passes reserved", [&] { model.begin_pass(ctx, 0, &logits, 1, 0); });
+        run_pass(model, ctx, &retry, 1);
+        model.reset(b);
+        const infer::BatchEntry twice[] = {{&a, ids, 1, false}, {&a, ids + 1, 1, true}};
+        refuses("a sequence listed twice in a pass", "a sequence listed twice in a pass", [&] { model.begin_pass(ctx, 0, twice, 2, 0); });
+        run_pass(model, ctx, &retry, 1);
+        model.reset(b);
+        infer::ExecContext whole;
+        refuses("a sequence listed twice in a forward", "a sequence listed twice in a pass", [&] { model.forward(whole, twice, 2); });
+        model.forward(whole, &retry, 1);
+        model.reset(b);
+    }
+    options.state_slots = 2;
+    infer::Model model(w, backend::make_cpu_backend(), options);
+    infer::Model reference(w, backend::make_cpu_backend(), options);
+    reference.prefill({ids, ids + 2});
+    const std::vector<float> want = reference.step((int)ids[2]);
+    infer::Sequence h = model.make_sequence(), a = model.make_sequence(), b = model.make_sequence();
+    infer::ExecContext ctx;
+    model.reserve_passes(ctx, 1, 3, 3);
+    const infer::BatchEntry history{&h, ids, 2, false};
+    run_pass(model, ctx, &history, 1);
+    // One slot is left for two fresh sequences, so the pass is refused whichever of them comes first, and the history keeps its slot through it.
+    const infer::BatchEntry short_of_slots[] = {{&h, ids + 2, 1, true}, {&a, ids, 1, true}, {&b, ids, 1, true}};
+    refuses("two fresh sequences and one slot", "every recurrent state slot is held", [&] { model.begin_pass(ctx, 0, short_of_slots, 3, 0); });
+    const infer::BatchEntry too_long[] = {{&h, ids + 2, 1, true}, {&a, ids, 3, true}};
+    refuses("a history beside a pass of more rows than reserved", "a pass beyond the rows or logits rows reserve_passes reserved", [&] { model.begin_pass(ctx, 0, too_long, 2, 0); });
+    require(h.length() == 2 && a.length() == 0 && b.length() == 0, "a refused pass changed a history");
+    const infer::BatchEntry fresh{&b, ids, 2, true};
+    run_pass(model, ctx, &fresh, 1);
+    const infer::BatchEntry next{&h, ids + 2, 1, true};
+    require(same(run_pass(model, ctx, &next, 1), want), "a history differs after the passes refused beside it");
+    const infer::BatchEntry none_left{&a, ids, 1, true};
+    refuses("a third sequence on two slots", "every recurrent state slot is held", [&] { model.begin_pass(ctx, 0, &none_left, 1, 0); });
+    model.reset(b);
+    run_pass(model, ctx, &none_left, 1);
+    model.reset(a);
+    model.reset(h);
+}
+
 // A prompt in slices of 1, 3 and 16, and its decode, give the bytes of the prompt in one pass; two sequences in one pass give each one's bytes alone.
 void slices() {
     const gguf::GGUFModel m = tiny();
@@ -415,6 +485,7 @@ int main() {
         plan();
         footprint();
         state_rules();
+        refused_passes_take_no_slot();
         slices();
         split_with_a_stage_of_states();
     } catch (const std::exception& e) {

@@ -189,6 +189,9 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   3. `TK` in `attention_tile.comp` and `STEP` in `matmul_tile_q.comp` become constants, `STEP` beside the host code that assumes its value.
   4. The docs: the eleven line numbers in STATUS are pinned to the commits that wrote them or dropped, DEVICE-EXECUTION's "The problem" moves under a dated heading, `backends-backend.md` says `type` for `ggml_type`, VULKAN's sentence naming `llmx devices` moves under a heading that says planned or names the listing without the backticked command, and `src/backends/cpu/q8_dots.hpp` gets `docs/src/backends-cpu-q8_dots.md`, with `backends-cpu-placement.md`'s title given its `src/` path as the other titles have.
   5. What the checks leave out that the measurement found, looked at by hand in the same branch: `VulkanBackend::add` with `K_ADD`, `kSpvAdd`, `add.comp` and its CMake entry, which only the tests and the MoE bench's floor timing reach; the defaulted `CSlice()` and `KVSequence()`, which only tests use; the live commit hashes not on main (`docs/CI.md`'s `73f4f78`, `docs/KV-CACHE.md`'s `0173ee6`, `docs/src/backends-cpu.md`'s `83cca18`); the counted facts repeated across docs (41 checks in AGENTS, ASSETS and CI; seventeen offline tests in AGENTS and CI); the 16 evidence folders under `docs/benchmarks/` that no file names; and the characters beyond ASCII in `docs/ASSETS.md` and `docs/STATUS.md`.
+  6. From a read-only ownership review of main at `1f7aa85` (2026-09-27), which found the loader, format and quant owners sound, two follow-ups queued here:
+     - the shard file name rule gets one owner in `format/`, which `format/gguf.hpp` and `hub/manifest.hpp:shard_name` call, each keeping its own validation of what it reads (the loader's follow-up list names it too);
+     - a test that the type ids and block sizes `q.glsl` holds equal those of `quant/types.hpp`, so the shader copy cannot drift when a type is added.
 
 ## Experts on the CPU refused alike on every backend (2026-09-26, branch fix/moe-flags-every-backend, merged at `dfd8db6`)
 
@@ -3217,7 +3220,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - **Checking every tensor through a table of roles.** Plan, then fill already checks every role before any byte moves.
   - **The other follow-ups:**
     - type ids and sizes: one owner in `quant/types.hpp` since `refactor/raw-convert-to-format`, and the table over every id is the quantization plan's step 0, whose location is open (Raw conversion in the format layer, Gotchas);
-    - the shard filename rule, written in both `format/gguf.hpp` and `hub/manifest.hpp:shard_name`;
+    - the shard filename rule, written in both `format/gguf.hpp` and `hub/manifest.hpp:shard_name`, queued as step 6 of `cleanup/known-findings` (Dead-code and stale-docs checks);
     - parsing the header from the mapping;
     - `PlacementRequest` fields a path ignores silently;
     - `set_ubatch` still public;

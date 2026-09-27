@@ -209,6 +209,7 @@ The `backend-group` test disables implicit floating-point contraction on
 GCC/Clang, including AppleClang. Its explicit SIMD FMA and `std::fma` calls
 remain fused, and nothing else is.
 Its bitwise oracle for the prompt's three-, two- and one-column float dots takes every product, the tail's included, as an explicit FMA, so under this option a kernel matches it only if the kernel's tail is written as FMAs too.
+That is the rule the kernels keep (`docs/src/backends-cpu.md`): a tail left as `v += a * b` is fused or not at the compiler's choice, and GCC 14 under UBSan fused it in one column kernel and not in another, which gave a prompt row different bits by its place in the batch.
 The option applies only to this test target, not the CLI or performance tools; the CLI HF checks separately exercise the normal runtime flags.
 
 The reference-generator path test checks an absolute path and filesystem

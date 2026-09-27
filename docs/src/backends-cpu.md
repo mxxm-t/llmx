@@ -2,6 +2,7 @@
 
 CPU implementation of the `Backend` interface, in namespace `backend`.
 The build requires x86-64 AVX2, FMA and F16C (`docs/BUILD.md`), and the kernels use them with no runtime check and no scalar fallback; their scalar loops cover the tails of lengths that are not a multiple of 8.
+Every multiply-add in those tails is an explicit FMA (`std::fma`), never `a * b + c`: a compiler that contracts fuses such an expression in one inlined copy and not in another by the code around it, which gave a prompt row different bits by its place in the batch (`tests/backend_group.cpp`, docs/STATUS.md).
 A compile without them stops at one `#error` at the top of the header.
 
 - Persistent worker pool. The decode row dots and attention both run through it; previously each created and joined `std::thread`s per call, which on Qwen3-8B was thousands of thread creations per token.
@@ -43,6 +44,7 @@ A compile without them stops at one `#error` at the top of the header.
   ordered lane reductions avoid making all 12 accumulators addressable after
   the FMA loop. Per-lane accumulation, final addition order and tails remain
   unchanged; the larger epilogue trades code size for less stack traffic.
+  A prompt row takes the three-, two- or one-column dot by its place in the batch, so the three give a column the same bits: FMAs per lane, the lanes added in order, then the tail's FMAs in order, which `backend-group` holds each column of all three to.
 - F32 matrices use those same float dot kernels directly on resident host
   weights, without a dequantization buffer or row copy. Quantized inputs retain
   the existing row staging and fused decode paths.
@@ -102,7 +104,7 @@ A compile without them stops at one `#error` at the top of the header.
   across block edges, so the arithmetic is that of a contiguous history.
   The backend grows scratch to the sequence being processed, rather than
   reserving the model's full context.
-  AVX2 dots and weighted value accumulation have scalar tails.
+  AVX2 dots and weighted value accumulation have scalar tails, of explicit FMAs.
   Vectorized dot reductions change summation order and require the HF gate.
   Value coefficients are normalized once, then output accumulators stay in
   registers across the KV sequence: 32-lane tiles, eight-lane remainders, and

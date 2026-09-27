@@ -478,7 +478,8 @@ public:
             v += _mm_cvtss_f32(_mm_shuffle_ps(hi, hi, _MM_SHUFFLE(1, 1, 1, 1)));
             v += _mm_cvtss_f32(_mm_shuffle_ps(hi, hi, _MM_SHUFFLE(2, 2, 2, 2)));
             v += _mm_cvtss_f32(_mm_shuffle_ps(hi, hi, _MM_SHUFFLE(3, 3, 3, 3)));
-            for (size_t j = i; j < n; ++j) v += row[j] * x[j];
+            // Explicit FMAs, as in the two- and one-column dots, so a column rounds alike in all three whatever the compiler contracts.
+            for (size_t j = i; j < n; ++j) v = std::fma(row[j], x[j], v);
             return v;
         };
         outa[0] = finish(a0, r0, xa);
@@ -527,7 +528,7 @@ public:
             float v = t[0] + t[1] + t[2] + t[3] + t[4] + t[5] + t[6] + t[7];
             const size_t row = (size_t)(k & 3);
             const float* xt = (k < 4) ? xa : xb;
-            for (size_t j = i; j < n; j++) v += r[row * stride + j] * xt[j];
+            for (size_t j = i; j < n; j++) v = std::fma(r[row * stride + j], xt[j], v);
             ((k < 4) ? outa : outb)[row] = v;
         }
     }
@@ -554,7 +555,7 @@ public:
         for (int k = 0; k < 4; k++) {
             _mm256_store_ps(t, *acc[k]);
             float v = t[0] + t[1] + t[2] + t[3] + t[4] + t[5] + t[6] + t[7];
-            for (size_t j = i; j < n; j++) v += r[(size_t)k * stride + j] * x[j];
+            for (size_t j = i; j < n; j++) v = std::fma(r[(size_t)k * stride + j], x[j], v);
             out[k] = v;
         }
     }
@@ -579,7 +580,7 @@ public:
         s = _mm_hadd_ps(s, s);
         s = _mm_hadd_ps(s, s);
         float out = _mm_cvtss_f32(s);
-        for (; i < n; i++) out += a[i] * b[i];
+        for (; i < n; i++) out = std::fma(a[i], b[i], out);
         return out;
     }
 
@@ -627,7 +628,7 @@ public:
         float lanes[8];
         _mm256_storeu_ps(lanes, acc);
         for (float x : lanes) sum += x;
-        for (; i < n; ++i) sum += q[i] * f16_to_f32(k[i]);
+        for (; i < n; ++i) sum = std::fma(q[i], f16_to_f32(k[i]), sum);
         return sum;
     }
 
@@ -741,7 +742,7 @@ public:
                             for (size_t t0 = 0; t0 < end; t0 += bt) {
                                 const uint16_t* vb = vblock16(t0) + d;
                                 const size_t n = std::min(bt, end - t0);
-                                for (size_t j = 0; j < n; ++j) acc += scores[t0 + j] * f16_to_f32(vb[j * hd]);
+                                for (size_t j = 0; j < n; ++j) acc = std::fma(scores[t0 + j], f16_to_f32(vb[j * hd]), acc);
                             }
                             dst[d] = acc;
                         }
@@ -782,7 +783,7 @@ public:
                         for (size_t t0 = 0; t0 < end; t0 += bt) {
                             const float* vb = vblock(t0) + d;
                             const size_t n = std::min(bt, end - t0);
-                            for (size_t j = 0; j < n; ++j) acc += scores[t0 + j] * vb[j * hd];
+                            for (size_t j = 0; j < n; ++j) acc = std::fma(scores[t0 + j], vb[j * hd], acc);
                         }
                         dst[d] = acc;
                     }

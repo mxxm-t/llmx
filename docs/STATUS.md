@@ -4,6 +4,47 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## The available host memory honours the cgroup and job object memory limits (2026-09-27, branch fix/host-memory-limit)
+
+- **Why:** `core::host_memory_available()` read the host's free memory alone, `MemAvailable` on Linux and `GlobalMemoryStatusEx`'s available physical memory on Windows, while its page called it what the process can still take.
+  It is the CPU backend's `memory_available()`, the host's budget in the layer split's fit (`place_model`), and the figure the loader compares against (`inference/load.hpp`): whether a payload is read in ahead, whether `auto` reads around the file cache, and whether `direct` is refused.
+  In a container run with `--memory 8g` on the Linux machine it read the host's 48 GiB, so a fit could plan past the limit and the process be killed at it; the automatic worker count had the same flaw with the CPU quota (its block, two below).
+- **Done:**
+  - `core/cgroup.hpp` ([cgroup](src/core-cgroup.md)) holds the cgroup reading `core/cpus.hpp` had, the paths, the mounts and the walk up the cgroups, with the v1 controller a parameter; it moved in a commit of its own that changes nothing read, and `cpus.hpp` and `host_memory.hpp` both include it.
+  - `core::host_memory_available()` ([host memory](src/core-host_memory.md)) is the fewer of the host's available memory and the room the process's memory limits leave, each only when it could be read.
+    On Linux the room is the fewest over the process's own cgroup and each above it up to the mount point of v2's `memory.max` less `memory.current` ("max" no limit) and v1's `memory.limit_in_bytes` less `memory.usage_in_bytes` (2^62 bytes or more no limit); on Windows it is its own job object's process memory limit less the process's commit charge and job memory limit less the job's committed memory.
+    A usage past a limit reads 0, and a limit or usage that cannot be read changes nothing.
+  - `host-memory`, a new CTest, holds the texts, the walk over a file system held in a map, the job's fields and the combination, and prints this process's figures, so a run in a limited container shows its limit.
+  - The `host_memory`, `cgroup`, `cpus` and `cpu` pages, ARCHITECTURE's core row, USAGE's several-devices section, AGENTS (Tests) and CI's counts say what is counted; CI's native counts had missed `qwen35-ops` and now count it too.
+- **Gates** (head gated at `175ff1b`, from which the head differs in this block alone; test commit `704eb7d`; main `dbafdec`; each built from its own tree, the head's binaries `llmx 0.1.0+g175ff1bb9677` and main's `llmx 0.1.0+gdbafdec75c85`; on the Linux machine's CPU in containers of 6 CPUs without cards, with the load average beside each step):
+  - The test commit alone does not build `host-memory`: `'cgroup_v2_memory_room' is not a member of 'core'`, the readers it names being the fix's.
+  - Builds of the head with Vulkan off and on, and of main with it off: 0 warnings and 0 errors each (load average 17 to 15).
+  - CTest 29 of 29 with Vulkan off and 32 of 32 with it on, `backend-vulkan` and `vulkan-lifetime` skipping without a device; `host-memory` passes 74 checks and `cpus` 133.
+  - The suite's `dead-code`, `docs`, `cli` and `threads` components pass, `threads` at an automatic count of 6, and `tests/dead_code.py --linked` finds the 21 listed findings (load average 12 to 30).
+  - Without a memory limit, `generate` greedy and seeded (`--seed 7`), `logits --top 20`, `logits --last 4 --top 10` and `perplexity --ctx-size 128 --chunks 2` on Qwen3-0.6B Q8_0 at `--threads 6` give main's bytes, 5 of 5 (load average 23 to 19).
+  - The CPU's free memory in the plan `generate --verbose --device cpu --layer-shares 1` prints on Qwen3-0.6B Q8_0, main against the head, each container fresh (load average 19 to 18):
+
+    | Container | `memory.max` | Main | Head | `host-memory` on the head |
+    |---|---:|---:|---:|---|
+    | no limit | max | 46.93 GiB | 48.37 GiB | the host's 47.09 GiB, no limit |
+    | `--memory 8g` | 8589934592 | 48.25 GiB | 7.92 GiB | 8.00 GiB of the host's 48.31 |
+    | `--memory 2g` | 2147483648 | 48.10 GiB, planned | refused: `split: cpu needs 4.72 GiB for layers 0-27 and has 1.92 GiB free` | 2.00 GiB of the host's 48.17 |
+
+    Without a limit both arms read the host's `MemAvailable`, which moved between the runs; the head's figure under a limit is the limit less what the process had charged when the plan was fitted, about 80 MiB.
+    The 4.72 GiB is the cache for the model's whole 40960-token context with the activations, which main planned inside a 2 GiB container.
+  - Windows (Visual Studio 2026, MSVC 14.50, a fresh build with Vulkan on): every target builds, with no warning in a file the branch touches; its warnings are main's, C4456 in `tests/backend_vulkan.cpp`, C4996 in `tests/hub_transport.cpp` and a standard-library C4244 reached from the `q8-dots` test.
+    `host-memory` and `cpus` pass there, the first reading no limit and the host's 15.32 GiB.
+  - Windows job objects, exercised with a small launcher in the scratch directory that makes a job with `JOB_OBJECT_LIMIT_PROCESS_MEMORY`, `JOB_OBJECT_LIMIT_JOB_MEMORY` or both, starts the command suspended, assigns it and resumes it:
+    - `host-memory` prints 3.00 GiB under a process limit of 3072 MiB, 2.00 under a job limit of 2048, 2.00 under both, and 1.00 under a process limit of 1024 beside a job limit of 4096.
+    - A probe that commits 512 MiB sees the room fall from 3071 to 2558 MiB under the process limit and from 2047 to 1534 under the job limit, so both commits are read.
+    - The same plan as above, main (dbafdec, the `llmx` target of a CPU build) against the head: 14.38 GiB against 7.92 under a process limit of 8192 MiB, 14.31 against 5.92 under a job limit of 6144, and under a process limit of 3072 or a job limit of 2048 main plans with 14.81 and 14.92 GiB while the head refuses with 2.92 and 1.92 GiB free.
+  - Markdown: the pages that name the available host memory, the cgroup reading, the `cpus` and `host-memory` tests or the native counts were read against the code, and the docs check passes.
+- **Left:** the merge.
+- **Gotchas:**
+  - A cgroup's usage counts the page cache charged to it, which the kernel reclaims before it kills the process, so the room is the smaller figure where `MemAvailable` counts the host's reclaimable cache as available: a file read earlier in the same container counts as used until its pages are reclaimed.
+    Taking the cgroup's inactive file pages (`memory.stat`) off its usage would give the larger figure; this change reads the limit less the usage.
+  - `memory.high`, swap limits and a job object's parent jobs are not read.
+
 ## One order for a Q4_1 block's two terms (2026-09-27, branch fix/q4_1-row-order, merged at `92de07d`)
 
 - **Why:** a generated token must compute the same bits whatever else shares its pass ([VULKAN](VULKAN.md), Batch invariance), and on the Radeon VII a Q4_1 one did not.

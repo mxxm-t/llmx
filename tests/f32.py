@@ -161,6 +161,7 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config
 def check_logits_input(directory, model, cases):
     """`logits --file` against the same prompt inline, then the `--last` rows of the prompt, and of its head continued by `--then-ids`, against every fixture case at its position.
     The rows the prompt prints over several passes, and those of its head continued by the same ids, must be the bytes it prints in one pass.
+    The same rows read with `--per-token`, through decode steps, are held to the cases too.
     Returns the largest logit error."""
     text = TEXTS[-1]
     rc, inline = cli(["logits", model, text, "--top", "257"])
@@ -201,6 +202,26 @@ def check_logits_input(directory, model, cases):
         assert sliced[position] == one_pass[position], ("--ubatch 5 differs from one pass", position, sliced[position], one_pass[position])
     for position in continued:
         assert continued[position] == one_pass[position], ("--then-ids differs from one pass", position, continued[position], one_pass[position])
+    # --per-token reads every token through a decode step instead: every position's row is held to HF where a case ends, the head continued by the same ids gives the same bytes, and without --last it prints the last row as a list.
+    decoded = []
+    for args in ([text], [head, "--then-ids", ids]):
+        rc, out = cli(["logits", model] + args + ["--per-token", "--last", str(len(text)), "--top", "257"])
+        assert rc == 0, "logits --per-token failed: " + out
+        lines = out.splitlines()
+        assert lines[0] == "tokens: %d" % len(text), out
+        positions = [int(line.split()[0]) for line in lines[1:]]
+        assert positions == list(range(len(text))), (args, positions)
+        rows = dict(zip(positions, lines[1:]))
+        decoded.append(rows)
+        for case in cases:
+            fields = rows[len(case["text"]) - 1].split()
+            got = {int(i): float(v) for i, v in zip(fields[1::2], fields[2::2])}
+            worst = max(worst, common.hf_logit_error("F32 --per-token", got, case["logits"]))
+    assert decoded[0] == decoded[1], "--per-token rows differ between the text and its head continued by --then-ids"
+    rc, out = cli(["logits", model, text, "--per-token", "--top", "257"])
+    assert rc == 0 and out.startswith("tokens: %d\n" % len(text)), "logits --per-token failed: " + out
+    last = decoded[0][len(text) - 1].split()
+    assert out.splitlines()[1:] == ["%s %s" % pair for pair in zip(last[1::2], last[2::2])], out
     return worst
 
 
@@ -225,7 +246,7 @@ def run():
         reports = re.findall(r"^bench: (.+?)\s+(\S+) \+- (\S+) tok/s  \((\d+) runs\)$", out, re.M)
         assert rc == 0 and [(what, runs) for what, _, _, runs in reports] == [("pp4", "2"), ("x2 tg2", "2")], "bench --seqs 2 failed: " + out
         assert all(math.isfinite(float(mean)) and float(mean) > 0 and math.isfinite(float(sd)) for _, mean, sd, _ in reports), out
-    print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids rows, the same bytes over passes, bench --seqs 2; max error %.8f  [ok]" % worst)
+    print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids/--per-token rows, the same bytes over passes, bench --seqs 2; max error %.8f  [ok]" % worst)
     return True
 
 

@@ -577,6 +577,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   The HF job runs it on the Q8_0 fixture on the CPU with `--requests 8 --cli 2`.
   `--ids` writes every phase's ids, so two builds can be held byte-equal.
   `--logprobs` has every request of those phases ask for its log-probabilities and top five, compared with its ids and written beside them, and `--passes N` serves with N passes in flight.
+  `--sampled` draws every request of those phases at the sampler's defaults (temperature 0.8, top-k 40, top-p 0.95) with seeds 1 to the request count in place of greedy, and the CLI phase gives `generate` the same settings and seeds, so the seeded replies are held to their runs alone and to the CLI as the greedy ones are.
   `--uncapped` runs other phases on a pool too small for its requests: 12 uncapped greedy requests through `/v1/completions`, streamed with `logprobs` 5, with `--max-seqs 6 --ctx-size 4096` unless given, each alone and then all at once, where requests are paused and resumed; each must give its tokens and every value alone, and it reports the pauses, the tokens resumes recomputed, the wall time together and its inter-token p50 and p99.
 - **Long context** (`tools/long_context_check.py`): one 16k-token
   summarization prompt from `tests/data/wiki.test.raw`, greedy, 512

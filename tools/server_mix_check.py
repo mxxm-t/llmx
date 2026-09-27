@@ -1,14 +1,14 @@
 """Many users at once through `llmx serve`, every request checked against what it gives alone: the check that a placement, a layer split above all, holds under whatever mix of prompts and decodes a server meets.
 
 Standard library only.
-Every request is greedy.
+Every request is greedy, or with --sampled drawn at the sampler's defaults (temperature 0.8, top-k 40, top-p 0.95) with a seed of its own.
 The requests mix short and long prompts, cut from a text file, with short and long replies.
 Phases:
 
     alone     each request by itself, one after another: its reference ids
     together  every request at once, so prompts and decodes share passes
     skewed    the same requests arriving at staggered times, long prompts landing while others decode, and some clients leaving mid-stream
-    cli       the first requests through `llmx generate --temp 0` on the same devices, whose prompt runs as one transaction and, on a split, pipelined over the stages
+    cli       the first requests through `llmx generate` with the same settings on the same devices, whose prompt runs as one transaction and, on a split, pipelined over the stages
 
 Every request that runs to its end must give its ids alone, the CLI its text; a client that left must leave nothing active.
 --logprobs asks every request of these phases for its log-probabilities and top five too, which must equal alone's as its ids do.
@@ -48,8 +48,8 @@ def health(port):
         return json.loads(r.read().decode("utf-8"))
 
 
-def requests_from(text, count, rng, logprobs=False):
-    """`count` requests: prompts of a sentence, a paragraph or pages, cut from `text` at random offsets, with replies of 8 to 128 tokens, and with `logprobs` each asking for its log-probabilities and top five."""
+def requests_from(text, count, rng, logprobs=False, sampled=False):
+    """`count` requests: prompts of a sentence, a paragraph or pages, cut from `text` at random offsets, with replies of 8 to 128 tokens, greedy or with `sampled` drawn at the defaults with seeds 1 to `count`, and with `logprobs` each asking for its log-probabilities and top five."""
     out = []
     for i in range(count):
         chars = [120, 1500, 6000, 12000][i % 4]
@@ -57,9 +57,18 @@ def requests_from(text, count, rng, logprobs=False):
         # A leading '-' would read as a flag to `llmx generate`.
         prompt = text[start:start + chars].lstrip("-")
         out.append({"prompt": prompt, "max_tokens": [128, 32, 64, 8][(i // 4) % 4], "temperature": 0})
+        if sampled:
+            out[-1].update({"temperature": 0.8, "top_k": 40, "top_p": 0.95, "seed": i + 1})
         if logprobs:
             out[-1].update({"logprobs": True, "top_logprobs": 5})
     return out
+
+
+def cli_sampling(req):
+    """The `llmx generate` flags that draw as the server draws `req`."""
+    if req["temperature"] == 0:
+        return ["--temp", "0"]
+    return ["--temp", str(req["temperature"]), "--topk", str(req["top_k"]), "--topp", str(req["top_p"]), "--seed", str(req["seed"])]
 
 
 def answer(reply):
@@ -175,11 +184,14 @@ def main():
     p.add_argument("--seed", type=int, help="1, or 7 with --uncapped")
     p.add_argument("--uncapped", action="store_true", help="the uncapped phases in place of the others")
     p.add_argument("--logprobs", action="store_true", help="the capped phases compare log-probabilities and the top five beside the ids")
+    p.add_argument("--sampled", action="store_true", help="the capped phases draw every request at the defaults with a seed of its own, in place of greedy")
     p.add_argument("--passes", type=int, help="passes in flight, the server's own number when not given")
     p.add_argument("--cli", type=int, default=4,
                    help="requests also checked against the CLI; the first four cover every prompt length, the last two several ubatch chunks")
     p.add_argument("--ids", metavar="PATH", help="write the ids of every phase as JSON, the skewed phase's clients that left as null; with --uncapped each token's text and values")
     args = p.parse_args()
+    if args.uncapped and args.sampled:
+        p.error("--sampled draws the capped phases, which --uncapped replaces")
     common.EXE = os.path.abspath(args.exe)
 
     with open(args.text, encoding="utf-8", errors="replace") as f:
@@ -189,7 +201,7 @@ def main():
     if args.uncapped:
         return uncapped(args, text, serving)
     rng = random.Random(1 if args.seed is None else args.seed)
-    reqs = requests_from(text, args.requests or 16, rng, args.logprobs)
+    reqs = requests_from(text, args.requests or 16, rng, args.logprobs, args.sampled)
     proc, port, log = common.start_server([common.EXE, "serve", args.model, "--max-seqs", str(args.max_seqs or 8)] + serving,
                                           wait=1800)
     failures = []
@@ -229,7 +241,7 @@ def main():
     # The CLI prints the reply's text between its pp and tg lines, which must be the text the server gave the request alone.
     for i in range(min(args.cli, len(reqs))):
         r = reqs[i]
-        out = subprocess.run([common.EXE, "generate", args.model, r["prompt"], "-n", str(r["max_tokens"]), "--temp", "0"] + flags,
+        out = subprocess.run([common.EXE, "generate", args.model, r["prompt"], "-n", str(r["max_tokens"])] + cli_sampling(r) + flags,
                              capture_output=True)
         try:
             same = out.returncode == 0 and common.generate_text(out.stdout).decode("utf-8", errors="replace") == replies[i]["text"]

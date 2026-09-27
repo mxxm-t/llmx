@@ -317,6 +317,15 @@ On the model side, each addition lands as a field of the architecture contract (
   view naming another layer's entries, which the view can already do. Do
   not assume one entry per token, one storage per device, or that a
   sequence holds only refcounted blocks.
+- **Recurrent state** (the gated delta net of qwen35's linear-attention
+  layers): a fixed-size, private per-sequence state that a pass updates in
+  place and that exists only at the end of what it has read. Implemented
+  for `qwen35` (`docs/QWEN35.md`): a cache kind per layer
+  (`LayerPlan::cache`), a `StateStorage` of slots on each device, allocated
+  at load, each sequence holding one slot, and `causal_conv_silu` and
+  `gated_delta_rule` in `backend.hpp`; such a model is not forked, and a
+  failed pass loses the states it touched. Do not assume every layer keeps
+  KV, or that every stage of a split has a KV storage.
 - **Mixture of experts.** A routed matmul over the experts each token
   selected, and expert placement, which the per-role placement above
   carries. Do not assume the feed-forward block is on the layer's device.

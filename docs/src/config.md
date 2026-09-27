@@ -10,9 +10,10 @@ Single place for compile-time build knobs.
   external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan backend, the
   only optional backend today; ROCm, CUDA and SYCL get their options when they
   are implemented.
-- **Model architectures** are *not* here: the model reads
-  `general.architecture` at run time; dense Qwen3 and `qwen3moe` are
-  implemented.
+- **Model architectures** are *not* here: the registry
+  (`model/arch/registry.hpp`) reads `general.architecture` at run time;
+  dense Qwen3 and `qwen3moe` are implemented, and dense `qwen35`
+  (Qwen 3.5, 3.6 and 3.8) on the CPU.
 - **Split mode / node count** are *not* here: layer splitting is selected at
   runtime through `--device` and `--layer-shares`; tensor groups and node
   execution remain planned.

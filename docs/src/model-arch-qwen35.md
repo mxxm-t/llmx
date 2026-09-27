@@ -23,10 +23,11 @@ refuses it (`server::require_servable`).
     and a tensor layout other than `reference` refused, as Qwen3's reader
     refuses them.
   - `rope.dimension_count`, the leading dims of each head that rotate
-    (default the head width), even and at most the head width; when
-    `rope.dimension_sections` is present, twice their sum must be that
-    width, since for text every section's position stream holds the same
-    position and the sections reduce to the plain rope over those dims.
+    (default the head width), even and at most the head width. For text
+    every section's position stream holds the same position, so the
+    sections reduce to the plain rope over those dims; when
+    `rope.dimension_sections` holds sections, twice their sum must be that
+    width, and an absent key or an empty array is not checked.
   - The linear attention: `ssm.conv_kernel`, which must be
     `backend::kConvTaps` (4), `ssm.state_size` (the K head width),
     `ssm.group_count` (K heads), `ssm.time_step_rank` (V heads) and

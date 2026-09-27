@@ -10,7 +10,7 @@ from common import run_f32_cache as cli
 from f32 import TEXTS, VOCAB, check_logits_input, weight_hash, write_model
 
 
-# Tiny qwen35 models with deterministic weights against HF Qwen3_5ForCausalLM (tools/gen_baseline.py qwen35): all 257 logits and windowed NLL over ubatches, threads, both ways of scoring and greedy decode after a prefill.
+# Tiny qwen35 models with deterministic weights against HF Qwen3_5ForCausalLM (tools/gen_baseline.py qwen35-tiny): all 257 logits and windowed NLL over ubatches, threads, both ways of scoring and greedy decode after a prefill.
 # The weights are made as HF holds them, and the writer applies the converter's transforms to write the GGUF, as docs/QWEN35.md, GGUF conventions, gives them.
 # Four layers, linear attention then full attention twice, so layer 3 holds the second KV cache and layer 2 the second recurrent state, which a cache indexed by layer number would miss.
 # A V head is 10 wide against a K head's 12, so the state is not square, and the rotary width is 8 of 40, with a base of 100 so every rotated pair turns within the context.

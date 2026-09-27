@@ -26,7 +26,7 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(default.revision, "c1899de289a04d12100db370d81485cdf75e47ca")
         self.assertEqual(default.threads, 6)
         self.assertEqual(generator.parse_args(["tokenizer-qwen35"]).output_dir, generator.OUT_DIR)
-        self.assertEqual(generator.parse_args(["qwen35"]).output_dir, generator.OUT_DIR)
+        self.assertEqual(generator.parse_args(["qwen35-tiny"]).output_dir, generator.OUT_DIR)
         alternate = ["logits", "--repo", "Qwen/Qwen3-8B", "--revision", "a" * 40]
         invalid = [
             ["typo"], ["logits", "--revision", "main"],
@@ -39,7 +39,7 @@ class ReferenceGenerator(unittest.TestCase):
             ["tokenizer-qwen35", "--revision", "c" * 40], ["tokenizer-qwen35", "--threads", "2"],
             ["tokenizer-qwen35", "--repo", "Qwen/Qwen3.5-9B", "--revision", "c" * 40],
             ["tokenizer-qwen35", "--gguf-repo", "a/b", "--gguf-file", "c.gguf"],
-            ["qwen35", "--threads", "2"], ["qwen35", "--revision", "c" * 40],
+            ["qwen35-tiny", "--threads", "2"], ["qwen35-tiny", "--revision", "c" * 40],
             ["file-exact"],
         ]
         with contextlib.redirect_stderr(io.StringIO()):
@@ -286,7 +286,7 @@ class ReferenceGenerator(unittest.TestCase):
             model.parameters.return_value = [SimpleNamespace(dtype=dtype), SimpleNamespace(dtype=param)]
             info = dict({"missing_keys": set(), "unexpected_keys": set(), "mismatched_keys": set(), "error_msgs": []}, **report)
             loader = MagicMock(return_value=(model, info))
-            got, unused = generator.load_qwen35("checkpoint", keys, torch, SimpleNamespace(Qwen3_5ForCausalLM=SimpleNamespace(from_pretrained=loader)))
+            got, unused = generator.load_qwen35_tiny("checkpoint", keys, torch, SimpleNamespace(Qwen3_5ForCausalLM=SimpleNamespace(from_pretrained=loader)))
             loader.assert_called_once_with("checkpoint", dtype=dtype, attn_implementation="eager", local_files_only=True, output_loading_info=True)
             self.assertIs(got, model)
             model.eval.assert_called_once_with()
@@ -303,7 +303,7 @@ class ReferenceGenerator(unittest.TestCase):
             with self.subTest(change=change), self.assertRaisesRegex(SystemExit, message):
                 load(**change)
 
-    def test_committed_qwen35_goldens_are_the_generators(self):
+    def test_committed_tiny_qwen35_goldens_are_the_generators(self):
         # The goldens come from HF's recurrence at the pinned version in float32 with eager attention, the full forward, which runs the chunked form, lands elsewhere, and only the MTP block's keys go unused.
         import qwen35
         doc = qwen35.golden()

@@ -471,7 +471,7 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 
 ### Generating pinned HF references
 
-`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `tokenizer-qwen35` or `qwen35` (default `all`).
+`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `tokenizer-qwen35` or `qwen35-tiny` (default `all`).
 Real-model modes default to `Qwen/Qwen3-0.6B` at commit `c1899de289a04d12100db370d81485cdf75e47ca`.
 Both model and tokenizer loaders receive that revision.
 Logits and PPL use CPU float32 eager attention with six threads by default; `--threads N` selects another positive count.
@@ -519,7 +519,7 @@ Its ids therefore differ from `tokenizer.json` on text with combining marks (Tha
 
 #### The tiny qwen35 references
 
-`qwen35` writes `tests/data/baseline_qwen35.json` (73,807 bytes) for the tiny models of `tests/qwen35.py`, accepts only `--output-dir` and is not part of `all`.
+`qwen35-tiny` writes `tests/data/baseline_qwen35.json` (73,812 bytes) for the tiny models of `tests/qwen35.py`, accepts only `--output-dir` and is not part of `all`.
 It runs in the qwen35 venv above, offline (`HF_HUB_OFFLINE` and `TRANSFORMERS_OFFLINE`, in a container without a network), with one thread.
 It refuses a transformers version other than 5.17.0, and an installed `kernels`, `fla` or `causal_conv1d` package, which HF's qwen3_5 code would run in place of its own torch functions.
 

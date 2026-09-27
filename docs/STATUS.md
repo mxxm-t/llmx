@@ -2363,7 +2363,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
      - Size: about 1.3.
      - **The tiny references exist** (`work/qwen35-ref-tiny`, 2026-09-26), as ASSETS, "The tiny qwen35 references", records.
        - `tests/qwen35.py` writes Hv = Hk with a tied head, Hv = 3 Hk with its own head, and that model with one MTP block, applying the converter's transforms itself.
-         `tools/gen_baseline.py qwen35` writes `tests/data/baseline_qwen35.json` from HF's token-by-token cached forward at transformers 5.17.0, 152 recurrent steps for each of the two models without an MTP block, with the full forward 4.0e-7 and 4.9e-7 away.
+         `tools/gen_baseline.py qwen35-tiny` writes `tests/data/baseline_qwen35.json` from HF's token-by-token cached forward at transformers 5.17.0, 152 recurrent steps for each of the two models without an MTP block, with the full forward 4.0e-7 and 4.9e-7 away.
        - The consumer, the `qwen35` component, holds llmx to the gate's bounds once llmx runs the architecture, and reports SKIP until then.
        - `reference-generator` holds the generator to its version, float32, eager attention, no replacement packages and its key checks, and maps the 4B's `dt_bias` onto its GGUF through the writer's tiled order bit for bit.
        - An independent float64 reading of the written files matched the goldens within 7.9e-7, and each of nine misreadings missed them by at least 0.10.

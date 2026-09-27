@@ -157,12 +157,13 @@ placement contracts in `docs/EXECUTION.md`.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass.
   Each has a form in `Backend` that throws naming the op, which a backend without it runs: the Vulkan backend until the qwen35 plan's step 5 (`docs/STATUS.md`).
   The CPU implements them all (`backends-cpu.md`).
-  - `StateShape`: one linear-attention layer's state for one sequence, K and V heads and their widths; `channels()` is the conv's width, the raw projection row `[q | k | v]`, and `slot_floats()` a slot, every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32.
+  - `StateShape`: one linear-attention layer's state for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, `slot_floats()` a slot, every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32, and `layer_bytes(slots)` one layer's buffer of that many slots.
     `kConvTaps` is the conv's width, 4 in every qwen35 file, and `kL2NormEps` the L2 norms' epsilon, 1e-6, which no file carries.
   - `state_alloc(layers, slots, shape)`: a `StateStorage` of one buffer per layer holding every slot back to back, allocated through `alloc` and zero-filled when it is made and never grown, so no pass allocates state.
     It refuses a shape with a zero width or V heads that are no multiple of the K heads.
     `state_copy(s, dst, src)` copies one slot to another in every layer through `copy`, enqueued as copy is, for a checkpoint restored or a state taken back into a live slot.
     Both are the same on every backend, over its own `alloc` and `copy`.
+    A `StateStorage` refuses a missing buffer or one smaller than `layer_bytes(slots)`, so a storage made by hand cannot send an op past a buffer's end.
   - `StateView`: one sequence's `nq` rows of a pass continuing a history of `length` tokens, read from slot `src` and written to slot `dst`, which differ only in a verify.
     Length 0 reads a zero state whatever `src` holds, so a recycled slot needs no clearing.
     `check_state_views(views, n_views, layer)` is every backend's check of them: rows in every view, the layer and slots inside a storage, one shape, and no slot written by one view and read or written by another, so the views do not depend on their order.

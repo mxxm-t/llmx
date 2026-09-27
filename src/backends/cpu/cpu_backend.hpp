@@ -804,7 +804,7 @@ public:
         h = _mm256_hadd_ps(h, h);
         float s = _mm256_cvtss_f32(h);
         s += _mm_cvtss_f32(_mm256_extractf128_ps(h, 1));
-        for (; i < n; i++) s += src[i] * src[i];
+        for (; i < n; i++) s = std::fma(src[i], src[i], s);
         float r = 1.0f / std::sqrt(s / (float)n + eps);
         __m256 rv = _mm256_set1_ps(r);
         i = 0;
@@ -828,11 +828,12 @@ public:
             _mm256_storeu_ps(x + i, na);
             _mm256_storeu_ps(x + i + half, nb);
         }
+        // The tail's multiply-adds are the body's, explicit, so a pair rotates alike in both whatever the compiler contracts.
         for (; i < half; i++) {
             int a = i, b = i + half;
             float xa = x[a], xb = x[b];
-            x[a] = xa * cos[i] - xb * sin[i];
-            x[b] = xa * sin[i] + xb * cos[i];
+            x[a] = std::fma(-xb, sin[i], xa * cos[i]);
+            x[b] = std::fma(xa, sin[i], xb * cos[i]);
         }
     }
 
@@ -923,7 +924,7 @@ public:
     static float sigmoid_of(float x) { return 1.0f / (1.0f + std::exp(-x)); }
     // log(1 + exp(x)), taken as x above 20.
     static float softplus_of(float x) { return x > 20.0f ? x : std::log1p(std::exp(x)); }
-    // The linear attention's decay factor exp(g), 0 below 2^-126 as on every backend, whatever the host's denormal handling (docs/QWEN35.md, Linear attention).
+    // The linear attention's decay factor exp(g), 0 below 2^-126 as on every backend, so the factor does not depend on the host's denormal handling, though a state it scales below the normal range does (docs/QWEN35.md, Linear attention).
     static float decay_of(float g) {
         const float d = std::exp(g);
         return d < std::numeric_limits<float>::min() ? 0.0f : d;

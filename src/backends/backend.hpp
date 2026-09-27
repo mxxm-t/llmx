@@ -169,13 +169,20 @@ struct StateShape {
     size_t slot_floats() const {
         return size_add(size_mul(v_heads, matrix_floats()), size_mul(kConvTaps - 1, channels()));
     }
+    // Bytes of one layer's buffer of `slots` slots.
+    size_t layer_bytes(size_t slots) const { return size_mul(size_mul(slots, slot_floats()), sizeof(float)); }
 };
 
 // The recurrent state of `layers` linear-attention layers, made whole by Backend::state_alloc and never grown: one buffer per layer, holding every slot back to back, all F32.
+// It refuses a buffer that cannot hold its slots, so an op resolving a slot stays inside its buffer.
 class StateStorage {
 public:
     StateStorage(std::vector<BufferPtr> buffers, size_t slots, const StateShape& shape)
-        : buffers_(std::move(buffers)), slots_(slots), shape_(shape) {}
+        : buffers_(std::move(buffers)), slots_(slots), shape_(shape) {
+        const size_t bytes = shape_.layer_bytes(slots_);
+        for (const BufferPtr& b : buffers_)
+            if (!b || b->size() < bytes) throw std::runtime_error("backend: state buffer smaller than its slots");
+    }
     size_t layers() const { return buffers_.size(); }
     size_t slots() const { return slots_; }
     const StateShape& shape() const { return shape_; }
@@ -193,10 +200,10 @@ private:
 // One sequence's rows of a pass in one StateStorage: `nq` rows, in view order, continue a history of `length` tokens.
 // The state is read from slot `src` and written to slot `dst`, the same slot except in a verify, and length 0 reads a zero state whatever `src` holds, so a recycled slot needs no clearing.
 struct StateView {
-    StateStorage* storage;
-    size_t src, dst;
-    size_t length;
-    size_t nq;
+    StateStorage* storage = nullptr;
+    size_t src = 0, dst = 0;
+    size_t length = 0;
+    size_t nq = 0;
 };
 
 // Throws unless every view has rows, names a storage holding `layer` with slots inside it and the first view's shape, and writes a slot no other view reads or writes, so the views do not depend on their order.
@@ -430,7 +437,7 @@ public:
     std::unique_ptr<StateStorage> state_alloc(size_t layers, size_t slots, const StateShape& shape) {
         if (!layers || !slots || !shape.k_heads || !shape.k_dim || !shape.v_dim || !shape.v_heads || shape.v_heads % shape.k_heads)
             throw std::runtime_error("backend: invalid state shape");
-        const size_t bytes = size_mul(size_mul(slots, shape.slot_floats()), sizeof(float));
+        const size_t bytes = shape.layer_bytes(slots);
         std::vector<BufferPtr> buffers;
         for (size_t l = 0; l < layers; ++l) buffers.push_back(alloc(bytes));
         return std::make_unique<StateStorage>(std::move(buffers), slots, shape);

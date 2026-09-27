@@ -173,6 +173,7 @@ private:
     std::vector<float> logits_;
     uint64_t admission_ = 0;       // order of first admission, by which room goes; set once
     uint64_t donor_ = 0;           // the donor its last pause left, which it takes back whole on resuming unless something evicted it
+    uint64_t landed_ = 0;          // the formation order of the last pass it left flight from
     bool stalled_ = false;         // it could not grow before this pass and sits it out
     size_t stalls_ = 0;            // passes it sat out
     size_t pauses_ = 0;            // times it was paused
@@ -193,15 +194,32 @@ struct TooLong : std::runtime_error {
 
 class Scheduler {
 public:
-    // The model's context is reserved here for one pass in flight, of every decoding request's row and a ubatch of other rows, each request wanting a logits row at most.
-    Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue)
-        : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()),
-          max_queue_(max_queue), slots_(1), logit_rows_(logit_rows(slots_.size(), max_seqs)), reserved_(model.kv_pools(), 0) {
+    // The model's context is reserved here for `passes` passes in flight, each of every decoding request's row and a ubatch of other rows, each request wanting a logits row at most.
+    // No `passes` takes the stage count on a pipelined layer split and one elsewhere, which cannot keep more; passes that do not fit the devices' memory run fewer, and stderr says so.
+    // A `timed` scheduler times its rounds and reads each stage's device time (Timing), over backends made to time their work.
+    Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false)
+        : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), timed_(timed),
+          reserved_(model.kv_pools(), 0) {
         for (size_t s = 0; s < model_.kv_pools(); ++s) {
             pools_.blocks.push_back(model_.kv_pool_blocks(s));
             pools_.block_tokens.push_back(model_.kv_pool_block_tokens(s));
         }
-        model_.reserve_passes(ctx_, slots_.size(), ubatch_ + max_seqs_, logit_rows_.size);
+        size_t p = passes ? passes : model_.pipelined() ? model_.stage_count() : 1;
+        if (p > 1 && !model_.pipelined())
+            throw std::runtime_error("server: " + std::to_string(p) + " passes in flight need a layer split over several devices, each running its layers whole; this placement runs one at a time");
+        for (;; --p) {
+            logit_rows_ = logit_rows(p, max_seqs_);
+            try {
+                model_.reserve_passes(ctx_, p, ubatch_ + max_seqs_, logit_rows_.size);
+                break;
+            } catch (const std::logic_error&) {
+                throw;
+            } catch (const std::exception& e) {
+                if (p == 1) throw;
+                std::fprintf(stderr, "server: %zu passes in flight do not fit (%s); running %zu\n", p, e.what(), p - 1);
+            }
+        }
+        slots_.resize(p);
     }
 
     // Tokens one request may hold, prompt and reply together: the model context or the KV pool, whichever is smaller.
@@ -232,23 +250,39 @@ public:
         return r;
     }
 
+    // What a timed scheduler measured (docs/SERVER.md, health), totals in milliseconds: its rounds, the thread's time in them by what it did and where it was held, and each stage's device time over the span its readings cover, with the rows the passes retired in that span carried.
+    // A stage's device time comes from timestamps on a device and from the thread's own time on the host, whose stages compute as they are recorded.
+    struct Timing {
+        uint64_t rounds = 0;
+        double round_ms = 0, recording_ms = 0, relaying_ms = 0, sampling_ms = 0, assembly_ms = 0;
+        double receive_wait_ms = 0, staging_wait_ms = 0, open_wait_ms = 0, logits_wait_ms = 0;
+        std::vector<double> stage_ms;
+        double span_ms = 0;
+        size_t rows = 0;
+    };
+
     struct Stats {
         size_t active = 0, queued = 0, donors = 0, prefix_hits = 0, prefix_tokens = 0, pauses = 0;
         size_t paused = 0;       // requests paused now, waiting to resume
         size_t stalls = 0;       // passes a request sat out, unable to grow
+        size_t waits = 0;        // of those, the ones whose room waited on a request in flight
         size_t recomputed = 0;   // rows resumes computed again
         size_t taken_back = 0;   // resumes that took their own donor back whole
+        size_t passes = 0, in_flight = 0;   // the passes the context keeps in flight at most, and those in flight now
         std::vector<size_t> reserved, donor_blocks;   // per cache pool, the blocks the ledger holds reserved and those the donors hold
+        bool timed = false;
+        Timing timing;   // a timed scheduler's, as of its last round
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
         Stats s{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_, (size_t)pauses_,
-                paused_count_.load(), stalls_, recomputed_, taken_back_, reserved_, std::vector<size_t>(reserved_.size(), 0)};
+                paused_count_.load(), stalls_, waits_, recomputed_, taken_back_, slots_.size(), in_flight_.load(), reserved_,
+                std::vector<size_t>(reserved_.size(), 0), timed_, timing_};
         for (const Donor& d : donors_) add(s.donor_blocks, d.blocks);
         return s;
     }
 
-    // The loop, in the caller's thread, until stop(): rounds over the model's pass API with one pass in flight (docs/SERVER.md, the round).
+    // The loop, in the caller's thread, until stop(): rounds over the model's pass API with up to slots_.size() passes in flight (docs/SERVER.md, the round).
     // The only thread that calls the model.
     void run() {
         std::vector<std::shared_ptr<Request>> active;   // in order of first admission
@@ -261,14 +295,15 @@ public:
                 for (auto* waiting : {&queue_, &paused_})
                     for (auto it = waiting->begin(); it != waiting->end();) it = (*it)->cancel_.load() ? leave(*waiting, it) : it + 1;
             }
-            try {
-                const Steps steps = round_steps(flights(), model_.stage_count());
-                for (const auto& a : steps.advance) advance(a.first, a.second);
-                for (const size_t k : steps.retire) retire(k);
-            } catch (const std::exception& e) {
-                fail(active, e.what());
-                continue;
+            const Clock::time_point round_start = timed_ ? Clock::now() : Clock::time_point{};
+            // Stages on the host compute as they are recorded, so they wait until every device stage of the round is on its way.
+            std::vector<std::pair<size_t, size_t>> host;
+            const Steps steps = round_steps(flights(), model_.stage_count());
+            for (const auto& a : steps.advance) {
+                if (model_.stage_on_host(a.second)) host.push_back(a);
+                else advance(active, a.first, a.second);
             }
+            for (const size_t k : steps.retire) retire(active, k);
             for (size_t i = 0; i < active.size();) {
                 if (!active[i]->finish_pending_.empty()) finish(active, i, active[i]->finish_pending_);
                 else ++i;
@@ -278,41 +313,44 @@ public:
                 if (active[i]->cancel_.load() && !active[i]->seq_.in_flight()) finish(active, i, "cancel");
                 else ++i;
             }
-            // Room is made and a pass formed only in a free slot, so nothing in flight is paused, parked or given room.
-            const size_t k = free_slot();
-            if (k == slots_.size()) continue;
-            // Growth steps that fall due take their room before anything is admitted, so a request admitted now never holds what an older request's step needs in this pass.
-            grow(active);
-            {
-                std::lock_guard<std::mutex> lk(m_);
-                // Room goes by first admission: nothing resumes or is admitted while a request that could not grow sits out the pass, paused requests resume oldest first and stop at the first that does not fit, and new requests come in queue order only once none is paused.
-                // A client can leave after the sweep, while the requests before its own are admitted; its request ends here, before any donor gives blocks up for it or it forks one.
-                const bool stalled = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
-                while (!stalled && !paused_.empty() && active.size() < max_seqs_) {
-                    if (paused_.front()->cancel_.load()) { leave(paused_, paused_.begin()); continue; }
-                    if (!enter(paused_.front(), active)) break;
-                    paused_.pop_front();
+            // Room is made and passes formed only in a free slot; a request in flight is never paused, parked or given room.
+            if (free_slot() < slots_.size()) {
+                const Clock::time_point room_start = timed_ ? Clock::now() : Clock::time_point{};
+                formed_stages_ms_ = 0;
+                // Growth steps that fall due take their room before anything is admitted, so a request admitted now never holds what an older request's step needs in this pass.
+                grow(active);
+                {
+                    std::lock_guard<std::mutex> lk(m_);
+                    // Room goes by first admission: nothing resumes or is admitted while a request that could not grow sits out the pass, paused requests resume oldest first and stop at the first that does not fit, and new requests come in queue order only once none is paused.
+                    // A client can leave after the sweep, while the requests before its own are admitted; its request ends here, before any donor gives blocks up for it or it forks one.
+                    const bool stalled = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
+                    while (!stalled && !paused_.empty() && active.size() < max_seqs_) {
+                        if (paused_.front()->cancel_.load()) { leave(paused_, paused_.begin()); continue; }
+                        if (!enter(paused_.front(), active)) break;
+                        paused_.pop_front();
+                    }
+                    while (!stalled && paused_.empty() && !queue_.empty() && active.size() < max_seqs_) {
+                        if (queue_.front()->cancel_.load()) { leave(queue_, queue_.begin()); continue; }
+                        if (!enter(queue_.front(), active)) break;
+                        queue_.pop_front();
+                    }
+                    active_count_.store(active.size());
+                    paused_count_.store(paused_.size());
                 }
-                while (!stalled && paused_.empty() && !queue_.empty() && active.size() < max_seqs_) {
-                    if (queue_.front()->cancel_.load()) { leave(queue_, queue_.begin()); continue; }
-                    if (!enter(queue_.front(), active)) break;
-                    queue_.pop_front();
+                try {
+                    for (size_t k = free_slot(); k < slots_.size() && form(k, active, host); k = free_slot()) {}
+                } catch (const std::exception& e) {
+                    fail_all(active, e.what());
+                    host.clear();
                 }
-                active_count_.store(active.size());
-                paused_count_.store(paused_.size());
+                if (timed_) round_.assembly_ms += ms_since(room_start) - formed_stages_ms_;
             }
-            if (active.empty()) continue;
-            try {
-                form(k, active);
-            } catch (const std::exception& e) {
-                fail(active, e.what());
-            }
+            for (const auto& a : host)
+                if (slots_[a.first].live && slots_[a.first].ran == a.second) advance(active, a.first, a.second);
+            in_flight_.store(flights_live());
+            if (timed_) end_round(round_start);
         }
-        for (size_t k = 0; k < slots_.size(); ++k)
-            if (slots_[k].live) {
-                model_.abort_pass(ctx_, k);
-                vacate(k);
-            }
+        abort_all();
         for (auto& r : active) { release(*r); r->end("cancel"); }
         std::lock_guard<std::mutex> lk(m_);
         for (auto* waiting : {&queue_, &paused_}) {
@@ -322,6 +360,7 @@ public:
         while (!donors_.empty()) drop_donor();
         active_count_.store(0);
         paused_count_.store(0);
+        in_flight_.store(0);
     }
 
     void stop() {
@@ -332,35 +371,51 @@ public:
         cv_.notify_all();
     }
 
+    // A pass as it retires, for a test that replays the passes in their order through Model::forward: each entry's request, the history it found, its rows, its extent and whether it wanted logits, and a copy of each wanting row in entry order.
+    struct Retired {
+        std::vector<const Request*> requests;
+        std::vector<size_t> from, rows, extent;
+        std::vector<char> want;
+        std::vector<std::vector<float>> logits;
+    };
+    // Called on the scheduler thread with each pass that retires, before its rows are sampled; set before run.
+    std::function<void(const Retired&)> on_retire;
+
 private:
+    using Clock = std::chrono::steady_clock;
     // How requests reserve room, at admission and as uncapped ones grow.
     static constexpr Growth kGrowth{};
     // The most generated tokens a pass recomputes for one resume, each taking ubatch / kReplayRows of the budget since it takes the decode kernels; docs/STATUS.md (Exact resume) records the timing that sets it.
     static constexpr size_t kReplayRows = 64;
 
-    // A slot of the context reserved for passes: the round's view of it (Flight), its pass's requests by entry with the history each had and the rows each adds, those it samples in logits order, and its logits rows.
+    // A slot of the context reserved for passes: the round's view of it (Flight), its pass's requests by entry with the history each had and the rows each adds, those it samples in logits order, its logits rows and its decode entries.
     struct Slot : Flight {
         std::vector<std::shared_ptr<Request>> members, wanting;
         std::vector<size_t> from, rows;
-        size_t base = 0, want = 0;
+        size_t base = 0, want = 0, decoders = 0;
     };
 
     bool flying() const {
         return std::any_of(slots_.begin(), slots_.end(), [](const Slot& k) { return k.live; });
+    }
+    size_t flights_live() const {
+        return (size_t)std::count_if(slots_.begin(), slots_.end(), [](const Slot& k) { return k.live; });
     }
     size_t free_slot() const {
         return (size_t)(std::find_if(slots_.begin(), slots_.end(), [](const Slot& k) { return !k.live; }) - slots_.begin());
     }
     std::vector<Flight> flights() const { return std::vector<Flight>(slots_.begin(), slots_.end()); }
 
-    // A new pass in slot k: decode entries first, but for a request that could not grow, then what the other requests' caches lack, one stretch's slice each, up to ubatch tokens; then its logits rows, begin_pass and its first stage.
-    void form(size_t k, const std::vector<std::shared_ptr<Request>>& active) {
+    // A new pass in slot k: decode entries first, up to an even share of the decoding requests over the pass slots, but for a request that could not grow or is in flight, then what the other requests' caches lack, one stretch's slice each, up to ubatch tokens; then its logits rows, begin_pass and its first stage, or, on the host, that stage's place in `host`.
+    // False when no request has rows to add, which with nothing in flight breaks the round's rules, since the oldest request sits a pass out only while a capped request holds room: that throws, rather than leaving the loop to spin.
+    bool form(size_t k, std::vector<std::shared_ptr<Request>>& active, std::vector<std::pair<size_t, size_t>>& host) {
         Slot& f = slots_[k];
         entries_.clear();
         f.members.clear();
         f.wanting.clear();
         f.from.clear();
         f.rows.clear();
+        f.decoders = 0;
         const auto add_entry = [&](const std::shared_ptr<Request>& r, const infer::BatchEntry& e) {
             entries_.push_back(e);
             f.members.push_back(r);
@@ -368,12 +423,27 @@ private:
             f.rows.push_back(e.n);
             if (e.want_logits) f.wanting.push_back(r);
         };
-        size_t budget = ubatch_;
+        const auto ready = [](const Request& r) { return !r.seq_.in_flight() && !r.stalled_; };
+        // The share goes to the decoders that left flight earliest, so one held back takes the next pass; they join in order of first admission.
+        std::vector<const Request*> waiting;
+        size_t decoders = 0;
+        for (const Slot& s : slots_) decoders += s.live ? s.decoders : 0;
+        for (const auto& r : active)
+            if (ready(*r) && decoding(*r)) waiting.push_back(r.get());
+        decoders += waiting.size();
+        const size_t share = std::min(decode_share(decoders, slots_.size(), model_.stage_count()), waiting.size());
+        std::stable_sort(waiting.begin(), waiting.end(), [](const Request* a, const Request* b) { return a->landed_ < b->landed_; });
+        waiting.resize(share);
         for (auto& r : active)
-            if (decoding(*r) && !r->stalled_) add_entry(r, infer::BatchEntry{&r->seq_, &r->last_id_, 1, true});
+            if (std::find(waiting.begin(), waiting.end(), r.get()) != waiting.end()) {
+                add_entry(r, infer::BatchEntry{&r->seq_, &r->last_id_, 1, true});
+                ++f.decoders;
+            }
+        size_t budget = ubatch_;
         for (auto& r : active) {
-            if (decoding(*r) || !budget) continue;
+            if (decoding(*r) || r->seq_.in_flight() || !budget) continue;
             const size_t at = r->seq_.length(), end = history_tokens(*r);
+            if (at >= end) continue;
             const RowClass& c = class_at(r->classes_, at);
             size_t n = std::min(c.end, end) - at;
             if (c.extent == 1 && at < r->reached_) {
@@ -392,9 +462,10 @@ private:
             e.extent = c.extent;
             add_entry(r, e);
         }
-        // With one slot nothing is in flight here, so some active request has a row to add, since the oldest sits a pass out only while a capped request holds room, and every logits row is free.
-        // An empty pass or one short of rows would break those rules, and it ends the requests with the error rather than leaving the loop to spin.
-        if (entries_.empty()) throw std::logic_error("server: a round with active requests formed an empty pass");
+        if (entries_.empty()) {
+            if (!flying() && !active.empty()) throw std::logic_error("server: a round with active requests formed an empty pass");
+            return false;
+        }
         f.want = f.wanting.size();
         f.base = take_rows(logit_rows_, f.want);
         if (f.base == logit_rows_.size) throw std::logic_error("server: no logits rows for a new pass");
@@ -407,34 +478,118 @@ private:
         f.live = true;
         f.formed = ++formed_;
         f.ran = 0;
-        advance(k, 0);
+        if (model_.stage_on_host(0)) host.push_back({k, 0});
+        else advance(active, k, 0);
+        return true;
     }
 
-    // Stage s of the pass in slot k; a failure has abandoned the pass in the model, and the slot and its logits rows come back before it goes on.
-    void advance(size_t k, size_t s) {
+    // Stage s of the pass in slot k; a failure has abandoned the pass in the model, and it fails that pass alone.
+    void advance(std::vector<std::shared_ptr<Request>>& active, size_t k, size_t s) {
+        const Clock::time_point start = timed_ ? Clock::now() : Clock::time_point{};
+        const backend::Backend::HostTimes before = timed_ ? host_times() : backend::Backend::HostTimes{};
         try {
             model_.run_pass_stage(ctx_, k, s);
-        } catch (...) {
-            vacate(k);
-            throw;
+        } catch (const std::exception& e) {
+            fail_pass(active, k, e.what());
+            return;
         }
         ++slots_[k].ran;
+        if (!timed_) return;
+        // The stage's time on the thread, apart from where it was held and its uploads; on the host that is the stage's own time.
+        const backend::Backend::HostTimes after = host_times();
+        const double took = ms_since(start), ticket = after.ticket_ms - before.ticket_ms, slot = after.slot_ms - before.slot_ms,
+                     staging = after.staging_ms - before.staging_ms, write = after.write_ms - before.write_ms, own = took - ticket - slot - staging;
+        round_.receive_wait_ms += ticket;
+        round_.open_wait_ms += slot;
+        round_.staging_wait_ms += staging;
+        round_.relaying_ms += write;
+        round_.recording_ms += own - write;
+        if (model_.stage_on_host(s)) host_stage_ms_[s] += own;
+        if (s == 0) formed_stages_ms_ += took;
+    }
+
+    // The host times of every stage's backend, summed.
+    backend::Backend::HostTimes host_times() {
+        backend::Backend::HostTimes t;
+        for (size_t s = 0; s < model_.stage_count(); ++s) {
+            const backend::Backend::HostTimes b = model_.stage_backend(s).host_times();
+            t.ticket_ms += b.ticket_ms;
+            t.slot_ms += b.slot_ms;
+            t.staging_ms += b.staging_ms;
+            t.write_ms += b.write_ms;
+        }
+        return t;
+    }
+    static double ms_since(Clock::time_point t) { return std::chrono::duration<double, std::milli>(Clock::now() - t).count(); }
+
+    // A timed round's end: its time, and every kReadRounds rounds each stage's device time since the last reading, which on a device waits for its queue, so the span a reading covers starts after it.
+    void end_round(Clock::time_point start) {
+        static constexpr uint64_t kReadRounds = 32;
+        round_.round_ms += ms_since(start);
+        ++round_.rounds;
+        const size_t S = model_.stage_count();
+        if (round_.stage_ms.size() != S) {
+            round_.stage_ms.assign(S, 0.0);
+            host_stage_ms_.assign(S, 0.0);
+            for (size_t s = 0; s < S; ++s) model_.stage_backend(s).device_ms();
+            span_start_ = Clock::now();
+            span_rows_ = 0;
+        } else if (round_.rounds % kReadRounds == 0) {
+            round_.span_ms += ms_since(span_start_);
+            for (size_t s = 0; s < S; ++s) {
+                const double ms = model_.stage_backend(s).device_ms();
+                round_.stage_ms[s] += model_.stage_on_host(s) ? host_stage_ms_[s] : std::max(ms, 0.0);
+                host_stage_ms_[s] = 0;
+            }
+            round_.rows += span_rows_;
+            span_rows_ = 0;
+            span_start_ = Clock::now();
+        }
+        std::lock_guard<std::mutex> lk(m_);
+        timing_ = round_;
     }
 
     // The pass in slot k after its last stage: each wanting row sampled with its request's own state, in entry order, then the pass ended and the slot given back.
-    void retire(size_t k) {
+    // A request cancelled in flight is not sampled: its history stays what the pass computed, which its donor keeps.
+    void retire(std::vector<std::shared_ptr<Request>>& active, size_t k) {
         Slot& f = slots_[k];
         try {
+            if (on_retire) {
+                Retired t;
+                const std::vector<infer::BatchEntry>& entries = ctx_.passes[k].entries;
+                for (size_t e = 0; e < f.members.size(); ++e) {
+                    t.requests.push_back(f.members[e].get());
+                    t.from.push_back(f.from[e]);
+                    t.rows.push_back(f.rows[e]);
+                    t.extent.push_back(entries[e].extent ? entries[e].extent : entries[e].n);
+                    t.want.push_back(entries[e].want_logits);
+                }
+                for (size_t w = 0; w < f.wanting.size(); ++w) {
+                    const float* row = model_.pass_logits(ctx_, k, w);
+                    t.logits.emplace_back(row, row + ctx_.width);
+                }
+                on_retire(t);
+            }
+            const Clock::time_point start = timed_ ? Clock::now() : Clock::time_point{};
+            double waited = 0;
             for (size_t w = 0; w < f.wanting.size(); ++w) {
                 Request& r = *f.wanting[w];
+                if (r.cancel_.load()) continue;
+                const Clock::time_point read = timed_ ? Clock::now() : Clock::time_point{};
                 const float* row = model_.pass_logits(ctx_, k, w);
+                if (timed_) waited += ms_since(read);
                 r.logits_.assign(row, row + ctx_.width);
                 step(r);
             }
-        } catch (...) {
+            if (timed_) {
+                round_.logits_wait_ms += waited;
+                round_.sampling_ms += ms_since(start) - waited;
+                for (size_t n : f.rows) span_rows_ += n;
+            }
+        } catch (const std::exception& e) {
             model_.abort_pass(ctx_, k);
-            vacate(k);
-            throw;
+            fail_pass(active, k, e.what());
+            return;
         }
         model_.end_pass(ctx_, k);
         // Rows a resume computed again are those below the longest history the cache has held.
@@ -445,6 +600,7 @@ private:
             r.recomputed_ += n;
             again += n;
             r.reached_ = std::max(r.reached_, to);
+            r.landed_ = f.formed;
         }
         if (again) {
             std::lock_guard<std::mutex> lk(m_);
@@ -460,11 +616,32 @@ private:
         f.live = false;
         f.members.clear();
         f.wanting.clear();
+        f.decoders = 0;
     }
 
-    // A failed pass leaves every history as it was; every active request ends with the error rather than the loop.
-    void fail(std::vector<std::shared_ptr<Request>>& active, const std::string& what) {
+    // A failed pass, which the model has abandoned, returned its requests' histories to where it found them: they end with the error and give their blocks back, while the other passes in flight go on, their rows in their own storages, handoff buffers and logits rows.
+    void fail_pass(std::vector<std::shared_ptr<Request>>& active, size_t k, const std::string& what) {
+        const std::vector<std::shared_ptr<Request>> members = slots_[k].members;
+        vacate(k);
+        for (const auto& m : members) {
+            const auto it = std::find(active.begin(), active.end(), m);
+            if (it != active.end()) finish(active, (size_t)(it - active.begin()), "error", what);
+        }
+    }
+
+    // A round that the scheduler's own rules cannot go on with abandons every pass in flight, and every active request ends with the error rather than the loop.
+    void fail_all(std::vector<std::shared_ptr<Request>>& active, const std::string& what) {
+        abort_all();
         for (size_t i = 0; i < active.size();) finish(active, i, "error", what);
+    }
+
+    // Every pass in flight abandoned, each request's history back where its pass found it.
+    void abort_all() {
+        for (size_t k = 0; k < slots_.size(); ++k)
+            if (slots_[k].live) {
+                model_.abort_pass(ctx_, k);
+                vacate(k);
+            }
     }
 
     // The tokens of r's history, prompt then generated: what a resume holds its cache to.
@@ -502,12 +679,13 @@ private:
         return std::min(at, n);
     }
 
-    // Before a pass, every uncapped decoding request whose next token would pass its reservation takes another step, the earliest admitted first, with what make_room gives it.
+    // Before a pass, every uncapped decoding request not in flight whose next token would pass its reservation takes another step, the earliest admitted first, with what make_room gives it.
     // A request make_room cannot give it to, or whose plan would pause a request in flight, sits the pass out with its cache as it is (a stall) and asks again before the next; it is never paused for its own growth.
     void grow(std::vector<std::shared_ptr<Request>>& active) {
         for (size_t i = 0; i < active.size(); ++i) {
             Request& r = *active[i];
             r.stalled_ = false;
+            if (r.seq_.in_flight()) continue;
             const std::vector<size_t> step = kGrowth.step(pools_, r.params_.until_limit, decoding(r), r.seq_.length(), r.need_);
             if (step.empty()) continue;
             const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), npos, false, holders(active), r.admission_, true, step);
@@ -516,6 +694,7 @@ private:
                 ++r.stalls_;
                 std::lock_guard<std::mutex> lk(m_);
                 ++stalls_;
+                waits_ += t.wait;
                 continue;
             }
             take(t, active);
@@ -602,10 +781,14 @@ private:
         for (const Donor& d : donors_) b.push_back(d.blocks);
         return b;
     }
+    // A request in flight is counted by the history its pass found, since its storages disagree until the pass ends.
     std::vector<Holder> holders(const std::vector<std::shared_ptr<Request>>& active) const {
         std::vector<Holder> h;
         for (const auto& r : active) {
-            const size_t len = r->seq_.length();
+            size_t len = r->seq_.length();
+            for (const Slot& s : slots_)
+                for (size_t e = 0; s.live && e < s.members.size(); ++e)
+                    if (s.members[e] == r) len = s.from[e];
             h.push_back(Holder{r->admission_, r->params_.until_limit, r->need_, len ? pools_.blocks_for(len) : std::vector<size_t>(pools_.blocks.size(), 0), r->seq_.in_flight()});
         }
         return h;
@@ -795,6 +978,13 @@ private:
     infer::Model& model_;
     const bpe::Tokenizer& tok_;
     size_t max_seqs_, ubatch_, max_queue_;
+    const bool timed_;
+    Timing round_;                        // the scheduler thread's, published to timing_ each round
+    Timing timing_;                       // under the lock
+    std::vector<double> host_stage_ms_;   // per stage on the host, its time since the last reading
+    Clock::time_point span_start_;
+    size_t span_rows_ = 0;                // rows the passes retired since the last reading carried
+    double formed_stages_ms_ = 0;         // the round's first stages of new passes, which forming them does not count
     infer::ExecContext ctx_;
     std::vector<Slot> slots_;
     LogitRows logit_rows_;
@@ -807,12 +997,13 @@ private:
     // Paused requests in order of first admission, the scheduler thread's; they hold nothing but a donor, and do not count against max_queue.
     std::deque<std::shared_ptr<Request>> paused_;
     std::deque<Donor> donors_;
-    std::atomic<size_t> active_count_{0}, paused_count_{0};
+    std::atomic<size_t> active_count_{0}, paused_count_{0}, in_flight_{0};
     size_t prefix_hits_ = 0, prefix_tokens_ = 0;   // under the lock
     uint64_t admissions_ = 0;   // the scheduler thread's
     uint64_t pauses_ = 0;       // under the lock
     uint64_t donor_ids_ = 0;    // under the lock
     size_t stalls_ = 0;         // under the lock
+    size_t waits_ = 0;          // under the lock
     size_t recomputed_ = 0;     // under the lock
     size_t taken_back_ = 0;     // under the lock
     std::vector<size_t> reserved_;   // per cache pool, blocks promised to admitted requests and held by donors

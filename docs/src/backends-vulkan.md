@@ -28,9 +28,14 @@ kernel notes and measurements are `docs/VULKAN.md`.
   dispatches: `vulkan_kernel_times` returns device milliseconds per kernel
   since the last reading, waiting for the queue, and
   `vulkan_timed_dispatches` how many dispatches that reading covered, the
-  query pool sampling a long interval's first ones (`bench --profile`). All
-  of these are read-only reporting: nothing in the runtime path depends on
-  them.
+  query pool sampling a long interval's first ones (`bench --profile`).
+  Such a backend also times where it holds its caller (`host_times`): its
+  ticket waits, its wait for a free ring slot in `open`, its wait for a
+  half of staging in `upload`, and its writes apart from those waits;
+  and `device_ms` sums the kernel times since the last reading, which
+  `serve --timing` reads each stage's device time from. All of these are
+  read-only reporting: nothing in the runtime path depends on them, and a
+  backend not opened for diagnostics times nothing.
 - Buffers are `VulkanBuffer`, device-local or host-visible, sized in whole
   32-bit words; every op is
   recorded into a ring of 16 command buffers and submitted in chunks of 64

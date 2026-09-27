@@ -5,6 +5,7 @@
 #include "quant/quant.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -724,7 +725,7 @@ VulkanBuffer& as_vulkan(Buffer& b) {
 class VulkanBackend final : public Backend {
     friend struct VulkanLifetimeTest;
 public:
-    explicit VulkanBackend(int index, bool diagnostics = false) : dev_(std::make_shared<Device>()) {
+    explicit VulkanBackend(int index, bool diagnostics = false) : dev_(std::make_shared<Device>()), timed_(diagnostics) {
         Device& d = *dev_;
         Fn& fn = d.fn;
 #define LLMX_VK_LOAD_GLOBAL(name) \
@@ -1133,6 +1134,16 @@ public:
 
     // The upload staging and each ring slot's argument arena, host-visible memory held for the backend's life.
     size_t host_resident() const override { return kStagingBytes + kRing * kArenaBytes; }
+
+    HostTimes host_times() const override { return host_; }
+
+    // The timestamps' sum over every kernel since the last reading.
+    double device_ms() override {
+        if (!dev_->timestamps) return -1.0;
+        double ms = 0.0;
+        for (const auto& k : kernel_times()) ms += k.second;
+        return ms;
+    }
     // Tile split partials and attention merge state grow with the device; 256 MiB and a twentieth of what is free covers them.
     size_t scratch_reserve(size_t free) const override { return ((size_t)256 << 20) + free / 20; }
 
@@ -1227,8 +1238,10 @@ public:
         return ticket;
     }
 
+    void wait(Ticket t) noexcept override { waited(host_.ticket_ms, t); }
+
     // noexcept by contract: a device that cannot report its work finished has been lost, and nothing here can act on that.
-    void wait(Ticket t) noexcept override {
+    void wait_for(Ticket t) noexcept {
         if (t == 0 || t > last_ticket_) return;
         VkSemaphoreWaitInfo wi{};
         wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
@@ -1311,6 +1324,15 @@ public:
     }
 
     void write(Buffer& dst_b, size_t off, const void* src, size_t bytes) override {
+        if (!timed_) return write_now(dst_b, off, src, bytes);
+        const auto t0 = std::chrono::steady_clock::now();
+        const HostTimes before = host_;
+        write_now(dst_b, off, src, bytes);
+        host_.write_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() -
+                          (host_.ticket_ms - before.ticket_ms) - (host_.slot_ms - before.slot_ms) - (host_.staging_ms - before.staging_ms);
+    }
+
+    void write_now(Buffer& dst_b, size_t off, const void* src, size_t bytes) {
         drop_tags();
         if (!src && bytes) throw std::runtime_error("vulkan: writing from null storage");
         VulkanBuffer& dst = as_vulkan(dst_b);
@@ -2537,7 +2559,7 @@ private:
     // The open command buffer, beginning the next ring slot once its last submission has retired.
     VkCommandBuffer open() {
         if (open_) return ring_[ring_index_];
-        wait(ring_ticket_[ring_index_]);
+        waited(host_.slot_ms, ring_ticket_[ring_index_]);
         pending_[ring_index_].clear();
         arena_[ring_index_].used = 0;
         VkCommandBuffer cmd = ring_[ring_index_];
@@ -2577,7 +2599,7 @@ private:
         size_t done = 0;
         for (size_t& i = next_half_; done < bytes; i ^= 1) {
             const size_t n = std::min(bytes - done, half);
-            wait(staged_[i]);
+            waited(host_.staging_ms, staged_[i]);
             std::memcpy((uint8_t*)st.mapped() + i * half, (const uint8_t*)src + done, n);
             VkCommandBuffer cmd = open();
             if (keep) pending_[ring_index_].push_back(keep);
@@ -2590,7 +2612,17 @@ private:
         }
     }
 
+    // A wait on ticket t, its time added to `into` on a backend made to time its work.
+    void waited(double& into, Ticket t) noexcept {
+        if (!timed_) return wait_for(t);
+        const auto t0 = std::chrono::steady_clock::now();
+        wait_for(t);
+        into += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    }
+
     std::shared_ptr<Device> dev_;
+    const bool timed_;       // made for diagnostics, so its waits and uploads are timed (host_times)
+    HostTimes host_;
     VkCommandPool pool_ = VK_NULL_HANDLE;
     VkCommandBuffer ring_[kRing] = {};
     Ticket ring_ticket_[kRing] = {};

@@ -427,12 +427,14 @@ std::string load_timing(const infer::LoadTimes& t) {
 // Open a model file as the flags ask, through infer::load_model: the devices --device lists, made first so a bad flag fails before the file is read, the model placed over them for its ubatch plus `decode_rows` generated tokens a pass (a server's sequences), progress on stderr when `progress`, and a split's plan when `show_plan`.
 // `threads` is the worker count to set, 0 to keep the backend's own; with `profiled`, the one device times its kernels and its address is written there (bench --profile).
 // `history_tokens`, when given, is what each of the `decode_rows` sequences holds, and the cache grows to hold them all at once where its budget would not (infer::PlacementRequest::histories).
+// `slots` is the passes a server keeps in flight, whose handoff buffers a split's fit counts, and with `timed` every device times its work (serve --timing).
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
-                                               bool show_plan = false, backend::Backend** profiled = nullptr, size_t history_tokens = 0) {
+                                               bool show_plan = false, backend::Backend** profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
+                                               bool timed = false) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
     if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     const auto specs = backend::device_specs(exec.device);
-    auto backends = backend::make_backends(specs, profiled != nullptr);
+    auto backends = backend::make_backends(specs, profiled != nullptr || timed);
     if (profiled) *profiled = backends.front().get();
     infer::PlacementRequest request;
     request.names = specs;
@@ -441,6 +443,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     request.stream_from = (size_t)exec.moe_stream_from;
     request.ubatch = exec.ubatch;
     request.decode_rows = decode_rows;
+    request.slots = slots;
     if (history_tokens) {
         request.histories = decode_rows;
         request.history_tokens = history_tokens;
@@ -796,7 +799,9 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
 
 // llmx serve: the multi-user server of docs/SERVER.md over one model.
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec) {
-    const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs);
+    // Without --passes a pipelined split keeps a pass in flight per stage, and its stages are at most the devices listed.
+    const size_t slots = cfg.passes ? cfg.passes : backend::device_specs(exec.device).size();
+    const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     // A template the renderer refuses stops the server before it listens, as it stops chat before a turn.
@@ -906,6 +911,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --port N                Listen port; 0 picks a free one (default: " << cfg.port << ")\n"
             << "  --max-seqs N            Active request limit (default: " << cfg.max_seqs << ")\n"
             << "  --max-queue N           Queued request limit, paused requests not counted (default: " << cfg.max_queue << ")\n"
+            << "  --passes N              Passes in flight; above 1 needs a layer split (default: its stages, else 1)\n"
+            << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
             << "  --ctx-size N, -c        Total KV token budget (default: model context)\n";
         model_options(false);
         out << "\nRoutes:\n"
@@ -1196,6 +1203,8 @@ int main(int argc, char** argv) {
                 else if (f == "--port") cfg.port = (uint16_t)int_arg(argc, argv, i, a, 0, 65535);   // 0 asks the system for a free port
                 else if (f == "--max-seqs") cfg.max_seqs = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--max-queue") cfg.max_queue = (size_t)int_arg(argc, argv, i, a, 1);
+                else if (f == "--passes") cfg.passes = (size_t)int_arg(argc, argv, i, a, 1);
+                else if (f == "--timing") cfg.timing = true;
                 else if (f == "--ctx-size") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);

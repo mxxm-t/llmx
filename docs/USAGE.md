@@ -524,7 +524,7 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--timing] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
 
 The multi-user server (`docs/SERVER.md`): one model, a sequence per
 request, every active request advanced by one token per pass with a slice
@@ -541,7 +541,10 @@ by every request, the model context by default: with 16 sequences over a
 serves long conversations sets it to what its memory holds, rounded up
 to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request whose prompt plus
 `max_tokens` exceeds the budget is refused with 413.
-`--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue` and `--ctx-size` are at least 1.
+`--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue`, `--passes` and `--ctx-size` are at least 1.
+`--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage by default, so every device works on some pass while the host samples another; one elsewhere, where a number above 1 is refused as the server starts.
+The server prints the number it keeps, and passes whose buffers the memory cannot hold are dropped at start with a line on stderr.
+`--timing` times the rounds and each device's work for `/v1/health`, its dispatches between timestamps, which slows serving: throughput is read from a server without it.
 
 | Route | Body | Reply |
 |---|---|---|
@@ -549,7 +552,7 @@ to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request
 | `POST /v1/chat` | `{"messages": [{"role": "user", "content": "...", "reasoning_content": "..."}], ...}` (the same sampling fields; `reasoning_content` is optional) | as above; the prompt is the model's chat template over the messages |
 | `POST /v1/tokenize` | `{"text": "..."}`, or `{"messages": [...]}` in place of the text | `{"tokens": [ids], "count": n}` |
 | `POST /v1/detokenize` | `{"tokens": [ids]}` | `{"text": "..."}` |
-| `GET /v1/health` | | `{"status": "ok", "model", "active", "queued", "donors", "prefix_hits", "prefix_tokens", "pauses", "paused", "stalls", "recomputed", "taken_back"}`: `pauses` counts every pause, `paused` the requests paused now, `stalls` the passes requests sat out unable to grow, `recomputed` the tokens resumes computed again, `taken_back` the resumes that took their paused cache back whole |
+| `GET /v1/health` | | `{"status": "ok", "model", "active", "queued", "donors", "prefix_hits", "prefix_tokens", "pauses", "paused", "stalls", "waits", "recomputed", "taken_back", "passes", "in_flight"}`: `pauses` counts every pause, `paused` the requests paused now, `stalls` the passes requests sat out unable to grow, `waits` those of them whose room waited on a request in flight, `recomputed` the tokens resumes computed again, `taken_back` the resumes that took their paused cache back whole, `passes` the passes kept in flight at most and `in_flight` those in flight now; with `--timing` also `"timing": {"rounds", "round_ms", "recording_ms", "relaying_ms", "sampling_ms", "assembly_ms", "receive_wait_ms", "staging_wait_ms", "open_wait_ms", "logits_wait_ms", "stage_idle", "device_bound_rows_per_s"}`, each time in milliseconds a mean over the rounds, `stage_idle` each stage's idle share and `device_bound_rows_per_s` the rows the passes carried over the busiest stage's device time |
 | `GET /v1/models` | | `{"object": "list", "data": [{"id", "object": "model", "created", "owned_by", "context_length", "vocab"}]}` |
 | `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "seed", "stop", "stream", "stream_options": {"include_usage"}, "logprobs", "top_logprobs"}`, plus `top_k`, `penalty` or `repetition_penalty`, and `ignore_eos` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "content"}, "logprobs", "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens"}}`, `logprobs` only when asked |
 | `POST /v1/completions` | `{"prompt": "...", ...}` (the same fields, with `logprobs` a count) | as above with `"object": "text_completion"` and `choices[0].text` |

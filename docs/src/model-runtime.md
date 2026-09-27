@@ -116,7 +116,10 @@ delegated to a `backend::Backend`.
     the host samples another (`docs/MULTI-DEVICE.md`). `stage_count()` and
     `pipelined()` say whether that can pay: several stages, the embedding on
     the first stage's device, the head on the last's and every feed-forward
-    block beside its mixer. `reserve_passes(ctx, slots, rows,
+    block beside its mixer. `stage_on_host(s)` says whether stage s runs
+    on the CPU, which computes as it is recorded, so a caller records it
+    after its device stages, and `stage_backend(s)` gives the backend a
+    caller timing the stages reads. `reserve_passes(ctx, slots, rows,
     logit_rows)` sizes a fresh context once: the arena for `rows` rows,
     which every pass shares, a handoff buffer per slot on each device the
     residual leaves, two at least on a pipelined split and one for the

@@ -264,6 +264,15 @@ public:
     // Whether this backend is the CPU itself, so experts placed on the CPU beside it are already where they run; a device may read in place and still not be the CPU.
     virtual bool is_cpu() const { return false; }
 
+    // Where a backend made to time its work (make_backend's diagnostics) held its caller since it was made, in milliseconds: waiting on tickets, for a free command slot and for staging, and in uploads (write) apart from those waits.
+    // A backend that computes as it records never waits, and one not made to time its work reports nothing.
+    struct HostTimes {
+        double ticket_ms = 0, slot_ms = 0, staging_ms = 0, write_ms = 0;
+    };
+    virtual HostTimes host_times() const { return {}; }
+    // The device time of the work recorded since the last call, in milliseconds, by timestamps on a backend made to time its work, which waits for its queue to read them; negative where the backend keeps none.
+    virtual double device_ms() { return -1.0; }
+
     // Memory the backend's kernels take for themselves beside weights, caches and activations, such as split partials and merge state, out of `free` bytes; a fit keeps it back.
     virtual size_t scratch_reserve(size_t free) const { (void)free; return 0; }
 

@@ -1,5 +1,5 @@
 #pragma once
-// The scheduler's policy core (docs/SERVER.md, the round): what the pools' blocks hold, how an uncapped request's reservation grows, who gives up blocks for whom, which stages a round records and which passes it retires, and where a pass's logits rows go, as free functions over plain data.
+// The scheduler's policy core (docs/SERVER.md, the round): what the pools' blocks hold, how an uncapped request's reservation grows, who gives up blocks for whom, which stages a round records and which passes it retires, how many decode entries a pass takes, and where a pass's logits rows go, as free functions over plain data.
 // The scheduler calls them with its requests and passes, and the server-passes CTest with a simulated executor's.
 #include <algorithm>
 #include <cstddef>
@@ -140,6 +140,10 @@ inline Steps round_steps(const std::vector<Flight>& slots, size_t stages) {
     std::sort(st.retire.begin(), st.retire.end(), [&](size_t a, size_t b) { return slots[a].formed < slots[b].formed; });
     return st;
 }
+
+// The most decode entries a new pass takes when `decoders` requests decode, those in flight included, over `passes` passes in flight on `stages` stages: an even share, so every pass carries about as many rows however the requests arrived.
+// Only passes that fill the stages share, since then a pass retires every round and a request held back joins the next; with fewer, a request held back could wait for most of a pass, and every ready one goes.
+inline size_t decode_share(size_t decoders, size_t passes, size_t stages) { return passes < stages ? decoders : (decoders + passes - 1) / passes; }
 
 // The logits rows of a context reserved for passes, which each pass takes a run of as it is formed: after the newest run, or from row 0 when that does not fit.
 // Runs come back oldest first, a run given back early, an aborted pass's, once every run taken before it has, so a run always fits while it and the runs held want at most half the rows, and when no run is held all of them.

@@ -372,6 +372,10 @@ public:
     size_t stage_count() const { return stages_.size(); }
     // Whether passes may be in flight together: several stages, the embedding on the first stage's device, the head on the last's and every feed-forward block beside its mixer.
     bool pipelined() const { return pipelined_; }
+    // Whether stage s runs on the host, whose backend computes as its work is recorded, so recording it holds the calling thread for the stage's whole time.
+    bool stage_on_host(size_t s) const { return devices_[stages_.at(s).device]->b->is_cpu(); }
+    // The backend stage s runs on, which a caller timing the stages reads its host and device times from.
+    backend::Backend& stage_backend(size_t s) { return *devices_[stages_.at(s).device]->b; }
 
     // Size a fresh context once, before any pass, for `slots` passes in flight, which above one need a pipelined placement, of up to `rows` rows each, with their handoff buffers and `logit_rows` rows of logits the caller hands out (begin_pass's logits_base); a reservation that fails leaves the context fresh, so a smaller one may follow.
     // The context is frozen from then on: begin_pass refuses a pass that needs more before any work, nothing is replaced while passes are in flight, and forward refuses it.

@@ -47,7 +47,6 @@ linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBacke
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::name() const | 1 | what vulkan_device_name returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::profile() const | 1 | what vulkan_device_profile returns; goes with it
 linked-test-only | src/model/kv_cache.hpp | infer::BlockPool::BlockPool(unsigned long) | 1 | a sizing constructor only tests use; goes with cleanup/known-findings
-linked-test-only | src/model/runtime.hpp | infer::Model::pipelined() const | 1 | whether a placement takes several passes in flight, which only the placement tests read until the server refuses --passes above 1 on a placement that is not pipelined in layer split phase 3, step 3; goes in that step
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::n_blocks() const | 1 | the block count, which only tests read; goes with cleanup/known-findings
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::operator=(infer::KVSequence&&) | 1 | a move assignment only tests use; goes with cleanup/known-findings
 linked-test-only | src/server/http.hpp | http::fetch(std::string const&, unsigned short, std::string const&, std::string const&, std::string const&, std::string&, std::vector*, std::string const&) | 1 | the HTTP layer's client, written for its test; moves into the tests with cleanup/known-findings

@@ -142,6 +142,7 @@ def check_usage_errors():
         usage_error(["generate", model, "a", flag], "generate")
     for args, page in ((["serve", model, "--port", "65536"], "serve"), (["serve", model, "--port", "-1"], "serve"),
                        (["serve", model, "--max-seqs", "0"], "serve"), (["serve", model, "--max-queue", "0"], "serve"),
+                       (["serve", model, "--passes", "0"], "serve"),
                        (["serve", model, "-c", "0"], "serve"), (["logits", model, "a", "--top", "0"], "logits"),
                        (["logits", model, "a", "--last", "0"], "logits"), (["perplexity", model, "a", "--chunks", "-1"], "perplexity"),
                        (["bench", "--size", "48"], "bench"), (["bench", "--p", "0"], "bench"), (["bench", "--depth", "-1"], "bench"),

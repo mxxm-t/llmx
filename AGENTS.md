@@ -468,6 +468,7 @@ Local performance floors remain enabled by default. See `docs/CI.md` for workflo
 - **Perplexity** (`tests/perplexity.py`): a synthetic model with an analytic
   scoring oracle checks window boundaries, chunk limits, target counts, file
   and inline input parity and invalid flags.
+  Under `--verbose` each window's line must give its scored targets and the oracle's mean NLL for it, in order, with the totals unchanged.
   On the same model `logits` gives the same output for inline text and `--file` or `-f`, appends `--then-ids` ids separated by commas or whitespace, and refuses any other separator and an id past the vocabulary, 2^32 plus a valid id included.
 - **Chat** (`tests/chat.py`): follow-up replies against independent HF goldens, including changed prefixes, stop/EOS and token-limit endings.
   A template the renderer refuses stops `chat` and `serve` before either takes a turn or listens, while `generate` still runs on the file.

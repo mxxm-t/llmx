@@ -224,6 +224,7 @@ llmx perplexity model.gguf --file "corpus.txt" --ctx-size 512 --chunks 4 --threa
   window's first token), `scored tokens`, `chunks`, `context size`, `mean NLL`
   and `perplexity`. Unused suffixes and singleton tails appear in input tokens
   but not used/scored tokens.
+- With `--verbose`, a line for each window comes first, in order: `chunk K: scored N, mean NLL X`, its scored targets and their mean NLL to nine decimals, so two builds can be compared window by window.
 
 Flags:
 
@@ -233,7 +234,7 @@ Flags:
 | `-c`, `--ctx-size N` | tokens per window, from 2 through the model's context length |
 | `--chunks N` | maximum windows to evaluate (positive integer; default all) |
 | `--per-token` | score one token at a time, the decode path, instead of in batched passes |
-| `--verbose` | show scoring phase and actual worker count on stderr |
+| `--verbose` | show scoring phase and actual worker count on stderr, and each window's scored tokens and mean NLL on stdout |
 | `--threads N`   | worker thread count (0 = auto)                 |
 | `-tb`, `--threads-batch N` | threads for batched passes (omitted or 0: `--threads`); refused with `--per-token`, which scores on `--threads` |
 | `--ubatch N`    | tokens per batched pass (default 512)          |

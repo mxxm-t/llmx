@@ -15,12 +15,18 @@ namespace infer {
 // The fewest tokens a window holds: its first token is only context, so it takes a second to score anything.
 constexpr int kMinPerplexityWindow = 2;
 
+// One window's scored tokens and the sum of their NLL.
+struct PerplexityWindow {
+    size_t scored = 0;
+    double nll = 0.0;
+};
+
 struct PerplexityResult {
     size_t context = 0;   // the window's size in tokens: the one asked for, or the model's context
     size_t used_tokens = 0;
     size_t scored_tokens = 0;
-    size_t chunks = 0;
     double nll = 0.0;
+    std::vector<PerplexityWindow> windows;   // the chunks, in order; `nll` sums every token itself, so the total does not depend on them
 
     double mean_nll() const { return nll / (double)scored_tokens; }
 };
@@ -45,27 +51,32 @@ inline PerplexityResult perplexity(Model& model, const std::vector<uint32_t>& id
     result.context = (size_t)context;
     for (size_t begin = 0; begin < ids.size();) {
         const size_t count = std::min((size_t)context, ids.size() - begin);
-        if (count < (size_t)kMinPerplexityWindow || (max_chunks > 0 && result.chunks >= (size_t)max_chunks)) break;
+        if (count < (size_t)kMinPerplexityWindow || (max_chunks > 0 && result.windows.size() >= (size_t)max_chunks)) break;
+        PerplexityWindow part{count - 1, 0.0};
+        auto take = [&](double nll) {
+            result.nll += nll;
+            part.nll += nll;
+        };
         if (!per_token) {
             const std::vector<uint32_t> window(ids.begin() + (std::ptrdiff_t)begin,
                                                ids.begin() + (std::ptrdiff_t)(begin + count));
             model.score(window, [&](size_t pos, const float* logits) {
                 // The last position predicts past the window; its logits are unused.
-                if (pos + 1 < count) result.nll += token_nll(logits, model.n_vocab(), window[pos + 1]);
+                if (pos + 1 < count) take(token_nll(logits, model.n_vocab(), window[pos + 1]));
             });
         } else {
             model.reset();
             std::vector<float> logits = model.step((int)ids[begin]);
             for (size_t i = begin + 1; i < begin + count; i++) {
                 const uint32_t target = ids[i];
-                result.nll += token_nll(logits.data(), logits.size(), target);
+                take(token_nll(logits.data(), logits.size(), target));
                 // The last token is a target only; its next-token logits are unused.
                 if (i + 1 < begin + count) logits = model.step((int)target);
             }
         }
+        result.windows.push_back(part);
         result.used_tokens += count;
         result.scored_tokens += count - 1;
-        result.chunks++;
         begin += count;
     }
     return result;

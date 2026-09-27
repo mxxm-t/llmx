@@ -43,7 +43,7 @@ Commands and their entry points:
   `-c/--ctx-size` chooses window size; `--chunks` limits windows; `--per-token` scores one token at a time instead of in batched passes.
   The `context size` it prints is the window `infer::perplexity` scored with (`PerplexityResult::context`), so the CLI does not work the default out again.
   Batched scoring selects `--threads-batch` / `-tb`, falling back to `--threads` for an omitted or zero override; per-token scoring uses `--threads` and refuses `-tb`.
-  `--verbose` reports the selected phase and actual count on stderr.
+  `--verbose` reports the selected phase and actual count on stderr, and on stdout, before the totals, a `chunk K: scored N, mean NLL X` line for each window from `PerplexityResult::windows`, so two builds can be compared window by window.
   See `inference-perplexity.md`.
 - `logits`: `cmd_logits` (top-N next-token logits; this is what the correctness
   gate compares against a full-precision reference, since sampled text hides

@@ -551,12 +551,15 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
 
     std::vector<uint32_t> ids = tok.encode(text);
     const auto result = infer::perplexity(model, ids, context_size, chunks, per_token);
+    if (exec.verbose)
+        for (size_t w = 0; w < result.windows.size(); ++w)
+            printf("chunk %zu: scored %zu, mean NLL %.9f\n", w + 1, result.windows[w].scored, result.windows[w].nll / (double)result.windows[w].scored);
     double mean_nll = result.mean_nll();
     double ppl = std::exp(mean_nll);
     std::cout << "tokens: " << ids.size() << "\n";
     std::cout << "used tokens: " << result.used_tokens << "\n";
     std::cout << "scored tokens: " << result.scored_tokens << "\n";
-    std::cout << "chunks: " << result.chunks << "\n";
+    std::cout << "chunks: " << result.windows.size() << "\n";
     std::cout << "context size: " << result.context << "\n";
     std::cout << "mean NLL: " << mean_nll << "\n";
     std::cout << "perplexity: " << ppl << "\n";
@@ -946,7 +949,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --ctx-size N, -c        Window tokens (default: model context)\n"
             << "  --chunks N              Maximum windows (default: all)\n"
             << "  --per-token             Score through decode; default uses batched passes\n"
-            << "  --verbose               Show scoring phase and actual worker count\n";
+            << "  --verbose               Show scoring phase, actual worker count and each window's NLL\n";
         else out
             << "  --top N                 Number of logits to print (default: " << kLogitsTop << ")\n"
             << "  --then-ids PATH         Append these token IDs, comma or whitespace separated\n"

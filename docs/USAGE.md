@@ -17,7 +17,7 @@ after the command, without other arguments. Positional text remains text in
 commands such as `tokenize`, `logits` and `perplexity`; `generate` still rejects
 unrecognized arguments beginning with a dash.
 
-A usage error prints the command's page on stderr, then `error:` and the reason, and exits with status 2.
+A usage error prints the command's page on stderr, or the overview for `--help` or `--version` followed by anything, then `error:` and the reason, and exits with status 2.
 That is a missing or extra argument, an unknown flag, a flag without its value, a number out of its form or range, or a flag or argument the command would ignore or overwrite, and it includes `serve` and `pull` without arguments.
 A flag that takes a value is given once: given again, in the same spelling or its other one (`-n` and `--max-tokens`), it is refused, and so are `--cpu-moe` and `--n-cpu-moe` together; a switch given again changes nothing.
 An empty value that would read as the flag not given is refused as well: `--stop`, `--then-ids`, `--layer-shares`, `bench --model`, `pull --file` and `pull --cache-dir`.

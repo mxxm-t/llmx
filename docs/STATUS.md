@@ -6121,7 +6121,7 @@ their own measurements; K-quant optimization remains separate work below.
 | HF model download and sharded GGUF (ROADMAP #9a) | Done (included in main; five hosted jobs passed at `7e195ff`) |
 | HF native formats (ROADMAP #9b)          | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
-| Dead-code and stale-docs checks in every job | In progress (block above, branch tools/health-monitors); the cleanup of the listed findings follows the architecture modules |
+| Dead-code and stale-docs checks in every job | Done (merged at `75450ea`, block above); the cleanup of the listed findings, branch `cleanup/known-findings`, follows the architecture modules |
 
 `Done` denotes implemented and validated functionality in this release tree.
 The earlier runtime base `08351b0` was published on both main remotes. Its initial five-check

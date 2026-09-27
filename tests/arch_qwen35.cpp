@@ -2,10 +2,12 @@
 // The math is held to HF by the suite's qwen35 component; here a split and slices are held to one CPU bit for bit, which the per-token recurrence gives.
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -14,6 +16,25 @@
 #include "model/place.hpp"
 #include "model/arch/registry.hpp"
 #include "tiny_qwen.hpp"
+
+// Fails the calling thread's Nth allocation after arming, once, so a case can fail each allocation of one call in turn.
+static thread_local size_t fail_allocation = 0;
+
+void* operator new(std::size_t n) {
+    if (fail_allocation && --fail_allocation == 0) throw std::bad_alloc();
+    if (void* p = std::malloc(n ? n : 1)) return p;
+    throw std::bad_alloc();
+}
+#if defined(__GNUC__) && !defined(__clang__)
+// GCC takes the free below for a mismatch with operator new, though the replaced new above allocates with malloc.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
+void operator delete(void* p) noexcept { std::free(p); }
+void operator delete(void* p, std::size_t) noexcept { std::free(p); }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 namespace {
 
@@ -398,6 +419,42 @@ void refused_passes_take_no_slot() {
     model.reset(h);
 }
 
+// A pass accepted by every check whose planning then fails to allocate takes no slot either: each allocation of begin_pass fails in turn, on a model of one slot with a fresh reservation, and a valid pass of another fresh sequence must follow.
+void failed_admission_takes_no_slot() {
+    const gguf::GGUFModel m = tiny();
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    const uint32_t ids[] = {3, 1, 4};
+    infer::ModelOptions options;
+    options.kv_tokens = 2 * 128;
+    options.state_slots = 1;
+    size_t failed = 0;
+    for (size_t k = 1;; ++k) {
+        infer::Model model(w, backend::make_cpu_backend(), options);
+        infer::Sequence a = model.make_sequence(), b = model.make_sequence();
+        infer::ExecContext ctx;
+        model.reserve_passes(ctx, 1, 3, 1);
+        const infer::BatchEntry entry{&a, ids, 3, true};
+        bool threw = false;
+        fail_allocation = k;
+        try {
+            model.begin_pass(ctx, 0, &entry, 1, 0);
+        } catch (const std::bad_alloc&) {
+            threw = true;
+        }
+        fail_allocation = 0;
+        if (!threw) {
+            model.abort_pass(ctx, 0);
+            break;
+        }
+        ++failed;
+        require(a.length() == 0, "a pass whose planning failed changed a history");
+        const infer::BatchEntry retry{&b, ids, 1, true};
+        run_pass(model, ctx, &retry, 1);
+        model.reset(b);
+    }
+    require(failed > 0, "begin_pass allocated nothing on a fresh reservation");
+}
+
 // A prompt in slices of 1, 3 and 16, and its decode, give the bytes of the prompt in one pass; two sequences in one pass give each one's bytes alone.
 void slices() {
     const gguf::GGUFModel m = tiny();
@@ -486,6 +543,7 @@ int main() {
         footprint();
         state_rules();
         refused_passes_take_no_slot();
+        failed_admission_takes_no_slot();
         slices();
         split_with_a_stage_of_states();
     } catch (const std::exception& e) {

@@ -39,7 +39,7 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. Th
 - K-quants are what most GGUF on the Hub actually uses; see #9b
 - `TensorInfo::data_size()` sizes a tensor through `quant::row_bytes`, so the type ids and block sizes are written once in C++, in `quant/types.hpp`, and again in the Vulkan shaders' `q.glsl`.
   The quantization plan's first step moves them into one table over every type id in `core/storage.hpp`, which the reader and the registry read and a test holds `q.glsl` to; whether that table grows in `quant/types.hpp` instead is open (`docs/STATUS.md`, Raw conversion in the format layer, Gotchas).
-- `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1 and Q4_K from raw blocks that reach every scale, min and nibble bit, each against a decoder written from the format description.
+- `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1, Q4_K, Q5_K, Q6_K, Q8_0 and Q4_0 from raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, each against a decoder written from the format description.
   Each new type joins it from raw blocks, since the planned types stay read-only, with no quantizer.
 
 ## 2. More model architectures

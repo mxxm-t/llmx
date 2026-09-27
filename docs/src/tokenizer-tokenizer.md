@@ -16,7 +16,7 @@ The byte encoding and merge algorithm are GPT-2's; the pretokenizer is not.
   - Refuses a file that names a `tokenizer.ggml.model` other than `gpt2` or a `tokenizer.ggml.pre` other than `qwen2` or `qwen35`, and the error names the key and the implemented values.
     Without the check, such a file would encode to valid-looking but wrong ids.
     A key the file omits is not checked, so the synthetic test models, which name neither, are read as this tokenizer.
-  - `encode(text) -> vector<uint32_t>`: pretokenize, byte-encode, BPE merge by rank, map to ids.
+  - `encode(text) -> vector<uint32_t>`: the control and user-defined tokens' texts matched first, the longest at each place, each as its one id, and the text between them pretokenized, byte-encoded, BPE-merged by rank and mapped to ids; a symbol the vocabulary lacks throws.
   - `decode(ids) -> string`: reverse; an id outside the vocabulary throws.
   - `bpe(word)`, `byte_encode(raw)`.
   - Tracks `bos_id`, `eos_id` and the special tokens.

@@ -111,7 +111,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   The 32-column build is two 16-column groups over the same rows, and a dispatch gives each workgroup's rows two adjacent workgroups.
   A build takes the transposed reduction where it asks for it and the profile's `q8_decode_forms` allows it, and the half-block order (`kQ8Half`) wherever the profile allows it, in every build alike, since that order sums a column's products in another order than the quarter layout (`vec_forms`); `kernel_representations` starts each build's text with its shape and forms for `backend-vulkan`.
   `for_each_column_chunk` splits a pass's columns: chunks of the widest build the kernel has on the device (the profile's `q8_decode_cols` for this kernel) while more columns remain than it holds, then the rest in the narrowest build that holds them.
-  Each Q8_0 decode build holds twice the next narrower's columns, so a chunk fills more than half its build, and a build of one column group checks the column count only before the groups of columns past its first half, while the 32-column build's second group, which gets 1 to 16 columns, checks it before each; a build of up to 8 columns also skips the products of the columns past the count in a group the pass fills in part.
+  Each Q8_0 decode build holds twice the next narrower's columns, so a chunk fills more than half its build, and a build of one column group checks the column count only before the groups of columns past its first half, while the 32-column build's second group, which gets 1 to 16 columns, checks it before each, and the grouped build, whose runs hold any count, checks it before each group; a build of up to 8 columns also skips the products of the columns past the count in a group the pass fills in part.
   Every build computes a column as the one-column build does, so the split changes only the time; `backend-vulkan` checks each column against the same column alone.
   The lanes that share a wide Q8_0 block pair (four) and a K-quant block (eight) are fixed by `matmul_row.comp`, and the host mirrors them in constants beside the tile heights rather than in the profile.
 - Wide batches take a tile kernel. Where the profile sets
@@ -140,8 +140,7 @@ The lifetime and packed-quantization tests include the implementation and use te
 - `rms_norm_rows` spreads a row over several workgroups when the output
   does not overlap the input, with the same tree reduction as one, up to
   four workgroups per compute unit over the pass: each reads the whole row
-  for its sum, so a 4096-wide decode row takes sixteen and a pass of many
-  rows one.
+  for its sum, so a decode row takes one workgroup per 256 values of its width, sixteen at 4096, and a pass of many rows one.
 - Mixture of experts: `shaders/moe_route.comp` routes a row per workgroup
   through subgroup reductions. The row kernels and both tile kernels take a
   routed mode (push constant `per`): a row kernel runs one entry per
@@ -155,13 +154,12 @@ The lifetime and packed-quantization tests include the implementation and use te
   weight type's `moe_tile_from_for` (`device_profile.hpp`); a routed tile is never split, so an entry
   computes the same whatever else is routed beside it. The down
   projection's slots land in scratch and `shaders/moe_combine.comp` adds
-  their weighted sum to the residual; the grouping and the activation
-  twin made for gate and up are reused by it.
+  their weighted sum to the residual; it reuses the grouping made for gate and up and reads the twin the SiLU writes for its input, while the router and gate and up share their input's twin.
 - The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16, written and read through view tables, so every view of a batch goes through one dispatch of each cache kernel.
   It derives from `BlockKVStorage` (`backends-kv_storage.md`), which grows it, keeps its accounting and checks each view as the table is built; its `retire` hands the buffers a growth copied from to `keep_until_retired`, and `kv_alloc` refuses heads wider than 256.
   Attention can dispatch tiled and row kernels plus a history-split merge in one layer.
   It gives views of 128-wide heads whose prompt reaches the profile's `attention_tile_rows` to the tiled kernel (`shaders/attention_tile.comp`, 32 query rows a tile as the shader fixes them) and the rest to the per-row kernel, which splits a row's history into parts from the row's own length and merges them (`shaders/attention_merge.comp`); once the longest row fills every split, a workgroup takes up to four query heads of one KV head (the `_g4` builds), loading the history once for them with each head's arithmetic unchanged.
-  Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one load a lane, and several tokens a subgroup; other widths keep `attention.comp`.
+  Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one 16-byte load a lane for an f16 side and two for f32, and several tokens a subgroup; other widths keep `attention.comp`.
 - `kv_variant` picks the shader module for a storage's K and V types.
 - The qwen35 layers' ops (`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`, `norm_rope_partial` and `sigmoid_mul`) have no kernels yet, so `implements` is false for each, the model refuses a qwen35 file at load (`model-runtime.md`), and `Backend`'s throwing forms stay until the qwen35 plan's step 5 adds them.
   `state_alloc` and `state_copy` are `Backend`'s own, built on this backend's `alloc` and `copy`; `backend-vulkan` checks the underlying buffer operations, while `qwen35-ops` runs `state_alloc` and `state_copy` on the CPU. No device test directly exercises the state wrappers.

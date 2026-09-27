@@ -477,6 +477,7 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 ### Generating pinned HF references
 
 `tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `moe-q8`, `tokenizer-qwen35`, `qwen35-tiny`, `qwen35` or `file-exact` (default `all`).
+`moe-q8` writes the goldens of the Q8_0 model of `tests/moe.py`, needs numpy, accepts only `--output-dir` and is not part of `all`.
 Real-model modes default to `Qwen/Qwen3-0.6B` at commit `c1899de289a04d12100db370d81485cdf75e47ca`.
 Both model and tokenizer loaders receive that revision.
 Logits and PPL use CPU float32 eager attention with six threads by default; `--threads N` selects another positive count.
@@ -587,7 +588,7 @@ It runs in the qwen35 venv above, offline, and passes the same environment check
 - **The goldens** of each model, 11 KB for the 0.8B:
   - `baseline_logits.json`: HF's top 10 logits after each of the six prompts of `tests/baseline.py`, with the prompts' ids.
   - `baseline_chat.json`: one turn with a system message, and two turns with an earlier reply that holds its reasoning, each rendered with a generation prompt by transformers 5.17.0's renderer (the reference of `tools/gen_chat_baseline.py`) under the chat template the model's files carry, taken by SHA-256 from `tests/data/baseline_chat_template.json`; each case keeps the render, its ids and HF's top 10 logits after it.
-  - `baseline_perplexity.json`: the first 5,000 characters of `wiki.test.raw`, 1,216 tokens, scored whole and in windows of 512 tokens, which the hosted job checks.
+  - `baseline_perplexity.json`: the first 5,000 characters of `wiki.test.raw`, 1,216 tokens, scored whole and in windows of 512 tokens, which `tests/baseline.py` checks on a hosted file on disk; the hosted job downloads the file only once it joins the gate.
   - `baseline_perplexity_4096.json`: the first 20,000 characters, 4,575 tokens, scored whole and in windows of 4096 tokens, checked by hand.
   - The perplexity goldens keep the excerpt's length and the SHA-256 of its text and of its ids in place of the ids, and apply the head to 512 positions at a time.
 
@@ -644,6 +645,8 @@ They were made on 2026-09-27 on the Linux machine's CPU, in a container of 6 CPU
 - the 4B goldens in 2,246 s at a load of 18 to 66, started with 47 GiB available and no other heavy reference run holding memory, the float32 model holding 16 to 19 GiB after a 24 GiB peak while loading; a first run, stopped during its 4096-token part after the memory available fell to 4 GiB, gave the same logit, chat and 512-token goldens;
 - the 0.8B files' file-exact goldens in 230 s (Q8_0) and 498 s (Q4_K_M) at a load of 41 to 59, the same as a first run's.
 
+#### The Qwen3-8B reference (2026-09-20)
+
 The local 8B GGUF is not an independent HF reference. On 2026-09-20, original
 `Qwen/Qwen3-8B` weights/config at revision
 `b968826d9c46dd6066d109eabc6255188de91218` were verified and used on the Linux machine
@@ -675,6 +678,8 @@ commands, settings, provenance limits, hashes and memory evidence are in
 Original weights and raw logs remain under `/zpool1/llmx-hf-reference`; outputs
 are in its `goldens/qwen3-8b-b968-20260920` directory. Existing small-model
 fixtures and default CI downloads are unchanged.
+
+#### The regenerated Qwen3-0.6B references (2026-09-19)
 
 Validation on 2026-09-19 used cached original 0.6B weights with network access
 disabled in the HF tooling. Two complete generations reproduced all numerical
@@ -787,7 +792,7 @@ feature, and these correctness runs are not throughput measurements.
 `tests/reference_consumer.py` checks fixture tampering, token mismatch, malformed/nonfinite/duplicate/unsorted logits, damaged PPL counters/bounds and failed launches using the standard library.
 It also runs the consumer over simulated passing outputs and requires 41 checks, each NLL case scored in both modes.
 It was the eleventh ordinary suite component when it was added.
-The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` cover the six gate models, the four Qwen3-0.6B files and the two Qwen3.5-0.8B files.
+The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` cover the six gate models, the four Qwen3-0.6B files and the two Qwen3.5-0.8B files, and `tools/fetch_test_models.py --all` every file `tests/data/fixtures.json` pins, never the 8B.
 
 ### The layered qwen35 reference
 
@@ -939,6 +944,8 @@ eight-lane and scalar tails. HF goldens were regenerated with unchanged bounds.
 A preceding 34-byte quantized tensor checks the loader's float alignment under
 UBSan; the old packed blob layout fails with a misaligned float load.
 
+### The real-model F32 check (2026-09-19)
+
 For a real-model check, Qwen3-0.6B revision
 `c1899de289a04d12100db370d81485cdf75e47ca` was converted with llama.cpp
 `convert_hf_to_gguf.py --outtype f32` at converter commit
@@ -1019,13 +1026,15 @@ is against the fork. On the Linux MI50 machine a reference run must be pinned to
 upstream build 11100, commit `7ab4ee7ba`, with ROCm, and mx-llama.cpp
 `eefc4e732` built for gfx906, also with ROCm. Neither ROCm arm is known to
 have been pinned with `HIP_VISIBLE_DEVICES`, so the figures that follow are
-unverified (STATUS, thirty-fourth paragraph). The two differ enough to
+unverified (STATUS, the Vulkan block's thirty-fourth paragraph). The two differ enough to
 matter, the fork reading 4549 tok/s at a 64-token prompt against
 upstream's 1774 and 6782 at 512 against 6087, with decode level at 230
 against 226, so a share quoted against upstream flatters llmx on that
 hardware. Where the fork is available it is the arm the gate in
 `AGENTS.md` names. The fork is distinguishable by its `-tps` flag, which
 upstream does not have.
+#### The F32 comparison (2026-09-19)
+
 The eight-pair measurement on Ryzen 7 5800X, Windows, MSVC 19.50,
 llmx `2131c1b` and the exact F32 model above found:
 
@@ -1067,7 +1076,7 @@ its DLLs, which the driver also hashes on Windows. Record the actual source
 revision and build flags when changing either build; the revision argument
 is provenance supplied by the caller, not a source-to-binary verification.
 
-### CPU attention validation
+### CPU attention validation (2026-09-19)
 
 The CPU attention refactor shares decode and prefill behind
 `Backend::attention`, with backend-owned scratch and AVX2 dots/value sums.
@@ -1121,7 +1130,7 @@ lengthened to resolve that concern. Raw timings, hashes and the normalized
 source hashes for the candidate are in
 [`benchmarks/attention-cpu-20260919.json`](benchmarks/attention-cpu-20260919.json).
 
-### CPU row streaming and parallel prefill
+### CPU row streaming and parallel prefill (2026-09-19)
 
 Single-column F32 matrices now use contiguous `dot_f32` rows; batched matrices
 retain fused row/column kernels. Independent batched norm, per-head norm/RoPE
@@ -1182,7 +1191,7 @@ pool profiling is diagnostic only: roughly 26-28 ms of the 32-token decode
 occurs after the final worker callback finishes, motivating investigation of
 bounded completion polling. It is not a validated optimization.
 
-### Bounded completion polling: not adopted
+### Bounded completion polling: not adopted (2026-09-19)
 
 Caller-side bounded polling was tested against `c4436fd`, retaining the mutex
 and condition-variable fallback. An atomic-counter-only arm separated the
@@ -1208,7 +1217,7 @@ rejected candidate did not proceed to a full HF gate. Raw timings, hashes,
 the exact patch and the stress source are preserved in
 [`benchmarks/completion-polling-20260919.json`](benchmarks/completion-polling-20260919.json).
 
-### Attention query scheduling: not adopted
+### Attention query scheduling: not adopted (2026-09-19)
 
 A scratch change schedules independent head/query pairs cyclically across
 workers, with one score row per worker. Per-query arithmetic is unchanged
@@ -1234,7 +1243,7 @@ The exact patch and raw samples are in
 [`benchmarks/attention-scheduling-diagnostic-20260919.json`](benchmarks/attention-scheduling-diagnostic-20260919.json).
 Scratch files are under `%TEMP%/llmx-attention-balance`.
 
-### Register attention value accumulation
+### Register attention value accumulation (2026-09-19)
 
 The next candidate normalizes attention coefficients once and retains output
 sums in registers across the KV sequence. It uses 32-lane blocks, eight-lane
@@ -1307,7 +1316,7 @@ validation logs and reproduction harnesses are in
 [`benchmarks/attention-values-cpu-20260919.json`](benchmarks/attention-values-cpu-20260919.json).
 Scratch artifacts are under `%TEMP%/llmx-attention-values/validation`.
 
-### Paired decode and packed prefill: not adopted
+### Paired decode and packed prefill: not adopted (2026-09-19)
 
 Two further matrix-kernel investigations use `5a9518c` as the control and
 the same pinned mx build, F32 model, 215+32 tokens, six threads and ubatch 128.
@@ -1354,7 +1363,7 @@ softmax takes 9.42 ms summed worker time. Softmax runs across workers, so its
 sum is not elapsed time. These components are small relative to matrix work;
 an approximate exponential was not implemented on this evidence.
 
-### Q8 external floor on two model sizes
+### Q8 external floor on two model sizes (2026-09-19)
 
 The validated `5a9518c` runtime was compared directly with public mx
 `5542318e748c154b634211def405ae95da3dfaa9` on Qwen3-0.6B Q8_0 and the real
@@ -1398,7 +1407,7 @@ Raw output, samples, hashes, flags and reproduction scripts are in
 [`benchmarks/q8-external-floor-20260919.json`](benchmarks/q8-external-floor-20260919.json).
 Scratch artifacts are under `%TEMP%/llmx-q8-floor`.
 
-### Integer activation experiments: not adopted on the CPU
+### Integer activation experiments: not adopted on the CPU (2026-09-19)
 
 The Vulkan backend later adopted the 16-bit form for its decode row
 kernel, on this section's numerical finding and its own measurements

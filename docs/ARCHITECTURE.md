@@ -100,7 +100,7 @@ The model layer is one runtime that names no architecture and one module per arc
 
 Inside `model/` the dependencies run one way:
 - The runtime and a module meet only in the contract, `architecture.hpp` and `weights.hpp`.
-- A module includes the contract, `arch/metadata.hpp`, the backend interface and the format headers its readers read. It may include another module's graph header when it runs that module's blocks, and it never includes the runtime or the registry.
+- A module includes the contract, `arch/metadata.hpp`, the backend interface, the format headers its readers read and the quant headers its synthetic model's writer uses. It may include another module's graph header when it runs that module's blocks, and it never includes the runtime or the registry.
 - The runtime never includes a module.
 - The registry includes every module, and only the loader (`inference/load.hpp`), the tests and tools that build a model without the loader, and the CLI, for `bench`'s synthetic model, include the registry.
 
@@ -164,8 +164,8 @@ submission support.
 
 `Model` holds the architecture and its plan, the weights, a KV pool and
 storage on each device whose layers keep KV, a state storage on each device
-whose layers keep a recurrent state and the slots of that state, and the
-backends, and is read-only after construction apart from pool bookkeeping. A
+whose layers keep a recurrent state and the slots of that state, the
+backends it is placed over, and the one sequence and context its own `step`, `prefill` and `score` use; apart from those and pool bookkeeping it is read-only after construction. A
 `Sequence` is one request's history, an `ExecContext` is where passes run
 (activation arenas, handoff buffers, logits rows, tickets, the plan of each
 pass in flight), and `Model::forward` runs one pass over a batch of entries,

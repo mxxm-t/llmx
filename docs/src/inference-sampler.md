@@ -7,7 +7,7 @@ Its callers are `infer::generate` (`inference/generate.hpp`), which the CLI's `g
 - `SampleRange<T>`: the values a setting takes, from `lo` to `hi`; `holds` is false for NaN.
 - `Sampling`: one generation's settings, `max_tokens`, `temp`, `top_k`, `top_p`, `penalty`, `seed` and `ignore_eos`, each default written here once.
   Beside them are its four ranges, `temp_range` from 0 (greedy), `top_k_range` from 0 (every token kept), `top_p_range` 0 to 1 and `penalty_range` from 1 (no penalty).
-  The CLI's flags start from these defaults and read `--temp`, `--topk`, `--topp` and `--penalty` against these ranges, and the server's requests do the same for `temperature`, `top_k`, `top_p` and `penalty`, so the two take the same defaults and refuse the same values, except the `top_k` of -1 that the compatible routes take as 0.
+  The CLI's flags start from these defaults and read `--temp`, `--topk`, `--topp` and `--penalty` against these ranges, and the server's requests do the same for `temperature`, `top_k`, `top_p` and `penalty` (on the compatible routes also read as `repetition_penalty`), so the two take the same defaults and refuse the same values, except the `top_k` of -1 that the compatible routes take as 0.
   `ignore_eos`, off by default, is the CLI's `--ignore-eos` and a request's `ignore_eos`: a reply that ends only at its token limit or a stop text.
 - `GenParams`: `Sampling` plus the one `stop` text of the CLI's `generate` and `chat`, which is what `infer::generate` reads.
   The server's `SampleParams` is `Sampling` plus its list of stop texts, `until_limit`, `logprobs` and `top_logprobs` (see [server](server.md)).

@@ -183,7 +183,7 @@ loop, the gates and the order of work are in `docs/SERVER.md`.
   concurrent execution). Prefix reuse shares immutable KV only, with explicit
   lifetime tracking; it must not share a user's mutable history.
 - Continuous batching, generation queues, `/v1/generate` streaming. The model
-  layer's side of this, `Model` / `Sequence` / `ExecContext` / `Batch` and
+  layer's side of this, `Model` / `Sequence` / `ExecContext` / `BatchEntry` and
   the batched attention views, is designed in `docs/EXECUTION.md` and landed
   before the server so the CLI and the server run the same forward pass.
 - Separate execution scratch ownership and safe backend scheduling; internal

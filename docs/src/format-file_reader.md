@@ -1,6 +1,6 @@
 # `src/format/file_reader.hpp` - a file read at given offsets
 
-`format::FileReader(path, direct = false)` opens a file for reading at offsets into the caller's memory, by several threads at once, through the file cache or, with `direct`, around it; the loader streams every weight it does not map through it in large reads in file order ([load](inference-load.md)), where a mapping would fault them in a page at a time inside the upload's copy.
+`format::FileReader(path, direct = false)` opens a file for reading at offsets into the caller's memory, by several threads at once, through the file cache or, with `direct`, around it; the loader streams through it, in large reads in file order, every weight a copying backend takes in `auto` and `direct` and, in `direct`, a host's own ([load](inference-load.md)), where a mapping would fault them in a page at a time inside the upload's copy.
 
 - `read(offset, dst, bytes)` reads up to `bytes` from `offset` and returns how many it read, fewer only at the end of the file; a read at or past the end returns 0. Errors throw `std::runtime_error` naming the file.
 - `size()` is the file's size when it was opened, and `path()` its UTF-8 path.

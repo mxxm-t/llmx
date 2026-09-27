@@ -23,9 +23,9 @@ The facts the design depends on:
 
 | Property | Value | Consequence |
 |---|---|---|
-| Subgroup size | 64 | Wave64: one subgroup per output row in decode dots |
-| `shaderInt8`, `storageBuffer8BitAccess` | yes | Quantized blocks are read as bytes, no unpacking through uints |
-| `shaderFloat16`, `storageBuffer16BitAccess` | yes | Block scales are read as half directly |
+| Subgroup size | 64 | Wave64: a row's lanes are the subgroup or a cluster of it, and a short row shares a subgroup with others |
+| `shaderInt8`, `storageBuffer8BitAccess` | yes | Quantized blocks are read as 32-bit words and unpacked, and `embed` reads them as bytes |
+| `shaderFloat16`, `storageBuffer16BitAccess` | yes | Block scales are unpacked from 16-bit halves of their words |
 | `timelineSemaphore` | yes | `submit`/`wait` map onto one timeline value per ticket |
 | `VK_KHR_push_descriptor` | yes | No descriptor pools; each dispatch pushes its buffers |
 | `maxPushConstantsSize` | 128 bytes | Sizes and offsets of every op fit in push constants |
@@ -33,7 +33,7 @@ The facts the design depends on:
 | `maxComputeSharedMemorySize` | 32 KiB | Prefill tiles stage dequantized weights through shared memory |
 | Cooperative matrix | absent | Matmul is subgroup dot products, not matrix cores |
 | `maxMemoryAllocationCount` | 4096 | Separate allocation per buffer; allocation failures are reported by Vulkan |
-| `VK_EXT_memory_budget` | yes | The free-memory query the placement flags will want |
+| `VK_EXT_memory_budget` | yes | The free-memory query `memory_available` reports |
 
 Memory heaps and the types this backend uses:
 
@@ -41,7 +41,7 @@ Memory heaps and the types this backend uses:
 |---|---|---|---|
 | 0, device local | 15.73 GiB | `DEVICE_LOCAL` | `Memory::device`: weights, activations, KV blocks |
 | 1, host | 15.71 GiB | `HOST_VISIBLE, COHERENT, CACHED` | `Memory::host_visible`: the logits the host reads in place |
-| 1, host | | `HOST_VISIBLE, COHERENT` | Staging for `adopt` uploads and `read` |
+| 1, host | | `HOST_VISIBLE, COHERENT, CACHED` | Staging for `adopt` uploads and `read`, and each ring slot's argument arena |
 | 2, device local and host visible | 256 MiB | not used | The BAR window; too small to matter and uncached on the host |
 
 Queue families: one compute-only family with transfer (two queues), one
@@ -150,31 +150,29 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
 
 All in GLSL, compute stage, subgroup operations enabled, one workgroup
 size per kernel chosen for wave64. Activations are F32 everywhere except
-at the decode row kernel's quantized rows, which read them as signed
-16-bit integers in blocks of 32 (`xquant.glsl`, below), and at the
-integer-dot prefill tile, which reads them as signed 8-bit integers in
-blocks of 32 (`quantize_x8.comp`, below): there the arithmetic differs
+where a quantized matmul reads them.
+The decode row kernels read signed 16-bit integers in blocks of 32 (`xquant.glsl`, below), or signed 8-bit integers on a device whose profile prefers the integer dot, for every quantized row but a Q4_0, Q4_1 or Q6_K output head.
+The integer-dot prefill tile reads signed 8-bit integers in blocks of 32 (`quantize_x8.comp`, below): there the arithmetic differs
 from the CPU by that quantization, elsewhere only in reduction order. The
 HF gate measures the cost of it.
 
-- **Dequantization** is one GLSL include (`qdecode.glsl`) with a function
-  per quant type returning the float at (block, index), which `embed` and
-  the tile kernel use; the row kernel decodes words in place. Types are
+- **Dequantization** is one GLSL include (`qdecode.glsl`) with a per-value
+  decoder for each block type but Q8_0, which `embed` uses.
+  The float tile takes its Q4_0 and Q4_1 decoders and the K-quant sub-scale reader, and decodes Q8_0 and the K-quant runs itself; the row kernels decode words in place. Types are
   keyed by the same ids `quant::Registry` uses; the registry says which
   types exist, the shader include says how the device decodes them.
   Q4_0 has a second decoder for `embed`, `q4_0_exact`, which computes the CPU's `(nibble - 8) * d` and sets a zero's sign as bits: `embed` matches the CPU bit for bit under every finite scale, and a driver need not keep a zero's sign.
   Every other type's `embed` decode takes a zero's sign from the driver's arithmetic, which the drivers tested keep today; of backend-vulkan's exact embed checks only the Q6_K rows decode a -0, so for Q8_0, Q4_1, Q4_K and Q5_K nothing checks it.
   A model holding a type without a kernel is refused as it loads (`Backend::supports_type`), before any weight is adopted; a matmul or embed over one is still refused, the matmul naming the type by its numeric id.
   Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, every type the CPU reads.
-- **matmul, decode** (`nbatch` small): one subgroup per output row, each
-  lane accumulating a stride of blocks, one `subgroupAdd` at the end. Rows
+- **matmul, decode** (`nbatch` small): each row takes a cluster of lanes, the subgroup's width or fewer for a short row and at most `q6k_row_lanes` or `k45_row_lanes` in the 8-bit integer-dot families, each lane accumulating a stride of blocks and the cluster meeting in an xor-shuffle reduction at the end. Rows
   are the outer loop and the batch the inner, as on the CPU, so a weight
   block is read once per chunk of eight columns. Q8_0 rows are read as
   32-bit words over pairs of blocks, since a pair is 68 bytes and a row
-  with an even block count starts every pair on a word boundary, with the
-  activations as 16-byte vectors; the first version read 16-bit words and
-  managed 32 GB/s, this one 201 GB/s on the same 4096-square matvec. Rows
-  with an odd block count keep the 16-bit path. The kernel is one module
+  with an even block count starts every pair on a word boundary, with each
+  weight word meeting four 16-bit activations in one 8-byte load; the first version read 16-bit words and
+  managed 32 GB/s, this one 201 GB/s on the same 4096-square matvec.
+  Rows with an odd block count, or fewer than eight blocks, keep the 16-bit path. The kernel is one module
   per family of types, built from one source with a define: F32 and
   Q8_0, Q4_0 and Q4_1, Q4_K, Q5_K, Q6_K. With every family in one module
   the register demand of the whole set the occupancy of every path and
@@ -267,8 +265,7 @@ HF gate measures the cost of it.
   `VK_KHR_shader_integer_dot_product`.
 
   The current rule. The backend enables the extension wherever the
-  device offers it, and every row kernel family is built a second time
-  with `LLMX_DOT`, taking its dots through the integer dot instructions.
+  device offers it, and the Q4_0 and Q4_1, Q4_K, Q5_K and Q6_K row families are built again with `LLMX_DOT`, taking their dots through the integer dot instructions, while Q8_0 rows take the Q8_0 decode kernel below and F32 rows the plain build.
   That build, and the integer-dot prefill tile below, run only where the
   device's measured profile sets `prefer_integer_dot`, which
   `profile_for` honours only when the device has the integer dot
@@ -355,7 +352,7 @@ HF gate measures the cost of it.
   and the unpacking each time.
 
   A thread's run of values is inside one group of 32 whichever tile
-  height is built, since it stages 8 or 16 values starting at a multiple
+  height is built, since it stages 4, 8 or 16 values starting at a multiple
   of that, so the sub-scale, the sub-min, which nibble half the run
   takes and the byte the run starts at are all invariant across it. The
   tile kernel now reads them once per run. Nothing about the arithmetic
@@ -447,7 +444,7 @@ HF gate measures the cost of it.
 
   A pass of several generated tokens reads each weight once per chunk of columns, so the kernel is built for 1, 2, 4, 8, 16 and 32 columns (`kVecBuilds`). The 4-, 8- and 16-column builds and the grouped build take 4 rows a subgroup, so one activation load feeds 4 rows, and the 16-column build loads two steps of every row's weights before using either in the quarter layout; the 1- and 2-column builds keep 2 rows. The 32-column build is the 16-column build twice, on adjacent workgroups over the same rows, so the second read of a row meets the first in the L2 cache; a subgroup that kept all 32 columns ran slower than two 16-column chunks. A lane loads its columns' activations in groups of 4. Each build holds twice the next narrower's columns, so a chunk fills more than half its build: a grouped build, the groups past the first half of a build of one column group, and every group of the 32-column build's second half, which gets 1 to 16 columns, check the pass's count and skip a group past it. In builds of up to 8 columns a group the pass fills in part also skips its surplus columns' products, each column behind a uniform check, which took 4 percent off a pass of 5 rows; the second copy of the group's products that takes cost the 16-column build about 4 percent from 16 rows, so it keeps one. Rows past the matrix's end are read as its last row rather than branched around. A pass takes chunks of the widest build the device's profile allows while more columns remain, then the narrowest build that holds the rest. The profile's `q8_decode_cols` is 32 on the MI50 under RADV and 8 by default, and only a device whose profile prefers the integer dot takes this kernel. On the MI50 one 16-column chunk cost 34.8 ms against 41.8 for two 8-column chunks in a screening model of 8B's matmuls (docs/STATUS.md, Layer split phase 3, step 5). Every build keeps a column's lanes, its blocks in order, the product `(dw * dx) * float(s)` added to its accumulator unfused, and its reduction's pairs, so a column computes the same bits in every build (Batch invariance). Routed chunks at Qwen3-30B-A3B's shapes take 1.6 to 1.8 times less than main's from 2 entries an expert, since a chunk of 2 to 4 entries loads one group of activations where main's loaded 8.
 
-  On the MI50 under RADV the builds of 2 to 32 columns also take the transposed reduction, as the profile's `q8_decode_forms` allows, since each build was bound by its instructions rather than its weight reads. It pairs a lane's values i and i + h at each of the subgroup reduction's six levels, lanes l and l ^ 1, 2, 7, 15, 16 and 32, keeping one and sending the other, so after six levels every lane holds whole sums and one store writes the build's rows and columns: the 16-column build's 64 reductions of six dependent shuffled adds, a lane read and a branched store each become 63 adds. It takes the same pairs as the subgroup reduction only where that reduction does, as RADV's on a 64-lane GCN subgroup does in its disassembly, which is why a profile allows it, and a column's operations and their order are unchanged, so it computes the same bits (Batch invariance).
+  On the MI50 under RADV the plain builds of 2 to 32 columns also take the transposed reduction, the one-column and grouped builds keeping the subgroup reduction, as the profile's `q8_decode_forms` allows, since each build was bound by its instructions rather than its weight reads. It pairs a lane's values i and i + h at each of the subgroup reduction's six levels, lanes l and l ^ 1, 2, 7, 15, 16 and 32, keeping one and sending the other, so after six levels every lane holds whole sums and one store writes the build's rows and columns: the 16-column build's 64 reductions of six dependent shuffled adds, a lane read and a branched store each become 63 adds. It takes the same pairs as the subgroup reduction only where that reduction does, as RADV's on a 64-lane GCN subgroup does in its disassembly, which is why a profile allows it, and a column's operations and their order are unchanged, so it computes the same bits (Batch invariance).
 
   The profile also gives the MI50 under RADV the half-block order (`kQ8Half`), which is not a build's form but the kernel's order on the device: every build takes it where a row holds an even block count, the one-column, grouped and routed builds included. Lane l covers half l % 2 of blocks l / 2, l / 2 + 32 and on, so a lane's 16 bytes of a block meet in one integer sum of four dots and one scaled product, where the quarter layout forms a scaled product for every 8 bytes: 14 instructions for 32 products against the quarter layout's 17 with its best forms. A column then adds other partial sums in another order than the quarter layout, so the device's decode results changed once when the order came in (2026-09-27, docs/STATUS.md, The half-block order), and since every build takes it a column computes the same bits in all of them (Batch invariance). Rows of an odd block count, and every device whose profile does not allow the order, keep the quarter layout. The quarter layout had two more forms on the MI50, offsets computed once per step and a block's scale products shared over its quad, which took only rows of an even block count; the order left them unreached and they went with it. On one MI50, 8B Q8_0 `bench --seqs` takes 13.5 ms a pass at 1 row against 14.5 in the quarter layout with its forms (main before the order), 19.4 against 23.2 at 8, 31.4 against 36.4 at 16, 57.2 against 67.5 at 32 and 115.6 against 135.8 at 64 (docs/STATUS.md, The half-block order).
 
@@ -514,7 +511,7 @@ HF gate measures the cost of it.
   constant, so each tile module builds a 128-row pipeline and a 64-row
   one, whose second variant is the 32-row tile, and the backend picks
   per dispatch through `tile_rows_for` in `backends/device_profile.hpp`.
-  The taller tile reads two thirds of the shared memory per product, so
+  The taller tile reads three quarters of the shared memory per product, so
   128 rows are taken while they still give `tile_tall_per_cu` workgroups
   per compute unit (`tile_tall_per_cu_narrow` under 4096 values to a row),
   the unit count coming from `VK_AMD_shader_core_properties` where that
@@ -656,7 +653,7 @@ HF gate measures the cost of it.
 - **kv_write**: a scatter of `[rows, n_head_kv, head_dim]` into blocks,
   one lane per float.
 - **norm_rope_rows**: one workgroup per (row, head): the head's sum of
-  squares in a subgroup reduction, then the rotation reading the table at
+  squares in a shared-memory tree over the workgroup, then the rotation reading the table at
   the row's position.
 - **norm_rope_kv**: the layer's attention inputs in one dispatch, a
   workgroup per (row, head) over the q heads, the k heads and the v
@@ -665,10 +662,9 @@ HF gate measures the cost of it.
   block.
   The model asks for the three together (`Backend::norm_rope_kv`, whose default is the three ops and is what the CPU runs), and every view of a batch goes through the view table in that one dispatch.
   Three dispatches fewer per layer, 0.6B Q8_0 decode 202 to 221 tok/s under the matched protocol.
-- **rms_norm_rows** reduces each row across its workgroup before scaling
-  its output. **silu_mul, add, gather_rows, embed** are elementwise or
-  gather kernels, `embed` dequantizing
-  its row on the way.
+- **silu_mul, add, gather_rows**: elementwise or gather kernels, one invocation per output float, or four a lane where `silu_mul` writes the tile's 8-bit copy.
+- **rms_norm_rows**: a row over one or more workgroups, each summing the whole row's squares in a tree and writing its own chunks.
+- **embed**: a workgroup per gathered row, dequantizing it on the way.
 
 ### KV layout on the device
 
@@ -688,8 +684,8 @@ because `packHalf2x16` leaves the rounding to the driver and a driver
 that truncates makes the device cache differ from the CPU's by an f16
 ulp; read back it is exact, so the two backends hold identical bytes and
 their attention differs only by reduction order. Every kernel that
-touches the cache (`kv_write`, `norm_rope_kv`, `attention`,
-`attention_tile`) is built in four variants, one per combination of the
+touches the cache (`kv_write`, `norm_rope_kv`, `attention`, `attention_vec`,
+`attention_tile`, and the `_g4` builds of the two per-row kernels) is built in four variants, one per combination of the
 two sides' types, and the storage picks the variant, so a kernel carries
 no type branch. Halving the cache is what lets Qwen3-8B run a 16k
 context on the 16 GB card.
@@ -706,7 +702,7 @@ Measurements behind choices in the kernels, kept here rather than in the code.
 - **Per-call arena.** An allocation per call for ids, positions and row lists was over a hundred `vkAllocateMemory` calls per decoded token, most of the token on Qwen3-0.6B; the ring slot's arena replaced them.
 - **Loads up front in small dispatches.** The compiler does not overlap one loop iteration's loads with the next, and a dispatch of a few waves per compute unit has nothing else to hide them behind, so a loop of eight loads a lane waits eight times. The RMS norm, the routing, the combine and the F32 row path now load a lane's first values into registers before summing any, in the same order, so their results are unchanged bit for bit; the norm's tree also finishes its last six steps inside one subgroup through shuffles, the same additions without barriers. Timed alone on an MI50 without timestamps, where a dependent dispatch that does almost nothing takes 4.1 us: the 2048-wide norm went from 11.4 to 7.4 us, the F32 router's 128 x 2048 matvec from 13.4 to 7.8, the routing from 10.9 to 9.2. Qwen3-30B-A3B Q4_K_M decode went from 120.0 to 129.0 tok/s and Qwen3-8B Q4_K_M from 93.1 to 96.4. Two adjacent Q4_K rows a cluster, sharing each activation load, did not help (branch `research/k45-two-rows-rejected`).
 - **Timestamps.** Kernel timestamps inflate small dispatches: a 12288 x 2048 Q4_K matvec reads 26 us without them and 39.5 with, so `--profile` shares of the small kernels are upper bounds.
-- **F32 rows a power of two wide.** Such rows sit a multiple of the memory's channel interleave apart, so every row of a tile step reads the same channel: on either card a 4096 x 2048 F32 tile took 7 to 10 times as long as a 4096 x 2080 one. The float tile reads an adopted F32 matrix 256 or more floats wide through a copy with 32 floats after each row, made on its first tile call and kept with the buffer until a write or copy into it (`padded_f32`); the Radeon VII's 4096 x 2048 case at 512 columns went from 26.3 ms to 3.2, against 2.5 at 2080 wide. It replaced starting each block of rows at its own inner step, which reached 7.1 ms, and leaves the sums in their plain order. A call split because it was starved takes the shortest tile, for the most workgroups. On the MI50 Qwen3-30B-A3B's prefill at 512 tokens went from 1179-1195 to 1204-1221 tok/s; its router's 512 activation rows are 2048 floats apart too, and it still takes about 400 us a layer there.
+- **F32 rows a power of two wide.** Such rows sit a multiple of the memory's channel interleave apart, so every row of a tile step reads the same channel: on either card a 4096 x 2048 F32 tile took 7 to 10 times as long as a 4096 x 2080 one. The float tile reads an adopted F32 matrix whose rows are a multiple of 256 floats wide through a copy with 32 floats after each row, made on its first tile call and kept with the buffer until a write or copy into it (`padded_f32`); the Radeon VII's 4096 x 2048 case at 512 columns went from 26.3 ms to 3.2, against 2.5 at 2080 wide. It replaced starting each block of rows at its own inner step, which reached 7.1 ms, and leaves the sums in their plain order. A call split because it was starved takes the shortest tile, for the most workgroups. On the MI50 Qwen3-30B-A3B's prefill at 512 tokens went from 1179-1195 to 1204-1221 tok/s; its router's 512 activation rows are 2048 floats apart too, and it still takes about 400 us a layer there.
 - **Float tile split.** A call with fewer workgroups than a quarter of the compute units splits the float tile's inner dimension as the integer-dot tile does, the parts added in order by `matmul_reduce.comp`. Qwen3-30B-A3B's F32 router at 32 prompt rows was four workgroups; split, the MI50's prefill went from 357 to 410-412 tok/s at 32 tokens and 628 to 663 at 128. Splitting every call below eight workgroups per compute unit, the integer-dot tile's rule, cost the Radeon VII 2.7 percent of Qwen3-0.6B Q4_0 prefill at 64 tokens, where its extra reduce dispatches outweighed the fill.
 
 ## Batch invariance
@@ -728,18 +724,16 @@ A routed layer (`qwen3moe`) applies the router matmul, routing, gate and up proj
 
 - **Routing.** `moe_route.comp` takes a row per 64-invocation workgroup: the softmax's maximum and sum, then k rounds of the largest untaken probability and the lowest id holding it, through subgroup reductions joined in shared memory when the workgroup is two subgroups. With shared-memory trees it cost about seventy barriers a token and 8 percent of a Qwen3-30B-A3B decode pass; with subgroups 4.
 - **Decode.** The row kernels and `matmul_vec_q8.comp` take a routed mode: workgroup row y is entry y, which reads X column y / per through its expert's rows, found by offsetting the weight row by the expert times the rows per expert, since a GGUF stacks the experts back to back. Nothing else in the kernels changes, so every type's decode path serves routed rows.
-- **Generated tokens beside each other.** An expert chosen by several tokens of one pass had its rows read once per entry, and a server's throughput on Qwen3-30B-A3B Q4_K_M stopped growing past eight concurrent requests (about 225 tok/s on one MI50). When a pass's entries average at least two an expert, `moe_group.comp` groups them in runs of the row kernel's column count and each run is a workgroup row of the wide build with a column per entry (the grouped mode, `group` in the push constants), so the rows are read once a run; below that, each entry keeps its own workgroup row, since grouping saves few reads and costs a dispatch. Splitting runs of one entry off to the one-column build did not help: the loss below two entries an expert was the grouping and its dispatches. A column computes the same in either build, and `backend-vulkan` checks each token's entries beside others against the token alone, bit for bit. The grouped mode is the wide build's third pipeline, specialization constant 8, so the plain and routed pipelines carry none of it: computed per column inside every row kernel it had cost the MI50's integer-dot builds up to 7.5 percent of plain decode. On the MI50 at 64 tokens a request the server went from 225-226 to 262-263 tok/s at 32 concurrent, time to first token from 848 to 606-614 ms, and stayed within 2 percent below that. Timed alone, a routed gate and up pair reads its rows at 580 GB/s for one token and 660-680 for four to eight, near a dense 8B projection's 650-685; what a decode token spends beyond its rows is its dependent dispatches and small kernels (Kernel notes, loads up front).
+- **Generated tokens beside each other.** An expert chosen by several tokens of one pass had its rows read once per entry, and a server's throughput on Qwen3-30B-A3B Q4_K_M stopped growing past eight concurrent requests (about 225 tok/s on one MI50). When a pass's entries average at least two an expert, `moe_group.comp` groups them in runs of the row kernel's column count and each run is a workgroup row of the wide build with a column per entry (the grouped mode, specialization constant 8), so the rows are read once a run; below that, each entry keeps its own workgroup row, since grouping saves few reads and costs a dispatch. Splitting runs of one entry off to the one-column build did not help: the loss below two entries an expert was the grouping and its dispatches. A column computes the same in either build, and `backend-vulkan` checks each token's entries beside others against the token alone, bit for bit. The grouped mode is the wide build's third pipeline, specialization constant 8, so the plain and routed pipelines carry none of it: computed per column inside every row kernel it had cost the MI50's integer-dot builds up to 7.5 percent of plain decode. On the MI50 at 64 tokens a request the server went from 225-226 to 262-263 tok/s at 32 concurrent, time to first token from 848 to 606-614 ms, and stayed within 2 percent below that. Timed alone, a routed gate and up pair reads its rows at 580 GB/s for one token and 660-680 for four to eight, near a dense 8B projection's 650-685; what a decode token spends beyond its rows is its dependent dispatches and small kernels (Kernel notes, loads up front).
 - **Prompts.** A row whose prompt extent reaches its weight type's `moe_tile_from` takes the tile kernels over each expert's entries. On the MI50 under RADV that is 32 for Q8_0 and Q6_K, 48 for Q5_K, 64 for Q4_K and 96 for Q4_0 and Q4_1, where the tiles first overtook the rows on Qwen3-30B-A3B (rows against tiles, tok/s: Q4_K_M 299 and 234 at 32, 340 and 326 at 48, 361 and 402 at 64; Q5_K_M 251 and 218 at 32, 291 and 321 at 48; Q6_K 206 and 178 at 24, 204 and 211 at 32; Q8_0 236 and 215 at 24, 239 and 263 at 32; Q4_0 459 and 405 at 64, 471 and 496 at 96; Q4_1 447 and 431 at 64, 463 and 541 at 96). A 4-bit row is cheap to unpack once per entry, so the row kernels stay ahead of the tile's grouping longer. The Radeon VII under the AMD proprietary driver gains from the same values with experts on the CPU (tok/s, 32 for every type against these: Q4_0 70.1 and 78.3 at 48, 91.7 and 94.3 at 80; Q4_K_M 54.9 and 63.0 at 32, 68.9 and 74.1 at 48; Q5_K_M 33.7 and 35.1 at 32), and they are the defaults. `moe_group.comp` groups a call's entries, a workgroup per expert: a shared histogram of every id, the expert's first entry and first tile from the lower experts' counts, and its entries placed in order by a prefix sum over chunks of 256. The tile's workgroup row y is tile y, up to 64 entries of one expert, gathered as its columns and scattered back as output rows; a routed tile is never split. Through the row kernels a prompt read an expert's weights once per entry, and Qwen3-30B-A3B prefilled 383 tok/s at 512 rows on an MI50; through the tiles 1048, and with the grouping a workgroup per expert and reused by the down projection 1214.
 - **Invariance.** Neither kernel's arithmetic for a column depends on the other columns, and the kernel follows the row's extent, so an entry computes the same whatever else is routed beside it, as the dense rows do.
 - **The twin.** A row kernel's output dropped the activation twin whenever it shared a buffer with the input, which the arena always does; only an overlapping output drops it now, so the experts read the twin the router's input has, and routing keeps it the same way.
 
 ## Selection and reporting
 
-`--device cpu` is the default and `--device vulkan:N` selects a device;
-the flag lands in `docs/USAGE.md` and `print_usage` with the backend.
-`llmx info` gains nothing; a `llmx devices` listing waits until there is a
-second backend to list. `--threads` keeps its CPU meaning and does nothing
-for a Vulkan device, which the usage text says.
+`--device cpu` is the default and `--device vulkan:N` selects a device, as `docs/USAGE.md` and `print_usage` give it.
+`llmx info` gains nothing, and there is no `llmx devices` listing.
+`--threads` keeps its CPU meaning and does nothing for a Vulkan device unless experts run on the CPU beside it, which the usage text says.
 
 ## Gates
 

@@ -3,9 +3,8 @@
 The one place an architecture's name is read and accepted, in namespace
 `infer`, and the one step from a file's metadata to its architecture. It
 includes every module under `model/arch/`; the loader
-([load](inference-load.md)), the CLI's synthetic bench and the tests and
-tools that build a model without the loader include it, and nothing else
-does. A module never compares names: the entry it is reached through says
+([load](inference-load.md)), the CLI's synthetic bench and the tests that
+build a model without the loader include it, and nothing else does. A module never compares names: the entry it is reached through says
 which variant it reads and under which prefix.
 
 - `ArchEntry`, `kArchitectures`: each `general.architecture` value llmx

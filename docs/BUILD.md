@@ -18,8 +18,8 @@ The [README](../README.md#build) keeps a short quick start.
 - **CMake 3.16 or later**, the minimum `CMakeLists.txt` sets, for every route except `build.bat`.
   CMake's Visual Studio generators need a newer one: 3.21 or later for Visual Studio 2022, and 4.2 or later for Visual Studio 2026.
   `ctest --test-dir`, used under [Tests](#after-building-the-tests), needs CTest 3.20 or later.
-- **git**, for the build identifier that `llmx --version` prints, and for the tests' `dead-code` and `docs` components, which in a git checkout read the files git tracks.
-  Without git, or in a tree that is not a git checkout, the build still works and reports `0.1.0+unknown`, and in a tree that is not a git checkout those two components read every file.
+- **git**, for the build identifier that `llmx --version` prints, and for the tests' `dead-code` and `docs` components, which in a git checkout read the files git tracks and the new ones it does not ignore.
+  Without git, or in a tree that is not a git checkout, the build still works and reports `0.1.0+unknown`, and in a tree that is not a git checkout those two components read the files at the root and under `src`, `tests`, `tools`, `docs`, `cmake`, `docker` and `.github`.
 - **Python 3**, only to run the tests. The suite runs with its standard library,
   but full raw-block decoder coverage also needs NumPy; without it those checks
   skip, or fail with `--require-tools`. CI runs Python 3.12 and installs NumPy.

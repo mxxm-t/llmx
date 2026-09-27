@@ -183,8 +183,8 @@ The server needs the first shared and the rest per request and per pass:
 Model         config, placement, weights per device, RoPE tables per device,
               state storages per device, the backends. Read-only after construction; shared.
 Sequence      one request's history: a KVSequence per storage, the
-              committed length, a state slot while it holds a state, the ticket of
-              its last pass. A device may
+              committed length, a state slot while it holds a state, and per
+              device the ticket of the last pass that touched it. A device may
               host several storages (one per attention kind), which is why
               the table is per storage and not per device.
 ExecContext   where passes run: an activation arena per device, a
@@ -193,12 +193,13 @@ ExecContext   where passes run: an activation arena per device, a
               context reserved for passes in flight has more), the
               logits buffer, the tickets, and the plan of each pass in
               flight.
-Batch         entries of (Sequence*, token ids, want_logits).
+Batch         a BatchEntry array: (Sequence*, token ids, count,
+              want_logits, extent).
 ```
 
 `Model::forward(ExecContext&, const BatchEntry*, n)` enqueues the whole pass on
 every device in layer order, submits, and returns. `ExecContext::logits()`
-waits on the tickets and returns the rows in entry order. A prefill
+waits on the pass's head ticket and returns the rows in entry order. A prefill
 microbatch is one entry with many tokens; a decode batch is many entries
 with one token each; the two mix freely.
 

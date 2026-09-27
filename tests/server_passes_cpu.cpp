@@ -48,7 +48,7 @@ std::vector<Req> paused_load(uint32_t vocab) {
             {prompt_of(6, 25, vocab), 45, {}, 0.7f, 3}};
 }
 
-// Two uncapped requests on 9 blocks, which they fill: the older's growth step falls due at 379 generated tokens, four before the younger's, which then still has room, so with the two in passes of their own the younger is in flight as the older's plan pauses it, and the plan waits for its pass to retire.
+// Two uncapped requests on 9 blocks, which they fill: the older's growth step falls due at 380 generated tokens, four before the younger's, which then still has room, so with the two in passes of their own the younger is in flight as the older's plan pauses it, and the plan waits for its pass to retire.
 std::vector<Req> held_load(uint32_t vocab) {
     return {{prompt_of(21, 5, vocab)}, {prompt_of(22, 385, vocab)}};
 }

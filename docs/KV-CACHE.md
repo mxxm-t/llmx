@@ -121,8 +121,8 @@ keeps one `Sequence` per request. The budget is a token count that
 the backend rounds up to whole blocks of every KV layer's K and V, the
 model context by default; a device whose layers keep only a recurrent
 state has no KV storage. The CLI exposes it only as `llmx serve --ctx-size`,
-the pool's total token budget, whose exhaustion behaviour is admission: a
-request that does not fit waits or is refused (`docs/SERVER.md`).
+the pool's total token budget, whose exhaustion behaviour is admission and growth: a
+request that does not fit waits or is refused, and an uncapped request's growth can pause an uncapped request admitted after it, which later resumes from its history (`docs/SERVER.md`).
 
 `length` is the logically committed history: the model advances it after
 submitting the stage that writes its K and V. The sequence keeps that work's
@@ -218,8 +218,7 @@ the identity fields are compared before two sequences alias a block.
 ## Evaluation before implementation
 
 The microbenchmark chose the candidates. The default is chosen on real
-models, each candidate against the contiguous baseline, following AGENTS
-"Measuring a change":
+models, each candidate against the contiguous baseline, following the measurement rules of AGENTS.md, Principles:
 
 - Candidates: 64, 128 and 256, each against the contiguous baseline.
 - Workloads: decode, prefill, and follow-up turns; Qwen3-0.6B and Qwen3-8B

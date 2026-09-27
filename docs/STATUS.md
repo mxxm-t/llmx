@@ -8065,7 +8065,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Multi-device split (per-layer, per-tensor) | In progress (`docs/MULTI-DEVICE.md`): phase 0 measured, phase 1 (the layer split over a `--device` list fitted to free memory) and phase 2 (a prompt pipelined over the stages) merged; phase 3, passes in flight: step 1, the pass API, step 2, the scheduler over it, step 3, a pass in flight per stage and the 16-slot command ring (`ec03dcfa`), and step 5, the wider Q8_0 decode builds (`perf/decode-columns`), merged; step 4, the in-place rows and the sampling pool, gated on `feat/split-sampling` and waiting on review and the hosted run; steps 6 and 7 and the final server gate follow, then tensor groups |
 | GPU backends (Vulkan first to write, ROCm first-class) | Vulkan implemented and the recorded dense-model device gate passed on both platforms (forty-seventh checkpoint above): Radeon VII decode 102-115% and prefill 109-455% of the same-card reference Vulkan build; one MI50 decode 102-115% and prefill 102-267%. These are dated gate results, not new measurements from this documentation review. ROCm planned |
 | Multi-node / cluster                     | Planned  |
-| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 11 merged; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
+| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | Done |
@@ -8100,7 +8100,7 @@ their own measurements; K-quant optimization remains separate work below.
 | HF native formats (ROADMAP #9b)          | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 | Documentation consistency review | Done (merged at `5869385b`, six hosted jobs passed) |
-| Dead-code and stale-docs checks in every job | Done (merged at `75450ea`, block above); the cleanup of the listed findings, branch `cleanup/known-findings`, follows the architecture modules |
+| Dead-code and stale-docs checks in every job | Done (merged at `75450ea`, block above); the cleanup of the listed findings, branch `cleanup/known-findings`, is next now that the architecture modules have merged, and has not started |
 
 `Done` denotes implemented and validated functionality in this release tree.
 The earlier runtime base `08351b0` was published on both main remotes. Its initial five-check
@@ -8119,7 +8119,7 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 ### Scoped correctness coverage and remaining HF work
 
 - **Goal:** keep independent HF ground truth and extend coverage where the roadmap requires it.
-- **Done:** exact tokenizer fixtures; tiny tied/untied F32 full logits and NLL; real Q8/Q4 ranking and excerpt PPL; HF/Jinja2 follow-up chat fixtures; pinned reference generation and strict consumers. The unchanged real 8B consumer previously passed 37/37 on Windows and Linux with frozen bounds. Real 0.6B F32/Q8 1,943-token plus 32-step continuation checks are archived in ASSETS.
+- **Done:** exact tokenizer fixtures; tiny tied/untied F32 full logits and NLL; real Q8_0, Q4_0, Q5_K_M and Q4_K_M ranking and excerpt PPL; HF/Jinja2 follow-up chat fixtures; pinned reference generation and strict consumers. The real 8B consumer, now 41 checks with each NLL case scored batched and per token, passed 41 of 41 on one MI50 at `a2b732f` and in both Q8_0 decode orders at the half-block order's merge; its earlier 37-check form passed 37/37 on Windows and Linux with frozen bounds. Real 0.6B F32/Q8 1,943-token plus 32-step continuation checks are archived in ASSETS.
 - **Left:** broader full-corpus, maximum-context and per-layer references, plus prospective numerical bounds for any new lossy kernels. Short 8B rankings/excerpts are not deep-context validation.
 - **Gotchas:** self-consistency is supplementary. Exact comparison against another llmx path cannot replace HF. Model construction validation does not establish finite weights, arbitrary token-ID safety, request budgets or failed-session recovery.
 
@@ -8130,7 +8130,7 @@ collaboration log outside this repository. Confirm ownership there before
 starting work; historical branch names below are not active assignments. Builds and tests
 may run in parallel when no timing reservation is active. Keep every planned
 performance sample, record ordinary machine activity, and report missing
-telemetry honestly. GitHub receives main only; feature work stays on its branch until its gates pass.
+telemetry honestly. GitHub receives main and the `gate/<name>` branches whose hosted run checks a stack before it merges (`docs/CI.md`); feature work stays on its branch until its gates pass.
 
 ## Historical feature blocks (2026-09-19 to 2026-09-22)
 

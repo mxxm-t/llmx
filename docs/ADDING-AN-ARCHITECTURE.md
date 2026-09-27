@@ -26,10 +26,10 @@ This page covers what a module holds, what the shared runtime does for it, the r
   - forks, rollback and the logits.
 
   It indexes the file's tensors by name once and finds each role's tensor there, reads what a module declares, and calls the module's code.
-  It names no architecture, tensor or metadata key, and a check in the test suite (`tests/arch_boundary.py`) keeps it so.
+  It names no architecture, tensor or metadata key, and a check in the test suite (`tests/arch_boundary.py`) holds it to naming no registered architecture and no tensor.
 - **A module** (`src/model/arch/<name>.hpp`) holds everything that depends on the architecture:
   - its configuration, read from the file's metadata, and every refusal;
-  - its plan: the layers the runtime runs, each layer's kind and tensor roles, the arena slots, the residual row, the context length, each layer's cache and the position tables;
+  - its plan: the layers the runtime runs, each layer's kind and tensor roles, the arena slots, the residual row, the context length, the K and V geometry every layer shares and the position tables;
   - the values of its position tables;
   - its math, written as backend ops: the embedding, each layer's mixer part and feed-forward part, and the head.
 - **The registry** (`src/model/arch/registry.hpp`) maps each `general.architecture` value to its module. It is the only place such a name is accepted, and an unknown name is refused there.
@@ -220,7 +220,7 @@ What is not implemented is refused, never approximated. That covers an architect
 | which roles follow a routed block to the host, which are copied beside the mixer and which are streamed | declared by the plan, done by the runtime |
 | slot widths, the residual width and the context length | the module |
 | the arena, the handoff buffers and the crossings | the runtime |
-| the cache of each layer | the module declares it; the storages, pools, blocks, forks and rollback are the runtime's and the backends' |
+| the K and V geometry | the module declares it; the storages, pools, blocks, forks and rollback are the runtime's and the backends' |
 | table values | the module; their adoption and the position bound are the runtime's |
 | the math | the module |
 | the kernels | the backends |

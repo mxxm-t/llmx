@@ -317,9 +317,10 @@ fitted to the memory it reports free, counting its layers' weights, their
 cache, KV for the whole `--ctx-size` budget (the model context by default, or what `bench --seqs` holds when that is more) or a linear-attention layer's recurrent state for each sequence decoding at once,
 the embedding and head where they sit, one pass of activations and a
 reserve for kernel scratch. Devices that hold weights in their own memory
-share the layers as evenly as that allows; the CPU, whose weights read the
-mapped file in place, takes only the layers the others cannot hold. A
-model that does not fit is refused with the layer count that has no room.
+share the layers as evenly as that allows; the CPU, which reads its weights
+in place, from the mapped file or with `--load-mode direct` from its own
+copy, takes only the layers the others cannot hold.
+A model that does not fit is refused: the fit names the model's layer count, and with `--layer-shares` the error names the device, the layers it was given, the memory they need and the memory it has free.
 `--verbose` prints what each device was given.
 The CPU reports what the process can still take of the host's memory: the host's available memory, or less where a container's cgroup or a job object's memory limit leaves less; the loader's "available memory" below is the same figure.
 
@@ -371,7 +372,7 @@ use nearly every expert, and the work grows with the prompt. The CPU meets
 a prompt's rows with each expert's weights unpacked once for all of them,
 which is usually fast enough. `--moe-stream-from N` (default 0, never) runs such a layer on the device
 instead for a prompt of at least `N` tokens, its experts copied there
-once per pass of up to 512 tokens. A layer whose streamed weights include a
+once per pass of up to `--ubatch` tokens, 512 by default. A layer whose streamed weights include a
 type the device cannot execute stays on the CPU; eligible layers still stream.
 A weight type unsupported by its assigned home backend is refused at load,
 before weight adoption or model buffer allocation. The copy is a fixed cost per pass,
@@ -562,7 +563,7 @@ by every request, the model context by default: with 16 sequences over a
 40k-token model that is 2.5k tokens each on average, so a deployment that
 serves long conversations sets it to what its memory holds, rounded up
 to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request whose prompt plus
-`max_tokens` exceeds the budget is refused with 413.
+`max_tokens` exceeds the budget or the model context, whichever is smaller, is refused with 413.
 `--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue`, `--passes` and `--ctx-size` are at least 1.
 `--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage by default, so every device works on some pass while the host samples another; one elsewhere, where a number above 1 is refused as the server starts.
 The server prints the number it keeps, and passes whose buffers the memory cannot hold are dropped at start with a line on stderr.
@@ -603,7 +604,7 @@ The compatible replies carry the reused-prefix count as `timings.cache_n`.
 
 Every generating route gives log-probabilities when asked, at most 20 of the most likely tokens a position: `"logprobs": true` with `"top_logprobs": k` on `/v1/generate`, `/v1/chat` and `/v1/chat/completions`, and `"logprobs": k` on `/v1/completions`, as the compatible APIs take them.
 Each value is the log-softmax of the model's logits for that position, before the penalty, the temperature, top-k and top-p, written as the shortest decimal that reads back as the same 32-bit float.
-The native routes add `"logprobs": [v, ...]` beside `ids` and `"top_logprobs": [[{"id", "logprob"}, ...], ...]`, and a streamed event its token's `logprob` and `top_logprobs`.
+The native routes add `"logprobs": [v, ...]` beside `ids`, and with a `top_logprobs` above 0 `"top_logprobs": [[{"id", "logprob"}, ...], ...]`, and a streamed event its token's `logprob`, and its `top_logprobs` when asked.
 `/v1/chat/completions` gives `choices[0].logprobs.content`, one `{"token", "logprob", "bytes", "top_logprobs"}` per token, beside a null `refusal`, and `/v1/completions` gives `choices[0].logprobs` as `tokens`, `token_logprobs`, `top_logprobs` (a map from text to value, the sampled token included) and `text_offset`; a streamed chunk carries its own token's.
 A token that splits a character is written `bytes:\xe2\x80` and so on.
 A value JSON has no number for, minus infinity for a token given no probability, is `null` on the native routes; the compatible routes, whose fields are numbers, write -9999 for it and for any value below -9999.
@@ -611,7 +612,7 @@ The values cost a pass over the vocabulary per token, so they are computed only 
 
 With `"stream": true` the reply is `text/event-stream`: one `data:` line per token holding its id and text (a character split across tokens is held until complete), then `data: {"done": true, "finish": ..., "tokens": N}` and `data: [DONE]`.
 A stream whose pass fails ends with one `data:` event holding the error in the native shape, `{"error": "..."}`, in place of the `done` event and without `data: [DONE]`.
-A request is admitted when the KV pool can hold its prompt plus `max_tokens`, otherwise it waits in the queue; a prompt that cannot fit the context at all is refused with 413.
+A request is admitted when the KV pool can hold its prompt plus `max_tokens`, otherwise it waits in the queue; one whose prompt plus `max_tokens` passes the smaller of the model context and the pool is refused with 413 before it waits.
 A greedy request gives the ids `generate --temp 0` gives for the same prompt, alone or beside other requests, and a seeded request gives the ids `generate` gives with the same settings and `--seed`, whatever it is batched with.
 A finished request's cache stays a while as a donor: a new prompt that repeats its tokens shares those KV blocks read-only and prefills only what follows, `reused_tokens` in the reply, whole blocks only and never the last prompt token.
 Donors give their blocks up, oldest first, when a request needs them, except that the donor a request forks is kept and, if the pool is still short, consumed by it: the blocks it shares pass to the request and the rest are freed.

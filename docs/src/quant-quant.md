@@ -11,6 +11,7 @@ Block quantization kernels, in namespace `quant`.
 - `quantize_row_q4_1` / `dequantize_row_q4_1`: Q4_1 block = f16 scale + f16
   min + 16 bytes of nibbles (20 bytes). The nibble is unsigned and the block
   carries its own offset, so the value is `d*q + m`, not `d*(q-8)`.
+  `quantize` writes only Q8_0 and Q4_0 (`format::quant_type_of`), so the Q4_1 quantizer serves only the tests that build Q4_1 weights.
 - `dequantize_row_q6_K` (in `k_quants.hpp`): Q6_K super-block of 256 values in 210 bytes - 128 low
   nibbles, 64 bytes of high 2-bit pairs, 16 int8 group scales, f16 super-block
   scale. Registered READ-ONLY: llmx must load it because common GGUF converters

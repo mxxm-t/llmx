@@ -17,5 +17,5 @@ bug alone made real published Q4_0 files produce pure garbage, since their
 `token_embd` is Q6_K. `tests/roundtrip.py` now carries a tensor whose block
 scale lands in the subnormal band, with a RELATIVE bound.
 
-Used by the quant codecs to read f16 block scales (`quant/quant.hpp`, `quant/k_quants.hpp`) and to write them when quantizing to Q8_0, Q4_0 or Q4_1.
+Used by the quant codecs to read f16 block scales (`quant/quant.hpp`, `quant/k_quants.hpp`) and to write them when quantizing to Q8_0 or Q4_0, the types `quantize` writes, or to Q4_1, whose quantizer only the tests call.
 The CPU backend uses it only for the f16 KV cache values past a row's last group of eight; its dot kernels' scales and its groups of eight convert through F16C.

@@ -12,6 +12,7 @@ Three functions, each written once, for the JSON parser, the tokenizer, the chat
   A sequence is valid when its lead byte is ASCII or 0xC2 to 0xF4, its continuation bytes are all present, and its value is not overlong, not a surrogate and not above U+10FFFF.
   Control characters are valid here; refusing them is the JSON parser's own rule.
   The JSON parser refuses a string at the first 0, and the server's `utf8_sanitize` writes U+FFFD for each byte where it is 0.
+  The chat template renderer reads a template's text through it, a byte where it is 0 being a character of its own.
 
 The two lengths differ on purpose.
 The tokenizer has to turn any bytes into ids, so it stays lenient.

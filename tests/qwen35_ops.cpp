@@ -1,5 +1,5 @@
 // The CPU backend's ops of the qwen35 layers (docs/QWEN35.md, The forward pass) against references written here from the math in double precision, each within the bound stated beside it.
-// Also that no result depends on the thread count or on how rows are grouped into calls, bit for bit, that a one-token entry runs the recurrence, that length 0 reads a zero state, and that a backend without the ops refuses each by name.
+// Also that no result depends on the thread count, on how rows are grouped into calls or on the block a V column runs in, bit for bit, that length 0 reads a zero state, and that a backend without the ops refuses each by name.
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -20,6 +20,9 @@ using backend::StateView;
 
 // One unit in the last place of 1 in F32; every bound below is a count of it times a magnitude.
 const double U = std::ldexp(1.0, -24);
+
+// The thread counts every op is run at, whose results must be the same bits.
+const int kThreadCounts[] = {1, 2, 3, 5, 8, 16};
 
 void require(bool ok, const std::string& what) {
     if (!ok) throw std::runtime_error(what);
@@ -60,6 +63,8 @@ void write_slot(CpuBackend& cpu, StateStorage& s, size_t layer, size_t slot, con
 bool same_bits(const std::vector<float>& a, const std::vector<float>& b) {
     return a.size() == b.size() && (a.empty() || std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0);
 }
+
+bool same_bits(float a, float b) { return std::memcmp(&a, &b, sizeof(float)) == 0; }
 
 bool same_slots(const std::vector<std::vector<float>>& a, const std::vector<std::vector<float>>& b) {
     if (a.size() != b.size()) return false;
@@ -193,6 +198,24 @@ void delta_reference(const StateShape& sh, const float* qkv, const float* alpha,
     }
 }
 
+// A view's delta-rule rows and matrices against the reference's: each token adds at most 2 sums of k_dim products to the error of state and output, which the decay and the unit-norm key do not grow, so (t + 1) (2 k_dim + 16) units of the magnitude.
+void check_delta(const StateShape& sh, const float* rows, const float* state, const std::vector<double>& out, const std::vector<double>& S, size_t nq,
+                 const std::string& what) {
+    const size_t Hv = sh.v_heads, Dv = sh.v_dim, Dk = sh.k_dim, M = sh.matrix_floats();
+    for (size_t j = 0; j < Hv; ++j) {
+        double scale = 1;
+        for (size_t i = 0; i < M; ++i) scale = std::max(scale, std::fabs(S[j * M + i]));
+        for (size_t t = 0; t < nq; ++t)
+            for (size_t c = 0; c < Dv; ++c) {
+                const size_t k = (t * Hv + j) * Dv + c;
+                check_close(rows[k], out[k], (t + 1) * (2.0 * Dk + 16) * U * scale, worst.delta,
+                            what + ": delta rule row " + std::to_string(t) + " head " + std::to_string(j));
+            }
+        for (size_t i = 0; i < M; ++i)
+            check_close(state[j * M + i], S[j * M + i], nq * (2.0 * Dk + 16) * U * scale, worst.delta, what + ": state of head " + std::to_string(j));
+    }
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // The linear-attention ops against the references.
 
@@ -236,8 +259,8 @@ LinearRun run_linear(CpuBackend& cpu, const StateShape& sh, const std::vector<Se
 // Every view's conv rows, carried rows, delta-rule rows and matrices against the references.
 void check_linear(const StateShape& sh, const std::vector<Seq>& seqs, const LinearInputs& in, const std::vector<std::vector<float>>& start,
                   const LinearRun& r, const std::string& what) {
-    const size_t C = sh.channels(), Hv = sh.v_heads, Dv = sh.v_dim, Dk = sh.k_dim, M = sh.matrix_floats();
-    const size_t first_carried = Hv * M;
+    const size_t C = sh.channels(), Hv = sh.v_heads, Dv = sh.v_dim;
+    const size_t first_carried = Hv * sh.matrix_floats();
     size_t r0 = 0;
     for (size_t vi = 0; vi < seqs.size(); ++vi) {
         const Seq& q = seqs[vi];
@@ -254,20 +277,7 @@ void check_linear(const StateShape& sh, const std::vector<Seq>& seqs, const Line
         std::vector<double> out, S;
         delta_reference(sh, r.conv.data() + r0 * C, in.alpha.data() + r0 * Hv, in.b.data() + r0 * Hv, in.a.data(), in.dt_bias.data(),
                         q.nq, start[q.src], q.length, out, S);
-        // Each token adds at most 2 sums of k_dim products to the error of state and output, which the decay and the unit-norm key do not grow: (t + 1) (2 k_dim + 16) units of the magnitude.
-        for (size_t j = 0; j < Hv; ++j) {
-            double scale = 1;
-            for (size_t i = 0; i < M; ++i) scale = std::max(scale, std::fabs(S[j * M + i]));
-            for (size_t t = 0; t < q.nq; ++t)
-                for (size_t c = 0; c < Dv; ++c) {
-                    const size_t k = (t * Hv + j) * Dv + c;
-                    check_close(r.delta[r0 * Hv * Dv + k], out[k], (t + 1) * (2.0 * Dk + 16) * U * scale, worst.delta,
-                                what + ": delta rule view " + std::to_string(vi) + " row " + std::to_string(t) + " head " + std::to_string(j));
-                }
-            for (size_t i = 0; i < M; ++i)
-                check_close(r.slots[q.dst][j * M + i], S[j * M + i], q.nq * (2.0 * Dk + 16) * U * scale, worst.delta,
-                            what + ": state of view " + std::to_string(vi) + " head " + std::to_string(j));
-        }
+        check_delta(sh, r.delta.data() + r0 * Hv * Dv, r.slots[q.dst].data(), out, S, q.nq, what + ": view " + std::to_string(vi));
         // A slot only read keeps its bits.
         if (q.src != q.dst) require(same_bits(r.slots[q.src], start[q.src]), what + ": a verify changed its source slot");
         r0 += q.nq;
@@ -322,7 +332,8 @@ size_t check_linear_invariance(std::mt19937& g, const StateShape& sh) {
     const LinearRun one = run_linear(cpu, sh, seqs, in, start);
     check_linear(sh, seqs, in, start, one, "invariance");
     size_t runs = 1;
-    for (int t : {2, 3, 5, 8, 16}) {
+    for (int t : kThreadCounts) {
+        if (t == 1) continue;
         cpu.set_threads(t);
         const LinearRun r = run_linear(cpu, sh, seqs, in, start);
         require(same_bits(r.conv, one.conv) && same_bits(r.delta, one.delta) && same_slots(r.slots, one.slots),
@@ -393,7 +404,7 @@ size_t check_linear_invariance(std::mt19937& g, const StateShape& sh) {
     return runs;
 }
 
-// A one-token entry runs the recurrence: each step of a sequence taken as its own one-row call meets the reference, and every step's state is the reference's.
+// A sequence decoded one row per call, as the decode steps are: each step meets the reference and leaves the reference's state for the next.
 size_t check_one_token(std::mt19937& g, const StateShape& sh) {
     const size_t steps = 6;
     const LinearInputs in = linear_inputs(g, sh, steps);
@@ -415,6 +426,7 @@ size_t check_one_token(std::mt19937& g, const StateShape& sh) {
 }
 
 // A decay below 2^-126 is 0, so the state before the token is dropped whole, and one just above it is kept: with beta 0 the token writes nothing, and what is left is the decayed state.
+// The matrix holds values of magnitude 1 to 2, so every decayed value stays normal and the check holds under any denormal handling.
 void check_decay_flush(std::mt19937& g) {
     const StateShape sh = {1, 1, 8, 8};
     const std::vector<Seq> seq = {{5, 0, 0, 1}};
@@ -424,13 +436,99 @@ void check_decay_flush(std::mt19937& g) {
         in.alpha = {0.0f};
         in.dt_bias = {bias};
         in.b = {-200.0f};
-        const std::vector<std::vector<float>> start = {random_slot(g, sh)};
+        std::vector<std::vector<float>> start = {random_slot(g, sh)};
+        const auto magnitude = uniform(g, sh.matrix_floats(), 1.0f, 2.0f);
+        for (size_t i = 0; i < sh.matrix_floats(); ++i) start[0][i] = i % 2 ? -magnitude[i] : magnitude[i];
         CpuBackend cpu;
         const LinearRun r = run_linear(cpu, sh, seq, in, start);
         check_linear(sh, seq, in, start, r, "decay at " + std::to_string(bias));
-        const bool dropped = std::all_of(r.slots[0].begin(), r.slots[0].begin() + sh.matrix_floats(), [](float f) { return f == 0.0f; });
-        require(dropped == (bias == 88.0f), bias == 88.0f ? "a decay of exp(-88) was not flushed to 0" : "a decay of exp(-87) was flushed");
+        const float kept = std::exp(-bias);
+        for (size_t i = 0; i < sh.matrix_floats(); ++i) {
+            if (bias == 88.0f) {
+                require(r.slots[0][i] == 0.0f, "a decay of exp(-88) was not flushed to 0");
+                continue;
+            }
+            const float want = start[0][i] * kept;
+            require(std::fpclassify(want) == FP_NORMAL, "a decayed state value below the normal range");
+            require(same_bits(r.slots[0][i], want), "a decay of exp(-87) was not kept");
+        }
     }
+}
+
+// One gated delta rule call of one view over the rows `qkv` given directly, from a slot holding `start`, which length 0 does not read; the rows, then the slot's matrices after.
+struct DeltaRun {
+    std::vector<float> rows, state;
+};
+
+DeltaRun run_delta(CpuBackend& cpu, const StateShape& sh, const std::vector<float>& qkv, const LinearInputs& in, const std::vector<float>& start,
+                   size_t length, size_t nq) {
+    auto storage = cpu.state_alloc(1, 1, sh);
+    write_slot(cpu, *storage, 0, 0, start);
+    const StateView view = {storage.get(), 0, 0, length, nq};
+    BufferPtr u = upload(cpu, qkv), alpha = upload(cpu, in.alpha), b = upload(cpu, in.b), a = upload(cpu, in.a), dt = upload(cpu, in.dt_bias);
+    BufferPtr o = zeros(cpu, nq * sh.v_heads * sh.v_dim * sizeof(float));
+    cpu.gated_delta_rule({o.get(), 0}, {u.get(), 0}, {alpha.get(), 0}, {b.get(), 0}, {a.get(), 0}, {dt.get(), 0}, 0, &view, 1);
+    DeltaRun r;
+    r.rows = download(cpu, *o, nq * sh.v_heads * sh.v_dim);
+    r.state = read_slot(cpu, *storage, 0, 0);
+    r.state.resize(sh.v_heads * sh.matrix_floats());
+    return r;
+}
+
+// Each V column's arithmetic is its own, so a column gives the same bits in a 32-column block, in an 8-column block and alone: columns of a v_dim 40 run against v_dim 8 and v_dim 1 runs fed the same q, k, gates and history.
+void check_column_paths(std::mt19937& g) {
+    const StateShape wide = {2, 4, 16, 40};
+    const size_t nq = 5, Hk = wide.k_heads, Hv = wide.v_heads, Dk = wide.k_dim, Dv = wide.v_dim, qk = 2 * Hk * Dk;
+    const LinearInputs in = linear_inputs(g, wide, nq);
+    const std::vector<float> qkv = uniform(g, nq * wide.channels(), -1.0f, 1.0f), start = random_slot(g, wide);
+    CpuBackend cpu;
+    cpu.set_threads(2);
+    const DeltaRun all = run_delta(cpu, wide, qkv, in, start, 3, nq);
+    // The n columns from column c0 of every V head, as a run of their own.
+    auto columns = [&](size_t c0, size_t n) {
+        const StateShape sh = {Hk, Hv, Dk, n};
+        const size_t C = sh.channels(), W = wide.channels();
+        std::vector<float> rows(nq * C), slot(sh.slot_floats(), 0.0f);
+        for (size_t r = 0; r < nq; ++r) {
+            std::copy(qkv.begin() + r * W, qkv.begin() + r * W + qk, rows.begin() + r * C);
+            for (size_t j = 0; j < Hv; ++j)
+                for (size_t c = 0; c < n; ++c) rows[r * C + qk + j * n + c] = qkv[r * W + qk + j * Dv + c0 + c];
+        }
+        for (size_t j = 0; j < Hv; ++j)
+            for (size_t i = 0; i < Dk; ++i)
+                for (size_t c = 0; c < n; ++c) slot[(j * Dk + i) * n + c] = start[(j * Dk + i) * Dv + c0 + c];
+        const DeltaRun r = run_delta(cpu, sh, rows, in, slot, 3, nq);
+        const std::string what = "columns " + std::to_string(c0) + " to " + std::to_string(c0 + n - 1) + " alone";
+        for (size_t j = 0; j < Hv; ++j)
+            for (size_t c = 0; c < n; ++c) {
+                for (size_t t = 0; t < nq; ++t)
+                    require(same_bits(r.rows[(t * Hv + j) * n + c], all.rows[(t * Hv + j) * Dv + c0 + c]), what + " give other rows than in the wide run");
+                for (size_t i = 0; i < Dk; ++i)
+                    require(same_bits(r.state[(j * Dk + i) * n + c], all.state[(j * Dk + i) * Dv + c0 + c]), what + " leave another state than in the wide run");
+            }
+    };
+    columns(0, 8);
+    columns(24, 8);
+    for (size_t c = 0; c < Dv; ++c) columns(c, 1);
+}
+
+// q and k heads near 1e-4, whose sums of squares lie far below kL2NormEps, hold the epsilon and its place inside the root.
+void check_l2_eps(std::mt19937& g) {
+    const StateShape sh = {2, 2, 16, 8};
+    const size_t nq = 3, Hk = sh.k_heads, Dk = sh.k_dim, C = sh.channels();
+    const LinearInputs in = linear_inputs(g, sh, nq);
+    std::vector<float> qkv = uniform(g, nq * C, -1.0f, 1.0f);
+    const std::vector<float> start = random_slot(g, sh);
+    for (size_t r = 1; r < nq; ++r)
+        for (size_t i = 0; i < Dk; ++i) {
+            qkv[r * C + (r - 1) * Dk + i] *= 1e-4f;
+            qkv[r * C + Hk * Dk + (r - 1) * Dk + i] *= 1e-4f;
+        }
+    CpuBackend cpu;
+    const DeltaRun r = run_delta(cpu, sh, qkv, in, start, 2, nq);
+    std::vector<double> out, S;
+    delta_reference(sh, qkv.data(), in.alpha.data(), in.b.data(), in.a.data(), in.dt_bias.data(), nq, start, 2, out, S);
+    check_delta(sh, r.rows.data(), r.state.data(), out, S, nq, "small q and k heads");
 }
 
 // state_alloc zero-fills whole slots and refuses a shape with V heads that are no multiple of the K heads; state_copy copies one slot in every layer and leaves the others.
@@ -464,6 +562,14 @@ void check_state_storage(std::mt19937& g) {
         try { cpu.state_alloc(1, 1, bad); } catch (const std::runtime_error&) { refused = true; }
         require(refused, "state_alloc took an invalid shape");
     }
+    // A storage made by hand whose buffer is a float short of its slots, or missing, is refused, so no op writes past a buffer.
+    const size_t bytes = 4 * sh.slot_floats() * sizeof(float);
+    for (int missing = 0; missing < 2; ++missing) {
+        std::vector<BufferPtr> buffers = {zeros(cpu, bytes), missing ? nullptr : zeros(cpu, bytes - sizeof(float))};
+        refused = false;
+        try { (void)StateStorage(std::move(buffers), 4, sh); } catch (const std::runtime_error&) { refused = true; }
+        require(refused, missing ? "a state storage without a buffer was taken" : "a state storage whose buffer is short of its slots was taken");
+    }
 }
 
 // Malformed views are refused before any output or state is written.
@@ -479,7 +585,8 @@ void check_view_refusals(std::mt19937& g) {
     BufferPtr u = upload(cpu, marker), o = upload(cpu, marker);
     const std::vector<std::vector<StateView>> bad = {
         {{s.get(), 0, 0, 0, 2}, {s.get(), 1, 0, 0, 2}},   // two views write one slot
-        {{s.get(), 0, 1, 1, 2}, {s.get(), 1, 2, 0, 2}},   // one view writes the slot another reads
+        {{s.get(), 0, 1, 1, 2}, {s.get(), 1, 2, 0, 2}},   // one view writes the slot a later one reads
+        {{s.get(), 1, 0, 0, 2}, {s.get(), 2, 1, 1, 2}},   // one view reads the slot a later one writes
         {{s.get(), 3, 3, 0, 4}},                          // a slot outside the storage
         {{s.get(), 0, 0, 0, 0}},                          // a view without rows
         {{nullptr, 0, 0, 0, 4}},                          // no storage
@@ -512,15 +619,17 @@ void check_view_refusals(std::mt19937& g) {
 // ---------------------------------------------------------------------------------------------------------------------
 // The gated norm, the partial rope and the output gate.
 
-// dst = RMSNorm(x; w) * silu(z) per head against the math, at thread counts 1 to 8 and with each row alone, bit for bit.
+// dst = RMSNorm(x; w) * silu(z) per head against the math, a head near 1e-4 holding eps, at every thread count and with each row alone, bit for bit.
 size_t check_gated_norm(std::mt19937& g, size_t heads, size_t dim) {
     const size_t rows = 23, n = rows * heads * dim;
-    const auto x = uniform(g, n, -2.0f, 2.0f), z = uniform(g, n, -6.0f, 6.0f), w = uniform(g, dim, 0.5f, 1.5f);
+    auto x = uniform(g, n, -2.0f, 2.0f);
+    const auto z = uniform(g, n, -6.0f, 6.0f), w = uniform(g, dim, 0.5f, 1.5f);
+    for (size_t i = 0; i < dim; ++i) x[(5 * heads + 1) * dim + i] *= 1e-4f;
     const float eps = 1e-6f;
     CpuBackend cpu;
     BufferPtr xb = upload(cpu, x), zb = upload(cpu, z), wb = upload(cpu, w), yb = zeros(cpu, n * sizeof(float));
     std::vector<float> first;
-    for (int t : {1, 2, 3, 8}) {
+    for (int t : kThreadCounts) {
         cpu.set_threads(t);
         cpu.gated_rms_norm({yb.get(), 0}, {xb.get(), 0}, {zb.get(), 0}, {wb.get(), 0}, rows, heads, dim, eps);
         const auto y = download(cpu, *yb, n);
@@ -553,17 +662,9 @@ size_t check_gated_norm(std::mt19937& g, size_t heads, size_t dim) {
     return rows * heads;
 }
 
-// The frequency index of each rotated pair, and the position stream the rope sections give it: the interleaved assignment of the reference model, time for the rest, with every stream at the token's position for text.
-double rope_angle(size_t i, size_t rope_dim, double base, const size_t sections[4], const double streams[3]) {
-    size_t stream = 0;
-    if (i % 3 == 1 && i < 3 * sections[1]) stream = 1;
-    if (i % 3 == 2 && i < 3 * sections[2]) stream = 2;
-    return streams[stream] * std::pow(base, -2.0 * (double)i / (double)rope_dim);
-}
-
-// norm_rope_partial reading q's heads between their gates, as attn_q holds them, and k in place, against the math with the sections; rows alone and at thread counts 1 to 8 bit for bit; and with a full rotary width over contiguous heads it is norm_rope_rows.
-size_t check_partial_rope(std::mt19937& g, size_t heads, size_t head_dim, size_t rope_dim, double base, const size_t sections[4]) {
-    require(2 * (sections[0] + sections[1] + sections[2] + sections[3]) == rope_dim, "rope sections that do not cover the rotary width");
+// norm_rope_partial reading q's heads between their gates, as attn_q holds them, and k in place, against the math with every pair rotated at the token's position, which the rope sections give for text (docs/QWEN35.md, Gated attention).
+// A head near 1e-4 holds eps; rows alone and every thread count give the same bits; and with a full rotary width over contiguous heads it is norm_rope_rows.
+size_t check_partial_rope(std::mt19937& g, size_t heads, size_t head_dim, size_t rope_dim, double base) {
     const size_t rows = 19, half = rope_dim / 2, positions = 64;
     std::vector<float> cos(positions * half), sin(positions * half);
     for (size_t p = 0; p < positions; ++p)
@@ -574,13 +675,15 @@ size_t check_partial_rope(std::mt19937& g, size_t heads, size_t head_dim, size_t
         }
     std::vector<uint32_t> pos(rows);
     for (size_t r = 0; r < rows; ++r) pos[r] = (uint32_t)((r * 37 + 5) % positions);
-    const auto r_rows = uniform(g, rows * heads * 2 * head_dim, -2.0f, 2.0f), w = uniform(g, head_dim, 0.5f, 1.5f);
+    auto r_rows = uniform(g, rows * heads * 2 * head_dim, -2.0f, 2.0f);
+    const auto w = uniform(g, head_dim, 0.5f, 1.5f);
+    for (size_t i = 0; i < head_dim; ++i) r_rows[4 * heads * 2 * head_dim + 2 * head_dim + i] *= 1e-4f;
     const float eps = 1e-6f;
     CpuBackend cpu;
     BufferPtr src = upload(cpu, r_rows), wb = upload(cpu, w), cb = upload(cpu, cos), sb = upload(cpu, sin);
     BufferPtr dst = zeros(cpu, rows * heads * head_dim * sizeof(float));
     std::vector<float> first;
-    for (int t : {1, 2, 5, 8}) {
+    for (int t : kThreadCounts) {
         cpu.set_threads(t);
         cpu.norm_rope_partial({dst.get(), 0}, {src.get(), 0}, rows, heads * 2 * head_dim, 2 * head_dim, heads, head_dim, rope_dim,
                               {wb.get(), 0}, eps, {cb.get(), 0}, {sb.get(), 0}, pos.data());
@@ -596,9 +699,8 @@ size_t check_partial_rope(std::mt19937& g, size_t heads, size_t head_dim, size_t
             const double inv = 1.0 / std::sqrt(ss / head_dim + eps);
             std::vector<double> n(head_dim), ref(head_dim);
             for (size_t i = 0; i < head_dim; ++i) n[i] = ref[i] = x[i] * inv * w[i];
-            const double streams[3] = {(double)pos[r], (double)pos[r], (double)pos[r]};
             for (size_t i = 0; i < half; ++i) {
-                const double t = rope_angle(i, rope_dim, base, sections, streams);
+                const double t = (double)pos[r] * std::pow(base, -2.0 * (double)i / (double)rope_dim);
                 ref[i] = n[i] * std::cos(t) - n[i + half] * std::sin(t);
                 ref[i + half] = n[i] * std::sin(t) + n[i + half] * std::cos(t);
             }
@@ -649,6 +751,34 @@ size_t check_partial_rope(std::mt19937& g, size_t heads, size_t head_dim, size_t
     return rows * heads;
 }
 
+// A pair rotated in the scalar tail gives the bits of the same pair rotated in the vector body, whose multiply-adds are explicit, so no compiler's contraction changes it (docs/QWEN35.md, Row classes).
+// Rotary width 24 leaves pairs 8 to 11 to the tail; each repeats pair i - 8's values and table entries, and a weight of 1 keeps the norm's scale the same in both.
+void check_rope_tail(std::mt19937& g) {
+    const size_t head_dim = 24, half = 12, rows = 3, positions = 4;
+    auto x = uniform(g, rows * head_dim, -2.0f, 2.0f), cos = uniform(g, positions * half, -1.0f, 1.0f), sin = uniform(g, positions * half, -1.0f, 1.0f);
+    for (size_t i = 0; i < 4; ++i) {
+        for (size_t r = 0; r < rows; ++r) {
+            x[r * head_dim + 8 + i] = x[r * head_dim + i];
+            x[r * head_dim + half + 8 + i] = x[r * head_dim + half + i];
+        }
+        for (size_t p = 0; p < positions; ++p) {
+            cos[p * half + 8 + i] = cos[p * half + i];
+            sin[p * half + 8 + i] = sin[p * half + i];
+        }
+    }
+    const std::vector<float> w(head_dim, 1.0f);
+    const std::vector<uint32_t> pos = {1, 3, 2};
+    CpuBackend cpu;
+    BufferPtr xb = upload(cpu, x), wb = upload(cpu, w), cb = upload(cpu, cos), sb = upload(cpu, sin);
+    cpu.norm_rope_partial({xb.get(), 0}, {xb.get(), 0}, rows, head_dim, head_dim, 1, head_dim, head_dim, {wb.get(), 0}, 1e-6f, {cb.get(), 0},
+                          {sb.get(), 0}, pos.data());
+    const auto y = download(cpu, *xb, x.size());
+    for (size_t r = 0; r < rows; ++r)
+        for (size_t i = 0; i < 4; ++i)
+            require(same_bits(y[r * head_dim + 8 + i], y[r * head_dim + i]) && same_bits(y[r * head_dim + half + 8 + i], y[r * head_dim + half + i]),
+                    "rope: a pair in the scalar tail rotates otherwise than in the vector body");
+}
+
 // sigmoid_mul as the output gate, each query head's gate read in place from attn_q's rows, and as a scale of one value per row, against the math; rows alone and thread counts bit for bit.
 size_t check_sigmoid_mul(std::mt19937& g, size_t heads, size_t dim) {
     const size_t rows = 21;
@@ -662,7 +792,7 @@ size_t check_sigmoid_mul(std::mt19937& g, size_t heads, size_t dim) {
         const backend::CSlice gate = mode ? backend::CSlice{pb.get(), 0} : backend::CSlice{qb.get(), dim};
         auto gate_at = [&](size_t r, size_t h, size_t d) { return mode ? per_row[r] : q[r * gs + h * ghs + dim + d]; };
         std::vector<float> first;
-        for (int t : {1, 2, 3, 8}) {
+        for (int t : kThreadCounts) {
             cpu.set_threads(t);
             cpu.sigmoid_mul({yb.get(), 0}, {xb.get(), 0}, gate, rows, h_, d_, gs, ghs);
             const auto y = download(cpu, *yb, x.size());
@@ -730,20 +860,22 @@ int main() {
             steps += check_one_token(g, sh);
         }
         check_decay_flush(g);
+        check_column_paths(g);
+        check_l2_eps(g);
         check_state_storage(g);
         check_view_refusals(g);
-        std::printf("linear attention: %zu rows of mixed sequences against the references, %zu runs of thread counts and groupings bit for bit, %zu one-token steps; decay flush, state storage and view refusals\n",
+        std::printf("linear attention: %zu rows of mixed sequences against the references, %zu runs of thread counts and groupings bit for bit, %zu one-token steps; decay flush, column blocks, L2 epsilon, state storage and view refusals\n",
                     mixed, grouped, steps);
         size_t norm = 0, rope = 0, gate = 0;
         norm += check_gated_norm(g, 2, 10);
         norm += check_gated_norm(g, 4, 128);
-        const size_t tiny[4] = {2, 1, 1, 0}, files[4] = {11, 11, 10, 0};
-        rope += check_partial_rope(g, 4, 40, 8, 100.0, tiny);
-        rope += check_partial_rope(g, 3, 256, 64, 1e7, files);
+        rope += check_partial_rope(g, 4, 40, 8, 100.0);
+        rope += check_partial_rope(g, 3, 256, 64, 1e7);
+        check_rope_tail(g);
         gate += check_sigmoid_mul(g, 4, 40);
         gate += check_sigmoid_mul(g, 3, 256);
         check_refusals();
-        std::printf("gated attention: %zu gated-norm heads, %zu partial-rope heads, %zu gated rows; refusals name each op\n", norm, rope, gate);
+        std::printf("gated attention: %zu gated-norm heads, %zu partial-rope heads, %zu gated rows; rope tail, refusals name each op\n", norm, rope, gate);
         std::printf("worst error as a fraction of its bound: conv %.3f, delta rule %.3f, gated norm %.3f, partial rope %.3f, sigmoid_mul %.3f\n",
                     worst.conv, worst.delta, worst.norm, worst.rope, worst.gate);
         return 0;

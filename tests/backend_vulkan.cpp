@@ -1,4 +1,4 @@
-// Vulkan backend test (docs/VULKAN.md): storage and submission over a real device, then every kernel against the CPU backend on random inputs.
+// Vulkan backend test (docs/VULKAN.md): storage and submission over a real device, then every kernel against the CPU backend on random inputs, and Q4_1 decode columns of every row kernel build against the same column alone.
 // Bit exact where the arithmetic is the same operation in the same order, a stated tolerance where a transcendental or a reduction order differs.
 // Exits 77, which CTest reports as skipped, when there is no loader or no device.
 #include <chrono>
@@ -1528,6 +1528,139 @@ size_t check_kernels(backend::Backend& vk) {
     return values;
 }
 
+// Decode columns: a row kernel's one-column, wide and grouped builds differ only in how many columns share a weight read, so every column of a call must be, bit for bit, that column computed alone, which takes the one-column build (docs/VULKAN.md, batch invariance).
+// Every row is a generated token's, so every width stays on the row kernel: plain calls and the output head of 1 to 64 columns, the residual add and a group of three projections at widths that reach every build and chunk, and routed entries of 1 to 32 tokens against each token alone.
+// The rows are Q4_1, whose kernel without the integer dot adds two terms a block, which a driver may order differently in each build it compiles; they are 4096 wide and 224, an odd block count, and 300 outputs leave the last workgroup rows past the end.
+size_t check_decode_columns(backend::Backend& vk) {
+    const size_t nout = 300, widest = 64;
+    const size_t widths[] = {1, 3, 8, 9, 13, 16, 29, 32, 40, 64};
+    const uint32_t q41 = quant::GGML_TYPE_Q4_1;
+    size_t columns = 0;
+    // `rows` Q4_1 rows of `in` values quantized from seeded floats.
+    auto matrix = [](size_t in, size_t rows, uint32_t seed) {
+        const auto f = uniform(rows * in, seed);
+        const size_t row_bytes = (in / 32) * quant::Q4_1_TYPESIZE;
+        std::vector<uint8_t> bytes(rows * row_bytes);
+        for (size_t r = 0; r < rows; ++r) quant::quantize_row_q4_1(f.data() + r * in, bytes.data() + r * row_bytes, in / 32);
+        return bytes;
+    };
+    auto floats = [&](const backend::BufferPtr& b, size_t n) {
+        std::vector<float> v(n);
+        vk.read(*b, 0, v.data(), n * sizeof(float));
+        return v;
+    };
+    // The first n columns of `rows` floats each, against the reference's, bit for bit.
+    auto same = [&](const std::vector<float>& got, const std::vector<float>& ref, size_t n, size_t rows, const char* what) {
+        for (size_t col = 0; col < n; ++col)
+            if (std::memcmp(got.data() + col * rows, ref.data() + col * rows, rows * sizeof(float)) != 0) {
+                std::fprintf(stderr, "  decode columns: column %zu of %zu\n", col, n);
+                throw std::runtime_error(what);
+            }
+        columns += n;
+    };
+
+    for (size_t nin : {size_t(4096), size_t(224)}) {
+        const size_t rows[3] = {nout, 37, 129};
+        const auto x = uniform(widest * nin, 300 + uint32_t(nin)), base = uniform(widest * nout, 301);
+        const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+        std::vector<backend::BufferPtr> w;
+        for (uint32_t i = 0; i < 3; ++i) {
+            const auto bytes = matrix(nin, rows[i], 302 + i);
+            w.push_back(vk.adopt(bytes.data(), bytes.size()));
+        }
+        for (int head = 0; head <= 1; ++head) {
+            try {
+                // n columns of X from col0 through projection i into y, as n generated tokens.
+                auto product = [&](size_t i, size_t col0, size_t n, backend::Slice y, bool add) {
+                    const backend::RowRun decode{n, 1};
+                    const backend::CSlice wi{w[i].get(), 0}, xs{xb.get(), col0 * nin};
+                    if (add) vk.matmul_add(q41, wi, xs, y, nin, rows[i], n, {&decode, 1});
+                    else if (head) vk.matmul_logits(q41, wi, xs, y, nin, rows[i], n, {&decode, 1});
+                    else vk.matmul(q41, wi, xs, y, nin, rows[i], n, {&decode, 1});
+                };
+                // Each column alone, onto its own base column where it adds.
+                auto alone = [&](size_t i, bool add) {
+                    std::vector<float> out(widest * rows[i]);
+                    const auto yb = vk.alloc(rows[i] * sizeof(float));
+                    for (size_t col = 0; col < widest; ++col) {
+                        if (add) vk.write(*yb, 0, base.data() + col * nout, nout * sizeof(float));
+                        product(i, col, 1, {yb.get(), 0}, add);
+                        vk.read(*yb, 0, out.data() + col * rows[i], rows[i] * sizeof(float));
+                    }
+                    return out;
+                };
+                const auto one = alone(0, false);
+                const auto yb = vk.alloc(widest * nout * sizeof(float));
+                for (size_t n = 1; n <= widest; ++n) {
+                    product(0, 0, n, {yb.get(), 0}, false);
+                    same(floats(yb, n * nout), one, n, nout, "a decode column differs from the same column alone");
+                }
+                if (head) continue;
+                const auto one_add = alone(0, true), one1 = alone(1, false), one2 = alone(2, false);
+                const std::vector<float>* ones[3] = {&one, &one1, &one2};
+                for (size_t n : widths) {
+                    vk.write(*yb, 0, base.data(), n * nout * sizeof(float));
+                    product(0, 0, n, {yb.get(), 0}, true);
+                    same(floats(yb, n * nout), one_add, n, nout, "a decode column's residual add differs from the same column alone");
+                    std::vector<backend::BufferPtr> out;
+                    for (size_t i = 0; i < 3; ++i) out.push_back(vk.alloc(n * rows[i] * sizeof(float)));
+                    const backend::RowRun decode{n, 1};
+                    vk.matmul_group({{q41, {w[0].get(), 0}, {out[0].get(), 0}, rows[0]}, {q41, {w[1].get(), 0}, {out[1].get(), 0}, rows[1]},
+                                     {q41, {w[2].get(), 0}, {out[2].get(), 0}, rows[2]}},
+                                    {xb.get(), 0}, nin, n, {&decode, 1});
+                    for (size_t i = 0; i < 3; ++i)
+                        same(floats(out[i], n * rows[i]), *ones[i], n, rows[i], "a grouped projection's decode column differs from the same column alone");
+                }
+            } catch (const std::runtime_error&) {
+                std::fprintf(stderr, "  decode columns: nin %zu%s\n", nin, head ? ", output head" : "");
+                throw;
+            }
+        }
+    }
+
+    // Routed: 8 experts, 2 a token, 1 to 32 tokens, so a pass's entries take the one-column build below two an expert and the grouped build from there.
+    // Gate and up in one call, and the down projection added into the residual through the combine, each token's against the same token alone.
+    const size_t n_expert = 8, k = 2, tokens = 32, rin = 4096;
+    const auto scores = uniform(tokens * n_expert, 310, -3.0f, 3.0f);
+    const auto x = uniform(tokens * rin, 311), x2 = uniform(tokens * k * rin, 312), base = uniform(tokens * nout, 313);
+    const auto sb = vk.adopt(scores.data(), scores.size() * sizeof(float));
+    const auto xb = vk.adopt(x.data(), x.size() * sizeof(float)), x2b = vk.adopt(x2.data(), x2.size() * sizeof(float));
+    const auto ids = vk.alloc(tokens * k * sizeof(float)), wts = vk.alloc(tokens * k * sizeof(float));
+    vk.route_experts({sb.get(), 0}, tokens, n_expert, k, true, {ids.get(), 0}, {wts.get(), 0});
+    auto routing = [&](size_t first) { return backend::Backend::Routing{{ids.get(), first * k}, {wts.get(), first * k}, k, n_expert}; };
+    try {
+        const auto g = matrix(rin, n_expert * nout, 314), u = matrix(rin, n_expert * nout, 315), d = matrix(rin, n_expert * nout, 316);
+        const auto gb = vk.adopt(g.data(), g.size()), ub = vk.adopt(u.data(), u.size()), db = vk.adopt(d.data(), d.size());
+        // Tokens first .. first + n: gate and up entries, then the down projection's rows added onto their base rows.
+        auto routed = [&](size_t first, size_t n) {
+            const backend::RowRun decode{n, 1};
+            const auto go = vk.alloc(n * k * nout * sizeof(float)), uo = vk.alloc(n * k * nout * sizeof(float));
+            const auto yo = vk.alloc(n * nout * sizeof(float));
+            vk.write(*yo, 0, base.data() + first * nout, n * nout * sizeof(float));
+            vk.matmul_experts({{q41, {gb.get(), 0}, {go.get(), 0}, nout}, {q41, {ub.get(), 0}, {uo.get(), 0}, nout}},
+                              {xb.get(), first * rin}, rin, n, routing(first), {&decode, 1});
+            vk.matmul_experts_add(q41, {db.get(), 0}, {x2b.get(), first * k * rin}, {yo.get(), 0}, rin, nout, n, routing(first), {&decode, 1});
+            std::vector<std::vector<float>> out = {floats(go, n * k * nout), floats(uo, n * k * nout), floats(yo, n * nout)};
+            return out;
+        };
+        std::vector<std::vector<float>> one(3);
+        for (size_t t = 0; t < tokens; ++t) {
+            const auto r = routed(t, 1);
+            for (size_t i = 0; i < 3; ++i) one[i].insert(one[i].end(), r[i].begin(), r[i].end());
+        }
+        for (size_t n = 1; n <= tokens; ++n) {
+            const auto r = routed(0, n);
+            same(r[0], one[0], n * k, nout, "a routed gate entry differs from the same token alone");
+            same(r[1], one[1], n * k, nout, "a routed up entry differs from the same token alone");
+            same(r[2], one[2], n, nout, "a routed down projection's row differs from the same token alone");
+        }
+    } catch (const std::runtime_error&) {
+        std::fprintf(stderr, "  decode columns: routed\n");
+        throw;
+    }
+    return columns;
+}
+
 std::vector<uint8_t> pattern(size_t bytes, uint32_t seed) {
     std::vector<uint8_t> v(bytes);
     uint32_t x = seed;
@@ -1824,6 +1957,8 @@ int main(int argc, char** argv) {
         const size_t values = check_kernels(*b);
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";
+        const size_t columns = check_decode_columns(*b);
+        std::cout << "backend-vulkan: " << columns << " Q4_1 decode columns equal to the same columns alone\n";
         std::cout << backend::vulkan_kernel_statistics(*b);
         if (!isa_dir.empty()) {
             size_t written = 0;

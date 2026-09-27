@@ -317,6 +317,7 @@ inputs at long histories. Both rows of a mixed short/long pass must equal the
 same rows taken separately, bit for bit; CPU comparisons retain the bound
 `1e-4 * (1 + abs(reference))`.
 A group of a Q8_0 and a Q4_0 projection whose batch reaches the 8-bit tile crossover but not the other types' must equal each type alone forced onto the row kernel, bit for bit, on a device whose profile puts batches between the two.
+Every Q4_1 decode column must be, bit for bit, the same column computed alone, whichever of the row kernel's one-column, wide and grouped builds takes it: plain calls and the output head of 1 to 64 generated tokens and the residual add and a group of three projections at widths that reach every build and chunk, on rows 4096 and 224 wide, and 8 experts routed 2 a token over 1 to 32 tokens on rows 4096 wide, each token's gate, up and down against the token alone.
 A matmul whose row runs are out of order must be refused even when every run takes the same kernel.
 An `embed` whose F32 or Q8_0 table holds fewer rows than the call names must be refused, even when every id is inside the table.
 Each refusal it makes of `matmul`, `matmul_add`, `matmul_group`, the routed products and `embed` is made in two passes, and a valid call after each pass must give what it gave before.

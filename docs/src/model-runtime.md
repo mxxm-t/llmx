@@ -46,8 +46,9 @@ delegated to a `backend::Backend`.
   `KVType::f16`, the runtime's one default: the CLI, the server, the
   synthetic bench and the split check all start from it.
 - `Sequence`: one request's history over a model's cache, made by
-  `Model::make_sequence`: the committed length of each stage, a block table
-  per KV storage, the state slot it holds from its first pass on in a model
+  `Model::make_sequence`: a block table per KV storage, the committed length
+  of each stage, which is its KV sequence's where its layers keep KV and a
+  count of its own otherwise, the state slot it holds from its first pass on in a model
   whose layers keep a state, whether a failed pass lost that state, and per
   device the ticket of the last pass that touched it, which a reset waits
   on. Movable, not copyable. The server keeps one

@@ -75,11 +75,17 @@ public:
     Sequence() = default;
     // The first stage's committed length.
     // The stages can disagree while a pass is part way through them, and the model continues a history from the first stage's (Model::history).
-    size_t length() const { return length_.empty() ? 0 : length_[0]; }
+    size_t length() const { return stage_length(0); }
     bool in_flight() const { return in_flight_; }
 private:
     friend class Model;
-    std::vector<size_t> length_;          // per stage, whatever its layers keep
+    // Stage s's committed length, which has one owner: the stage's KV sequence where its layers keep KV, else its own count.
+    size_t stage_length(size_t s) const {
+        if (storage_of_.empty()) return 0;
+        return storage_of_[s] >= 0 ? kv_[(size_t)storage_of_[s]].length() : length_[s];
+    }
+    std::vector<int> storage_of_;         // per stage, its KV storage, or -1 where its layers keep none
+    std::vector<size_t> length_;          // per stage, the count of a stage without KV
     std::vector<KVSequence> kv_;          // per KV storage
     StateSlot state_;                     // its slot in every state storage, from its first pass to its reset
     bool lost_ = false;                   // a failed pass left its state behind its length, so it continues only from a reset
@@ -393,6 +399,7 @@ public:
         if (state_layers_) throw std::logic_error("inference: a fork of a model whose layers keep a recurrent state");
         if (length > src.length()) throw std::logic_error("KV cache: a fork takes whole blocks of the history");
         Sequence f;
+        f.storage_of_ = src.storage_of_;
         f.length_.assign(stages_.size(), length);
         f.kv_.reserve(storages_.size());
         for (const KVSequence& kv : src.kv_) f.kv_.push_back(kv.fork(length));
@@ -401,9 +408,10 @@ public:
         return f;
     }
 
-    // A fresh history over this model's cache: a length per stage and a table per KV storage.
+    // A fresh history over this model's cache: a table per KV storage, and a count for each stage without one.
     Sequence make_sequence() {
         Sequence s;
+        for (const Stage& st : stages_) s.storage_of_.push_back(devices_[st.device]->storage_index);
         s.length_.assign(stages_.size(), 0);
         s.kv_.reserve(storages_.size());
         for (Device* d : storages_)
@@ -519,7 +527,9 @@ public:
         if (s.in_flight_) throw std::logic_error("inference: a reset of a sequence in flight");
         for (size_t d = 0; d < devices_.size(); ++d)
             if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
-        truncate(s, 0);
+        for (auto& kv : s.kv_) kv.reset();
+        std::fill(s.length_.begin(), s.length_.end(), 0);
+        s.lost_ = false;
         s.state_.release();
     }
 
@@ -770,7 +780,7 @@ private:
     }
 
     // The history a pass continues: the first stage's committed length, which a pipelined prompt's chunk commits first; outside a prompt every stage agrees.
-    size_t history(const Sequence& s) const { return s.length_[0]; }
+    size_t history(const Sequence& s) const { return s.stage_length(0); }
 
     // A history back to `length` in every stage and storage, the blocks beyond it returned.
     // A pass updates a state in place and a state exists only at the end of what it has read, so a history with a state that goes back anywhere but to 0, where the state reads as zero, is lost.
@@ -866,7 +876,7 @@ private:
         // A state is read and written in place in the sequence's slot, after the history this stage has committed.
         for (size_t e = 0; home.states && e < p.entries.size(); ++e) {
             const Sequence& q = *p.entries[e].seq;
-            p.states[st.device][e] = backend::StateView{home.states.get(), q.state_.slot(), q.state_.slot(), q.length_[s], p.entries[e].n};
+            p.states[st.device][e] = backend::StateView{home.states.get(), q.state_.slot(), q.state_.slot(), q.stage_length(s), p.entries[e].n};
         }
         size_t cur = st.device;
         const backend::RowRuns all{p.runs.data(), p.runs.size()};
@@ -902,8 +912,8 @@ private:
         for (size_t d : st.touches) ctx.tickets[d] = devices_[d]->b->submit();
         p.sent = ctx.tickets[cur];
         for (const BatchEntry& en : p.entries) {
-            en.seq->length_[s] += en.n;
             if (storage >= 0) en.seq->kv_[(size_t)storage].commit();
+            else en.seq->length_[s] += en.n;
             for (size_t d : st.touches) en.seq->last_[d] = ctx.tickets[d];
         }
     }

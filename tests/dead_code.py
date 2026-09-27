@@ -1324,7 +1324,11 @@ def plant(texts, path, before, add):
 def self_test(texts, found, listed):
     """The planted faults: a dead function, a function only tests call, an unused value of an enum a template parameter shares a name with, a macro never used, an override nothing calls, an unreached shader, a flag whose value only the help prints, a flag parsed and dropped, an unreached Python function, an option only another module's namespace reads, an unbuilt test source a record names, and a stale list entry.
     The faults one check reports share a copy of the tree, so each check runs once."""
-    flag_line = 'else if (a == "--ignore-eos")'
+    # The planted flags go before the --ignore-eos branch, found by its comparison whatever the parser names its spelling.
+    anchor = re.search(r'else if \(\w+ == "--ignore-eos"\)', texts[MAIN])
+    if not anchor:
+        raise AssertionError("dead-code self-test: main.cpp has no --ignore-eos branch to plant flags before")
+    flag_line = anchor.group(0)
     names = plant(texts, "src/core/utf8.hpp", None, "\nnamespace utf8 {\ninline int planted_dead_function() { return 1; }\n"
                   "inline int planted_probe() { return 2; }\n}\n#define PLANTED_MACRO 1\n")
     names = plant(plant(names, "tests/json.cpp", "int main(", "static int planted_use = utf8::planted_probe();\n"),

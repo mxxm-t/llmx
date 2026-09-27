@@ -47,6 +47,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, "tests", "data")
 # The synthetic fixtures' configurations, weights and texts come from the test modules that check them.
 sys.path.insert(0, os.path.join(ROOT, "tests"))
+# The qwen35 references run in the chat renderer's environment, whose transformers version tools/gen_chat_baseline.py pins.
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+from gen_chat_baseline import REFERENCE as CHAT_REFERENCE
 REFERENCE_REVISION = "c1899de289a04d12100db370d81485cdf75e47ca"
 
 # Each case targets a class of pretokenizer behaviour.
@@ -125,9 +128,10 @@ PPL_CHARS = 1024
 PPL_WINDOWS = ((64, 0), (64, 2), (123, 0))
 
 
-def ppl_text():
+def ppl_text(chars=PPL_CHARS):
+    """The first `chars` characters of wiki.test.raw, its line endings read as LF, the text every perplexity golden scores."""
     with open(os.path.join(ROOT, "tests", "data", "wiki.test.raw"), encoding="utf-8") as f:
-        return f.read(PPL_CHARS)
+        return f.read(chars)
 
 
 def ppl_window_bounds(n_tokens, context, limit):
@@ -243,22 +247,12 @@ def load_reference(args):
     return torch, transformers, tok, model
 
 
-# The HF Qwen3.5 text parameter each qwen35 GGUF tensor holds, and what the converter did to it (docs/QWEN35.md, GGUF conventions).
-# "norm" is stored as 1 + w and "a" as -exp(A_log); "rows", "qkv", "conv" and "columns" hold V heads in the tiled order, as whole rows, as the v rows after q and k, as the conv's v channels, and as input columns.
-QWEN35_NAMES = {"token_embd.weight": ("model.embed_tokens.weight", None), "output_norm.weight": ("model.norm.weight", "norm"),
-                "output.weight": ("lm_head.weight", None)}
-QWEN35_BLOCK_NAMES = {
-    "attn_norm.weight": ("input_layernorm.weight", "norm"), "post_attention_norm.weight": ("post_attention_layernorm.weight", "norm"),
-    "attn_qkv.weight": ("linear_attn.in_proj_qkv.weight", "qkv"), "attn_gate.weight": ("linear_attn.in_proj_z.weight", "rows"),
-    "ssm_alpha.weight": ("linear_attn.in_proj_a.weight", "rows"), "ssm_beta.weight": ("linear_attn.in_proj_b.weight", "rows"),
-    "ssm_conv1d.weight": ("linear_attn.conv1d.weight", "conv"), "ssm_a": ("linear_attn.A_log", "a"),
-    "ssm_dt.bias": ("linear_attn.dt_bias", "rows"), "ssm_norm.weight": ("linear_attn.norm.weight", None),
-    "ssm_out.weight": ("linear_attn.out_proj.weight", "columns"),
-    "attn_q.weight": ("self_attn.q_proj.weight", None), "attn_k.weight": ("self_attn.k_proj.weight", None),
-    "attn_v.weight": ("self_attn.v_proj.weight", None), "attn_output.weight": ("self_attn.o_proj.weight", None),
-    "attn_q_norm.weight": ("self_attn.q_norm.weight", "norm"), "attn_k_norm.weight": ("self_attn.k_norm.weight", "norm"),
-    "ffn_gate.weight": ("mlp.gate_proj.weight", None), "ffn_up.weight": ("mlp.up_proj.weight", None),
-    "ffn_down.weight": ("mlp.down_proj.weight", None)}
+def qwen35_names():
+    """The HF Qwen3.5 text parameter each qwen35 GGUF tensor holds, and what the converter did to it, from the one map tests/qwen35.py writes the tiny models with (docs/QWEN35.md, GGUF conventions).
+    Returns {GGUF name: (HF name, transform)} for the tensors outside the layers and {GGUF name within a block: (HF name within a layer, transform)}."""
+    from qwen35 import BLOCK_TENSORS, OTHER_TENSORS
+    return ({gguf: (hf, kind) for hf, (gguf, kind) in OTHER_TENSORS.items() if not gguf.startswith("blk.")},
+            {gguf: (hf, kind) for hf, (gguf, kind) in BLOCK_TENSORS.items()})
 
 
 def take_rows(values, cols, order, numpy):
@@ -279,15 +273,17 @@ def qwen35_tensors(model, numpy):
     """The tensors of the qwen35 GGUF `model` as HF holds them, with the converter's changes undone: (HF name, HF shape, flat values, type name).
     The MTP block, which HF has no module for, is left out."""
     import spec_decode
+    from qwen35 import tiled_order
     np = __import__("numpy") if numpy else None
+    names, block_names = qwen35_names()
     hk, hv, dk = (model.value("qwen35.ssm." + k) for k in ("group_count", "time_step_rank", "state_size"))
     dv = model.value("qwen35.ssm.inner_size") // hv
     layers = model.value("qwen35.block_count") - model.value("qwen35.nextn_predict_layers", 0)
     if hv % hk:
         raise SystemExit("%s has %d V heads over %d K heads" % (model.path, hv, hk))
-    r = hv // hk
-    # The converter stores HF's V head h r + s as V head s Hk + h, so HF's head i is the file's head heads[i].
-    heads = [(i % r) * hk + i // r for i in range(hv)]
+    # The file's head j holds HF's head tiled_order[j], so HF's head i is the file's head heads[i].
+    order = tiled_order(hk, hv)
+    heads = sorted(range(hv), key=order.__getitem__)
 
     def v_rows(block, offset=0):
         return list(range(offset)) + [offset + heads[i] * block + j for i in range(hv) for j in range(block)]
@@ -296,7 +292,7 @@ def qwen35_tensors(model, numpy):
         match = re.fullmatch(r"blk\.(\d+)\.(.+)", t.name)
         if match and int(match[1]) >= layers:
             continue
-        hf, kind = QWEN35_BLOCK_NAMES.get(match[2], (None, None)) if match else QWEN35_NAMES.get(t.name, (None, None))
+        hf, kind = block_names.get(match[2], (None, None)) if match else names.get(t.name, (None, None))
         if hf is None:
             raise SystemExit("GGUF tensor %s has no HF Qwen3.5 parameter" % t.name)
         hf = "model.layers.%s.%s" % (match[1], hf) if match else hf
@@ -308,9 +304,9 @@ def qwen35_tensors(model, numpy):
         elif kind == "a":
             values = take_rows(values, 1, heads, numpy)
             values = np.log(-values.astype(np.float64)).astype(np.float32) if numpy else [math.log(-v) for v in values]
-        elif kind == "rows":
+        elif kind == "heads":
             values = take_rows(values, cols, v_rows(shape[0] // hv), numpy)
-        elif kind in ("qkv", "conv"):
+        elif kind in ("channels", "conv"):
             values = take_rows(values, cols, v_rows(dv, 2 * hk * dk), numpy)
             shape = [shape[0], 1, shape[1]] if kind == "conv" else shape
         elif kind == "columns":
@@ -471,6 +467,35 @@ def gen_perplexity(args, loaded=None):
           % (path, doc["n_tokens"], mean_nll, doc["perplexity"]))
 
 
+# The versions every qwen35 reference is made with, the second reference environment of docs/ASSETS.md, which the chat renderer shares; another is refused, since only the recorded fields would show the change.
+QWEN35_ENV = {"torch": "2.5.1+cpu", "transformers": CHAT_REFERENCE["transformers"], "tokenizers": "0.23.2"}
+# HF's qwen3_5 code runs the linear-attention or conv package in place of its own torch functions whenever one is installed, and a hub kernel whenever a load asks the kernels package for one, so none may be installed.
+QWEN35_REPLACEMENTS = ("kernels", "fla", "causal_conv1d")
+# The checkpoint keys Qwen3_5ForCausalLM may leave unused: the MTP block and the vision tower, which it drops at load.
+QWEN35_UNUSED = re.compile(r"(?:mtp|model\.visual)\.")
+
+
+def qwen35_runtime():
+    """torch, transformers and HF's qwen3_5 modeling module, refused unless none of QWEN35_REPLACEMENTS is installed and the versions are QWEN35_ENV's."""
+    for name in QWEN35_REPLACEMENTS:
+        if importlib.util.find_spec(name) is not None:
+            raise SystemExit("qwen35: the %s package is installed, and HF would run it in place of its torch functions" % name)
+    import torch
+    import tokenizers
+    import transformers
+    found = {"torch": torch.__version__, "transformers": transformers.__version__, "tokenizers": tokenizers.__version__}
+    if found != QWEN35_ENV:
+        raise SystemExit("qwen35: the references are made with %s; this environment has %s" % (QWEN35_ENV, found))
+    return torch, transformers, importlib.import_module("transformers.models.qwen3_5.modeling_qwen3_5")
+
+
+def qwen35_environment():
+    """qwen35_runtime with the Hub and transformers kept offline, for the references that read only local files."""
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    return qwen35_runtime()
+
+
 # The qwen35 checkpoints whose real-model goldens `qwen35` writes from HF's full forward in float32.
 # Each gives its repository and commit with the SHA-256 of every file the reference reads, the pinned GGUF files of tests/data/fixtures.json the goldens are for, the SHA-256 of the chat template those files carry, whose text tests/data/baseline_chat_template.json holds, and the directory under tests/data the goldens go to.
 QWEN35_MODELS = {
@@ -491,8 +516,6 @@ QWEN35_MODELS = {
         "gguf_files": ["Qwen3.5-4B-Q4_K_M.gguf"],
         "template_sha256": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715", "directory": "qwen35-4b"},
 }
-# The versions the qwen35 references are made with, the second reference environment of docs/ASSETS.md; another is refused, since only the recorded fields would show the change.
-QWEN35_ENV = {"torch": "2.5.1+cpu", "transformers": "5.17.0", "tokenizers": "0.23.2"}
 # The characters of wiki.test.raw each perplexity golden scores, by its window: past two windows of 512 tokens, which the hosted HF job scores, and past one of 4096, scored by hand.
 QWEN35_PPL = {512: 5000, 4096: 20000}
 # The chat golden's conversations, each rendered with a generation prompt under the model file's own template.
@@ -538,24 +561,14 @@ def qwen35_checkpoint(spec):
 def load_qwen35(args):
     """HF's Qwen3_5ForCausalLM on the pinned checkpoint of args.qwen35_model, in float32 with eager attention and transformers' torch forms of the linear attention and conv, and the tokenizer of the qwen35 tokenizer golden.
     The model must take every parameter from the checkpoint, which may hold beyond them only the MTP and vision weights."""
-    import importlib.util
-    import torch
+    torch, transformers, modeling_qwen3_5 = qwen35_runtime()
     import tokenizers
-    import transformers
     from transformers import Qwen3_5ForCausalLM
-    from transformers.models.qwen3_5 import modeling_qwen3_5
-    found = {"torch": torch.__version__, "transformers": transformers.__version__, "tokenizers": tokenizers.__version__}
-    if found != QWEN35_ENV:
-        raise SystemExit("the qwen35 references are made with %s; this environment has %s" % (QWEN35_ENV, found))
-    # transformers runs these packages' kernels in place of its torch forms when they are installed.
-    present = [name for name in ("kernels", "fla", "causal_conv1d") if importlib.util.find_spec(name)]
-    if present:
-        raise SystemExit("the qwen35 references run transformers' torch forms, but %s is installed" % ", ".join(present))
     spec = QWEN35_MODELS[args.qwen35_model]
     torch.set_num_threads(args.threads)
     model, info = Qwen3_5ForCausalLM.from_pretrained(qwen35_checkpoint(spec), dtype=torch.float32, attn_implementation="eager",
                                                      output_loading_info=True)
-    unexpected = [key for key in info["unexpected_keys"] if not re.match(r"(mtp|model\.visual)\.", key)]
+    unexpected = [key for key in info["unexpected_keys"] if not QWEN35_UNUSED.match(key)]
     if info["missing_keys"] or info["mismatched_keys"] or unexpected:
         raise SystemExit("qwen35: %s loads with missing %s, mismatched %s and unexpected %s"
                          % (args.qwen35_model, sorted(info["missing_keys"]), sorted(info["mismatched_keys"]), sorted(unexpected)))
@@ -602,16 +615,15 @@ def sequence_nll(model, torch, ids, rows=512):
 def gen_perplexity_qwen35(args, loaded, context):
     """The qwen35 perplexity golden for windows of `context` tokens: the whole excerpt as one sequence, then its disjoint windows, scored as gen_perplexity scores them.
     The golden keeps the excerpt's length and the digests of its text and ids, from which tests/baseline_qwen35.py reads it back."""
-    from baseline_qwen35 import PPL_GOLDENS, ids_sha256, wiki_excerpt
+    from baseline_qwen35 import PPL_GOLDENS, ids_sha256
     torch, transformers, tok, model = loaded
     chars = QWEN35_PPL[context]
-    text = wiki_excerpt(chars)
+    text = ppl_text(chars)
     ids = tok(text).input_ids
     mean_nll = sequence_nll(model, torch, ids).mean().item()
     total_nll, used, scored, chunks = 0.0, 0, 0, 0
-    for window in ids.split(context, dim=1):
-        if window.shape[1] < 2:
-            break
+    for start, end in ppl_window_bounds(ids.shape[1], context, 0):
+        window = ids[:, start:end]
         total_nll += sequence_nll(model, torch, window).sum().item()
         used += window.shape[1]
         scored += window.shape[1] - 1
@@ -790,28 +802,8 @@ def gen_moe(output_dir=OUT_DIR):
     print("wrote %s (full logits and windowed NLL; smallest routing gap %.2e)" % (path, min(gaps)))
 
 
-# The qwen35 goldens come from transformers 5.17.0's own torch functions for the linear-attention layers.
-# HF's qwen3_5 code runs the linear-attention or conv package in their place whenever one is installed, and a hub kernel whenever a load asks the kernels package for one, so none may be installed.
-QWEN35_TRANSFORMERS = "5.17.0"
-QWEN35_REPLACEMENTS = ("kernels", "fla", "causal_conv1d")
-# The checkpoint keys Qwen3_5ForCausalLM may leave unused: the MTP block and the vision tower, which it drops at load.
-QWEN35_UNUSED = re.compile(r"(?:mtp|model\.visual)\.")
 # The smallest gap allowed between a greedy step's top two logits, since a nearer tie could turn over under other rounding.
 QWEN35_GREEDY_GAP = 1e-4
-
-
-def qwen35_environment():
-    """torch, transformers and HF's qwen3_5 modeling module, offline, at transformers 5.17.0, with none of the packages that would replace HF's torch functions."""
-    os.environ["HF_HUB_OFFLINE"] = "1"
-    os.environ["TRANSFORMERS_OFFLINE"] = "1"
-    present = [name for name in QWEN35_REPLACEMENTS if importlib.util.find_spec(name) is not None]
-    if present:
-        raise SystemExit("qwen35: %s is installed, and HF's qwen3_5 code would run it in place of its torch functions" % ", ".join(present))
-    import torch
-    import transformers
-    if transformers.__version__ != QWEN35_TRANSFORMERS:
-        raise SystemExit("qwen35: the goldens come from transformers %s, not %s" % (QWEN35_TRANSFORMERS, transformers.__version__))
-    return torch, transformers, importlib.import_module("transformers.models.qwen3_5.modeling_qwen3_5")
 
 
 def qwen35_hf_config(fixture):

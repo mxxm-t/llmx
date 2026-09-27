@@ -444,28 +444,31 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual({"tokenizer.json": doc["tokenizer_json_sha256"], "tokenizer_config.json": doc["tokenizer_config_json_sha256"]},
                          generator.QWEN35_SHA256)
 
-    def test_qwen35_environment_is_offline_at_its_version_without_replacements(self):
-        # The goldens come from HF's own torch functions at transformers 5.17.0, so another version, or a package HF's qwen3_5 code would run in their place, is refused.
+    def test_qwen35_environment_is_offline_at_its_versions_without_replacements(self):
+        # Every qwen35 reference comes from HF's own torch functions in one pinned environment, so another torch, transformers or tokenizers version, or a package HF's qwen3_5 code would run in their place, is refused.
         modeling = SimpleNamespace()
+        self.assertEqual(generator.QWEN35_ENV["transformers"], generator.CHAT_REFERENCE["transformers"])
 
-        def modules(version):
-            return {"torch": SimpleNamespace(__version__="test-torch"), "transformers": SimpleNamespace(__version__=version),
-                    "transformers.models.qwen3_5.modeling_qwen3_5": modeling}
+        def modules(**versions):
+            found = dict(generator.QWEN35_ENV, **versions)
+            return {"torch": SimpleNamespace(__version__=found["torch"]), "tokenizers": SimpleNamespace(__version__=found["tokenizers"]),
+                    "transformers": SimpleNamespace(__version__=found["transformers"]), "transformers.models.qwen3_5.modeling_qwen3_5": modeling}
 
-        with patch.dict(os.environ), patch.dict(sys.modules, modules("5.17.0")), \
+        with patch.dict(os.environ), patch.dict(sys.modules, modules()), \
              patch.object(generator.importlib.util, "find_spec", return_value=None) as find:
             os.environ.pop("HF_HUB_OFFLINE", None)
             os.environ.pop("TRANSFORMERS_OFFLINE", None)
             self.assertIs(generator.qwen35_environment()[2], modeling)
             self.assertEqual((os.environ["HF_HUB_OFFLINE"], os.environ["TRANSFORMERS_OFFLINE"]), ("1", "1"))
             self.assertEqual(sorted(c.args[0] for c in find.call_args_list), ["causal_conv1d", "fla", "kernels"])
-        with patch.dict(os.environ), patch.dict(sys.modules, modules("5.16.0")), \
-             patch.object(generator.importlib.util, "find_spec", return_value=None), self.assertRaisesRegex(SystemExit, "5.17.0"):
-            generator.qwen35_environment()
+        for change in ({"torch": "2.6.0+cpu"}, {"transformers": "5.16.0"}, {"tokenizers": "0.22.1"}):
+            with self.subTest(change=change), patch.dict(os.environ), patch.dict(sys.modules, modules(**change)), \
+                 patch.object(generator.importlib.util, "find_spec", return_value=None), self.assertRaisesRegex(SystemExit, list(change.values())[0]):
+                generator.qwen35_environment()
         for package in generator.QWEN35_REPLACEMENTS:
-            with self.subTest(package=package), patch.dict(os.environ), patch.dict(sys.modules, modules("5.17.0")), \
+            with self.subTest(package=package), patch.dict(os.environ), patch.dict(sys.modules, modules()), \
                  patch.object(generator.importlib.util, "find_spec", side_effect=lambda name: object() if name == package else None), \
-                 self.assertRaisesRegex(SystemExit, package):
+                 self.assertRaisesRegex(SystemExit, "the %s package" % package):
                 generator.qwen35_environment()
 
     def test_qwen35_loading_holds_float32_eager_attention_and_the_keys(self):
@@ -502,7 +505,8 @@ class ReferenceGenerator(unittest.TestCase):
         # The goldens come from HF's recurrence at the pinned version in float32 with eager attention, the full forward, which runs the chunked form, lands elsewhere, and only the MTP block's keys go unused.
         import qwen35
         doc = qwen35.golden()
-        self.assertEqual((doc["transformers_version"], doc["dtype"], doc["attention"]), (generator.QWEN35_TRANSFORMERS, "float32", "eager"))
+        self.assertEqual((doc["torch_version"], doc["transformers_version"], doc["dtype"], doc["attention"]),
+                         (generator.QWEN35_ENV["torch"], generator.QWEN35_ENV["transformers"], "float32", "eager"))
         bases = [fixture["name"] for fixture in doc["fixtures"] if not fixture["mtp"]]
         for fixture in doc["fixtures"]:
             with self.subTest(fixture=fixture["name"]):
@@ -514,6 +518,18 @@ class ReferenceGenerator(unittest.TestCase):
                     self.assertEqual(fixture["unused_keys"], [])
                     self.assertGreater(fixture["full_forward_distance"], 0)
                     self.assertGreaterEqual(fixture["greedy"]["min_gap"], generator.QWEN35_GREEDY_GAP)
+
+    def test_tiled_v_head_order(self):
+        # tests/qwen35.py owns the order for the tiny writer, the file-exact references and the layered reference's GGUF comparison.
+        import qwen35
+        self.assertEqual(qwen35.tiled_order(2, 6), [0, 3, 1, 4, 2, 5])
+        self.assertEqual(qwen35.tiled_order(16, 16), list(range(16)))
+        # GGUF V head j reads K head j mod Hk, and the HF head it holds reads K head floor(i / r), the same one.
+        for k_heads, v_heads in ((16, 32), (16, 48)):
+            order = qwen35.tiled_order(k_heads, v_heads)
+            self.assertEqual(sorted(order), list(range(v_heads)))
+            self.assertTrue(all(order[j] // (v_heads // k_heads) == j % k_heads for j in range(v_heads)))
+        self.assertEqual(qwen35.tiled(list("abcdef"), 2, 6, 1), list("adbecf"))
 
     def test_the_writers_tiled_order_maps_hf_dt_bias_onto_a_4b_gguf(self):
         # HF's dt_bias of one Qwen3.5-4B layer, put in the tiny qwen35 writer's tiled order, is that layer's ssm_dt.bias in a 4B GGUF bit for bit, and in HF's own order it is not.
@@ -541,7 +557,7 @@ LAYERED_SPEC.loader.exec_module(layered)
 
 
 class LayeredReference(unittest.TestCase):
-    """tools/gen_layered_reference.py, which needs torch to run, through what it does without it: its arguments, its V-head order, its inputs, and the records it committed."""
+    """tools/gen_layered_reference.py, which needs torch to run, through what it does without it: its arguments, its environment, its inputs, and the records it committed."""
 
     def test_arguments(self):
         with tempfile.TemporaryDirectory(prefix="llmx_layered_args_") as directory:
@@ -564,30 +580,23 @@ class LayeredReference(unittest.TestCase):
                         layered.parse_args(argv)
                     self.assertEqual(error.exception.code, 2)
 
-    def test_tiled_v_head_order(self):
-        self.assertEqual(layered.tiled_order(2, 6), [0, 3, 1, 4, 2, 5])
-        self.assertEqual(layered.tiled_order(16, 16), list(range(16)))
-        # GGUF V head j reads K head j mod Hk, and the HF head it holds reads K head floor(i / r), the same one.
-        for k_heads, v_heads in ((16, 32), (16, 48)):
-            order = layered.tiled_order(k_heads, v_heads)
-            self.assertEqual(sorted(order), list(range(v_heads)))
-            self.assertTrue(all(order[j] // (v_heads // k_heads) == j % k_heads for j in range(v_heads)))
-
-    def test_runtime_refuses_other_versions_and_every_package_that_replaces_torch_code(self):
-        torch = SimpleNamespace(__version__=layered.TORCH_VERSION, set_num_threads=MagicMock())
-        transformers = SimpleNamespace(__version__=layered.TRANSFORMERS_VERSION)
-        with patch.dict(os.environ), patch.dict(sys.modules, {"torch": torch, "transformers": transformers}):
-            self.assertEqual(layered.REPLACING_PACKAGES, ("kernels", "fla", "causal_conv1d"))
-            for package in layered.REPLACING_PACKAGES:
+    def test_runtime_is_the_qwen35_environment_on_its_threads(self):
+        # The layered reference runs offline in tools/gen_baseline.py's qwen35 environment, so it refuses what that refuses.
+        torch = SimpleNamespace(__version__=generator.QWEN35_ENV["torch"], set_num_threads=MagicMock())
+        transformers = SimpleNamespace(__version__=generator.QWEN35_ENV["transformers"])
+        modules = {"torch": torch, "transformers": transformers, "tokenizers": SimpleNamespace(__version__=generator.QWEN35_ENV["tokenizers"]),
+                   "transformers.models.qwen3_5.modeling_qwen3_5": SimpleNamespace()}
+        with patch.dict(os.environ), patch.dict(sys.modules, modules):
+            for package in generator.QWEN35_REPLACEMENTS:
                 with self.subTest(package=package), \
-                     patch.object(layered.importlib.util, "find_spec", side_effect=lambda name, package=package: object() if name == package else None), \
+                     patch.object(importlib.util, "find_spec", side_effect=lambda name, package=package: object() if name == package else None), \
                      self.assertRaises(SystemExit) as error:
                     layered.runtime(2)
                 self.assertIn("the %s package" % package, str(error.exception))
-            with patch.object(layered.importlib.util, "find_spec", return_value=None):
+            with patch.object(importlib.util, "find_spec", return_value=None):
                 self.assertEqual(layered.runtime(2), (torch, transformers))
                 torch.set_num_threads.assert_called_once_with(2)
-                self.assertEqual(os.environ["HF_HUB_OFFLINE"], "1")
+                self.assertEqual((os.environ["HF_HUB_OFFLINE"], os.environ["TRANSFORMERS_OFFLINE"]), ("1", "1"))
                 for module, version in ((torch, "2.6.0+cpu"), (transformers, "5.18.0")):
                     with self.subTest(version=version), patch.object(module, "__version__", version), self.assertRaises(SystemExit):
                         layered.runtime(2)
@@ -619,7 +628,6 @@ class LayeredReference(unittest.TestCase):
 
         def model(tied):
             return SimpleNamespace(state_dict=lambda: dict.fromkeys(names), base_model_prefix="model",
-                                   _keys_to_ignore_on_load_unexpected=[r"^mtp.*", r"^model.visual.*"],
                                    config=SimpleNamespace(tie_word_embeddings=tied))
 
         stored = {"model.language_model.embed_tokens.weight": "a.safetensors", "model.language_model.layers.0.mlp.weight": "b.safetensors",
@@ -709,7 +717,7 @@ class LayeredReference(unittest.TestCase):
         doc = json.loads((Path(generator.OUT_DIR) / "layered_equality.json").read_text(encoding="utf-8"))
         self.assertEqual((doc["reference_repo"], doc["reference_revision"]), (layered.EQUALITY_REPO, layered.EQUALITY_REVISION))
         self.assertEqual((doc["transformers_version"], doc["torch_version"], doc["reference_dtype"], doc["attention"]),
-                         (layered.TRANSFORMERS_VERSION, layered.TORCH_VERSION, "float32", "eager"))
+                         (generator.QWEN35_ENV["transformers"], generator.QWEN35_ENV["torch"], "float32", "eager"))
         self.assertTrue(doc["parameters"] > 0 and doc["parameters_equal"] == doc["parameters"] and doc["inv_freq_equal"])
         # Every input the goldens take, each prompt and the text whole and in every window, with the full forward's logits bit for bit.
         tokens = next(case["tokens"] for case in doc["cases"] if case["label"] == "perplexity")
@@ -730,7 +738,7 @@ class LayeredReference(unittest.TestCase):
                 for name in ("baseline_logits.json", "baseline_perplexity.json"):
                     doc = docs[name]
                     self.assertEqual((doc["transformers_version"], doc["torch_version"], doc["reference_dtype"], doc["attention"], doc["threads"]),
-                                     (layered.TRANSFORMERS_VERSION, layered.TORCH_VERSION, "float32", "eager", 6))
+                                     (generator.QWEN35_ENV["transformers"], generator.QWEN35_ENV["torch"], "float32", "eager", 6))
                     self.assertRegex(doc["reference_revision"], r"^[0-9a-f]{40}$")
                     self.assertTrue(doc["layered"]["safetensors_sha256"])
 

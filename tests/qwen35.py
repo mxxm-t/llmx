@@ -113,15 +113,16 @@ def raw_weights(fixture):
     return result
 
 
-def tiled(values, k_heads, v_heads, block):
-    """`values`, `v_heads` blocks of `block` values in HF's order, which groups the V heads by the K head they read, in the converter's tiled order.
-    GGUF V head j = s Hk + h holds HF's V head h r + s, with Hk = `k_heads` and r = `v_heads` / Hk, so it reads K head j mod Hk; with Hv = Hk nothing moves."""
+def tiled_order(k_heads, v_heads):
+    """The HF V head each GGUF V head holds in the converter's tiled order, the one owner of that order for the writer and the references.
+    HF groups the V heads by the K head they read, and GGUF V head j = s Hk + h holds HF's V head h r + s, with Hk = `k_heads` and r = `v_heads` / Hk, so it reads K head j mod Hk; with Hv = Hk nothing moves."""
     r = v_heads // k_heads
-    out = []
-    for j in range(v_heads):
-        source = (j % k_heads) * r + j // k_heads
-        out.extend(values[source * block:(source + 1) * block])
-    return out
+    return [(j % k_heads) * r + j // k_heads for j in range(v_heads)]
+
+
+def tiled(values, k_heads, v_heads, block):
+    """`values`, `v_heads` blocks of `block` values in HF's order, in the converter's tiled order."""
+    return [v for source in tiled_order(k_heads, v_heads) for v in values[source * block:(source + 1) * block]]
 
 
 def float32(value):
@@ -129,7 +130,7 @@ def float32(value):
 
 
 # The GGUF name and transform the converter gives the parameter of a decoder layer or of the MTP layer, by its name within the layer.
-# "norm" stores 1 + w, "a" stores -exp(A_log) in the tiled order, "heads" tiles whole rows or entries by V head, "channels" tiles the v rows or channels after the q and k ones, and "columns" tiles each row's input columns.
+# "norm" stores 1 + w, "a" stores -exp(A_log) in the tiled order, "heads" tiles whole rows or entries by V head, "channels" tiles the v rows after the q and k ones, "conv" does so for the conv's channels and drops its middle axis, and "columns" tiles each row's input columns.
 BLOCK_TENSORS = {
     "input_layernorm.weight": ("attn_norm.weight", "norm"),
     "post_attention_layernorm.weight": ("post_attention_norm.weight", "norm"),
@@ -137,7 +138,7 @@ BLOCK_TENSORS = {
     "linear_attn.in_proj_z.weight": ("attn_gate.weight", "heads"),
     "linear_attn.in_proj_b.weight": ("ssm_beta.weight", "heads"),
     "linear_attn.in_proj_a.weight": ("ssm_alpha.weight", "heads"),
-    "linear_attn.conv1d.weight": ("ssm_conv1d.weight", "channels"),
+    "linear_attn.conv1d.weight": ("ssm_conv1d.weight", "conv"),
     "linear_attn.dt_bias": ("ssm_dt.bias", "heads"),
     "linear_attn.A_log": ("ssm_a", "a"),
     "linear_attn.norm.weight": ("ssm_norm.weight", None),
@@ -183,13 +184,13 @@ def gguf_tensors(fixture, raw):
             values = tiled([-float32(math.exp(w)) for w in values], k_heads, v_heads, 1)
         elif transform == "heads":
             values = tiled(values, k_heads, v_heads, len(values) // v_heads)
-        elif transform == "channels":
+        elif transform in ("channels", "conv"):
             cut = len(values) // shape[0] * qk
             values = values[:cut] + tiled(values[cut:], k_heads, v_heads, (len(values) - cut) // v_heads)
         elif transform == "columns":
             row = shape[1]
             values = [v for start in range(0, len(values), row) for v in tiled(values[start:start + row], k_heads, v_heads, row // v_heads)]
-        out.append((target, name, list(reversed([d for d in shape if d != 1])), values))
+        out.append((target, name, list(reversed([shape[0], shape[2]] if transform == "conv" else shape)), values))
     return out
 
 

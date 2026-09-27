@@ -183,4 +183,71 @@ private:
     std::vector<int32_t> blocks_;
 };
 
+// The slots of a model's recurrent state, one per sequence that holds a state, each the same slot in every state storage.
+// A slot holds nothing a sequence must clear: a history of length 0 reads a zero state whatever its slot holds.
+// Sequences hold the pool's address, so it is neither copied nor moved.
+class SlotPool {
+public:
+    SlotPool() = default;
+    SlotPool(const SlotPool&) = delete;
+    SlotPool& operator=(const SlotPool&) = delete;
+
+    void configure(size_t slots) {
+        if (held_) throw std::logic_error("state slots reconfigured while some are held");
+        free_.clear();
+        free_.reserve(slots);
+        for (size_t s = slots; s-- > 0;) free_.push_back(s);
+        held_ = 0;
+    }
+    size_t acquire() {
+        if (free_.empty()) throw std::runtime_error("inference: every recurrent state slot is held");
+        const size_t s = free_.back();
+        free_.pop_back();
+        ++held_;
+        return s;
+    }
+    void release(size_t s) noexcept {
+        free_.push_back(s);
+        --held_;
+    }
+
+private:
+    std::vector<size_t> free_;   // taken from the back, slot 0 first
+    size_t held_ = 0;
+};
+
+// A sequence's hold on one slot of a SlotPool, returned when it is released, moved over or destroyed.
+class StateSlot {
+public:
+    StateSlot() = default;
+    StateSlot(const StateSlot&) = delete;
+    StateSlot& operator=(const StateSlot&) = delete;
+    StateSlot(StateSlot&& o) noexcept : pool_(o.pool_), slot_(o.slot_) { o.pool_ = nullptr; }
+    StateSlot& operator=(StateSlot&& o) noexcept {
+        if (this != &o) {
+            release();
+            pool_ = o.pool_;
+            slot_ = o.slot_;
+            o.pool_ = nullptr;
+        }
+        return *this;
+    }
+    ~StateSlot() { release(); }
+
+    size_t slot() const { return slot_; }
+    void take(SlotPool& pool) {
+        if (pool_) return;
+        slot_ = pool.acquire();
+        pool_ = &pool;
+    }
+    void release() noexcept {
+        if (pool_) pool_->release(slot_);
+        pool_ = nullptr;
+    }
+
+private:
+    SlotPool* pool_ = nullptr;
+    size_t slot_ = 0;
+};
+
 } // namespace infer

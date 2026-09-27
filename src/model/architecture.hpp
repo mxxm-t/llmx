@@ -62,10 +62,11 @@ struct ModelPlan {
     size_t residual = 0;                // floats in a residual row: slot 0, a handoff row, a crossing
     std::vector<size_t> slots;          // floats one row takes in each arena slot; slot 0 is the residual
     size_t kv_heads = 0, head_dim = 0;  // K and V of every layer whose cache is KV: heads, and each head's width
+    backend::StateShape state;          // the recurrent state of every layer whose cache is a state
     std::vector<size_t> tables;         // floats in each position table
 };
 
-// One call of an architecture's part: the backend of the device it runs on and that device's arena, the residual at the call's first row, the rows and their runs, the weights to read by role id, the layer's kind and cache views, the rows' positions, the position tables on that device, and a run list the part may rebuild, which holds a run for every entry of the pass without allocating.
+// One call of an architecture's part: the backend of the device it runs on and that device's arena, the residual at the call's first row, the rows and their runs, the weights to read by role id, the layer's kind and cache views, the rows' positions, the position tables on that device, a run list the part may rebuild, which holds a run for every entry of the pass without allocating, and a state layer's views.
 struct Step {
     backend::Backend& b;
     backend::Buffer* arena;
@@ -76,10 +77,13 @@ struct Step {
     const Weight* w;                    // the layer's row, the pass's, or a streamed layer's copies and windows
     uint8_t kind;
     const backend::KVView* views;
-    size_t n_views, kv_layer;
+    size_t n_views, kv_layer;           // views: one per entry, a KV layer's; n_views counts a state layer's too
     const uint32_t* pos;
     const backend::BufferPtr* tables;
     std::vector<backend::RowRun>* scratch;
+    // A state layer's views, one per entry, each reading and writing its sequence's slot, and the layer's index in its device's state storage.
+    const backend::StateView* states = nullptr;
+    size_t state_layer = 0;
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
 };
 

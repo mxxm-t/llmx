@@ -21,7 +21,8 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   pass's roles and each layer's, the context length, and what the arena,
   the caches and the tables take: the residual row, the arena's slot
   widths, the K and V heads and head width of every layer whose cache is
-  KV, and the position
+  KV, the recurrent state's shape (`backend::StateShape`) of every layer
+  whose cache is a state, and the position
   tables' sizes).
   - A `RoleKind` says how a role's tensor is checked and whether the fit
     counts it as a product: `norm` is F32 `[in]`, `matrix` is `[in, out]`
@@ -46,9 +47,12 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   call's first row (`x`), the rows and their runs, the row of weights by
   role id (the layer's, the pass's, or a streamed layer's copies and
   windows), the layer's kind, the cache views and the layer's index in its
-  storage, the rows' positions, the position tables on that device, and a
+  storage, the rows' positions, the position tables on that device, a
   run list the part may rebuild, which the runtime reserves at a run per
-  row so the part does not allocate. `HeadStep` adds the
+  row so the part does not allocate, and for a layer whose cache is a state
+  its views (`states`, one per entry, each reading and writing its
+  sequence's slot after the history the stage has committed) and its index
+  in its device's state storage. `HeadStep` adds the
   rows that want logits, their runs and the slice their logits go to.
 - `Architecture`: the interface an architecture implements, immutable once
   read from a file, so models built from one set of weights share it.

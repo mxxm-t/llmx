@@ -1,9 +1,11 @@
-# `src/model/kv_cache.hpp` - logical KV cache
+# `src/model/kv_cache.hpp` - logical KV cache and state slots
 
 `infer::BlockPool` and `infer::KVSequence` are the backend-neutral half of the
 paged KV cache designed in [KV-CACHE](../KV-CACHE.md). They hold no floats:
 physical blocks live in a `backend::KVStorage` and the model layer never
-computes an offset into them.
+computes an offset into them. `infer::SlotPool` and `infer::StateSlot` are
+the same half of the recurrent state ([QWEN35](../QWEN35.md), The recurrent
+state), whose slots live in a `backend::StateStorage`.
 
 - `BlockPool(max_blocks)` hands out dense block ids from a free list with a
   refcount per id. `alloc` throws when the budget is exhausted; `release`
@@ -35,8 +37,17 @@ computes an offset into them.
   never allocate and cannot fail half way. `Model` is not copyable or
   movable for the same reason.
 
-`Model` owns one pool per device that runs attention, and one default
-sequence; a `Sequence` holds a table per storage and `Model::fork` forks
+- `SlotPool` hands out the state slots of a model, one per sequence that
+  holds a state and the same slot in every state storage: `acquire` throws
+  when every slot is held, `release` returns one, and `configure` sets the
+  count in place and is refused while any is held. A slot holds nothing a
+  sequence must clear, since a history of length 0 reads a zero state
+  whatever its slot holds. `StateSlot` is a sequence's hold on one slot,
+  taken by `take` and returned by `release`, when it is moved over or when
+  it is destroyed; neither class is copyable and the pool is not movable.
+
+`Model` owns one pool per device that runs attention, one slot pool when a
+layer keeps a state, and one default sequence; a `Sequence` holds a table per storage and `Model::fork` forks
 every table at one length. The server keeps one sequence per request over
 a shared pool, finds prefix donors by comparing tokens in
 `server/scheduler.hpp` and forks a donor at the whole blocks it shares;

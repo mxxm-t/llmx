@@ -64,6 +64,8 @@ struct ModelOptions {
     backend::KVType kv_v = backend::KVType::f16;
     // Tokens the KV pool holds in total, shared by every sequence; zero means one model context, which is what one conversation needs and what a server divides among its requests unless told otherwise.
     size_t kv_tokens = 0;
+    // Sequences that may hold a recurrent state at once, for a model whose layers keep one: each state storage holds this many slots from load on and never grows.
+    size_t state_slots = 1;
 };
 
 // One request's history in a model's cache, made by Model::make_sequence for that model's pools and block sizes: the committed length of each stage, a block table per KV storage, and per device the ticket of the last pass that touched it, which a release waits on rather than draining the device (docs/EXECUTION.md).
@@ -79,6 +81,8 @@ private:
     friend class Model;
     std::vector<size_t> length_;          // per stage, whatever its layers keep
     std::vector<KVSequence> kv_;          // per KV storage
+    StateSlot state_;                     // its slot in every state storage, from its first pass to its reset
+    bool lost_ = false;                   // a failed pass left its state behind its length, so it continues only from a reset
     std::vector<backend::Ticket> last_;
     const Model* owner_ = nullptr;
     bool in_flight_ = false;
@@ -109,6 +113,7 @@ struct Pass {
     bool long_runs = false;                            // some entry takes its streamed layers on the device
     std::vector<uint32_t> ids, pos, pick;
     std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
+    std::vector<std::vector<backend::StateView>> states;   // per device, per entry, on a device whose layers keep a state
     std::vector<backend::RowRun> runs, head_runs;      // the pass's rows and the head's, by entry
     size_t handoff = 0;                                // which of each device's handoff buffers its crossings use: a prompt chunk's parity, a reserved pass's slot
     size_t logits_base = 0;                            // the context's logits row its head writes first
@@ -242,6 +247,9 @@ public:
             if (plan_.layers[(size_t)l].cache == Cache::kv) {
                 a.local_layer[(size_t)l] = a.kv_layers++;
                 ++kv_layers_;
+            } else if (plan_.layers[(size_t)l].cache == Cache::state) {
+                a.local_layer[(size_t)l] = a.state_layers++;
+                ++state_layers_;
             }
             a.used = true;
             devices_[device_index(place_.ffn_device[(size_t)l])]->used = true;
@@ -303,6 +311,12 @@ public:
                 d.pool.configure(d.storage->max_blocks());
                 d.storage_index = (int)storages_.size();
                 storages_.push_back(&d);
+            }
+            // Each device whose mixer layers keep a state holds every slot of theirs from now on, zeroed, so no pass allocates state.
+            if (state_layers_) {
+                for (auto& d : devices_)
+                    if (d->state_layers) d->states = d->b->state_alloc((size_t)d->state_layers, options_.state_slots, plan_.state);
+                slots_.configure(options_.state_slots);
             }
             seq_ = make_sequence();
 
@@ -366,6 +380,8 @@ public:
     Sequence fork(const Sequence& src, size_t length) {
         if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
         if (src.in_flight_) throw std::logic_error("inference: a fork of a sequence in flight");
+        // A recurrent state exists only at the end of what it has read, so it has no earlier point to fork from.
+        if (state_layers_) throw std::logic_error("inference: a fork of a model whose layers keep a recurrent state");
         if (length > src.length()) throw std::logic_error("KV cache: a fork takes whole blocks of the history");
         Sequence f;
         f.length_.assign(stages_.size(), length);
@@ -486,8 +502,8 @@ public:
     }
 
     // Start a new history.
-    // Blocks return to every pool; their storage is retained.
-    // Every pass ends in a submit or, on failure, a sync, so the sequence's last tickets cover everything that could still be touching a block: this waits for those and no more.
+    // Blocks and the state slot return to their pools; their storage is retained.
+    // Every pass ends in a submit or, on failure, a sync, so the sequence's last tickets cover everything that could still be touching a block or a slot: this waits for those and no more.
     void reset(Sequence& s) {
         if (s.owner_ != this)
             throw std::runtime_error("inference: sequence of another model");
@@ -495,6 +511,7 @@ public:
         for (size_t d = 0; d < devices_.size(); ++d)
             if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
         truncate(s, 0);
+        s.state_.release();
     }
 
     // The single-sequence entry points the CLI uses: one sequence and one context owned here, and one entry per pass.
@@ -604,6 +621,9 @@ public:
         return seq_.length() * kv_layers_ * kv_bytes_per_position(plan_, options_);
     }
 
+    // Whether some layer keeps a recurrent state, which exists only at the end of what it has read: such a model is not forked, a failed pass loses its entries' states, and a server that cannot hold states refuses it.
+    bool keeps_state() const { return state_layers_ > 0; }
+
 private:
     // One backend and what the placement put on it.
     // A pool is not movable, because sequences hold its address, so devices live behind pointers.
@@ -613,10 +633,12 @@ private:
         bool sends = false;                      // the residual leaves it, so it keeps handoff buffers
         int mixer_layers = 0;
         int kv_layers = 0;                       // its mixer layers whose cache is KV
+        int state_layers = 0;                    // and those whose cache is a state
         int storage_index = -1;
         std::vector<int> local_layer;            // model layer -> layer in the storage of its cache
         std::unique_ptr<backend::KVStorage> storage;
         BlockPool pool;
+        std::unique_ptr<backend::StateStorage> states;
         std::vector<backend::BufferPtr> tables;  // the position tables, on a device that runs a mixer
     };
 
@@ -631,6 +653,8 @@ private:
     std::vector<std::unique_ptr<Device>> devices_;
     std::vector<Device*> storages_;              // the devices whose mixer layers keep KV
     size_t kv_layers_ = 0;                       // the model's layers that keep KV
+    size_t state_layers_ = 0;                    // and those that keep a state
+    SlotPool slots_;
     std::vector<Stage> stages_;
     bool pipelined_ = false;                     // a prompt's chunks flow through the stages together (prefill)
     int ubatch_ = kDefaultUbatch;
@@ -735,9 +759,11 @@ private:
     size_t history(const Sequence& s) const { return s.length_[0]; }
 
     // A history back to `length` in every stage and storage, the blocks beyond it returned.
-    static void truncate(Sequence& s, size_t length) noexcept {
+    // A pass updates a state in place and a state exists only at the end of what it has read, so a history with a state that goes back anywhere but to 0, where the state reads as zero, is lost.
+    void truncate(Sequence& s, size_t length) noexcept {
         for (size_t& n : s.length_) n = std::min(n, length);
         for (auto& kv : s.kv_) kv.truncate(length);
+        s.lost_ = state_layers_ && length;
     }
 
     // A pass's plan: its rows in entry order, their positions after each history, and the rows the head reads, from logits row `logits_base` on, with nothing reserved yet, since each stage reserves the blocks of the storage it writes.
@@ -750,6 +776,7 @@ private:
             if (!en.seq || en.seq->owner_ != this)
                 throw std::runtime_error("inference: batch entry without a sequence of this model");
             if (en.seq->in_flight_) throw std::logic_error("inference: a sequence already in flight");
+            if (en.seq->lost_) throw std::runtime_error("inference: a sequence whose recurrent state a failed pass lost continues only from a reset");
             if (!en.ids || !en.n)
                 throw std::runtime_error("inference: batch entry without tokens");
             // The position tables cover [0, context_length); a row past them would read off the end.
@@ -760,6 +787,8 @@ private:
             rows += en.n;
             want += en.want_logits ? (en.every_logits ? en.n : 1) : 0;
         }
+        // Every entry holds a state slot from its first pass on, taken before any work, so a pass never runs short of one.
+        for (size_t e = 0; state_layers_ && e < n_entries; ++e) entries[e].seq->state_.take(slots_);
         if (!ctx.slots)
             ensure(ctx, rows, want, handoffs(1));
         else if (rows > ctx.pass_rows || want > ctx.logit_rows || logits_base > ctx.logit_rows - want)
@@ -778,6 +807,10 @@ private:
         p.head_runs.clear();
         p.views.resize(storages_.size());
         for (auto& v : p.views) v.resize(n_entries);
+        if (state_layers_) {
+            p.states.resize(devices_.size());
+            for (auto& v : p.states) v.resize(n_entries);
+        }
         size_t r = 0, w = 0;
         for (size_t e = 0; e < n_entries; ++e) {
             const BatchEntry& en = entries[e];
@@ -815,6 +848,11 @@ private:
             kv.prepare(p.entries[e].n);
             p.views[(size_t)storage][e] = kv.view(home.storage.get());
             p.views[(size_t)storage][e].extent = p.runs[e].extent;
+        }
+        // A state is read and written in place in the sequence's slot, after the history this stage has committed.
+        for (size_t e = 0; home.states && e < p.entries.size(); ++e) {
+            const Sequence& q = *p.entries[e].seq;
+            p.states[st.device][e] = backend::StateView{home.states.get(), q.state_.slot(), q.state_.slot(), q.length_[s], p.entries[e].n};
         }
         size_t cur = st.device;
         const backend::RowRuns all{p.runs.data(), p.runs.size()};
@@ -1050,6 +1088,10 @@ private:
             s.views = p.views[(size_t)d.storage_index].data();
             s.n_views = p.entries.size();
             s.kv_layer = (size_t)d.local_layer[(size_t)l];
+        } else if (layer.cache == Cache::state) {
+            s.states = p.states[dev].data();
+            s.n_views = p.entries.size();
+            s.state_layer = (size_t)d.local_layer[(size_t)l];
         }
         s.pos = p.pos.data();
         return s;

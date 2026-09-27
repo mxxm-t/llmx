@@ -1,5 +1,5 @@
 // A model on one device against the same model split by layers over several, compared as raw float logits: every position of a scored text through the prompt path, then a prefill in chunks of the ubatch, which a split pipelines over its stages, and greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phases 1 and 2).
-// Then the prompt and the steps replayed by class on each, as a paused request's resume recomputes them, which must give the decode's logits, and passes in flight through the pass API, which must give what the same passes give one after another.
+// Then the prompt and the steps replayed by class on each, as a paused request's resume recomputes them, which must give the decode's logits, and from a fork too unless the model keeps a recurrent state, which is not forked; and passes in flight through the pass API, which must give what the same passes give one after another.
 // Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type]; a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default when left out.
 #include <algorithm>
 #include <chrono>
@@ -76,7 +76,7 @@ static size_t replay(infer::Model& m, const std::vector<uint32_t>& ids, size_t p
     infer::Sequence whole = m.make_sequence();
     size_t differ = rest(whole);
     const size_t fork = (ids.size() - 1) / m.kv_block_tokens() * m.kv_block_tokens();
-    if (fork) {
+    if (fork && !m.keeps_state()) {
         infer::Sequence from = m.fork(whole, fork);
         m.reset(whole);
         differ += rest(from);
@@ -229,6 +229,8 @@ int main(int argc, char** argv) {
         infer::ModelOptions options;
         if (argc > 7) options.kv_k = options.kv_v = backend::kv_type_of(argv[7]);
         options.kv_tokens = 4096;
+        // A model that keeps a recurrent state holds a slot for each sequence at once: the mixed passes' two, and the 2P of passes in flight for P up to twice the stages, which are at most the split's devices.
+        options.state_slots = std::max<size_t>(2, 4 * core::comma_list(split).size());
         infer::PlacementRequest alone;
         alone.names = {name(single)};
         alone.ubatch = ubatch;

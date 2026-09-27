@@ -448,7 +448,9 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         request.histories = decode_rows;
         request.history_tokens = history_tokens;
     }
-    const infer::ModelOptions options = model_options(exec);
+    infer::ModelOptions options = model_options(exec);
+    // A recurrent state is held by each sequence decoding at once: the command's own one, or the sequences a pass carries.
+    if (decode_rows) options.state_slots = decode_rows;
     format::LoadProgress shown;
     if (progress) {
         std::cerr << "Reading model metadata...\n";

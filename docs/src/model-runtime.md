@@ -37,14 +37,20 @@ delegated to a `backend::Backend`.
   or not it is the CPU, and one that copies it is the device side.
 - `ModelOptions`: what is fixed at construction, before the caches are
   allocated: each cache side's type (`kv_k`, `kv_v`, the CLI's
-  `--cache-type-k` and `--cache-type-v`) and `kv_tokens`, the positions
-  every pool holds, zero for one model context. Both sides default to
+  `--cache-type-k` and `--cache-type-v`), `kv_tokens`, the positions
+  every pool holds, zero for one model context, and `state_slots`, the
+  sequences that may hold a recurrent state at once in a model whose layers
+  keep one: one for a command's own sequence, the sequences a pass carries
+  for `bench --seqs` (the CLI's `open_model` sets it from them), two for
+  `llmx-split-check`. Both sides default to
   `KVType::f16`, the runtime's one default: the CLI, the server, the
   synthetic bench and the split check all start from it.
 - `Sequence`: one request's history over a model's cache, made by
   `Model::make_sequence`: the committed length of each stage, a block table
-  per KV storage, and per device the ticket of the last pass that touched
-  it, which a reset waits on. Movable, not copyable. The server keeps one
+  per KV storage, the state slot it holds from its first pass on in a model
+  whose layers keep a state, whether a failed pass lost that state, and per
+  device the ticket of the last pass that touched it, which a reset waits
+  on. Movable, not copyable. The server keeps one
   per request; the CLI's model keeps one. `length()` is the first stage's
   committed length; the stages can disagree while a pass is part way
   through them, and the model continues a history from the first stage's.
@@ -96,7 +102,12 @@ delegated to a `backend::Backend`.
   writing that device's storage. A device's mixer layers must form one
   run, or the placement is refused; a model on one device has one stage.
   Each stage commits its own length, whatever its layers keep, so a stage
-  whose layers keep no KV has no storage and still runs. The
+  whose layers keep no KV has no storage and still runs. Each device whose
+  mixer layers keep a recurrent state holds a `backend::StateStorage` of
+  exactly those layers with `state_slots` slots, allocated and zeroed at
+  load and never grown (`Backend::state_alloc`), and a sequence takes one
+  slot of the model's `SlotPool` in its first pass, before any work, and
+  keeps it until its reset. The
   residual stream crosses devices wherever the placement changes, in two
   halves: the source copies the rows into its handoff buffer inside its own
   work (`send`), and the destination waits that submission's ticket and
@@ -148,8 +159,15 @@ delegated to a `backend::Backend`.
     keeps its own handoff buffer, logits rows and ticket. `forward`,
     `prefill`, `step` and `score` do not use it.
   - `make_sequence()`, `reset(sequence)`: a fresh history, and one returned
-    to the pool after waiting on its last ticket; a sequence in flight is
-    refused.
+    to the pools, its blocks and its state slot, after waiting on its last
+    ticket; a sequence in flight is refused.
+  - `keeps_state()`: whether some layer keeps a recurrent state, which
+    exists only at the end of what it has read. Such a model is never
+    forked. A pass updates the state in place, so a failed pass, or a
+    prompt that fails part way, loses the state of every entry it takes
+    back to a length other than 0, where the state reads as zero; a lost
+    sequence is refused by the next pass until its reset. A server that
+    cannot hold states refuses such a model.
   - `kv_pools()`, `kv_pool_block_tokens(s)`, `kv_pool_blocks(s)`: the
     cache pools a scheduler admits against, one per device whose mixer
     layers keep KV, each in its own blocks; `kv_tokens_total()` is the tokens
@@ -160,6 +178,7 @@ delegated to a `backend::Backend`.
     below `length` on every storage without allocating or copying physical
     KV blocks; the logical block tables and ticket vectors still allocate. The
     server forks a donor at the blocks a prompt shares with it.
+    A model whose layers keep a state is not forked.
     A forked sequence continues exactly as a fresh one fed the same tokens at the same extents would; rows another extent computed can differ from them by rounding (`docs/SERVER.md`, Open gaps).
     A sequence in flight is not forked.
   - `set_threads(n)` applies to every backend and `threads_available()` reports the largest count among them, the host's wherever it sits in a placement.

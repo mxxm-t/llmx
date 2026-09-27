@@ -11,9 +11,9 @@
 #extension GL_EXT_control_flow_attributes : require
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint MAX_COLS = 8;
-// Rows a subgroup takes (specialization constant 9), and steps whose weights a lane loads before using any (11), so STEPS steps of every row are in flight at once; the backend dispatches by the same rows (kVecBuilds).
+// Rows a subgroup takes (specialization constant 9), and steps whose weights a lane loads before using any (10), so STEPS steps of every row are in flight at once; the backend dispatches by the same rows (kVecBuilds).
 layout(constant_id = 9) const uint ROWS = 2;
-layout(constant_id = 11) const uint STEPS = 1;
+layout(constant_id = 10) const uint STEPS = 1;
 // The row kernel's push layout, which row_dispatch fills for every row kernel; cluster, rows_per_sg, the types and the wide flags go unread here.
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint col0; uint ncols; uint cluster; uint rows_per_sg; uint nproj;
@@ -37,6 +37,7 @@ layout(constant_id = 8) const bool GROUPED = false;
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 
 // Columns whose activations a lane loads together: their loads issue back to back, and a group past the pushed count is skipped whole.
+// A plain pass gives a build more than half its columns (for_each_column_chunk), so only a grouped build, or a group past the first half, can be past the count; no other group ends a block before its loads.
 const uint GROUP = MAX_COLS < 4u ? MAX_COLS : 4u;
 
 void main() {
@@ -93,7 +94,7 @@ void main() {
                 dw[d][r] = unpackHalf2x16((ob & 2u) != 0u ? sw >> 16u : sw).x; \
             } \
         [[unroll]] for (uint g = 0u; g < MAX_COLS; g += GROUP) { \
-            if (g > 0u && g >= ncols) break; \
+            if (g > 0u && (GROUPED || 2u * g > MAX_COLS) && g >= ncols) break; \
             [[unroll]] for (uint d = 0u; d < NS; ++d) { \
                 uint bd = b + d * SB; \
                 uvec2 xa[GROUP]; \

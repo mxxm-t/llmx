@@ -324,7 +324,7 @@ const uint32_t kRowColsWide = 8, kRowColsOne = 1;
 // A kernel's pipelines: the wide build, then the one-column, then for the row kernels the wide build grouped by expert, then the Q8_0 decode kernel's further builds.
 const int kVariants = 6;
 
-// The Q8_0 decode kernel's builds (shaders/matmul_vec_q8.comp) by pipeline variant: the columns a lane keeps, the rows a subgroup takes and the steps whose weights a lane loads before using any (specialization constants 0, 9 and 11).
+// The Q8_0 decode kernel's builds (shaders/matmul_vec_q8.comp) by pipeline variant: the columns a lane keeps, the rows a subgroup takes and the steps whose weights a lane loads before using any (specialization constants 0, 9 and 10).
 // Variants 0 to 2 are every row kernel's wide, one-column and grouped builds, and 3 to 5 this kernel's 2-, 4- and 16-column builds.
 // Every build gives a column the same bits, so the builds differ only in time (docs/VULKAN.md).
 struct VecBuild {
@@ -1654,6 +1654,7 @@ public:
 
     // Calls `each(col0, ncols, variant)` over a pass's columns: chunks of the widest build while more columns remain than it holds, then the rest in the narrowest build that holds them.
     // Every build gives a column the same bits, so how a pass is chunked changes only its time.
+    // Each Q8_0 decode build holds twice the columns of the next narrower, so each of that kernel's chunks fills more than half its build, which lets its plain builds skip only their last groups.
     template <typename Fn>
     void for_each_column_chunk(KernelId id, size_t nbatch, const Fn& each) const {
         int builds[kVariants];
@@ -1668,10 +1669,10 @@ public:
 
     // The row kernel for a type at a width (matmul_row.comp): its module, whether rows take the wide layout, and how a subgroup's lanes split over rows.
     // Q8_0 pairs go over four lanes and Q4_0 pairs over two when the block count is even, Q4_1 blocks over one, the K-quant blocks over eight, else one unit per block or value.
-    // The Q8_0 decode kernel reads no cluster, and its rows follow its build (kVecBuilds).
+    // The Q8_0 decode kernel reads no cluster, and its rows follow its build (sg_rows).
     struct RowPlan {
         KernelId kernel;
-        uint32_t type, wide, cluster, rows_per_sg, rows_per_group;
+        uint32_t type, wide, cluster;
     };
     RowPlan row_plan(uint32_t type, size_t nin) const {
         const size_t nblocks = nin / block_values_of(type);
@@ -1716,8 +1717,12 @@ public:
             cluster = std::min(cluster, std::max(lanes, dev_->profile.k45_row_lanes));
         // Where the integer dot is native, Q8_0 rows take the four-wide dot over the 8-bit twin (shaders/matmul_vec_q8.comp).
         if (type == quant::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot) kernel = K_MATMUL_VEC_Q8;
-        const uint32_t rows_per_sg = dev_->caps.subgroup_size / cluster;
-        return RowPlan{kernel, type, wide, cluster, rows_per_sg, (256 / dev_->caps.subgroup_size) * rows_per_sg};
+        return RowPlan{kernel, type, wide, cluster};
+    }
+
+    // Rows a subgroup takes in a row kernel's build: in matmul_row.comp one row a cluster of lanes, in the Q8_0 decode kernel its build's own (kVecBuilds).
+    uint32_t sg_rows(const RowPlan& plan, int variant) const {
+        return plan.kernel == K_MATMUL_VEC_Q8 ? kVecBuilds[variant].rows : dev_->caps.subgroup_size / plan.cluster;
     }
 
     // What a row kernel reads X through: the floats for F32 rows, else the activations' twin (shaders/xquant.glsl), which the norm, SiLU and attention kernels write beside their output and tag.
@@ -1744,7 +1749,7 @@ public:
                       size_t nin, size_t nbatch, size_t col0, size_t ncols, bool accumulate, int variant,
                       uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
                       uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0) {
-        const uint32_t per_group = plan.kernel == K_MATMUL_VEC_Q8 ? (256 / dev_->caps.subgroup_size) * kVecBuilds[variant].rows : plan.rows_per_group;
+        const uint32_t rows_per_sg = sg_rows(plan, variant), per_group = (256 / dev_->caps.subgroup_size) * rows_per_sg;
         uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
         uint32_t total = 0;
         for (size_t i = 0; i < live.size(); ++i) {
@@ -1759,7 +1764,7 @@ public:
         const Projection& b = live.size() > 1 ? *live[1] : a;
         const Projection& c = live.size() > 2 ? *live[2] : a;
         const uint32_t t = plan.type, w = plan.wide;
-        const uint32_t pc[22] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, plan.rows_per_sg,
+        const uint32_t pc[22] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, rows_per_sg,
                                  (uint32_t)live.size(),
                                  nout[0], t, w, start[0],
                                  nout[1], t, w, start[1],
@@ -2414,12 +2419,12 @@ private:
                                    id == K_MATMUL_TILE_Q8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
                                              : build_cols(id, variant);
-            // Constant 7 selects a producer's build that also writes the 8-bit twin, constant 8 a row kernel's grouped build, and constants 9 and 11 are the Q8_0 decode kernel's rows and steps (kVecBuilds).
+            // Constant 7 selects a producer's build that also writes the 8-bit twin, constant 8 a row kernel's grouped build, and constants 9 and 10 are the Q8_0 decode kernel's rows and steps (kVecBuilds).
             // Every pipeline gets all five entries, and a module that declares none ignores them.
             const uint32_t spec_data[5] = {spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u, kVecBuilds[variant].rows, kVecBuilds[variant].steps};
             const VkSpecializationMapEntry entries[5] = {{0, 0, sizeof(uint32_t)}, {7, sizeof(uint32_t), sizeof(uint32_t)},
                                                          {8, 2 * sizeof(uint32_t), sizeof(uint32_t)}, {9, 3 * sizeof(uint32_t), sizeof(uint32_t)},
-                                                         {11, 4 * sizeof(uint32_t), sizeof(uint32_t)}};
+                                                         {10, 4 * sizeof(uint32_t), sizeof(uint32_t)}};
             VkSpecializationInfo spec{};
             spec.mapEntryCount = 5;
             spec.pMapEntries = entries;

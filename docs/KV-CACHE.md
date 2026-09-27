@@ -104,7 +104,8 @@ KVSequence    ordered physical block ids, valid length;
 
 Both own what they hold: neither is copyable, the pool is not movable either
 because sequences hold its address and it is configured in place while idle,
-a sequence returns its blocks when destroyed or moved from, and every
+a sequence returns its blocks when destroyed or when another is moved
+into it, a move transfers them, and every
 bookkeeping vector is reserved to the budget so alloc, release, abort and
 reset never allocate.
 Every backend's storage derives from `BlockKVStorage` (`src/backends/kv_storage.hpp`), which grows it by copying the history into exact-size buffers, all layers before any is published, at least doubling what is backed up to the budget, and reports the capacity it retains.
@@ -315,7 +316,7 @@ either way.
 | # | Step | Gate |
 |---|---|---|
 | 1 | `BlockPool`, `KVSequence`, paged host storage, view-form `attention`; one sequence, same outputs (**done**) | HF gate unchanged; A/B vs contiguous picks `block_tokens` |
-| 2 | Fork with tail copy, refcount release, `kv-cache` CTest extended (**done**) | Distinct values across shared and private blocks; a forked sequence continues exactly as a fresh one fed the same history |
+| 2 | Fork at whole blocks, refcount release, `kv-cache` CTest extended (**done**; the tail copy planned here was not built, and a fork inside a block is refused) | Distinct values across shared and private blocks; a forked sequence continues exactly as a fresh one fed the same history |
 | 3 | Storage on `Buffer`, completion-gated release (**done**) | DEVICE-EXECUTION step 5, no CPU regression |
 | 4 | Prefix reuse, per-request sequences (**done**) | With the server, ROADMAP #7: `docs/SERVER.md` step 4 |
 

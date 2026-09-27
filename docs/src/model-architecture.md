@@ -13,11 +13,15 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   reads and whether that is the alias's, which `plan_model` sets and the
   architecture leaves alone), `LayerPlan` (the architecture's own kind for
   a layer, handed back on every call for that layer, whether its
-  feed-forward part is routed, and its roles in adoption order) and
+  feed-forward part is routed, what its mixer keeps for each sequence
+  between passes, its `Cache`: keys and values for every position, a
+  recurrent state of fixed size, or nothing, and its roles in adoption
+  order) and
   `ModelPlan` (the size of a row of resolved weights, the vocabulary, the
   pass's roles and each layer's, the context length, and what the arena,
   the caches and the tables take: the residual row, the arena's slot
-  widths, the K and V heads and head width of every layer, and the position
+  widths, the K and V heads and head width of every layer whose cache is
+  KV, and the position
   tables' sizes).
   - A `RoleKind` says how a role's tensor is checked and whether the fit
     counts it as a product: `norm` is F32 `[in]`, `matrix` is `[in, out]`

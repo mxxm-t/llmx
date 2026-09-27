@@ -39,10 +39,14 @@ struct Role {
     bool aliased = false;                          // that view is its alias's
 };
 
-// A decoder layer as the model runs it: the architecture's own kind for it, handed back on every call for the layer, whether its feed-forward part holds routed experts, and its roles in the order they are adopted.
+// What a layer keeps for each sequence from one pass to the next: keys and values for every position it has read, a recurrent state of fixed size, or nothing.
+enum class Cache : uint8_t { kv, state, none };
+
+// A decoder layer as the model runs it: the architecture's own kind for it, handed back on every call for the layer, whether its feed-forward part holds routed experts, what its mixer keeps between passes, and its roles in the order they are adopted.
 struct LayerPlan {
     uint8_t kind = 0;
     bool routed = false;
+    Cache cache = Cache::kv;
     std::vector<Role> roles;
 };
 
@@ -56,7 +60,7 @@ struct ModelPlan {
     size_t context_length = 0;          // the tables cover these positions, a pass past them is refused, and the cache budget defaults to them
     size_t residual = 0;                // floats in a residual row: slot 0, a handoff row, a crossing
     std::vector<size_t> slots;          // floats one row takes in each arena slot; slot 0 is the residual
-    size_t kv_heads = 0, head_dim = 0;  // K and V of every layer: heads, and each head's width
+    size_t kv_heads = 0, head_dim = 0;  // K and V of every layer whose cache is KV: heads, and each head's width
     std::vector<size_t> tables;         // floats in each position table
 };
 

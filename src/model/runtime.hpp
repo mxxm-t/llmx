@@ -237,7 +237,8 @@ public:
         devices_[(size_t)place_.output_device]->used = true;
         for (int l = 0; l < (int)n_layer; ++l) {
             Device& a = *devices_[device_index(place_.mixer_device[(size_t)l])];
-            a.local_layer[(size_t)l] = a.mixer_layers++;
+            ++a.mixer_layers;
+            if (plan_.layers[(size_t)l].cache == Cache::kv) a.local_layer[(size_t)l] = a.kv_layers++;
             a.used = true;
             devices_[device_index(place_.ffn_device[(size_t)l])]->used = true;
         }
@@ -280,12 +281,14 @@ public:
         try {
             resolve_tensors(weights, adopt);
 
-            // Each device that runs a mixer gets a storage for exactly its layers, with its own block size and pool.
+            // Each device that runs a mixer gets a storage for exactly its layers that keep KV, with its own block size and pool.
             // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it.
             const size_t budget = kv_tokens(plan_, options_);
             for (auto& dp : devices_) {
                 Device& d = *dp;
                 if (!d.mixer_layers) continue;
+                // A stage's committed history is its storage's, so each stage keeps KV in some layer.
+                if (!d.kv_layers) throw std::logic_error("inference: a stage whose layers keep no KV");
                 // A shared prefix ends on a whole block of the largest size (kv_block_tokens), which is whole in every storage only when the sizes nest.
                 for (const Device* other : storages_) {
                     const size_t a = d.b->kv_layout().block_tokens, b = other->b->kv_layout().block_tokens;
@@ -293,7 +296,7 @@ public:
                         throw std::runtime_error("inference: cache blocks of " + std::to_string(a) + " and " + std::to_string(b) +
                                                  " tokens in one model; a split needs one size to divide the other");
                 }
-                d.storage = d.b->kv_alloc((size_t)d.mixer_layers, plan_.kv_heads, plan_.head_dim,
+                d.storage = d.b->kv_alloc((size_t)d.kv_layers, plan_.kv_heads, plan_.head_dim,
                                           budget, options_.kv_k, options_.kv_v);
                 d.pool.configure(d.storage->max_blocks());
                 d.storage_index = (int)storages_.size();
@@ -603,8 +606,9 @@ private:
         bool used = false;
         bool sends = false;                      // the residual leaves it, so it keeps handoff buffers
         int mixer_layers = 0;
+        int kv_layers = 0;                       // its mixer layers whose cache is KV
         int storage_index = -1;
-        std::vector<int> local_layer;            // model layer -> layer in storage
+        std::vector<int> local_layer;            // model layer -> layer in the storage of its cache
         std::unique_ptr<backend::KVStorage> storage;
         BlockPool pool;
         std::vector<backend::BufferPtr> tables;  // the position tables, on a device that runs a mixer

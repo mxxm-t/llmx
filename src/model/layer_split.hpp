@@ -30,7 +30,7 @@ struct Footprint {
     Matrix output;                             // the head's matrix, the embedding table itself when tied
     Matrix output_norm;                        // what runs with the head besides its matrix
     bool tied = false;                         // the head reads the embedding table, adopted once where both sit on one device
-    size_t cache_per_layer = 0;                // one layer's cache for every position the budget allows
+    std::vector<size_t> cache;                 // each layer's cache for every position the budget allows, none for every layer when empty
     size_t tables = 0;                         // position tables: the host keeps them while the model lives, and every device that copies weights holds its own
     size_t activations_per_row = 0;            // one row of a pass's activations on each device
     size_t logits_per_row = 0;                 // one row of logits where the head runs
@@ -103,6 +103,10 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     const size_t L = fp.layers.size(), N = devices.size();
     if (!L) throw std::runtime_error("split: a model without layers");
     if (N > 16) throw std::runtime_error("split: more than 16 devices");
+    if (!fp.cache.empty() && fp.cache.size() != L) throw std::logic_error("split: a cache for some layers and not others");
+    // cached[i]: the cache of layers [0, i), the same on every device.
+    std::vector<size_t> cached(L + 1, 0);
+    for (size_t l = 0; l < L; ++l) cached[l + 1] = cached[l] + (fp.cache.empty() ? 0 : fp.cache[l]);
 
     auto resident = [&](size_t d, const Matrix& m) -> size_t {
         if (devices[d].host) return 0;
@@ -149,7 +153,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {
-        return prefix[d][i + k] - prefix[d][i] + k * fp.cache_per_layer + end_weights(d, first, last) + overhead(d, h);
+        return prefix[d][i + k] - prefix[d][i] + cached[i + k] - cached[i] + end_weights(d, first, last) + overhead(d, h);
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
 
@@ -243,7 +247,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     for (size_t d : used) {
         LayerSplit::Stage& st = out.stages[d];
         st.weights = prefix[d][(size_t)(st.first + st.count)] - prefix[d][(size_t)st.first] + end_weights(d, d == used.front(), d == used.back());
-        st.cache = (size_t)st.count * fp.cache_per_layer;
+        st.cache = cached[(size_t)(st.first + st.count)] - cached[(size_t)st.first];
         st.other = overhead(d, h);
         const size_t held = st.weights + st.cache + st.other;
         if (!fits(d, held)) {

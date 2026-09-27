@@ -21,7 +21,7 @@ namespace infer {
 // What a model asks of the memory of the devices it runs on, for a split fitted to them (model/layer_split.hpp), counted from its plan.
 // A layer lists the tensors its roles take in the file's order, each once and a product where a role reads it as a matrix, whatever its rank; a tensor no role takes costs nothing.
 // The embedding is the embed part's table, the output the head's matrix, tied when that role took its alias, and the output norm the head's norm; a pass role of any other part and kind, or a second role for one of those fields, has no field to count it in and is the plan's error.
-// The cache is counted for every position the options budget; activations are the plan's arena slots, and a handoff row is a residual row.
+// A layer's cache is counted by its kind, KV for every position the options budget; activations are the plan's arena slots, and a handoff row is a residual row.
 inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, const ModelOptions& options) {
     auto matrix = [&](size_t i, bool product) {
         const TensorView& t = weights.tensors[i];
@@ -58,7 +58,8 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         if (field == &fp.output) fp.tied = role.aliased;
     }
     fp.logits_per_row = fp.output.rows * sizeof(float);
-    fp.cache_per_layer = kv_tokens(plan, options) * kv_bytes_per_position(plan, options);
+    for (const LayerPlan& layer : plan.layers)
+        fp.cache.push_back(layer.cache == Cache::kv ? kv_tokens(plan, options) * kv_bytes_per_position(plan, options) : 0);
     for (size_t n : plan.tables) fp.tables += n * sizeof(float);
     fp.handoff_per_row = plan.residual * sizeof(float);
     for (size_t w : plan.slots) fp.activations_per_row += w * sizeof(float);

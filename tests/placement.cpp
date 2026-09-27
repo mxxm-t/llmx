@@ -140,7 +140,7 @@ void layer_split_fits() {
     for (const auto& m : fp.layers.at(0)) layer0 += m.bytes;
     for (const auto& m : fp.layers.at(1)) layer1 += m.bytes;
     require(fp.layers.size() == 2 && layer0 == layer1 && layer0 > 0 && fp.tied && fp.output.bytes == fp.embedding.bytes &&
-                fp.output_norm.bytes == 8 * sizeof(float) && fp.cache_per_layer > 0,
+                fp.output_norm.bytes == 8 * sizeof(float) && fp.cache.size() == 2 && fp.cache[0] > 0 && fp.cache[1] == fp.cache[0],
             "footprint does not describe the model");
     ++checked;
     // A device that copies weights keeps back the scratch a Vulkan device reports (Backend::scratch_reserve); a host keeps none.
@@ -188,7 +188,7 @@ void layer_split_fits() {
     heavy.embedding = infer::Matrix{8, 4096, 1, 300 * MiB};
     heavy.output = infer::Matrix{8, 4096, 1, 300 * MiB};
     heavy.output_norm = infer::Matrix{0, 4096, 1, 16384};
-    heavy.cache_per_layer = MiB;
+    heavy.cache.assign(2, MiB);
     auto back = infer::split_layers(heavy, {budget("cpu", GiB, true), budget("gpu", GiB)}, 1);
     require(back.stages[0].count == 1 && back.stages[1].count == 1 && back.embed_device == 0 && back.output_device == 1,
             "a host device dropped from the fit did not take the layer the device could not hold");
@@ -212,7 +212,7 @@ void layer_split_fits() {
     infer::Footprint uneven;
     for (size_t mib : {400, 10, 10, 10}) uneven.layers.push_back({infer::Matrix{8, 4096, 1, mib * MiB, true}});
     uneven.embedding = uneven.output = infer::Matrix{8, 4096, 1, MiB, true};
-    uneven.cache_per_layer = MiB;
+    uneven.cache.assign(4, MiB);
     auto sized = infer::split_layers(uneven, {budget("a", 800 * MiB), budget("b", 500 * MiB)}, 1);
     require(sized.stages[0].count >= 1 && sized.stages[0].count + sized.stages[1].count == 4, "layers of unequal size did not fit by their sizes");
     // Three equal devices share three equal layers one each.

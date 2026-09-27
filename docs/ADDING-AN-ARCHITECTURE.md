@@ -81,6 +81,7 @@ The module's `plan` is built once, from the configuration and the runtime's inde
 - for each layer:
   - its kind, a value of the module's own that the runtime hands back on every call for that layer;
   - whether its feed-forward part holds routed experts;
+  - what its mixer keeps for each sequence between passes: keys and values for every position, a recurrent state, or nothing;
   - its roles;
 - the roles of the pass: the embedding and the head;
 - for each role:
@@ -93,7 +94,7 @@ The module's `plan` is built once, from the configuration and the runtime's inde
 - the arena slots, as the floats one row takes in each, with slot 0 the residual and each slot sized for the widest use any layer kind makes of it;
 - the width of the residual row, which is also what a crossing between devices carries;
 - the context length: the positions a sequence may reach, which the tables cover and the cache budget defaults to;
-- the geometry of K and V;
+- the geometry of K and V, for the layers that keep them;
 - the sizes of the position tables.
 
 The plan looks tensors up through `TensorIndex`, which refuses a missing or repeated tensor with the one text the runtime uses.

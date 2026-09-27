@@ -85,14 +85,18 @@ delegated to a `backend::Backend`.
   weights. Each weight is put on the backend that hosts its role, which on
   the CPU reads the file's bytes in place and on a device copies them.
   Each device that runs a mixer gets a `KVStorage` for exactly its layers
-  with its own pool, block size and adopted position tables, which the
+  whose cache is KV (`LayerPlan::cache`), each layer indexed within it by
+  its place among them, with its own pool, block size and adopted position
+  tables, which the
   architecture filled once (`fill_tables`). A pass calls the architecture's
   parts, each with a `Step` on the device that runs it: the embedding on
   the first stage, each layer's mixer and feed-forward part, and the head
   on the output device. Its stages are
   runs of consecutive layers whose mixer sits on one device, each
   writing that device's storage. A device's mixer layers must form one
-  run, or the placement is refused; a model on one device has one stage. The
+  run, or the placement is refused; a model on one device has one stage.
+  A stage's committed history is its storage's, so each stage keeps KV in
+  some layer, a stage without one being the plan's error. The
   residual stream crosses devices wherever the placement changes, in two
   halves: the source copies the rows into its handoff buffer inside its own
   work (`send`), and the destination waits that submission's ticket and

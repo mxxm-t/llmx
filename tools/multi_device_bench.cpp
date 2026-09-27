@@ -813,7 +813,7 @@ int stages(const std::string& path, const std::vector<int>& devices, const Stage
         for (size_t at = from; at < to; at += ubatch) {
             const size_t len = std::min(ubatch, to - at);
             infer::BatchEntry e{&q, whole.data() + at, len, at + len == whole.size()};
-            e.extent = e.fresh = whole.size();
+            e.extent = whole.size();
             model.forward(ctx, &e, 1);
         }
     };

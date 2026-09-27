@@ -1578,7 +1578,7 @@ public:
             t.words.insert(t.words.end(), {u32(row0), u32(v.nq), u32(v.length), u32(v.src), u32(v.dst)});
             row0 += v.nq;
         }
-        u32(size_mul(t.storage->slots(), t.storage->shape().slot_floats()));
+        (void)u32(size_mul(t.storage->slots(), t.storage->shape().slot_floats()));
         return t;
     }
 

@@ -4,7 +4,7 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## A prompt row's bits no longer follow the compiler's choice to fuse a dot's tail (2026-09-27, branch fix/placement-ubsan)
+## A prompt row's bits no longer follow the compiler's choice to fuse a dot's tail (2026-09-27, branch fix/placement-ubsan, merged at `9b6413ea`)
 
 - **Found:** built by GCC 14.2, the compiler of `docker/Dockerfile`'s image, with the hosted UBSan job's flags, `placement` fails on main `7d16fa6` and `6ae9a24c`, as it did at `4ad199a`: `a row of a pass in flight differs from its sequence run alone`.
   It passes without the sanitizer, and the hosted UBSan job, whose runner builds with GCC 13, passes.
@@ -47,6 +47,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Clean builds of the head with Vulkan off, with it on and under UBSan, and of `58e4eeb6` under UBSan: 0 warnings and 0 errors each.
   - CTest: 30 of 30 with Vulkan off, 33 of 33 with it on (`backend-vulkan` and `vulkan-lifetime` skipping without a device), and 30 of 30 under UBSan; `58e4eeb6` under UBSan passes 28 of 30, failing `backend-group` and `placement` on main's kernels.
   - Step 3's Found line in the layer split block now records this fix.
+- **Merged** at `9b6413ea` on main `5af63196` after a green hosted run on `gate/merge-30` at `aea2aee0` (run 36339700501, all six jobs, the UBSan job on `g++-14`); the rebase over main's two docs commits had no conflict, and at the merged head the build with Vulkan off has no warning, CTest passes 30 of 30, and the suite's `docs`, `dead-code` and `arch-boundary` components pass.
 - **Left:** products outside a tail are still the compiler's to fuse: the `mins` sums of the Q4_1 and Q4_K decode dots (`q8_dots.hpp`), the float reference K-quant dots' `d * sum - m * sum`, and attention's vector value sums (`_mm256_add_ps` of a `_mm256_mul_ps`, which GCC treats as plain vector arithmetic).
   In the GCC 14 builds, plain and UBSan, every copy of the first two takes one shape and attention has one copy, so no row differs today; writing them as FMAs changes decode bits on real models wherever a build keeps them apart, so it needs its own identity gate.
 - **Gotchas:** a hint that a bitwise difference is contraction: it passes with `-ffp-contract=off` and at `-O0`, and fails under ASan as under UBSan with neither reporting anything.

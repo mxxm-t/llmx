@@ -761,7 +761,8 @@ It makes the calls of transformers' `Qwen3_5TextModel.forward` in its order: the
 It builds `Qwen3_5ForCausalLM` on the meta device and gives each module its weights just before it runs, read from the checkpoint's safetensors and widened from bf16 to float32 as `from_pretrained` does, then drops them once the module has run every input.
 The checkpoint's keys are renamed by transformers' own loading rules for the model, and the tool refuses a rule that would reshape a tensor, any key the model neither takes nor ignores (it ignores `mtp.*` and `model.visual.*`), and any parameter no key gives other than a tied head.
 Every input runs alone, a batch of one, with eager attention and the torch fallbacks of the linear-attention layers, as HF's full forward runs it.
-It runs offline from the HF cache and refuses any transformers other than 5.17.0, any torch other than 2.5.1+cpu, and an installed `kernels` package; it uses the qwen35 venv of the tokenizer reference above.
+It runs offline from the HF cache and refuses any transformers other than 5.17.0 and any torch other than 2.5.1+cpu; it uses the qwen35 venv of the tokenizer reference above.
+It also refuses an installed `kernels`, `fla` or `causal_conv1d` package, since transformers 5.17.0 runs hub kernels, then those two packages, before its torch code for the conv and the gated delta rule; the venv has none of them.
 
 **Equal to the full forward.**
 `python tools/gen_layered_reference.py equality --output tests/data/layered_equality.json` runs `Qwen/Qwen3.5-0.8B` at `2fc06364715b967f1860aea9cf38778875588b17` both ways, `from_pretrained` in float32 and the layered forward, on every input the goldens take: the six logit prompts, the 243-token excerpt whole, and the eight windows of its three windowed cases, four of 64 tokens, the first two of those again, and two of 123.
@@ -772,8 +773,9 @@ The layered forward took 165, 161, 477 and 80 s and the full forward 229, 286, 2
 **Goldens.**
 `tests/data/qwen3.5-9b` and `tests/data/qwen3.6-27b` hold the three goldens of `tests/data/qwen3-8b`, with the same texts and windows, written by `tools/gen_baseline.py`'s writers from the layered forward.
 Like the 8B's, they run the checkpoint's own weights, bf16 widened to float32, not the GGUF's dequantized ones; the GGUF labels them.
-Each records the checkpoint's repository, commit and safetensors SHA-256, the GGUF's name, source, SHA-256 and size, and a comparison of the GGUF's F32 tensors with the checkpoint's under the converter's conventions ([QWEN35](QWEN35.md), What the converter folds): every norm but `ssm_norm` as 1 + w summed in float32, `ssm_a` as -exp(`A_log`), `ssm_conv1d` without its middle axis, and the V side in tiled order.
+Each records the checkpoint's repository, commit and safetensors SHA-256, the GGUF's name, source, SHA-256 and size, and a comparison of every F32 tensor of the GGUF with the checkpoint's under the converter's conventions ([QWEN35](QWEN35.md), What the converter folds): every norm but `ssm_norm` as 1 + w summed in float32, `ssm_a` as -exp(`A_log`), `ssm_conv1d` without its middle axis, and the V side in tiled order.
 A tensor that differs records how many of its values differ and by how many float32 steps at most, since `ssm_a` is compared with -exp(`A_log`) as torch computes it on the host, and an exp that rounds another way moves a value one step.
+An F32 tensor the decoder layers give nothing to compare with, such as an MTP block's norm, is named in the record; neither file here has one.
 transformers' tokenizer gives the same ids as the checkpoint's `tokenizer.json` on every golden text, which the tool checks.
 
 | Goldens | Checkpoint | Safetensors | GGUF | GGUF source | GGUF SHA-256 | Bytes |
@@ -818,7 +820,6 @@ python -X utf8 tests/baseline_layered.py --exe build/llmx --model path/to/Qwen3.
 ```
 
 Its bounds, declared before any llmx comparison as the 8B's were, are the Qwen3-0.6B Q4_K_M fixture's in `tests/baseline.py`, the same file type against its full-precision reference: top-1 exact, top-5 overlap 4 of 5, NLL within 0.13 continuous and 0.25 windowed, and logits within 100.
-Step 4 of the qwen35 plan runs it first and keeps them or tightens them.
 On the Linux host's CPU, with a CPU-only build whose `src/` is main's at `b29f6056`, both files pass their 20 tokenizer cases and the first prompt's ids, 21 checks, and then give the skip line.
 The 9B's run took 20 s and the 27B's 36 s, most of it hashing the file, at load averages near 40.
 

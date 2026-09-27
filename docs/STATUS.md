@@ -4,6 +4,38 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## The automatic worker count honours the affinity and the cgroup CPU quota (2026-09-27, branch fix/threads-cpu-quota)
+
+- **Why:** the CPU backend's automatic count was `std::thread::hardware_concurrency()` capped at 64, which ignores the CPUs a process may use.
+  In a container limited to 6 CPUs on the 16-thread EPYC 7262 host it started 16 workers sharing 6 CPUs of quota, which throttles the whole pool at every barrier: decode there ran at half its speed or less, the server component's uncapped check ran past its timeout on main (the open item of the sampler block below), and a user running llmx in a CPU-limited container paid the same.
+  It also ignores a CPU set: with `--cpuset-cpus 0-2` main still started 16.
+- **Done:**
+  - `core::automatic_threads()` ([cpus](src/core-cpus.md)) is the one owner of the count: the fewest of the hardware threads, the CPUs the process's affinity allows (`sched_getaffinity`, and on Windows the process affinity mask on a machine of one processor group) and, on Linux, the CPUs its cgroup CPU quota allows, rounded up (v2 `cpu.max`, v1 `cpu.cfs_quota_us` over `cpu.cfs_period_us`, in its own cgroup and each above it), 4 when none can be read, from 1 to 64.
+    The CPU backend's constructor takes it, and nothing else picks an automatic count: `--threads` 0 or omitted keeps the backend's count in every command, `serve` and `bench` included, and the loader's two reader threads are a fixed number.
+  - The cgroup files are read by functions of their text, and the walk up the cgroups through a reader passed in, so `cpus` holds the parsing, the walk and the minimum without a real cgroup; `threads` holds the CLI's automatic count to the one the test reads itself, so a suite run in a CPU-limited container checks the quota.
+  - The `--threads` help and USAGE say what the automatic count reads and which lines print it.
+- **Gates** (on the Linux machine's CPU, in containers of 6 CPUs unless named, head `88bb020`, test commit `ff7baed` and main `b29f605` each built from its own tree; the load average 9 to 58 from other work, recorded beside each run):
+  - The test commit fails without the fix: `cpus` does not build there (`core/cpus.hpp` does not exist), and its `threads` component fails with `bench` reporting 16 against the 6 the test reads.
+  - Automatic counts from `bench` and `generate --verbose`: main 16 in every container; the branch 6 at `--cpus 6`, 2 at `--cpus 1.5` and 3 at `--cpus 6 --cpuset-cpus 0-2`.
+    On Windows the branch gives 16 unrestricted and 3 under `start /affinity 7`.
+  - Builds with Vulkan on and off, 0 warnings each; CTest 24/24 on the CPU build and 27/27 on the Vulkan build, `backend-vulkan` and `vulkan-lifetime` skipping without a device; `cpus` passes 87 checks and reads 6 in the container.
+    Windows: a clean Visual Studio build with no warning in a file the branch touches, CTest 25/25.
+  - The suite's `threads`, `cli`, `perplexity` and `server` components pass on the CPU build, `threads` at an automatic count of 6.
+  - `generate` greedy and seeded, `logits`, `logits --last` and `perplexity` at `--threads 6` are byte-identical to main on 0.6B and 8B Q8_0, 10 of 10.
+  - Timings at the automatic count, main (16 workers) against the branch (6), interleaved with the arm order alternating: `bench --model --p 512 --n 128 --r 3`, the median of each arm's runs, and the suite's `server` component alone, two runs each.
+
+    | Case | Main | Branch | Change |
+    |---|---:|---:|---:|
+    | 0.6B Q8_0 pp512, 9 runs each | 187.2 tok/s | 160.1 tok/s | -14.5% |
+    | 0.6B Q8_0 tg128, 9 runs each | 10.9 tok/s | 23.8 tok/s | +118% |
+    | 8B Q8_0 pp512, 3 runs each | 7.86 tok/s | 9.19 tok/s | +17% |
+    | 8B Q8_0 tg128, 3 runs each | 1.87 tok/s | 3.33 tok/s | +78% |
+    | `server` component, 2 runs each | 579 and 725 s | 435 and 492 s | -29% time |
+
+    The 0.6B prefill loss follows the worker count, not the code: the branch at `--threads 16` gave a median of 185.9 tok/s beside main's 186.5 in six rounds of the three arms, and 12.1 tok/s of decode against the branch's 23.3 at 6.
+    Prefill of the small model, with few barriers in a pass, is the one case that gained from the extra workers; decode, which meets a barrier at every matmul, loses more to the throttling than it gains.
+- **Left:** the merge.
+
 ## Raw conversion in the format layer, type ids in the quant layer (2026-09-26, branch refactor/raw-convert-to-format, merged at `9f33346`)
 
 - **Goal:** each layer depends only on those below it and a type's sizes are written once, with behaviour and output unchanged but for the three refusal texts below; found by a guidelines audit on 2026-09-26.
@@ -301,7 +333,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
     The hosted jobs pass on this commit, the HF reference job running the whole suite, `server` included.
 - **Merged** at `7f5ecd3` (2026-09-26), rebased onto main `575a2ec` behind the Q4_0 fix below: on the stack's tip both builds have 0 warnings, CTest passes 22/22 and 25/25, the suite passes 18 of 18 on each build on the host CPU, `server` included, and the hosted jobs pass.
   The change is host code (the sampler, the routes, the CLI flag), which the merge rules gate on the CPU and the hosted jobs, and a device changes the logits the rule reads, not the rule.
-  Open: the CLI at the context, above, and the test servers' worker count inside a CPU quota, which puts the uncapped check past its timeout on a loaded machine on main too.
+  Open: the CLI at the context, above; the test servers' worker count inside a CPU quota, which put the uncapped check past its timeout on main too, is the automatic worker count block at the top.
   A model whose reply ends at more than one token needs each of them masked: the mask reads `Tokenizer::eos_id`, the one id `is_eos` ends a reply at today, so the work that gives `is_eos` a second end token (Qwen 3.x, DeepSeek 4.x) widens the mask with it.
 
 ## Q4_0 decodes -0 at nibble 8 under a negative scale (2026-09-26, branch fix/q4_0-negative-zero, merged at `7f5ecd3`)

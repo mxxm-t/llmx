@@ -1,0 +1,762 @@
+{
+  "scope": "Completed CPU Q8 precision and row-first dispatch merge gate at36350ca; no MXFP4 or external-runtime phase completion claimed.",
+  "head": "36350ca30b515a81de3bf48a1f9d371ce1a42a4e",
+  "base": "96ef9c6b1c3654354594b82f9f8b226ce3163381",
+  "captures": [
+    {
+      "model": "0.6B",
+      "cache": "f32",
+      "sha256": {
+        "batched": "d3940eafff8cf1931f871ee648c1afb2996ea1132c03b62e7bd148712bc9f6b7",
+        "decode": "d71982434a4eb25e89edbbed3cebc0ac93adaeab48952b6781ced83057342cee",
+        "greedy": "d253fb47ab5145eb2b7843cac04b2355accfa70da1560cfef6ecfd51d77acaa2"
+      },
+      "matches_precision_head_and_layout": true,
+      "prefill_matches_main": true,
+      "independent_same_weight_hf": {
+        "rows": 247,
+        "scored": 246,
+        "top1_checked": 226,
+        "min_top5_overlap": 5,
+        "max_logit_gap": 8.416175842285156e-05,
+        "cpu_nll": 3.3616635396221186,
+        "device_nll": 3.3616637677179853,
+        "nll_delta": 2.2809586663896653e-07,
+        "top1_fail_positions": [],
+        "top5_fail_positions": [],
+        "criteria_passed": true
+      }
+    },
+    {
+      "model": "0.6B",
+      "cache": "f16",
+      "sha256": {
+        "batched": "0480d91c9cee17fb0708ba6619026bc3ec666c3787b5099496bb066e2bf6ff29",
+        "decode": "4c8f23ac7091459c95cc3ef55654afcf132f626b92f739df897e5d4134e9c404",
+        "greedy": "e1c3ab74d96ed2c9cb53e67e4ab2b341ab3725e9c51898d0e0e2b618217df246"
+      },
+      "matches_precision_head_and_layout": true,
+      "prefill_matches_main": true
+    },
+    {
+      "model": "8B",
+      "cache": "f32",
+      "sha256": {
+        "batched": "c5f1e7e5c83a9ba2a9c5fd5a499fb0db078f1cf908b5c426b681edff7436c25e",
+        "decode": "03e46d3e382b5588fe07ceade4f71214160f9a0c45ae1996c0bd993b0aa85a6f",
+        "greedy": "34ed4aef893d1df6606025284c150fa2b7d62851b20e05ed2489de8e7cd7326b"
+      },
+      "matches_precision_head_and_layout": true,
+      "prefill_matches_main": true,
+      "independent_same_weight_hf": {
+        "rows": 247,
+        "scored": 246,
+        "top1_checked": 237,
+        "min_top5_overlap": 5,
+        "max_logit_gap": 0.00020360946655273438,
+        "cpu_nll": 2.400159007031333,
+        "device_nll": 2.400159125718107,
+        "nll_delta": 1.1868677418647167e-07,
+        "top1_fail_positions": [],
+        "top5_fail_positions": [],
+        "criteria_passed": true
+      }
+    },
+    {
+      "model": "8B",
+      "cache": "f16",
+      "sha256": {
+        "batched": "e4312e2d34051272e7fe73f5c7a965eb4b2641656aee0daeba220bdeeac0d9a8",
+        "decode": "48cb318feebe02fa255cf85770285b1d21f8c7ceeddb7fc0e83ddab9d740ea91",
+        "greedy": "13334c8afc5d312e3e6b8fd1c7caf168ca983f822dbe2eaebb3ac45689654763"
+      },
+      "matches_precision_head_and_layout": true,
+      "prefill_matches_main": true
+    }
+  ],
+  "performance": {
+    "validation": {
+      "0.6B": {
+        "cells": {
+          "pp64": {
+            "baseline": {
+              "median": 537.485,
+              "min": 526.61,
+              "max": 542.64,
+              "means": [
+                526.61,
+                542.64,
+                533.6,
+                541.37
+              ],
+              "block_change_percent": [
+                0.0,
+                0.0
+              ]
+            },
+            "candidate": {
+              "median": 534.995,
+              "min": 489.98,
+              "max": 549.49,
+              "means": [
+                549.49,
+                548.02,
+                489.98,
+                521.97
+              ],
+              "block_change_percent": [
+                2.654418650459389,
+                -5.907080318503444
+              ]
+            },
+            "layout": {
+              "median": 554.49,
+              "min": 530.73,
+              "max": 560.85,
+              "means": [
+                560.85,
+                560.04,
+                530.73,
+                548.94
+              ],
+              "block_change_percent": [
+                4.841308497410979,
+                0.42555818390628275
+              ]
+            },
+            "reference": "baseline",
+            "candidate_vs_layout_block_percent": [
+              -2.0859047624396942,
+              -6.305803638963059
+            ]
+          },
+          "tg32": {
+            "baseline": {
+              "median": 59.425,
+              "min": 58.87,
+              "max": 60.62,
+              "means": [
+                60.62,
+                59.89,
+                58.87,
+                58.96
+              ],
+              "block_change_percent": [
+                0.0,
+                0.0
+              ]
+            },
+            "candidate": {
+              "median": 59.24,
+              "min": 57.97,
+              "max": 60.15,
+              "means": [
+                60.15,
+                57.97,
+                59.1,
+                59.38
+              ],
+              "block_change_percent": [
+                -1.9981343316757938,
+                0.5513907350320313
+              ]
+            },
+            "layout": {
+              "median": 57.925,
+              "min": 53.55,
+              "max": 60.28,
+              "means": [
+                60.28,
+                60.05,
+                55.8,
+                53.55
+              ],
+              "block_change_percent": [
+                -0.14771557407589064,
+                -7.216429353821918
+              ]
+            },
+            "reference": "baseline",
+            "candidate_vs_layout_block_percent": [
+              -1.8531561578570055,
+              8.37197796415472
+            ]
+          }
+        },
+        "monitor": {
+          "calls": 12,
+          "bracketed": 12,
+          "flagged": 4,
+          "with_unknowns": 12
+        }
+      },
+      "8B": {
+        "cells": {
+          "pp64": {
+            "baseline": {
+              "median": 39.980000000000004,
+              "min": 39.54,
+              "max": 40.49,
+              "means": [
+                40.03,
+                39.93,
+                39.54,
+                40.49
+              ],
+              "block_change_percent": [
+                0.0,
+                0.0
+              ]
+            },
+            "candidate": {
+              "median": 39.315,
+              "min": 38.57,
+              "max": 39.75,
+              "means": [
+                39.75,
+                39.74,
+                38.57,
+                38.89
+              ],
+              "block_change_percent": [
+                -0.5877169400035576,
+                -3.2053017838052256
+              ]
+            },
+            "layout": {
+              "median": 40.025000000000006,
+              "min": 39.75,
+              "max": 40.45,
+              "means": [
+                40.45,
+                40.28,
+                39.77,
+                39.75
+              ],
+              "block_change_percent": [
+                0.9628365951289242,
+                -0.6302628321577131
+              ]
+            },
+            "reference": "baseline",
+            "candidate_vs_layout_block_percent": [
+              -1.5357666121746938,
+              -2.5913714024402568
+            ]
+          },
+          "tg32": {
+            "baseline": {
+              "median": 4.85,
+              "min": 4.83,
+              "max": 4.88,
+              "means": [
+                4.84,
+                4.86,
+                4.83,
+                4.88
+              ],
+              "block_change_percent": [
+                0.0,
+                0.0
+              ]
+            },
+            "candidate": {
+              "median": 4.9,
+              "min": 4.85,
+              "max": 4.91,
+              "means": [
+                4.89,
+                4.85,
+                4.91,
+                4.91
+              ],
+              "block_change_percent": [
+                0.4117378103418723,
+                1.13419355522264
+              ]
+            },
+            "layout": {
+              "median": 4.865,
+              "min": 4.83,
+              "max": 4.91,
+              "means": [
+                4.85,
+                4.91,
+                4.83,
+                4.88
+              ],
+              "block_change_percent": [
+                0.6168692556316913,
+                0.0
+              ]
+            },
+            "reference": "baseline",
+            "candidate_vs_layout_block_percent": [
+              -0.20387381043297514,
+              1.13419355522264
+            ]
+          }
+        },
+        "monitor": {
+          "calls": 12,
+          "bracketed": 12,
+          "flagged": 12,
+          "with_unknowns": 12
+        }
+      }
+    },
+    "concurrent": {
+      "0.6B": {
+        "cells": {
+          "pp64": {
+            "baseline": {
+              "median": 572.635,
+              "min": 529.21,
+              "max": 605.92,
+              "means": [
+                529.21,
+                567.56,
+                605.92,
+                577.71
+              ],
+              "block_change_percent": [
+                0.0,
+                0.0
+              ]
+            },
+            "candidate": {
+              "median": 565.47,
+              "min": 546.91,
+              "max": 576.46,
+              "means": [
+                576.46,
+                557.77,
+                573.17,
+                546.91
+              ],
+              "block_change_percent": [
+                3.464712078816312,
+                -5.368206459768543
+              ]
+            },
+            "layout": {
+              "median": 554.02,
+              "min": 527.05,
+              "max": 581.74,
+              "means": [
+                581.74,
+                535.41,
+                572.63,
+                527.05
+              ],
+              "block_change_percent": [
+                1.8328248805939085,
+                -7.146052669778491
+              ]
+            },
+            "reference": "baseline",
+            "candidate_vs_layout_block_percent": [
+              1.6025158883060664,
+              1.914669501003874
+            ]
+          },
+          "tg8": {
+            "baseline": {
+              "median": 146.88,
+              "min": 145.81,
+              "max": 147.32,
+              "means": [
+                147.32,
+                145.81,
+                146.65,
+                147.11
+              ],
+              "block_change_percent": [
+                0.0,
+                0.0
+              ]
+            },
+            "candidate": {
+              "median": 152.38,
+              "min": 145.42,
+              "max": 154.74,
+              "means": [
+                154.74,
+                152.65,
+                145.42,
+                152.11
+              ],
+              "block_change_percent": [
+                4.863703200721781,
+                1.2578780051505145
+              ]
+            },
+            "layout": {
+              "median": 151.8,
+              "min": 145.45,
+              "max": 153.71,
+              "means": [
+                151.64,
+                145.45,
+                153.71,
+                151.96
+              ],
+              "block_change_percent": [
+                1.3302795060184502,
+                4.052752323694908
+              ]
+            },
+            "reference": "baseline",
+            "candidate_vs_layout_block_percent": [
+              3.4870363645779445,
+              -2.6860167137625512
+            ]
+          }
+        },
+        "monitor": {
+          "calls": 12,
+          "bracketed": 12,
+          "flagged": 2,
+          "with_unknowns": 12
+        }
+      },
+      "8B": {
+        "cells": {
+          "pp64": {
+            "baseline": {
+              "median": 40.195,
+              "min": 39.2,
+              "max": 40.4,
+              "means": [
+                39.2,
+                40.4,
+                40.04,
+                40.35
+              ],
+              "block_change_percent": [
+                0.0,
+                0.0
+              ]
+            },
+            "candidate": {
+              "median": 39.575,
+              "min": 37.46,
+              "max": 40.02,
+              "means": [
+                39.48,
+                37.46,
+                40.02,
+                39.67
+              ],
+              "block_change_percent": [
+                -3.3640451004421923,
+                -0.8709741256291759
+              ]
+            },
+            "layout": {
+              "median": 40.025000000000006,
+              "min": 39.16,
+              "max": 40.73,
+              "means": [
+                39.74,
+                40.31,
+                40.73,
+                39.16
+              ],
+              "block_change_percent": [
+                0.5742064057193241,
+                -0.6404209990781395
+              ]
+            },
+            "reference": "baseline",
+            "candidate_vs_layout_block_percent": [
+              -3.9157669216642765,
+              -0.23203915401945885
+            ]
+          },
+          "tg8": {
+            "baseline": {
+              "median": 7.44,
+              "min": 7.28,
+              "max": 7.45,
+              "means": [
+                7.44,
+                7.45,
+                7.28,
+                7.44
+              ],
+              "block_change_percent": [
+                0.0,
+                0.0
+              ]
+            },
+            "candidate": {
+              "median": 13.52,
+              "min": 13.4,
+              "max": 13.56,
+              "means": [
+                13.52,
+                13.4,
+                13.56,
+                13.52
+              ],
+              "block_change_percent": [
+                80.79072270255895,
+                83.97805920076749
+              ]
+            },
+            "layout": {
+              "median": 13.495,
+              "min": 13.44,
+              "max": 13.58,
+              "means": [
+                13.58,
+                13.45,
+                13.54,
+                13.44
+              ],
+              "block_change_percent": [
+                81.52917043824417,
+                83.29761288226716
+              ]
+            },
+            "reference": "baseline",
+            "candidate_vs_layout_block_percent": [
+              -0.40679287736646863,
+              0.37122486638021535
+            ]
+          }
+        },
+        "monitor": {
+          "calls": 12,
+          "bracketed": 12,
+          "flagged": 12,
+          "with_unknowns": 12
+        }
+      }
+    }
+  },
+  "rig": {
+    "complete": true,
+    "device_identity_cells": 10,
+    "checks": [
+      {
+        "label": "Qwen3-0.6B-Q8_0-f32-baseline",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q8_0-f32-candidate",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q8_0-f16-baseline",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q8_0-f16-candidate",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q4_0-f32-baseline",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q4_0-f32-candidate",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q4_0-f16-baseline",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q4_0-f16-candidate",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q5_K_M-f32-baseline",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q5_K_M-f32-candidate",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q5_K_M-f16-baseline",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q5_K_M-f16-candidate",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q4_K_M-f32-baseline",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q4_K_M-f32-candidate",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q4_K_M-f16-baseline",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-0.6B-Q4_K_M-f16-candidate",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-8B-Q8_0-f32-baseline",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-8B-Q8_0-f32-candidate",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-8B-Q8_0-f16-baseline",
+        "exit": 0
+      },
+      {
+        "label": "Qwen3-8B-Q8_0-f16-candidate",
+        "exit": 0
+      },
+      {
+        "label": "device-suite",
+        "exit": 0
+      },
+      {
+        "label": "device-f32-baseline",
+        "exit": 0
+      },
+      {
+        "label": "cpu-f32-baseline",
+        "exit": 0
+      },
+      {
+        "label": "cpu-f16-baseline",
+        "exit": 0
+      }
+    ]
+  },
+  "pins": [
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-final-20260929\\build-state.json",
+      "sha256": "961efe72ea9cf9b598b2d7d24f212449faafd36b97a4351c339555be822539a4"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-final-20260929\\validation\\state.json",
+      "sha256": "a00a571e2d75c17fed21e0b38d88bec3698a02a093d8cb8a73e56318b0c2496f"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-final-20260929\\concurrent\\state.json",
+      "sha256": "9420280b3d8d35f512732781594e0159429d52dfac4bbfd9ff3f8ace63c4c31e"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-final-20260929\\validation\\summary.json",
+      "sha256": "380b0027deed2bc48be458981c93ada1244eb01be65ca1f39cc9a1dc10ce2ef1"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-final-20260929\\concurrent\\summary.json",
+      "sha256": "055f77cda1315bb38730f4d0cf7af965aff3f294f8f37a5e39ce2943c9feafae"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-final-20260929\\final-hf-identity.json",
+      "sha256": "1714ea3a731c91daebf70ba6eac80581f799f7c5d2e7a46ff365892106667edb"
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-final-rig-validation-state-20260929.json",
+      "sha256": "546a2544de41d0087200997232f107cf72c1c08cfbe50d29fbb70ed7a51a491b"
+    }
+  ],
+  "verdict": "The accuracy fix plus row-first dispatch is a justified tradeoff: seq8 8B decode improves 80.79/83.98 percent in both mirrored blocks with an agreeing same-header control, while measured prefill costs are modest and retain layout/activity uncertainty. Single-sequence decode has no large measured cost. All samples retained, no idle claim or external-runtime floor claimed.",
+  "hosted": {
+    "id": 36492422285,
+    "head_sha": "36350ca30b515a81de3bf48a1f9d371ce1a42a4e",
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/mxxm-t/llmx/actions/runs/36492422285",
+    "jobs": [
+      {
+        "name": "HF reference (CPU)",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 109163905134
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 109163905243
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 109163905344
+      },
+      {
+        "name": "CPU (Linux UBSan)",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 109163905471
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 109163905653
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 109163905657
+      }
+    ]
+  },
+  "publication": {
+    "base": "96ef9c6b1c3654354594b82f9f8b226ce3163381",
+    "head": "36350ca30b515a81de3bf48a1f9d371ce1a42a4e",
+    "ci": {
+      "id": 36492422285,
+      "head_sha": "36350ca30b515a81de3bf48a1f9d371ce1a42a4e",
+      "conclusion": "success"
+    },
+    "pushes": [
+      {
+        "remote": "http://11.10.10.12:3000/admin/llmx.git",
+        "verified_head": "36350ca30b515a81de3bf48a1f9d371ce1a42a4e"
+      },
+      {
+        "remote": "https://github.com/mxxm-t/llmx.git",
+        "verified_head": "36350ca30b515a81de3bf48a1f9d371ce1a42a4e"
+      }
+    ],
+    "gate_deleted": true
+  },
+  "archives": [
+    {
+      "archive": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-final-20260929-evidence.tar.gz",
+      "sha256": "9239c3355f1ff58a06ae50c11bc2df2345dec7b03e4e57aaf62aa3c3f0053652",
+      "bytes": 3726411419,
+      "scope": "Final36350ca Windows native gates, both-cache dense full captures and complete single/eight-sequence timing with layout controls. Hosted CI kept separately while live.",
+      "files": 316
+    },
+    {
+      "archive": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/cpu-q8-row-final-20260929-evidence.tar.gz",
+      "sha256": "6dedfa87bd4a0114e8d60d186188a8c619d8d02a07bf8014d9bdce6960b0c207",
+      "bytes": 6408658195,
+      "scope": "Final 36350ca Linux native, device identity, required device suite and both-cache CPU HF gates. Raw outputs retained; Windows timing and hosted CI recorded separately.",
+      "files": 130
+    }
+  ],
+  "markdown_review": {
+    "pages": 71,
+    "changed": [
+      "docs/STATUS.md"
+    ],
+    "unchanged": 70,
+    "parent_review": "cpu-q8-dispatch-docs-review-20260929.json",
+    "method": "All page hashes revalidated before publication; source is unchanged. STATUS rewritten against final output identities, completed matrices, native and hosted results, and verified raw archives. The other 70 pages retain their hash-pinned source-backed review."
+  }
+}

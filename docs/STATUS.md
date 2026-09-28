@@ -4,18 +4,30 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## CPU Q8 activation precision (2026-09-28, fix/cpu-q8-precision, in progress)
+## CPU Q8 activation precision (2026-09-29, merged at `36350ca`)
 
-- **Goal:** keep original F32 activations for CPU Q8 products, using the existing float dot path and removing the integer Q8 path if the complete tradeoff passes. No runtime flag or model-specific exception.
-- **Done:** isolated from current main `96ef9c6b`, separate from MXFP4. Same-weight independent HF diagnostics on the prior integration show original8 decode top-five 239/247 on 0.6B Q8, 244/247 on 8B Q8 and 240/247 on 30B MXFP4 MoE; Q8 F32 restores all measured rankings. Twelve monitored Windows calls per model show no large fallback cost, but small differences and the noisy 0.6B prompt cell are unresolved without same-file controls. This is prerequisite evidence, not this branch's gate.
-- **Failure first:** fresh MSVC compilation of `backend_group.cpp` succeeds; the native test exits 1 with `Q8 product rounded its original F32 activation`, before any production change. The [regression record](benchmarks/cpu-q8-precision-regression-20260928.json) pins the test and logs.
-- **Implemented:** Q8 is no longer selected by the CPU integer-dot owner, so all callers reach the existing float path. The unused signed-byte helper and both Q8 integer consumers are removed. Remaining integer-dot tests retain their precision references, routed Q8 checks remain, and Q8 overflow checks use the tighter float bound in both settings. AGENTS and the CPU owner page describe the changed paths.
-- **Mid-development validation (2026-09-29):** clean MSVC build passes 34/34 native tests in 39.83 seconds; the later contract-test edits pass both affected tests. The same hashed runtime snapshot builds under GCC and passes 33/33 in 40.70 seconds. Windows MoE and qwen35 HF fixtures, 60 split runs with both cache types, and follow-up chat pass. Docs initially catches a removed function name; after correcting it, docs and dead-code pass. Main-based 0.6B and 8B captures reproduce every prefill/decode float and all 64 greedy IDs from the earlier Q8-F32 control, preserving its independent same-weight HF result. The [progress record](benchmarks/cpu-q8-precision-progress-20260929.json) holds the full numbers, hashes, retained failures and provenance limits. Host and rig tests ran independently in parallel; no performance claim comes from their overlapping work.
-- **Final precision-head validation (2026-09-29):** `22c377b` passes all six hosted jobs in run 36485574243, Windows 34/34 and Linux/Vulkan 37/37 native tests, ten dense device-identity cells, the full device suite and both-cache CPU HF baselines including both real Qwen3.5 fixtures. Single-sequence timing shows no material decode cost. The subsequent eight-sequence matrix exposes a material cost: 0.6B 146.035 -> 97.490 tok/s and 8B 7.410 -> 6.635, with the layout control showing the same effect. The merge is held for that finding; the complete matrices and activity flags are retained.
-- **Dispatch repair selected (2026-09-29):** a single pool dispatch first recovers 25-30 percent on Windows 0.6B and 35-38 percent on 8B. Processing all decode columns against each weight row before moving on is simpler and faster again: Windows 0.6B 120.485 -> 150.095 tok/s, matched blocks +28.23/+22.39 percent, layout control 150.475. Linux separately shows +13.90/+16.72 percent on 0.6B and +17.25/+21.05 percent on Qwen3.5-0.8B; its actual short gate weights are Q8_0 with 16 output rows. Prefill shows no consistent change. The selected loop preserves every captured 0.6B/8B CPU logit and greedy ID on Linux, and native arithmetic, concurrent server passes and pause/resume pass on both platforms. The [checkpoint record](benchmarks/cpu-q8-dispatch-checkpoint-20260929.json) pins each scope, build, matrix, activity limitation and the corrected Qwen3.5 plan label. No new flag, kernel or allocation is added.
-- **Markdown review:** all 71 pages reconciled with the preceding completed review: its hashes match before this change; this STATUS block and the CPU owner page are rechecked against the selected source and completed evidence, and the other 69 retain their unchanged source-backed review. The [dispatch review inventory](benchmarks/cpu-q8-dispatch-docs-review-20260929.json) records each page and its provenance. This is an incremental semantic review, not a fresh reread of unchanged history.
-- **Left:** freeze and validate the selected row-first head: clean builds and native tests, applicable identity/HF/device checks, matched single- and eight-sequence timing against main, and hosted CI. The green run at `22c377b` covers the precision repair before this dispatch change. The phase's external reference gate remains separate; this checkpoint is not merge-ready.
-- **Gotchas:** this changes Q8 decode numerics intentionally; record error against HF and retain before/after captures rather than claim byte identity. Existing types' isolated arithmetic and Vulkan code must remain unchanged. Private native16 still misses two MoE rankings; it is not the selected repair.
+Merged on Gitea and GitHub main by fast-forward from `96ef9c6b` after all six jobs passed at exact head `36350ca30b515a81de3bf48a1f9d371ce1a42a4e` in [run 36492422285](https://github.com/mxxm-t/llmx/actions/runs/36492422285), including both-cache HF, layer split and multi-user server checks. Both remote heads were verified and the temporary gate branch deleted. The failing-first `9bfd64c` precedes precision repair `22c377b` and row-dispatch repair `36350ca`.
+
+CPU Q8 products now retain original F32 activations through the existing float dots; both unused integer consumers are removed. One pooled loop over weight rows processes all decode columns against each row. No new flag, kernel, allocation or Vulkan change. The intermediate precision-only head's concurrency cost is resolved; its failed performance gate and the column-first diagnostics remain in the [dispatch checkpoint](benchmarks/cpu-q8-dispatch-checkpoint-20260929.json).
+
+Final validation passes Windows 34/34 native tests and Linux/Vulkan 37/37, ten main/candidate device-identity cells, the required-model device suite and both-cache CPU HF baselines including the Qwen3.5 Q8 and Q4_K_M fixtures. On Windows, all 247 full prefill/decode rows and 64 greedy IDs of each dense Q8 model, both caches, equal the precision repair and layout control; prefill also equals main. F32 captures equal the earlier CPU control's captures exactly; that control was compared with independent HF using weights decoded from the exact same GGUF. Against that independent HF reference, top-five agreement is 247/247 on both models, maximum logit gaps are 0.000084162 on 0.6B and 0.000203609 on 8B, and mean NLL gaps 0.000000228 and 0.000000119. These same-weight diagnostics supplement the required HF baseline gate; no new error allowance, default-F16 MoE acceptance or long-context proof is claimed.
+
+Matched clean detached MSVC builds, six threads, F32 cache, pp64, two iterations per call, medians in tok/s:
+
+| Model | Sequences | Phase | Main | Candidate | Layout control |
+|---|---:|---|---:|---:|---:|
+| 0.6B Q8 | 1 | Prefill | 537.485 | 534.995 | 554.490 |
+| 0.6B Q8 | 1 | Decode, 32 tokens | 59.425 | 59.240 | 57.925 |
+| 8B Q8 | 1 | Prefill | 39.980 | 39.315 | 40.025 |
+| 8B Q8 | 1 | Decode, 32 tokens | 4.850 | 4.900 | 4.865 |
+| 0.6B Q8 | 8 | Prefill | 572.635 | 565.470 | 554.020 |
+| 0.6B Q8 | 8 | Decode, 8 tokens | 146.880 | 152.380 | 151.800 |
+| 8B Q8 | 8 | Prefill | 40.195 | 39.575 | 40.025 |
+| 8B Q8 | 8 | Decode, 8 tokens | 7.440 | 13.520 | 13.495 |
+
+Eight-sequence 8B decode gains 80.79/83.98 percent across mirrored blocks, with the same-header layout control agreeing. Single-sequence decode has no large measured cost. Prefill costs are retained: 8B candidate blocks are -0.59/-3.20 percent for one sequence and -3.36/-0.87 for eight; small-model prefill is mixed. The accuracy benefit and concurrent throughput gain justify those modest costs without claiming them to be isolated instruction effects. All 48 planned calls are retained and monitor-bracketed: 16/24 single-sequence and 14/24 concurrent calls carry activity flags, and every call has unknown telemetry coverage. No idle-machine assumption or discarded slow sample. Reference-runtime floors remain at the phase's final gate.
+
+[Final gate evidence](benchmarks/cpu-q8-row-final-20260929.json) pins complete matrices, identity chains, hosted results and the two verified raw archives: Windows 316 files, SHA-256 `9239c3355f1ff58a06ae50c11bc2df2345dec7b03e4e57aaf62aa3c3f0053652`; Linux 130 files, SHA-256 `6dedfa87bd4a0114e8d60d186188a8c619d8d02a07bf8014d9bdce6960b0c207`. Earlier diagnostic and rejected-arm evidence remains in its checkpoint records. All 71 Markdown pages are reconciled: this STATUS record is checked against final evidence, and the other 70 retain their hash-verified source-backed review. This separate merge record changes documentation only. MXFP4 and the native16 GPU work remain separate, unfinished features.
 
 ## Vulkan activation repair on current main (2026-09-28, fix/vulkan-activation-main, merged at `1108fc3`)
 
@@ -7971,6 +7983,7 @@ their own measurements; K-quant optimization remains separate work below.
 | CPU row streaming / parallel prefill   | Done |
 | CPU attention value accumulation      | Done |
 | CPU grouped projections              | Done |
+| CPU Q8 activation precision and batched float decode | Done (`36350ca`) |
 | CPU Q8 scale / load scheduling       | Done |
 | Head-major CPU KV storage             | Done |
 | CPU worker exception safety           | Done |

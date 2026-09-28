@@ -57,6 +57,7 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
   Tensor infos have no individual padding. Before it opens the output,
   `write_gguf` refuses a model whose files are not mapped, so a refusal
   leaves the file at `path` as it was.
+  Writing uses `format::OutputFile` ([output_file](format-output_file.md)): checked writes and close precede replacement, so a preparation failure preserves the destination.
   - `read_gguf` reads the headers alone: it parses and checks them and lays
     out the segments, and maps nothing, so `info`, `tokenize` and
     `detokenize`, which need the metadata alone, neither read the payload

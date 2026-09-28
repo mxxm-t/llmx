@@ -128,7 +128,7 @@ Convert a raw float32 model into a quantized GGUF file.
   must contain exactly the described float32 data. Invalid shapes or payload
   lengths fail before creating or replacing the output. An empty tensor list
   is supported with an empty binary input.
-- The output is a GGUF v3 file with all tensors quantized to the chosen type.
+- The output is a GGUF v3 file with all tensors quantized to the chosen type. Writes and close must succeed before it replaces the destination; failures name the path and preserve an existing destination during preparation. Output paths must be absent or regular files, not symbolic links or devices. Replacement needs space beside an existing file and write access to its parent directory.
 
 `model.json` schema:
 
@@ -144,6 +144,11 @@ Convert a raw float32 model into a quantized GGUF file.
 
 `shape[0]` is the fastest-varying dimension (maps to GGUF `ne[0]`).
 
+Conversion uses hidden `.llmx-output-*` staging directories beside its outputs.
+An interrupted process can leave one behind; remove that directory only after
+confirming its conversion has stopped. These writes do not guarantee durability
+across power loss.
+
 ## `llmx dequantize <in.gguf> <out.json> <out.bin>`
 
 Read a GGUF containing any supported tensor types and write the tensors as
@@ -152,6 +157,12 @@ float32 data in `out.bin`. JSON output escapes path and tensor-name quotes,
 backslashes and control characters, preserving UTF-8 tensor names. Reusing this
 output with `quantize` requires the shape rules above: GGUF can also hold scalar,
 zero-sized or F32 tensors whose rows do not contain whole quantization blocks.
+
+Both raw outputs are prepared and closed successfully before either is published.
+Their paths must name different files, each absent or regular. Publication replaces
+JSON then binary; if the second rename fails, the error names its path and the
+first complete replacement may remain. The pair is not a transaction and is not
+guaranteed durable across power loss.
 
 ## `llmx info <in.gguf>`
 

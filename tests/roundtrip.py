@@ -8,6 +8,7 @@ import json
 import math
 import shutil
 import subprocess
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli, run_process, exe_path, write_bin, read_bin_floats, max_err
@@ -144,7 +145,7 @@ def check_tensor_extents(d):
 
 # Real filesystem failures through the CLI, without filling a disk or changing the parent process's limits.
 def check_output_failures(d):
-    root = os.path.join(d, "write-failures")
+    root = os.path.join(d, "write-failures-\u00e9")
     os.mkdir(root)
     mj, mb, mg = (os.path.join(root, n) for n in ("input.json", "input.bin", "input.gguf"))
     with open(mj, "w", encoding="ascii") as f:
@@ -179,7 +180,7 @@ def check_output_failures(d):
             if existing and os.path.isdir(os.path.dirname(path)):
                 with open(path, "wb") as f:
                     f.write(sentinel)
-        before = {name: open(os.path.join(case, name), "rb").read() for name in os.listdir(case)}
+        before = {name: Path(case, name).read_bytes() for name in os.listdir(case)}
         args = ["quantize", mj, mb, paths[0], "q8_0"] if kind == "gguf" else ["dequantize", mg] + paths
         command = [exe_path()] + args
         if limit is not None:
@@ -188,19 +189,53 @@ def check_output_failures(d):
                        "n=int(sys.argv[1]); resource.setrlimit(resource.RLIMIT_FSIZE,(n,n)); "
                        "os.execv(sys.argv[2],sys.argv[2:])")
             command = [sys.executable, "-c", wrapper, str(limit)] + command
-        result = subprocess.run(command, capture_output=True, encoding="utf-8", timeout=30)
+        result = subprocess.run(command, capture_output=True, timeout=30)
+        diagnostic = result.stderr.decode("utf-8")
         expected_path = paths[-1] if limit is None or (kind == "raw" and limit == 1024) else paths[0]
-        if result.returncode != 1 or expected_path not in result.stderr:
+        if result.returncode != 1 or expected_path not in diagnostic:
             failures.append("%s: expected error naming %s; exit=%d stderr=%r" % (
-                label, expected_path, result.returncode, result.stderr))
+                label, expected_path, result.returncode, diagnostic))
         if set(os.listdir(case)) != set(before):
             failures.append(label + ": failure left output or temporary files")
         for name, contents in before.items():
             path = os.path.join(case, name)
-            if not os.path.isfile(path) or open(path, "rb").read() != contents:
+            if not os.path.isfile(path) or Path(path).read_bytes() != contents:
                 failures.append(label + ": failure changed existing " + name)
+    aliases = ["same", "normalized", "hardlink"]
+    if os.name == "nt":
+        aliases.append("case")
+    else:
+        aliases.append("parent-link")
+    alias_cases = 0
+    for alias in aliases:
+        for existing in (False, True):
+            if alias == "hardlink" and not existing:
+                continue
+            case = Path(root, "alias-%s-%s" % (alias, existing))
+            case.mkdir()
+            first = case / "out"
+            if existing:
+                first.write_bytes(b"original")
+            second = first
+            if alias == "normalized":
+                (case / "child").mkdir()
+                second = case / "child" / ".." / "out"
+            elif alias == "hardlink":
+                second = case / "linked"
+                os.link(first, second)
+            elif alias == "case":
+                second = case / "OUT"
+            elif alias == "parent-link":
+                (case / "linked").symlink_to(case, target_is_directory=True)
+                second = case / "linked" / "out"
+            result = run_process(["dequantize", mg, str(first), str(second)], text=True, timeout=30)
+            if result.returncode != 1 or "different files" not in result.stderr:
+                failures.append("alias %s: not refused: %d %r" % (alias, result.returncode, result.stderr))
+            if (existing and first.read_bytes() != b"original") or (not existing and first.exists()):
+                failures.append("alias %s: changed output" % alias)
+            alias_cases += 1
     assert not failures, "output failure handling:\n" + "\n".join(failures)
-    print("roundtrip: %d output failures refused by path, prior files preserved, no partial outputs [ok]" % len(cases))
+    print("roundtrip: %d output failures refused by path, prior files preserved, no partial outputs; %d aliases refused [ok]" % (len(cases), alias_cases))
 
 
 # The types this checks and their GGUF ids, whose values per block and bytes per block are in sd.TYPES.
@@ -334,7 +369,7 @@ def check_raw_decode(d):
 
 # Paths reach the converter as UTF-8, and Windows reads a narrow path in the system code page, so a directory named outside it is where a narrow open fails.
 def check_non_ascii_directory(d):
-    sub = os.path.join(d, "Ć©äø­\U0001f600")
+    sub = os.path.join(d, "\u00e9\u4e2d\U0001f600")
     os.mkdir(sub)
     for name in ("model.json", "model.bin"):
         shutil.copyfile(os.path.join(d, name), os.path.join(sub, name))

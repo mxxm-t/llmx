@@ -12,7 +12,18 @@
 #include <vector>
 #include "core/json.hpp"
 #include "format/gguf.hpp"
+#include "format/output_file.hpp"
 #include "quant/quant.hpp"
+
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 // Conversion between a model as raw F32 tensors and a GGUF file: model.json names the model and each tensor with its shape, model.bin holds their floats in that order.
 namespace format {
@@ -123,6 +134,21 @@ inline size_t quantize_raw(const std::string& json_path, const std::string& bin_
 
 // Write a GGUF file's tensors as raw F32, the model.json and model.bin that quantize_raw reads.
 inline void dequantize_to_raw(const std::string& in_path, const std::string& out_json, const std::string& out_bin) {
+    const auto output_path = [](const std::string& path) {
+        std::error_code ec;
+        auto resolved = std::filesystem::absolute(std::filesystem::u8path(path), ec);
+        if (!ec) resolved = std::filesystem::weakly_canonical(resolved, ec);
+        if (ec) throw std::runtime_error("cannot resolve output " + path + ": filesystem error " + std::to_string(ec.value()));
+        return resolved;
+    };
+    const auto json_path = output_path(out_json), bin_path = output_path(out_bin);
+    bool same_name = json_path == bin_path;
+#if defined(_WIN32)
+    same_name = CompareStringOrdinal(json_path.c_str(), -1, bin_path.c_str(), -1, TRUE) == CSTR_EQUAL;
+#endif
+    std::error_code ec;
+    if (same_name || std::filesystem::equivalent(json_path, bin_path, ec))
+        throw std::runtime_error("raw outputs must be different files: " + out_json + " and " + out_bin);
     gguf::GGUFModel m = gguf::read_gguf(in_path);
     gguf::map_payload(m);
     std::stringstream js;
@@ -160,12 +186,15 @@ inline void dequantize_to_raw(const std::string& in_path, const std::string& out
         std::memcpy(out.data() + (out.size() - n * 4), f.data(), n * 4);
     }
 
-    std::ofstream oj(std::filesystem::u8path(out_json));
-    if (!oj) throw std::runtime_error("cannot open " + out_json);
-    oj << js.str();
-    std::ofstream ob(std::filesystem::u8path(out_bin), std::ios::binary);
-    if (!ob) throw std::runtime_error("cannot open " + out_bin);
-    ob.write((const char*)out.data(), (std::streamsize)out.size());
+    OutputFile json(out_json, std::ios::out), bin(out_bin);
+    json.write([&](std::ostream& os) { os << js.str(); });
+    bin.write([&](std::ostream& os) { os.write((const char*)out.data(), (std::streamsize)out.size()); });
+    // Both files are complete before either replaces its destination. Separate renames are not a pair transaction.
+    json.publish();
+    // An initially absent name can alias the first file on a case-insensitive filesystem.
+    if (std::filesystem::equivalent(json_path, bin_path, ec))
+        throw std::runtime_error("raw outputs must be different files: " + out_json + " and " + out_bin);
+    bin.publish();
 }
 
 } // namespace format

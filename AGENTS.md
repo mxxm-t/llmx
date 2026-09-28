@@ -160,6 +160,12 @@ malformed input, nesting limits and JSON output string escaping.
 A float written by `number` is its shortest decimal in the C locale's form under a comma locale too, reads back through `parse` as the same float for a million random bit patterns, and is `null` when JSON cannot hold it.
 The Q8/Q4 round-trip test also checks escaped Unicode tensor names through the actual CLI.
 
+`format-output` checks conversion staging, serialization and stream failure,
+refusal of premature publication, a later publication failure after the first
+complete file was published, and temporary cleanup. The Python round-trip adds
+real child-only file-size-limit failures on POSIX, existing-file preservation,
+a failed second output open and aliased raw output refusal.
+
 `gguf-validation` checks independent binary fixtures for field lengths/counts, array depth, tensor arithmetic, byte counts that overflow although the element count fits, in one row or across rows, file extents, tensor types and quantized row widths, each refused as such when the element count also overflows, custom alignment and a tensor name repeated in one file.
 These are format checks; they do not establish model-schema safety.
 `load-progress` reads, maps and reads in a file as the loader does, and checks the progress, each tensor's file span, that reading the headers maps nothing, that a model not mapped is neither written nor read in, early rejection, and a file truncated before loading or whose size changes between reading and mapping, refused before any progress.

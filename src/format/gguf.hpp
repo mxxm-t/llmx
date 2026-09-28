@@ -15,6 +15,7 @@
 
 #include "format/format.hpp"
 #include "format/mapped_file.hpp"
+#include "format/output_file.hpp"
 #include "core/host_memory.hpp"
 #include "quant/quant.hpp"
 
@@ -314,40 +315,41 @@ inline void write_gguf(const GGUFModel& m, const std::string& path) {
     // Refused before the output is opened, so a refusal leaves whatever is at `path` as it was.
     for (size_t i = 0; i < m.tensors.size(); i++)
         if (!m.tensor_data(i) && m.tensor_bytes(i)) throw std::runtime_error("GGUF tensor is not mapped: " + m.tensors[i].name);
-    std::ofstream os(std::filesystem::u8path(path), std::ios::binary);
-    if (!os) throw std::runtime_error("cannot open file for writing: " + path);
+    format::OutputFile output(path);
+    output.write([&](std::ostream& os) {
+        uint32_t magic = MAGIC;
+        uint32_t ver   = VERSION;
+        uint64_t ntc   = m.tensors.size();
+        uint64_t nkv   = m.kv.size();
+        os.write((const char*)&magic, 4);
+        os.write((const char*)&ver,   4);
+        os.write((const char*)&ntc,   8);
+        os.write((const char*)&nkv,   8);
 
-    uint32_t magic = MAGIC;
-    uint32_t ver   = VERSION;
-    uint64_t ntc   = m.tensors.size();
-    uint64_t nkv   = m.kv.size();
-    os.write((const char*)&magic, 4);
-    os.write((const char*)&ver,   4);
-    os.write((const char*)&ntc,   8);
-    os.write((const char*)&nkv,   8);
+        for (const auto& kv : m.kv) {
+            write_string(os, kv.first);
+            write_meta_value(os, kv.second);
+        }
 
-    for (const auto& kv : m.kv) {
-        write_string(os, kv.first);
-        write_meta_value(os, kv.second);
-    }
-
-    // Tensor infos are packed contiguously (no padding between them).
-    uint64_t data_offset = 0; // aligned start of each tensor's data
-    for (const auto& t : m.tensors) {
-        write_string(os, t.name);
-        uint32_t nd = (uint32_t)t.ne.size();
-        os.write((const char*)&nd, 4);
-        for (uint64_t d : t.ne) os.write((const char*)&d, 8);
-        os.write((const char*)&t.type, 4);
-        os.write((const char*)&data_offset, 8);
-        data_offset = aligned_size(checked_add(data_offset, t.data_size()), alignment);
-    }
-    pad_to(os, alignment);
-
-    for (size_t i = 0; i < m.tensors.size(); i++) {
-        os.write((const char*)m.tensor_data(i), (std::streamsize)m.tensor_bytes(i));
+        // Tensor infos are packed contiguously (no padding between them).
+        uint64_t data_offset = 0; // aligned start of each tensor's data
+        for (const auto& t : m.tensors) {
+            write_string(os, t.name);
+            uint32_t nd = (uint32_t)t.ne.size();
+            os.write((const char*)&nd, 4);
+            for (uint64_t d : t.ne) os.write((const char*)&d, 8);
+            os.write((const char*)&t.type, 4);
+            os.write((const char*)&data_offset, 8);
+            data_offset = aligned_size(checked_add(data_offset, t.data_size()), alignment);
+        }
         pad_to(os, alignment);
-    }
+
+        for (size_t i = 0; i < m.tensors.size(); i++) {
+            os.write((const char*)m.tensor_data(i), (std::streamsize)m.tensor_bytes(i));
+            pad_to(os, alignment);
+        }
+    });
+    output.publish();
 }
 
 namespace detail {

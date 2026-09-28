@@ -4,6 +4,13 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Shared device-versus-CPU numerical gate (2026-09-28, branch tests/device-reference, in progress)
+
+- **Goal:** implement the quantization plan's one shared criterion beside `top5_overlap`: per-position top-1 outside the tie margin, top-5 with that margin, mean NLL within 0.01, full-logit error no larger than a measured existing-type control, and 64 greedy tokens equal up to the first CPU near-tie.
+- **Done:** confirmed the criterion and reusable capture caller are absent. The 14B MXFP4 file is pinned and its CPU/Radeon final-position preflight passes, but that is not the planned full gate. This independent tests/tools branch starts at main `4fd1fab`; it does not import the pending required-type feature or alter runtime code.
+- **Left:** add rejection tests first, the shared criterion, full-logit capture and a reusable comparison caller; cover tiny captures against independent HF and malformed input/output; then applicable tests/tools merge gates and larger-model runs.
+- **Gotchas:** preserve complete raw rows for both batched and per-token paths and the greedy continuation. Calibration uses an existing type on the same model or architecture, selected before seeing the candidate. A CPU comparison supplements the independent HF gate and cannot replace it. No invented numerical allowance, performance claim, rig GPU use or LDEV feature takeover.
+
 ## Required device types in the test runner (2026-09-28, branch tests/require-device-types, in progress)
 
 - **Goal:** implement the quantization plan's named-type device gate: a selected backend refusing an explicitly required weight type fails the Python suite instead of becoming a skip.

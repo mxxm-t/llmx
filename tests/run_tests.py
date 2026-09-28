@@ -30,6 +30,7 @@ import version
 import cli
 import reference_generator
 import reference_consumer
+import device_reference
 import baseline
 import common
 
@@ -88,6 +89,7 @@ def main():
                   ("cli", cli.run),
                   ("reference-generator", reference_generator.run),
                   ("reference-consumer", reference_consumer.run),
+                  ("device-reference", lambda: device_reference.run(require=args.require_tools)),
                   ("roundtrip", roundtrip.run),
                   ("raw-blocks", lambda: raw_blocks.run(require=args.require_tools)),
                   ("perf", lambda: perf.run(enforce_floor=not args.no_perf_floor)),

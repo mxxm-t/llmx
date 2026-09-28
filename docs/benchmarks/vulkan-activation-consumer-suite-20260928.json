@@ -1,0 +1,109 @@
+{
+  "scope": "Windows Radeon native suite and device Python suite on integrated producer/consumer candidate",
+  "native": "35/35 PASS",
+  "python": {
+    "dead-code": "PASS",
+    "docs": "PASS",
+    "arch-boundary": "PASS",
+    "version": "PASS",
+    "cli": "PASS",
+    "reference-generator": "PASS",
+    "reference-consumer": "PASS",
+    "roundtrip": "PASS",
+    "raw-blocks": "PASS",
+    "perf": "PASS",
+    "tokenizer": "PASS",
+    "perplexity": "PASS",
+    "f32": "PASS",
+    "moe": "PASS",
+    "qwen35": "SKIP",
+    "split": "PASS",
+    "decode-probe": "PASS",
+    "shards": "PASS",
+    "server": "PASS",
+    "server-load": "PASS",
+    "chat": "PASS",
+    "threads": "PASS",
+    "baseline": "PASS"
+  },
+  "real_models": "four pinned Qwen3-0.6B quants present; Qwen3.5 model fixtures absent and module unsupported on this branch",
+  "performance": "hardware floors disabled; suite timings are diagnostic only",
+  "binary_sha256": "f72f6a7a78302c7a78f44cfa3dde314d5d9f8b9d8977a1248c8e39795b6346fb",
+  "version": "llmx 0.1.0+g70da40af257a.dirty",
+  "binary_note": "full all-target build relinked executable after the focused r3 build; record its own hash",
+  "archive": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\consumer-suite-20260928\\activation-consumer-suite-20260928.tar.gz",
+  "archive_sha256": "8849c4f1826342111f873a4904924edc39bf976cf27e5c5c78660ab0532ba4d6",
+  "archive_bytes": 17489,
+  "commands": [
+    {
+      "command": [
+        "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Scripts/cmake.exe",
+        "--build",
+        "build-consumer-20260928-r1",
+        "--config",
+        "Release",
+        "--parallel",
+        "6"
+      ],
+      "exit": 0,
+      "time": "2026-09-28T00:38:04.979165+03:00"
+    },
+    {
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\ctest.exe",
+        "--test-dir",
+        "build-consumer-20260928-r1",
+        "-C",
+        "Release",
+        "--output-on-failure"
+      ],
+      "exit": 0,
+      "time": "2026-09-28T00:39:13.929276+03:00"
+    },
+    {
+      "command": [
+        "python",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "build-consumer-20260928-r1/Release/llmx.exe",
+        "--device",
+        "vulkan:0",
+        "--no-perf-floor",
+        "--require-tools"
+      ],
+      "exit": 0,
+      "time": "2026-09-28T00:45:34.010068+03:00"
+    }
+  ],
+  "remaining": [
+    "matched main identity",
+    "MI50 integrated gates",
+    "monitored performance",
+    "peer review",
+    "hosted CI",
+    "full Markdown review"
+  ],
+  "f32_cache_hf": {
+    "result": "PASS for four pinned Qwen3-0.6B quants; qwen35 fixtures absent",
+    "command": [
+      "python",
+      "-X",
+      "utf8",
+      "tests/run_tests.py",
+      "--exe",
+      "build-consumer-20260928-r1/Release/llmx.exe",
+      "--device",
+      "vulkan:0",
+      "--cache-type",
+      "f32",
+      "--only",
+      "baseline",
+      "--no-perf-floor"
+    ],
+    "binary_sha256": "f72f6a7a78302c7a78f44cfa3dde314d5d9f8b9d8977a1248c8e39795b6346fb",
+    "log": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\consumer-f32-hf-20260928\\run.log",
+    "log_sha256": "bb50bf55805803b67ab8602578c8c897e0d460ad14e4ec2c247725ddf7c91749"
+  }
+}

@@ -19,13 +19,8 @@ It contains six independent checks:
 Every job that runs the Python suite starts it with the dead-code and stale-docs checks, the `dead-code` and `docs` components, and every build makes an unused function of one translation unit, or an unused local, a compile error (AGENTS.md, Dead code and stale docs).
 The Vulkan job's extra step builds every target again at -O0 with every inline function emitted and links each executable with `--gc-sections`, so the functions only tests keep show; it adds about two minutes to the job, and it runs even when a step before it failed, since it builds a tree of its own.
 A finding fails its job unless `tests/data/known_findings.txt` lists it, with how often it occurs and a reason, and a listed finding that no longer occurs, or occurs another number of times, fails it too.
-<<<<<<< HEAD
 Every CTest a CPU build registers runs in every job's "Backend tests" step but the HF job's, which builds what the Ubuntu job builds, so the KV cache, placement, HTTP layer, server UTF-8 repair, prefill-scope, log-probabilities, server-resume, server-passes and server-passes-cpu checks are covered on all three platforms and under UBSan.
-The three Vulkan-only CTests run in the Vulkan job alone, where `backend-vulkan` and `vulkan-lifetime` skip without a device.
-=======
-Every CTest a CPU build registers runs in every job's "Backend tests" step but the HF job's, which builds what the Ubuntu job builds, so the KV cache, placement, HTTP layer, server UTF-8 repair, prefill-scope, log-probabilities, server-resume and server-passes checks are covered on all three platforms and under UBSan.
 The four Vulkan-only CTests run in the Vulkan job alone, where `backend-vulkan`, `vulkan-lifetime` and `vulkan-quantization` skip without a device.
->>>>>>> 284de4fe (test: check packed Vulkan activation ranges)
 That job then runs the Python suite on the CPU through the Vulkan-enabled binary, where the `cli` component finds no device and checks that a Vulkan device is refused rather than run on the CPU.
 The Python suite's `server` component starts `llmx serve` on the synthetic dense and MoE models in every CPU job, the MoE model's prompts alone against four at a time and the dense model's tokenize routes against `llmx tokenize` and `llmx detokenize` on text beyond ASCII, special tokens' text and an empty text, and on the real Q8_0 fixture in the HF job.
 What no hosted job establishes is device behaviour: the Vulkan job proves the tree compiles, and the kernel comparisons, the HF gate on the device and the matched floors are run on the Radeon VII and the Linux machine's MI50s by hand and recorded in `docs/STATUS.md`.

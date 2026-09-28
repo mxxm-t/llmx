@@ -10,6 +10,7 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_integer_dot_product : require
 #extension GL_EXT_control_flow_attributes : require
+#include "float_controls.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint MAX_COLS = 8;
 // Rows a subgroup takes (specialization constant 9), and steps whose weights a lane loads before using any (10), so STEPS steps of every row are in flight at once; the backend dispatches by the same rows (kVecBuilds).

@@ -1,0 +1,499 @@
+{
+  "scope": "Integrated explicit-FMA revision before peer precise/equality additions",
+  "base": "c82e901a",
+  "head": "70da40af257a",
+  "build": [
+    {
+      "command": [
+        "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Scripts/cmake.exe",
+        "-S",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927",
+        "-B",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\build-consumer-20260928-r2",
+        "-DLLMX_HAS_BACKEND_VULKAN=ON",
+        "-DBUILD_TESTING=ON",
+        "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include",
+        "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe"
+      ],
+      "exit": 0,
+      "time": "2026-09-28T01:19:28.496356+03:00"
+    },
+    {
+      "command": [
+        "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Scripts/cmake.exe",
+        "--build",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\build-consumer-20260928-r2",
+        "--config",
+        "Release",
+        "--parallel",
+        "6"
+      ],
+      "exit": 0,
+      "time": "2026-09-28T01:20:18.889727+03:00"
+    },
+    {
+      "binary_sha256": "619fcbc2eec557d549bb685c937188ef462a4f43ea0c718e3e36c6f569a676c6",
+      "version": "llmx 0.1.0+g70da40af257a.dirty"
+    }
+  ],
+  "validation": [
+    {
+      "name": "ctest",
+      "command": [
+        "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Scripts/ctest.exe",
+        "--test-dir",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\build-consumer-20260928-r2",
+        "-C",
+        "Release",
+        "--output-on-failure"
+      ],
+      "exit": 0,
+      "finished": "2026-09-28T01:22:44.007891+03:00"
+    },
+    {
+      "name": "python",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\build-consumer-20260928-r2\\Release\\llmx.exe",
+        "--device",
+        "vulkan:0",
+        "--no-perf-floor",
+        "--require-tools"
+      ],
+      "exit": 0,
+      "finished": "2026-09-28T01:29:02.853624+03:00"
+    },
+    {
+      "name": "hf-f32",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\build-consumer-20260928-r2\\Release\\llmx.exe",
+        "--only",
+        "baseline",
+        "--device",
+        "vulkan:0",
+        "--cache-type",
+        "f32",
+        "--no-perf-floor"
+      ],
+      "exit": 0,
+      "finished": "2026-09-28T01:30:05.892153+03:00"
+    }
+  ],
+  "native": "35/35 PASS",
+  "python": "22 PASS, qwen35 SKIP; four pinned Qwen3-0.6B quants present",
+  "hf": "Four pinned 0.6B quants PASS with f16 and f32 caches; qwen35 fixtures absent",
+  "source_parity": [
+    {
+      "path": "src/backends/backend.hpp",
+      "sha256": "e7ef8b87348f6e062d39b547135b324be59961ac5392d17d3ee38bdc117f63d0",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/cpu/cpu_backend.hpp",
+      "sha256": "e1e4a207b74636dee4f9eead14984490305c0775ed3bff75e8eeda34a5ef5aaa",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/cpu/prefill_placement.hpp",
+      "sha256": "fdadbcea2cb84f37f473eb2d23d01bcd68a18015fa402c5dd0d0f68c723d4f21",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/cpu/q8_dots.hpp",
+      "sha256": "72a6bb100f9ace0f7d7d4cd489b5314adfe2a0047edb15a2d0601f999816bbea",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/device_profile.hpp",
+      "sha256": "f27ca29a0da211ef58de5183c5d370bc591a8e8b5b57f92ae03e33b46007e79b",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/devices.hpp",
+      "sha256": "6271718c0adcae333d54d25521d87e8b13fc96014a7c7fb8e8d54713fe74b2f2",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/kv_storage.hpp",
+      "sha256": "d99513df97457fd98d0be0a69e12c838391aca1c60e5fc978d1d8f8695e62b9d",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/add.comp",
+      "sha256": "91864be8fd1929f0f9b6155b5d4d6316555e6d873b3a2c15fbf5064ec0ee959d",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/attention.comp",
+      "sha256": "cb413b67a8362ff8e8638b3618d9f0b4814de93d243c393670f354be6096d5c8",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/attention_merge.comp",
+      "sha256": "97ba9b091578763205051f7905eef32c1b90c9a30398a7ac27f94b098ecafb94",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/attention_tile.comp",
+      "sha256": "39f7059588ca75f4af4626b7bf519a21c8f67e67f83e11941b7b55a134bcf4aa",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/attention_vec.comp",
+      "sha256": "c07c8ae5537b6581eb5b7595df1644d0b95fa2e96cc940d75bffc67ede8af595",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/embed.comp",
+      "sha256": "2fde9462090f0ee13254653b204ef9ad1d09ef745d9e7987adb946f0fca40042",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/f16.glsl",
+      "sha256": "03706b6c90a6455a987f85aadcac9383c0e655d78a35a152534c71f82530445f",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/float_controls.glsl",
+      "sha256": "a609b532573fe07835c156a43802b8503d9c84fd2ed5b1f298018779e683c1dc",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/gather_rows.comp",
+      "sha256": "823643191b59a08e3e24ffb6c6920720cc199192e42b6bc3c149e62950de3c89",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/kv_write.comp",
+      "sha256": "98273b3b8b24c0a44728ccd43d120f1e835b0edfc8d561ac22fe828f69760002",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/matmul_reduce.comp",
+      "sha256": "97e6971a4e67694eb8e229e399e3ca0a02e136c4682baefca2a905aeebc6b035",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/matmul_row.comp",
+      "sha256": "e7fd27b13127cfb0b801feb6282a18f6f8e97e420e43ead2dbd37a3390e83032",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/matmul_tile.comp",
+      "sha256": "7ffe4bc52ba87dd380d49f4d9dcc4e037c5f43abe6b61fec79de728cea1f1b5e",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/matmul_tile_q.comp",
+      "sha256": "4bbb6de59c6e7cebc88b451d46fae494f3dfb99d73b19b234ea4e9a594f37d2f",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/matmul_vec_q8.comp",
+      "sha256": "7dd9bb81a4892b865902dc2888c9641a95d4a6d2ceea623af510175df7b88658",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/moe_combine.comp",
+      "sha256": "223f4ea4820ac56bb5d1288ace5ec2a0c69bec38a01bf6fc53b5edc157f94398",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/moe_group.comp",
+      "sha256": "c062113a83c8fcd96bb3755c774f713a873b6ef482b3a46c019f529ab0d69202",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/moe_route.comp",
+      "sha256": "c1bbb66364f776d8c37e55a5deade8a478acdec958618a1df17e1d42d8337d99",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/norm_rope_kv.comp",
+      "sha256": "6e0afc19ceb9ba1a6480cef21b98fe94ef468adc8279294513a2286c25fd8f7c",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/norm_rope_rows.comp",
+      "sha256": "e1d52d28a4253a98308147ac32b8c6bdf5fd6c32f8f84c3efc422d9214f6fe63",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/q.glsl",
+      "sha256": "cbb198159dface11fdd9a312747cbb86b0c77110996c80eb6d123262ad3a15fa",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/qdecode.glsl",
+      "sha256": "134b379e642c7139f0a74223c062587d97f3ac5a1263e4096afb4a996e3a58c8",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/quantize_x.comp",
+      "sha256": "93ca1ebc76569642e1cbcdec2dc24ec0dad86a39d2cae7226fe0bcf4c54f57e9",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/quantize_x8.comp",
+      "sha256": "42e8c78eea2ff4a85d93d9d2d9e9cc9ddb67452a3fa150d816d25942aac79496",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/rms_norm_rows.comp",
+      "sha256": "3ca604de0011ce4e0cc45fd81231c05bb2ba2ecfd9f3b91cfdd0727901402c9e",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/silu_mul.comp",
+      "sha256": "2ddb9a0848718ae0aaeed96df14972cae2b8d90eb7c80c500b78e0c16d9e140c",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/views.glsl",
+      "sha256": "fb26c2e68fd4ee07de1958160fa626ca92b69a786ddf964dd3b157f9fbf8edd3",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/shaders/xquant.glsl",
+      "sha256": "dac1d9ba3fe7da81291c0c740ed87f6e7bc3f0fe87a0f35e6271bbf38e7aabaf",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/vulkan_backend.cpp",
+      "sha256": "668306d369e0c6413de50cf949715b65469e3394da09d30af0246839120b62fa",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/backends/vulkan/vulkan_backend.hpp",
+      "sha256": "84b6aa95617fbf46682b111b928152c851cd7521ba1731fdddbf1806504bbbbb",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/cli/main.cpp",
+      "sha256": "b4330ed0422c983e0f38a4aa510ad7b2fb83959590a9650ca15cbbed1567e5c6",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/config.hpp",
+      "sha256": "64c29b92f292b3bb77359d86668bc6fddb08de273e853c0eed5e54fc50647900",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/core/cgroup.hpp",
+      "sha256": "386a32fb048e4c47930fd74cf8a5bee999ccb11ee21813137e3b6a576434cc5b",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/core/cpus.hpp",
+      "sha256": "743ba57c57f0f0373934f75f107e5e2bd993c90a53b1515e52d4c406bb79461e",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/core/fp16.hpp",
+      "sha256": "b792551e5a8c5a45969edbf7236ce43f83a859c3d8fee761d4a02401bbf05928",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/core/host_memory.hpp",
+      "sha256": "12c05b9363d86c980d8f792152ac204932887d810cd7acbef2ba113dd9336f34",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/core/json.hpp",
+      "sha256": "e1b1d59f83a2e32d83f24d6fd413e6fa24dc106b2b4491c58add992efca55a0d",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/core/list.hpp",
+      "sha256": "385d03a145039d04bf98d6202866483f7666df55a9a10ff239c6a8709b79c94c",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/core/sha.hpp",
+      "sha256": "288b428cbea4798e7f8a29e2b4735142fd51889e62d30a8423ff3f79a251f7a3",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/core/utf8.hpp",
+      "sha256": "af5469ac9946e89c9cf16fc1c95a60a4c3a81945417801141fed94305ab4fafc",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/format/file_reader.hpp",
+      "sha256": "e0f3a831b4c4e2e0c2cb6c3f9921efd5421790c157718a4af515b4685656b4a3",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/format/format.hpp",
+      "sha256": "3550b93078aa475af9d5af88bd7537175d697fdb9ccff3deff51f7d595fd7e2d",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/format/gguf.hpp",
+      "sha256": "9d633b7581dc1b884d3c4a8b3863cbe50279663fdc74b86ddbf4a646f138c7da",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/format/mapped_file.hpp",
+      "sha256": "856e9f276bb663ed0b12e053d90a592997d3d337dda5650bda054c492b7f0488",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/format/raw_convert.hpp",
+      "sha256": "5c7ec8509f2db1e51ee6bea146ae6bded4fbfc36fcb0313fd38a4e82964ef593",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/hub/manifest.hpp",
+      "sha256": "a3754cd8295c069efe649ef1c91155eed2c7846edadb8e17b5440b48af9eae3b",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/hub/pull.hpp",
+      "sha256": "cfa35941fb65b4f0aa524ba3f856055ffda247e7439d5bf186780655ca810ef0",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/hub/transport.hpp",
+      "sha256": "86ad5fbfb42f1277b2ef1eb89c3d67f17c2dc1506343aae5abdb5544c0d32163",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/inference/chat.hpp",
+      "sha256": "b6c9a105446eb2ec358ac8f3dcf23b6ab5b4ba00c583dad646206f742fb61b05",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/inference/generate.hpp",
+      "sha256": "339e6729cc35632b2233fbc1ca9da346361aa2554c6533edf714db0f0b837df2",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/inference/load.hpp",
+      "sha256": "9be28540eb02b54dc7b8275aefccc7e3f6150487699062228bf32f1d5b2e7dab",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/inference/logprobs.hpp",
+      "sha256": "2f35e089bb17e74ea76789c7f9ab2552916c4ea9b152d7e03ef70ae8a12204c5",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/inference/perplexity.hpp",
+      "sha256": "af5059e232a7a4e72a74dbca7fc2273dc507ba3ba88c86b7c61f7087249072c6",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/inference/sampler.hpp",
+      "sha256": "7b73b51d2332426d29295c4e582bd27a53abafa83b40a3ea31db252ffcb9b6d9",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/model/arch/metadata.hpp",
+      "sha256": "4d610c5a3a902056cdb99138b446d3776b92c6e9db3c3238bd492ea7ef255936",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/model/arch/qwen3.hpp",
+      "sha256": "ae9dc3e4e96c556721202d26270d8163dc44184ceb94658f06916a24979ab15f",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/model/arch/registry.hpp",
+      "sha256": "8c846c7e2efc584e0be195dcdf5fee561ec191c6c750dde075b8ce51205bd384",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/model/architecture.hpp",
+      "sha256": "428c29e91091950f49b9465f5a864e5af1bc6460c9b5bf7bdbe4468433f56dbe",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/model/kv_cache.hpp",
+      "sha256": "ad0a31d3dcece9b6eba84d891d8bcb94685b2a918da0a0db1c27984726a4bc8b",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/model/layer_split.hpp",
+      "sha256": "765d25516ea164e71639030b24571261b530ba177e1d22297c96f5ebedebb847",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/model/place.hpp",
+      "sha256": "640fa2ddcad8c148145a3d3c5289a054595502871ad7bfb40c9d16dcb77a94ed",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/model/runtime.hpp",
+      "sha256": "39f4b4796c2fae1c689bdc1d1946be2aaf968cc2780ed65f83c7c4448e17f514",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/model/weights.hpp",
+      "sha256": "b30d720c31c956e78c31173c917d3b25fc8e52cc9eb884edd2f050ab78c923bb",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/quant/k_quants.hpp",
+      "sha256": "93812e43732685a6ce5014cdff8605c8b15ca62c64a1b299dc8f5134607f757d",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/quant/quant.hpp",
+      "sha256": "84d66fb02863ec40139c2c20335bbd68bbaa20743d84420ccdf090e20b1cf8bd",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/quant/types.hpp",
+      "sha256": "f8407af4e614657dc68dce8ed563e3ed044ae7db33504879c5f01e7625eb809c",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/server/api.hpp",
+      "sha256": "6b261c674985ea1141420688d808ae73047466731aa24f96850f01f7a27df62f",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/server/http.hpp",
+      "sha256": "64b6b5ae823d831bc497324fbaf301a895a0faaed5a85522d988bb7a0930ee39",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/server/policy.hpp",
+      "sha256": "aeccfeac12e10e882e8478ae20189426a03923557c6e9d00e66e80e83dfe56e5",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/server/scheduler.hpp",
+      "sha256": "077fda0634a35e2b6b627973fdececd22ec08c56fb65c8c3563d93862b3ba93e",
+      "snapshot_matches": true
+    },
+    {
+      "path": "src/tokenizer/tokenizer.hpp",
+      "sha256": "0b214bd57673fd291c7e426b58340f333e5de1604af2304fbee6ce194b721016",
+      "snapshot_matches": true
+    }
+  ],
+  "logs": {
+    "build-0.log": "a2ef50386dbc2866e2c9172414e41b8cb8a275183366e13c4841ecb58e3d9f84",
+    "build-1.log": "dde36ad8fb1ba064b7ba3b8eec4a4a853eb31c82d3cb0c2951afce0f98375faf",
+    "ctest.log": "f7c93d1c939114b486114cff5e5844c8a8eeeeb45bce647cb9a227c7cdc4e80f",
+    "hf-f32.log": "ec11fd71d23842f8af7208759366d6e2ef61d98de7a0aedd1e7e7919ca51dc15",
+    "python.log": "6f90f66af486c949d6554567de24226b56e7654dd63a4599088da42d62132c1c"
+  },
+  "artifact_directory": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\consumer-final-20260928",
+  "limitations": [
+    "Performance floors disabled; no timing verdict",
+    "Does not include pending peer-review precise qualifier or native ordinary-module comparison",
+    "MI50 and hosted/peer/final full Markdown gates remain"
+  ]
+}

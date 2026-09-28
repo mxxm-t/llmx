@@ -1,0 +1,301 @@
+{
+  "scope": "whole-logit and greedy identity, not performance",
+  "cells": [
+    {
+      "cell": "cpu-Q8_0-f16",
+      "device": "cpu",
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "cache": "f16",
+      "bit_identical": true
+    },
+    {
+      "cell": "cpu-Q8_0-f32",
+      "device": "cpu",
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "cache": "f32",
+      "bit_identical": true
+    },
+    {
+      "cell": "cpu-Q4_0-f16",
+      "device": "cpu",
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "cache": "f16",
+      "bit_identical": true
+    },
+    {
+      "cell": "cpu-Q4_0-f32",
+      "device": "cpu",
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "cache": "f32",
+      "bit_identical": true
+    },
+    {
+      "cell": "cpu-Q5_K_M-f16",
+      "device": "cpu",
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "cache": "f16",
+      "bit_identical": true
+    },
+    {
+      "cell": "cpu-Q5_K_M-f32",
+      "device": "cpu",
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "cache": "f32",
+      "bit_identical": true
+    },
+    {
+      "cell": "cpu-Q4_K_M-f16",
+      "device": "cpu",
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "cache": "f16",
+      "bit_identical": true
+    },
+    {
+      "cell": "cpu-Q4_K_M-f32",
+      "device": "cpu",
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "cache": "f32",
+      "bit_identical": true
+    },
+    {
+      "cell": "vulkan-0-Q8_0-f16",
+      "device": "vulkan:0",
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "cache": "f16",
+      "bit_identical": false
+    },
+    {
+      "cell": "vulkan-0-Q8_0-f32",
+      "device": "vulkan:0",
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "cache": "f32",
+      "bit_identical": false
+    },
+    {
+      "cell": "vulkan-0-Q4_0-f16",
+      "device": "vulkan:0",
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "cache": "f16",
+      "bit_identical": true
+    },
+    {
+      "cell": "vulkan-0-Q4_0-f32",
+      "device": "vulkan:0",
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "cache": "f32",
+      "bit_identical": true
+    },
+    {
+      "cell": "vulkan-0-Q5_K_M-f16",
+      "device": "vulkan:0",
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "cache": "f16",
+      "bit_identical": true
+    },
+    {
+      "cell": "vulkan-0-Q5_K_M-f32",
+      "device": "vulkan:0",
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "cache": "f32",
+      "bit_identical": true
+    },
+    {
+      "cell": "vulkan-0-Q4_K_M-f16",
+      "device": "vulkan:0",
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "cache": "f16",
+      "bit_identical": true
+    },
+    {
+      "cell": "vulkan-0-Q4_K_M-f32",
+      "device": "vulkan:0",
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "cache": "f32",
+      "bit_identical": true
+    }
+  ],
+  "passed": 14,
+  "runs": 64,
+  "vectors_per_run": 50,
+  "float_values_per_run": 7596800,
+  "base": "c82e901a",
+  "binaries": {
+    "main": {
+      "binary_sha256": "a275982937a7ebed22029cb1d50b78d85e36e818d1f38f32a64b474582a97f48",
+      "raw_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+      "version": "llmx 0.1.0+unknown"
+    },
+    "candidate": {
+      "binary_sha256": "cdc59456c93c97fcddf6dec83dc47ab543dbef6af742c59c3fdf3e970e269bc1",
+      "raw_sha256": "21da28a8e166cbb8ba398df152d17f006a245326f06099474f250fc8cde0ab04",
+      "version": "llmx 0.1.0+unknown"
+    }
+  },
+  "artifact_directory": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928",
+  "models": [
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+      "expected_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "file": "Qwen3-0.6B-Q8_0.gguf"
+    },
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+      "expected_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "file": "Qwen3-0.6B-Q4_0.gguf"
+    },
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+      "expected_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "file": "Qwen3-0.6B-Q5_K_M.gguf"
+    },
+    {
+      "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+      "expected_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+      "file": "Qwen3-0.6B-Q4_K_M.gguf"
+    }
+  ],
+  "input_ids_sha256": "e68287079c102f53893ada2d7913acd00abd0ad2f8238e14c1318826a152793a",
+  "q8_differences": [
+    {
+      "cache": "f16",
+      "rows_differ": 50,
+      "values_differ": 7458074,
+      "max_abs_error": 0.008217334747314453,
+      "greedy_ids_equal": true,
+      "main_self_equal": true,
+      "candidate_self_equal": true
+    },
+    {
+      "cache": "f32",
+      "rows_differ": 50,
+      "values_differ": 7456299,
+      "max_abs_error": 0.003095388412475586,
+      "greedy_ids_equal": true,
+      "main_self_equal": true,
+      "candidate_self_equal": true
+    }
+  ],
+  "verdict": "FAIL: ordinary Q8_0 logits changed on Radeon; no lossless claim or merge",
+  "next": "isolate producer-only from optional consumer modes; retain every planned ABBA run",
+  "performance": "not measured",
+  "summary_archive": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\activation-identity-summary-20260928.tar.gz",
+  "summary_archive_sha256": "ad65681e19dc78ec5c3c54c956b1e94111d0dd9ad63d7e46d283d943b2133721",
+  "raw_outputs": "Retained separately as *.bin under each cell directory, not included in the small summary archive",
+  "module_inspection": {
+    "matmul_row": {
+      "original_module_words_identical": true,
+      "base_instruction_count": 1252,
+      "preserve_instruction_count": 1256,
+      "instruction_count_delta": {
+        "16": 2,
+        "17": 2
+      },
+      "base_execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ]
+      ],
+      "preserve_execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ],
+        [
+          4,
+          4459,
+          32
+        ],
+        [
+          4,
+          4461,
+          32
+        ]
+      ],
+      "same_instructions_except_two_modes_and_capabilities": true
+    },
+    "matmul_row_q8w": {
+      "original_module_words_identical": true,
+      "base_instruction_count": 882,
+      "preserve_instruction_count": 886,
+      "instruction_count_delta": {
+        "16": 2,
+        "17": 2
+      },
+      "base_execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ]
+      ],
+      "preserve_execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ],
+        [
+          4,
+          4459,
+          32
+        ],
+        [
+          4,
+          4461,
+          32
+        ]
+      ],
+      "same_instructions_except_two_modes_and_capabilities": true
+    },
+    "matmul_vec_q8": {
+      "original_module_words_identical": true,
+      "base_instruction_count": 1978,
+      "preserve_instruction_count": 1982,
+      "instruction_count_delta": {
+        "16": 2,
+        "17": 2
+      },
+      "base_execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ]
+      ],
+      "preserve_execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ],
+        [
+          4,
+          4459,
+          32
+        ],
+        [
+          4,
+          4461,
+          32
+        ]
+      ],
+      "same_instructions_except_two_modes_and_capabilities": true
+    }
+  },
+  "module_inspection_limit": "Compiled-module comparison only; producer-only model control is still required to attribute the ordinary-output change"
+}

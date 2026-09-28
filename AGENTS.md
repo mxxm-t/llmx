@@ -344,17 +344,17 @@ What a paused request's resume relies on is checked the same way: 40 generated r
 It exits 77, which CTest reports as skipped, when there is no loader, no
 device or a driverless loader.
 
-The finite activation-range case in `backend-vulkan` reads 285 blocks through a raw Q8_0 identity matrix: zero, every f32 power, float max and both twins' reciprocal-overflow boundaries, with signs, zeros and fractions in each block.
-It takes the inputs directly, through SiLU and through RMSNorm; the latter two compare the packed representation with the producer's actual float output, independently of that producer's own arithmetic error.
-Its 27360 outputs are bounded by half an 8-bit step plus float-rounding allowance, with the independent f32 scale rounded upward to fit the block peak and floored at the smallest positive f32; it does not take expected values from the runtime quantizer.
-It is the failing regression for `fix/vulkan-activation-range` until that branch supplies the repair (docs/STATUS.md, Vulkan finite activation range).
-
 `vulkan-quantization` reads the packed activation buffers before consumer arithmetic.
 It checks both 8-bit and 16-bit twins against the original finite inputs, using a representable-scale reconstruction bound independent of the runtime quantizer.
 Inputs cover every f32 exponent, reciprocal and normalization boundaries, seeded finite peaks and mixed exponents within a block.
 It checks the stored whole and half sums against double products of the encoded scale and integer sums, output guards and alignment padding, and exact agreement of the word-wise and lane-wise 8-bit writers.
-It needs a Vulkan device but no float-preservation capability; without a device it exits 77.
-This covers the producer, not the subsequent dot products or model correctness.
+It also sends 285 blocks through raw Q8_0 identity matrices of widths 32 and 64, directly and through SiLU and RMSNorm, comparing to each producer's actual float output.
+The 82080 reconstructed outputs are bounded by half an 8-bit step plus float-rounding allowance, with the independent f32 scale rounded upward to fit the block peak and floored at the smallest positive f32.
+On devices without both 32-bit float-preservation properties, consumer cases needing subnormal scales are explicitly skipped; the packed-twin checks still cover every finite exponent.
+A second backend selects the fallback while its module-creation call rejects those optional execution modes, then runs the consumer cases that do not need subnormal scales.
+It needs a Vulkan device; without one it exits 77. These producer and Q8 consumer checks do not replace model correctness against HF.
+
+On a device reporting both float-preservation properties, the same test compares the preserved Q8 consumers against the ordinary modules on normal inputs, bit for bit: 50676 outputs across widths 32/64/96/128/2080/2112, 41 output rows and 11 column counts from 1 through 64. Decode row runs keep every case on the row kernels, including odd/even block counts and row/column tails. A mismatch fails the test; this is compatibility with the ordinary modules on that driver, not an independent numerical reference.
 
 `vulkan-buffer` checks constructor cleanup on a fake device that supplies every Vulkan call it makes, so it needs no loader and runs wherever the backend builds.
 `vulkan-lifetime` opens a device, intercepts transfers and injects allocation failures to check queued storage ownership during KV growth, padded-copy creation/replacement/invalidation and argument-arena overflow.

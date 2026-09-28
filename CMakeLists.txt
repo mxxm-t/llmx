@@ -52,6 +52,9 @@ if(LLMX_HAS_BACKEND_VULKAN)
         quantize_x8 matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group attention_vec)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
     set(LLMX_VK_VARIANTS matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
+        matmul_row_preserve=matmul_row=LLMX_PRESERVE_F32
+        matmul_row_q8w_preserve=matmul_row=LLMX_Q8W+LLMX_PRESERVE_F32
+        matmul_vec_q8_preserve=matmul_vec_q8=LLMX_PRESERVE_F32
         matmul_row_k=matmul_row=LLMX_KQUANT
         matmul_row_q4_dot=matmul_row=LLMX_Q4+LLMX_DOT
         matmul_row_q4_dot8=matmul_row=LLMX_Q4+LLMX_DOT+LLMX_X8
@@ -90,7 +93,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
                     -mfmt=num -I ${LLMX_VK_SHADER_DIR} ${define} -o ${spv} ${LLMX_VK_SHADER_DIR}/${source}.comp
             DEPENDS ${LLMX_VK_SHADER_DIR}/${source}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
                     ${LLMX_VK_SHADER_DIR}/qdecode.glsl ${LLMX_VK_SHADER_DIR}/f16.glsl ${LLMX_VK_SHADER_DIR}/xquant.glsl
-                    ${LLMX_VK_SHADER_DIR}/views.glsl
+                    ${LLMX_VK_SHADER_DIR}/views.glsl ${LLMX_VK_SHADER_DIR}/float_controls.glsl
             COMMENT "glslc ${shader}"
             VERBATIM)
         list(APPEND LLMX_VK_SPV ${spv})

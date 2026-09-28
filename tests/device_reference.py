@@ -47,6 +47,28 @@ class DeviceReference(unittest.TestCase):
         self.assertEqual(got["top1_checked"], 0)
         self.assertEqual(got["min_top5_overlap"], 5)
 
+    def test_control_measures_without_candidate_acceptance(self):
+        cpu, device = self.rows(), self.rows()
+        device[0][0] = 0.0
+        measured = common.check_device_rows(cpu, device, self.ids, calibration=True)
+        self.assertEqual(measured["max_logit_gap"], 8.0)
+        self.assertEqual(measured["top1_fail_positions"], [0])
+        self.assertFalse(measured["criteria_passed"])
+        with self.assertRaisesRegex(ValueError, "top-1"):
+            common.check_device_rows(cpu, device, self.ids, measured["max_logit_gap"])
+        device[0][0] = math.nan
+        with self.assertRaises(ValueError):
+            common.check_device_rows(cpu, device, self.ids, calibration=True)
+        cpu = [self.row[:] for _ in range(64)]
+        device = [self.row[:] for _ in range(64)]
+        device[8][1] = 9.0
+        ids = [0] * 8 + [1] + [0] * 55
+        measured = common.check_device_greedy(cpu, device, [0] * 64, ids, calibration=True)
+        self.assertFalse(measured["agrees_until_tie"])
+        self.assertEqual(measured["first_divergence"], 8)
+        with self.assertRaisesRegex(ValueError, "greedy"):
+            common.check_device_greedy(cpu, device, [0] * 64, ids)
+
     def test_mean_nll_damage(self):
         device = self.rows()
         for row in device:
@@ -160,6 +182,30 @@ class NativeCapture(unittest.TestCase):
             path.write_bytes(data)
             with self.assertRaisesRegex(ValueError, "capture size"):
                 list(check_device.captured_rows(prefix, "decode", 3, 257))
+
+    def test_runner_records_control_error_without_waiving_candidate(self):
+        fixture = self.root / "fixture.json"
+        fixture.write_text(json.dumps({"text": "abc", "token_ids": [97, 98, 99], "n_tokens": 3}))
+        output = self.root / "calibration"
+        original = check_device.capture_metadata
+        def damage_control(path, tokens, version):
+            metadata = original(path, tokens, version)
+            if path.name == "control-device.stdout":
+                binary = output / "control-device.batched.bin"
+                rows = array.array("f")
+                rows.frombytes(binary.read_bytes())
+                best = max(range(metadata["vocab"]), key=lambda i: rows[i])
+                rows[best] += 20.0
+                binary.write_bytes(rows.tobytes())
+            return metadata
+        args = ["--exe", common.EXE, "--model", str(self.model), "--control", str(self.control),
+                "--device", "cpu", "--cache-type", "f32", "--output", str(output)]
+        with patch.object(check_device, "FIXTURE", fixture), patch.object(check_device, "capture_metadata", damage_control), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check_device.main(args), 0)
+        report = json.loads((output / "report.json").read_text())
+        self.assertFalse(report["control"]["comparison"]["batched"]["criteria_passed"])
+        self.assertTrue(report["candidate"]["comparison"]["batched"]["criteria_passed"])
+        self.assertGreater(report["control"]["comparison"]["batched"]["nll_delta"], 0.01)
 
     def test_runner_and_full_vocabulary_damage(self):
         fixture = self.root / "fixture.json"

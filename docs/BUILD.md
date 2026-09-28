@@ -212,7 +212,7 @@ Other generators that hold several configurations, such as Ninja Multi-Config or
 | `LLMX_HAS_BACKEND_VULKAN` | `OFF` | Builds the Vulkan backend into `llmx`, with every shader compiled by `glslc` at build time and embedded in the binary, so there are no shader files to ship |
 | `BUILD_TESTING` | `ON` | Builds the native tests and tools and registers the tests with CTest; `OFF` builds only `llmx` and, in a Vulkan build, the backend library it links |
 
-With `BUILD_TESTING` on, every build has `llmx`, the `llmx-*-test` programs behind the CTests and the tools `llmx-split-check` and `llmx-decode-probe`, which are not tests and take Vulkan devices when the build has them; `llmx-prefill-placement-test` is built on Windows only.
+With `BUILD_TESTING` on, every build has `llmx`, the `llmx-*-test` programs behind the CTests and the tools `llmx-split-check`, `llmx-decode-probe` and `llmx-model-logits`, which are not tests and take Vulkan devices when the build has them; `llmx-prefill-placement-test` is built on Windows only.
 These targets exist only with `LLMX_HAS_BACKEND_VULKAN=ON`:
 
 - `llmx-vulkan`, the backend library the binary, tests and tools link, and `llmx-vulkan-shaders`, the step that compiles the shaders.

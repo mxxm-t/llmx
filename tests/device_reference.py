@@ -1,8 +1,21 @@
 import math
+import array
+import contextlib
+import io
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+from unittest.mock import patch
 import sys
 import unittest
 
 import common
+import f32
+
+sys.path.insert(0, str(Path(common.ROOT) / "tools"))
+import check_device
 
 
 class DeviceReference(unittest.TestCase):
@@ -28,8 +41,8 @@ class DeviceReference(unittest.TestCase):
             device[1][field] = replacement
             with self.subTest(reason=reason), self.assertRaisesRegex(ValueError, reason):
                 common.check_device_rows(self.rows(), device, self.ids)
-        cpu = [[8.0, 7.95, 5.0, 4.0, 3.0, 2.95, -1.0, -3.0] for _ in self.ids]
-        device = [[7.96, 8.0, 5.0, 4.0, 2.97, 3.0, -1.0, -3.0] for _ in self.ids]
+        cpu = [[8.0, 7.98, 5.0, 4.0, 3.0, 2.95, -1.0, -3.0] for _ in self.ids]
+        device = [[7.99, 8.0, 5.0, 4.0, 2.97, 3.0, -1.0, -3.0] for _ in self.ids]
         got = common.check_device_rows(cpu, device, self.ids, 0.1)
         self.assertEqual(got["top1_checked"], 0)
         self.assertEqual(got["min_top5_overlap"], 5)
@@ -89,9 +102,102 @@ class DeviceReference(unittest.TestCase):
             common.check_device_greedy(cpu, device, [0] * 64, [0] * 64)
 
 
+class NativeCapture(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="llmx_device_reference_")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name) / "capture-\u6a21\u578b"
+        self.root.mkdir()
+        self.ids = self.root / "ids.txt"
+        self.ids.write_text("97 98 99", encoding="ascii")
+        self.model, self.control = self.root / "model.gguf", self.root / "control.gguf"
+        self.goldens = f32.golden("baseline_f32.json")["fixtures"]
+        for path, tied in [(self.model, False), (self.control, True)]:
+            f32.write_model(path, f32.tensors(tied), config=dict(f32.CONFIG, context_length=128))
+        self.tool = Path(common.EXE).with_name("llmx-model-logits" + (".exe" if os.name == "nt" else ""))
+        self.version = subprocess.check_output([common.EXE, "--version"], text=True).strip()[5:]
+
+    def capture(self, cache="f32", ubatch="2", ids=None):
+        prefix = self.root / "capture"
+        cmd = [str(self.tool), str(self.model), str(ids or self.ids), str(prefix), "cpu", cache, ubatch, "0"]
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=120)
+        return prefix, result
+
+    def test_full_capture_against_independent_hf(self):
+        prefix, result = self.capture()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        meta_path = self.root / "capture.json"
+        meta_path.write_text(result.stdout, encoding="utf-8")
+        meta = check_device.capture_metadata(meta_path, [97, 98, 99], self.version)
+        golden = next(x for x in self.goldens if not x["tied"])
+        expected = {case["text"]: case["logits"] for case in golden["cases"]}
+        for phase in ("batched", "decode"):
+            rows = list(check_device.captured_rows(prefix, phase, 3, 257))
+            for text, row in zip(("a", "ab", "abc"), rows):
+                common.hf_logit_error("captured " + phase, dict(enumerate(row)), expected[text])
+        greedy = list(check_device.captured_rows(prefix, "greedy", 64, 257))
+        self.assertEqual(common.check_device_greedy(greedy, greedy, meta["greedy"], meta["greedy"])["matched_prefix"], 64)
+        for key, value in [("vocab", True), ("version", "wrong"), ("tokens", [97, 98, 98]), ("greedy", [0] * 63), ("storage_types", [True])]:
+            meta_path.write_text(json.dumps(dict(meta, **{key: value})))
+            with self.assertRaises(ValueError):
+                check_device.capture_metadata(meta_path, [97, 98, 99], self.version)
+
+    def test_bad_inputs_and_capture_lengths(self):
+        for text in ("", "1", "97 -1", "97 257", "97 1.5", "97 x", "97 4294967296"):
+            self.ids.write_text(text)
+            _, result = self.capture()
+            self.assertNotEqual(result.returncode, 0, text)
+            self.assertIn("token ID", result.stderr)
+        self.ids.write_text("97 98 99")
+        for cache, ubatch in [("bad", "2"), ("f32", "0"), ("f32", "2.5")]:
+            _, result = self.capture(cache, ubatch)
+            self.assertNotEqual(result.returncode, 0)
+        prefix, result = self.capture("f16", "3")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        path = Path(str(prefix) + ".decode.bin")
+        original = path.read_bytes()
+        for data in (original[:-1], original + b"x"):
+            path.write_bytes(data)
+            with self.assertRaisesRegex(ValueError, "capture size"):
+                list(check_device.captured_rows(prefix, "decode", 3, 257))
+
+    def test_runner_and_full_vocabulary_damage(self):
+        fixture = self.root / "fixture.json"
+        fixture.write_text(json.dumps({"text": "abc", "token_ids": [97, 98, 99], "n_tokens": 3}))
+        output = self.root / "run"
+        args = ["--exe", common.EXE, "--model", str(self.model), "--control", str(self.control),
+                "--device", "cpu", "--cache-type", "f32", "--ubatch", "2", "--output", str(output)]
+        with patch.object(check_device, "FIXTURE", fixture), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check_device.main(args), 0)
+        report = json.loads((output / "report.json").read_text())
+        self.assertEqual(len(report["commands"]), 7)
+        self.assertEqual(report["candidate"]["comparison"]["batched"]["rows"], 3)
+        self.assertEqual(report["candidate"]["comparison"]["decode"]["max_logit_gap"], 0)
+        pair = report["candidate"]["captures"]
+        path = Path(pair[1]["prefix"] + ".batched.bin")
+        rows = array.array("f")
+        rows.frombytes(path.read_bytes())
+        low = min(range(257), key=lambda i: rows[i])
+        rows[low] -= 0.01
+        path.write_bytes(rows.tobytes())
+        with self.assertRaisesRegex(ValueError, "logit gap"):
+            check_device.compare_pair(*pair, [97, 98, 99], report["control"]["comparison"])
+        args[args.index("--control") + 1] = str(self.model)
+        args[-1] = str(self.root / "same-model")
+        with patch.object(check_device, "FIXTURE", fixture), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check_device.main(args), 1)
+        self.assertIn("same model file", json.loads((self.root / "same-model/report.json").read_text())["error"])
+
+
 def run(require=False):
-    suite = unittest.defaultTestLoader.loadTestsFromTestCase(DeviceReference)
-    return unittest.TextTestRunner(stream=sys.stdout).run(suite).wasSuccessful()
+    tool = Path(common.EXE).with_name("llmx-model-logits" + (".exe" if os.name == "nt" else ""))
+    cases = [DeviceReference] + ([NativeCapture] if tool.exists() else [])
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in cases)
+    ok = unittest.TextTestRunner(stream=sys.stdout).run(suite).wasSuccessful()
+    if not tool.exists():
+        print("device-reference: " + ("FAIL" if require else "SKIP") + " - llmx-model-logits missing beside executable")
+        return False if require or not ok else common.SKIPPED
+    return ok
 
 
 if __name__ == "__main__":

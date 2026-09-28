@@ -436,6 +436,11 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   A self-test first holds it to a planted text and to one name for each row of the registry's table, so a check that finds nothing because it reads nothing fails; it runs no binary.
 - **Version** (`tests/version.py`): `--version` matches the CMake project
   version and build identifier format, and the usage banner starts with it.
+- **Device reference** (`tests/device_reference.py`): the quantization plan's shared CPU/device criterion in `tests/common.py`, with deliberate ranking, NLL, calibration, shape, nonfinite and greedy faults.
+  CMake's `llmx-model-logits` captures every full-vocabulary row of an excerpt in batched and per-token execution, then 64 argmax steps after prefill, without stopping at EOS.
+  Tiny F32 captures are checked against independent HF rows; the tests also check Unicode paths, malformed IDs, incomplete files and the caller's complete flow, with a damaged low-ranked logit that must fail the calibrated maximum.
+  `tools/check_device.py` runs the real-model comparison with an existing-type control selected first and retains raw results; see `docs/CI.md`, Device versus CPU numerical checks.
+  A missing capture tool fails with `--require-tools` and otherwise reports SKIP after the criterion tests.
 - **CLI** (`tests/cli.py`): the command-line surface the numerical components do not reach.
   A Vulkan device is refused with an error and nothing on stdout, never run on the CPU instead, through a model command and through the synthetic bench.
   A build without the Vulkan backend refuses it, and so does a Vulkan build that cannot open it; where device 0 opens, an index no machine has stands in for the missing device.

@@ -317,6 +317,14 @@ if(BUILD_TESTING)
         target_link_libraries(llmx-decode-probe PRIVATE llmx-vulkan)
     endif()
     list(APPEND LLMX_TARGETS llmx-decode-probe)
+    add_executable(llmx-model-logits tools/model_logits.cpp)
+    add_dependencies(llmx-model-logits llmx-build-info)
+    target_include_directories(llmx-model-logits PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(LLMX_HAS_BACKEND_VULKAN)
+        target_link_libraries(llmx-model-logits PRIVATE llmx-vulkan)
+    endif()
+    list(APPEND LLMX_TARGETS llmx-model-logits)
+
 
     if(LLMX_HAS_BACKEND_VULKAN)
         # Exits 77 when there is no loader or no device, which CTest reports as skipped rather than passed.

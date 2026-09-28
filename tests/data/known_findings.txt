@@ -1,7 +1,10 @@
 # The findings of the dead-code and docs checks (tests/dead_code.py, tests/docs_check.py) that the tree still has, and why each is still here.
 # One per line: check | file | name | times | reason, where times is how often the finding occurs.
 # A finding not listed here fails its check, and so do one that occurs another number of times than its line says and a line here whose finding no longer occurs, so the change that removes a finding removes its line (AGENTS.md, Dead code and stale docs).
-# Every line below goes with cleanup/known-findings, planned in docs/STATUS.md to follow refactor/arch-modules, but the qwen35 lines, which go with the steps of the Qwen 3.5, 3.6 and 3.8 plan they name.
+# Except for the Windows entry point, every line below goes with cleanup/known-findings, planned in docs/STATUS.md to follow refactor/arch-modules, but the qwen35 lines, which go with the steps of the Qwen 3.5, 3.6 and 3.8 plan they name.
+
+# Windows executable entry point, invoked by the C runtime.
+unused | tools/model_logits.cpp | wmain | 1 | the Windows C runtime calls this Unicode entry point; the name check recognizes main only; remove the entry if that check learns wmain or this tool no longer uses it
 
 # Functions only the tests reach, found by name.
 test-only | src/backends/cpu/cpu_backend.hpp | CpuBackend::workers_started | 1 | the pool's start count, a probe backend-errors and model-validation read to pin when workers start; kept until the tests take the count another way, with cleanup/known-findings

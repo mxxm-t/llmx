@@ -32,7 +32,8 @@ The `placement` CTest, in every job, splits a model over two and three CPU backe
 It also runs passes of different sequences in flight through the pass API over two, three and four CPU backends at 2 to 8 pass slots, in random order and with a failed pass, against each sequence run alone.
 The Python suite's `split` component, in every job that runs the suite, runs `llmx-split-check` on the tiny F32 and MoE models over two and three CPU backends against one, and on a synthetic Q8_0 model over two, with f16 and f32 caches, its decode steps also recomputed by class, the Q8_0 model's histories long enough that each run also recomputes from a fork at a block, which the component requires.
 Its `decode-probe` component runs `llmx-decode-probe` on the tiny F32 model and on a model of four tokens: the greedy path and a step off it, malformed fixtures refused by entry, and a vocabulary smaller than the five ids the tool lists.
-CMake builds both tools in every configuration with tests (the default), and those jobs pass `--require-tools`, so a tool missing beside the executable fails the job rather than skipping.
+The `device-reference` component runs `llmx-model-logits` to capture full logits for the shared numerical criterion (Device versus CPU numerical checks, below).
+CMake builds all three tools in every configuration with tests (the default), and those jobs pass `--require-tools`, so a tool missing beside the executable fails the job rather than skipping.
 The Windows job's second run, on the `build.bat` binary, which has no tools beside it, leaves the flag off.
 The HF job also runs `llmx-split-check <Q8_0> <excerpt> cpu cpu,cpu 8 64` on the real Q8_0 over the 247-token perplexity excerpt: every position through the prompt path, the prefill in four 64-token chunks pipelined over two CPU stages, 8 greedy steps and a decoding sequence beside a fresh prompt, bit for bit against one backend.
 Splits over GPUs are run by hand on the Radeon VII and the MI50s.
@@ -99,7 +100,7 @@ For the tiny qwen35 goldens it checks that the generator loads in float32 with e
 For the layered qwen35 reference it checks the tool's arguments, that it runs in that environment check, its refusal of checkpoint keys it cannot map one to one onto the model, its float32 step count, that the committed Qwen3.5-0.8B record shows every input's logits and every parameter equal to HF's full forward, and that the 9B and 27B goldens hold the generator's texts, windows and versions; `reference-consumer` runs their consumer over simulated passing, refused and failing outputs.
 These use standard-library test doubles; CI does not generate new HF goldens or download larger models.
 The `qwen35` component reports SKIP, not PASS, while llmx refuses the architecture.
-The ordinary suite now has 23 components, including `dead-code` and `docs`, the source and Markdown checks, `arch-boundary`, which holds the runtime to naming no architecture or tensor, `qwen35`, `raw-blocks`, the spec decoders' checks, `server-load`, the load tool's self-test, and `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
+The ordinary suite now has 24 components, including `dead-code` and `docs`, the source and Markdown checks, `arch-boundary`, which holds the runtime to naming no architecture or tensor, `qwen35`, `raw-blocks`, the spec decoders' checks, `server-load`, the load tool's self-test, and `reference-consumer` rejection tests for 8B fixture tampering, malformed or out-of-bound numerical output, wrong model identity and failed launches, and a passing 8B run over simulated outputs that must have 41 checks with each NLL case scored in both modes.
 These tests use small committed JSON fixtures and doubles, without 8B inference.
 Default real-model downloads are the four pinned 0.6B GGUFs: Q8_0, Q4_0, Q5_K_M and Q4_K_M.
 Six more models are pinned there ahead of their tensor types, with `gate` false, and no job downloads them yet.
@@ -245,3 +246,35 @@ None replaces the kernel or HF gate.
 At placement release `3c5d4b9`, Windows 12/12 and Linux 11/11 passed locally.
 That release also passed all five hosted jobs in [run 35516912422](https://github.com/mxxm-t/llmx/actions/runs/35516912422), including the new native targets on Windows, macOS Intel, Linux and Linux UBSan, plus the required HF job.
 The earlier `851d375` pass predates these added tests.
+
+## Device versus CPU numerical checks
+
+`tools/check_device.py` applies the quantization plan's shared CPU/device criterion, implemented beside `top5_overlap` in `tests/common.py`.
+It supplements the independent HF gate; it does not measure quantization loss against original weights.
+Choose an existing weight type on the same model or architecture as the control before measuring the candidate:
+
+```
+python tools/check_device.py --exe build/llmx --model candidate.gguf --control existing-type.gguf --device vulkan:0 --output device-check
+```
+
+The new output directory retains model, binary and fixture hashes, command lines, exit codes, complete raw logits and `report.json`, including failures.
+The control and candidate must be different model files of the same architecture; each is run on CPU and the selected device with the same cache type and ubatch.
+Their metadata includes the actual storage types, so the control's existing-type provenance can be checked against its pinned file.
+The control runs first and supplies the maximum full-logit gap separately for the batched and per-token paths; the candidate may not exceed those limits.
+Both paths compare every position of the pinned HF excerpt: top-1 agrees wherever the CPU top-two gap exceeds the existing 0.1 margin, top-5 agrees with that margin, and mean NLL differs by at most 0.01.
+NLL scores each next token, leaving the final row unscored; that final row still participates in ranking and full-logit checks.
+Both models also take 64 argmax steps after one prefill, without stopping at EOS; CPU and device IDs must agree before the first CPU near-tie.
+After that point their histories may differ, so later logits are retained and checked for finite values and correct argmax IDs, but not compared numerically across histories.
+
+`--cache-type` chooses f16 (default) or f32 for both sides; `--ubatch` defaults to 512.
+`--n-cpu-moe` offloads that many expert layers beside the device, or all with -1; CPU reference calls always use 0.
+The capture uses six CPU threads and accepts a device list through the normal placement owner.
+There are no unsupported-device skips and no automatic downloads.
+Naming a file as the control is not independent evidence of its prior HF validation; the gate record must retain that evidence too.
+
+The caller uses `llmx-model-logits` beside the CLI, built by CMake with tests.
+It writes native binary32 rows in token-ID order for the batched excerpt, the per-token excerpt and the greedy continuation, plus metadata on stdout.
+It calls the existing loader and model APIs; it implements no loading, placement or numerical policy.
+The `device-reference` suite component checks the shared criterion with planted numerical faults and malformed rows, then checks the capture against the independent tiny F32 HF fixture, Unicode paths, malformed IDs, cache/ubatch refusals, incomplete captures, a full comparison and a damaged logit outside the top ten.
+A missing tool fails with `--require-tools`, and otherwise the component reports SKIP after its criterion tests.
+These tests use the CPU and tiny models; passing them does not establish large-model or GPU correctness.

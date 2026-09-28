@@ -1,0 +1,146 @@
+{
+  "scope": "Tests-only required device type policy; no runtime, golden or bound change",
+  "implementation_commit": "9cbf00897ee01c33bce654188700e77a930941f2",
+  "base": "4fd1fab08288a8adc6d3c1296b22428194914b62",
+  "failing_first": "fecbdf3667cd4dfd2a685a60bc50a59b9e857f32",
+  "original_failure": {
+    "head": "69b1599167fdc692f779851021fd13024b2c20b9",
+    "exit": 1,
+    "test_sha256": "f23d1c7584b04922b33673d6a1d843e98cf56aac214442b31c8571195b8d4eea",
+    "log_sha256": "84d33f7cbe3980dc334156db63449731ff941aac11262d11843ae6f2309db270"
+  },
+  "tested_files": {
+    "tests/common.py": "5c81668870823901e78cf5c784b52700118358d607ff14eed859d2da723c2f23",
+    "tests/run_tests.py": "aad923e666e1b806cbe1776f7b53eb1bf677ca4b1590a8bbaca52d641ff9e7b4",
+    "tests/reference_consumer.py": "45c79fc9987293717096c946fc35f11bed26dfe3f6bb679d7845fa65afc47789"
+  },
+  "run": {
+    "status": "pass",
+    "pid": 7348,
+    "records": [
+      {
+        "name": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-required-device-types-20260928",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-required-device-types-check-20260928\\build",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DBUILD_TESTING=ON"
+        ],
+        "started": "2026-09-28T12:05:09.334919+00:00",
+        "pid": 22280,
+        "exit": 0,
+        "completed": "2026-09-28T12:05:12.852849+00:00"
+      },
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-required-device-types-check-20260928\\build",
+          "--config",
+          "Release",
+          "--parallel",
+          "6"
+        ],
+        "started": "2026-09-28T12:05:12.853369+00:00",
+        "pid": 29384,
+        "exit": 0,
+        "completed": "2026-09-28T12:05:53.442260+00:00"
+      },
+      {
+        "name": "ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-required-device-types-check-20260928\\build",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "started": "2026-09-28T12:05:53.490848+00:00",
+        "pid": 12748,
+        "exit": 0,
+        "completed": "2026-09-28T12:06:30.700506+00:00"
+      },
+      {
+        "name": "suite",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-required-device-types-check-20260928\\build\\Release\\llmx.exe",
+          "--device",
+          "cpu",
+          "--no-perf-floor",
+          "--require-tools",
+          "--require-baseline",
+          "--require-device-types",
+          "F32,Q8_0,Q4_0,Q4_1,Q4_K,Q5_K,Q6_K"
+        ],
+        "started": "2026-09-28T12:06:30.701508+00:00",
+        "pid": 14488,
+        "exit": 0,
+        "completed": "2026-09-28T12:13:45.390890+00:00"
+      }
+    ],
+    "exe": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-required-device-types-check-20260928\\build\\Release\\llmx.exe",
+      "sha256": "68d656994c3fd786403c641acc8f1bf1970a7e8889cfcefecfd7392ceb710826",
+      "version": "llmx 0.1.0+gfecbdf3667cd.dirty"
+    }
+  },
+  "component_summary": [
+    "dead-code  PASS",
+    "docs       PASS",
+    "arch-boundary PASS",
+    "version    PASS",
+    "cli        PASS",
+    "reference-generator PASS",
+    "reference-consumer PASS",
+    "roundtrip  PASS",
+    "raw-blocks PASS",
+    "perf       PASS",
+    "tokenizer  PASS",
+    "perplexity PASS",
+    "f32        PASS",
+    "moe        PASS",
+    "qwen35     SKIP",
+    "split      PASS",
+    "decode-probe PASS",
+    "shards     PASS",
+    "server     PASS",
+    "server-load PASS",
+    "chat       PASS",
+    "threads    PASS",
+    "baseline   PASS"
+  ],
+  "markdown_review": {
+    "pages": 69,
+    "changed": [
+      "AGENTS.md",
+      "docs/CI.md",
+      "docs/STATUS.md"
+    ],
+    "unchanged": 66
+  },
+  "archive": {
+    "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/required-device-types-20260928.tar.gz",
+    "sha256": "9c8640e4d1bfc82d01d79182503179235adb9a782f51c01bc57e46e80783ecbb",
+    "files": 18,
+    "bytes": 1310836
+  },
+  "limits": [
+    "Naming types does not establish coverage of them or require missing models.",
+    "Optional device types, unsupported architectures and native driverless CTests retain their existing skip behavior.",
+    "Synthetic performance timings are diagnostic only; no runtime performance change is claimed.",
+    "Hosted CI is pending."
+  ]
+}

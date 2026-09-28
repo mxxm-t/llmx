@@ -1,0 +1,850 @@
+{
+  "archive": {
+    "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/q4-range-current-20260928.tar.gz",
+    "sha256": "17fe8e0c57bfe1830b017b89127deb760c2253004044d61ea37518e39eb24bd1",
+    "bytes": 20989969,
+    "members": 10
+  },
+  "logs": {
+    "ctest.log": "Internal ctest changing into directory: /work/q4-final-20260928/build\nTest project /work/q4-final-20260928/build\n      Start  1: format-output\n 1/32 Test  #1: format-output ....................   Passed    0.01 sec\n      Start  2: hub-manifest\n 2/32 Test  #2: hub-manifest .....................   Passed    0.06 sec\n      Start  3: hub-pull\n 3/32 Test  #3: hub-pull .........................   Passed    2.48 sec\n      Start  4: hub-transport\n 4/32 Test  #4: hub-transport ....................   Passed    0.09 sec\n      Start  5: gguf-shards\n 5/32 Test  #5: gguf-shards ......................   Passed    0.13 sec\n      Start  6: model-validation\n 6/32 Test  #6: model-validation .................   Passed    0.05 sec\n      Start  7: gguf-validation\n 7/32 Test  #7: gguf-validation ..................   Passed    0.01 sec\n      Start  8: json\n 8/32 Test  #8: json .............................   Passed    0.77 sec\n      Start  9: cli-output\n 9/32 Test  #9: cli-output .......................   Passed    0.00 sec\n      Start 10: load-progress\n10/32 Test #10: load-progress ....................   Passed    0.41 sec\n      Start 11: file-reader\n11/32 Test #11: file-reader ......................   Passed    0.02 sec\n      Start 12: generation-stream\n12/32 Test #12: generation-stream ................   Passed    0.00 sec\n      Start 13: backend-group\n13/32 Test #13: backend-group ....................   Passed    0.15 sec\n      Start 14: fused-dot-overflow\n14/32 Test #14: fused-dot-overflow ...............   Passed    0.00 sec\n      Start 15: quantize-range\n15/32 Test #15: quantize-range ...................   Passed    0.02 sec\n      Start 16: q8-dots\n16/32 Test #16: q8-dots ..........................   Passed    0.04 sec\n      Start 17: qwen35-ops\n17/32 Test #17: qwen35-ops .......................   Passed    0.38 sec\n      Start 18: backend-errors\n18/32 Test #18: backend-errors ...................   Passed    0.15 sec\n      Start 19: prefill-scope\n19/32 Test #19: prefill-scope ....................   Passed    0.01 sec\n      Start 20: chat-template\n20/32 Test #20: chat-template ....................   Passed    0.30 sec\n      Start 21: fp16\n21/32 Test #21: fp16 .............................   Passed    0.06 sec\n      Start 22: cpus\n22/32 Test #22: cpus .............................   Passed    0.00 sec\n      Start 23: host-memory\n23/32 Test #23: host-memory ......................   Passed    0.00 sec\n      Start 24: sampler\n24/32 Test #24: sampler ..........................   Passed    2.94 sec\n      Start 25: logprobs\n25/32 Test #25: logprobs .........................   Passed    0.82 sec\n      Start 26: server-resume\n26/32 Test #26: server-resume ....................   Passed    5.75 sec\n      Start 27: server-passes\n27/32 Test #27: server-passes ....................   Passed    5.26 sec\n      Start 28: server-passes-cpu\n28/32 Test #28: server-passes-cpu ................   Passed   19.82 sec\n      Start 29: kv-cache\n29/32 Test #29: kv-cache .........................   Passed    0.05 sec\n      Start 30: placement\n30/32 Test #30: placement ........................   Passed    0.22 sec\n      Start 31: http\n31/32 Test #31: http .............................   Passed    0.06 sec\n      Start 32: server-utf8\n32/32 Test #32: server-utf8 ......................   Passed    0.00 sec\n\n100% tests passed, 0 tests failed out of 32\n\nTotal Test time (real) =  40.11 sec\n",
+    "affected.log": "dead-code: 19 findings (test-only 12, override 5, shader 2) against the list; 15 planted faults; 5.6 s  [ok]\ndocs: 14 findings (line-pin 11, name 1, command 1, src-page 1) against the list; 16 planted faults; 3.7 s  [ok]\nroundtrip: q8_0, 133632 elements, max abs err = 0.018645, subnormal-scale rel err = 0.011710  [ok]\nroundtrip: q4_0, 133632 elements, max abs err = 0.328474, subnormal-scale rel err = 0.069940  [ok]\nroundtrip: q8_0 decode matches the format description on 4096 values, format loss 0.016750  [ok]\nroundtrip: q4_0 decode matches the format description on 4096 values, format loss 0.304348  [ok]\nroundtrip: q8_0 decode matches the format description on 2048 values from 64 raw blocks  [ok]\nroundtrip: q4_0 decode matches the format description on 512 values from 16 raw blocks  [ok]\nroundtrip: q4_1 decode matches the format description on 2048 values from 64 raw blocks  [ok]\nroundtrip: q4_k decode matches the format description on 40960 values from 160 raw blocks  [ok]\nroundtrip: q5_k decode matches the format description on 40960 values from 160 raw blocks  [ok]\nroundtrip: q6_k decode matches the format description on 6144 values from 24 raw blocks  [ok]\nroundtrip: q8_0 under a non-ASCII directory writes the same files  [ok]\nroundtrip: q4_0 under a non-ASCII directory writes the same files  [ok]\nroundtrip: type names quantize does not write are refused with status 2  [ok]\nroundtrip: q8_0, 32 invalid extents preserve output; ranks 1..4, integral spellings and empty model [ok]\nroundtrip: q4_0, 32 invalid extents preserve output; ranks 1..4, integral spellings and empty model [ok]\nroundtrip: 9 output failures refused by path, prior files preserved, no partial outputs; 7 aliases refused [ok]\n\n  dead-code  PASS\n  docs       PASS\n  roundtrip  PASS\n"
+  },
+  "source_sha256": {
+    "src/config.hpp": "64c29b92f292b3bb77359d86668bc6fddb08de273e853c0eed5e54fc50647900",
+    "src/format/raw_convert.hpp": "d663bec74cbc557cf96640cb5b6ef1c355847eb591ce9fa3b4724b1d260d4296",
+    "src/format/file_reader.hpp": "e0f3a831b4c4e2e0c2cb6c3f9921efd5421790c157718a4af515b4685656b4a3",
+    "src/format/gguf.hpp": "e8215de4c78a0f4f6ee33000fc1488513c24ace7de7a0212c098f40b0032d9e4",
+    "src/format/mapped_file.hpp": "856e9f276bb663ed0b12e053d90a592997d3d337dda5650bda054c492b7f0488",
+    "src/format/output_file.hpp": "cf3ac408e90704c6daea6cbccab76521bc43657b2a4b48c1901bc5b776b0a478",
+    "src/format/format.hpp": "3550b93078aa475af9d5af88bd7537175d697fdb9ccff3deff51f7d595fd7e2d",
+    "src/hub/manifest.hpp": "a3754cd8295c069efe649ef1c91155eed2c7846edadb8e17b5440b48af9eae3b",
+    "src/hub/transport.hpp": "86ad5fbfb42f1277b2ef1eb89c3d67f17c2dc1506343aae5abdb5544c0d32163",
+    "src/hub/pull.hpp": "cfa35941fb65b4f0aa524ba3f856055ffda247e7439d5bf186780655ca810ef0",
+    "src/server/http.hpp": "64b6b5ae823d831bc497324fbaf301a895a0faaed5a85522d988bb7a0930ee39",
+    "src/server/scheduler.hpp": "873f694392994b33297740c71be733b1e28cf2534eb5ef4c827cdd4e861100a0",
+    "src/server/api.hpp": "6b261c674985ea1141420688d808ae73047466731aa24f96850f01f7a27df62f",
+    "src/server/policy.hpp": "aeccfeac12e10e882e8478ae20189426a03923557c6e9d00e66e80e83dfe56e5",
+    "src/cli/main.cpp": "b4330ed0422c983e0f38a4aa510ad7b2fb83959590a9650ca15cbbed1567e5c6",
+    "src/inference/sampler.hpp": "7b73b51d2332426d29295c4e582bd27a53abafa83b40a3ea31db252ffcb9b6d9",
+    "src/inference/generate.hpp": "339e6729cc35632b2233fbc1ca9da346361aa2554c6533edf714db0f0b837df2",
+    "src/inference/logprobs.hpp": "2f35e089bb17e74ea76789c7f9ab2552916c4ea9b152d7e03ef70ae8a12204c5",
+    "src/inference/chat.hpp": "b6c9a105446eb2ec358ac8f3dcf23b6ab5b4ba00c583dad646206f742fb61b05",
+    "src/inference/load.hpp": "0c5cf6a6a33f24f6930dc725bd359cf8401127eba779dc2db7a4234ff292fd68",
+    "src/inference/perplexity.hpp": "af5059e232a7a4e72a74dbca7fc2273dc507ba3ba88c86b7c61f7087249072c6",
+    "src/core/fp16.hpp": "b792551e5a8c5a45969edbf7236ce43f83a859c3d8fee761d4a02401bbf05928",
+    "src/core/list.hpp": "385d03a145039d04bf98d6202866483f7666df55a9a10ff239c6a8709b79c94c",
+    "src/core/json.hpp": "e1b1d59f83a2e32d83f24d6fd413e6fa24dc106b2b4491c58add992efca55a0d",
+    "src/core/sha.hpp": "288b428cbea4798e7f8a29e2b4735142fd51889e62d30a8423ff3f79a251f7a3",
+    "src/core/cpus.hpp": "743ba57c57f0f0373934f75f107e5e2bd993c90a53b1515e52d4c406bb79461e",
+    "src/core/host_memory.hpp": "12c05b9363d86c980d8f792152ac204932887d810cd7acbef2ba113dd9336f34",
+    "src/core/utf8.hpp": "af5469ac9946e89c9cf16fc1c95a60a4c3a81945417801141fed94305ab4fafc",
+    "src/core/cgroup.hpp": "386a32fb048e4c47930fd74cf8a5bee999ccb11ee21813137e3b6a576434cc5b",
+    "src/quant/k_quants.hpp": "8e08ee1863012d5e2cb1af283bee22e0e5dae9f09e603ea9b90284d25361bb3a",
+    "src/quant/types.hpp": "f8407af4e614657dc68dce8ed563e3ed044ae7db33504879c5f01e7625eb809c",
+    "src/quant/quant.hpp": "50603dcea2d86aebd1956fc20e691b25b69469ebd4e377f96a481b65165d621c",
+    "src/tokenizer/tokenizer.hpp": "0b214bd57673fd291c7e426b58340f333e5de1604af2304fbee6ce194b721016",
+    "src/backends/devices.hpp": "6271718c0adcae333d54d25521d87e8b13fc96014a7c7fb8e8d54713fe74b2f2",
+    "src/backends/device_profile.hpp": "f27ca29a0da211ef58de5183c5d370bc591a8e8b5b57f92ae03e33b46007e79b",
+    "src/backends/kv_storage.hpp": "d99513df97457fd98d0be0a69e12c838391aca1c60e5fc978d1d8f8695e62b9d",
+    "src/backends/backend.hpp": "e7ef8b87348f6e062d39b547135b324be59961ac5392d17d3ee38bdc117f63d0",
+    "src/model/weights.hpp": "b30d720c31c956e78c31173c917d3b25fc8e52cc9eb884edd2f050ab78c923bb",
+    "src/model/layer_split.hpp": "765d25516ea164e71639030b24571261b530ba177e1d22297c96f5ebedebb847",
+    "src/model/runtime.hpp": "39f4b4796c2fae1c689bdc1d1946be2aaf968cc2780ed65f83c7c4448e17f514",
+    "src/model/place.hpp": "640fa2ddcad8c148145a3d3c5289a054595502871ad7bfb40c9d16dcb77a94ed",
+    "src/model/kv_cache.hpp": "74a0a840472d06a09fb888ecef8436dcf3ebddd65bcb0d0e032e79ef1aabdd89",
+    "src/model/architecture.hpp": "428c29e91091950f49b9465f5a864e5af1bc6460c9b5bf7bdbe4468433f56dbe",
+    "src/model/arch/metadata.hpp": "4d610c5a3a902056cdb99138b446d3776b92c6e9db3c3238bd492ea7ef255936",
+    "src/model/arch/qwen3.hpp": "ae9dc3e4e96c556721202d26270d8163dc44184ceb94658f06916a24979ab15f",
+    "src/model/arch/registry.hpp": "8c846c7e2efc584e0be195dcdf5fee561ec191c6c750dde075b8ce51205bd384",
+    "src/backends/vulkan/vulkan_backend.hpp": "84b6aa95617fbf46682b111b928152c851cd7521ba1731fdddbf1806504bbbbb",
+    "src/backends/vulkan/vulkan_backend.cpp": "efc1e0433085326af25606e9eaa9e5922e607932fea45701b32937236ba530d6",
+    "src/backends/cpu/prefill_placement.hpp": "fdadbcea2cb84f37f473eb2d23d01bcd68a18015fa402c5dd0d0f68c723d4f21",
+    "src/backends/cpu/cpu_backend.hpp": "e1e4a207b74636dee4f9eead14984490305c0775ed3bff75e8eeda34a5ef5aaa",
+    "src/backends/cpu/q8_dots.hpp": "72a6bb100f9ace0f7d7d4cd489b5314adfe2a0047edb15a2d0601f999816bbea",
+    "src/backends/vulkan/shaders/matmul_row.comp": "4c5d5bfab64537839064d35468ba5d35217ff1e877be856a84edf8f4af9194bb",
+    "src/backends/vulkan/shaders/f16.glsl": "03706b6c90a6455a987f85aadcac9383c0e655d78a35a152534c71f82530445f",
+    "src/backends/vulkan/shaders/attention_vec.comp": "c07c8ae5537b6581eb5b7595df1644d0b95fa2e96cc940d75bffc67ede8af595",
+    "src/backends/vulkan/shaders/attention.comp": "cb413b67a8362ff8e8638b3618d9f0b4814de93d243c393670f354be6096d5c8",
+    "src/backends/vulkan/shaders/norm_rope_kv.comp": "6e0afc19ceb9ba1a6480cef21b98fe94ef468adc8279294513a2286c25fd8f7c",
+    "src/backends/vulkan/shaders/views.glsl": "fb26c2e68fd4ee07de1958160fa626ca92b69a786ddf964dd3b157f9fbf8edd3",
+    "src/backends/vulkan/shaders/moe_route.comp": "c1bbb66364f776d8c37e55a5deade8a478acdec958618a1df17e1d42d8337d99",
+    "src/backends/vulkan/shaders/silu_mul.comp": "2ddb9a0848718ae0aaeed96df14972cae2b8d90eb7c80c500b78e0c16d9e140c",
+    "src/backends/vulkan/shaders/attention_merge.comp": "97ba9b091578763205051f7905eef32c1b90c9a30398a7ac27f94b098ecafb94",
+    "src/backends/vulkan/shaders/quantize_x.comp": "93ca1ebc76569642e1cbcdec2dc24ec0dad86a39d2cae7226fe0bcf4c54f57e9",
+    "src/backends/vulkan/shaders/matmul_vec_q8.comp": "725d8da3980a6c68ead1a3d8b8b53a4dff4749aa97c8030218826dd57148e006",
+    "src/backends/vulkan/shaders/q.glsl": "cbb198159dface11fdd9a312747cbb86b0c77110996c80eb6d123262ad3a15fa",
+    "src/backends/vulkan/shaders/qdecode.glsl": "134b379e642c7139f0a74223c062587d97f3ac5a1263e4096afb4a996e3a58c8",
+    "src/backends/vulkan/shaders/moe_group.comp": "c062113a83c8fcd96bb3755c774f713a873b6ef482b3a46c019f529ab0d69202",
+    "src/backends/vulkan/shaders/norm_rope_rows.comp": "e1d52d28a4253a98308147ac32b8c6bdf5fd6c32f8f84c3efc422d9214f6fe63",
+    "src/backends/vulkan/shaders/kv_write.comp": "98273b3b8b24c0a44728ccd43d120f1e835b0edfc8d561ac22fe828f69760002",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "4bbb6de59c6e7cebc88b451d46fae494f3dfb99d73b19b234ea4e9a594f37d2f",
+    "src/backends/vulkan/shaders/add.comp": "91864be8fd1929f0f9b6155b5d4d6316555e6d873b3a2c15fbf5064ec0ee959d",
+    "src/backends/vulkan/shaders/matmul_reduce.comp": "97e6971a4e67694eb8e229e399e3ca0a02e136c4682baefca2a905aeebc6b035",
+    "src/backends/vulkan/shaders/embed.comp": "2fde9462090f0ee13254653b204ef9ad1d09ef745d9e7987adb946f0fca40042",
+    "src/backends/vulkan/shaders/gather_rows.comp": "823643191b59a08e3e24ffb6c6920720cc199192e42b6bc3c149e62950de3c89",
+    "src/backends/vulkan/shaders/quantize_x8.comp": "42e8c78eea2ff4a85d93d9d2d9e9cc9ddb67452a3fa150d816d25942aac79496",
+    "src/backends/vulkan/shaders/attention_tile.comp": "39f7059588ca75f4af4626b7bf519a21c8f67e67f83e11941b7b55a134bcf4aa",
+    "src/backends/vulkan/shaders/xquant.glsl": "5130bd4247e9f2198efdbee771f81ddb04af6545db26980f5499333ead14800f",
+    "src/backends/vulkan/shaders/moe_combine.comp": "223f4ea4820ac56bb5d1288ace5ec2a0c69bec38a01bf6fc53b5edc157f94398",
+    "src/backends/vulkan/shaders/rms_norm_rows.comp": "3ca604de0011ce4e0cc45fd81231c05bb2ba2ecfd9f3b91cfdd0727901402c9e",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "7ffe4bc52ba87dd380d49f4d9dcc4e037c5f43abe6b61fec79de728cea1f1b5e"
+  },
+  "scope": "Q4_0 range-fix final integration gate; hosted pending",
+  "base": "5c1bbe7afcecbd568da36a9d1e4e976eacda09a1",
+  "feature": "a7d82d2d963540f911d8554aa09b6e6276e645a8",
+  "windows": {
+    "pid": 3100,
+    "status": "pass",
+    "started": "2026-09-28T05:46:48.167782+00:00",
+    "records": [
+      {
+        "name": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q4-current-20260928",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q4-final-20260928\\build-windows",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=OFF",
+          "-DBUILD_TESTING=ON"
+        ],
+        "started": "2026-09-28T05:46:48.167782+00:00",
+        "pid": 5292,
+        "exit": 0,
+        "completed": "2026-09-28T05:46:51.662481+00:00"
+      },
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q4-final-20260928\\build-windows",
+          "--config",
+          "Release",
+          "--parallel",
+          "6"
+        ],
+        "started": "2026-09-28T05:46:51.662481+00:00",
+        "pid": 9876,
+        "exit": 0,
+        "completed": "2026-09-28T05:47:31.057613+00:00"
+      },
+      {
+        "name": "ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q4-final-20260928\\build-windows",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "started": "2026-09-28T05:47:31.115218+00:00",
+        "pid": 11128,
+        "exit": 0,
+        "completed": "2026-09-28T05:48:11.942806+00:00"
+      },
+      {
+        "name": "suite",
+        "command": [
+          "python",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q4-final-20260928\\build-windows\\Release\\llmx.exe",
+          "--no-perf-floor",
+          "--require-tools",
+          "--require-baseline"
+        ],
+        "started": "2026-09-28T05:48:11.942806+00:00",
+        "pid": 25348,
+        "exit": 0,
+        "completed": "2026-09-28T05:55:21.372315+00:00"
+      }
+    ],
+    "exe": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-q4-final-20260928\\build-windows\\Release\\llmx.exe",
+      "sha256": "5636779647a571e8831766620644fc85732fdc0429db11e295722f4b0044b8e9",
+      "version": "llmx 0.1.0+ga7d82d2d9635.dirty",
+      "newer_than_sources": true
+    },
+    "completed": "2026-09-28T05:55:21.373315+00:00"
+  },
+  "linux": {
+    "pid": 42212,
+    "status": "pass",
+    "started": "2026-09-28T05:56:23.322930+00:00",
+    "records": [
+      {
+        "name": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "/work/q4-final-20260928/source",
+          "-B",
+          "/work/q4-final-20260928/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=OFF",
+          "-DBUILD_TESTING=ON"
+        ],
+        "pid": 42218,
+        "exit": 0
+      },
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "/work/q4-final-20260928/build",
+          "--parallel",
+          "6"
+        ],
+        "pid": 42262,
+        "exit": 0
+      },
+      {
+        "name": "ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "/work/q4-final-20260928/build",
+          "--output-on-failure"
+        ],
+        "pid": 42891,
+        "exit": 0
+      },
+      {
+        "name": "affected",
+        "command": [
+          "python3",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "/work/q4-final-20260928/build/llmx",
+          "--only",
+          "roundtrip,docs,dead-code",
+          "--require-tools"
+        ],
+        "pid": 43817,
+        "exit": 0
+      }
+    ],
+    "exe": {
+      "path": "/work/q4-final-20260928/build/llmx",
+      "sha256": "8ee8ac3bc17088a2cba787ad1a35c3bd417ffec68c0793158e5d3891f6b503ed",
+      "version": "llmx 0.1.0+unknown"
+    },
+    "completed": "2026-09-28T05:58:41.650178+00:00"
+  },
+  "preparation": {
+    "base": "5c1bbe7afcecbd568da36a9d1e4e976eacda09a1",
+    "feature": "a7d82d2d963540f911d8554aa09b6e6276e645a8",
+    "conflicts": [
+      "STATUS: both feature and landed main records retained",
+      "quant.hpp: comment-only, feature scale-range wording retained beside main signed-zero explanation"
+    ],
+    "executable_quantizer_identical": true,
+    "markdown": [
+      {
+        "path": "AGENTS.md",
+        "sha256_normalized": "b8c7af1445139e74dc14d695dc4210828101e29caf735169e1ba09df7f4c2f80",
+        "completed_review_matches": [],
+        "new_reconciliation": true
+      },
+      {
+        "path": "README.md",
+        "sha256_normalized": "07a3b47edfbdbc7fa716a23e2a1c37cc356c2a492d1c321a18b057bc8fc4f9e0",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/ADDING-AN-ARCHITECTURE.md",
+        "sha256_normalized": "ac9a6cc7fa0e305ab78bf4913aa57513de0c43d8c3b26300b749227ec5fcc44e",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "sha256_normalized": "53f7a6b8f8e70e6f0ed4da0388420254b1bb6537e926d52b3920b09f57350563",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/ASSETS.md",
+        "sha256_normalized": "14e6f7b97820da6124ca6758ac4437f917297c7fcaca2be1723794042b5fda6c",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/BUILD.md",
+        "sha256_normalized": "ec69b1af955f9a161352d751f2c2b178e05e5396af68b873c65e8b38ec8d52c9",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/CI.md",
+        "sha256_normalized": "663e16384f4b66e14eb2aaf4035fe53dd1ec906924055dea4a2f4658867b1af0",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/DEVICE-EXECUTION.md",
+        "sha256_normalized": "d79b1240ca018abd4c23d190953e4667e394884d37ffcd25a32a99c64f82641e",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/EXECUTION.md",
+        "sha256_normalized": "4035dd0407205bd35065d7d245a370ed351677544be57030b9864866b780d0fc",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/KV-CACHE.md",
+        "sha256_normalized": "84917f643886d871722bd3e4bf88c6650374e016bd2dd4e6c4b153934765be16",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/MULTI-DEVICE.md",
+        "sha256_normalized": "354b266344a3538d57f100ab0cbec660482410a9fcb87923f239aad2689b3673",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/QWEN35.md",
+        "sha256_normalized": "1b8d2e6728c1de9b817f98cca762960c80dd20c4d6a2b56f8ccaa61485c62968",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/ROADMAP.md",
+        "sha256_normalized": "f63ae18419af6ce6207756e6c079638d7d3cc584dca320290f7d36d2b165be8b",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/SERVER.md",
+        "sha256_normalized": "d954f9cedcbfb7d76f3816bff2ad8a83d9a07ad44af31c385cb22fbdacacee60",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/STATUS.md",
+        "sha256_normalized": "a6efe7652772e58a61cd9f1c7c65f3cca3c74c92fda8770974b884ba14951e7f",
+        "completed_review_matches": [],
+        "new_reconciliation": true
+      },
+      {
+        "path": "docs/USAGE.md",
+        "sha256_normalized": "ed0a3da900e3b2116d9da585a0d329147594b89ef77550717714bc2c5bc4d0c3",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/VULKAN.md",
+        "sha256_normalized": "a0f02947bc8ea5a4cb279193e8fa12f06f05c1f3f5d7796cbd0e1b1afad8f644",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+        "sha256_normalized": "f76f422a386c181e9d6ada0618bbf741a5b1d21e623c8137ba5120ace8e702cc",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/benchmarks/backend-audit-20260925/README.md",
+        "sha256_normalized": "c31bd5cb16c603473b83f00d2c992b8d2a2149fc045c48ced91016f07d5711fd",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+        "sha256_normalized": "1816e5fbf3f0f7a5929dcba66c5091bac737a5180a49bf3172fd804912f3642b",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+        "sha256_normalized": "fd6091e66d5387f2402a94b1ef6f0b4e8535215125e71c09a32abd278abf2da1",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+        "sha256_normalized": "3cbeb4a6fe43324de5860d3639f93cc8ce54ae155a0881eabe8166ae8627b7e7",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+        "sha256_normalized": "f6aa16822344c2cde32e23a05c1ec7e5a795f383195aa761f844e298db699457",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+        "sha256_normalized": "d5849714c7dfd07384026b36f1d3b9d5108a3ba3a1f6089dd9e18d3f7d4ff374",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+        "sha256_normalized": "55cf162127e60dab392cef524218ce74a6336445c3f710327be6fca672616dd6",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/backends-backend.md",
+        "sha256_normalized": "46694213a767490caa37bb32eb5b165092c9da7c65f1826bdb8abbb899776ad9",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/backends-cpu-placement.md",
+        "sha256_normalized": "c57891c2757fffa55d621ef34b9ff598fadac343802c5d5c2d9f0f0185883612",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/backends-cpu.md",
+        "sha256_normalized": "cca51c5de70e14e0008c2938c9a472f2e2218d5c18bc7ef48b03dfb3b9f8dd59",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/backends-device_profile.md",
+        "sha256_normalized": "7d06fd8e0b2ce0a5253e385456fc7f4d362760c49475f4346dec90bf2f07e09f",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/backends-devices.md",
+        "sha256_normalized": "9c16a88b484e8957f4ff0d199c545343b58d95a3b8f4769ec478efef62007c8b",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/backends-kv_storage.md",
+        "sha256_normalized": "4bc77f3658202e13295dcd593e125f8e900f20afdda962a73df6234046376c77",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/backends-vulkan.md",
+        "sha256_normalized": "f50f60ed9fbaaa1a8d5b9a1162ce3c48ae52984c00b3940558bc26471371327b",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/cli-main.md",
+        "sha256_normalized": "93c366c2053835148fe8d3aec9ab001ad467ed2f432a56ad6276181bf45b38f4",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/config.md",
+        "sha256_normalized": "ec2ac0ab566daf8c563544acf5b32f1fcb1888778e6a28af6cce5830c87d7bdd",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/core-cgroup.md",
+        "sha256_normalized": "79e2f2957421911a91ad00a933a773153ae4df45ae6f65a980a57e22d8bf69da",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/core-cpus.md",
+        "sha256_normalized": "d0264a7c44685fc4530af348e1a818040c6bc84ff585fec56299355217ee9edb",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/core-fp16.md",
+        "sha256_normalized": "72e16eceb531f0868696eedea3e678d6bafc4835eb023bcafca651808f8312c8",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/core-host_memory.md",
+        "sha256_normalized": "949b45b77d86d97ca9daddd7dd9a992385f58042c4078a0ab0e41f21126761f4",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/core-json.md",
+        "sha256_normalized": "65e69b3beb696f41293526b8b98c155c6fa190bf439f266b43dd5b2aa7ae7e0e",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/core-list.md",
+        "sha256_normalized": "d3630aff6f57156b5cec776fb25359b831f2625fa8275cc30eefd6ef0fca0be2",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/core-sha.md",
+        "sha256_normalized": "8d48e1c187bc804309b215b6aba0f190456ecdd3adf6f91c537ca8fca926d0cf",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/core-utf8.md",
+        "sha256_normalized": "f19f7ebef334b9dcd34806f55d5c3bb79e1521f2652ea880402093d17bf9702c",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/format-file_reader.md",
+        "sha256_normalized": "c3f665dac5ec68f01790959b76db83e5b70b727306dd6d633a55d467ac430e49",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/format-format.md",
+        "sha256_normalized": "85860e6b8f0a9aec9c80d7bee619df443d949286f70a6b2895c270b912bb9baa",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/format-gguf.md",
+        "sha256_normalized": "0064bb586c37351cfce0b3c6207c78a0f0911a7584d8535cceabe8a7a7891c73",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/format-mapped_file.md",
+        "sha256_normalized": "d383b77a0799508acd00d2c8bf7532687dc91ee733f93897d26bb7cf0d5e3de6",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/format-output_file.md",
+        "sha256_normalized": "ba34cdba9d6b194b02a2b2340b6f82a179d73af7490448837f5cf1f771febced",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/format-raw_convert.md",
+        "sha256_normalized": "825f347c5639bef00f4c31124e8f3b62ce33429e1c322dd4096634c1407a811c",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/hub.md",
+        "sha256_normalized": "89f617e1cbde41e6b5923658f723166a60e5123c9aa33e2a3c1c513f2a71b860",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/inference-chat.md",
+        "sha256_normalized": "0cfc35df90354be74a176947b00f2c9ecbca2a1de397746ad064c6ece3130fab",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/inference-generate.md",
+        "sha256_normalized": "c19f313480461090ca2389dc92119f611cdfd4ab0a3714cd1b23a8bb8b75d6d8",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/inference-load.md",
+        "sha256_normalized": "15823a95e7929252d3a9803f584f2db6e9bd998c14a377bdf35d6538c9b71a65",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/inference-logprobs.md",
+        "sha256_normalized": "ae9b179ebf59057c63f7d4bb37188e428f811a5c875b00a851e22a81562a1d88",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/inference-perplexity.md",
+        "sha256_normalized": "84ead8b6068ec1aaa94d2b70fa52c6a568a06e40448ae05ffc0b4b4db865b772",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/inference-sampler.md",
+        "sha256_normalized": "6e13039fc08b4f3c4eadcf1dd2d9b94e03fed4d5d7d728e08cbeaf172317a702",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/model-arch-metadata.md",
+        "sha256_normalized": "6e40490502bfa187d32dc78d40325c3f08c74af728d82209be20b189ec1c0451",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/model-arch-qwen3.md",
+        "sha256_normalized": "8d3300b9482fedc94d580e58ea3a144794e7534fe4e0e767f02067df822b24e8",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/model-arch-registry.md",
+        "sha256_normalized": "4efba33a4c87f2419a72d734efa2c9c3f21ca73f2fd430c38b59bf40d5e7ff14",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/model-architecture.md",
+        "sha256_normalized": "d48253a665eb2e17a7f1b79dbc1368f9d01279b598bb77115988768872347d5e",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/model-kv_cache.md",
+        "sha256_normalized": "4854d3211b4d036b2ee21e6f6aa11505462436e3275665d14eb6f39ab2d82c1e",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/model-layer_split.md",
+        "sha256_normalized": "153e0ba3103bd5cd881e0cd90927b6d77766abc4bfe8746cff912ec4bda23bd0",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/model-place.md",
+        "sha256_normalized": "693766af3c66a4b668c807118059a48223d1d92ce2ac5b0a00c2feaf96b29237",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/model-runtime.md",
+        "sha256_normalized": "61cdc52d3b57fe722f31e9674fbf5fe692f818ce01b0b1d1119666ec88352ea6",
+        "completed_review_matches": [
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/model-weights.md",
+        "sha256_normalized": "636b336046457077545eaa655bb7f7df48e9dbb927271598db92de0c069f9ca4",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/quant-k_quants.md",
+        "sha256_normalized": "1f1e3984ba5740e17d64951dfd093bf95bbbecc0838d934c5618d95272f432b7",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/quant-quant.md",
+        "sha256_normalized": "c0c52864ba4676d8c3b0408c099810337296965db7a7bcaedfe21d9817f1db98",
+        "completed_review_matches": [
+          "HEAD"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/quant-types.md",
+        "sha256_normalized": "49c717556b60d57f1d88d778ff352a333b9669932cfc0959fb0b1d8427d8dba2",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/server.md",
+        "sha256_normalized": "ef393335d90a2d8ae53378505aa1fade8ef8074d7da63baba82efe69f1f38178",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      },
+      {
+        "path": "docs/src/tokenizer-tokenizer.md",
+        "sha256_normalized": "7b5c4f97008ca7a8dbd111003d90d08672f5896e21ac50a6560df6bdfa82fab6",
+        "completed_review_matches": [
+          "HEAD",
+          "origin/main"
+        ],
+        "new_reconciliation": false
+      }
+    ],
+    "limits": "Reuses completed main/Q4 semantic reviews for exactly matching pages; AGENTS test paragraph and STATUS merged records reconciled against source, CMake and evidence. No historical reruns claimed."
+  },
+  "prior_evidence": "Complete q4-range-evidence-20260928 is inside windows-and-prior.tar.gz in the verified combined archive; no samples replaced or discarded."
+}

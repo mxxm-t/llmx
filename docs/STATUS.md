@@ -38,8 +38,33 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
   The header control changed -0.211% and -0.110% in this round. All arms gave identical benchmark output hashes; 8/48 runs were activity-flagged, all 48 had some unknown process activity, none had unknown counters and all were bracketed by monitoring. No samples were discarded. This reduces the observed encoding cost on this CPU/compiler; it is not an inference or whole-command result, and one control does not bound every layout effect. The alternative passes all 139981 independent code checks on MSVC and under Linux undefined/float-cast-overflow sanitizers; a fresh comparison keeps all 900000 ordinary-output bytes identical to main with the same SHA-256 above. Sources, build logs, monitoring and complete results are in `q4-range-evidence-20260928/perf-block-fallback/`. The prior full runtime gates above cover the guarded-loop implementation; the revised source's final results follow.
   The revised block fallback's fresh Windows build passes all 32 native tests and the full CPU Python suite (22 pass, one unsupported-qwen35 component skip; the Qwen3.5 real-model files are absent). Its executable SHA-256 is `f42b282ef8810a09325c69d9e922e4afdf646440b03e04012c15bdd512eb0354`. The sequential Linux rebuild passes all 31 native tests, roundtrip/docs/dead-code and all 12 Qwen3-0.6B CPU comparisons described above. Its executable SHA-256 is `50d1a7140067721796a6d6c0e937245af966a4f60aae46f52a4bdd69a10988ae`; complete logs and raw outputs are in `block-runtime/` beside the earlier results. The Markdown checkpoint reuses the completed full semantic audit through recorded normalized hashes: 61 of this branch's 68 pages match exactly and every difference in the remaining seven was reviewed; the shared STATUS history is identical. The separate documentation corrections still require integration. See `markdown-review-block.json` beside the gate records; this does not claim a fresh rerun of historical results.
-- **Left:** obtain peer review of this implementation and measured tradeoff, integrate the separate documentation corrections, then rebuild, rerun CTest and run hosted CI at the landing head before merge. This implementation checkpoint follows the failing-test commit and remains independent of the writer fix; no main merge or hosted pass is claimed.
+- **Current-main integration, 2026-09-28:** integrated main `5c1bbe7a`, including the separately landed documentation and checked-output fixes, into a fresh isolated clone. STATUS preserves both records. The quantizer conflict is a comment only: retain this feature's scale-range description and main's signed-zero decoding explanation; executable quantizer code remains the tested block fallback. The failing-test-first history is preserved.
+- **Final integration gates:** fresh MSVC Release build passes all 33 native tests (40.53 seconds) and the full CPU suite with required tools and all four pinned gate models: 22 components pass and unsupported qwen35 skips. The optional Qwen3.5 fixture files are absent, not claimed as passes. The executable is newer than every source header and the log confirms compilation of `main.cpp`; SHA-256 `5636779647a571e8831766620644fc85732fdc0429db11e295722f4b0044b8e9`, version `0.1.0+ga7d82d2d9635.dirty`.
+  Fresh GCC 14.2 Release build passes all 32 native tests (40.11 seconds), including the unchanged 139981-check quantizer regression, plus roundtrip/docs/dead-code. Conversion also retains all nine injected output failures and seven alias checks from main's writer fix. Linux executable SHA-256 `8ee8ac3bc17088a2cba787ad1a35c3bd417ffec68c0793158e5d3891f6b503ed`; its source archive has no Git metadata, so version is `unknown`. Both runners completed successfully and are absent. No new speed claim is based on these integration builds.
+  The earlier 12-case CPU CLI identity, 900000 ordinary-output bytes, sanitizer checks and all 120 calls across the first wrapper-control screen, the closer header-control screen and the final four-arm block-fallback matrix remain retained. They apply to the unchanged quantizer implementation with their recorded scope, not to arbitrary model outputs or whole-command performance.
+- **Final documentation checkpoint:** all 69 Markdown pages reconciled: 67 exactly match the completed main or Q4 reviews, while AGENTS and this STATUS block were checked in merged context against CMake, source and evidence. Runtime source hashes agree with the tested Linux source archive. [Integration evidence](benchmarks/q4-range-current-20260928.json) records commands, hashes and the review inventory. The verified source, Windows/Linux binaries and logs, and complete prior Q4 evidence are archived at `/opt/claude-work/llmx-p2-x-mxfp4-cpu/q4-range-current-20260928.tar.gz`, SHA-256 `17fe8e0c57bfe1830b017b89127deb760c2253004044d61ea37518e39eb24bd1`, 20,989,969 bytes.
+- **Left:** run hosted CI at this final integration head, then fast-forward main if it is unchanged. The user removed peer review as an extra prerequisite. No hosted pass or merge is claimed yet.
 - **Gotchas:** a binary16 scale may round to zero for tiny inputs; that format limit remains. Packed integer codes still must be defined. If the F32 scale itself rounds to zero, the existing zero-code behavior remains. A rounded subnormal F32 scale can reach the -8 clamp as well as ordinary codes -7 to 7. Nonfinite source values and scales too large for binary16 are outside the correctness claim. No inference throughput result is claimed.
+
+## Format output failure handling (2026-09-28, merged at `4b0ec6a5`)
+
+Merged on Gitea and GitHub main by fast-forward from `1ff3dff2` after all six hosted jobs passed at exact head `4b0ec6a59c8dd31176391e73b52ef521bf8decf7` in [run 36381084608](https://github.com/mxxm-t/llmx/actions/runs/36381084608).
+The failing-first test commit `c167a908` precedes implementation `4d1b26ea`; the integration preserves both and adds main's documentation corrections.
+Fresh Windows validation passed 32 native tests and 22 CPU suite components with all four pinned gate models required; unsupported qwen35 skipped. Linux passed 31 native tests plus roundtrip/docs/dead-code, including nine injected output failures and seven alias cases.
+The earlier 12-case CPU identity covers greedy/seeded replies and complete printed logits/PPL with F16/F32 caches; it is not a raw-logit or performance claim. Inference arithmetic did not change.
+The [integration evidence](benchmarks/format-output-current-20260928.json) records commands, hashes, logs and the completed 69-page documentation reconciliation. Full source and both-platform evidence remain in `/opt/claude-work/llmx-p2-x-mxfp4-cpu/format-output-current-20260928.tar.gz`, SHA-256 `7e467ebeb848bd7f84c7b5b65b9c7d925194a5e7b871b4095eea29970116d276`.
+The [output owner](src/format-output_file.md) documents staging, checked close and publication, including the non-atomic JSON/binary pair, refused symlinks and absence of power-loss durability guarantees.
+This separate merge record reconciles STATUS with the completed landing and reuses the byte-identical completed reviews of the other 68 Markdown pages. Peer review is not an additional merge prerequisite under the user's instruction.
+
+## Documentation consistency review (2026-09-28, merged at `5869385b`)
+
+The documentation corrections are merged on Gitea and GitHub main at `5869385b`, a fast-forward from `c82e901a`, after all six hosted jobs passed at that exact head in [run 36366881982](https://github.com/mxxm-t/llmx/actions/runs/36366881982).
+The final local docs and dead-code checks passed with their 16 and 15 planted faults; all 68 Markdown files matched the completed semantic review, and the six changed source headers kept identical non-comment, nonblank lines.
+The full review covered those pages plus the writer feature's owner page, with hashes, read ranges and source-check limits in `writer-markdown-review-20260928.json` under `/opt/claude-work/llmx-p2-x-mxfp4-vulkan/`.
+The correction batch includes the six documentation changes ending at `89b2b226` and the two follow-up corrections, aligning loading modes/progress, page-stride warming, reader/slot maxima, pass sizing, physical KV sharing versus logical table allocation, Vulkan coverage, test dependencies and stale status/prerequisite rows.
+Historical measurements retain their scope; no numerical bounds or runtime behavior changed.
+The user confirmed that peer review is not a merge prerequisite when the gates pass.
+This separate merge-record change reviews STATUS against the completed landing evidence and reuses the unchanged reviews of the other 67 Markdown pages; it does not claim another runtime validation.
 
 ## The half-block order for the MI50's Q8_0 decode (2026-09-27, branch perf/decode-order, merged at `f2a677bb`)
 
@@ -298,7 +323,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Rebase tier at `7b541f0` (llmx sha256 `41d39329` with Vulkan and `1ae48cd5` without, the binaries `bd12a43` gave, since main's commits since changed comments and docs alone; load 36 to 42): builds with and without Vulkan with 0 warnings; CTest 30 of 30 on the CPU build and 33 of 33 on rocm-smi GPU[4], `backend-vulkan` included; `dead-code`, `docs`, `moe`, `f32`, `perplexity`, `cli` and `decode-probe` pass on the CPU build and `decode-probe` with `--device vulkan:0`.
   - Rebase tier at `c4e624c` on `3da159b` (llmx sha256 `733565bc` with Vulkan and `6a2185ee` without; load 25 to 34): builds with and without Vulkan with 0 warnings; CTest 30 of 30 on the CPU build and 33 of 33 on rocm-smi GPU[4], `backend-vulkan` included; `dead-code`, `docs` and `decode-probe` pass on the CPU build and `decode-probe` with `--device vulkan:0`.
     The shader is unchanged, so rule 2, the timing and the greedy ids were not run again at either rebase, and the Radeon VII's check of `de6de81` holds for it; the hosted run on `1ffebd0` passed all six jobs.
-- **Not merged**: `gate/merge-32` carries the head for the hosted run; the merge waits for the review of rule 2's tables and the Radeon VII's part of the tier.
+- **Before the merge:** `gate/merge-32` carried the head for the hosted run while rule 2's tables and the Radeon VII tier awaited review. The merged result is recorded at the start of this block.
 - **Left:**
   - 64 rows: the order takes 113.2 ms a pass against the reference's 86.2 to 87.4 in the device tier's session; the 32-row pass is level with the reference, the 64-row one is not.
   - The quarter layout keeps rows of an odd block count on the MI50 and every other integer-dot device; hoisted offsets or quad-shared products for it would come back from `3a203c9` if such a device or shape needed them.
@@ -3707,7 +3732,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
        - **Merged** at `a730810` with step 4's references, after rebasing onto main `9e7b1e1`, whose phase 3 step 1 lines sat beside this step's in `tests/data/known_findings.txt` and were both kept.
          On the Linux machine at the merged head: CPU-only and Vulkan builds with no warning; ctest 28 of 28 on the CPU-only build and 31 of 31 on the Vulkan build with one MI50, `backend-vulkan` run rather than skipped; `generate` greedy and seeded, `logits` and `perplexity` on Qwen3-0.6B Q8_0 byte-identical to main on the CPU and on the MI50, 8 of 8; `dead-code`, `docs` and `tests/dead_code.py --linked` against the list.
          The hosted run: green at `a730810` on `gate/merge-21`: Linux 2:55, UBSan 4:03, Windows 5:09, the Vulkan build with the linked check 5:26, macOS 5:51 and the HF reference job 19:00.
-       - Waits for the architecture refactor's module, where the model's use of these ops lands: the config, the resolver and the mixer kind, the arena slots, the per-layer cache in `Footprint` and the rope table by rope_dim, the KV counters over attention layers only, the state slots per command with the retirement, failed-pass and truncate rules, and the refusals by the device backends and by `serve` at load; then this step's gates above.
+       - The architecture refactor is merged at `3e73ffb`; step 4's model module and its gates remain in flight. That module brings the product use of these ops: the config, the resolver and the mixer kind, the arena slots, the per-layer cache in `Footprint` and the rope table by rope_dim, the KV counters over attention layers only, the state slots per command with the retirement, failed-pass and truncate rules, and the refusals by the device backends and by `serve` at load; then this step's gates above.
          Until then only `qwen35-ops` calls the ops, so their dead-code findings are listed in `tests/data/known_findings.txt` against this step, and `state_copy`'s against step 8b, which takes a state back into a live slot.
   5. **`feat/qwen35-vulkan`:** the device ops (conv, the per-token recurrence with source, destination and checkpoint-row push constants, the gated norm, `sigmoid_mul`, and the copy and tag rules), the projection groups, device state storage, attention at head dim 256, strided partial rope, the CLI's layer split with states, and a CLI mode for `tools/long_context_check.py` (two fresh `generate` runs, plus `logits --last` on the baseline).
      - Owed from step 4's CPU ops: the five ops made pure virtual, with `Backend`'s refusing forms and `qwen35-ops`' `check_refusals` removed; `norm_rope_rows` folded into `norm_rope_partial`, as the user decided on 2026-09-27; `backend-vulkan` checks of `state_alloc` and `state_copy`; and the device's check of the decay flush on a state whose decayed values stay normal, as the CPU's is, since a device that flushes denormals zeroes a value the kept factor scales below 2^-126.
@@ -4029,7 +4054,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
   - Branches 5 and 10 add to `tests/cli.py` after `test/cli-surface`.
   - The server field tests go with branch 2, and the pause test with branch 1.
 
-## Loader in one place, with a load mode (planned 2026-09-25, branch refactor/loader; steps 1 to 3 merged on main 27130f7, steps 4 to 6 on 3ac1fbb, step 7 after them)
+## Loader in one place, with a load mode (planned 2026-09-25, branch refactor/loader; steps 1 to 7 merged, results recorded at `8a8b338`)
 
 - **Goal:**
   - Loading a model has one owner, `infer::load_model` in a new `src/inference/load.hpp`. It reads the files, builds the tokenizer and the chat format, places the model, fills the weights and settles the host copy.
@@ -6501,10 +6526,10 @@ above; they were not included in the help implementation commit.
   and prompt-processes at 41 to 50 percent. Decode is the striking
   figure: the reference's Vulkan decode collapses to 102 tok/s here
   while its ROCm decode holds 226, and llmx's Vulkan decode reaches
-  246, past the vendor path. **Correction (2026-09-22):** the reference arms in this table ran with all ten MI50s visible and split the model across them, so neither its decode collapse nor the 2.4 times is a same-card result; see the thirty-fourth paragraph. That says the reference's Vulkan backend
-  is far more driver-sensitive than ours, since on the Radeon VII under
-  the Windows driver the same comparison is 205 against about 199.
-  Prompt processing is where llmx is behind on this card by every arm:
+  246, past the vendor path. **Correction (2026-09-22):** the reference arms in this table ran with all ten MI50s visible and split the model across them, so neither its decode collapse nor the 2.4 times is a same-card result; see the thirty-fourth paragraph. These runs do not establish a driver effect; the Radeon VII
+  Windows result (205 against about 199) is a separate environment.
+  The following prompt-processing shares also compare unequal device counts
+  and do not establish a same-card deficit:
   50 percent of the reference's Vulkan, 29 of its ROCm, 26 of the
   fork's. The fork matters: it reads 4549 tok/s at a 64-token prompt
   against upstream's 1774, so a share quoted against upstream flatters
@@ -6797,8 +6822,10 @@ above; they were not included in the help implementation commit.
   kernel work: pp64 1075 tok/s against 2016, pp256 2518 against 3469,
   pp512 2743 against 3556, decode 262 against 102. Prompt processing is
   53, 73 and 77 percent of it, against 41, 65 and 74 this morning, and
-  decode is 2.6 times ahead rather than 2.4. On the same card the
-  per-type sweeps read 0.6B pp16 to pp96 at 1029, 1071, 1092, 1103 and
+  decode is 2.6 times ahead rather than 2.4. **Correction (2026-09-28):**
+  these reference ratios compare unequal device counts and are invalid as
+  same-card comparisons; see the thirty-fourth paragraph. The following
+  llmx per-type sweeps retain their separate within-runtime scope. They read 0.6B pp16 to pp96 at 1029, 1071, 1092, 1103 and
   1218 tok/s against 851, 883, 897, 904 and 1208, the short prompts
   gaining a fifth from the dot-form row kernel; the 8B reads pp32
   104.5, pp64 180.5 and pp512 327.
@@ -7705,11 +7732,12 @@ their own measurements; K-quant optimization remains separate work below.
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
 | Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | Planned (block above), built in the background |
 | More model architectures (Llama, ...)    | Planned  |
-| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | Planned (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, its model code waiting for the architecture refactor |
+| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | Planned (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, its model implementation and device gates remain in flight; the architecture refactor is merged |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (block above); the CPU timing on a quiet host follows |
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | Done |
 | GGUF reader size and tensor extent validation | Done |
+| Checked conversion output publication | Done: merged at `4b0ec6a5`; checked write/close before replacement |
 | JSON quantize tensor validation | Done |
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
@@ -7719,7 +7747,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Multi-device split (per-layer, per-tensor) | In progress (`docs/MULTI-DEVICE.md`): phase 0 measured, phase 1 (the layer split over a `--device` list fitted to free memory) and phase 2 (a prompt pipelined over the stages) merged; phase 3, passes in flight: step 1, the pass API, step 2, the scheduler over it, step 3, a pass in flight per stage and the 16-slot command ring (`ec03dcfa`), and step 5, the wider Q8_0 decode builds (`perf/decode-columns`), merged; steps 4, 6 and 7 and the final server gate follow, then tensor groups |
 | GPU backends (Vulkan first to write, ROCm first-class) | Vulkan implemented and the recorded dense-model device gate passed on both platforms (forty-seventh checkpoint above): Radeon VII decode 102-115% and prefill 109-455% of the same-card reference Vulkan build; one MI50 decode 102-115% and prefill 102-267%. These are dated gate results, not new measurements from this documentation review. ROCm planned |
 | Multi-node / cluster                     | Planned  |
-| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 10, step 11 on its branch): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
+| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 11 merged; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | Done |
@@ -7752,6 +7780,7 @@ their own measurements; K-quant optimization remains separate work below.
 | HF model download and sharded GGUF (ROADMAP #9a) | Done (included in main; five hosted jobs passed at `7e195ff`) |
 | HF native formats (ROADMAP #9b)          | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
+| Documentation consistency review | Done (merged at `5869385b`, six hosted jobs passed) |
 | Dead-code and stale-docs checks in every job | Done (merged at `75450ea`, block above); the cleanup of the listed findings, branch `cleanup/known-findings`, follows the architecture modules |
 
 `Done` denotes implemented and validated functionality in this release tree.

@@ -90,14 +90,17 @@ round-tripped activations on every call. Now:
   `read` and `copy`. Weights are adopted once when tensors are resolved and
   the model passes handles, never pointers. `adopt` does not copy on the
   host; the caller guarantees the source outlives the handle.
-- **Resident activations**: one arena per model; every elementwise stage,
-  the embedding gather and the RMS norms are backend ops over it.
+- **Resident activations**: an arena per device in an execution context;
+  every elementwise stage, the embedding gather and the RMS norms are
+  backend ops over it. A context reserved for passes shares these arenas
+  in each device's submission order.
 - **Attention in the backend**: causal GQA goes through `Backend::attention`
   over a `KVView`; the backend owns the physical KV blocks as buffers, their
   size and layout, and the model layer computes no offset into them
   (`docs/KV-CACHE.md`).
-- **Async**: ops enqueue on one implicit stream; `sync()` drains and `read`
-  syncs. One sync per forward pass.
+- **Async**: ops enqueue on one implicit stream per backend and submit with
+  tickets. Crossings and logits consumption wait for the work they need;
+  `sync()` drains error and teardown paths, and `read` is synchronous.
 - **Type-generic matmul**: dispatch through `Backend::matmul` and
   `quant::Registry`; F32 matrices use direct rows.
 - **Batched prefill**: `Model::prefill` batches tokens with `--ubatch`.
@@ -175,7 +178,7 @@ loop, the gates and the order of work are in `docs/SERVER.md`.
   and progress display are implemented; validation and release scope are
   tracked in STATUS. The server's transport is `server/http.hpp`.
 
-- HTTP/WS server front-end sharing read-only model weights, with independent
+- HTTP/1.1 server front-end with SSE streaming, sharing read-only model weights, with independent
   sequence state and mutable KV histories (see ARCHITECTURE.md, KV state and
   concurrent execution). Prefix reuse shares immutable KV only, with explicit
   lifetime tracking; it must not share a user's mutable history.
@@ -187,8 +190,8 @@ loop, the gates and the order of work are in `docs/SERVER.md`.
   worker parallelism does not make the current `Model` concurrently callable.
   A `Backend` is driven by one thread at a time; the scheduler is the single
   submitter per device.
-- `server/` holds `http.hpp`, `scheduler.hpp` and `api.hpp`, including the
-  OpenAI-compatible routes.
+- `server/` holds `http.hpp`, `scheduler.hpp`, its policy core `policy.hpp`,
+  and `api.hpp`, including the OpenAI-compatible routes. WebSockets are not implemented.
 
 ## 8. Correctness & perf gates
 Two standards, both EXTERNAL. Neither may be replaced by a self-consistency

@@ -28,8 +28,8 @@
 namespace infer {
 
 // How a load reads the weights, the CLI's --load-mode, the same on every backend; the first is the default.
-// `automatic` streams the weights a copying backend takes in large reads on two reader threads, overlapped with the uploads, around the file cache when they are more than the host can cache, and maps the files only for the weights a host reads in place.
-// `mapped` maps the files, reads every page in before the model is placed, and copies the weights out of the mapping as the model is built.
+// `automatic` streams the weights a copying backend takes in large reads on up to two reader threads, overlapped with the uploads, around the file cache when they are more than the host can cache, and maps the files only for the weights a host reads in place.
+// `mapped` maps the files, warms their tensors before the model is placed, and copies the weights out of the mapping as the model is built.
 // `direct` streams every weight around the file cache, a host's own into memory laid out as the file, and maps nothing.
 enum class LoadMode { automatic, mapped, direct };
 
@@ -185,7 +185,7 @@ inline std::vector<Piece> plan_pieces(const std::vector<size_t>& tensors, const 
     return pieces;
 }
 
-// Read `pieces` on two reader threads into a ring of four slots, reader j taking pieces j, j + 2 and so on, or straight to a piece's `into`, and on this thread send each part to every upload of its tensor (`destinations`) in order, then report its bytes to `streamed`.
+// Read `pieces` on up to two reader threads into up to four slots, pieces assigned round-robin among the readers, or straight to a piece's `into`, and on this thread send each part to every upload of its tensor (`destinations`) in order, then report its bytes to `streamed`.
 // A backend that reads a slot in place (Backend::wrap_host) takes a part as one device copy out of the slot, and the slot goes back to the readers once the copies out of it retire; any other takes it as a write, which consumes it at once, as do the parts of an `into` piece.
 // A read that comes up short of a part means the file was cut after its header was read.
 // Whatever fails, the readers are stopped and joined, the copies out of the ring retired and the ring freed before the error goes on; the uploads' storage stays with the model, which drains its backends before it frees any.
@@ -362,7 +362,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
             gguf::check_size(file, paths[f], readers[f]->size());
         }
     }
-    // A mapped load reads every page in before the model is placed; auto maps the files only for a host, and direct never.
+    // A mapped load warms the tensors before the model is placed; auto maps the files only for a host, and direct never.
     if (mode == LoadMode::mapped || (mode == LoadMode::automatic && host)) gguf::map_payload(file);
     if (mode == LoadMode::mapped) detail::warm(file, every, progress);
     loaded->tok.emplace(file);

@@ -18,6 +18,8 @@ themselves are the quant layer's, reached through `quant::Registry`.
   tensors copied and quantized ones decoded through the registry, from the
   file's payload mapped in place (`gguf::map_payload`).
 
+Both writers use checked staging and publication ([output_file](format-output_file.md)). Raw output paths must name different files. Both outputs finish before either is published; JSON is renamed first. A later binary publication failure names that path and may leave the complete JSON replacement published.
+
 Every path is UTF-8 and every file is opened through `std::filesystem::u8path`, so a path outside the Windows code page opens too.
 
 `tests/roundtrip.py` quantizes and decodes both types, under an ASCII and a non-ASCII directory with the same bytes, and checks refusals.

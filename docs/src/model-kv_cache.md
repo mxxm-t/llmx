@@ -22,7 +22,8 @@ computes an offset into them.
   the rows prepared for this pass.
 - `fork(length)` is a second sequence holding the first `length` committed
   tokens, a whole number of blocks: every block below `length` shared by
-  refcount, nothing allocated or copied. A length inside a block or past
+  refcount, with no new physical blocks or copying of their contents. The
+  fork allocates its own logical block table. A length inside a block or past
   the history is refused. Shared blocks are read-only: `prepare` refuses to
   append into one, which a history truncated into a shared block would do.
 - Ownership: neither class is copyable and the pool is not movable, since

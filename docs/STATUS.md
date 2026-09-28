@@ -5,13 +5,15 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
 
-## Documentation consistency review (2026-09-28, prepared on docs/xdev-review-20260928)
+## Documentation consistency review (2026-09-28, merged at `5869385b`)
 
-- **Goal:** make the current documentation describe the implemented loading, execution and server behavior, while preserving dated measurements and open gates.
-- **Done:** the full semantic review covered the 68 Markdown files shared with main plus the writer feature's new owner page, with hashes, read ranges and source-check limits recorded in `writer-markdown-review-20260928.json` under `/opt/claude-work/llmx-p2-x-mxfp4-vulkan/`. This correction batch is based on the six reviewed changes at `89b2b226` on `docs/kv-wording`. It updates loading modes/progress, pass sizing and decode sharing, KV commitment versus retirement, Vulkan kernel/test descriptions, test dependencies and conditional test sets, and stale merge/prerequisite rows. ASSETS distinguishes current CPU and ranking rules from old studies; STATUS retains the early reference measurements but removes conclusions invalidated by their unequal device counts. The source edits change comments only, checked against their previous non-comment lines. The final inventory reconciliation also qualifies page-stride warming, reader/slot maxima and physical KV sharing versus logical table allocation in the owner pages. The stream source confirms that every `into` piece still uses `write`, so that description stays unchanged. No numerical bounds or historical measurements are changed.
-- **Checks:** the docs and dead-code components pass, including their 16 and 15 planted faults respectively. Added text is ASCII and `git diff --check` passes. The semantic review does not replay old benchmarks, hosted runs or upstream reference generation; their recorded scope remains explicit.
-- **Left:** LDEV reviews and integrates this proposal with the owned documentation branch, then the final head needs hosted CI with main unchanged before its merge and separate merge record. No hosted pass or merge is claimed here.
-
+The documentation corrections are merged on Gitea and GitHub main at `5869385b`, a fast-forward from `c82e901a`, after all six hosted jobs passed at that exact head in [run 36366881982](https://github.com/mxxm-t/llmx/actions/runs/36366881982).
+The final local docs and dead-code checks passed with their 16 and 15 planted faults; all 68 Markdown files matched the completed semantic review, and the six changed source headers kept identical non-comment, nonblank lines.
+The full review covered those pages plus the writer feature's owner page, with hashes, read ranges and source-check limits in `writer-markdown-review-20260928.json` under `/opt/claude-work/llmx-p2-x-mxfp4-vulkan/`.
+The correction batch includes the six documentation changes ending at `89b2b226` and the two follow-up corrections, aligning loading modes/progress, page-stride warming, reader/slot maxima, pass sizing, physical KV sharing versus logical table allocation, Vulkan coverage, test dependencies and stale status/prerequisite rows.
+Historical measurements retain their scope; no numerical bounds or runtime behavior changed.
+The user confirmed that peer review is not a merge prerequisite when the gates pass.
+This separate merge-record change reviews STATUS against the completed landing evidence and reuses the unchanged reviews of the other 67 Markdown pages; it does not claim another runtime validation.
 
 ## The half-block order for the MI50's Q8_0 decode (2026-09-27, branch perf/decode-order, merged at `f2a677bb`)
 
@@ -7726,6 +7728,7 @@ their own measurements; K-quant optimization remains separate work below.
 | HF model download and sharded GGUF (ROADMAP #9a) | Done (included in main; five hosted jobs passed at `7e195ff`) |
 | HF native formats (ROADMAP #9b)          | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
+| Documentation consistency review | Done (merged at `5869385b`, six hosted jobs passed) |
 | Dead-code and stale-docs checks in every job | Done (merged at `75450ea`, block above); the cleanup of the listed findings, branch `cleanup/known-findings`, follows the architecture modules |
 
 `Done` denotes implemented and validated functionality in this release tree.

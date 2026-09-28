@@ -62,6 +62,55 @@ def simulated_llmx(docs, tokens, context, refuse=None):
 
 class ReferenceConsumer(unittest.TestCase):
 
+    def setUp(self):
+        policy = patch.object(common, "REQUIRED_DEVICE_TYPES", {}, create=True)
+        policy.start()
+        self.addCleanup(policy.stop)
+
+    def test_required_type_refusal_cannot_be_skipped(self):
+        early = "error: inference: embedding needs tensor token_embd.weight of type MXFP4 (39), which the backend of device 0 does not support"
+        messages = [early, early.replace("MXFP4 (39)", "39"),
+                    "error: vulkan: unsupported matrix type 39 (device lacks its float modes)",
+                    "error: vulkan: unsupported embedding type 39 (device lacks its float modes)"]
+        with patch.dict(os.environ, {"LLMX_DEVICE": "vulkan:0"}), patch.object(common, "REQUIRED_DEVICE_TYPES", {39: "MXFP4"}):
+            for text in messages:
+                with self.subTest(text=text), self.assertRaisesRegex(RuntimeError, "required device type MXFP4"):
+                    common.device_lacks_kernel(1, text)
+                self.assertFalse(common.device_lacks_kernel(0, text))
+            self.assertTrue(common.device_lacks_kernel(1, early.replace("MXFP4 (39)", "Q8_0 (8)")))
+            self.assertFalse(common.device_lacks_kernel(1, "error: inference: failed during upload"))
+
+    def test_required_type_runner_fails_a_skipped_component(self):
+        import run_tests
+        refusal = "error: inference: head needs tensor output.weight of type Q8_0 (8), which the backend of device 0 does not support"
+
+        def refused():
+            return common.SKIPPED if common.device_lacks_kernel(1, refusal) else False
+
+        for required, want in (([], 0), (["--require-device-types", "Q8_0"], 1),
+                               (["--require-device-types", "MXFP4"], 0)):
+            text = io.StringIO()
+            args = ["run_tests.py", "--exe", sys.executable, "--only", "baseline", "--device", "vulkan:0"] + required
+            with patch.object(sys, "argv", args), patch.object(common, "EXE", sys.executable), patch.dict(os.environ), patch.object(baseline, "run", refused), contextlib.redirect_stdout(text):
+                self.assertEqual(run_tests.main(), want)
+            if want:
+                self.assertIn("required device type Q8_0", text.getvalue())
+                self.assertRegex(text.getvalue(), r"baseline\s+FAIL")
+            else:
+                self.assertRegex(text.getvalue(), r"baseline\s+SKIP")
+
+    def test_required_type_runner_refuses_invalid_selection(self):
+        import run_tests
+        for required in ("", "Q8_0,", "NO_SUCH_TYPE", "39"):
+            args = ["run_tests.py", "--exe", sys.executable, "--only", "baseline", "--device", "vulkan:0", "--require-device-types", required]
+            text = io.StringIO()
+            with patch.object(sys, "argv", args), patch.object(baseline, "run") as component, contextlib.redirect_stderr(text), self.assertRaises(SystemExit) as error:
+                run_tests.main()
+            self.assertEqual(error.exception.code, 2)
+            self.assertIn("unknown required device type", text.getvalue())
+            component.assert_not_called()
+
+
     def test_device_type_refusal_is_a_skip_only_for_a_selected_device(self):
         message = "error: inference: layer 3's feed-forward part needs tensor blk.3.ffn_up_exps.weight of type 39, which the backend of device 0 does not support"
         for text in (message, message.replace("type 39", "type MXFP4 (39)"), message.replace("type 39", "type Q8_0 (8)")):

@@ -4,6 +4,14 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Required device types in the test runner (2026-09-28, branch tests/require-device-types, in progress)
+
+- **Goal:** implement the quantization plan's named-type device gate: a selected backend refusing an explicitly required weight type fails the Python suite instead of becoming a skip.
+- **Done:** failing-first tests on main `737e082` reproduce required refusals becoming skips and the missing runner option. The focused run exits 1 with five assertion failures and one parser error, before implementation. The existing skip helper and runner are the owners; the independent spec decoder owns the names and numeric ids the option will reuse.
+- **Left:** failing-first runner/consumer coverage, the test-only option and documentation, affected checks and the applicable tests-only merge gates. No runtime or numerical change is intended.
+- **Gotchas:** ordinary unsupported types retain their existing skips unless required; unrelated errors still fail. Naming a type is not proof that a selected component exercises it, and this Python gate does not make a driverless native CTest run device arithmetic.
+
+
 ## Early backend weight-type refusal (2026-09-28, merged at `737e082`)
 
 Merged on Gitea and GitHub main by fast-forward from `56ac913c` after all six hosted jobs passed at exact head `737e082e4576fcccbd560fb5863cd9ab1826cd54` in [run 36414806737](https://github.com/mxxm-t/llmx/actions/runs/36414806737), including macOS, UBSan, the Vulkan build and the required HF/server checks. The temporary GitHub gate branch was deleted after both main refs were verified.

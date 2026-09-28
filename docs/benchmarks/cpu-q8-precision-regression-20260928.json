@@ -1,0 +1,13 @@
+{
+  "base": "96ef9c6b1c3654354594b82f9f8b226ce3163381",
+  "test_first": true,
+  "build": "Fresh MSVC19.50 CPU-only build; backend_group.cpp compilation recorded.",
+  "test_exit": 1,
+  "failure": "Q8 product rounded its original F32 activation",
+  "test_sha256": "27488b3ba249def6088e4ccbc237bf7959ffa2c6aac26b16589127ff198f1b72",
+  "logs": [
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-main-first-build-20260928.log",
+    "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-main-first-test-20260928.log"
+  ],
+  "scope": "Unchanged production code, exact one-hot Q8 products on original inputs. No HF bound change."
+}

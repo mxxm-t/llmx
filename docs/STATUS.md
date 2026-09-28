@@ -4,6 +4,14 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## CPU Q8 activation precision (2026-09-28, fix/cpu-q8-precision, in progress)
+
+- **Goal:** keep original F32 activations for CPU Q8 products, using the existing float dot path and removing the integer Q8 path if the complete tradeoff passes. No runtime flag or model-specific exception.
+- **Done:** isolated from current main `96ef9c6b`, separate from MXFP4. Same-weight independent HF diagnostics on the prior integration show original8 decode top-five 239/247 on 0.6B Q8, 244/247 on 8B Q8 and 240/247 on 30B MXFP4 MoE; Q8 F32 restores all measured rankings. Twelve monitored Windows calls per model show no large fallback cost, but small differences and the noisy 0.6B prompt cell are unresolved without same-file controls. This is prerequisite evidence, not this branch's gate.
+- **Failure first:** fresh MSVC compilation of `backend_group.cpp` succeeds; the native test exits 1 with `Q8 product rounded its original F32 activation`, before any production change. The [regression record](benchmarks/cpu-q8-precision-regression-20260928.json) pins the test and logs.
+- **Left:** remove the old Q8 integer consumers and update their owner documentation, then clean builds and applicable native/HF/identity, device-suite, timing and hosted gates at the final head. Review all project Markdown at the completed checkpoint. The phase's external reference gate remains separate.
+- **Gotchas:** this changes Q8 decode numerics intentionally; record error against HF and retain before/after captures rather than claim byte identity. Existing types' isolated arithmetic and Vulkan code must remain unchanged. Private native16 still misses two MoE rankings; it is not the selected repair.
+
 ## Vulkan activation repair on current main (2026-09-28, fix/vulkan-activation-main, merged at `1108fc3`)
 
 - **Goal:** finish the finite-activation repair independently of MXFP4 and MoE development.

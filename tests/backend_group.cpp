@@ -49,6 +49,72 @@ static size_t check_prefill_reduction() {
     return count;
 }
 
+// A zero-weight lane holds the block peak; a one-hot weight reads a much smaller original activation, which quantizing the inputs would change.
+static size_t check_q8_inputs(backend::CpuBackend& cpu) {
+    constexpr size_t columns = 3, rows = 65;
+    constexpr int codes[] = {-128, -127, -1, 0, 1, 127};
+    size_t count = 0;
+    for (int threads : {1, 3}) for (size_t nin : {size_t(32), size_t(96), size_t(288)}) {
+        cpu.set_threads(threads);
+        const size_t bytes = nin / 32 * 34;
+        std::vector<uint8_t> w(rows * bytes);
+        std::vector<float> x(columns * nin), y(columns * rows + 2), z(y.size());
+        const auto wb = cpu.adopt(w.data(), w.size()), xb = cpu.adopt(x.data(), x.size() * sizeof(float));
+        const auto yb = cpu.adopt(y.data(), y.size() * sizeof(float)), zb = cpu.adopt(z.data(), z.size() * sizeof(float));
+        const std::array<uint32_t, columns> ids{};
+        const std::array<float, columns> gains{1, 1, 1};
+        const auto ib = cpu.adopt(ids.data(), sizeof(ids)), gb = cpu.adopt(gains.data(), sizeof(gains));
+        const backend::Backend::Routing routing{{ib.get(), 0}, {gb.get(), 0}, 1, 1};
+        const backend::RowRun decode[] = {{columns, 1}}, prompt[] = {{columns, columns}}, mixed[] = {{1, 1}, {columns, columns}};
+        for (uint16_t h : {uint16_t(0x3800), uint16_t(0xb800), uint16_t(0x2400)}) for (size_t lane = 0; lane < nin; ++lane) {
+            std::fill(w.begin(), w.end(), uint8_t(0));
+            for (size_t o = 0; o < rows; ++o) {
+                for (size_t b = 0; b < nin / 32; ++b) {
+                    w[o * bytes + b * 34] = uint8_t(h);
+                    w[o * bytes + b * 34 + 1] = uint8_t(h >> 8);
+                }
+                w[o * bytes + lane / 32 * 34 + 2 + lane % 32] = uint8_t(codes[o % 6]);
+            }
+            std::fill(x.begin(), x.end(), 0.0f);
+            for (size_t c = 0; c < columns; ++c) {
+                x[c * nin + lane] = float(c + 1) / 65536.0f;
+                x[c * nin + lane / 32 * 32 + (lane + 1) % 32] = c % 2 ? -1.0f : 1.0f;
+            }
+            auto reset = [&](float initial) {
+                std::fill(y.begin(), y.end(), initial); std::fill(z.begin(), z.end(), initial);
+                y.front() = y.back() = z.front() = z.back() = 12345.0f;
+            };
+            auto check = [&](const std::vector<float>& out, float initial) {
+                require(out.front() == 12345.0f && out.back() == 12345.0f, "Q8 original-input output guard changed");
+                for (size_t c = 0; c < columns; ++c) for (size_t o = 0; o < rows; ++o) {
+                    const float expected = initial + f16_to_f32(h) * float(codes[o % 6]) * x[c * nin + lane];
+                    require(out[1 + c * rows + o] == expected, "Q8 product rounded its original F32 activation");
+                    ++count;
+                }
+            };
+            reset(0);
+            for (size_t c = 0; c < columns; ++c)
+                cpu.matmul(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {xb.get(), c * nin}, {yb.get(), 1 + c * rows}, nin, rows, 1);
+            check(y, 0);
+            for (const backend::RowRuns runs : {backend::RowRuns{decode, 1}, {prompt, 1}, {mixed, 2}}) {
+                reset(0);
+                cpu.matmul_group({{quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {yb.get(), 1}, rows},
+                                  {quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {zb.get(), 1}, rows}}, {xb.get(), 0}, nin, columns, runs);
+                check(y, 0); check(z, 0);
+                reset(0);
+                cpu.matmul_experts({{quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {yb.get(), 1}, rows}}, {xb.get(), 0}, nin, columns, routing, runs);
+                check(y, 0);
+                reset(1);
+                cpu.matmul_add(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 1}, nin, rows, columns, runs);
+                check(y, 1);
+                cpu.matmul_experts_add(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {xb.get(), 0}, {zb.get(), 1}, nin, rows, columns, routing, runs);
+                check(z, 1);
+            }
+        }
+    }
+    return count;
+}
+
 static size_t check_q8_scales(backend::CpuBackend& cpu) {
     size_t count = 0;
     std::array<uint8_t, 34> row{};
@@ -306,6 +372,7 @@ int main() {
     try {
         backend::CpuBackend cpu;
         cpu.set_threads(1);
+        const size_t inputs = check_q8_inputs(cpu);
         // These checks pin the float decode dots exactly; the 8-bit ones have tests/q8_dots.cpp.
         cpu.set_decode_activations8(false);
         const size_t gathered = check_gather(cpu);
@@ -358,6 +425,7 @@ int main() {
         require(rejected, "projection without storage was accepted");
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
+                  << inputs << " Q8 products on original inputs; "
                   << scales << " exact finite Q8 scale/weight cases; "
                   << reductions << " ordered prefill reductions; "
                   << magnitudes << " magnitude-sweep outputs; "

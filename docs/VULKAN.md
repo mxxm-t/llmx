@@ -3,8 +3,9 @@
 Design for the first vendor backend, ROADMAP #4b, and step 5 of
 [EXECUTION](EXECUTION.md). It implements the whole `Backend` interface over
 a Vulkan device, and nothing else: the model layer holds no address,
-computes no offset into KV storage, and submits one pass at a time through
-tickets, so what a backend supplies is an allocator, a queue, and kernels.
+computes no offset into KV storage, and submits stages through tickets.
+A scheduler can keep several passes in flight over the stages; a backend
+supplies an allocator, an ordered queue, and kernels.
 
 Vulkan goes first because it is the one GPU path both machines run. The
 Windows workstation's Radeon VII and the Linux machine's MI50 are the same
@@ -632,12 +633,13 @@ HF gate measures the cost of it.
 
   Finishing each tile's scores all at once rather than eight at a time held 208 registers and one wave per SIMD, where the eight-token chunks hold 128 and two waves. A 32-token tile ran slower than a 16-token one: 4577 against 5576 tok/s at 2048 rows, since its shared memory leaves one workgroup per compute unit.
 - **The view table** (`views.glsl`): every cache kernel takes one
-  dispatch per layer over every view of a batch. The host writes a table
+  table over the views it processes. The host writes that table
   into the args arena, per view its batch row, dispatch-local row, row
   count, history length, block-table offset and length, then every
   view's block ids, and a workgroup or thread finds its view by walking
   the entries. Attention splits a batch into the views the tiled kernel
-  takes and the rest for the per-row kernel, two dispatches at most, so
+  takes and the rest for the per-row kernel, with an additional merge
+  dispatch where a long history is split, so
   a decode row never sits in a tile staging its history for one live
   row; the merge kernel reads the same table since a dispatch's rows
   need not be a prefix of the batch. This is what took the server from
@@ -655,8 +657,9 @@ HF gate measures the cost of it.
   block.
   The model asks for the three together (`Backend::norm_rope_kv`, whose default is the three ops and is what the CPU runs), and every view of a batch goes through the view table in that one dispatch.
   Three dispatches fewer per layer, 0.6B Q8_0 decode 202 to 221 tok/s under the matched protocol.
-- **rms_norm_rows, silu_mul, add, gather_rows, embed**: elementwise or
-  gather kernels, one invocation per output float, `embed` dequantizing
+- **rms_norm_rows** reduces each row across its workgroup before scaling
+  its output. **silu_mul, add, gather_rows, embed** are elementwise or
+  gather kernels, `embed` dequantizing
   its row on the way.
 
 ### KV layout on the device
@@ -713,7 +716,7 @@ A row computes the same, bit for bit, whatever else shares its pass. The row ker
 
 ## Mixture of experts
 
-A routed layer (`qwen3moe`) is five dispatches after its norm: the router matmul, routing, gate and up, SiLU over every slot, and the down projection with its combine.
+A routed layer (`qwen3moe`) applies the router matmul, routing, gate and up projections, SiLU over every slot, the down projection and a separate combine. Grouping, activation quantization and split reductions can add dispatches, so these operations do not imply a fixed dispatch count.
 
 - **Routing.** `moe_route.comp` takes a row per 64-invocation workgroup: the softmax's maximum and sum, then k rounds of the largest untaken probability and the lowest id holding it, through subgroup reductions joined in shared memory when the workgroup is two subgroups. With shared-memory trees it cost about seventy barriers a token and 8 percent of a Qwen3-30B-A3B decode pass; with subgroups 4.
 - **Decode.** The row kernels and `matmul_vec_q8.comp` take a routed mode: workgroup row y is entry y, which reads X column y / per through its expert's rows, found by offsetting the weight row by the expert times the rows per expert, since a GGUF stacks the experts back to back. Nothing else in the kernels changes, so every type's decode path serves routed rows.

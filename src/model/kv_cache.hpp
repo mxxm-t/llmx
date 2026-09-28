@@ -138,7 +138,7 @@ public:
     // Blocks return to the pool; the backend keeps the physical storage they occupied, so a reused sequence does not reallocate.
     void reset() noexcept { truncate(0); }
 
-    // A second history holding our first `length` committed tokens, a whole number of blocks: every block below `length` is shared, read-only from now on, and nothing is allocated or copied.
+    // A second history holding our first `length` committed tokens, a whole number of blocks: every block below `length` is shared, read-only from now on, with no new physical blocks or copies of their contents; the logical block table is allocated.
     // A failure part way leaves nothing retained, since the fork releases what it holds as it unwinds.
     KVSequence fork(size_t length) const {
         if (!pool_) throw std::logic_error("KV cache: sequence is not bound to a pool");

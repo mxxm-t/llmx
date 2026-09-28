@@ -1,0 +1,630 @@
+{
+  "date": "2026-09-28",
+  "scope": "Writer final integration on main 1ff3dff2, prior implementation 4d1b26ea; hosted CI still pending",
+  "windows": {
+    "pid": 9648,
+    "status": "pass",
+    "started": "2026-09-28T05:00:24.372537+00:00",
+    "records": [
+      {
+        "name": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-format-output-current-20260928",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-writer-final-20260928\\build-windows",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=OFF",
+          "-DBUILD_TESTING=ON"
+        ],
+        "started": "2026-09-28T05:00:24.372537+00:00",
+        "pid": 26680,
+        "exit": 0,
+        "completed": "2026-09-28T05:00:27.906824+00:00"
+      },
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-writer-final-20260928\\build-windows",
+          "--config",
+          "Release",
+          "--parallel",
+          "6"
+        ],
+        "started": "2026-09-28T05:00:27.907339+00:00",
+        "pid": 27396,
+        "exit": 0,
+        "completed": "2026-09-28T05:01:07.512240+00:00"
+      },
+      {
+        "name": "ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-writer-final-20260928\\build-windows",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "started": "2026-09-28T05:01:07.570862+00:00",
+        "pid": 17472,
+        "exit": 0,
+        "completed": "2026-09-28T05:01:46.759017+00:00"
+      },
+      {
+        "name": "suite",
+        "command": [
+          "python",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-writer-final-20260928\\build-windows\\Release\\llmx.exe",
+          "--no-perf-floor",
+          "--require-tools",
+          "--require-baseline"
+        ],
+        "started": "2026-09-28T05:01:46.760272+00:00",
+        "pid": 27012,
+        "exit": 0,
+        "completed": "2026-09-28T05:08:59.310614+00:00"
+      }
+    ],
+    "exe": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-writer-final-20260928\\build-windows\\Release\\llmx.exe",
+      "sha256": "8d9e320c22899576b90fac514becedb739df02786a6fe6dafc7a6cf998316a35",
+      "version": "llmx 0.1.0+g4d1b26eaf493.dirty",
+      "newer_than_sources": true
+    },
+    "completed": "2026-09-28T05:08:59.310614+00:00"
+  },
+  "linux": {
+    "pid": 37264,
+    "status": "pass",
+    "records": [
+      {
+        "name": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "/work/writer-final-20260928/source",
+          "-B",
+          "/work/writer-final-20260928/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=OFF",
+          "-DBUILD_TESTING=ON"
+        ],
+        "pid": 37270,
+        "exit": 0
+      },
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "/work/writer-final-20260928/build",
+          "--parallel",
+          "6"
+        ],
+        "pid": 37314,
+        "exit": 0
+      },
+      {
+        "name": "ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "/work/writer-final-20260928/build",
+          "--output-on-failure"
+        ],
+        "pid": 37908,
+        "exit": 0
+      },
+      {
+        "name": "affected",
+        "command": [
+          "python3",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "/work/writer-final-20260928/build/llmx",
+          "--no-perf-floor",
+          "--require-tools",
+          "--only",
+          "roundtrip,dead-code,docs"
+        ],
+        "pid": 38833,
+        "exit": 0
+      }
+    ],
+    "started": "2026-09-28T05:03:53.798729+00:00",
+    "exe": {
+      "path": "/work/writer-final-20260928/build/llmx",
+      "sha256": "822338c34ff4c04c8c83ccf1b0df71fd7fe844ac42a3dde9fa46408dc369939b",
+      "version": "llmx 0.1.0+unknown"
+    },
+    "completed": "2026-09-28T05:06:12.463536+00:00"
+  },
+  "native_passed": {
+    "windows": 32,
+    "linux": 31
+  },
+  "windows_suite": {
+    "dead-code": "PASS",
+    "docs": "PASS",
+    "arch-boundary": "PASS",
+    "version": "PASS",
+    "cli": "PASS",
+    "reference-generator": "PASS",
+    "reference-consumer": "PASS",
+    "roundtrip": "PASS",
+    "raw-blocks": "PASS",
+    "perf": "PASS",
+    "tokenizer": "PASS",
+    "perplexity": "PASS",
+    "f32": "PASS",
+    "moe": "PASS",
+    "qwen35": "SKIP",
+    "split": "PASS",
+    "decode-probe": "PASS",
+    "shards": "PASS",
+    "server": "PASS",
+    "server-load": "PASS",
+    "chat": "PASS",
+    "threads": "PASS",
+    "baseline": "PASS"
+  },
+  "linux_affected": {
+    "roundtrip": "PASS",
+    "docs": "PASS",
+    "dead-code": "PASS",
+    "output_failures": 9,
+    "aliases": 7
+  },
+  "identity_reuse": "Prior 12-case CPU identity on unchanged inference code; source differences after integration are comments only. See STATUS for the exact original scope.",
+  "markdown_review": {
+    "AGENTS.md": {
+      "sha256_lf": "06c08f912e1a50959add4004c5d48e3ced3116753762eedf6f011bedbc7f6ab2",
+      "basis": "identical to completed writer review at 4d1b26ea"
+    },
+    "README.md": {
+      "sha256_lf": "07a3b47edfbdbc7fa716a23e2a1c37cc356c2a492d1c321a18b057bc8fc4f9e0",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/ADDING-AN-ARCHITECTURE.md": {
+      "sha256_lf": "ac9a6cc7fa0e305ab78bf4913aa57513de0c43d8c3b26300b749227ec5fcc44e",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/ARCHITECTURE.md": {
+      "sha256_lf": "53f7a6b8f8e70e6f0ed4da0388420254b1bb6537e926d52b3920b09f57350563",
+      "basis": "Merged format owner table checked against OutputFile and existing raw conversion/loading owners; all other text matches completed main or writer review"
+    },
+    "docs/ASSETS.md": {
+      "sha256_lf": "14e6f7b97820da6124ca6758ac4437f917297c7fcaca2be1723794042b5fda6c",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/BUILD.md": {
+      "sha256_lf": "ec69b1af955f9a161352d751f2c2b178e05e5396af68b873c65e8b38ec8d52c9",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/CI.md": {
+      "sha256_lf": "663e16384f4b66e14eb2aaf4035fe53dd1ec906924055dea4a2f4658867b1af0",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/DEVICE-EXECUTION.md": {
+      "sha256_lf": "d79b1240ca018abd4c23d190953e4667e394884d37ffcd25a32a99c64f82641e",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/EXECUTION.md": {
+      "sha256_lf": "4035dd0407205bd35065d7d245a370ed351677544be57030b9864866b780d0fc",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/KV-CACHE.md": {
+      "sha256_lf": "84917f643886d871722bd3e4bf88c6650374e016bd2dd4e6c4b153934765be16",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/MULTI-DEVICE.md": {
+      "sha256_lf": "354b266344a3538d57f100ab0cbec660482410a9fcb87923f239aad2689b3673",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/QWEN35.md": {
+      "sha256_lf": "1b8d2e6728c1de9b817f98cca762960c80dd20c4d6a2b56f8ccaa61485c62968",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/ROADMAP.md": {
+      "sha256_lf": "f63ae18419af6ce6207756e6c079638d7d3cc584dca320290f7d36d2b165be8b",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/SERVER.md": {
+      "sha256_lf": "d954f9cedcbfb7d76f3816bff2ad8a83d9a07ad44af31c385cb22fbdacacee60",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/STATUS.md": {
+      "sha256_lf": "ed3a9607f562faac4325ea277d5a7e5ceed350fa31fd3e5604f8cf3228849df5",
+      "basis": "Final integrated source/test status checked against terminal Windows/Linux results; prior measurements retain their original scope"
+    },
+    "docs/USAGE.md": {
+      "sha256_lf": "ed0a3da900e3b2116d9da585a0d329147594b89ef77550717714bc2c5bc4d0c3",
+      "basis": "Merged quantize/dequantize guarantees checked against OutputFile, raw conversion ordering/alias refusals and native/CLI failure coverage; unrelated main usage corrections retained"
+    },
+    "docs/VULKAN.md": {
+      "sha256_lf": "a0f02947bc8ea5a4cb279193e8fa12f06f05c1f3f5d7796cbd0e1b1afad8f644",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/benchmarks/attention-coverage-20260925/README.md": {
+      "sha256_lf": "f76f422a386c181e9d6ada0618bbf741a5b1d21e623c8137ba5120ace8e702cc",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/benchmarks/backend-audit-20260925/README.md": {
+      "sha256_lf": "c31bd5cb16c603473b83f00d2c992b8d2a2149fc045c48ced91016f07d5711fd",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/benchmarks/cpu-activation-final-perf-20260925/README.md": {
+      "sha256_lf": "1816e5fbf3f0f7a5929dcba66c5091bac737a5180a49bf3172fd804912f3642b",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md": {
+      "sha256_lf": "fd6091e66d5387f2402a94b1ef6f0b4e8535215125e71c09a32abd278abf2da1",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md": {
+      "sha256_lf": "3cbeb4a6fe43324de5860d3639f93cc8ce54ae155a0881eabe8166ae8627b7e7",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md": {
+      "sha256_lf": "f6aa16822344c2cde32e23a05c1ec7e5a795f383195aa761f844e298db699457",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md": {
+      "sha256_lf": "d5849714c7dfd07384026b36f1d3b9d5108a3ba3a1f6089dd9e18d3f7d4ff374",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md": {
+      "sha256_lf": "55cf162127e60dab392cef524218ce74a6336445c3f710327be6fca672616dd6",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/backends-backend.md": {
+      "sha256_lf": "46694213a767490caa37bb32eb5b165092c9da7c65f1826bdb8abbb899776ad9",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/backends-cpu-placement.md": {
+      "sha256_lf": "c57891c2757fffa55d621ef34b9ff598fadac343802c5d5c2d9f0f0185883612",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/backends-cpu.md": {
+      "sha256_lf": "cca51c5de70e14e0008c2938c9a472f2e2218d5c18bc7ef48b03dfb3b9f8dd59",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/backends-device_profile.md": {
+      "sha256_lf": "7d06fd8e0b2ce0a5253e385456fc7f4d362760c49475f4346dec90bf2f07e09f",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/backends-devices.md": {
+      "sha256_lf": "9c16a88b484e8957f4ff0d199c545343b58d95a3b8f4769ec478efef62007c8b",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/backends-kv_storage.md": {
+      "sha256_lf": "4bc77f3658202e13295dcd593e125f8e900f20afdda962a73df6234046376c77",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/backends-vulkan.md": {
+      "sha256_lf": "f50f60ed9fbaaa1a8d5b9a1162ce3c48ae52984c00b3940558bc26471371327b",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/cli-main.md": {
+      "sha256_lf": "93c366c2053835148fe8d3aec9ab001ad467ed2f432a56ad6276181bf45b38f4",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/config.md": {
+      "sha256_lf": "ec2ac0ab566daf8c563544acf5b32f1fcb1888778e6a28af6cce5830c87d7bdd",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/core-cgroup.md": {
+      "sha256_lf": "79e2f2957421911a91ad00a933a773153ae4df45ae6f65a980a57e22d8bf69da",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/core-cpus.md": {
+      "sha256_lf": "d0264a7c44685fc4530af348e1a818040c6bc84ff585fec56299355217ee9edb",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/core-fp16.md": {
+      "sha256_lf": "72e16eceb531f0868696eedea3e678d6bafc4835eb023bcafca651808f8312c8",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/core-host_memory.md": {
+      "sha256_lf": "949b45b77d86d97ca9daddd7dd9a992385f58042c4078a0ab0e41f21126761f4",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/core-json.md": {
+      "sha256_lf": "65e69b3beb696f41293526b8b98c155c6fa190bf439f266b43dd5b2aa7ae7e0e",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/core-list.md": {
+      "sha256_lf": "d3630aff6f57156b5cec776fb25359b831f2625fa8275cc30eefd6ef0fca0be2",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/core-sha.md": {
+      "sha256_lf": "8d48e1c187bc804309b215b6aba0f190456ecdd3adf6f91c537ca8fca926d0cf",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/core-utf8.md": {
+      "sha256_lf": "f19f7ebef334b9dcd34806f55d5c3bb79e1521f2652ea880402093d17bf9702c",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/format-file_reader.md": {
+      "sha256_lf": "c3f665dac5ec68f01790959b76db83e5b70b727306dd6d633a55d467ac430e49",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/format-format.md": {
+      "sha256_lf": "85860e6b8f0a9aec9c80d7bee619df443d949286f70a6b2895c270b912bb9baa",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/format-gguf.md": {
+      "sha256_lf": "0064bb586c37351cfce0b3c6207c78a0f0911a7584d8535cceabe8a7a7891c73",
+      "basis": "GGUF writer publication description checked at write_gguf; current main metadata/loading/warming descriptions retained"
+    },
+    "docs/src/format-mapped_file.md": {
+      "sha256_lf": "d383b77a0799508acd00d2c8bf7532687dc91ee733f93897d26bb7cf0d5e3de6",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/format-output_file.md": {
+      "sha256_lf": "ba34cdba9d6b194b02a2b2340b6f82a179d73af7490448837f5cf1f771febced",
+      "basis": "identical to completed writer review at 4d1b26ea"
+    },
+    "docs/src/format-raw_convert.md": {
+      "sha256_lf": "825f347c5639bef00f4c31124e8f3b62ce33429e1c322dd4096634c1407a811c",
+      "basis": "identical to completed writer review at 4d1b26ea"
+    },
+    "docs/src/hub.md": {
+      "sha256_lf": "89f617e1cbde41e6b5923658f723166a60e5123c9aa33e2a3c1c513f2a71b860",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/inference-chat.md": {
+      "sha256_lf": "0cfc35df90354be74a176947b00f2c9ecbca2a1de397746ad064c6ece3130fab",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/inference-generate.md": {
+      "sha256_lf": "c19f313480461090ca2389dc92119f611cdfd4ab0a3714cd1b23a8bb8b75d6d8",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/inference-load.md": {
+      "sha256_lf": "15823a95e7929252d3a9803f584f2db6e9bd998c14a377bdf35d6538c9b71a65",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/inference-logprobs.md": {
+      "sha256_lf": "ae9b179ebf59057c63f7d4bb37188e428f811a5c875b00a851e22a81562a1d88",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/inference-perplexity.md": {
+      "sha256_lf": "84ead8b6068ec1aaa94d2b70fa52c6a568a06e40448ae05ffc0b4b4db865b772",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/inference-sampler.md": {
+      "sha256_lf": "6e13039fc08b4f3c4eadcf1dd2d9b94e03fed4d5d7d728e08cbeaf172317a702",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/model-arch-metadata.md": {
+      "sha256_lf": "6e40490502bfa187d32dc78d40325c3f08c74af728d82209be20b189ec1c0451",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/model-arch-qwen3.md": {
+      "sha256_lf": "8d3300b9482fedc94d580e58ea3a144794e7534fe4e0e767f02067df822b24e8",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/model-arch-registry.md": {
+      "sha256_lf": "4efba33a4c87f2419a72d734efa2c9c3f21ca73f2fd430c38b59bf40d5e7ff14",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/model-architecture.md": {
+      "sha256_lf": "d48253a665eb2e17a7f1b79dbc1368f9d01279b598bb77115988768872347d5e",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/model-kv_cache.md": {
+      "sha256_lf": "4854d3211b4d036b2ee21e6f6aa11505462436e3275665d14eb6f39ab2d82c1e",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/model-layer_split.md": {
+      "sha256_lf": "153e0ba3103bd5cd881e0cd90927b6d77766abc4bfe8746cff912ec4bda23bd0",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/model-place.md": {
+      "sha256_lf": "693766af3c66a4b668c807118059a48223d1d92ce2ac5b0a00c2feaf96b29237",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/model-runtime.md": {
+      "sha256_lf": "61cdc52d3b57fe722f31e9674fbf5fe692f818ce01b0b1d1119666ec88352ea6",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/model-weights.md": {
+      "sha256_lf": "636b336046457077545eaa655bb7f7df48e9dbb927271598db92de0c069f9ca4",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/quant-k_quants.md": {
+      "sha256_lf": "1f1e3984ba5740e17d64951dfd093bf95bbbecc0838d934c5618d95272f432b7",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/quant-quant.md": {
+      "sha256_lf": "b7afbb1883f93e038f2dd6bc9afe5e7b8631b1ffeb025b6f97400f8477c8fbce",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/quant-types.md": {
+      "sha256_lf": "49c717556b60d57f1d88d778ff352a333b9669932cfc0959fb0b1d8427d8dba2",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/server.md": {
+      "sha256_lf": "ef393335d90a2d8ae53378505aa1fade8ef8074d7da63baba82efe69f1f38178",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    },
+    "docs/src/tokenizer-tokenizer.md": {
+      "sha256_lf": "7b5c4f97008ca7a8dbd111003d90d08672f5896e21ac50a6560df6bdfa82fab6",
+      "basis": "identical to completed main documentation review at 1ff3dff2"
+    }
+  },
+  "source_sha256_lf": {
+    "CMakeLists.txt": "7849a85bd30db4dafb4106341f2c0515fea406c3fcb3cecc2aefc8cc9c5dccc6",
+    "src/backends/backend.hpp": "ed5e64e065665de46a1f49114047d3968ea67aaa92efed2eae8b7fd398d14492",
+    "src/backends/cpu/cpu_backend.hpp": "0fd15ffc1674847e25c7d135ffcde90916d073ae0e0021da8a1c80f915d13285",
+    "src/backends/cpu/prefill_placement.hpp": "c65bc2daf96d3b5e7710987c6142bb85e2af17b096651386222be79dc9c390c6",
+    "src/backends/cpu/q8_dots.hpp": "92f8576451af63ac6f2a284c50a8b84699b1426d441fca49c9faccfeabd81e88",
+    "src/backends/device_profile.hpp": "2e065d7b314e2836653f4e99979f7e8cdfbc1e0ffa6be8e6aedf38f0bb74b3fd",
+    "src/backends/devices.hpp": "52722db2a2a4f26ba8af9105909707f3e1a404ed5d7f7bf08f7e16632c9811ca",
+    "src/backends/kv_storage.hpp": "587f0bff817434826f613d1206de3431a30e78376189c1ea816b3c74bfa0ee77",
+    "src/backends/vulkan/shaders/add.comp": "c5df3e933f74fe109aa474b98b2055452183511e9b3514432d7c6dfaa769c795",
+    "src/backends/vulkan/shaders/attention.comp": "c95bba377f69e628ee01512e88146d9e32e4ae9d56c5fa623bb2b467a916f9a5",
+    "src/backends/vulkan/shaders/attention_merge.comp": "06e3b7724b3ba752f04d8000f0452b6eda4194f4cedd1aa1cbcdeb3ff7f09015",
+    "src/backends/vulkan/shaders/attention_tile.comp": "67035d22201ee90a6f6658603f090a33fc8646054e899382776333c4236e5613",
+    "src/backends/vulkan/shaders/attention_vec.comp": "da45010fdf7c17f86ff290973c69b3c7f7f4d35b3ec9a74bca85487bff3c872e",
+    "src/backends/vulkan/shaders/embed.comp": "da67006741800b34d37ee8ddf703e02f6ce45faa947337dbd353b39349bafbe2",
+    "src/backends/vulkan/shaders/f16.glsl": "f2d6ba74532d07e9e3e59df1444ef3323445f3d4db007a4c825550e7fae7d08d",
+    "src/backends/vulkan/shaders/gather_rows.comp": "2b6c58cb262754a35501656a9178c28bc1567440178a791cafeee4afd7de5dc3",
+    "src/backends/vulkan/shaders/kv_write.comp": "2dbacc63aaf96240b9a9c8f4d69942a784c52e8978fb97b94a70ad9826fe6c5f",
+    "src/backends/vulkan/shaders/matmul_reduce.comp": "ad78ca5cd5fbce18ad66172bdcba2dbf60cce9225ad53b2a6986a97fc81d4789",
+    "src/backends/vulkan/shaders/matmul_row.comp": "f835b053596de9548f523b591b3748c5fab37891d5b112ee8a882bd435a52337",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "415aeb537e45d96deba463eac3603a89ba0e8206c577ccedc7c04b383aa4de34",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "1d40275fd77ac92a919fc37c073e7ff677c10cffaf5b269bab55409233266242",
+    "src/backends/vulkan/shaders/matmul_vec_q8.comp": "63325886acefcf46503f0fec2eab7dfbd874f899e8310abe470a0a94d053b490",
+    "src/backends/vulkan/shaders/moe_combine.comp": "17cd36bbfe70846a41aeb009c8fd20de6d03fe0faee2709b59a26868a7c03117",
+    "src/backends/vulkan/shaders/moe_group.comp": "7694e1ac9b53d583fbd213a62f41b9350e1575077c5a4a43823a8c4a9b912b8b",
+    "src/backends/vulkan/shaders/moe_route.comp": "cb7efd32c44241a76896596a61777972c0d6a1e81f3856af602a02126404c616",
+    "src/backends/vulkan/shaders/norm_rope_kv.comp": "de23bb9cd10a0cdfefc05eefc400ca1b170376a0bd4cbc4e026e1f46728efa78",
+    "src/backends/vulkan/shaders/norm_rope_rows.comp": "0edbfbf357834c5f376e01c685e3def9bfece5ca654410888b9919fbd330ee54",
+    "src/backends/vulkan/shaders/q.glsl": "acb629e497077251dd068efa50531a69e0547b8c9841da34a638d1f3e1a91a08",
+    "src/backends/vulkan/shaders/qdecode.glsl": "5fe55773802af47bc68c39df6bd5c4cb8b20aa4a68d34f6ea154a362fc5990a7",
+    "src/backends/vulkan/shaders/quantize_x.comp": "69ea622cfe157c1a2eab089c21efca0d25506dd25be9231db0f80cab166e3ccd",
+    "src/backends/vulkan/shaders/quantize_x8.comp": "ade7b76cc69456c654a64738b833e05f61b69ad3114d96350e569699717edc9e",
+    "src/backends/vulkan/shaders/rms_norm_rows.comp": "57cca9435bf3301d14811adfa7a179308efe8c21782ae78c84f87df5596b0165",
+    "src/backends/vulkan/shaders/silu_mul.comp": "8ae4828a12e69712c1b37e2a924944a4d3ebdfb10f78b16aa58812948212f6eb",
+    "src/backends/vulkan/shaders/views.glsl": "1c8bda1bdbbb4d9ddd28cf5f41ff76f1719519e1b50a6f479601ef91bbb9beed",
+    "src/backends/vulkan/shaders/xquant.glsl": "f24a1232f4008252d0dc201a9b273a5cd909b4d3d2fbac0f49b01823d7085466",
+    "src/backends/vulkan/vulkan_backend.cpp": "6bc02af669f94e76c381d813e872a71c4ada78252d20fc17f19384ad84226b36",
+    "src/backends/vulkan/vulkan_backend.hpp": "cc370d2e1484cb539c2fef6c7ec5a675c4ad80ea1c970bb742d3a6703f6a3333",
+    "src/cli/main.cpp": "14e972f64b69042584ce0133b286d72e430a6e3c8f09f17b59ad34080bd57aee",
+    "src/config.hpp": "b274f275029398f6a45c59a3a57353de093148ad90f7e42100b32e8ce8fb5d6d",
+    "src/core/cgroup.hpp": "0e35c64b32002666695b895019631fe0387617add365197d84063254fdcde487",
+    "src/core/cpus.hpp": "8496dee50dddd849ffcfbdfa9334b685bcca4df1557cd3e5e1e9fb6eb39d9b0c",
+    "src/core/fp16.hpp": "f59fb458d110b1d2f0faa0c4eda2c1322c696a9f28bf8e8d69d626ade386fa2a",
+    "src/core/host_memory.hpp": "04ea3630e8e4058f0f6640b8e3050120758c68326a815c31b86eb816d25b6802",
+    "src/core/json.hpp": "36bb4037c0f418e2111e5ba633eb819503b12f6a70e12089a38abe1ac94ee08a",
+    "src/core/list.hpp": "832b04ace054f485f22f39510a7cac5df051a671b8e3eb25bf0e906d5ff6e845",
+    "src/core/sha.hpp": "3a84ddec3a12732dde6a294f436a52ba675730f99ebf3a169ee64a9aaf20a501",
+    "src/core/utf8.hpp": "ae50f03c84fa6264d8f780e659bf3007a3fd0c2ace5efd987395dbc7b2b0af51",
+    "src/format/file_reader.hpp": "0ea13c53114ac42ba2596814a765f0b31f3d9537e94f9f8182bb0c920e41b268",
+    "src/format/format.hpp": "c4d6014b21e7e8b6e543e71dd6becb3763109420f6cc9bf345765bdb43282d53",
+    "src/format/gguf.hpp": "ebc6e911f5ff0086698f4922fd98cfc10b9c913dcb5d8bf8a052c796762534c1",
+    "src/format/mapped_file.hpp": "4cad089853f3f9cd53c363c89c808e61e9809bb70b2b3b35a692687a36e1f963",
+    "src/format/output_file.hpp": "5868fe405446eb8ba5b5727fb6a9de0fc529710de2ad3945e8fc4daf17f92f70",
+    "src/format/raw_convert.hpp": "5d2379451e089dc08283c3fb26ebe2b380ec73703c33b4404c77a3bbbf616e54",
+    "src/hub/manifest.hpp": "5f00fe4ea9b0bc69c5067f3bc5990bc8ff02cd98f1cde66fde4c413b995b0ed0",
+    "src/hub/pull.hpp": "db99f7a423ed931930393b509d4de37bab259b0c61822658a5fda270f28f8cb5",
+    "src/hub/transport.hpp": "83fe34ace4bcaf071f61fc8d5abe72931279cc83daae7ac62ade9fc135ca008a",
+    "src/inference/chat.hpp": "9b16480d84f23d812523dfa539d0f2539b1e768a0a508e6d86b5c7c860a60d4d",
+    "src/inference/generate.hpp": "ed494f8eced3cb647e03c2aa9d57f0500e3bcffe0f3ed613f1c91192be28602d",
+    "src/inference/load.hpp": "17a5cf9eb29cf571cd7b0eda9a2230403a6ad8481d85f9d5870d1a058e10b40c",
+    "src/inference/logprobs.hpp": "80453d40fa79880ccabe8ee322dda2e0161426878d77f047e00db73954f26065",
+    "src/inference/perplexity.hpp": "9e6135dc5f12a80cd740bd171d6e3fbe1e8d678f4fc4221646f26d2fe6122a77",
+    "src/inference/sampler.hpp": "9eeeb83deebe8765deb90876630cc7e62f8212238ae8eb29c7b0a5edb6dd381d",
+    "src/model/arch/metadata.hpp": "a9e2593b4ddca681db634593abd27d59e3b82903d4a67797948f0486968bce25",
+    "src/model/arch/qwen3.hpp": "c9f9f63b7f1029616f53053ccd78b69c157547639fdb248c1436d8f033f23632",
+    "src/model/arch/registry.hpp": "e423926397e9bd31906b44b9023a9a81249fb1d903e2302b9c78185d186622f1",
+    "src/model/architecture.hpp": "6c779362ae5c7273705bacdb7faf1fc31ceda3d2d150399395a5f4d6cf4a4fbb",
+    "src/model/kv_cache.hpp": "9a27545a89bddbc05494eb0448a47668100a0120bdf961ec0f2dc97f06597676",
+    "src/model/layer_split.hpp": "99098603e9ef890f91c38948ba59c571b41911f620955b6deebcabbafa7c142c",
+    "src/model/place.hpp": "bee1400471c71e2c9b2a99181d77f81707e4a76cd7ff30acd51ca521cbf2db3b",
+    "src/model/runtime.hpp": "722c32df4faada6ec691fbd56f6362673541eb61d30639de17bff7d49eeded6b",
+    "src/model/weights.hpp": "910ddcb19d798a00cb70cc8d98cb3d3bb133bf41ea96c70198e71253bc7e3d19",
+    "src/quant/k_quants.hpp": "2d2011e43dcf855e2bfefaf348f6772c982fbaaae681c694a2df0c5802701140",
+    "src/quant/quant.hpp": "deb2d4f4c7446d4cfde818444eaf3a60216a4ffe4ee7ffa989dcaebfeb3e76af",
+    "src/quant/types.hpp": "d6753f0f146842a8821c7f3d34a0729db785b3f04f55438bd0fd916c5348e08a",
+    "src/server/api.hpp": "899affe9f7030e8ff3b1f2b6970fc807e87277734a4079eb30a632a76b037d3b",
+    "src/server/http.hpp": "c2a3067d1a9a0332e6117283c4ea1708d7e5d2c69d01f7e5711a29d75794cda9",
+    "src/server/policy.hpp": "4534c15ed2736f21ba288aa2242adc1f4c3c21cc101d35ccaab1e5404edcb42c",
+    "src/server/scheduler.hpp": "ae8c25815c967e22994b258641a3863b3c87ea27e3befe5d564c4e8167796fd7",
+    "src/tokenizer/tokenizer.hpp": "e5fa56635572177a78358e4ce7d8e2a71a5a01ca40b0e778349cd7abc3ee4405",
+    "tests/arch_boundary.py": "6399c783345c58c06fece30a3730ca0bec7bc172a65d796690877cabd9553708",
+    "tests/backend_errors.cpp": "2260eb35a34a61a8d4a57ef75fe6953fa07cef221e956c5037f45dc49d648a0f",
+    "tests/backend_group.cpp": "6e9e9f4eed321db33a1926926ae24dd361cf0be20a710aabf1b781efa2997d89",
+    "tests/backend_vulkan.cpp": "1f947d84e7069417be1803839cf8e4bfc0b1b058a3e8ddf9b7c4b90af96f3b08",
+    "tests/baseline.py": "fb33239c50969f1a0201c495155ff40ab3208185e8c75753ac68029be0b938d0",
+    "tests/baseline_8b.py": "22f93246009a643e1ee1c39c9fb9e5850c6dbe4ce39cb199a3fcc6413564dd84",
+    "tests/baseline_layered.py": "c4e49eff95fb7babee7ad9927f46c291b26688b1ad5bf9a946180cf3ffa49bd1",
+    "tests/baseline_qwen35.py": "f34cbc01a9c7871ad38eec25537bf6b3fd7aaa4951d311397d8e6ecc2e28aea2",
+    "tests/chat.py": "43d05248b4ca3c2fdd193b5b716cb7987b36b3c57926bd5f56d435d33eadd62c",
+    "tests/chat_template.cpp": "e2459a44eeeb344b261286d69c99b78caa70e3f4ffacc6d82b8aa0c5eed9286f",
+    "tests/cli.py": "9f4dbf6cb155e50e33e52d8025439049f468328d8e99cf7bca052e5b3c2ae941",
+    "tests/cli_output.cpp": "675c258bf5e20338fbe0875e6abb22e6920618524a68502ab37f712b0d52cc9b",
+    "tests/common.py": "8546339d6f0981389c6d1a8293527aec85875cc8c169ea34de25d8b71df8abb2",
+    "tests/cpus.cpp": "e0daa3a2f99e25ba3446c30e158848a3bb5d95d8fd8c0126ca6862346807b7a8",
+    "tests/dead_code.py": "56db189b14b16b2eb8146aaceb54028fd5d3aa2206c9bf0686cbc01dae2269e5",
+    "tests/decode_probe.py": "084d1843f002e5efb25a68a101d89a1566235607ac966920441751866d3f45b8",
+    "tests/docs_check.py": "bad9d4fdde3074e2f0bfbb5dcfd5755afad5c81db8662289ba527b1ff8daae66",
+    "tests/f32.py": "8593eded3cebf9e2c2c28bc849b75c89b3ec79df494961c8466345789aa6ba7b",
+    "tests/fetch_models.py": "4cdd58632fb03d9d3dfa20fd32a403cbce5e21cf44440289056391f7018c7edd",
+    "tests/file_reader.cpp": "7375efb90ba7c4c55b70605317e5a4940e2475c628b3dbb01d404fef529bbbef",
+    "tests/format_output.cpp": "4c8cccda7e6f544f8141f60422a2727ef441221cbf6209c4e1d02b4bb48bfd0c",
+    "tests/fp16.cpp": "dd7d6115e78125adf9e43602830759ddaaa95ca3d7bcaf8158c50acbade9c8e1",
+    "tests/fused_dot_overflow.cpp": "0a92bffa2ab00d7c56d953193103d37be6d056976dcd8bb405d594dcf421ea22",
+    "tests/generation_stream.cpp": "10b0361c96ee3b76c28bbd383afce3b10ecd185dc59f08b4fb45a50062002c88",
+    "tests/gguf_shards.cpp": "26826fc50a1a8f0da61a14bae32dbc9e470bb63aa3e4b356fe110bf77fdfc045",
+    "tests/gguf_validation.cpp": "6d43ce95001798c661dfeee83124145c46f431d2774a2a2fcf3975ab461606e7",
+    "tests/host_memory.cpp": "8b693cac3e7e3de04e358189d339fd384a8e6777f24f38a31d8d4a0c7e67926c",
+    "tests/http.cpp": "d2b528b7920c214e2f668c4ccc91b8d267249e2a6374e5992f4b47b3164b8e4b",
+    "tests/hub_manifest.cpp": "dcb93abcfc691c4c6d73265f4606a590a5ea3c17c03b6724f64e7be1a74e5dd0",
+    "tests/hub_pull.cpp": "9dd62f853ea770c091cfe5ad0ffb926625e44b364406aa8e0d289add6e230679",
+    "tests/hub_transport.cpp": "e1f773896bd692157bb0ca409528ac5eeff88c0ca125678535ef09034dec8f5b",
+    "tests/json.cpp": "f49afc51f03ed3885902663a598950098c6c33d5b92cfc2bd6bffdc23ef211d1",
+    "tests/kv_cache.cpp": "8526c06e6f4f4aeca6f50a47476a3c20460ee7a6d22fc7aaba7d7c9e252ccbc7",
+    "tests/load_progress.cpp": "b372dad621b7b2cde264e78f03500ba9dbd09c8b8a5669a5965e1ffa9926c3dc",
+    "tests/loading_backend.hpp": "7bd1ce85b3f1271df30814d7d06b605dcafe03d5055c2b26a5803dbf1ab58fb5",
+    "tests/logprobs.cpp": "b7e495fca1309470ea884dc515ae206b98fee821f09c685428812fe513697d8e",
+    "tests/model_validation.cpp": "de74538912332411d879ced962e8d00f48f356dbab6f445d3c055eb415b72336",
+    "tests/moe.py": "73002284518e9454db0691cf82724d82b539ff2cef4c7ac0ce1ef51094f738f5",
+    "tests/perf.py": "8ff27eda43f291df808cb5d3bd3b08ca922407d3e98066a983997968cfcf24a0",
+    "tests/perplexity.py": "56fe0d5666fecb8d55859ce958e590e32a81456bfa654d0d06d12f0cce827d66",
+    "tests/placement.cpp": "5f86ea3db48c8e3c597c7299b42718abf624a52ce4919f834080cb868aef1cca",
+    "tests/prefill_placement.cpp": "98f898c0374b0e8e39f661f714e2009e39971bf249386932a4cf95aa02836fdd",
+    "tests/prefill_scope.cpp": "4e35df2f657e391246eedbfbb5f879e569bcd8d5ce915f76943bde7b19c6a8de",
+    "tests/q8_dots.cpp": "eb1e95709297056e427884b4155307598bdfe9ba08c3e68eb6141a3c80fe9f98",
+    "tests/qwen35.py": "42d8d0664f5cf0808e598abec50a732743e7e21994aa791b0b5fa2e63102927e",
+    "tests/qwen35_ops.cpp": "be47108a7057990f1460122e6a5c4f80533d8c45f78b80ff5e406a625cde4657",
+    "tests/raw_blocks.py": "cb506e15b423c912f006c5268af7f6e0c354907dc129a6e585978e625ba29e41",
+    "tests/reference_consumer.py": "118c3a62a7e5a329a5700d5d860e2cab5dafcef4deab7a8354e5fd03c553be69",
+    "tests/reference_generator.py": "291874b94e2bf0fd22963829d4d0fc950ea594e8a761421bc1ac654588fbbaed",
+    "tests/roundtrip.py": "10b4e9b61261577c46e261c31981745cd6d1e84d1a193b2b6374d61f46fdcd61",
+    "tests/run_tests.py": "4c93fff7750167803885fe9a5dde8c79c4f85bce14a604f2aa5c60cfbece1ef1",
+    "tests/sampler.cpp": "44d57ba3032775a9e96e57067660f6c37775f213aea047f0c55be12e42f01181",
+    "tests/server.py": "6a821c94313cef325857d37397f9b889841982b1e7a2134020147a661b513990",
+    "tests/server_harness.hpp": "9aabd1de8f1bf07fea49ee118f547dad74e9e448c89d21da5ad828d7c9406e2c",
+    "tests/server_load_tool.py": "9f081c779db55f05a9b7060b6063615619243c63fb60ba5f0d0e7e6e7ad60c33",
+    "tests/server_passes.cpp": "0f2c99b649b5a6b4c54fe0152cf94a8db372e8e15d1d69cf30ea01f65c9c84d4",
+    "tests/server_passes_cpu.cpp": "d9e65afd4dcfbee9810b34a1589ee0ad3268f8a65dad2edbb52e931960f9191d",
+    "tests/server_resume.cpp": "f7d66af20b2c2700bfdc42833db7c333ed1878b29673056d8fa9732d72de8760",
+    "tests/server_utf8.cpp": "dfe7d7698f9a6d0fcc52aaa60f28004ae026f3eec53c1c5362adb54b8ff9770c",
+    "tests/shards.py": "80e7539fdc778696358bcecabaedbbe4ddb9f56c2d5304346e45302aadc00208",
+    "tests/spec_decode.py": "2d8bb61b12f7e8edafeddc110b9b587ee8e7f2cf669c82396992ae09cf604b00",
+    "tests/split.py": "2da91eda02821ba296d951bc88748054fe2eb94eb042a684e61ac6fa90bd78f8",
+    "tests/threads.py": "f01e4ab11a21dc6f384e5ec367abaf770448d975115d552cf2e8a019e972dc36",
+    "tests/tiny_qwen.hpp": "1c67c56849abe8e5d4a2a51708ac1418b3f6dc5059984ae829d70889dfb44260",
+    "tests/tokenizer.py": "2d3bdc1effa6026baa99283cd4893cff9063f99834d9c7df7bc3f16d57c36cb0",
+    "tests/version.py": "1c533edd32892b23b4cfc9ebd155faa31e87db62bdce1d2bec8186f73c8ad78e",
+    "tests/vulkan_buffer.cpp": "f37696d515c1a47f0156dd60eb5efd7a7bace8a7aa33ef7cc248f3d3f9e25216"
+  },
+  "archive": {
+    "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/format-output-current-20260928.tar.gz",
+    "bytes": 12305196,
+    "sha256": "7e467ebeb848bd7f84c7b5b65b9c7d925194a5e7b871b4095eea29970116d276"
+  },
+  "limitations": [
+    "No timing claim or changed numeric bounds",
+    "Windows fresh build avoids known incremental Temp-directory issue; MSB8029 warnings retained",
+    "Linux archive build has unknown Git revision",
+    "Optional qwen35 files absent and unsupported synthetic component skipped",
+    "Final integrated-head hosted CI required before merge"
+  ]
+}

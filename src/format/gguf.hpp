@@ -138,7 +138,7 @@ struct GGUFModel {
         const Segment& s = segment_of(i);
         if (s.file) s.file->drop(tensor_data(i), tensor_bytes(i));
     }
-    // The same bytes; a mapped model's are read-only memory, so only an in-memory model may be written through this.
+    // The tensor's byte extent, independent of whether its payload is mapped.
     size_t tensor_bytes(size_t i) const { return (size_t)tensors[i].data_size(); }
 
     // Append one tensor's bytes to an in-memory model; callers that know the total should reserve blob first.
@@ -224,9 +224,7 @@ inline void pad_to(std::ostream& os, size_t align) {
     for (size_t k = 0; k < pad; k++) os.put(0);
 }
 
-// Reads a bare value (no type tag) given its GGUF value type.
-// In GGUF, array elements are stored WITHOUT their own type tag: the array header carries a single element type, then each element is written as just its value.
-// So we must read/write elements as bare typed values, not as full (tagged) metadata values.
+// The fewest bytes a bare value of this type occupies, including the header of an empty string or array.
 inline uint64_t minimum_value_size(uint32_t type) {
     switch (type) {
         case V_UINT8: case V_INT8: case V_BOOL: return 1;
@@ -238,6 +236,7 @@ inline uint64_t minimum_value_size(uint32_t type) {
     }
 }
 
+// Read a bare value: array elements omit their type tags because the array header supplies the type.
 inline MetaValue read_typed_value(Reader& is, uint32_t t, unsigned depth = 0) {
     MetaValue v;
     v.vtype = t;
@@ -564,7 +563,7 @@ inline size_t bytes_of(const GGUFModel& m, const std::vector<size_t>& tensors) {
     return total;
 }
 
-// Read the pages of `tensors` into memory in the order given, one byte of every page in steps of up to 8 MiB, so that a weight's first reader does not fault them in.
+// Warm `tensors` in order by touching bytes at page-sized intervals within steps of up to 8 MiB; an unaligned tensor can leave its final page untouched.
 // `progress` gets their bytes: 0 first when there are any, then after every step, and their total last, so tensors holding no bytes report (0, 0) once.
 // Their files must be mapped (map_payload); a tensor that is not is refused before any progress.
 inline void warm(const GGUFModel& m, const std::vector<size_t>& tensors, const format::LoadProgress& progress = {}) {

@@ -13,9 +13,9 @@ is measured against the single-sequence path and the reference.
   request's reset or cancel touches another's blocks
   ([ARCHITECTURE](ARCHITECTURE.md), "KV state and concurrent execution").
 - **Continuous batching.** A device saturates through batch size, so the
-  throughput design is one pass per scheduler round carrying
-  every active request's next token plus a slice of some new request's
-  prompt, not one pass per request. The model's pass API
+  scheduler forms passes carrying a share of ready decoding requests
+  plus slices of prompts or histories being recomputed. On a pipelined
+  split several passes can be in flight. The model's pass API
   (`Model::begin_pass`, [EXECUTION](EXECUTION.md)) takes that batch: a
   prefill microbatch is one entry with many tokens, a decode step is many
   entries with one token each, and the two mix in one pass.
@@ -84,7 +84,7 @@ cli/main.cpp     `llmx serve <model.gguf> [--host H] [--port N] [--device D]
 ```
 
 `server/` sits above `inference/` in the layering: it uses the model, the tokenizer, the sampler and the chat template renderer, and adds scheduling and transport.
-It does not drive `infer::generate`, which runs one sequence to its end: the scheduler advances every request a pass and has its own per-token end check (end of text, which a request's `ignore_eos` keeps out of the draw, any of its stop texts, its token limit), over the shared sampler (`infer::sample`, with the defaults and ranges of `infer::Sampling`) and `Tokenizer::is_eos`.
+It does not drive `infer::generate`, which runs one sequence to its end: the scheduler advances requests through shared passes and has its own per-token end check (end of text, which a request's `ignore_eos` keeps out of the draw, any of its stop texts, its token limit), over the shared sampler (`infer::sample`, with the defaults and ranges of `infer::Sampling`) and `Tokenizer::is_eos`.
 The directory is created with its first working route, not before.
 
 ### Threads
@@ -109,7 +109,7 @@ One in flight completes its pass and is not sampled, since no one reads its toke
 
 ### The round
 
-The scheduler thread repeats a round over the model's pass API (`reserve_passes`, `begin_pass`, `run_pass_stage`, `pass_logits`, `end_pass`, `abort_pass`, [EXECUTION](EXECUTION.md)) in one context reserved at start for its passes in flight, each in a slot with its own handoff buffers, of every decoding request's row and a ubatch of other rows, each request wanting one logits row at most.
+The scheduler thread repeats a round over the model's pass API (`reserve_passes`, `begin_pass`, `run_pass_stage`, `pass_logits`, `end_pass`, `abort_pass`, [EXECUTION](EXECUTION.md)) in one context reserved at start for its passes in flight, each in a slot with its own handoff buffers, sized for at most one row per decoding request plus a ubatch of prompt or replay rows. Each new pass takes the ready decoders selected by `decode_share`, and each request wants one logits row at most.
 On a pipelined layer split it keeps one pass in flight per stage, so every stage works on some pass while the host samples one and forms the next; elsewhere it keeps one.
 `--passes N` sets another number, which a placement that is not pipelined refuses above one, and passes whose handoff buffers do not fit the memory are dropped at start, one at a time, with a line on stderr, never silently.
 The policy the round follows is in `server/policy.hpp`, free functions over plain data that the `server-passes` CTest runs the round over with a simulated executor: `Pools` for what positions take in the pools' blocks, `Growth` for what a request reserves at admission and as it grows, `make_room` for room, `round_steps` for which stages a round records and which passes it retires, `decode_share` for how many decode entries a pass takes, and `logit_rows`, `take_rows` and `give_rows` for the logits rows a context reserves and where a pass's rows go.
@@ -127,8 +127,9 @@ round:
            first: per wanting row, the request's own sampler state;
            push the id to its channel, with its logits row when the
            request asked for logprobs (pass_logits waits on that pass's
-           own ticket); end_pass commits the histories, and the pass's
-           logits rows come back; a request cancelled in flight is not
+           own ticket); end_pass releases the sequences from flight;
+           return the pass's logits rows; stages already submitted and
+           committed their histories; a request cancelled in flight is not
            sampled; finish on EOS, a stop string or max_tokens, and keep
            the history as a donor when it holds a full block, else release
   cancel:  the active requests whose client left and that no pass in
@@ -261,7 +262,7 @@ POST /v1/completions        request: one parse, one request, one drain loop
 The compatible routes exist so existing tools connect without a client of their own: they list `/v1/models`, send its `id` back as the model, and stream `/v1/chat/completions` as chunks with the role in the first delta, `finish_reason` in the last and `data: [DONE]` after.
 They are a JSON mapping in the routes file over the scheduler the native routes use, with llmx's own knobs (`top_k`, `penalty`, `seed`, `ignore_eos`) accepted as extra fields and the synonyms the clients send (`max_completion_tokens`, `repetition_penalty`) beside them, validated before anything reaches the model, and they cost a request exactly what a native one costs.
 What the shape cannot carry, token ids and the `eos` finish, stays on the native routes; the compatible replies carry the reused-prefix count as `timings.cache_n`.
-A sampling field takes the range the CLI's flag for it takes, both read from beside the sampler's parameters, so the CLI and the server refuse the same values, except that the compatible routes take a `top_k` of -1, which clients send for no top-k, as 0.
+A sampling field takes the range the CLI's flag for it takes, both read from beside the sampler's parameters, so the CLI and the server refuse the same values, with the compatible routes also accepting `top_k: -1` as no top-k, `seed: -1` as no explicit seed, and an omitted or -1 token limit as uncapped.
 
 A streaming response is `text/event-stream`: one `data:` line per token with the id and the decoded text, and a final `data: [DONE]`.
 The server holds a character split across tokens until its bytes complete, and replaces each byte that starts no valid UTF-8 character with U+FFFD, since JSON carries only characters.

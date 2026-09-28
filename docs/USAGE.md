@@ -97,9 +97,9 @@ temporary directories. Completed shards remain reusable if a later shard fails.
 
 All GGUF commands accept the first `-00001-of-0000N.gguf` shard and discover
 the siblings beside it. Loading validates all shard metadata and tensor extents,
-then reads the weights as `--load-mode` says (below). With `auto` and `mapped`
-a shard is mapped in place where the CPU reads its weights, so a sharded model
-larger than host memory loads; with `direct` those weights are copied into
+then reads the weights as `--load-mode` says (below). In `mapped` mode every shard is mapped;
+`auto` also maps the files when a host backend reads weights in place, so
+host weights can exceed available RAM; with `direct` those weights are copied into
 memory of the process's own, and a model whose CPU weights are more than the
 host has available is refused. A shard whose size changed in between is
 refused in every mode.
@@ -406,12 +406,12 @@ sides to store the cache exactly.
 
 Every command that runs a model takes `--load-mode`, which says how the weights are read from the file; it means the same on every backend.
 
-- `auto` (the default) builds the model first, so every weight, cache and scratch buffer is allocated and a model that does not fit fails before any byte is uploaded, and then reads the weights a device copies from the file in large reads, in file order, on two reader threads, while the uploads of the reads before go on.
+- `auto` (the default) fits and constructs the model before streaming the weights a device copies, so a placement that does not fit fails before those reads. Weight storage is reserved at construction; execution scratch and physical KV backing grow as needed. The loader reads copied weights in large reads, in file order, on up to two reader threads while earlier uploads proceed.
   The reads go through the operating system's file cache, so a model loaded again is served from it while the host has room; when the weights a device copies are more than the host's available memory, and the file system takes direct reads, they go around the cache.
-  Only the weights the CPU reads in place are mapped, and their pages are read in after the uploads, when the host has room for them.
+  When a host backend reads weights in place, each file is mapped as a whole; the loader warms the tensors that host reads after the uploads, when the host has room for them.
   The progress starts once the model is built and reaches 100% after the last upload.
-  A model on the CPU alone loads as with `mapped`.
-- `mapped` maps the whole file, reads every page in before the model is placed when the host has room for it, and copies each weight a device takes out of the mapping.
+  On the CPU alone it uses mapped weights and warms their payload after construction.
+- `mapped` maps each whole file, warms its tensor payload before placement when the host has room for it, and copies each weight a device takes out of the mapping.
 - `direct` reads every weight around the file cache and maps nothing: those a device copies as `auto` streams them, and those the CPU reads into memory of its own laid out as the file, in the same pass.
   It is refused, before the model is built, where a file's file system does not take direct reads, with the reason: on Linux that needs 6.1 or later and a file system that reports the alignment, on Windows a volume that reports its sector sizes and takes an unbuffered read, and macOS and other systems have no direct reads. After the model is built, before a byte is read, it is refused when the weights the CPU reads are more than the host's available memory, or when the system will not commit the memory for them.
   On the CPU, a cold load from a file system whose mapped reads are slow, ZFS among them, is several times faster with `direct`: Qwen3-8B on six cores loads in about 6.4 s against about 22 s in `auto`. Warm, `auto`'s mapping is faster (about 2.3 s against 6.1), and `direct`'s copy is the process's own memory, which the host cannot reclaim or share with another process as it can a mapped file's pages.
@@ -425,12 +425,13 @@ graph. It sets the matmul width and the size of the prefill scratch buffers,
 and it only affects prompt processing; generation is one token at a time.
 
 It is the physical batch, not a logical batch. llmx has no logical batch flag:
-in the CLI there is one sequence and no queue, so the prompt is the batch. In
-`llmx serve` tokens from different sequences are merged into one pass, and
-`--ubatch` bounds the tokens of that pass (`docs/SERVER.md`).
+in the CLI there is one sequence and no queue, so the prompt is the batch.
+`llmx serve` merges tokens from different sequences into one pass. Its
+`--ubatch` budgets prompt and replay work beside the selected decode rows,
+so a pass can hold up to `--ubatch` plus `--max-seqs` rows (`docs/SERVER.md`).
 
-Scratch is sized to the smaller of `--ubatch` and the actual prompt, so a short
-prompt does not allocate a full-width buffer.
+For a CLI prompt, scratch grows to the smaller of `--ubatch` and that prompt.
+The server reserves its pass capacity at startup, including decode rows.
 
 ## `llmx generate <in.gguf> "<prompt>" [flags...]`
 
@@ -441,11 +442,12 @@ within that token, as before.
 
 Generate and chat show model-loading percentages and processing/generating
 phases on stderr when it is a terminal, or when `--verbose` is set. Loading
-percentages count the tensor payload read into memory before the model is
-placed, excluding metadata and padding; a payload larger than the host's
-available memory is not read in ahead, and its percentage goes from 0 to 100
-at once. Model preparation follows. The processing message reports the prompt token
-count before prefill begins, not a token-by-token completion percentage.
+percentages exclude metadata and padding. In `mapped` mode they count payload
+warming before placement; an oversized payload is not warmed and goes
+straight from 0 to complete. In `auto` and `direct`, progress starts after
+construction and counts streamed tensors and any host-weight warming.
+The processing message reports the prompt token count before prefill begins,
+not a token-by-token completion percentage.
 Redirected stderr stays quiet by default. Text continues to stream when stdout
 is redirected.
 
@@ -540,8 +542,9 @@ comparison below for that path.
 ## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--timing] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
 
 The multi-user server (`docs/SERVER.md`): one model, a sequence per
-request, every active request advanced by one token per pass with a slice
-of a new request's prompt beside them, tokens streamed as they are sampled.
+request, selected ready decoding requests advanced by one token in a pass
+with prompt or replay slices beside them, tokens streamed as they are sampled.
+A pipelined split can keep several passes in flight.
 HTTP/1.1 without dependencies or TLS; put a reverse proxy in front of it
 when it faces a network. Defaults: `127.0.0.1:8080`, 16 sequences, a
 queue of 64. `--max-seqs` is how many requests decode at once, the rest

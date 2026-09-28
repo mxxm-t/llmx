@@ -19,5 +19,6 @@ every pass when it was one heap allocation.
 read again soon, so they leave the process's working set first
 (`VirtualUnlock` on unlocked pages on Windows, `madvise(MADV_DONTNEED)`
 elsewhere); a later read brings them back from the file. `GGUFModel::drop_pages`
-applies it to one tensor, and the loader calls it for every tensor no host
-reads in place once the model is built and its weights are uploaded ([load](inference-load.md)).
+applies it to one tensor. Once the model is built and its weights are uploaded, the loader calls it
+for every tensor no host reads in place when a host still reads some weights in place; when none
+does, it releases the whole payload instead ([load](inference-load.md)).

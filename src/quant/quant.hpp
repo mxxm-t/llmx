@@ -56,7 +56,7 @@ inline void dequantize_row_q8_0(const uint8_t* src, float* dst, size_t nblocks) 
 
 // Q4_0 block quantization.
 // A block holds 32 floats compressed into a 2-byte f16 scale + 16 bytes of nibbles (Q4_0_TYPESIZE = 18 bytes per block).
-// The scale is d = amax/7 so the quantized range [-8, 7] maps to [-amax, amax].
+// The scale is d = amax/7, so [-amax, amax] maps onto the codes -7 to 7 while 1/d is finite; code -8, worth -8 amax/7, can be stored but is not produced then.
 // Each byte holds two values: the low nibble is element j, the high nibble element j+16; the stored nibble is unsigned 0..15 where the true value = nibble - 8.
 // Decoding as d*(nibble - 8) gives the format's -0 at nibble 8 under a negative scale; the product is exact in f32, since |nibble - 8| is at most 8.
 inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {

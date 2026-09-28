@@ -119,8 +119,10 @@ context by default. The CLI exposes it only as `llmx serve --ctx-size`,
 the pool's total token budget, whose exhaustion behaviour is admission: a
 request that does not fit waits or is refused (`docs/SERVER.md`).
 
-`length` is the committed history: tokens whose K and V are written and
-retired. A forward pass appends `batch` tokens with `kv_write` after
+`length` is the logically committed history: the model advances it after
+submitting the stage that writes its K and V. The sequence keeps that work's
+ticket; commitment does not mean the device has retired it. A forward pass
+appends `batch` tokens with `kv_write` after
 allocating the blocks they need; query `b` of the batch attends through
 `length + b`. If allocation or the write fails, the sequence's block list and
 `length` are unchanged and any blocks allocated for the attempt are released,

@@ -153,7 +153,8 @@ delegated to a `backend::Backend`.
     reusable prefix ends on.
   - `fork(sequence, length)`: a second history holding the first `length`
     tokens, which must be whole blocks in every storage, sharing every block
-    below `length` on every storage and allocating and copying nothing; the
+    below `length` on every storage without allocating or copying physical
+    KV blocks; the logical block tables and ticket vectors still allocate. The
     server forks a donor at the blocks a prompt shares with it.
     A forked sequence continues exactly as a fresh one fed the same tokens at the same extents would; rows another extent computed can differ from them by rounding (`docs/SERVER.md`, Open gaps).
     A sequence in flight is not forked.

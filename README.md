@@ -122,5 +122,5 @@ python3 tests/run_tests.py --exe build/llmx --no-perf-floor
 
 On Windows, run `python` with `--exe build/Release/llmx.exe`.
 After `build.bat`, which builds no native tests, run only the Python suite and leave out `--exe`.
-The Python suite needs only the standard library, and its real-model checks skip until `python3 tools/fetch_test_models.py` downloads the pinned models.
+The Python suite runs with the standard library, but full raw-block decoder coverage also needs NumPy; CI installs it and requires those checks. Real-model checks skip until `python3 tools/fetch_test_models.py` downloads the pinned models.
 [BUILD](docs/BUILD.md#after-building-the-tests) has the test commands for each platform, [AGENTS](AGENTS.md#tests) describes each test, and [CI](docs/CI.md) lists what each hosted job runs.

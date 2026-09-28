@@ -20,8 +20,10 @@ sections record follow-up results without pooling separate timing sessions.
 a large payload, per-sample traces, monitor logs, tar archives, the file here
 is a summary: every scalar and short list verbatim, long lists and large maps
 replaced by a count with their first and last entries, long strings truncated
-with their length. Each summary records `raw_archive`, `raw_bytes` and
-`raw_sha256` so the original can be located and verified.
+with their length. Summaries made from retained raw payloads record `raw_archive`, `raw_bytes`
+and `raw_sha256` so the original can be located and verified. Some older files
+were already summaries when archived and explicitly have no raw copy; their
+summary cannot reconstruct the omitted payloads.
 
 Raw payloads live outside the repository, under
 `C:/Users/Marko/Desktop/Projects/llmx-evidence/`. A source tree should not
@@ -326,8 +328,8 @@ embeddings, matrices and norms are supported, including tied output weights.
 |--------------------------------------------------|--------|------------------------------|
 | `Qwen\Qwen3-8B-GGUF\Qwen3-8B-Q8_0.gguf` (8.11 GiB)| Q8_0   | **Usable** - optional independent HF checks pass on Windows and Linux |
 | `Qwen\Qwen2-0.5B-Instruct-GGUF\...fp16.gguf`     | FP16   | Not yet supported            |
-| `lmstudio-community\...\Qwen3-30B...Q4_K_M.gguf` | Q4_K_M | Quant supported; architecture not validated (MoE is unsupported) |
-| `lmstudio-community\...\Qwen3-Coder...Q4_K_M.gguf`| Q4_K_M | Quant supported; architecture not validated (MoE is unsupported) |
+| `lmstudio-community\...\Qwen3-30B...Q4_K_M.gguf` | Q4_K_M | `qwen3moe` implemented; this local file needs its own validation |
+| `lmstudio-community\...\Qwen3-Coder...Q4_K_M.gguf`| Q4_K_M | `qwen3moe` implemented; this local file needs its own validation |
 | `unsloth\...\Qwen3.5-4B-BF16.gguf`               | BF16   | Not yet supported            |
 | `unsloth\...\mmproj-F32.gguf`                    | F32    | Multimodal projector (not a main model) |
 
@@ -472,7 +474,7 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 
 ### Generating pinned HF references
 
-`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `tokenizer-qwen35`, `qwen35-tiny` or `qwen35` (default `all`).
+`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `moe-q8`, `tokenizer-qwen35`, `qwen35-tiny`, `qwen35` or `file-exact` (default `all`).
 Real-model modes default to `Qwen/Qwen3-0.6B` at commit `c1899de289a04d12100db370d81485cdf75e47ca`.
 Both model and tokenizer loaders receive that revision.
 Logits and PPL use CPU float32 eager attention with six threads by default; `--threads N` selects another positive count.
@@ -496,8 +498,10 @@ overwritten on subsequent runs.
 accepts only `--output-dir`. `all` includes this same tiny fixture even when
 another real-model repository is selected. Tokenizer mode does not accept
 `--threads`; it does no numerical inference. Use `--help` for the flag reference.
-Generation needs the optional HF tooling described in the script; running the
-ordinary suite still needs only Python's standard library and the built runtime.
+Generation needs the optional HF tooling described in the script. The
+ordinary suite can run with Python's standard library and the built runtime,
+but its numpy raw-block checks skip without numpy; `--require-tools` makes
+that missing dependency a failure.
 
 #### The qwen35 tokenizer reference
 
@@ -711,16 +715,23 @@ hashes, commands, bounds and check results. Per-command stdout/stderr and the
 exact PPL excerpt remain beside it, including partial output on timeout.
 
 The bounds were declared before the first llmx 8B comparison, prospectively
-reusing the strict 0.6B Q8 budget, not calibrated from 8B results:
+reusing the strict 0.6B Q8 budget, not calibrated from 8B results. The current
+top-five comparison additionally uses the boundary rule below:
 
-| Check | Frozen acceptance |
+| Check | Acceptance |
 |---|---|
 | Tokenizer | All 20 cases, six logit prompt ID sequences and the PPL input IDs exact |
-| Six short-prompt rankings | Top-1 exact; top-5 set overlap 5/5 |
+| Six short-prompt rankings | Top-1 exact; top-5 overlap 5/5 under the boundary rule below |
 | Each top-10 output | Ten unique valid IDs; finite, nonincreasing logits; absolute magnitude <= 100; exact prompt count |
 | Continuous 247-token mean NLL, batched and per token | Absolute HF delta <= 0.01 |
 | Each of three windowed mean NLL cases, batched and per token | Absolute HF delta <= 0.02 |
 | PPL accounting | Exact input/used/target/window/context counts; finite consistent NLL/PPL |
+
+Since 2026-09-25, `common.top5_overlap` counts a boundary swap as agreement
+when the reference puts the exchanged tokens within 0.1 logits of its fifth
+value. It also forgives the reference's fifth and sixth trading places when
+llmx puts that pair within 0.1 logits, even if the reference does not. This
+is the rule described in AGENTS.md; overlap 5/5 need not mean identical sets.
 
 The context-123 case omits its singleton tail: 246 used tokens, 244 targets and two windows.
 Each NLL case runs twice, in batched passes (`ppl-NN`), the prompt path, and one token at a time with `--per-token` (`ppl-NN-per-token`), the decode path, as `tests/baseline.py` does; rankings exercise short batched prefill.
@@ -942,6 +953,11 @@ bench mean throughput was 114.53 -> 114.44 GFLOPS, synthetic prefill
 measurement; these guardrails do not establish a quantized-path speedup.
 
 ### Matched external CPU benchmark
+
+The measurements in this section and the CPU studies that follow are records
+from 2026-09-19. Their references to current binaries, unmerged work and next
+experiments describe those checkpoints. Current CPU behavior is documented
+in `docs/src/backends-cpu.md`, and active work in `docs/STATUS.md`.
 
 `tools/compare_cpu.cpp` builds against either llmx or the public mx-llama.cpp
 C API. `tools/compare_cpu.py` feeds both binaries the committed HF token IDs:
@@ -1358,7 +1374,10 @@ The Vulkan backend later adopted the 16-bit form for its decode row
 kernel, on this section's numerical finding and its own measurements
 (`VULKAN.md`, sub-step 8), and the 8-bit form for its integer-dot prefill
 tile on devices whose profile prefers the integer dot, gated per type on
-the device HF suite; the CPU backend keeps float activations.
+the device HF suite. The CPU prototype below was not adopted at that
+checkpoint. The CPU backend later gained quantized-activation decode dots
+and prompt dots for selected wide K-quant matrices; its current paths are
+described in `docs/src/backends-cpu.md`.
 
 Scratch AVX2 kernels consume the existing Q8_0 weights with quantized
 activations, using either signed 8-bit or signed 16-bit activation values and

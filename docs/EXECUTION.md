@@ -53,10 +53,11 @@ is driven by **one thread at a time**; the server's scheduler is the single
 submitter per device and request threads only queue work. This is a
 contract, not a lock.
 
-Eager per-op enqueue holds. A Vulkan backend records every op between two
-submit points into one command buffer, so a forward pass is one submission;
-replaying an identical decode pass is a backend-private optimization the
-interface neither needs nor prevents.
+Eager per-op enqueue holds. Vulkan records ops into command buffers and may
+submit before a model stage ends: its dispatch chunk bounds queued work.
+The stage's final ticket covers those earlier submissions as well. Replaying
+an identical decode pass is a backend-private optimization the interface
+neither needs nor prevents.
 
 `sync()` stays `noexcept` and a lost device still fails the process. A
 server that loses its device cannot complete any request on it; the
@@ -79,10 +80,11 @@ virtual void sync() noexcept = 0;       // wait for everything, as today
 `wait` blocks on. `sync` is unchanged and remains what the error paths call.
 `read` stays synchronous: it is the transfer and test path, not the hot one.
 
-Tickets are what make overlap expressible without events. Two things are
-in flight at once only ever on **different devices or different execution
-contexts**, and each has its own ticket, so the scheduler waits for exactly
-the one it needs. The KV release rule in [KV-CACHE](KV-CACHE.md) gains
+Tickets make overlap expressible without events. A context reserved for
+passes can keep several passes in flight, each with its own handoff buffers,
+logits rows and ticket. Device stages execute in submission order while
+different devices can run different passes. The scheduler waits for the
+particular ticket it needs. The KV release rule in [KV-CACHE](KV-CACHE.md) gains
 precision at the same time: a block returns to the pool after the ticket of
 the last pass that touched it has retired, which is a `wait`, not a drain.
 

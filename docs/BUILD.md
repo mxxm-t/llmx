@@ -20,8 +20,9 @@ The [README](../README.md#build) keeps a short quick start.
   `ctest --test-dir`, used under [Tests](#after-building-the-tests), needs CTest 3.20 or later.
 - **git**, for the build identifier that `llmx --version` prints, and for the tests' `dead-code` and `docs` components, which in a git checkout read the files git tracks.
   Without git, or in a tree that is not a git checkout, the build still works and reports `0.1.0+unknown`, and in a tree that is not a git checkout those two components read every file.
-- **Python 3**, only to run the tests, which use its standard library alone.
-  CI runs Python 3.12.
+- **Python 3**, only to run the tests. The suite runs with its standard library,
+  but full raw-block decoder coverage also needs NumPy; without it those checks
+  skip, or fail with `--require-tools`. CI runs Python 3.12 and installs NumPy.
 - **curl 8.4 or later** at run time, only for `llmx pull`, which runs curl as a child process to download models.
   On Windows that is the `curl.exe` in the Windows system directory, and elsewhere the first `curl` on the `PATH`.
   The build does not need it.
@@ -257,7 +258,7 @@ python3 tests/run_tests.py --exe build/llmx --no-perf-floor
 ```
 
 - `--no-perf-floor` reports the `perf` component's timings without enforcing its floors, which were set on the development workstation; CI passes it too.
-- `--device vulkan:0` runs every command in the suite that takes `--device` on that device.
+- `--device vulkan:0` selects that device for model commands; the `threads` component explicitly checks CPU workers and `split` explicitly names its CPU backends (AGENTS.md, Configuration).
 - `--only baseline` runs just the named components, comma separated for several.
 - Real-model checks skip when their models are absent; `tools/fetch_test_models.py` downloads the pinned models they use, and `--require-baseline` makes a missing one fail the suite.
 - `raw-blocks` checks the spec decoders' numpy form only where numpy is installed and otherwise skips those checks; `--require-tools`, which CI passes, makes that a failure.

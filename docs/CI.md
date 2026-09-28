@@ -230,7 +230,7 @@ runs `prefill-placement`: active real topology when available, real fallback
 otherwise, and synthetic topology/failure cases even on small hosted runners.
 These checks do not require a real model or establish performance.
 
-Native counts are 30 on Windows and 29 on Linux/macOS; the Windows-only `prefill-placement` target accounts for the difference, and a build with `LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`, `vulkan-buffer` and `vulkan-lifetime`: 33 native tests on Windows and 32 on Linux/macOS.
+The native set depends on the build: Windows adds `prefill-placement`, and `LLMX_HAS_BACKEND_VULKAN=ON` adds `backend-vulkan`, `vulkan-buffer` and `vulkan-lifetime`. `ctest --test-dir build -C Release -N` lists the tests registered by the configured build.
 The buffer test runs on a fake device that supplies every Vulkan call, so it needs no loader; the lifetime test opens a device and intercepts transfers for ownership checks, including failed padded-cache invalidation.
 It also substitutes five kernel creation failures to check cleanup/retry, and runs two real diagnostic-query cases for failed creation and idle-before-destruction.
 Query cases skip on a device without diagnostic timestamps.

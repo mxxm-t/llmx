@@ -1,5 +1,5 @@
 #pragma once
-// The scheduler of docs/SERVER.md: one thread drives the model in rounds over its pass API, each pass carrying every decoding request's next token and slices of what other requests' caches lack, and samples each request's logits into its channel.
+// The scheduler of docs/SERVER.md: one thread drives the model in rounds over its pass API, each pass carrying a share of ready decoding requests and slices of what other requests' caches lack, and samples each request's logits into its channel.
 // Room in the KV pool goes by first admission (make_room, with the rest of the policy core in server/policy.hpp), and a request records how each stretch of its history was computed (RowClass), so a paused request resumes to the logits it gives when never paused.
 #include <algorithm>
 #include <atomic>
@@ -194,7 +194,7 @@ struct TooLong : std::runtime_error {
 
 class Scheduler {
 public:
-    // The model's context is reserved here for `passes` passes in flight, each of every decoding request's row and a ubatch of other rows, each request wanting a logits row at most.
+    // The model's context is reserved here for `passes` passes in flight, each sized for up to one row per decoding request plus a ubatch of prompt or replay rows, each request wanting a logits row at most.
     // No `passes` takes the stage count on a pipelined layer split and one elsewhere, which cannot keep more; passes that do not fit the devices' memory run fewer, and stderr says so.
     // A `timed` scheduler times its rounds and reads each stage's device time (Timing), over backends made to time their work.
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false)

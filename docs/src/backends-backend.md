@@ -201,4 +201,3 @@ Backends may use this boundary to scope execution policy across all prompt
 microbatches without putting platform details in the model layer.
 
 `dot_q8_0` and `matvec_q8_0` left the device-neutral `Backend` interface for `matmul` (`docs/DEVICE-EXECUTION.md`, step 3), and `CpuBackend` has no public `matvec_q8_0` either: the float reference path of a Q8_0 decode row is its private `row_dot` (`backends-cpu.md`), not a primitive another backend implements.
-The `q8::dot_q8_0` of `cpu/q8_dots.hpp` is a different function, the integer dot of a Q8_0 row against quantized activations.

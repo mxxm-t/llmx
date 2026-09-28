@@ -211,6 +211,7 @@ Each model it builds runs on a one-thread CPU backend that must start no worker 
 output boundaries and fallback behavior against separate calls and double dots.
 It also checks every finite f16 scale against signed Q8 weight extremes using
 one-hot inputs with exact expected products, and every column of the three-, two- and one-column prefill dots against one ordered scalar FMA oracle across dimension tails and unaligned inputs.
+Q8 products also read a tiny original F32 input beside a zero-weight block peak exactly, through plain, grouped, routed and residual calls, across row classes, widths, signed weights/scales and thread counts.
 The test is built without contraction, so a tail the kernels leave to the compiler fails it.
 The independent HF fixtures below remain the external correctness gate.
 
@@ -221,14 +222,12 @@ The fused K-quant dots accumulate first and apply the scale after,
 which is what makes them fast and what lets a large activation reach infinity
 before a small scale could bound it. Those rows fall back to dequantizing.
 Sixteen cases across Q8_0/Q4_K/Q5_K/Q6_K cover tiny and zero scales against
-huge and ordinary inputs, once on the float dots and once on the decode dots
-over quantized activations, which cannot overflow since each block is scaled
-first and are bounded against the sum of magnitudes.
+huge and ordinary inputs, with quantized activation dots enabled and disabled. Q8_0 keeps the float dots in both settings; the other types also run decode dots over quantized activations, scaled per block and bounded against the sum of magnitudes.
 
 `quantize-range` checks Q4_0 packing from finite F32 inputs against exact integer expectations: every code from -7 to 7 at every position, with power-of-two scales across exponents -149 through 124, half-way rounding, rounded subnormal scales, output guards and a scale that underflows even in F32. Binary16 scale underflow and overflow remain format limits; this checks defined packed codes, not finite decoded weights for every magnitude. It runs with gradual underflow and does not establish nonfinite-input handling.
 
 `q8-dots` checks those decode dots (`backends/cpu/q8_dots.hpp`), 8-bit for
-Q8_0/Q4_K/Q5_K and 16-bit for Q4_0/Q4_1/Q6_K, against a double-precision
+Q4_K/Q5_K and 16-bit for Q4_0/Q4_1/Q6_K, against a double-precision
 reference fed the same quantized activations, and that a decode row computes
 the same alone, beside other rows and in a grouped call, bit for bit. It also
 checks activation quantization independently against the original inputs over
@@ -294,7 +293,7 @@ Rows of 40000 take a nucleus past the 512 tokens the sampler ranks a nucleus wit
 It then runs the scheduler over `tiny_qwen` with a tokenizer of its 16 tokens and no end token: a greedy request with `top_logprobs` 5, read from its token channel, must carry at every position the log-softmax and top five of the logits row a second model gives through the same passes (the prompt at its extent, then one decode entry a token), and the same request without logprobs the same ids and no values; so must a request drawn at temperature 1.5 with penalty 1.3 and a seed, whose values are the raw row's though some of its draws are not greedy's choice.
 The same request left unread until it ends must hold exactly `Request::kRowsWaiting` rows on its channel and then give the same values, those past the rows computed by the scheduler; cancelled before it is read, its waiting rows come without values and the rest with the scheduler's.
 
-`server-resume` runs uncapped greedy requests with `top_logprobs` 5 through the scheduler over the synthetic Q8_0 model with a token list and no end token, whose decode rows take the CPU's 8-bit dots and whose prompt rows the float path, on a pool too small for them: each alone first, where it never pauses, then together, where the scheduler pauses and resumes them, and every id, logprob and top entry must equal its run alone, a difference naming its first token.
+`server-resume` runs uncapped greedy requests with `top_logprobs` 5 through the scheduler over the synthetic Q8_0 model with a token list and no end token, whose decode and prompt rows take different CPU float reductions, on a pool too small for them: each alone first, where it never pauses, then together, where the scheduler pauses and resumes them, and every id, logprob and top entry must equal its run alone, a difference naming its first token.
 Once every request has ended, the blocks the scheduler holds reserved must be its donors' blocks and never more than a pool has (`Stats::reserved`, `Stats::donor_blocks`).
 With three requests the resumes must have recomputed more rows than each pause's longest prompt (`Stats::recomputed`), so generated tokens among them.
 The cases: three requests on 8 blocks of 128 tokens, a victim paused with generated tokens in its partial block whose donor the growth that paused it then takes; a prompt read one token a pass (`ubatch` 1) paused while it is still prefilling, which takes nothing back and recomputes at least the two blocks of its prompt it had read; a follow-up turn that forked the previous turn's reply rows, paused with every donor gone, which recomputes its whole 512-token history; the three requests over a two-CPU layer split; and paused requests cancelled, after which the scheduler holds nothing and, once stopped, the pool is empty.

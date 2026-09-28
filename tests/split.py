@@ -19,7 +19,7 @@ UBATCHES = (1, 3, 16)
 CACHE_TYPES = ("f16", "f32")
 STEPS = 3
 
-# A Q8_0 model whose decode rows take the CPU's 8-bit dots and its prompt rows the float path, with a context past one 128-token CPU block, so the tool's recompute also runs from a fork at a block.
+# A Q8_0 model whose decode and prompt rows take different CPU float reductions, with a context past one 128-token CPU block, so the tool's recompute also runs from a fork at a block.
 # Its histories pass the block after a 100-token prompt and 40 steps, and inside a 150-token prompt with 8 steps.
 Q8_CONFIG = {"block_count": 2, "embedding_length": 64, "feed_forward_length": 128,
              "attention.head_count": 2, "attention.head_count_kv": 1,

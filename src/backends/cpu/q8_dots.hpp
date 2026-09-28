@@ -1,6 +1,6 @@
 #pragma once
 // CPU dots over activations quantized per block of 32; weights remain packed and integer sums are scaled once per block (docs/src/backends-cpu.md).
-// Q4_0, Q4_1 and Q6_K use 16-bit activations for ranking precision; Q8_0, Q4_K and Q5_K use 8-bit activations.
+// Q4_0, Q4_1 and Q6_K use 16-bit activations; Q4_K and Q5_K use 8-bit activations. Q8_0 keeps original F32 inputs in the float dots.
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -135,12 +135,9 @@ inline void quantize(const float* x, size_t b0, size_t b1, Rows& out) {
     }
 }
 
-// Sums of 32 byte products into eight 32-bit lanes, lane i covering bytes 4i to 4i + 3: unsigned by signed, and signed by signed through the sign trick.
+// Sums of 32 unsigned by signed byte products into eight 32-bit lanes, lane i covering bytes 4i to 4i + 3.
 inline __m256i dot_us(__m256i u, __m256i s) {
     return _mm256_madd_epi16(_mm256_maddubs_epi16(u, s), _mm256_set1_epi16(1));
-}
-inline __m256i dot_ss(__m256i a, __m256i b) {
-    return dot_us(_mm256_sign_epi8(a, a), _mm256_sign_epi8(b, a));
 }
 inline float hsum(__m256 v) {
     __m128 s = _mm_add_ps(_mm256_castps256_ps128(v), _mm256_extractf128_ps(v, 1));
@@ -152,27 +149,6 @@ inline float half(const uint8_t* p) {
     return _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128((int)(p[0] | ((uint32_t)p[1] << 8)))));
 }
 inline __m256i load(const void* p) { return _mm256_loadu_si256((const __m256i*)p); }
-
-// The decode dots: one row of `nin` weights against activation row r, each block unpacked straight into the multiply, which a lone generated token wants since nothing shares the unpacking.
-inline float dot_q8_0(const uint8_t* row, const Rows& x, size_t r) {
-    const size_t nb = x.nin / 32;
-    const int8_t* q = x.qs(r);
-    const float* d = x.ds(r);
-    __m256 acc0 = _mm256_setzero_ps(), acc1 = _mm256_setzero_ps();
-    size_t b = 0;
-    for (; b + 2 <= nb; b += 2) {
-        const uint8_t* p = row + b * quant::Q8_0_TYPESIZE;
-        const __m256i s0 = dot_ss(load(p + 2), load(q + b * 32));
-        const __m256i s1 = dot_ss(load(p + 2 + quant::Q8_0_TYPESIZE), load(q + b * 32 + 32));
-        acc0 = _mm256_fmadd_ps(_mm256_set1_ps(half(p) * d[b]), _mm256_cvtepi32_ps(s0), acc0);
-        acc1 = _mm256_fmadd_ps(_mm256_set1_ps(half(p + quant::Q8_0_TYPESIZE) * d[b + 1]), _mm256_cvtepi32_ps(s1), acc1);
-    }
-    for (; b < nb; ++b) {
-        const uint8_t* p = row + b * quant::Q8_0_TYPESIZE;
-        acc0 = _mm256_fmadd_ps(_mm256_set1_ps(half(p) * d[b]), _mm256_cvtepi32_ps(dot_ss(load(p + 2), load(q + b * 32))), acc0);
-    }
-    return hsum(_mm256_add_ps(acc0, acc1));
-}
 
 // Q4_0 and Q4_1: 16 bytes of nibbles per block, low nibbles values 0 to 15 and high nibbles 16 to 31.
 inline __m256i nibbles32(const uint8_t* qs) {
@@ -303,36 +279,6 @@ inline __m256i first_lanes(size_t n) {
     return _mm256_cmpgt_epi32(_mm256_set1_epi32((int)n), _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7));
 }
 inline __m256i loada(const void* p) { return _mm256_load_si256((const __m256i*)p); }
-
-// Q8_0: eight blocks of 32 at a time, the weights' signs moved onto the activations, then unsigned by signed bytes.
-struct KQ8_0 {
-    using X = Rows;
-    struct U { alignas(32) int8_t w[256], a[256]; __m256 ws; __m256i lanes; size_t ng; };
-    static size_t steps(size_t nin) { return (nin / 32 + 7) / 8; }
-    static void unpack(const uint8_t* row, size_t t, size_t nin, U& u) {
-        const size_t g0 = t * 8;
-        u.ng = std::min<size_t>(8, nin / 32 - g0);
-        alignas(32) float ws[8] = {0.0f};
-        for (size_t g = 0; g < u.ng; ++g) {
-            const uint8_t* p = row + (g0 + g) * quant::Q8_0_TYPESIZE;
-            const __m256i v = load(p + 2);
-            _mm256_store_si256((__m256i*)(u.w + 32 * g), v);
-            _mm256_store_si256((__m256i*)(u.a + 32 * g), _mm256_sign_epi8(v, v));
-            ws[g] = half(p);
-        }
-        u.ws = _mm256_load_ps(ws);
-        u.lanes = first_lanes(u.ng);
-    }
-    static void add(const U& u, const X& x, size_t rc, size_t t, __m256& acc, __m256&) {
-        const int8_t* q = x.qs(rc) + t * 256;
-        auto part = [&](size_t g) { return dot_us(loada(u.a + 32 * g), _mm256_sign_epi8(load(q + 32 * g), loada(u.w + 32 * g))); };
-        const size_t ng = u.ng;
-        const __m256i s = ng == 8 ? sum8(part) : sum8([&](size_t g) { return g < ng ? part(g) : _mm256_setzero_si256(); });
-        const __m256 dx = _mm256_maskload_ps(x.ds(rc) + t * 8, u.lanes);
-        acc = _mm256_fmadd_ps(_mm256_cvtepi32_ps(s), _mm256_mul_ps(u.ws, dx), acc);
-    }
-    static float finish(__m256 acc, __m256) { return hsum(acc); }
-};
 
 inline __m256i widen_lo(__m256i w8) { return _mm256_cvtepi8_epi16(_mm256_castsi256_si128(w8)); }
 inline __m256i widen_hi(__m256i w8) { return _mm256_cvtepi8_epi16(_mm256_extracti128_si256(w8, 1)); }
@@ -493,7 +439,7 @@ inline void block_dots(const uint8_t* w, size_t row_bytes, size_t nrows, const t
 }
 // Whether a type has a dot here, which activations it reads, and the dot itself.
 inline bool has_dot(uint32_t type) {
-    return type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 ||
+    return type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 ||
            type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K;
 }
 inline bool reads16(uint32_t type) {
@@ -536,7 +482,6 @@ struct Activations {
 inline void dot_block(uint32_t type, const uint8_t* w, size_t row_bytes, size_t nrows, const Activations& x, const size_t* r, size_t n,
                       float* const* out, size_t o0) {
     switch (type) {
-    case quant::GGML_TYPE_Q8_0: block_dots<KQ8_0>(w, row_bytes, nrows, x.x8, r, n, out, o0); break;
     case quant::GGML_TYPE_Q4_0: block_dots<KQ4<false>>(w, row_bytes, nrows, x.x16, r, n, out, o0); break;
     case quant::GGML_TYPE_Q4_1: block_dots<KQ4<true>>(w, row_bytes, nrows, x.x16, r, n, out, o0); break;
     case quant::GGML_TYPE_Q4_K: block_dots<KQ45_K<false>>(w, row_bytes, nrows, x.x8, r, n, out, o0); break;
@@ -548,7 +493,6 @@ inline void dot_block(uint32_t type, const uint8_t* w, size_t row_bytes, size_t 
 // A generated token's row: the decode dots.
 inline float dot(uint32_t type, const uint8_t* row, const Activations& x, size_t r) {
     switch (type) {
-    case quant::GGML_TYPE_Q8_0: return dot_q8_0(row, x.x8, r);
     case quant::GGML_TYPE_Q4_0: return dot_q4_0(row, x.x16, r);
     case quant::GGML_TYPE_Q4_1: return dot_q4_1(row, x.x16, r);
     case quant::GGML_TYPE_Q4_K: return dot_q45_K(row, x.x8, r, false);

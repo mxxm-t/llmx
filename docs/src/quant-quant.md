@@ -29,7 +29,6 @@ K-quant layouts and shared sub-scale decoding live in `k_quants.hpp`. The
 type ids and block sizes the registry names live in `types.hpp`, whose page
 ([quant-types](quant-types.md)) lists what a new type takes.
 
-Decode rows of every quantized type, Q4_0 included, take the CPU backend's
-integer dots in `backends/cpu/q8_dots.hpp`; batched prompt rows of Q8_0,
-Q4_0 and Q4_1 dequantize through these block routines (`docs/src/backends-cpu.md`).
+CPU Q8_0 decode keeps the original F32 inputs through its float dot; Q4_0, Q4_1, Q4_K, Q5_K and Q6_K decode takes the integer dots in `backends/cpu/q8_dots.hpp`.
+Batched prompt rows of Q8_0, Q4_0 and Q4_1 dequantize through these block routines (`docs/src/backends-cpu.md`).
 

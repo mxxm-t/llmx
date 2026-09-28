@@ -309,7 +309,7 @@ int main() {
                     a8.blocks + a16.blocks, a8.values + a16.values, a8.tiny + a16.tiny, a8.ties + a16.ties);
         std::mt19937 rng(7);
         size_t n = 0;
-        for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1,
+        for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1,
                               quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K})
             for (size_t nin : {size_t(256), size_t(2048), size_t(4096)}) n += check_type(type, nin, rng);
         size_t routed = 0;

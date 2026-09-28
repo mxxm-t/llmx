@@ -73,7 +73,7 @@ std::vector<uint8_t> block_q6_K(uint16_t half) {
 
 struct Case { const char* name; uint16_t half; bool huge; };
 
-// `eight` runs the decode dots over 8-bit activations, which cannot overflow since each block is scaled first; their bound is relative to the sum of magnitudes, since a block's rounding follows its largest value and the ordinary input's products largely cancel.
+// `eight` enables quantized activation dots for the K-quants, scaled per block and bounded by the sum of magnitudes; Q8_0 keeps F32 inputs in both settings.
 int run_type(uint32_t type, const char* tname, bool eight) {
     const size_t nin = 256;
     backend::CpuBackend cpu;
@@ -115,8 +115,8 @@ int run_type(uint32_t type, const char* tname, bool eight) {
         require(std::isfinite(y[0]),
                 std::string(tname) + " / " + c.name + ": produced a nonfinite result");
         const long double err = std::fabs((long double)y[0] - exact);
-        const long double tol = eight ? magnitude * 1e-2L + 1e-30L : std::fabs(exact) * 1e-5L + 1e-30L;
-        require(err <= tol, std::string(tname) + (eight ? " 8-bit" : "") + " / " + c.name +
+        const long double tol = eight && type != quant::GGML_TYPE_Q8_0 ? magnitude * 1e-2L + 1e-30L : std::fabs(exact) * 1e-5L + 1e-30L;
+        require(err <= tol, std::string(tname) + (eight ? " default dots" : " float dots") + " / " + c.name +
                             ": " + std::to_string((double)y[0]) +
                             " differs from " + std::to_string((double)exact));
         checked++;

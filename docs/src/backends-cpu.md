@@ -27,7 +27,7 @@ A compile without them stops at one `#error` at the top of the header.
 - `row_dot`: one weight row against one activation row in float, the one float decode row dot.
   F32 takes `dot_f32`, Q8_0 `dot_row_impl`, and Q4_K, Q5_K and Q6_K their fused dequant+FMA dots, falling back to `dot_row_dequant` when a fused sum overflows.
   A single-column decode matmul of those types calls it in one pooled loop over the rows, and a routed decode entry calls it for every type.
-  For the quantized types it is the float reference path, taken only when the quantized decode dots are off (`set_decode_activations8(false)`, below); decode otherwise takes `q8_dots.hpp`.
+  Q8_0 always takes this float path; the other supported quantized types take `q8_dots.hpp` unless `set_decode_activations8(false)` selects their float reference path.
   Other types, routed Q4_0 and Q4_1 decode among them, take `dot_row_dequant`, which dequantizes and sums in double, while a dense Q4_0 or Q4_1 decode keeps the batched float path, so the two differ in rounding.
   The Q6_K dot rounds each scaled group sum before accumulating it, through separate intrinsics, because compilers fused the two into one FMA or not by the code around them and by their contraction rules.
   GCC and MSVC builds round this dot as they did before the intrinsics, and a Clang build, which fused the plain expression at its default contraction, now rounds as they do; a Clang build with `-ffp-contract=fast` would still fuse the intrinsics.
@@ -53,9 +53,9 @@ A compile without them stops at one `#error` at the top of the header.
 - `DOT_ROWS` is the fused kernel's width, not a tuning constant. A cache-byte
   budget was measured instead and was worse at every size (see
   `docs/STATUS.md`).
-- `matmul_group`: shares quantized activations across multiple Q8_0, Q4_0,
+- `matmul_group`: shares quantized activations across multiple Q4_0,
   Q4_1, Q4_K, Q5_K or Q6_K decode projections in one pool dispatch. `RowRuns`
-  also admits batches of generated rows. F32, prompt rows, single projections
+  also admits batches of generated rows. F32, Q8_0, prompt rows, single projections
   and unsupported integer-dot configurations fall back to separate matmul
   calls; small grouped jobs run on the caller (`split_rows`, below).
   Whether every row is a generated token's is read through `for_each_run`, so malformed runs are refused here as in `matmul`.
@@ -117,7 +117,7 @@ A compile without them stops at one `#error` at the top of the header.
   `kPromptDotsFrom` (4096) wide, where the float path's dequantized row
   blocks no longer stay in the first-level cache, so a row computes the same alone
   or beside others; without runs a one-column call is decode. The decode dots (`q8_dots.hpp`) quantize a call's activations once
-  per block of 32, 8-bit for Q8_0, Q4_K and Q5_K and 16-bit for Q4_0, Q4_1
+  per block of 32, 8-bit for Q4_K and Q5_K and 16-bit for Q4_0, Q4_1
   and Q6_K, and meet the packed
   weights in integers (`maddubs` and `madd`), one scale per block; the float
   dots they replaced converted every weight and were bound by arithmetic.
@@ -133,11 +133,12 @@ A compile without them stops at one `#error` at the top of the header.
   neighbouring integer representations; they do not reuse the encoder formula.
   Gradual underflow is assumed; flush-to-zero and nonfinite input handling are
   not established by this check.
-  `set_decode_activations8(false)` keeps the float dots, which the device
+  Q8_0 always reads the original F32 activations through the existing float dots, including grouped and routed calls; its integer consumers are removed.
+  `set_decode_activations8(false)` keeps the float dots for the other types, which the device
   comparison test's reference and the float-kernel checks use.
   `each_run` reads the runs through `backend.hpp` `for_each_run`, keyed by whether a run is a generated token's.
 - `route_experts`, `matmul_experts`, `matmul_experts_add`: routing in
-  float, then the entries grouped by expert. A generated token's entries take
+  float, then the entries grouped by expert. For types with integer dots, a generated token's entries take
   the decode dots, every such entry's rows of a call in one pool dispatch. A
   prompt's entries take the prompt dots (`q8_dots.hpp` `dot_block`): stretches
   of 16 of an expert's rows handed to workers as they free up, each against
@@ -147,7 +148,7 @@ A compile without them stops at one `#error` at the top of the header.
   meets eight groups' scales in one vector multiply-add, so a (row, entry)
   pair accumulates in the same order whatever else is in the block. The
   activations are quantized once per call, split across the pool, and gate
-  and up share them. Where a type has no quantized dots, or with
+  and up share them. Where a type has no quantized dots, including Q8_0, or with
   `set_decode_activations8(false)`, a prompt's entries take one batched float
   matmul per expert over its gathered rows (`matmul_raw`, the matmul on host
   addresses, reaches an expert's matrix inside the stacked tensor).

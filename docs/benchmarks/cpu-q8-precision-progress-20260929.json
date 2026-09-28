@@ -1,0 +1,1585 @@
+{
+  "scope": "In-development CPU Q8 fix, not a completed checkpoint or merge gate. Independent host and rig checks ran in parallel. Prior precision/timing controls are diagnostic evidence only.",
+  "base": "96ef9c6b1c3654354594b82f9f8b226ce3163381",
+  "test_first": "9bfd64c0b3fe",
+  "working_tree_dirty": true,
+  "runtime_change": "Remove CPU Q8 integer activation consumers; existing float paths retain original F32 inputs. Other quant types and Vulkan runtime unchanged.",
+  "windows": {
+    "native": {
+      "passed": 34,
+      "total": 34,
+      "seconds": 39.83
+    },
+    "contract_followup": {
+      "passed": 2,
+      "total": 2
+    },
+    "focused": {
+      "dead-code": "pass",
+      "docs": "initial removed-name finding, corrected; second run passes",
+      "moe": "pass",
+      "qwen35": "pass",
+      "split": "60 runs pass, F32 and F16 cache",
+      "chat": "pass"
+    }
+  },
+  "linux": {
+    "native": {
+      "passed": 33,
+      "total": 33,
+      "seconds": 40.7
+    },
+    "source_manifest": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-source-20260929.json",
+      "sha256": "967f22b4279932f0a1cce127564263d08ce4e7b41c53ea793e465c5c2b5ab572",
+      "bytes": 207162
+    },
+    "source_snapshot": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-source-20260929.tar",
+      "sha256": "324d23dbdc3c381633d1211d0982e2025308b9dc19cedaff32fbcaad29a26d1f",
+      "bytes": 36352000
+    },
+    "state": {
+      "complete": true,
+      "pid": 806569,
+      "commands": [
+        {
+          "label": "disk",
+          "argv": [
+            "df",
+            "-h",
+            "/opt",
+            "/zpool1"
+          ],
+          "exit": 0
+        },
+        {
+          "label": "containers",
+          "argv": [
+            "docker",
+            "ps",
+            "--no-trunc"
+          ],
+          "exit": 0
+        },
+        {
+          "label": "container",
+          "argv": [
+            "docker",
+            "inspect",
+            "llmx-p2-x-mxfp4-gpu2-20260928"
+          ],
+          "exit": 0
+        },
+        {
+          "label": "configure",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "cmake",
+            "-S",
+            "/work/cpu-q8-precision-main-20260929/source",
+            "-B",
+            "/work/cpu-q8-precision-main-20260929/build",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+          ],
+          "exit": 0
+        },
+        {
+          "label": "build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "cmake",
+            "--build",
+            "/work/cpu-q8-precision-main-20260929/build",
+            "--parallel",
+            "4"
+          ],
+          "exit": 0
+        },
+        {
+          "label": "ctest",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "ctest",
+            "--test-dir",
+            "/work/cpu-q8-precision-main-20260929/build",
+            "--output-on-failure"
+          ],
+          "exit": 0
+        }
+      ]
+    }
+  },
+  "dense_candidate_capture": {
+    "complete": true,
+    "pid": 13968,
+    "source_base": "96ef9c6b",
+    "test_commit": "9bfd64c",
+    "dirty": true,
+    "exe_sha256": "062f3d9186f537f8a40178b14c4f95cdcc90f68a37744c3dc1130d27ba70b918",
+    "tokens_sha256": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59",
+    "records": [
+      {
+        "model": "0.6B",
+        "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "argv": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-main-build-20260928\\Release\\llmx-model-logits.exe",
+          "C:/Users/Marko/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mxfp4-first-divergence-20260928\\tokens.txt",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-captures-20260929\\0.6B",
+          "cpu",
+          "f32",
+          "512",
+          "0"
+        ],
+        "start": 1790629484.8949916,
+        "pid": 13408,
+        "exit": 0,
+        "end": 1790629492.155943,
+        "captures": {
+          "batched": "d3940eafff8cf1931f871ee648c1afb2996ea1132c03b62e7bd148712bc9f6b7",
+          "decode": "d71982434a4eb25e89edbbed3cebc0ac93adaeab48952b6781ced83057342cee",
+          "greedy": "d253fb47ab5145eb2b7843cac04b2355accfa70da1560cfef6ecfd51d77acaa2"
+        },
+        "prior_q8_float_equal": {
+          "batched": true,
+          "decode": true,
+          "greedy": true
+        }
+      },
+      {
+        "model": "8B",
+        "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+        "argv": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-main-build-20260928\\Release\\llmx-model-logits.exe",
+          "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mxfp4-first-divergence-20260928\\tokens.txt",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-captures-20260929\\8B",
+          "cpu",
+          "f32",
+          "512",
+          "0"
+        ],
+        "start": 1790629492.5331619,
+        "pid": 6996,
+        "exit": 0,
+        "end": 1790629574.3237085,
+        "captures": {
+          "batched": "c5f1e7e5c83a9ba2a9c5fd5a499fb0db078f1cf908b5c426b681edff7436c25e",
+          "decode": "03e46d3e382b5588fe07ceade4f71214160f9a0c45ae1996c0bd993b0aa85a6f",
+          "greedy": "34ed4aef893d1df6606025284c150fa2b7d62851b20e05ed2489de8e7cd7326b"
+        },
+        "prior_q8_float_equal": {
+          "batched": true,
+          "decode": true,
+          "greedy": true
+        }
+      }
+    ]
+  },
+  "hf_dense": {
+    "complete": true,
+    "scope": "File-exact independent HF F32; unchanged ranking checks, diagnostic only, no full release gate. All prefill arms byte-identical on each model, compared once.",
+    "rows": 247,
+    "vocab": 151936,
+    "comparisons": [
+      {
+        "model": "0.6B",
+        "arm": "original8",
+        "phase": "batched",
+        "runtime_sha256": "d3940eafff8cf1931f871ee648c1afb2996ea1132c03b62e7bd148712bc9f6b7",
+        "reference_sha256": "54d576362d0a7e2d60c379181d11b0b9883eb56c60824c52ea7de5d29637aaa4",
+        "metrics": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 226,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.00010514259338378906,
+          "cpu_nll": 3.3616635396221186,
+          "device_nll": 3.361664205148785,
+          "nll_delta": 6.655266662214387e-07,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      {
+        "model": "0.6B",
+        "arm": "original8",
+        "phase": "decode",
+        "runtime_sha256": "e1b52afd785b29f76862bdcab14a31028b0495d1431c8fb4df656d75005fe11d",
+        "reference_sha256": "54d576362d0a7e2d60c379181d11b0b9883eb56c60824c52ea7de5d29637aaa4",
+        "metrics": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 226,
+          "min_top5_overlap": 4,
+          "max_logit_gap": 2.9293365478515625,
+          "cpu_nll": 3.3616635396221186,
+          "device_nll": 3.3618560142405043,
+          "nll_delta": 0.00019247461838567403,
+          "top1_fail_positions": [
+            71,
+            208
+          ],
+          "top5_fail_positions": [
+            0,
+            6,
+            24,
+            136,
+            165,
+            172,
+            199,
+            233
+          ],
+          "criteria_passed": false
+        }
+      },
+      {
+        "model": "0.6B",
+        "arm": "native16",
+        "phase": "decode",
+        "runtime_sha256": "4964018947a96718d159dc0128336eef65fafb51733025d1731dcacf5d53bb10",
+        "reference_sha256": "54d576362d0a7e2d60c379181d11b0b9883eb56c60824c52ea7de5d29637aaa4",
+        "metrics": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 226,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.016444683074951172,
+          "cpu_nll": 3.3616635396221186,
+          "device_nll": 3.361675115996738,
+          "nll_delta": 1.1576374619348684e-05,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      {
+        "model": "0.6B",
+        "arm": "q8-float",
+        "phase": "decode",
+        "runtime_sha256": "d71982434a4eb25e89edbbed3cebc0ac93adaeab48952b6781ced83057342cee",
+        "reference_sha256": "54d576362d0a7e2d60c379181d11b0b9883eb56c60824c52ea7de5d29637aaa4",
+        "metrics": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 226,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 8.416175842285156e-05,
+          "cpu_nll": 3.3616635396221186,
+          "device_nll": 3.3616637677179853,
+          "nll_delta": 2.2809586663896653e-07,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      {
+        "model": "8B",
+        "arm": "original8",
+        "phase": "batched",
+        "runtime_sha256": "c5f1e7e5c83a9ba2a9c5fd5a499fb0db078f1cf908b5c426b681edff7436c25e",
+        "reference_sha256": "a74cd988ffa879845216ab5121c8a552abe38ab08eb9c21d49076be4bc87a33f",
+        "metrics": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 237,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.00033283233642578125,
+          "cpu_nll": 2.400159007031333,
+          "device_nll": 2.4001593962869565,
+          "nll_delta": 3.8925562373393063e-07,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      {
+        "model": "8B",
+        "arm": "original8",
+        "phase": "decode",
+        "runtime_sha256": "dd346819a580e2b50e92ac1464c6413ff212a826d90b54072b11542bc3a94688",
+        "reference_sha256": "a74cd988ffa879845216ab5121c8a552abe38ab08eb9c21d49076be4bc87a33f",
+        "metrics": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 237,
+          "min_top5_overlap": 4,
+          "max_logit_gap": 1.2626025676727295,
+          "cpu_nll": 2.400159007031333,
+          "device_nll": 2.3994497287079453,
+          "nll_delta": 0.0007092783233875188,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [
+            76,
+            116,
+            230
+          ],
+          "criteria_passed": false
+        }
+      },
+      {
+        "model": "8B",
+        "arm": "native16",
+        "phase": "decode",
+        "runtime_sha256": "31f1bf9347df2f1c5b1a767c8536781270a81e4d0be3f1b822546cbb697f0509",
+        "reference_sha256": "a74cd988ffa879845216ab5121c8a552abe38ab08eb9c21d49076be4bc87a33f",
+        "metrics": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 237,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.013018131256103516,
+          "cpu_nll": 2.400159007031333,
+          "device_nll": 2.4001721969163317,
+          "nll_delta": 1.3189884998876522e-05,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      {
+        "model": "8B",
+        "arm": "q8-float",
+        "phase": "decode",
+        "runtime_sha256": "03e46d3e382b5588fe07ceade4f71214160f9a0c45ae1996c0bd993b0aa85a6f",
+        "reference_sha256": "a74cd988ffa879845216ab5121c8a552abe38ab08eb9c21d49076be4bc87a33f",
+        "metrics": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 237,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.00020360946655273438,
+          "cpu_nll": 2.400159007031333,
+          "device_nll": 2.400159125718107,
+          "nll_delta": 1.1868677418647167e-07,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      }
+    ]
+  },
+  "gpu_experiment": {
+    "head": "33a86b61e2ca52a4d25fe25779359171f34b8b52",
+    "timing": {
+      "complete": true,
+      "scope": "Instruction-driven single-model diagnostic, eight unprofiled mirrored calls plus two profiled attribution calls. Unroll word loop only; no arithmetic/storage change, no layout control or external gate.",
+      "records": [
+        {
+          "index": 0,
+          "arm": "before-pair",
+          "profile": false,
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "180",
+            "/work/q8-prefill-pairdot-20260928/build/llmx",
+            "bench",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--p",
+            "247",
+            "--n",
+            "32",
+            "--threads",
+            "6",
+            "--ubatch",
+            "512",
+            "--seqs",
+            "1",
+            "--depth",
+            "0",
+            "--load-mode",
+            "auto",
+            "--r",
+            "3"
+          ],
+          "start": 814494.805565244,
+          "started": "2026-09-28T20:44:53.490012+00:00",
+          "pid": 788304,
+          "exit": 0,
+          "end": 814500.983737195,
+          "metrics": {
+            "pp247": {
+              "mean": 527.88,
+              "sd": 3.52,
+              "runs": 3
+            },
+            "tg32": {
+              "mean": 75.02,
+              "sd": 0.3,
+              "runs": 3
+            }
+          },
+          "activity": {
+            "samples": 8,
+            "bracketed": true,
+            "max_system_cpu_percent": 13.84711779448622,
+            "max_disk_busy_percent": 10.796293006126419,
+            "max_unrelated_process_cpu_one_core_percent": 6.997558705877214,
+            "max_other_gpu_busy_percent": 0.0,
+            "max_assigned_gpu_busy_percent": 100.0,
+            "unknown_items": 21,
+            "flags": {
+              "unrelated_cpu": false,
+              "system_disk": false,
+              "other_gpu": false
+            },
+            "flagged": false,
+            "top_background": [
+              {
+                "pid": 3397,
+                "start_ticks": 3240,
+                "name": "python3",
+                "max_cpu_one_core_percent": 6.997558705877214
+              },
+              {
+                "pid": 2731,
+                "start_ticks": 2192,
+                "name": "pve-firewall",
+                "max_cpu_one_core_percent": 6.9965687148516595
+              },
+              {
+                "pid": 2541713,
+                "start_ticks": 72733984,
+                "name": "htop",
+                "max_cpu_one_core_percent": 5.998037795772467
+              },
+              {
+                "pid": 2740,
+                "start_ticks": 2198,
+                "name": "pvestatd",
+                "max_cpu_one_core_percent": 5.99705889844428
+              },
+              {
+                "pid": 781,
+                "start_ticks": 1443,
+                "name": "dbuf_evict",
+                "max_cpu_one_core_percent": 3.997630448637257
+              }
+            ]
+          }
+        },
+        {
+          "index": 1,
+          "arm": "unrolled-pair",
+          "profile": false,
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "180",
+            "/work/q8-prefill-unroll-20260928/build/llmx",
+            "bench",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--p",
+            "247",
+            "--n",
+            "32",
+            "--threads",
+            "6",
+            "--ubatch",
+            "512",
+            "--seqs",
+            "1",
+            "--depth",
+            "0",
+            "--load-mode",
+            "auto",
+            "--r",
+            "3"
+          ],
+          "start": 814500.983984922,
+          "started": "2026-09-28T20:44:59.668428+00:00",
+          "pid": 788355,
+          "exit": 0,
+          "end": 814506.963451492,
+          "metrics": {
+            "pp247": {
+              "mean": 562.87,
+              "sd": 3.32,
+              "runs": 3
+            },
+            "tg32": {
+              "mean": 74.66,
+              "sd": 2.49,
+              "runs": 3
+            }
+          },
+          "activity": {
+            "samples": 7,
+            "bracketed": true,
+            "max_system_cpu_percent": 14.142678347934922,
+            "max_disk_busy_percent": 4.597976605110233,
+            "max_unrelated_process_cpu_one_core_percent": 7.997114481338562,
+            "max_other_gpu_busy_percent": 0.0,
+            "max_assigned_gpu_busy_percent": 100.0,
+            "unknown_items": 18,
+            "flags": {
+              "unrelated_cpu": false,
+              "system_disk": false,
+              "other_gpu": false
+            },
+            "flagged": false,
+            "top_background": [
+              {
+                "pid": 3397,
+                "start_ticks": 3240,
+                "name": "python3",
+                "max_cpu_one_core_percent": 7.997114481338562
+              },
+              {
+                "pid": 2731,
+                "start_ticks": 2192,
+                "name": "pve-firewall",
+                "max_cpu_one_core_percent": 6.9965687148516595
+              },
+              {
+                "pid": 2541713,
+                "start_ticks": 72733984,
+                "name": "htop",
+                "max_cpu_one_core_percent": 6.996071873642318
+              },
+              {
+                "pid": 2740,
+                "start_ticks": 2198,
+                "name": "pvestatd",
+                "max_cpu_one_core_percent": 5.99705889844428
+              },
+              {
+                "pid": 1918116,
+                "start_ticks": 71429877,
+                "name": "python3",
+                "max_cpu_one_core_percent": 2.9986803946371086
+              }
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "arm": "unrolled-pair",
+          "profile": false,
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "180",
+            "/work/q8-prefill-unroll-20260928/build/llmx",
+            "bench",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--p",
+            "247",
+            "--n",
+            "32",
+            "--threads",
+            "6",
+            "--ubatch",
+            "512",
+            "--seqs",
+            "1",
+            "--depth",
+            "0",
+            "--load-mode",
+            "auto",
+            "--r",
+            "3"
+          ],
+          "start": 814506.96370046,
+          "started": "2026-09-28T20:45:05.648142+00:00",
+          "pid": 788995,
+          "exit": 0,
+          "end": 814512.979701842,
+          "metrics": {
+            "pp247": {
+              "mean": 563.45,
+              "sd": 1.01,
+              "runs": 3
+            },
+            "tg32": {
+              "mean": 76.0,
+              "sd": 0.05,
+              "runs": 3
+            }
+          },
+          "activity": {
+            "samples": 7,
+            "bracketed": true,
+            "max_system_cpu_percent": 13.51689612015019,
+            "max_disk_busy_percent": 3.997755356367039,
+            "max_unrelated_process_cpu_one_core_percent": 7.995333299703967,
+            "max_other_gpu_busy_percent": 0.0,
+            "max_assigned_gpu_busy_percent": 100.0,
+            "unknown_items": 30,
+            "flags": {
+              "unrelated_cpu": false,
+              "system_disk": false,
+              "other_gpu": false
+            },
+            "flagged": false,
+            "top_background": [
+              {
+                "pid": 3397,
+                "start_ticks": 3240,
+                "name": "python3",
+                "max_cpu_one_core_percent": 7.995333299703967
+              },
+              {
+                "pid": 2541713,
+                "start_ticks": 72733984,
+                "name": "htop",
+                "max_cpu_one_core_percent": 6.996071873642318
+              },
+              {
+                "pid": 2731,
+                "start_ticks": 2192,
+                "name": "pve-firewall",
+                "max_cpu_one_core_percent": 5.997641295442698
+              },
+              {
+                "pid": 2740,
+                "start_ticks": 2198,
+                "name": "pvestatd",
+                "max_cpu_one_core_percent": 3.9984275302951318
+              },
+              {
+                "pid": 1918116,
+                "start_ticks": 71429877,
+                "name": "python3",
+                "max_cpu_one_core_percent": 2.998820647721349
+              }
+            ]
+          }
+        },
+        {
+          "index": 3,
+          "arm": "before-pair",
+          "profile": false,
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "180",
+            "/work/q8-prefill-pairdot-20260928/build/llmx",
+            "bench",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--p",
+            "247",
+            "--n",
+            "32",
+            "--threads",
+            "6",
+            "--ubatch",
+            "512",
+            "--seqs",
+            "1",
+            "--depth",
+            "0",
+            "--load-mode",
+            "auto",
+            "--r",
+            "3"
+          ],
+          "start": 814512.979989631,
+          "started": "2026-09-28T20:45:11.664432+00:00",
+          "pid": 789082,
+          "exit": 0,
+          "end": 814519.106941088,
+          "metrics": {
+            "pp247": {
+              "mean": 530.02,
+              "sd": 4.57,
+              "runs": 3
+            },
+            "tg32": {
+              "mean": 75.32,
+              "sd": 1.46,
+              "runs": 3
+            }
+          },
+          "activity": {
+            "samples": 7,
+            "bracketed": true,
+            "max_system_cpu_percent": 13.51689612015019,
+            "max_disk_busy_percent": 3.798001055262418,
+            "max_unrelated_process_cpu_one_core_percent": 15.992421159968185,
+            "max_other_gpu_busy_percent": 0.0,
+            "max_assigned_gpu_busy_percent": 100.0,
+            "unknown_items": 16,
+            "flags": {
+              "unrelated_cpu": false,
+              "system_disk": false,
+              "other_gpu": false
+            },
+            "flagged": false,
+            "top_background": [
+              {
+                "pid": 130,
+                "start_ticks": 47,
+                "name": "kcompactd0",
+                "max_cpu_one_core_percent": 15.992421159968185
+              },
+              {
+                "pid": 2541713,
+                "start_ticks": 72733984,
+                "name": "htop",
+                "max_cpu_one_core_percent": 6.99717250577612
+              },
+              {
+                "pid": 3397,
+                "start_ticks": 3240,
+                "name": "python3",
+                "max_cpu_one_core_percent": 6.997019661538624
+              },
+              {
+                "pid": 786139,
+                "start_ticks": 81438768,
+                "name": "kworker/u64:4-comp_1.1.0",
+                "max_cpu_one_core_percent": 2.998788216761194
+              },
+              {
+                "pid": 1918116,
+                "start_ticks": 71429877,
+                "name": "python3",
+                "max_cpu_one_core_percent": 2.998751853420798
+              }
+            ]
+          }
+        },
+        {
+          "index": 4,
+          "arm": "unrolled-pair",
+          "profile": false,
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "180",
+            "/work/q8-prefill-unroll-20260928/build/llmx",
+            "bench",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--p",
+            "247",
+            "--n",
+            "32",
+            "--threads",
+            "6",
+            "--ubatch",
+            "512",
+            "--seqs",
+            "1",
+            "--depth",
+            "0",
+            "--load-mode",
+            "auto",
+            "--r",
+            "3"
+          ],
+          "start": 814519.107198136,
+          "started": "2026-09-28T20:45:17.791641+00:00",
+          "pid": 789165,
+          "exit": 0,
+          "end": 814525.083211129,
+          "metrics": {
+            "pp247": {
+              "mean": 560.03,
+              "sd": 4.43,
+              "runs": 3
+            },
+            "tg32": {
+              "mean": 75.02,
+              "sd": 1.27,
+              "runs": 3
+            }
+          },
+          "activity": {
+            "samples": 7,
+            "bracketed": true,
+            "max_system_cpu_percent": 19.27939317319848,
+            "max_disk_busy_percent": 36.482932406763396,
+            "max_unrelated_process_cpu_one_core_percent": 86.95747570915941,
+            "max_other_gpu_busy_percent": 0.0,
+            "max_assigned_gpu_busy_percent": 100.0,
+            "unknown_items": 32,
+            "flags": {
+              "unrelated_cpu": true,
+              "system_disk": true,
+              "other_gpu": false
+            },
+            "flagged": true,
+            "top_background": [
+              {
+                "pid": 2418,
+                "start_ticks": 2016,
+                "name": "containerd",
+                "max_cpu_one_core_percent": 86.95747570915941
+              },
+              {
+                "pid": 2654,
+                "start_ticks": 2131,
+                "name": "dockerd",
+                "max_cpu_one_core_percent": 75.96889218211933
+              },
+              {
+                "pid": 3176,
+                "start_ticks": 2400,
+                "name": "portainer",
+                "max_cpu_one_core_percent": 32.9864926580255
+              },
+              {
+                "pid": 2541713,
+                "start_ticks": 72733984,
+                "name": "htop",
+                "max_cpu_one_core_percent": 6.99717250577612
+              },
+              {
+                "pid": 3397,
+                "start_ticks": 3240,
+                "name": "python3",
+                "max_cpu_one_core_percent": 6.996187875254929
+              }
+            ]
+          }
+        },
+        {
+          "index": 5,
+          "arm": "before-pair",
+          "profile": false,
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "180",
+            "/work/q8-prefill-pairdot-20260928/build/llmx",
+            "bench",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--p",
+            "247",
+            "--n",
+            "32",
+            "--threads",
+            "6",
+            "--ubatch",
+            "512",
+            "--seqs",
+            "1",
+            "--depth",
+            "0",
+            "--load-mode",
+            "auto",
+            "--r",
+            "3"
+          ],
+          "start": 814525.083536469,
+          "started": "2026-09-28T20:45:23.767979+00:00",
+          "pid": 789253,
+          "exit": 0,
+          "end": 814531.213724125,
+          "metrics": {
+            "pp247": {
+              "mean": 526.27,
+              "sd": 2.37,
+              "runs": 3
+            },
+            "tg32": {
+              "mean": 76.07,
+              "sd": 0.08,
+              "runs": 3
+            }
+          },
+          "activity": {
+            "samples": 7,
+            "bracketed": true,
+            "max_system_cpu_percent": 19.27939317319848,
+            "max_disk_busy_percent": 3.7980431152331984,
+            "max_unrelated_process_cpu_one_core_percent": 86.95747570915941,
+            "max_other_gpu_busy_percent": 0.0,
+            "max_assigned_gpu_busy_percent": 100.0,
+            "unknown_items": 20,
+            "flags": {
+              "unrelated_cpu": true,
+              "system_disk": false,
+              "other_gpu": false
+            },
+            "flagged": true,
+            "top_background": [
+              {
+                "pid": 2418,
+                "start_ticks": 2016,
+                "name": "containerd",
+                "max_cpu_one_core_percent": 86.95747570915941
+              },
+              {
+                "pid": 2654,
+                "start_ticks": 2131,
+                "name": "dockerd",
+                "max_cpu_one_core_percent": 58.97116168782075
+              },
+              {
+                "pid": 3397,
+                "start_ticks": 3240,
+                "name": "python3",
+                "max_cpu_one_core_percent": 6.9973191868620574
+              },
+              {
+                "pid": 2740,
+                "start_ticks": 2198,
+                "name": "pvestatd",
+                "max_cpu_one_core_percent": 5.996821768470348
+              },
+              {
+                "pid": 2541713,
+                "start_ticks": 72733984,
+                "name": "htop",
+                "max_cpu_one_core_percent": 4.998059443551713
+              }
+            ]
+          }
+        },
+        {
+          "index": 6,
+          "arm": "before-pair",
+          "profile": false,
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "180",
+            "/work/q8-prefill-pairdot-20260928/build/llmx",
+            "bench",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--p",
+            "247",
+            "--n",
+            "32",
+            "--threads",
+            "6",
+            "--ubatch",
+            "512",
+            "--seqs",
+            "1",
+            "--depth",
+            "0",
+            "--load-mode",
+            "auto",
+            "--r",
+            "3"
+          ],
+          "start": 814531.213999833,
+          "started": "2026-09-28T20:45:29.898452+00:00",
+          "pid": 789312,
+          "exit": 0,
+          "end": 814537.342449176,
+          "metrics": {
+            "pp247": {
+              "mean": 525.81,
+              "sd": 2.45,
+              "runs": 3
+            },
+            "tg32": {
+              "mean": 74.63,
+              "sd": 2.49,
+              "runs": 3
+            }
+          },
+          "activity": {
+            "samples": 7,
+            "bracketed": true,
+            "max_system_cpu_percent": 18.585732165206505,
+            "max_disk_busy_percent": 3.898327098925338,
+            "max_unrelated_process_cpu_one_core_percent": 51.969571451118966,
+            "max_other_gpu_busy_percent": 0.0,
+            "max_assigned_gpu_busy_percent": 100.0,
+            "unknown_items": 19,
+            "flags": {
+              "unrelated_cpu": true,
+              "system_disk": false,
+              "other_gpu": false
+            },
+            "flagged": true,
+            "top_background": [
+              {
+                "pid": 2654,
+                "start_ticks": 2131,
+                "name": "dockerd",
+                "max_cpu_one_core_percent": 51.969571451118966
+              },
+              {
+                "pid": 3397,
+                "start_ticks": 3240,
+                "name": "python3",
+                "max_cpu_one_core_percent": 6.996845311835579
+              },
+              {
+                "pid": 2740,
+                "start_ticks": 2198,
+                "name": "pvestatd",
+                "max_cpu_one_core_percent": 5.996821768470348
+              },
+              {
+                "pid": 2541713,
+                "start_ticks": 72733984,
+                "name": "htop",
+                "max_cpu_one_core_percent": 5.99648901359065
+              },
+              {
+                "pid": 2731,
+                "start_ticks": 2192,
+                "name": "pve-firewall",
+                "max_cpu_one_core_percent": 4.997074177992208
+              }
+            ]
+          }
+        },
+        {
+          "index": 7,
+          "arm": "unrolled-pair",
+          "profile": false,
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "180",
+            "/work/q8-prefill-unroll-20260928/build/llmx",
+            "bench",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--p",
+            "247",
+            "--n",
+            "32",
+            "--threads",
+            "6",
+            "--ubatch",
+            "512",
+            "--seqs",
+            "1",
+            "--depth",
+            "0",
+            "--load-mode",
+            "auto",
+            "--r",
+            "3"
+          ],
+          "start": 814537.342761536,
+          "started": "2026-09-28T20:45:36.027204+00:00",
+          "pid": 789396,
+          "exit": 0,
+          "end": 814543.318793339,
+          "metrics": {
+            "pp247": {
+              "mean": 560.97,
+              "sd": 6.35,
+              "runs": 3
+            },
+            "tg32": {
+              "mean": 76.11,
+              "sd": 0.1,
+              "runs": 3
+            }
+          },
+          "activity": {
+            "samples": 7,
+            "bracketed": true,
+            "max_system_cpu_percent": 13.78446115288221,
+            "max_disk_busy_percent": 3.798041676333375,
+            "max_unrelated_process_cpu_one_core_percent": 6.996677165559546,
+            "max_other_gpu_busy_percent": 0.0,
+            "max_assigned_gpu_busy_percent": 100.0,
+            "unknown_items": 14,
+            "flags": {
+              "unrelated_cpu": false,
+              "system_disk": false,
+              "other_gpu": false
+            },
+            "flagged": false,
+            "top_background": [
+              {
+                "pid": 3397,
+                "start_ticks": 3240,
+                "name": "python3",
+                "max_cpu_one_core_percent": 6.996677165559546
+              },
+              {
+                "pid": 2731,
+                "start_ticks": 2192,
+                "name": "pve-firewall",
+                "max_cpu_one_core_percent": 5.998056036184295
+              },
+              {
+                "pid": 2541713,
+                "start_ticks": 72733984,
+                "name": "htop",
+                "max_cpu_one_core_percent": 5.997227883528665
+              },
+              {
+                "pid": 2740,
+                "start_ticks": 2198,
+                "name": "pvestatd",
+                "max_cpu_one_core_percent": 4.997626546828247
+              },
+              {
+                "pid": 1918116,
+                "start_ticks": 71429877,
+                "name": "python3",
+                "max_cpu_one_core_percent": 2.9987619550163003
+              }
+            ]
+          }
+        },
+        {
+          "index": 8,
+          "arm": "before-pair",
+          "profile": true,
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "180",
+            "/work/q8-prefill-pairdot-20260928/build/llmx",
+            "bench",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--p",
+            "247",
+            "--n",
+            "32",
+            "--threads",
+            "6",
+            "--ubatch",
+            "512",
+            "--seqs",
+            "1",
+            "--depth",
+            "0",
+            "--load-mode",
+            "auto",
+            "--r",
+            "1",
+            "--profile"
+          ],
+          "start": 814543.319114069,
+          "started": "2026-09-28T20:45:42.003556+00:00",
+          "pid": 789469,
+          "exit": 0,
+          "end": 814548.843961502,
+          "metrics": {
+            "pp247": {
+              "mean": 531.87,
+              "sd": 0.0,
+              "runs": 1
+            },
+            "tg32": {
+              "mean": 76.08,
+              "sd": 0.0,
+              "runs": 1
+            }
+          },
+          "pp_profile": {
+            "device_ms": 467.408,
+            "kernels": {
+              "matmul_tile_q8_tall": 238.583,
+              "matmul_tile_q8": 202.941,
+              "attention_tile": 7.32864,
+              "matmul_reduce": 4.99872,
+              "quantize_x": 4.92528,
+              "silu_mul": 2.9376,
+              "norm_rope_kv": 2.64096,
+              "rms_norm_rows": 2.12304,
+              "matmul_vec_q8_1col": 0.90048,
+              "embed": 0.02176,
+              "gather_rows": 0.00688
+            }
+          },
+          "activity": {
+            "samples": 6,
+            "bracketed": true,
+            "max_system_cpu_percent": 14.080100125156447,
+            "max_disk_busy_percent": 3.897883230906252,
+            "max_unrelated_process_cpu_one_core_percent": 6.997040308425136,
+            "max_other_gpu_busy_percent": 0.0,
+            "max_assigned_gpu_busy_percent": 100.0,
+            "unknown_items": 38,
+            "flags": {
+              "unrelated_cpu": false,
+              "system_disk": false,
+              "other_gpu": false
+            },
+            "flagged": false,
+            "top_background": [
+              {
+                "pid": 3397,
+                "start_ticks": 3240,
+                "name": "python3",
+                "max_cpu_one_core_percent": 6.997040308425136
+              },
+              {
+                "pid": 2541713,
+                "start_ticks": 72733984,
+                "name": "htop",
+                "max_cpu_one_core_percent": 6.996200670857375
+              },
+              {
+                "pid": 2418,
+                "start_ticks": 2016,
+                "name": "containerd",
+                "max_cpu_one_core_percent": 5.997463121507259
+              },
+              {
+                "pid": 2654,
+                "start_ticks": 2131,
+                "name": "dockerd",
+                "max_cpu_one_core_percent": 5.997463121507259
+              },
+              {
+                "pid": 781,
+                "start_ticks": 1443,
+                "name": "dbuf_evict",
+                "max_cpu_one_core_percent": 2.9983717160817323
+              }
+            ]
+          }
+        },
+        {
+          "index": 9,
+          "arm": "unrolled-pair",
+          "profile": true,
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "180",
+            "/work/q8-prefill-unroll-20260928/build/llmx",
+            "bench",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--p",
+            "247",
+            "--n",
+            "32",
+            "--threads",
+            "6",
+            "--ubatch",
+            "512",
+            "--seqs",
+            "1",
+            "--depth",
+            "0",
+            "--load-mode",
+            "auto",
+            "--r",
+            "1",
+            "--profile"
+          ],
+          "start": 814548.844306443,
+          "started": "2026-09-28T20:45:47.528749+00:00",
+          "pid": 789767,
+          "exit": 0,
+          "end": 814555.021266175,
+          "metrics": {
+            "pp247": {
+              "mean": 554.8,
+              "sd": 0.0,
+              "runs": 1
+            },
+            "tg32": {
+              "mean": 72.22,
+              "sd": 0.0,
+              "runs": 1
+            }
+          },
+          "pp_profile": {
+            "device_ms": 441.806,
+            "kernels": {
+              "matmul_tile_q8_tall": 208.906,
+              "matmul_tile_q8": 202.984,
+              "attention_tile": 7.38368,
+              "matmul_reduce": 6.27104,
+              "quantize_x": 6.25392,
+              "silu_mul": 4.23888,
+              "norm_rope_kv": 2.67392,
+              "rms_norm_rows": 2.16816,
+              "matmul_vec_q8_1col": 0.89856,
+              "embed": 0.02128,
+              "gather_rows": 0.00688
+            }
+          },
+          "activity": {
+            "samples": 8,
+            "bracketed": true,
+            "max_system_cpu_percent": 14.58072590738423,
+            "max_disk_busy_percent": 3.89867082996661,
+            "max_unrelated_process_cpu_one_core_percent": 17.991828057849432,
+            "max_other_gpu_busy_percent": 0.0,
+            "max_assigned_gpu_busy_percent": 99.0,
+            "unknown_items": 63,
+            "flags": {
+              "unrelated_cpu": false,
+              "system_disk": false,
+              "other_gpu": false
+            },
+            "flagged": false,
+            "top_background": [
+              {
+                "pid": 130,
+                "start_ticks": 47,
+                "name": "kcompactd0",
+                "max_cpu_one_core_percent": 17.991828057849432
+              },
+              {
+                "pid": 3397,
+                "start_ticks": 3240,
+                "name": "python3",
+                "max_cpu_one_core_percent": 7.993910702432741
+              },
+              {
+                "pid": 2731,
+                "start_ticks": 2192,
+                "name": "pve-firewall",
+                "max_cpu_one_core_percent": 6.995965657318659
+              },
+              {
+                "pid": 2541713,
+                "start_ticks": 72733984,
+                "name": "htop",
+                "max_cpu_one_core_percent": 5.997276019283144
+              },
+              {
+                "pid": 2740,
+                "start_ticks": 2198,
+                "name": "pvestatd",
+                "max_cpu_one_core_percent": 5.995433026824556
+              }
+            ]
+          }
+        }
+      ],
+      "cells": {
+        "pp247": {
+          "before-pair": {
+            "median": 527.075,
+            "min": 525.81,
+            "max": 530.02,
+            "means": [
+              527.88,
+              530.02,
+              526.27,
+              525.81
+            ],
+            "block_change_percent": [
+              0.0,
+              0.0
+            ]
+          },
+          "unrolled-pair": {
+            "median": 561.9200000000001,
+            "min": 560.03,
+            "max": 563.45,
+            "means": [
+              562.87,
+              563.45,
+              560.03,
+              560.97
+            ],
+            "block_change_percent": [
+              6.467733730583869,
+              6.550805360609235
+            ]
+          },
+          "reference": "before-pair"
+        },
+        "tg32": {
+          "before-pair": {
+            "median": 75.16999999999999,
+            "min": 74.63,
+            "max": 76.07,
+            "means": [
+              75.02,
+              75.32,
+              76.07,
+              74.63
+            ],
+            "block_change_percent": [
+              0.0,
+              0.0
+            ]
+          },
+          "unrolled-pair": {
+            "median": 75.50999999999999,
+            "min": 74.66,
+            "max": 76.11,
+            "means": [
+              74.66,
+              76.0,
+              75.02,
+              76.11
+            ],
+            "block_change_percent": [
+              0.20908654821483186,
+              0.28730527180835796
+            ]
+          },
+          "reference": "before-pair"
+        }
+      },
+      "limits": [
+        "Diagnostic only: one model, no layout control or external reference floor. Small differences are not isolated as instruction cost.",
+        "All planned calls retained, including activity flags and unknown telemetry."
+      ],
+      "monitor": {
+        "calls": 10,
+        "bracketed": 10,
+        "flagged": 3,
+        "with_unknowns": 10
+      }
+    },
+    "status": "Private unroll experiment only, wide native16 cost remains; arithmetic unchanged, both independent integer checks and full 30B capture identity pass."
+  },
+  "archives": [
+    {
+      "archive": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-dense-20260928-evidence.tar.gz",
+      "sha256": "5898025cef358117a467e67ad9e3c3a0bc5fc4c7930541981d20a34407a9b8ab",
+      "bytes": 2134591745,
+      "scope": "Preserved dense diagnostic timing and HF captures, not a product merge gate. Source prerequisite archives are recorded in q8-precision-parallel-20260928.json."
+    },
+    {
+      "archive": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/dense-hf-and-q8-unroll-20260929-evidence.tar.gz",
+      "sha256": "7f5ed096f143d337ffacff869d8e1ebac71c2fdfb36eec0fc787bade21788dc7",
+      "bytes": 868659652,
+      "scope": "Independent dense HF references with failed first harness attempt retained; GPU unroll and driver ISA experiments. No production merge gate. Unroll bundle requires c30bfcc in the preceding pair-dot archive."
+    }
+  ],
+  "logs": [
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-main-fixed-build-20260928.log",
+      "sha256": "30f2887412d9c255007c837045eadee85c6b64e97e5868792f43abb526374a4c",
+      "bytes": 70686
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-main-fixed-ctest-20260928.log",
+      "sha256": "4277c583767d0dd2ab586e8cea71ee071f70868f8c67bcaa91994f2676e028fc",
+      "bytes": 7306
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-focused-20260929.log",
+      "sha256": "3f37f1eb1b53e340b4ef2c90a4f3500345e31e86344536a1f2135dd57711ec8d",
+      "bytes": 7150
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-contract-build-20260929.log",
+      "sha256": "976e14b711e9cf7eb101c03a5705685680a00490126054198271206752e03597",
+      "bytes": 5370
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-contract-test-20260929.log",
+      "sha256": "d7cc182d3806c0a80d89319d7de2a77843e1a3af22721df45e7e2aeae2bab6e3",
+      "bytes": 764
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-restored-build-20260929.log",
+      "sha256": "fcdf06e655cfd8a64461229d1feb8f438a0b864a688ce6e60edf847d47c1ab23",
+      "bytes": 70480
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-docs-r2-20260929.log",
+      "sha256": "edabfbe3fc500c3d459a24f7261f11d9bfa3d6b6b6e1848b4b7bd324c11aa2d1",
+      "bytes": 504
+    },
+    {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-precision-linux-ctest-20260929.log",
+      "sha256": "d379c955ada6fb523fde71a4a0014eb0711d9dced59ce7e973d39c675c5ff51a",
+      "bytes": 3523
+    }
+  ],
+  "limitations": [
+    "Captured Windows binary predates a subsequent clean rebuild of unchanged runtime sources; its hash is retained, but it was not separately copied before the rebuild. Final-head captures remain required.",
+    "Performance diagnostics have no same-file layout control, and every run has incomplete process telemetry; small deltas are not isolated as instruction cost.",
+    "No full new semantic Markdown audit or hosted run yet.",
+    "No runtime merge or public push in this batch."
+  ]
+}

@@ -1,5 +1,5 @@
 #pragma once
-// The scheduler's sampling threads (docs/SERVER.md, Sampling): a pass's rows are drawn on them beside the scheduler thread, which hands them the rows and waits.
+// The scheduler's sampling threads (docs/SERVER.md, Sampling): a pass's rows are drawn on them and on the scheduler thread, which hands them the rows and takes rows too.
 #include <condition_variable>
 #include <cstddef>
 #include <exception>

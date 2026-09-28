@@ -134,8 +134,9 @@ round:
            first: pass_logits waits on that pass's own ticket, the
            sampling threads and the scheduler thread draw its wanting
            rows in place, each with its request's own sampler state, and
-           the ids go to their channels in entry order, each with a copy
-           of its logits row when the request asked for logprobs;
+           the ids go to their channels in entry order, each, when the
+           request asked for logprobs, with a copy of its logits row, or
+           with the values themselves once its reader has fallen behind;
            end_pass releases the sequences from flight; return the pass's
            logits rows; stages already submitted and committed their
            histories; a request cancelled in flight is not

@@ -1,7 +1,7 @@
 # `src/inference/sampler.hpp` - the sampler and its settings
 
 The sampler and the sampling settings it reads, with their defaults and ranges. Namespace `infer`.
-Its callers are `infer::generate` (`inference/generate.hpp`), which the CLI's `generate` and `chat` drive, and the server's scheduler (`server/scheduler.hpp`), which draws each request's token from its row of the pass's logits, read in place, on its sampling threads (`server/sampling_pool.hpp`).
+Its callers are `infer::generate` (`inference/generate.hpp`), which the CLI's `generate` and `chat` drive, and the server's scheduler (`server/scheduler.hpp`), which draws each request's token from its row of the pass's logits, read in place, on its sampling threads and its own thread (`server/sampling_pool.hpp`).
 
 - `RNG`: minimal deterministic xorshift64 PRNG (no `<random>` dependency), `seed()`, `next()`, `unit()`.
 - `SampleRange<T>`: the values a setting takes, from `lo` to `hi`; `holds` is false for NaN.

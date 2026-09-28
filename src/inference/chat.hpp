@@ -1628,7 +1628,7 @@ inline bool builtin_test(const std::string& n) {
     return one_of(n, { "boolean", "callable", "defined", "divisibleby", "eq", "equalto", "escaped", "even", "false",
                        "filter", "float", "ge", "greaterthan", "gt", "in", "integer", "iterable", "le", "lessthan",
                        "lower", "lt", "mapping", "ne", "none", "number", "odd", "sameas", "sequence", "string", "test",
-                       "true", "undefined", "upper" });
+                       "true", "undefined", "upper", "==", "!=", "<", "<=", ">", ">=" });
 }
 // Every test Jinja has but four: sameas, whose identity Python gives small numbers and strings alike, and escaped, filter and test, which ask about the environment.
 inline bool supported_test(const std::string& n) { return builtin_test(n) && !one_of(n, { "escaped", "filter", "test", "sameas" }); }
@@ -1688,8 +1688,20 @@ inline Value map_filter(const Value& v, const std::vector<Value>& args, size_t a
     return Value::list(std::move(out));
 }
 
+// The positional arguments each supported filter takes after its value; map and the select filters hand theirs on.
+inline size_t filter_positionals(const std::string& filter) {
+    if (filter == "d" || filter == "default") return 2;
+    if (filter == "trim" || filter == "join") return 1;
+    if (filter == "replace" || filter == "dictsort") return 3;
+    if (filter == "tojson") return 4;
+    return 0;
+}
+
 inline Value apply_filter(const std::string& name, const Value& v, const std::vector<Value>& args, const Kwargs& kw, Env& env) {
     const Args a{ args, kw, name.c_str() };
+    // More positional arguments than a filter reads fail, as Python fails them, rather than be dropped; join's second, Jinja's attribute, is not supported.
+    if (name == "join" && args.size() > 1) type_error("join's attribute argument is not supported");
+    if (name != "map" && !select_filter(name)) a.at_most(filter_positionals(name));
     if (name == "default" || name == "d") {
         const Value* fallback = a.get(0, "default_value");
         const Value* boolean = a.get(1, "boolean");
@@ -1830,6 +1842,7 @@ inline bool apply_test(const std::string& name, const Value& v, const std::vecto
         if (!x) type_error("the test " + str_repr(name) + " takes one argument");
         return *x;
     };
+    a.at_most(one_of(name, { "divisibleby", "eq", "equalto", "ne", "lt", "lessthan", "gt", "greaterthan", "le", "ge", "in", "==", "!=", "<", "<=", ">", ">=" }) ? 1 : 0);
     if (name == "defined") return v.k != Value::UNDEF;
     if (name == "undefined") return v.k == Value::UNDEF;
     if (name == "none") return v.k == Value::NONE;
@@ -1861,12 +1874,12 @@ inline bool apply_test(const std::string& name, const Value& v, const std::vecto
         const int64_t r = floor_mod(v.as_int(), d.as_int());
         return name == "odd" ? r == 1 : r == 0;
     }
-    if (name == "eq" || name == "equalto") return equal(v, other());
-    if (name == "ne") return !equal(v, other());
-    if (name == "lt" || name == "lessthan") return compare("<", v, other());
-    if (name == "gt" || name == "greaterthan") return compare(">", v, other());
-    if (name == "le") return compare("<=", v, other());
-    if (name == "ge") return compare(">=", v, other());
+    if (name == "eq" || name == "equalto" || name == "==") return equal(v, other());
+    if (name == "ne" || name == "!=") return !equal(v, other());
+    if (name == "lt" || name == "lessthan" || name == "<") return compare("<", v, other());
+    if (name == "gt" || name == "greaterthan" || name == ">") return compare(">", v, other());
+    if (name == "le" || name == "<=") return compare("<=", v, other());
+    if (name == "ge" || name == ">=") return compare(">=", v, other());
     if (name == "in") return contains(other(), v);
     type_error("the test " + str_repr(name) + " is not supported");
 }

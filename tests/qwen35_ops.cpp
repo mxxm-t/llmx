@@ -779,6 +779,23 @@ void check_rope_tail(std::mt19937& g) {
                     "rope: a pair in the scalar tail rotates otherwise than in the vector body");
 }
 
+// An RMSNorm element in the scalar tail gives the bits of the same element in the vector body: width 12 leaves elements 8 to 11 to the tail, each repeating element i - 8's value and weight, and the row's scale is one for the whole row.
+void check_norm_tail(std::mt19937& g) {
+    const size_t n = 12, rows = 16;
+    auto x = uniform(g, rows * n, -2.0f, 2.0f), w = uniform(g, n, 0.5f, 1.5f);
+    for (size_t i = 0; i < 4; ++i) {
+        w[8 + i] = w[i];
+        for (size_t r = 0; r < rows; ++r) x[r * n + 8 + i] = x[r * n + i];
+    }
+    CpuBackend cpu;
+    BufferPtr xb = upload(cpu, x), wb = upload(cpu, w), yb = upload(cpu, std::vector<float>(x.size()));
+    cpu.rms_norm_rows({yb.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, n, 1e-6f);
+    const auto y = download(cpu, *yb, x.size());
+    for (size_t r = 0; r < rows; ++r)
+        for (size_t i = 0; i < 4; ++i)
+            require(same_bits(y[r * n + 8 + i], y[r * n + i]), "rms_norm: an element in the scalar tail is scaled otherwise than in the vector body");
+}
+
 // sigmoid_mul as the output gate, each query head's gate read in place from attn_q's rows, and as a scale of one value per row, against the math; rows alone and thread counts bit for bit.
 size_t check_sigmoid_mul(std::mt19937& g, size_t heads, size_t dim) {
     const size_t rows = 21;
@@ -872,10 +889,11 @@ int main() {
         rope += check_partial_rope(g, 4, 40, 8, 100.0);
         rope += check_partial_rope(g, 3, 256, 64, 1e7);
         check_rope_tail(g);
+        check_norm_tail(g);
         gate += check_sigmoid_mul(g, 4, 40);
         gate += check_sigmoid_mul(g, 3, 256);
         check_refusals();
-        std::printf("gated attention: %zu gated-norm heads, %zu partial-rope heads, %zu gated rows; rope tail, refusals name each op\n", norm, rope, gate);
+        std::printf("gated attention: %zu gated-norm heads, %zu partial-rope heads, %zu gated rows; rope and norm tails, refusals name each op\n", norm, rope, gate);
         std::printf("worst error as a fraction of its bound: conv %.3f, delta rule %.3f, gated norm %.3f, partial rope %.3f, sigmoid_mul %.3f\n",
                     worst.conv, worst.delta, worst.norm, worst.rope, worst.gate);
         return 0;

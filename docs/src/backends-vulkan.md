@@ -7,7 +7,7 @@ translation unit (`vulkan_backend.cpp`, built only with
 opened at run time, so a build carries no link dependency; the design,
 kernel notes and measurements are `docs/VULKAN.md`.
 
-The lifetime and packed-quantization tests include the implementation and use test-only friends to inspect private storage and dispatch kernels; there is no runtime probe API.
+The lifetime and packed-quantization tests include the implementation and use test-only friends to inspect private storage and dispatch kernels; there is no runtime probe API. The kernel registry keeps F32 rows on the ordinary row module while selecting optional float-preserving modules for Q8 consumers. Both entries reuse the row shader source.
 
 - `supports_type(type)` accepts F32 and the block types of `decoded_blocks`;
   the model's pre-adoption check and the backend's matrix checks use this

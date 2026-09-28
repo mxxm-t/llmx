@@ -298,7 +298,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_MATMUL_TILE_Q8, K_MATMUL_TILE_Q8_TALL,
                 K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_MATMUL_ROW_Q4_DOT8,
                 K_ATTENTION_G4, K_ATTENTION_K16_G4, K_ATTENTION_V16_G4, K_ATTENTION_KV16_G4,
-                K_ATTENTION_VEC, K_ATTENTION_VEC_K16, K_ATTENTION_VEC_V16, K_ATTENTION_VEC_KV16, K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, K_ATTENTION_VEC_V16_G4, K_ATTENTION_VEC_KV16_G4, K_COUNT };
+                K_ATTENTION_VEC, K_ATTENTION_VEC_K16, K_ATTENTION_VEC_V16, K_ATTENTION_VEC_KV16, K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, K_ATTENTION_VEC_V16_G4, K_ATTENTION_VEC_KV16_G4, K_MATMUL_ROW_F32, K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
 // F32 rows have no dot form, and Q8_0 rows take matmul_vec_q8.comp where the dot is preferred.
@@ -315,7 +315,7 @@ inline KernelId row_dot_variant(KernelId plain) {
 // Whether a kernel id is a row kernel: they share the activation twin and take the column count as specialization constant 0.
 inline bool is_row_kernel(KernelId id) {
     switch (id) {
-    case K_MATMUL_ROW: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4:
+    case K_MATMUL_ROW: case K_MATMUL_ROW_F32: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4:
     case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
     case K_MATMUL_ROW_Q4_DOT:
     case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT: case K_MATMUL_VEC_Q8: case K_MATMUL_ROW_K_DOT8: case K_MATMUL_ROW_Q4_DOT8:
@@ -405,7 +405,7 @@ const char* const kKernelNames[K_COUNT] = {
     "matmul_tile_q8", "matmul_tile_q8_tall",
     "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group", "matmul_row_k_dot8", "matmul_row_q4_dot8",
     "attention_g4", "attention_k16_g4", "attention_v16_g4", "attention_kv16_g4",
-    "attention_vec", "attention_vec_k16", "attention_vec_v16", "attention_vec_kv16", "attention_vec_g4", "attention_vec_k16_g4", "attention_vec_v16_g4", "attention_vec_kv16_g4",
+    "attention_vec", "attention_vec_k16", "attention_vec_v16", "attention_vec_kv16", "attention_vec_g4", "attention_vec_k16_g4", "attention_vec_v16_g4", "attention_vec_kv16_g4", "matmul_row_f32",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -471,6 +471,8 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvAttentionVecK16G4, sizeof(kSpvAttentionVecK16G4), 7, nullptr},
     {kSpvAttentionVecV16G4, sizeof(kSpvAttentionVecV16G4), 7, nullptr},
     {kSpvAttentionVecKV16G4, sizeof(kSpvAttentionVecKV16G4), 7, nullptr},
+    // F32 shares the row source, but not the optional Q8 float-preservation modes.
+    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -1740,6 +1742,9 @@ public:
         size_t units = nin;
         KernelId kernel = K_MATMUL_ROW;
         switch (type) {
+        case quant::GGML_TYPE_F32:
+            kernel = K_MATMUL_ROW_F32;
+            break;
         case quant::GGML_TYPE_Q8_0:
             wide = nblocks % 2 == 0 && nblocks / 2 >= kQ8LanesPerPair;
             lanes = wide ? kQ8LanesPerPair : 1;

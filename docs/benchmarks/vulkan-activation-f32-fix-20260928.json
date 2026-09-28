@@ -1,0 +1,934 @@
+{
+  "scope": "Targeted F32 registry repair after the full bd19cab activation gate found MoE identity failure. Timing and hosted CI remain open.",
+  "failing_first": "3700e9ba648df2551deb07bac757357bee38f4fd",
+  "windows": {
+    "commands": [
+      {
+        "label": "configure",
+        "argv": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-20260928",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\build",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include",
+          "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe"
+        ],
+        "exit": 0
+      },
+      {
+        "label": "build",
+        "argv": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\build",
+          "--config",
+          "Release",
+          "--parallel",
+          "4"
+        ],
+        "exit": 0
+      },
+      {
+        "label": "native",
+        "argv": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\build",
+          "-C",
+          "Release",
+          "--output-on-failure",
+          "-R",
+          "^(vulkan-quantization|backend-vulkan|vulkan-lifetime|vulkan-columns)$"
+        ],
+        "exit": 0
+      }
+    ],
+    "native": "Test project C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-activation-f32-check-20260928/build\n    Start 34: backend-vulkan\n1/3 Test #34: backend-vulkan ...................   Passed   18.56 sec\n    Start 36: vulkan-lifetime\n2/3 Test #36: vulkan-lifetime ..................   Passed    2.07 sec\n    Start 37: vulkan-quantization\n3/3 Test #37: vulkan-quantization ..............   Passed    6.88 sec\n\n100% tests passed, 0 tests failed out of 3\n\nTotal Test time (real) =  27.57 sec\n",
+    "hf": [
+      {
+        "cache": "f16",
+        "argv": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-20260928\\tests\\run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\build\\Release\\llmx.exe",
+          "--only",
+          "f32,moe,baseline,docs,dead-code",
+          "--device",
+          "vulkan:0",
+          "--cache-type",
+          "f16",
+          "--require-baseline",
+          "--require-tools"
+        ],
+        "exit": 0
+      },
+      {
+        "cache": "f32",
+        "argv": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-20260928\\tests\\run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\build\\Release\\llmx.exe",
+          "--only",
+          "f32,moe,baseline,docs,dead-code",
+          "--device",
+          "vulkan:0",
+          "--cache-type",
+          "f32",
+          "--require-baseline",
+          "--require-tools"
+        ],
+        "exit": 0
+      }
+    ],
+    "gpu_identity": {
+      "scope": "50 full-logit vectors, short and 215-token prefill, 32 forced steps, reset and 16 greedy steps; ABBA",
+      "device": "vulkan:0",
+      "commands": [
+        {
+          "cell": "Qwen3-30B-A3B-Q4_K_M.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/AppData/Local/Temp/llmx-mxfp4-device-check-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-vulkan-0\\Qwen3-30B-A3B-Q4_K_M.gguf-f16-0-main.bin",
+            "vulkan:0",
+            "12"
+          ],
+          "started": "2026-09-28T15:17:16.971098+00:00",
+          "pid": 20192,
+          "exit": 0,
+          "sha256": "ed0eba3a4fe8ff8e0712c8787da477c89277b0213820d78605cdb3cdf8c96d25",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              1154,
+              425,
+              10965,
+              465,
+              6342,
+              279,
+              3476,
+              315,
+              330,
+              32819,
+              330,
+              304,
+              279,
+              1486,
+              576,
+              36240
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-30B-A3B-Q4_K_M.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/AppData/Local/Temp/llmx-mxfp4-device-check-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-vulkan-0\\Qwen3-30B-A3B-Q4_K_M.gguf-f16-1-candidate.bin",
+            "vulkan:0",
+            "12"
+          ],
+          "started": "2026-09-28T15:17:30.426043+00:00",
+          "pid": 20964,
+          "exit": 0,
+          "sha256": "ed0eba3a4fe8ff8e0712c8787da477c89277b0213820d78605cdb3cdf8c96d25",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              1154,
+              425,
+              10965,
+              465,
+              6342,
+              279,
+              3476,
+              315,
+              330,
+              32819,
+              330,
+              304,
+              279,
+              1486,
+              576,
+              36240
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-30B-A3B-Q4_K_M.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/AppData/Local/Temp/llmx-mxfp4-device-check-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-vulkan-0\\Qwen3-30B-A3B-Q4_K_M.gguf-f16-2-candidate.bin",
+            "vulkan:0",
+            "12"
+          ],
+          "started": "2026-09-28T15:18:06.825660+00:00",
+          "pid": 13392,
+          "exit": 0,
+          "sha256": "ed0eba3a4fe8ff8e0712c8787da477c89277b0213820d78605cdb3cdf8c96d25",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              1154,
+              425,
+              10965,
+              465,
+              6342,
+              279,
+              3476,
+              315,
+              330,
+              32819,
+              330,
+              304,
+              279,
+              1486,
+              576,
+              36240
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-30B-A3B-Q4_K_M.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/AppData/Local/Temp/llmx-mxfp4-device-check-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-vulkan-0\\Qwen3-30B-A3B-Q4_K_M.gguf-f16-3-main.bin",
+            "vulkan:0",
+            "12"
+          ],
+          "started": "2026-09-28T15:18:21.859558+00:00",
+          "pid": 2268,
+          "exit": 0,
+          "sha256": "ed0eba3a4fe8ff8e0712c8787da477c89277b0213820d78605cdb3cdf8c96d25",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              1154,
+              425,
+              10965,
+              465,
+              6342,
+              279,
+              3476,
+              315,
+              330,
+              32819,
+              330,
+              304,
+              279,
+              1486,
+              576,
+              36240
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-30B-A3B-Q4_K_M.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/AppData/Local/Temp/llmx-mxfp4-device-check-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-vulkan-0\\Qwen3-30B-A3B-Q4_K_M.gguf-f32-0-main.bin",
+            "vulkan:0",
+            "12"
+          ],
+          "started": "2026-09-28T15:18:35.739748+00:00",
+          "pid": 28420,
+          "exit": 0,
+          "sha256": "9af321177b4dcaf2e299ca5e14347f5154c4417c3232194c10d20d872c58e7ac",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              1154,
+              425,
+              10965,
+              465,
+              6342,
+              279,
+              3476,
+              315,
+              330,
+              32819,
+              330,
+              304,
+              279,
+              1486,
+              576,
+              36240
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-30B-A3B-Q4_K_M.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/AppData/Local/Temp/llmx-mxfp4-device-check-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-vulkan-0\\Qwen3-30B-A3B-Q4_K_M.gguf-f32-1-candidate.bin",
+            "vulkan:0",
+            "12"
+          ],
+          "started": "2026-09-28T15:18:49.152833+00:00",
+          "pid": 19376,
+          "exit": 0,
+          "sha256": "9af321177b4dcaf2e299ca5e14347f5154c4417c3232194c10d20d872c58e7ac",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              1154,
+              425,
+              10965,
+              465,
+              6342,
+              279,
+              3476,
+              315,
+              330,
+              32819,
+              330,
+              304,
+              279,
+              1486,
+              576,
+              36240
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-30B-A3B-Q4_K_M.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/AppData/Local/Temp/llmx-mxfp4-device-check-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-vulkan-0\\Qwen3-30B-A3B-Q4_K_M.gguf-f32-2-candidate.bin",
+            "vulkan:0",
+            "12"
+          ],
+          "started": "2026-09-28T15:19:03.112570+00:00",
+          "pid": 26620,
+          "exit": 0,
+          "sha256": "9af321177b4dcaf2e299ca5e14347f5154c4417c3232194c10d20d872c58e7ac",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              1154,
+              425,
+              10965,
+              465,
+              6342,
+              279,
+              3476,
+              315,
+              330,
+              32819,
+              330,
+              304,
+              279,
+              1486,
+              576,
+              36240
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-30B-A3B-Q4_K_M.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/AppData/Local/Temp/llmx-mxfp4-device-check-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928\\identity-moe-vulkan-0\\Qwen3-30B-A3B-Q4_K_M.gguf-f32-3-main.bin",
+            "vulkan:0",
+            "12"
+          ],
+          "started": "2026-09-28T15:19:15.036061+00:00",
+          "pid": 29236,
+          "exit": 0,
+          "sha256": "9af321177b4dcaf2e299ca5e14347f5154c4417c3232194c10d20d872c58e7ac",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              1154,
+              425,
+              10965,
+              465,
+              6342,
+              279,
+              3476,
+              315,
+              330,
+              32819,
+              330,
+              304,
+              279,
+              1486,
+              576,
+              36240
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        }
+      ],
+      "cells": [
+        {
+          "cell": "Qwen3-30B-A3B-Q4_K_M.gguf-f16",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-30B-A3B-Q4_K_M.gguf-f32",
+          "identical": true
+        }
+      ],
+      "status": "pass"
+    },
+    "cpu_identity": "Previous ordinary MoE CPU identity passes; unchanged CPU runtime. Targeted rerun still in progress."
+  },
+  "linux": {
+    "validation": {
+      "modules_identical": 61,
+      "native": "Internal ctest changing into directory: /work/activation-main-check-20260928/f32-fixed/build\nTest project /work/activation-main-check-20260928/f32-fixed/build\n    Start 33: backend-vulkan\n1/3 Test #33: backend-vulkan ...................   Passed   10.58 sec\n    Start 35: vulkan-lifetime\n2/3 Test #35: vulkan-lifetime ..................   Passed    0.34 sec\n    Start 36: vulkan-quantization\n3/3 Test #36: vulkan-quantization ..............   Passed    2.07 sec\n\n100% tests passed, 0 tests failed out of 3\n\nTotal Test time (real) =  13.00 sec\n",
+      "commands": [
+        {
+          "label": "configure",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-cpu",
+            "timeout",
+            "1800",
+            "cmake",
+            "-S",
+            "/work/activation-main-check-20260928/f32-fixed/source",
+            "-B",
+            "/work/activation-main-check-20260928/f32-fixed/build",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DLLMX_HAS_BACKEND_VULKAN=ON"
+          ],
+          "exit": 0
+        },
+        {
+          "label": "build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-cpu",
+            "timeout",
+            "1800",
+            "cmake",
+            "--build",
+            "/work/activation-main-check-20260928/f32-fixed/build",
+            "--parallel",
+            "4"
+          ],
+          "exit": 0
+        },
+        {
+          "label": "native",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "1800",
+            "ctest",
+            "--test-dir",
+            "/work/activation-main-check-20260928/f32-fixed/build",
+            "--output-on-failure",
+            "-R",
+            "^(vulkan-quantization|backend-vulkan|vulkan-lifetime|vulkan-columns)$"
+          ],
+          "exit": 0
+        },
+        {
+          "label": "helper",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-cpu",
+            "timeout",
+            "1800",
+            "g++",
+            "-std=c++17",
+            "-O3",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-I/work/activation-main-check-20260928/f32-fixed/build/generated",
+            "-I/work/activation-main-check-20260928/f32-fixed/source/src",
+            "/work/activation-main-check-20260928/identity-moe-project/raw_model.cpp",
+            "/work/activation-main-check-20260928/f32-fixed/build/libllmx-vulkan.a",
+            "-pthread",
+            "-ldl",
+            "-o",
+            "/work/activation-main-check-20260928/f32-fixed/identity-fixed"
+          ],
+          "exit": 0
+        }
+      ]
+    },
+    "identities": [
+      {
+        "cache": "f16",
+        "commands": [
+          {
+            "argv": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "timeout",
+              "900",
+              "/work/activation-main-check-20260928/identity-moe-build/identity-main",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/activation-main-check-20260928/ids.txt",
+              "f16",
+              "/work/activation-main-check-20260928/f32-fixed/moe-identity-f16/0-main.bin",
+              "vulkan:0",
+              "0"
+            ],
+            "exit": 0,
+            "arm": "main",
+            "sha256": "5c315f9d92104937ffcae64dc5d2558332afadd3cefbb66d855d9db78d11dcbb",
+            "summary": {
+              "greedy_ids": [
+                1154,
+                425,
+                10965,
+                465,
+                6342,
+                279,
+                3476,
+                315,
+                330,
+                32819,
+                330,
+                304,
+                279,
+                1486,
+                576,
+                36240
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "argv": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "timeout",
+              "900",
+              "/work/activation-main-check-20260928/f32-fixed/identity-fixed",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/activation-main-check-20260928/ids.txt",
+              "f16",
+              "/work/activation-main-check-20260928/f32-fixed/moe-identity-f16/1-candidate.bin",
+              "vulkan:0",
+              "0"
+            ],
+            "exit": 0,
+            "arm": "candidate",
+            "sha256": "5c315f9d92104937ffcae64dc5d2558332afadd3cefbb66d855d9db78d11dcbb",
+            "summary": {
+              "greedy_ids": [
+                1154,
+                425,
+                10965,
+                465,
+                6342,
+                279,
+                3476,
+                315,
+                330,
+                32819,
+                330,
+                304,
+                279,
+                1486,
+                576,
+                36240
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "argv": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "timeout",
+              "900",
+              "/work/activation-main-check-20260928/f32-fixed/identity-fixed",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/activation-main-check-20260928/ids.txt",
+              "f16",
+              "/work/activation-main-check-20260928/f32-fixed/moe-identity-f16/2-candidate.bin",
+              "vulkan:0",
+              "0"
+            ],
+            "exit": 0,
+            "arm": "candidate",
+            "sha256": "5c315f9d92104937ffcae64dc5d2558332afadd3cefbb66d855d9db78d11dcbb",
+            "summary": {
+              "greedy_ids": [
+                1154,
+                425,
+                10965,
+                465,
+                6342,
+                279,
+                3476,
+                315,
+                330,
+                32819,
+                330,
+                304,
+                279,
+                1486,
+                576,
+                36240
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "argv": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "timeout",
+              "900",
+              "/work/activation-main-check-20260928/identity-moe-build/identity-main",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/activation-main-check-20260928/ids.txt",
+              "f16",
+              "/work/activation-main-check-20260928/f32-fixed/moe-identity-f16/3-main.bin",
+              "vulkan:0",
+              "0"
+            ],
+            "exit": 0,
+            "arm": "main",
+            "sha256": "5c315f9d92104937ffcae64dc5d2558332afadd3cefbb66d855d9db78d11dcbb",
+            "summary": {
+              "greedy_ids": [
+                1154,
+                425,
+                10965,
+                465,
+                6342,
+                279,
+                3476,
+                315,
+                330,
+                32819,
+                330,
+                304,
+                279,
+                1486,
+                576,
+                36240
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "identical": true
+      },
+      {
+        "cache": "f32",
+        "commands": [
+          {
+            "argv": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu3-20260928",
+              "timeout",
+              "900",
+              "/work/activation-main-check-20260928/identity-moe-build/identity-main",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/activation-main-check-20260928/ids.txt",
+              "f32",
+              "/work/activation-main-check-20260928/f32-fixed/moe-identity-f32/0-main.bin",
+              "vulkan:0",
+              "0"
+            ],
+            "exit": 0,
+            "arm": "main",
+            "sha256": "877cccb78b7e10e2ecd566c306883fa0dbf242ca6c82e80febc6f261cb82da24",
+            "summary": {
+              "greedy_ids": [
+                1154,
+                425,
+                10965,
+                465,
+                6342,
+                279,
+                3476,
+                315,
+                330,
+                32819,
+                330,
+                304,
+                279,
+                1486,
+                576,
+                36240
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "argv": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu3-20260928",
+              "timeout",
+              "900",
+              "/work/activation-main-check-20260928/f32-fixed/identity-fixed",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/activation-main-check-20260928/ids.txt",
+              "f32",
+              "/work/activation-main-check-20260928/f32-fixed/moe-identity-f32/1-candidate.bin",
+              "vulkan:0",
+              "0"
+            ],
+            "exit": 0,
+            "arm": "candidate",
+            "sha256": "877cccb78b7e10e2ecd566c306883fa0dbf242ca6c82e80febc6f261cb82da24",
+            "summary": {
+              "greedy_ids": [
+                1154,
+                425,
+                10965,
+                465,
+                6342,
+                279,
+                3476,
+                315,
+                330,
+                32819,
+                330,
+                304,
+                279,
+                1486,
+                576,
+                36240
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "argv": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu3-20260928",
+              "timeout",
+              "900",
+              "/work/activation-main-check-20260928/f32-fixed/identity-fixed",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/activation-main-check-20260928/ids.txt",
+              "f32",
+              "/work/activation-main-check-20260928/f32-fixed/moe-identity-f32/2-candidate.bin",
+              "vulkan:0",
+              "0"
+            ],
+            "exit": 0,
+            "arm": "candidate",
+            "sha256": "877cccb78b7e10e2ecd566c306883fa0dbf242ca6c82e80febc6f261cb82da24",
+            "summary": {
+              "greedy_ids": [
+                1154,
+                425,
+                10965,
+                465,
+                6342,
+                279,
+                3476,
+                315,
+                330,
+                32819,
+                330,
+                304,
+                279,
+                1486,
+                576,
+                36240
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "argv": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu3-20260928",
+              "timeout",
+              "900",
+              "/work/activation-main-check-20260928/identity-moe-build/identity-main",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/activation-main-check-20260928/ids.txt",
+              "f32",
+              "/work/activation-main-check-20260928/f32-fixed/moe-identity-f32/3-main.bin",
+              "vulkan:0",
+              "0"
+            ],
+            "exit": 0,
+            "arm": "main",
+            "sha256": "877cccb78b7e10e2ecd566c306883fa0dbf242ca6c82e80febc6f261cb82da24",
+            "summary": {
+              "greedy_ids": [
+                1154,
+                425,
+                10965,
+                465,
+                6342,
+                279,
+                3476,
+                315,
+                330,
+                32819,
+                330,
+                304,
+                279,
+                1486,
+                576,
+                36240
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "identical": true
+      }
+    ],
+    "hf": [
+      {
+        "argv": [
+          "docker",
+          "exec",
+          "-e",
+          "LLMX_CACHE_TYPE=f16",
+          "llmx-p2-x-mxfp4-gpu2-20260928",
+          "python3",
+          "-u",
+          "/work/activation-main-check-20260928/f32-fixed/source/tests/run_tests.py",
+          "--exe",
+          "/work/activation-main-check-20260928/f32-fixed/build/llmx",
+          "--only",
+          "f32,moe,baseline",
+          "--device",
+          "vulkan:0",
+          "--cache-type",
+          "f16",
+          "--require-tools",
+          "--require-baseline"
+        ],
+        "exit": 0,
+        "log": "f32: SKIP - its exact comparisons are made with f32 caches (LLMX_CACHE_TYPE=f16)\nmoe: SKIP - its exact comparisons are made with f32 caches (LLMX_CACHE_TYPE=f16)\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q5_K_M.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 2/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_K_M.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 1/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1 batched]: PPL 28.8983 vs HF 28.7974, NLL delta 0.003494 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1 per-token]: PPL 28.6622 vs HF 28.7974, NLL delta 0.004706 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4 batched]: PPL 56.4216 vs HF 56.2812, NLL delta 0.002490 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4 per-token]: PPL 56.3871 vs HF 56.2812, NLL delta 0.001880 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2 batched]: PPL 40.8612 vs HF 40.8602, NLL delta 0.000023 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2 per-token]: PPL 40.7291 vs HF 40.8602, NLL delta 0.003217 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2 batched]: PPL 38.0763 vs HF 37.7428, NLL delta 0.008796 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2 per-token]: PPL 37.7746 vs HF 37.7428, NLL delta 0.000846 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1 batched]: PPL 32.9172 vs HF 28.7974, NLL delta 0.133714 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1 per-token]: PPL 32.8996 vs HF 28.7974, NLL delta 0.133174 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4 batched]: PPL 66.8638 vs HF 56.2812, NLL delta 0.172300 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4 per-token]: PPL 67.2965 vs HF 56.2812, NLL delta 0.178750 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2 batched]: PPL 43.9376 vs HF 40.8602, NLL delta 0.072613 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2 per-token]: PPL 44.4225 vs HF 40.8602, NLL delta 0.083593 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2 batched]: PPL 42.3348 vs HF 37.7428, NLL delta 0.114816 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2 per-token]: PPL 42.7928 vs HF 37.7428, NLL delta 0.125576 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=0 chunks=1 batched]: PPL 29.5308 vs HF 28.7974, NLL delta 0.025144 <= 0.050  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=0 chunks=1 per-token]: PPL 29.5766 vs HF 28.7974, NLL delta 0.026694 <= 0.050  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=4 batched]: PPL 63.1938 vs HF 56.2812, NLL delta 0.115850 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=4 per-token]: PPL 63.2124 vs HF 56.2812, NLL delta 0.116140 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=2 batched]: PPL 43.9114 vs HF 40.8602, NLL delta 0.072013 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=2 per-token]: PPL 44.1541 vs HF 40.8602, NLL delta 0.077533 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=123 chunks=2 batched]: PPL 38.1109 vs HF 37.7428, NLL delta 0.009706 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=123 chunks=2 per-token]: PPL 38.4322 vs HF 37.7428, NLL delta 0.018106 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=0 chunks=1 batched]: PPL 31.8318 vs HF 28.7974, NLL delta 0.100184 <= 0.130  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=0 chunks=1 per-token]: PPL 32.0241 vs HF 28.7974, NLL delta 0.106204 <= 0.130  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=4 batched]: PPL 69.7536 vs HF 56.2812, NLL delta 0.214610 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=4 per-token]: PPL 69.6209 vs HF 56.2812, NLL delta 0.212700 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=2 batched]: PPL 49.5745 vs HF 40.8602, NLL delta 0.193323 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=2 per-token]: PPL 49.2324 vs HF 40.8602, NLL delta 0.186393 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=123 chunks=2 batched]: PPL 45.1375 vs HF 37.7428, NLL delta 0.178916 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=123 chunks=2 per-token]: PPL 44.9565 vs HF 37.7428, NLL delta 0.174896 <= 0.250  [ok]\nbaseline-qwen35[Qwen3.5-0.8B-Q8_0.gguf]: SKIP - fixture model not on disk\nbaseline-qwen35[Qwen3.5-0.8B-Q4_K_M.gguf]: SKIP - fixture model not on disk\n\n  f32        PASS\n  moe        PASS\n  baseline   PASS\n"
+      },
+      {
+        "argv": [
+          "docker",
+          "exec",
+          "-e",
+          "LLMX_CACHE_TYPE=f32",
+          "llmx-p2-x-mxfp4-gpu3-20260928",
+          "python3",
+          "-u",
+          "/work/activation-main-check-20260928/f32-fixed/source/tests/run_tests.py",
+          "--exe",
+          "/work/activation-main-check-20260928/f32-fixed/build/llmx",
+          "--only",
+          "f32,moe,baseline",
+          "--device",
+          "vulkan:0",
+          "--cache-type",
+          "f32",
+          "--require-tools",
+          "--require-baseline"
+        ],
+        "exit": 0,
+        "log": "f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids/--per-token rows, the same bytes over passes, bench --seqs 2; max error 0.00000067  [ok]\nmoe: all 257 logits vs HF over routed and dense layers, batch widths, threads, expert placement and PPL; max error 0.00000072  [ok]\nmoe: Q8_0 gated, batched: 'a' max 0.029917 (row 11), NLL error -0.002119, HF's id 17 of 17 rows, 4 of 4 beyond 2E; 'abcdefg' max 0.049648 (row 16), NLL error +0.000420, HF's id 16 of 17 rows, 5 of 5 beyond 2E; 'abcdefghijklm' max 0.063473 (row 8), NLL error -0.001991, HF's id 16 of 17 rows, 5 of 5 beyond 2E; aggregate NLL error -0.001230  [ok]\nmoe: Q8_0 gated, batched by 3: 'a' max 0.029917 (row 11), NLL error -0.002119, HF's id 17 of 17 rows, 4 of 4 beyond 2E; 'abcdefg' max 0.049648 (row 16), NLL error +0.000420, HF's id 16 of 17 rows, 5 of 5 beyond 2E; 'abcdefghijklm' max 0.063473 (row 8), NLL error -0.001991, HF's id 16 of 17 rows, 5 of 5 beyond 2E; aggregate NLL error -0.001230  [ok]\nmoe: Q8_0 gated, decode: 'a' max 0.029917 (row 11), NLL error -0.002119, HF's id 17 of 17 rows, 4 of 4 beyond 2E; 'abcdefg' max 0.049648 (row 16), NLL error +0.000420, HF's id 16 of 17 rows, 5 of 5 beyond 2E; 'abcdefghijklm' max 0.063473 (row 8), NLL error -0.001991, HF's id 16 of 17 rows, 5 of 5 beyond 2E; aggregate NLL error -0.001230  [ok]\nmoe: Q8_0 near-tie, batched: 'a' max 0.026627 (row 14), NLL error -0.002900, HF's id 17 of 17 rows, 1 of 1 beyond 2E; 'abcdefg' max 0.036746 (row 3), NLL error -0.002753, HF's id 16 of 17 rows, 3 of 3 beyond 2E; 'abcdefghijklm' max 0.254408 (row 5), NLL error -0.002393, HF's id 17 of 17 rows, 0 of 0 beyond 2E; aggregate NLL error -0.002682  [sensitivity, no bound]\nmoe: Q8_0 near-tie, batched by 3: 'a' max 0.026627 (row 14), NLL error -0.002900, HF's id 17 of 17 rows, 1 of 1 beyond 2E; 'abcdefg' max 0.036746 (row 3), NLL error -0.002753, HF's id 16 of 17 rows, 3 of 3 beyond 2E; 'abcdefghijklm' max 0.254408 (row 5), NLL error -0.002393, HF's id 17 of 17 rows, 0 of 0 beyond 2E; aggregate NLL error -0.002682  [sensitivity, no bound]\nmoe: Q8_0 near-tie, decode: 'a' max 0.026627 (row 14), NLL error -0.002900, HF's id 17 of 17 rows, 1 of 1 beyond 2E; 'abcdefg' max 0.036746 (row 3), NLL error -0.002753, HF's id 16 of 17 rows, 3 of 3 beyond 2E; 'abcdefghijklm' max 0.254408 (row 5), NLL error -0.002393, HF's id 17 of 17 rows, 0 of 0 beyond 2E; aggregate NLL error -0.002682  [sensitivity, no bound]\nbaseline: tokenizer 20/20 cases match the HF reference (Qwen/Qwen3-0.6B)  [ok]\nbaseline-logits[Qwen3-0.6B-Q8_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_0.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 0/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q5_K_M.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 2/6  [ok]\nbaseline-logits[Qwen3-0.6B-Q4_K_M.gguf]: top-1 6/6, top-5 set >=4 6/6, exact order 1/6  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1 batched]: PPL 28.7526 vs HF 28.7974, NLL delta 0.001556 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=0 chunks=1 per-token]: PPL 28.6005 vs HF 28.7974, NLL delta 0.006866 <= 0.010  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4 batched]: PPL 56.7511 vs HF 56.2812, NLL delta 0.008320 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=4 per-token]: PPL 56.5348 vs HF 56.2812, NLL delta 0.004500 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2 batched]: PPL 40.8916 vs HF 40.8602, NLL delta 0.000763 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=64 chunks=2 per-token]: PPL 40.6906 vs HF 40.8602, NLL delta 0.004157 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2 batched]: PPL 37.8301 vs HF 37.7428, NLL delta 0.002316 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q8_0.gguf c=123 chunks=2 per-token]: PPL 37.7159 vs HF 37.7428, NLL delta 0.000714 <= 0.020  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1 batched]: PPL 32.8711 vs HF 28.7974, NLL delta 0.132314 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=0 chunks=1 per-token]: PPL 32.9505 vs HF 28.7974, NLL delta 0.134724 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4 batched]: PPL 67.2758 vs HF 56.2812, NLL delta 0.178440 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=4 per-token]: PPL 67.1773 vs HF 56.2812, NLL delta 0.176980 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2 batched]: PPL 44.4912 vs HF 40.8602, NLL delta 0.085133 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=64 chunks=2 per-token]: PPL 44.5547 vs HF 40.8602, NLL delta 0.086563 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2 batched]: PPL 42.4794 vs HF 37.7428, NLL delta 0.118226 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_0.gguf c=123 chunks=2 per-token]: PPL 42.6531 vs HF 37.7428, NLL delta 0.122306 <= 0.200  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=0 chunks=1 batched]: PPL 29.6354 vs HF 28.7974, NLL delta 0.028684 <= 0.050  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=0 chunks=1 per-token]: PPL 29.7782 vs HF 28.7974, NLL delta 0.033494 <= 0.050  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=4 batched]: PPL 62.7681 vs HF 56.2812, NLL delta 0.109090 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=4 per-token]: PPL 63.0703 vs HF 56.2812, NLL delta 0.113890 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=2 batched]: PPL 43.7065 vs HF 40.8602, NLL delta 0.067343 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=2 per-token]: PPL 44.0948 vs HF 40.8602, NLL delta 0.076183 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=123 chunks=2 batched]: PPL 38.4454 vs HF 37.7428, NLL delta 0.018446 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=123 chunks=2 per-token]: PPL 38.6142 vs HF 37.7428, NLL delta 0.022826 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=0 chunks=1 batched]: PPL 32.0427 vs HF 28.7974, NLL delta 0.106784 <= 0.130  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=0 chunks=1 per-token]: PPL 31.9251 vs HF 28.7974, NLL delta 0.103104 <= 0.130  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=4 batched]: PPL 69.7394 vs HF 56.2812, NLL delta 0.214410 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=4 per-token]: PPL 69.5449 vs HF 56.2812, NLL delta 0.211610 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=2 batched]: PPL 49.3502 vs HF 40.8602, NLL delta 0.188783 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=2 per-token]: PPL 49.3862 vs HF 40.8602, NLL delta 0.189513 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=123 chunks=2 batched]: PPL 45.0461 vs HF 37.7428, NLL delta 0.176896 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=123 chunks=2 per-token]: PPL 44.7306 vs HF 37.7428, NLL delta 0.169866 <= 0.250  [ok]\nbaseline-qwen35[Qwen3.5-0.8B-Q8_0.gguf]: SKIP - fixture model not on disk\nbaseline-qwen35[Qwen3.5-0.8B-Q4_K_M.gguf]: SKIP - fixture model not on disk\n\n  f32        PASS\n  moe        PASS\n  baseline   PASS\n"
+      }
+    ]
+  },
+  "docs_review": {
+    "markdown_files": 69,
+    "changed_reviewed": [
+      "AGENTS.md",
+      "docs/STATUS.md",
+      "docs/VULKAN.md",
+      "docs/src/backends-vulkan.md"
+    ],
+    "unchanged_review_reused": 65,
+    "basis": "bd19cab full checkpoint review; changed owner docs checked against the minimal registry fix and native test; STATUS includes stale merged-feature correction.",
+    "no_shader_changes": true
+  },
+  "shader_modules": {
+    "count": 61,
+    "all_identical_to_bd19_on_both_platforms": true
+  },
+  "source_sha256": "c8e758bef3cb0b4edde8e65893b4dde652543ea1d307423d7a6ccc58dbfa13f4",
+  "raw_windows": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-f32-check-20260928",
+  "raw_linux": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/activation-main-check-20260928/f32-fixed",
+  "prior_windows_timing": {
+    "candidate": "bd19cab",
+    "record": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-timing-20260928\\summary.json",
+    "complete_calls": 48,
+    "all_retained": true,
+    "scope": "Previous candidate only, not a timing gate for this registry fix."
+  }
+}

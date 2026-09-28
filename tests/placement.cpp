@@ -231,6 +231,28 @@ void layer_split_fits() {
             "the fit balanced bytes rather than layers");
     checked += 3;
 
+    // Each layer's cache is its own, as a model whose layers keep KV and states has them: four 10 MiB layers, the last keeping 500 MiB of cache and the others none.
+    // A device with room for 400 MiB cannot run that last layer, which its suffix of layers always holds, so it takes none, where caches spread evenly would give it two.
+    infer::Footprint caches;
+    caches.layers.assign(4, {infer::Matrix{8, 4096, 1, 10 * MiB, true}});
+    caches.embedding = caches.output = infer::Matrix{8, 4096, 1, MiB, true};
+    caches.cache = {0, 0, 0, 500 * MiB};
+    auto last_heavy = infer::split_layers(caches, {budget("a", 2 * GiB), budget("b", 700 * MiB)}, 1);
+    require(last_heavy.stages[0].count == 4 && last_heavy.stages[1].count == 0 && last_heavy.stages[0].cache == 500 * MiB,
+            "a layer's own cache was not counted where it sits");
+    // With the cache on the first layer the same devices share the layers two each, and each stage counts the cache of its own layers.
+    caches.cache = {500 * MiB, 0, 0, 0};
+    auto first_heavy = infer::split_layers(caches, {budget("a", 2 * GiB), budget("b", 700 * MiB)}, 1);
+    require(first_heavy.stages[0].count == 2 && first_heavy.stages[1].count == 2 && first_heavy.stages[0].cache == 500 * MiB &&
+                first_heavy.stages[1].cache == 0,
+            "a stage's cache is not the sum of its own layers' caches");
+    // A cache for some layers and not others is the caller's error.
+    caches.cache = {MiB, MiB, MiB};
+    bool partial = false;
+    try { infer::split_layers(caches, {budget("a", 2 * GiB)}, 1); } catch (const std::logic_error&) { partial = true; }
+    require(partial, "a cache for three of four layers was accepted");
+    checked += 3;
+
     // A tied head on the embedding's device is charged as the head keeps it: a backend's copy of a product matrix counts once, beside the shared buffer.
     infer::Footprint tied_f32;
     tied_f32.layers.assign(2, {infer::Matrix{0, 4096, 1, 10 * MiB, true}});

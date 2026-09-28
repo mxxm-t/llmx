@@ -1,0 +1,291 @@
+{
+  "scope": "tests/tools only; no runtime source or numerical bound changed; no GPU, large-model or performance gate claim",
+  "base": "56172eac1697abe8289257020dd57f352d4e111c",
+  "implementation": "21e4ac6ec09a336623ad6e6fa0b14838582ef412",
+  "source_archive_sha256": "cff6a3960e7a07099928d922c4b3182cdaa91389f37c8a08fdbf863491baa3af",
+  "windows": {
+    "status": "pass",
+    "pid": 2736,
+    "records": [
+      {
+        "name": "final-configure",
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-device-reference-20260928",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-device-reference-check-20260928\\build-final",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DBUILD_TESTING=ON"
+        ],
+        "started": "2026-09-28T12:59:11.121936+00:00",
+        "pid": 28792,
+        "exit": 0,
+        "completed": "2026-09-28T12:59:14.343439+00:00"
+      },
+      {
+        "name": "final-build",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-device-reference-check-20260928\\build-final",
+          "--config",
+          "Release",
+          "--parallel",
+          "6"
+        ],
+        "started": "2026-09-28T12:59:14.343957+00:00",
+        "pid": 27408,
+        "exit": 0,
+        "completed": "2026-09-28T12:59:55.847745+00:00"
+      },
+      {
+        "name": "final-ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-device-reference-check-20260928\\build-final",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "started": "2026-09-28T12:59:55.891744+00:00",
+        "pid": 14608,
+        "exit": 0,
+        "completed": "2026-09-28T13:00:36.292069+00:00"
+      },
+      {
+        "name": "final-suite",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-device-reference-check-20260928\\build-final\\Release\\llmx.exe",
+          "--only",
+          "device-reference,reference-consumer,reference-generator,docs,dead-code,version,f32",
+          "--require-tools",
+          "--device",
+          "cpu"
+        ],
+        "started": "2026-09-28T13:00:36.293068+00:00",
+        "pid": 28688,
+        "exit": 0,
+        "completed": "2026-09-28T13:00:47.604294+00:00"
+      },
+      {
+        "name": "final-help",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "tools/check_device.py",
+          "--help"
+        ],
+        "started": "2026-09-28T13:00:47.604294+00:00",
+        "pid": 24588,
+        "exit": 0,
+        "completed": "2026-09-28T13:00:47.695539+00:00"
+      }
+    ],
+    "commit": "21e4ac6ec09a336623ad6e6fa0b14838582ef412",
+    "exe": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-device-reference-check-20260928\\build-final\\Release\\llmx.exe",
+      "sha256": "dd4862227cf997473703a694ea403ccd4e6c82f2c3786dd6aa1f94f46ab4e9d0",
+      "version": "llmx 0.1.0+g21e4ac6ec09a"
+    }
+  },
+  "linux": {
+    "complete": {
+      "status": "pass",
+      "pid": 78300,
+      "records": [
+        {
+          "name": "configure",
+          "command": [
+            "cmake",
+            "-S",
+            "/work/device-reference-check-20260928/source",
+            "-B",
+            "/work/device-reference-check-20260928/build",
+            "-DCMAKE_BUILD_TYPE=Release"
+          ],
+          "started": "2026-09-28T13:00:51.176044+00:00",
+          "pid": 78306,
+          "exit": 0,
+          "completed": "2026-09-28T13:00:51.697830+00:00"
+        },
+        {
+          "name": "build",
+          "command": [
+            "cmake",
+            "--build",
+            "/work/device-reference-check-20260928/build",
+            "--parallel",
+            "6"
+          ],
+          "started": "2026-09-28T13:00:51.698123+00:00",
+          "pid": 78350,
+          "exit": 0,
+          "completed": "2026-09-28T13:02:23.058390+00:00"
+        },
+        {
+          "name": "ctest",
+          "command": [
+            "ctest",
+            "--test-dir",
+            "/work/device-reference-check-20260928/build",
+            "--output-on-failure"
+          ],
+          "started": "2026-09-28T13:02:23.058702+00:00",
+          "pid": 78983,
+          "exit": 0,
+          "completed": "2026-09-28T13:03:03.410865+00:00"
+        },
+        {
+          "name": "suite",
+          "command": [
+            "python3",
+            "-X",
+            "utf8",
+            "tests/run_tests.py",
+            "--exe",
+            "/work/device-reference-check-20260928/build/llmx",
+            "--only",
+            "device-reference,reference-consumer,reference-generator,docs,dead-code,version,f32",
+            "--require-tools",
+            "--device",
+            "cpu"
+          ],
+          "started": "2026-09-28T13:03:03.411222+00:00",
+          "pid": 79909,
+          "exit": 0,
+          "completed": "2026-09-28T13:03:15.271252+00:00"
+        },
+        {
+          "name": "help",
+          "command": [
+            "python3",
+            "-X",
+            "utf8",
+            "tools/check_device.py",
+            "--help"
+          ],
+          "started": "2026-09-28T13:03:15.271545+00:00",
+          "pid": 80369,
+          "exit": 0,
+          "completed": "2026-09-28T13:03:15.333748+00:00"
+        }
+      ]
+    },
+    "archive": {
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/device-reference-linux-20260928.tar.gz",
+      "sha256": "850dd6ce2b3eff5a91969aed4b8dbd85e5c705224a154649d91edaa7c1ff8d5b",
+      "files": [
+        {
+          "name": "build.log",
+          "sha256": "0f800c2e6fc6c9cfc4b1f00545d5c5b40c13a964267e541fab9a2068216cce6b"
+        },
+        {
+          "name": "complete.json",
+          "sha256": "e1e0c3275ae047dd9234e450600bf6e31e9cbb1eb8110599bb0a2b4d4baa4969"
+        },
+        {
+          "name": "configure.log",
+          "sha256": "e634291e699429b04c3cc2a2ec55a75a06bd148bac297d10f211cc7ebcc75026"
+        },
+        {
+          "name": "ctest.log",
+          "sha256": "04e08e33dcbee73e5859da808f1791d672b7c5ceb67040f4ea87de7eaf356afc"
+        },
+        {
+          "name": "help.log",
+          "sha256": "eb7788e23082f87032257966361d53c2fa9283900acdc52bf641af70b91a99cd"
+        },
+        {
+          "name": "state.json",
+          "sha256": "e1e0c3275ae047dd9234e450600bf6e31e9cbb1eb8110599bb0a2b4d4baa4969"
+        },
+        {
+          "name": "suite.log",
+          "sha256": "cee236bc15557939fba5278bc74bd33d66882d509a7204f9317e7c7497f016fe"
+        }
+      ]
+    },
+    "source_sha256": "cff6a3960e7a07099928d922c4b3182cdaa91389f37c8a08fdbf863491baa3af",
+    "ctest_tail": [
+      "32/32 Test #32: server-utf8 ......................   Passed    0.00 sec",
+      "",
+      "100% tests passed, 0 tests failed out of 32",
+      "",
+      "Total Test time (real) =  40.34 sec"
+    ],
+    "suite_tail": [
+      ".........",
+      "----------------------------------------------------------------------",
+      "Ran 9 tests in 0.300s",
+      "",
+      "OK",
+      "f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids/--per-token rows, the same bytes over passes, bench --seqs 2; max error 0.00000069  [ok]",
+      "",
+      "  dead-code  PASS",
+      "  docs       PASS",
+      "  version    PASS",
+      "  reference-generator PASS",
+      "  reference-consumer PASS",
+      "  device-reference PASS",
+      "  f32        PASS"
+    ],
+    "exe": {
+      "sha256": "4bf5b62a016fa4420000879cac44a87f022eec9de719106822cc4c4b47e5d02e",
+      "tool_sha256": "8c077287c2a4916378e9b13dac4440e694ebe4af7989919a7eeda11d6d155b61",
+      "version": "llmx 0.1.0+unknown"
+    }
+  },
+  "windows_archive": {
+    "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/device-reference-windows-20260928.tar.gz",
+    "sha256": "3a4a849e834b79fb089ce158ff36d7f53c8355a20a356668d8a63f9723085b38",
+    "files": [
+      "affected-final.log",
+      "affected-metadata.log",
+      "affected.log",
+      "build-first.log",
+      "build-metadata.log",
+      "build.log",
+      "configure.log",
+      "failing-first.log",
+      "final-build.log",
+      "final-configure.log",
+      "final-ctest.log",
+      "final-help.log",
+      "final-suite.log",
+      "first-implementation-failure.txt",
+      "gate-complete.json",
+      "gate-state.json",
+      "gate.py",
+      "linux-gate.json",
+      "markdown-review-final.json",
+      "markdown-review.json"
+    ]
+  },
+  "markdown": {
+    "total": 69,
+    "changed": [
+      "AGENTS.md",
+      "docs/BUILD.md",
+      "docs/CI.md",
+      "docs/STATUS.md"
+    ],
+    "other_pages": "byte-identical to completed main review"
+  },
+  "limits": [
+    "Full HF rows cover the tiny F32 fixture. The real-model caller is exercised with CPU fixtures here.",
+    "Windows CRT wmain is externally reached; its narrow name-check exception includes the caller and removal condition.",
+    "MSVC Temp-directory and existing hub/q8 test warnings are retained in build logs.",
+    "Separate required-type merge-record publication was rejected by automatic approval review and is not included."
+  ]
+}

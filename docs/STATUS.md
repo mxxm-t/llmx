@@ -4,15 +4,14 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## Server resume CI admission timing (2026-09-28, branch fix/server-wave-admission, local gates pass)
+## Server resume wave submission (2026-09-28, merged at `54f0f91e`)
 
-- **Goal:** keep the native tests' request waves from depending on how soon the submitting thread runs again.
-- **Done:** main `0b74b69d` post-merge CI [36386217349](https://github.com/mxxm-t/llmx/actions/runs/36386217349) failed macOS server-resume: 445 rows recomputed against at least 512, after reply equality passed. The regression is in the existing test from `70de0d6f`, before this fix. Private Windows probes delaying the second follow-up submission by 20 ms and 3 ms fail the same scenario's pause assertion, with equal replies. The exact 445-row outcome is not reproduced locally; both failures are retained.
-- **Fix:** the shared test harness holds its existing retirement callback behind a mutex while a wave is queued. The first pass may start, but cannot retire and advance the first request ahead of the rest. The mutex is released before replies are drained, including on a submit failure. No scheduler code, public API or assertion changes. The normal CPU run and the same 20 ms delayed-submission probe pass, the latter with 408250 checks. The private sleeps do not ship.
-- **Validation:** fresh Windows/Radeon build, 36/36 native tests (63.07 seconds), including server-resume's device cases; fresh Linux CPU build, 32/32 native tests (40.70 seconds). Docs/dead-code pass on both. Production sources and CMake are unchanged; Linux's CLI is byte-identical to the previously validated Q4 main build, SHA-256 `8ee8ac3bc17088a2cba787ad1a35c3bd417ffec68c0793158e5d3891f6b503ed`. No runtime performance claim is made for a test-only change.
-- **Evidence:** [record](benchmarks/server-wave-admission-20260928.json), with commands and binary identities. Failed CI, both failed probes, passing normal/delayed probes, and platform source/binaries/logs are retained in `/opt/claude-work/llmx-p2-x-mxfp4-cpu/server-wave-admission-20260928.tar.gz`, SHA-256 `187546a32204b8ace1928f65547e15930b4697a8d121d71c64a7c841f516a72c`.
-- **Docs:** all 69 Markdown pages reconciled; 67 match the completed main reviews, AGENTS describes wave retirement and STATUS records the evidence. No user-facing behavior or usage changes.
-- **Left:** exact-head hosted CI, then fast-forward if main remains unchanged, a separate merge record and gate deletion. No extra peer review is required. Activation remains on its separate branch.
+Merged on Gitea and GitHub main by fast-forward from `0b74b69d` after all six hosted jobs passed at exact head `54f0f91e7209ef8264abf8c280b92bfe8646bd31` in [run 36388197249](https://github.com/mxxm-t/llmx/actions/runs/36388197249), including macOS and the required HF reference.
+The shared test harness holds pass retirement while a wave is queued. The first pass may start, but the first request cannot advance while the submitting thread is descheduled. No runtime source, CMake, public API or test assertion changed.
+The original post-merge macOS failure (445 recomputed rows against at least 512) and both private delayed-submission failures remain retained. The same 20 ms probe passes with the fix, 408250 checks, as does the normal run. This discriminates the admission-timing assumption without claiming a local reproduction of the exact 445-row outcome; private sleeps do not ship.
+Fresh Windows/Radeon native checks pass 36/36 (63.07 seconds), Linux CPU 32/32 (40.70 seconds), docs/dead-code pass on both. Linux's runtime binary is byte-identical to validated main; no runtime performance change is claimed.
+[Evidence](benchmarks/server-wave-admission-20260928.json) records commands, identities and the 69-page docs reconciliation. Source, binaries and complete failed/passing logs are retained at `/opt/claude-work/llmx-p2-x-mxfp4-cpu/server-wave-admission-20260928.tar.gz`, SHA-256 `187546a32204b8ace1928f65547e15930b4697a8d121d71c64a7c841f516a72c`.
+This separate merge record changes STATUS only; the other 68 Markdown pages match their completed review. No extra peer review was required.
 
 ## Q4_0 quantizer reciprocal range (2026-09-28, merged at `99572401`)
 
@@ -7702,6 +7701,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Layered restructure                      | Done     |
 | Build config (config.hpp + CMake + build.bat) | Done |
 | Test suite (roundtrip / perf / tokenizer)| Done     |
+| Native server wave submission synchronization | Done |
 | Perf `bench` command                     | Done     |
 | CPU backend optimization                 | Done     |
 | CPU tiny-activation range repair | Done; measured CLI Q5 decode cost retained in the checkpoint above |

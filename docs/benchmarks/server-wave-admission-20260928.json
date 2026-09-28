@@ -1,0 +1,209 @@
+{
+  "base": "0b74b69d15ed5975b2fe0422349b0544ad906136",
+  "scope": "Test-only wave retirement synchronization; runtime sources/CMake unchanged; no assertion weakened.",
+  "original_failure": {
+    "run": 36386217349,
+    "job": 108812038971,
+    "test": "server-resume",
+    "observed_recomputed": 445,
+    "minimum_recomputed": 512,
+    "equality": "Passed before scenario assertion",
+    "exact_reproduction": false
+  },
+  "regression_predates_fix": "70de0d6ff5d068e6fdcef8c38d8feda75bb529a4",
+  "probes": {
+    "before_20ms": "fails: nothing paused, equal replies",
+    "before_3ms": "fails: nothing paused, equal replies",
+    "candidate_normal": "pass",
+    "candidate_20ms": "pass, 408250 checks",
+    "shipping_sleep": false
+  },
+  "windows": {
+    "pid": 8984,
+    "status": "pass",
+    "started": "2026-09-28T06:41:55.312931+00:00",
+    "records": [
+      {
+        "name": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-server-wave-20260928",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-server-wave-final-20260928\\build-windows",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include",
+          "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+          "-DBUILD_TESTING=ON"
+        ],
+        "started": "2026-09-28T06:41:55.313914+00:00",
+        "pid": 28888,
+        "exit": 0,
+        "completed": "2026-09-28T06:41:58.551682+00:00"
+      },
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-server-wave-final-20260928\\build-windows",
+          "--config",
+          "Release",
+          "--parallel",
+          "6"
+        ],
+        "started": "2026-09-28T06:41:58.551682+00:00",
+        "pid": 29324,
+        "exit": 0,
+        "completed": "2026-09-28T06:42:46.116444+00:00"
+      },
+      {
+        "name": "ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-server-wave-final-20260928\\build-windows",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "started": "2026-09-28T06:42:46.172373+00:00",
+        "pid": 10412,
+        "exit": 0,
+        "completed": "2026-09-28T06:43:49.537437+00:00"
+      },
+      {
+        "name": "suite",
+        "command": [
+          "python",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-server-wave-final-20260928\\build-windows\\Release\\llmx.exe",
+          "--no-perf-floor",
+          "--require-tools",
+          "--only",
+          "docs,dead-code",
+          "--device",
+          "vulkan:0"
+        ],
+        "started": "2026-09-28T06:43:49.538438+00:00",
+        "pid": 28472,
+        "exit": 0,
+        "completed": "2026-09-28T06:43:57.927344+00:00"
+      }
+    ],
+    "exe": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-server-wave-final-20260928\\build-windows\\Release\\llmx.exe",
+      "sha256": "1a457040e7112abe8f7497816f6dfe68a346763bb2a7d517e86820a78b491a95",
+      "version": "llmx 0.1.0+g0b74b69d15ed.dirty",
+      "newer_than_sources": true
+    },
+    "completed": "2026-09-28T06:43:57.928326+00:00"
+  },
+  "linux": {
+    "pid": 48855,
+    "status": "pass",
+    "started": "2026-09-28T06:42:50.332051+00:00",
+    "records": [
+      {
+        "name": "candidate-configure",
+        "command": [
+          "cmake",
+          "-S",
+          "/work/server-wave-final-20260928/source-candidate",
+          "-B",
+          "/work/server-wave-final-20260928/build-candidate",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=OFF",
+          "-DBUILD_TESTING=ON"
+        ],
+        "pid": 48862,
+        "exit": 0
+      },
+      {
+        "name": "candidate-build",
+        "command": [
+          "cmake",
+          "--build",
+          "/work/server-wave-final-20260928/build-candidate",
+          "--parallel",
+          "6"
+        ],
+        "pid": 48906,
+        "exit": 0
+      },
+      {
+        "name": "candidate-ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "/work/server-wave-final-20260928/build-candidate",
+          "--output-on-failure"
+        ],
+        "pid": 49517,
+        "exit": 0
+      },
+      {
+        "name": "candidate-host-checks",
+        "command": [
+          "python3",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "/work/server-wave-final-20260928/build-candidate/llmx",
+          "--device",
+          "cpu",
+          "--only",
+          "docs,dead-code",
+          "--require-tools"
+        ],
+        "pid": 50449,
+        "exit": 0
+      }
+    ],
+    "arms": {
+      "candidate": {
+        "exe": "/work/server-wave-final-20260928/build-candidate/llmx",
+        "sha256": "8ee8ac3bc17088a2cba787ad1a35c3bd417ffec68c0793158e5d3891f6b503ed",
+        "version": "llmx 0.1.0+unknown"
+      }
+    },
+    "scope": "CPU-only native and documentation checks for a test harness change; production source unchanged.",
+    "completed": "2026-09-28T06:45:09.948078+00:00"
+  },
+  "native": {
+    "windows": {
+      "passed": 36,
+      "seconds": 63.07
+    },
+    "linux": {
+      "passed": 32,
+      "seconds": 40.7
+    }
+  },
+  "linux_cli_identical_to_validated_main": true,
+  "markdown": {
+    "total": 69,
+    "unchanged_completed_main_reviews": 67,
+    "reconciled": [
+      "AGENTS.md",
+      "docs/STATUS.md"
+    ]
+  },
+  "archive": {
+    "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/server-wave-admission-20260928.tar.gz",
+    "sha256": "187546a32204b8ace1928f65547e15930b4697a8d121d71c64a7c841f516a72c",
+    "bytes": 15361298
+  },
+  "pending": [
+    "exact-head hosted CI",
+    "unchanged-main fast-forward and merge record"
+  ]
+}

@@ -293,6 +293,7 @@ Two cases act from inside a pass's stage through a CPU backend that runs a hook 
 After either, a prompt as long as the pool runs on the model's own history, so every block came back, a block of a request whose handle is still held included.
 In a build with Vulkan, when device 0 opens, it repeats the three requests on the device and adds a 100-token prompt that forked the first block of a 600-token prompt's history, whose tile splits its sums otherwise, paused with every donor gone, which takes nothing back and recomputes at least its first 384-token reservation.
 `llmx-server-resume-test cpu` or `device` runs one half.
+The shared wave harness holds pass retirement while a wave is queued, so a descheduled submitting thread cannot let its first request run ahead and change the pause scenario; the first pass may start before queuing finishes.
 
 `server-passes` drives the scheduler's policy core (`server/policy.hpp`), first by hand.
 The growth rule (`Growth`): admission reserves a capped request's history and what it may still generate and an uncapped one's history and a step, a step falls due only for an uncapped decoding request whose next position passes its blocks and reaches a step past that position, never past what a pool holds, the logits rows a context reserves are one pass's alone and twice that once passes overlap, and the decode share is the decoding requests over the passes rounded up once the passes fill the stages and every ready one with fewer.

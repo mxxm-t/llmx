@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -124,17 +125,23 @@ inline void ledger(const server::Scheduler::Stats& s, const infer::Model& model,
                 std::to_string(s.donor_blocks[p]) + ", of " + std::to_string(model.kv_pool_blocks(p)));
 }
 
-// Runs `waves` through one scheduler over `model` with `passes` passes in flight, the scheduler's own number when 0: a wave's requests are submitted together and every one drained before the next wave starts.
+// Runs `waves` through one scheduler over `model` with `passes` passes in flight, the scheduler's own number when 0: a wave is fully queued before any pass retires, and every request is drained before the next wave starts.
 // The replies come in submission order; the scheduler's counters at the end go to `stats`.
 inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs,
                          const std::vector<std::vector<Req>>& waves, server::Scheduler::Stats* stats = nullptr, size_t passes = 0) {
     server::Scheduler sched(model, tok, max_seqs, 64, passes);
+    std::mutex submitting;
+    // The first pass may start while a wave is queued, but cannot retire and advance its request ahead of the rest.
+    sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };
     std::thread runner([&] { sched.run(); });
     std::vector<Reply> replies;
     try {
         for (const auto& wave : waves) {
             std::vector<std::shared_ptr<server::Request>> handles;
-            for (const Req& r : wave) handles.push_back(sched.submit(r.prompt, params_of(r)));
+            {
+                std::lock_guard<std::mutex> lock(submitting);
+                for (const Req& r : wave) handles.push_back(sched.submit(r.prompt, params_of(r)));
+            }
             for (auto& h : handles) replies.push_back(drain(*h));
             ledger(sched.stats(), model, "after a wave");
         }

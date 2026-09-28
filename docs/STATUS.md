@@ -4,6 +4,16 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Server resume CI admission timing (2026-09-28, branch fix/server-wave-admission, local gates pass)
+
+- **Goal:** keep the native tests' request waves from depending on how soon the submitting thread runs again.
+- **Done:** main `0b74b69d` post-merge CI [36386217349](https://github.com/mxxm-t/llmx/actions/runs/36386217349) failed macOS server-resume: 445 rows recomputed against at least 512, after reply equality passed. The regression is in the existing test from `70de0d6f`, before this fix. Private Windows probes delaying the second follow-up submission by 20 ms and 3 ms fail the same scenario's pause assertion, with equal replies. The exact 445-row outcome is not reproduced locally; both failures are retained.
+- **Fix:** the shared test harness holds its existing retirement callback behind a mutex while a wave is queued. The first pass may start, but cannot retire and advance the first request ahead of the rest. The mutex is released before replies are drained, including on a submit failure. No scheduler code, public API or assertion changes. The normal CPU run and the same 20 ms delayed-submission probe pass, the latter with 408250 checks. The private sleeps do not ship.
+- **Validation:** fresh Windows/Radeon build, 36/36 native tests (63.07 seconds), including server-resume's device cases; fresh Linux CPU build, 32/32 native tests (40.70 seconds). Docs/dead-code pass on both. Production sources and CMake are unchanged; Linux's CLI is byte-identical to the previously validated Q4 main build, SHA-256 `8ee8ac3bc17088a2cba787ad1a35c3bd417ffec68c0793158e5d3891f6b503ed`. No runtime performance claim is made for a test-only change.
+- **Evidence:** [record](benchmarks/server-wave-admission-20260928.json), with commands and binary identities. Failed CI, both failed probes, passing normal/delayed probes, and platform source/binaries/logs are retained in `/opt/claude-work/llmx-p2-x-mxfp4-cpu/server-wave-admission-20260928.tar.gz`, SHA-256 `187546a32204b8ace1928f65547e15930b4697a8d121d71c64a7c841f516a72c`.
+- **Docs:** all 69 Markdown pages reconciled; 67 match the completed main reviews, AGENTS describes wave retirement and STATUS records the evidence. No user-facing behavior or usage changes.
+- **Left:** exact-head hosted CI, then fast-forward if main remains unchanged, a separate merge record and gate deletion. No extra peer review is required. Activation remains on its separate branch.
+
 ## Q4_0 quantizer reciprocal range (2026-09-28, merged at `99572401`)
 
 Merged on Gitea and GitHub main by fast-forward from `5c1bbe7a` after all six hosted jobs passed at exact head `99572401e1c834fcc5f0ba540afdd1bc2f7b2ca5` in [run 36384593537](https://github.com/mxxm-t/llmx/actions/runs/36384593537).

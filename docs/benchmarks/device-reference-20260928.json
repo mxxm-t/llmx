@@ -287,5 +287,30 @@
     "Windows CRT wmain is externally reached; its narrow name-check exception includes the caller and removal condition.",
     "MSVC Temp-directory and existing hub/q8 test warnings are retained in build logs.",
     "Separate required-type merge-record publication was rejected by automatic approval review and is not included."
-  ]
+  ],
+  "calibration_correction": {
+    "failing_first": "d9e663a",
+    "reason": "An existing-type control measures the max-logit gap; applying all candidate acceptance rules to it was an extra requirement absent from the quantization plan.",
+    "first_failure": "One unit error (missing calibration role) and one native caller failure before the fix.",
+    "windows_log_sha256": "19d7b78dd4f35582b630390340bdc0ac09843e76434d0c4fac2842fedc894db2",
+    "linux": {
+      "complete": {
+        "exit": 0,
+        "command": [
+          "python3",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "/work/device-reference-check-20260928/build/llmx",
+          "--only",
+          "device-reference,reference-consumer,docs,dead-code",
+          "--require-tools"
+        ]
+      },
+      "log": "dead-code: 20 findings (unused 1, test-only 12, override 5, shader 2) against the list; 15 planted faults; 6.0 s  [ok]\ndocs: 14 findings (line-pin 11, name 1, command 1, src-page 1) against the list; 16 planted faults; 3.7 s  [ok]\n......................\n----------------------------------------------------------------------\nRan 22 tests in 0.381s\n\nOK\n...........\n----------------------------------------------------------------------\nRan 11 tests in 0.486s\n\nOK\n\n  dead-code  PASS\n  docs       PASS\n  reference-consumer PASS\n  device-reference PASS\n"
+    },
+    "candidate_rules": "Unchanged top-1/top-5/NLL/max-gap/greedy requirements; control errors are reported, malformed or nonfinite captures fail both roles.",
+    "native_sources": "Unchanged from the completed Windows/Linux build and CTest gates."
+  }
 }

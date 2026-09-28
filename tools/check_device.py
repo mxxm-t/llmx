@@ -45,7 +45,7 @@ def capture_metadata(path, tokens, version):
     return doc
 
 
-def compare_pair(cpu, device, tokens, limits=None):
+def compare_pair(cpu, device, tokens, limits=None, *, calibration=False):
     common.require(cpu["metadata"]["architecture"] == device["metadata"]["architecture"] and
                    cpu["metadata"]["vocab"] == device["metadata"]["vocab"], "capture architecture or vocabulary differs")
     vocab = cpu["metadata"]["vocab"]
@@ -53,10 +53,10 @@ def compare_pair(cpu, device, tokens, limits=None):
     for phase in ("batched", "decode"):
         a = captured_rows(cpu["prefix"], phase, len(tokens), vocab)
         b = captured_rows(device["prefix"], phase, len(tokens), vocab)
-        result[phase] = common.check_device_rows(a, b, tokens, None if limits is None else limits[phase]["max_logit_gap"])
+        result[phase] = common.check_device_rows(a, b, tokens, None if limits is None else limits[phase]["max_logit_gap"], calibration=calibration)
     result["greedy"] = common.check_device_greedy(
         captured_rows(cpu["prefix"], "greedy", 64, vocab), captured_rows(device["prefix"], "greedy", 64, vocab),
-        cpu["metadata"]["greedy"], device["metadata"]["greedy"])
+        cpu["metadata"]["greedy"], device["metadata"]["greedy"], calibration=calibration)
     return result
 
 
@@ -132,9 +132,9 @@ def main(argv=None):
             if name == "candidate":
                 common.require(pair[0]["metadata"]["architecture"] == pairs["control"][0]["metadata"]["architecture"], "control must have the same architecture")
             pairs[name] = pair
-            report[name] = {"captures": pair, "comparison": compare_pair(*pair, tokens, None if name == "control" else report["control"]["comparison"])}
+            report[name] = {"captures": pair, "comparison": compare_pair(*pair, tokens, None if name == "control" else report["control"]["comparison"], calibration=name == "control")}
             save()
-            print(name + ": passed", flush=True)
+            print(name + (": measured" if name == "control" else ": passed"), flush=True)
         report["status"] = "pass"
     except Exception as error:
         report["status"] = "fail"

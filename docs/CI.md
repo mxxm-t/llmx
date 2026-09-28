@@ -261,6 +261,8 @@ The new output directory retains model, binary and fixture hashes, command lines
 The control and candidate must be different model files of the same architecture; each is run on CPU and the selected device with the same cache type and ubatch.
 Their metadata includes the actual storage types, so the control's existing-type provenance can be checked against its pinned file.
 The control runs first and supplies the maximum full-logit gap separately for the batched and per-token paths; the candidate may not exceed those limits.
+The control measures those limits: its ranking, NLL and greedy disagreements are retained in the report, but are not extra candidate acceptance requirements. Both captures must still be complete, finite and internally valid.
+Every acceptance check below applies to the candidate; calibration is an internal caller role, not a user-selectable waiver.
 Both paths compare every position of the pinned HF excerpt: top-1 agrees wherever the CPU top-two gap exceeds the existing 0.1 margin, top-5 agrees with that margin, and mean NLL differs by at most 0.01.
 NLL scores each next token, leaving the final row unscored; that final row still participates in ranking and full-logit checks.
 Both models also take 64 argmax steps after one prefill, without stopping at EOS; CPU and device IDs must agree before the first CPU near-tie.

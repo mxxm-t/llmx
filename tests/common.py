@@ -93,13 +93,15 @@ def _ranked_device_logits(row):
     return heapq.nlargest(10, range(len(row)), key=lambda i: (row[i], -i))
 
 
-def check_device_rows(cpu_rows, device_rows, token_ids, max_logit_gap=None):
+def check_device_rows(cpu_rows, device_rows, token_ids, max_logit_gap=None, *, calibration=False):
     """The quantization plan's CPU/device criterion over every position of one token sequence, in either execution path.
-    With no max_logit_gap it measures the existing-type control; the candidate uses that measured maximum as its limit.
+    Calibration retains the existing-type control's errors without applying candidate acceptance; the candidate uses that measured maximum as its limit.
     This supplements independent HF correctness and does not define a new HF bound."""
     require(len(token_ids) >= 2, "device comparison needs at least two token IDs")
     require(max_logit_gap is None or (math.isfinite(max_logit_gap) and max_logit_gap >= 0), "invalid calibrated logit gap")
+    require(not calibration or max_logit_gap is None, "calibration measures its limit rather than accepting one")
     nll = [[], []]
+    top1_failures, top5_failures = [], []
     rows, vocab, worst, checked, overlap = 0, None, 0.0, 0, 5
     for pos, (cpu, device) in enumerate(itertools.zip_longest(cpu_rows, device_rows)):
         require(cpu is not None and device is not None and pos < len(token_ids), "missing or extra logit row")
@@ -109,11 +111,15 @@ def check_device_rows(cpu_rows, device_rows, token_ids, max_logit_gap=None):
             require(all(type(i) is int and 0 <= i < vocab for i in token_ids), "invalid token ID")
         require(len(cpu) == len(device) == vocab, "logit row width changed")
         if cpu[top[0]] - cpu[top[1]] > TOP5_TIE_MARGIN:
-            require(got[0] == top[0], "device top-1 differs outside the CPU tie margin at position %d" % pos)
+            if got[0] != top[0]:
+                top1_failures.append(pos)
+                require(calibration, "device top-1 differs outside the CPU tie margin at position %d" % pos)
             checked += 1
         current = top5_overlap(got, top, [cpu[i] for i in top], [device[i] for i in got])
         overlap = min(overlap, current)
-        require(current == 5, "device top-5 differs outside the tie margin at position %d" % pos)
+        if current != 5:
+            top5_failures.append(pos)
+            require(calibration, "device top-5 differs outside the tie margin at position %d" % pos)
         worst = max(worst, max(abs(a - b) for a, b in zip(cpu, device)))
         if pos + 1 < len(token_ids):
             for result, row, best in zip(nll, (cpu, device), (top[0], got[0])):
@@ -123,16 +129,20 @@ def check_device_rows(cpu_rows, device_rows, token_ids, max_logit_gap=None):
     require(rows == len(token_ids), "missing logit rows")
     means = [math.fsum(values) / len(values) for values in nll]
     delta = abs(means[0] - means[1])
-    require(all(math.isfinite(v) for v in means) and delta <= 0.01, "device mean NLL differs from CPU by %.9g, bound 0.01" % delta)
+    require(all(math.isfinite(v) for v in means), "nonfinite device comparison NLL")
+    require(calibration or delta <= 0.01, "device mean NLL differs from CPU by %.9g, bound 0.01" % delta)
     require(math.isfinite(worst) and (max_logit_gap is None or worst <= max_logit_gap),
             "device logit gap %.9g exceeds calibrated bound %s" % (worst, max_logit_gap))
     return dict(rows=rows, scored=rows - 1, top1_checked=checked, min_top5_overlap=overlap,
-                max_logit_gap=worst, cpu_nll=means[0], device_nll=means[1], nll_delta=delta)
+                max_logit_gap=worst, cpu_nll=means[0], device_nll=means[1], nll_delta=delta,
+                top1_fail_positions=top1_failures, top5_fail_positions=top5_failures,
+                criteria_passed=not top1_failures and not top5_failures and delta <= 0.01)
 
 
-def check_device_greedy(cpu_rows, device_rows, cpu_ids, device_ids):
+def check_device_greedy(cpu_rows, device_rows, cpu_ids, device_ids, *, calibration=False):
     """Both captures contain 64 finite argmax steps; their IDs must agree before the first CPU top-2 gap within TOP5_TIE_MARGIN.
-    After that tie their histories may differ, so their subsequent logits are not compared."""
+    After that tie their histories may differ, so their subsequent logits are not compared.
+    Calibration reports any earlier disagreement without applying candidate acceptance."""
     require(len(cpu_ids) == len(device_ids) == 64, "greedy comparison needs exactly 64 IDs per backend")
     first_tie, first_divergence, rows, vocab = None, None, 0, None
     for pos, (cpu, device) in enumerate(itertools.zip_longest(cpu_rows, device_rows)):
@@ -148,12 +158,13 @@ def check_device_greedy(cpu_rows, device_rows, cpu_ids, device_ids):
         if cpu_ids[pos] != device_ids[pos]:
             if first_divergence is None:
                 first_divergence = pos
-            require(first_tie is not None, "greedy tokens differ before a CPU near-tie at step %d" % pos)
+            require(calibration or first_tie is not None, "greedy tokens differ before a CPU near-tie at step %d" % pos)
         rows += 1
     require(rows == 64, "missing greedy rows")
     return dict(matched_prefix=64 if first_divergence is None else first_divergence,
                 checked_steps=64 if first_tie is None else first_tie,
-                first_near_tie=first_tie, first_divergence=first_divergence)
+                first_near_tie=first_tie, first_divergence=first_divergence,
+                agrees_until_tie=first_divergence is None or (first_tie is not None and first_divergence >= first_tie))
 
 
 def run_process(args, input=None, cache=None, text=False, timeout=None):

@@ -55,7 +55,6 @@ line-pin | docs/STATUS.md | main.cpp:264 | 1 | the loader plan's steps; pinned t
 line-pin | docs/STATUS.md | docs/EXECUTION.md:234 | 1 | the loader plan's steps; pinned to their commit with cleanup/known-findings
 
 # Names in live text that the code no longer has.
-name | docs/src/backends-backend.md | matmul(ggml_type, data, X, Y, nin, nout, nbatch, runs) | 1 | the parameter has been type since the ggml_type name left the code; corrected with cleanup/known-findings
 
 # Commands a live doc names that the binary lacks.
 command | docs/VULKAN.md | llmx devices | 1 | a planned listing written in the live Selection and reporting; with cleanup/known-findings the sentence moves under a heading that says planned, or names the listing without the backticked command

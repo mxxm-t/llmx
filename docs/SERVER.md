@@ -80,7 +80,7 @@ cli/main.cpp     `llmx serve <model.gguf> [--host H] [--port N] [--device D]
                  [--max-seqs N] [--max-queue N] [--ctx-size N] [--ubatch N]
                  [--cache-type-k T] [--cache-type-v T] [--threads N]
                  [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe]
-                 [--moe-stream-from N] [--passes N] [--timing]`
+                 [--moe-stream-from N] [--load-mode M] [--passes N] [--timing]`
 ```
 
 `server/` sits above `inference/` in the layering: it uses the model, the tokenizer, the sampler and the chat template renderer, and adds scheduling and transport.
@@ -272,6 +272,7 @@ Both get the same U+FFFD repair as generated text, so every reply is UTF-8.
 A non-streaming request gets one JSON object with the text, the ids and the counts.
 Errors are JSON with an HTTP status: 400 for a bad request (a text the tokenizer cannot encode and a token id outside the vocabulary included), 413 for a prompt past the context or a body past 64 MiB, 503 when the queue is full.
 A conversation the chat template raises on is a bad request, answered 400 with the template's message; a template the renderer refuses stops `serve` before it listens, since no chat request could be answered.
+A model whose layers keep a recurrent state, a `qwen35` file, is refused as `serve` starts, before it listens, until the scheduler holds states (`server::require_servable`).
 A message that carries `reasoning_content` as a string is taken as sent, its content and its reasoning unchanged.
 An assistant message without it, or with it null, is kept as `chat` keeps its own replies (`chat::ChatFormat::assistant`): split by `chat::assistant_turn`, the text after its last `</think>` the content and the reasoning before it `reasoning_content`, only when the template reads `reasoning_content` and does not split a turn at `</think>` itself, as the Qwen 3.8 templates do not, and rendered whole, as sent, under every other template.
 So the server renders a conversation as `chat` does, and each model sees earlier reasoning in the form its template was written for, whichever way a client sends it back ([inference-chat](src/inference-chat.md) states the rule).

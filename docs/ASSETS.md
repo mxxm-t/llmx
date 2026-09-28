@@ -359,6 +359,8 @@ when an override is set; unsupported filenames are rejected.
 | `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q5_K_M.gguf` | The K-quant path: 168 Q5_K, 29 Q6_K and 113 F32 tensors, so the fused Q5_K and Q6_K dots and the device K-quant kernels are under the HF gate. Same repo and revision as the Q4_0 file. Bounds set from the measured deltas plus margin: top-5 overlap 4, NLL delta 0.05 continuous, 0.16 per chunk |
 | `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q4_K_M.gguf` | The most common download's type: 168 Q4_K, 29 Q6_K and 113 F32 tensors, so Q4_K, which the suite otherwise checks only against a decode written from the format description, is under the HF gate end to end on every backend. Same repo and revision as the Q4_0 file (Qwen's own GGUF repo has no Q4_K_M). Bounds set by the Q5_K_M rule below: top-5 overlap 4, NLL delta 0.13 continuous, 0.25 per chunk |
 
+The gate's two Qwen3.5-0.8B files, Q8_0 and Q4_K_M, are described with the other qwen35 files (The qwen35 real-model references, below).
+
 The K-quant fixtures' bounds are the CPU's measured HF deltas plus a margin.
 Q5_K_M measured 0.026 continuous and 0.130 per chunk (the four 64-token windows) and took 0.05 and 0.16, a margin of 0.024 and 0.030, with its top-5 overlap bound at its lowest measured overlap, 4.
 Q4_K_M takes the same margins over its own largest deltas, rounded up to a hundredth, and the same overlap rule.
@@ -375,8 +377,8 @@ Its logits give the HF top-1 on all six prompts, a top-5 overlap of 4, 4, 5, 4, 
 With f32 caches, as the HF job's second pass runs it, the largest deltas are 0.105454 continuous and 0.215150 per chunk, with the HF top-1 on all six prompts and a top-5 overlap of at least 4, so the bounds hold for both cache types (0.105454 + 0.024 still rounds up to 0.13).
 The same build measured Q5_K_M at 0.026144 and 0.027534 continuous and 0.129440 at most per chunk, the values its bounds were set from.
 
-Fetch and SHA-256 verify the gate's pinned snapshots with `python tools/fetch_test_models.py` (Python standard library only, about 1.9 GB combined).
-Repos, revisions, files, digests and sizes are recorded in `tests/data/fixtures.json`, the gate's models marked `gate`, which the downloader and `tests/baseline.py` both read, and each gate model's bounds in `tests/baseline.py`.
+Fetch and SHA-256 verify the gate's pinned snapshots with `python tools/fetch_test_models.py` (Python standard library only, about 3.2 GB for the six gate files).
+Repos, revisions, files, digests and sizes are recorded in `tests/data/fixtures.json`, the gate's models marked `gate`, which the downloader and `tests/baseline.py` both read, and each gate model's bounds in `tests/baseline.py`, or `tests/baseline_qwen35.py` for the qwen35 files.
 The numerical checks use those exact snapshots unless explicitly overridden.
 
 ### Type fixtures, spec decoders and file-exact references (2026-09-26)
@@ -785,7 +787,7 @@ feature, and these correctness runs are not throughput measurements.
 `tests/reference_consumer.py` checks fixture tampering, token mismatch, malformed/nonfinite/duplicate/unsorted logits, damaged PPL counters/bounds and failed launches using the standard library.
 It also runs the consumer over simulated passing outputs and requires 41 checks, each NLL case scored in both modes.
 It was the eleventh ordinary suite component when it was added.
-The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` still cover only the four 0.6B gate models.
+The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` cover the six gate models, the four Qwen3-0.6B files and the two Qwen3.5-0.8B files.
 
 ### The layered qwen35 reference
 

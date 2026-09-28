@@ -1,7 +1,7 @@
 # `src/backends/cpu/cpu_backend.hpp` - CPU backend (AVX2)
 
 CPU implementation of the `Backend` interface, in namespace `backend`.
-`supports_type` reads the quant registry, including its F32 entry.
+`supports_type` reads the quant registry, including its F32 entry, and `implements(op)` is true for every `Op`.
 The build requires x86-64 AVX2, FMA and F16C (`docs/BUILD.md`), and the kernels use them with no runtime check and no scalar fallback; their scalar loops cover the tails of lengths that are not a multiple of 8.
 Every multiply-add in those tails is an explicit FMA (`std::fma`), never `a * b + c`: a compiler that contracts fuses such an expression in one inlined copy and not in another by the code around it, which gave a prompt row different bits by its place in the batch (`tests/backend_group.cpp`, docs/STATUS.md).
 A compile without them stops at one `#error` at the top of the header.
@@ -80,7 +80,7 @@ A compile without them stops at one `#error` at the top of the header.
   The tails' multiply-adds are explicit FMAs, `rope_raw`'s the same ones as its vector body, so a build that contracts expressions and one that does not give the same bits (docs/QWEN35.md, Row classes).
   `norm_rope_raw` norms each head and rotates its first dims from heads read at a stride of their own into contiguous heads, the one norm and rope of both `norm_rope_rows`, in place at the full rotary width, and `norm_rope_partial`.
 - `silu_of`, `sigmoid_of`, `softplus_of` and `decay_of`: the elementwise ops' transcendental steps, each computed in one place with `std::exp` per element.
-  `softplus_of` takes its argument as it is above 20 and its log in double, rounded once, so its value does not follow how the C library rounds the float `log1p`, and `decay_of` gives 0 for a decay factor below 2^-126, as every backend does, so the factor does not depend on the host's denormal handling, though a state value it scales below 2^-126 does.
+  `softplus_of` takes its argument as it is above 20, and its `exp` in float and its log in double, rounded once, so its value does not follow how the C library rounds the float `log1p`, and `decay_of` gives 0 for a decay factor below 2^-126, as every backend does, so the factor does not depend on the host's denormal handling, though a state value it scales below 2^-126 does.
 - The qwen35 layers' ops (`backends-backend.md`), each on the pool with every value computed by one routine whatever the thread count, so the thread count and the grouping of rows into calls change no bit.
   - `causal_conv_silu`: one task per (view, channel), which reads the channel's carried rows from slot `src`, zero before the sequence's start, walks the view's rows through a window of the last raw values and leaves that window in slot `dst`; on the calling thread below 32K row values.
   - `gated_delta_rule`: a prologue over the rows writes the L2-normed q and k of every K head and each V head's beta and decay into scratch, then one task per (view, V head) copies its matrix from slot `src` into slot `dst`, or zeroes it at length 0, and runs the recurrence there token by token (`delta_rule_head`).

@@ -102,6 +102,10 @@ KVSequence    ordered physical block ids, valid length;
               (refcount+1) and copies nothing
 ```
 
+`model/kv_cache.hpp` also holds a model's recurrent state slots (`SlotPool`,
+`StateSlot`): a sequence takes one once its pass is accepted and planned,
+and releases it at reset. A model that keeps a state refuses forks.
+
 Both own what they hold: neither is copyable, the pool is not movable either
 because sequences hold its address and it is configured in place while idle,
 a sequence returns its blocks when destroyed or when another is moved
@@ -114,8 +118,9 @@ A failed step restores history and length; capacity the backend grew for the att
 `KVSequence` replaces the per-model position bookkeeping. `Model` keeps one
 `Sequence`, which holds a `KVSequence` for each storage, and the server
 keeps one `Sequence` per request. The budget is a token count that
-the backend rounds up to whole blocks of every layer's K and V, the model
-context by default. The CLI exposes it only as `llmx serve --ctx-size`,
+the backend rounds up to whole blocks of every KV layer's K and V, the
+model context by default; a device whose layers keep only a recurrent
+state has no KV storage. The CLI exposes it only as `llmx serve --ctx-size`,
 the pool's total token budget, whose exhaustion behaviour is admission: a
 request that does not fit waits or is refused (`docs/SERVER.md`).
 

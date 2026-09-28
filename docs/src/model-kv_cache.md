@@ -44,12 +44,14 @@ state), whose slots live in a `backend::StateStorage`.
   any is held. A slot holds nothing a
   sequence must clear, since a history of length 0 reads a zero state
   whatever its slot holds. `StateSlot` is a sequence's hold on one slot,
-  taken by `take` and returned by `release`, when it is moved over or when
-  it is destroyed, and `held` says whether it holds one; neither class is copyable and the pool is not movable.
+  taken by `take`, which does nothing when one is already held, named by
+  `slot`, and returned by `release`, when it is moved over or when it is
+  destroyed, and `held` says whether it holds one; neither class is copyable and the pool is not movable.
 
-`Model` owns one pool per device that runs attention, one slot pool when a
-layer keeps a state, and one default sequence; a `Sequence` holds a table per storage and `Model::fork` forks
-every table at one length. The server keeps one sequence per request over
+`Model` owns one block pool per device whose mixer layers keep KV, one slot
+pool when a layer keeps a state, and one default sequence; a `Sequence`
+holds a table per storage and `Model::fork` forks every table at one
+length, and refuses a model that keeps a state. The server keeps one sequence per request over
 a shared pool, finds prefix donors by comparing tokens in
 `server/scheduler.hpp` and forks a donor at the whole blocks it shares;
 nothing here indexes prefixes.

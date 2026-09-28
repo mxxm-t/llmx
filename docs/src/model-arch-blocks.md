@@ -2,9 +2,9 @@
 
 The pieces of a pass that more than one architecture runs, in namespace
 `infer::blocks`, each as backend ops over the weights and arena slots it is
-handed. None names a tensor, a metadata key or an architecture
-(`tests/arch_boundary.py` holds every header under `model/arch/` that the
-registry does not include to that), so a module calls them with its own
+handed. None names a tensor, a metadata key or an architecture, and
+`tests/arch_boundary.py` holds every header under `model/arch/` that the
+registry does not include to naming no architecture and no tensor, so a module calls them with its own
 roles and slots ([ADDING-AN-ARCHITECTURE](../ADDING-AN-ARCHITECTURE.md),
 One owner). [qwen3](model-arch-qwen3.md) and [qwen35](model-arch-qwen35.md)
 run them.

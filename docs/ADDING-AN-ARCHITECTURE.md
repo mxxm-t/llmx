@@ -54,7 +54,7 @@ This page covers what a module holds, what the shared runtime does for it, the r
 | `docs/src/model-arch-<name>.md` | the file's page, as every source file has one |
 | `docs/<NAME>.md` | when the math or the file's conventions need more than the source page: the shapes, the forward pass of each layer kind, the GGUF conventions and the files on hand, as [QWEN35](QWEN35.md) does |
 | `tests/arch_<name>.cpp` | CTest `arch-<name>`: every refused key and tensor with its text, the plan of each layer kind on a fixture, and the footprint |
-| `tests/fixture_<name>.py` | the tiny model's configuration, its GGUF writer, and the map from its GGUF tensor names to the reference's parameter names, imported by the suites and by `tools/gen_baseline.py` |
+| `tests/fixture_<name>.py` | the tiny model's configuration, its GGUF writer, and the map from its GGUF tensor names to the reference's parameter names, imported by the suites and by `tools/gen_baseline.py`; qwen35 keeps these in `tests/qwen35.py` |
 | goldens in `tests/data/` | written by `tools/gen_baseline.py` from the reference named in STATUS, on the tiny model and on the smallest released model that fits the host |
 | when the family ships HF directories | the module's `config.json` reader and its HF name table, beside its GGUF reader |
 | a plan block in `docs/STATUS.md` and a line in ROADMAP #2 | where each piece lives, the steps, their gates and the decisions |
@@ -104,7 +104,7 @@ The runtime then:
 - holds the plan to slot 0 as wide as the residual and to every role id inside the row of weights, and treats either as the module's error;
 - checks every role by its kind: its shape, F32 for a norm, and trailing axes of one;
 - checks each assigned backend's weight types through `supports_type`, before adopting any weight;
-- decides whether each host layer can stream to its mixer device once: all its streamed roles must have supported types there, or that layer stays on the host;
+- decides whether each host layer can stream to its mixer device once: all its streamed roles must have supported types there and the destination must implement its feed-forward part's ops, or that layer stays on the host;
 - adopts each role on the device of its part;
 - reads one buffer for a tensor that two roles take on one device;
 - counts each layer's roles in the fit, in file order, and the pass's roles through the fit's three fields for them: the embedding's table, the head's matrix and the head's norm.
@@ -138,8 +138,8 @@ The runtime calls each part once per layer per pass, or once per group of entrie
 ### New backend ops
 
 When a layer needs math the op set lacks, the op is added to `src/backends/backend.hpp`, named for what it computes. It comes with:
-- a CPU implementation and a Vulkan implementation;
-- a `backend-vulkan` case against the CPU. That case is exact where the arithmetic is the same operations in the same order, and holds a stated tolerance where a transcendental or a reduction order differs.
+- a CPU implementation and a test against a reference written from the math, as `qwen35-ops` is;
+- at the device step of the order below, a Vulkan implementation and a `backend-vulkan` case against the CPU. That case is exact where the arithmetic is the same operations in the same order, and holds a stated tolerance where a transcendental or a reduction order differs.
 
 A backend without the op refuses the model at load, naming the op; no backend substitutes other arithmetic.
 The op joins `backend::Op`, and the plan names the ops each part of a layer issues from that list (`LayerPlan::ops`), which the runtime checks against each part's device (`Backend::implements`) before it adopts a weight.

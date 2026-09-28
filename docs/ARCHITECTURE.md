@@ -90,8 +90,9 @@ The model layer is one runtime that names no architecture and one module per arc
   It indexes a file's tensors by name once and finds each role's tensor there, reads the plan a module declares, and calls the module's parts.
   Before adopting weights it checks each assigned backend's type support and the ops the plan names.
   It decides each host layer's streaming eligibility once, keeping a layer
-  whose destination lacks a weight type on its host; the backend owns the
-  type query over its existing kernel support.
+  on its host when its destination lacks a weight type or an op of its
+  feed-forward part; the backend owns the type and op queries over its
+  existing kernel support.
 - A module (`model/arch/qwen3.hpp` for qwen3 and qwen3moe, `model/arch/qwen35.hpp` for qwen35) reads its configuration from the file's metadata and declares a plan: its layers, each layer's kind, cache (KV, a recurrent state or none), tensor roles and the ops some backends lack, the arena slots, the residual width, the context length, the K and V geometry, the state's shape and the position tables.
   The graph pieces more than one module runs are in `model/arch/blocks.hpp`.
   It supplies its math as backend ops, which the runtime calls once per layer part: `embed`, `mixer`, `ffn` and `head`.
@@ -116,7 +117,7 @@ A new architecture is added as [ADDING-AN-ARCHITECTURE](ADDING-AN-ARCHITECTURE.m
 | `quant/`        | `types.hpp` (the type ids and block sizes), `quant.hpp` (registry + block quants, `row_bytes`), `k_quants.hpp` (K-quants) |
 | `format/`       | `format.hpp` (`FileSpan`, where a tensor lies in its file, and `LoadProgress`), `file_reader.hpp` (a file read at given offsets by several threads, through the file cache or around it, which the loader streams weights through), `gguf.hpp` (GGUF v3: `read_gguf` reads the headers, `map_payload` maps the payload, `warm` reads it in), `mapped_file.hpp` (read-only mapping), `output_file.hpp` (checked staging and publication of conversion outputs), `raw_convert.hpp` (raw F32 tensors to and from GGUF, for `quantize` and `dequantize`) |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer)     |
-| `model/`        | `weights.hpp` (the format-neutral weights a model is built from, `ModelWeights`, and the resolved `Weight`), `architecture.hpp` (the contract an architecture implements: its plan and its parts), `runtime.hpp` (the runtime that runs a plan and its parts: sequences, passes, stages, the arena, crossings, `Placement` of each tensor role), `place.hpp` (the memory footprint from the plan, and `place_model`, which places a model over its backends), `arch/registry.hpp` (the architectures by `general.architecture`, and `gguf_weights`), `arch/metadata.hpp` (typed metadata reads), `arch/blocks.hpp` (the graph pieces modules share), `arch/qwen3.hpp` (Qwen3 and qwen3moe), `arch/qwen35.hpp` (Qwen 3.5, 3.6 and 3.8), `kv_cache.hpp` (logical KV: block pool, sequence), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
+| `model/`        | `weights.hpp` (the format-neutral weights a model is built from, `ModelWeights`, and the resolved `Weight`), `architecture.hpp` (the contract an architecture implements: its plan and its parts), `runtime.hpp` (the runtime that runs a plan and its parts: sequences, passes, stages, the arena, crossings, `Placement` of each tensor role), `place.hpp` (the memory footprint from the plan, and `place_model`, which places a model over its backends), `arch/registry.hpp` (the architectures by `general.architecture`, and `gguf_weights`), `arch/metadata.hpp` (typed metadata reads), `arch/blocks.hpp` (the graph pieces modules share), `arch/qwen3.hpp` (Qwen3 and qwen3moe), `arch/qwen35.hpp` (Qwen 3.5, 3.6 and 3.8), `kv_cache.hpp` (logical KV: block pool, sequence; the recurrent state's slots, `SlotPool` and `StateSlot`), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |
 | `backends/`     | `backend.hpp` (interface), `kv_storage.hpp` (the paged KV storage the backends derive theirs from: buffers, accounting, growth and view checks), `devices.hpp` (the backend a device spec names: `device_specs`, `make_backends`), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/q8_dots.hpp` (the CPU's dots against quantized activations), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
 | `inference/`    | `load.hpp` (`load_model`, the one load sequence, in the mode `--load-mode` names: file read; mapped and read in when the host has room (`mapped`), mapped only for a host that reads in place (`auto`), or never mapped, a host's weights read into its own copy laid out as the file (`direct`); tokenizer, chat format, weights, placed model with each weight's reader and each streamed copy's storage recorded; copies streamed in file order on up to two reader threads, around the file cache in `direct` and in `auto` when they would not fit in it; host copy released or unread pages dropped), `sampler.hpp`, `logprobs.hpp` (log-softmax of a logits row), `generate.hpp`, `perplexity.hpp`, `chat.hpp` |
 | `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies), `scheduler.hpp` (admission, batching, the rounds over the model's pass API, sampling, prefix reuse), `policy.hpp` (the scheduler's policy core: room, the round's stages, the logits rows), `api.hpp` (the native and OpenAI-compatible routes), per `SERVER.md` |
@@ -161,8 +162,10 @@ submission support.
 
 ## KV state and concurrent execution
 
-`Model` holds the architecture and its plan, the weights, the cache's pool and
-physical storage, and the backend, and is read-only after construction apart from pool bookkeeping. A
+`Model` holds the architecture and its plan, the weights, a KV pool and
+storage on each device whose layers keep KV, a state storage on each device
+whose layers keep a recurrent state and the slots of that state, and the
+backends, and is read-only after construction apart from pool bookkeeping. A
 `Sequence` is one request's history, an `ExecContext` is where passes run
 (activation arenas, handoff buffers, logits rows, tickets, the plan of each
 pass in flight), and `Model::forward` runs one pass over a batch of entries,
@@ -183,7 +186,8 @@ an offset into KV storage. A fork shares whole physical blocks without copying t
 contents; it allocates its own logical block tables. A block returns to the
 pool only after the backend has retired the work
 that read it; the server reuses a finished request's blocks for a prompt
-that repeats its tokens (`docs/SERVER.md`).
+that repeats its tokens (`docs/SERVER.md`). A model whose layers keep a
+recurrent state is not forked.
 
 The device and server work (ROADMAP #4a and #7) preserves these
 boundaries, and further work must too:

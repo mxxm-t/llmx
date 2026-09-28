@@ -181,9 +181,10 @@ The server needs the first shared and the rest per request and per pass:
 
 ```
 Model         config, placement, weights per device, RoPE tables per device,
-              the backends. Read-only after construction; shared.
+              state storages per device, the backends. Read-only after construction; shared.
 Sequence      one request's history: a KVSequence per storage, the
-              committed length, the ticket of its last pass. A device may
+              committed length, a state slot while it holds a state, the ticket of
+              its last pass. A device may
               host several storages (one per attention kind), which is why
               the table is per storage and not per device.
 ExecContext   where passes run: an activation arena per device, a
@@ -298,7 +299,7 @@ before a device is involved.
 
 ## Beyond dense Qwen
 
-The models this project will be asked to run next do five things dense
+The models this project will be asked to run next do six things dense
 Qwen does not, and each is an addition on top of the interface above
 rather than a change to it, provided the steps do not assume otherwise.
 The assumptions to avoid are marked.
@@ -322,8 +323,10 @@ On the model side, each addition lands as a field of the architecture contract (
   place and that exists only at the end of what it has read. Implemented
   for `qwen35` (`docs/QWEN35.md`): a cache kind per layer
   (`LayerPlan::cache`), a `StateStorage` of slots on each device, allocated
-  at load, each sequence holding one slot, and `causal_conv_silu` and
-  `gated_delta_rule` in `backend.hpp`; such a model is not forked, and a
+  at load, each sequence holding one slot, and the five ops of
+  `backend::Op` (`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`,
+  `norm_rope_partial`, `sigmoid_mul`), which a backend reports through
+  `Backend::implements`; such a model is not forked, and a
   failed pass loses the states it touched. Do not assume every layer keeps
   KV, or that every stage of a split has a KV storage.
 - **Mixture of experts.** A routed matmul over the experts each token

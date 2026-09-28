@@ -223,7 +223,8 @@ llmx perplexity model.gguf --file "corpus.txt" --ctx-size 512 --chunks 4 --threa
 - Files must contain UTF-8 text without a BOM. Bytes, including CRLF/LF line
   endings, are preserved; no trimming or newline conversion is performed.
 - Tokenize the entire input once, without adding BOS/EOS, then split into
-  disjoint windows. Each window resets the KV cache and RoPE positions.
+  disjoint windows. Each window resets the model's history (its KV cache, and a
+  qwen35 model's recurrent state) and RoPE positions.
 - Score every token after the first in each window. Include a partial last
   window if it has at least two tokens; a final singleton has no target.
 - Aggregate the sum of negative log probabilities divided by the total number
@@ -313,7 +314,7 @@ devices in the order listed: the first runs the embedding and the first
 layers, the last runs the final layers and the head, and the residual
 stream crosses once at each boundary per pass. Each device's layers are
 fitted to the memory it reports free, counting its layers' weights, their
-cache for the whole `--ctx-size` budget (the model context by default, or what `bench --seqs` holds when that is more),
+cache, KV for the whole `--ctx-size` budget (the model context by default, or what `bench --seqs` holds when that is more) or a linear-attention layer's recurrent state for each sequence decoding at once,
 the embedding and head where they sit, one pass of activations and a
 reserve for kernel scratch. Devices that hold weights in their own memory
 share the layers as evenly as that allows; the CPU, whose weights read the

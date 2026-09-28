@@ -19,7 +19,7 @@ delegated to a `backend::Backend`.
   as wide as the residual, or with a role id past `role_ids`, is the
   architecture's error (`std::logic_error`), since the runtime strides the
   residual by one and sizes slot 0 by the other, and indexes rows by the id.
-- `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(plan, options)` and `kv_bytes_per_position(plan, options)`: the positions the caches are budgeted for, the options' or else the plan's context, which the fit and the cache allocation take, and one position's key and value bytes at the plan's geometry and the options' cache types, which only the fit and `kv_used_bytes`, over the layers that keep KV, take: the allocation passes the token budget and the two types to `kv_alloc`, and the backend's storage turns them into blocks and bytes (`backends/kv_storage.hpp`).
+- `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(plan, options)` and `kv_bytes_per_position(plan, options)`: the positions the caches are budgeted for, the options' or else the plan's context, which the fit and the cache allocation take, and one position's key and value bytes of one layer at the plan's geometry and the options' cache types, which only the fit and `kv_used_bytes`, times the layers that keep KV, take: the allocation passes the token budget and the two types to `kv_alloc`, and the backend's storage turns them into blocks and bytes (`backends/kv_storage.hpp`).
 - `Placement`: a device index per tensor role: each layer's mixer
   (`mixer_device`) and feed-forward block (`ffn_device`), the embedding
   table and the output head. Empty means everything on device 0. Per role
@@ -41,8 +41,8 @@ delegated to a `backend::Backend`.
   every pool holds, zero for one model context, and `state_slots`, the
   sequences that may hold a recurrent state at once in a model whose layers
   keep one: one for a command's own sequence, the sequences a pass carries
-  for `bench --seqs` (the CLI's `open_model` sets it from them), two for
-  `llmx-split-check`. Both sides default to
+  for `bench --seqs` (the CLI's `open_model` sets it from them), four for
+  each device of its split, two at least, for `llmx-split-check`. Both sides default to
   `KVType::f16`, the runtime's one default: the CLI, the server, the
   synthetic bench and the split check all start from it.
 - `Sequence`: one request's history over a model's cache, made by
@@ -66,8 +66,8 @@ delegated to a `backend::Backend`.
   passes those of its slots (`reserve_passes`), while a device it never
   leaves, such as a pipelined split's last, keeps none; the host-visible
   logits rows; the tickets; and a `Pass` per pass in flight, the entries,
-  rows, positions, head rows and cache views its stages read as they are
-  recorded, the handoff buffer its crossings use, its first logits row and
+  rows, positions, head rows, cache views and per-device state views its
+  stages read as they are recorded, the handoff buffer its crossings use, its first logits row and
   its ticket; and the run lists a part rebuilds (`Step::scratch`) and a
   streamed layer's groups, reserved at a run per row so no part grows them.
   Allocated by the first forward that needs it and grown to the
@@ -91,10 +91,12 @@ delegated to a `backend::Backend`.
   reference to the file, and shares the architecture object with the
   weights. Each weight is put on the backend that hosts its role, which on
   the CPU reads the file's bytes in place and on a device copies them.
-  Each device that runs a mixer gets a `KVStorage` for exactly its layers
-  whose cache is KV (`LayerPlan::cache`), each layer indexed within it by
-  its place among them, with its own pool, block size and adopted position
-  tables, which the
+  Each device whose mixer layers keep KV (`LayerPlan::cache`) gets a
+  `KVStorage` for exactly those layers, each indexed within it by its place
+  among them, with its own pool and block size; the block sizes of a
+  model's storages must nest, one dividing the other, since a shared prefix
+  ends on a whole block of the largest, or the model is refused. Every
+  device that runs a mixer adopts the position tables, which the
   architecture filled once (`fill_tables`). A pass calls the architecture's
   parts, each with a `Step` on the device that runs it: the embedding on
   the first stage, each layer's mixer and feed-forward part, and the head
@@ -107,8 +109,9 @@ delegated to a `backend::Backend`.
   mixer layers keep a recurrent state holds a `backend::StateStorage` of
   exactly those layers with `state_slots` slots, allocated and zeroed at
   load and never grown (`Backend::state_alloc`), and a sequence takes one
-  slot of the model's `SlotPool` in its first pass, before any work, and
-  keeps it until its reset. The
+  slot of the model's `SlotPool` in its first pass, once the pass is
+  accepted and planned, and keeps it until its reset, its destruction or a
+  move over it. The
   residual stream crosses devices wherever the placement changes, in two
   halves: the source copies the rows into its handoff buffer inside its own
   work (`send`), and the destination waits that submission's ticket and
@@ -125,8 +128,10 @@ delegated to a `backend::Backend`.
     blocks of the storage it writes, submits the devices it recorded on and
     commits. It is one transaction: a failure anywhere drains every device
     and returns every history to where the pass found it, stages already
-    committed included. A sequence listed twice or in flight is refused
-    before any work, and so is a context reserved for passes.
+    committed included. A sequence listed twice, in flight or whose state
+    a failed pass lost is refused before any work, and so is a pass whose
+    fresh sequences outnumber the free state slots and a context reserved
+    for passes; `begin` takes the slots last, once the pass is planned.
   - The pass API, for a scheduler that keeps passes of different sequences
     in flight so that every stage of a pipelined split works on one while
     the host samples another (`docs/MULTI-DEVICE.md`). `stage_count()` and
@@ -169,8 +174,9 @@ delegated to a `backend::Backend`.
     exists only at the end of what it has read. Such a model is never
     forked. A pass updates the state in place, so a failed pass, or a
     prompt that fails part way, loses the state of every entry it takes
-    back to a length other than 0, where the state reads as zero; a lost
-    sequence is refused by the next pass until its reset. A server that
+    back to a length other than 0, where the state reads as zero, and so
+    does `abort_pass` even when no stage ran; a lost sequence is refused by
+    the next pass until its reset. A server that
     cannot hold states refuses such a model.
   - `kv_pools()`, `kv_pool_block_tokens(s)`, `kv_pool_blocks(s)`: the
     cache pools a scheduler admits against, one per device whose mixer

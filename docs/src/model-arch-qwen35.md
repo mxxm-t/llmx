@@ -6,9 +6,11 @@ reaches through `open_dense`. It implements the architecture contract
 ([architecture](model-architecture.md)); nothing outside `model/arch/`
 names it. The math, the files' conventions and the recurrent state are in
 [QWEN35](../QWEN35.md); the plan and its steps are in `docs/STATUS.md`.
-It runs on the CPU; a device backend refuses it as it loads, since it
-lacks the linear-attention ops (`LayerPlan::ops`), and `llmx serve`
-refuses it (`server::require_servable`).
+It runs on the CPU; a device backend refuses it as it loads, since only
+the CPU implements the five ops its plan names (`LayerPlan::ops`:
+`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`,
+`norm_rope_partial` and `sigmoid_mul`), and `llmx serve` refuses it
+(`server::require_servable`).
 
 - `Config`, `read_config(file, prefix)`: the configuration, read under the
   prefix the registry hands it through [metadata](model-arch-metadata.md).
@@ -31,14 +33,16 @@ refuses it (`server::require_servable`).
   - The linear attention: `ssm.conv_kernel`, which must be
     `backend::kConvTaps` (4), `ssm.state_size` (the K head width),
     `ssm.group_count` (K heads), `ssm.time_step_rank` (V heads) and
-    `ssm.inner_size`, a whole number of V heads, the V head width.
+    `ssm.inner_size`, which must be a whole number of V heads and divided
+    by them gives the V head width.
   - A layer is full attention where the per-block
     `attention.recurrent_layers` array says it is not recurrent, when a
     file has one, which must have `block_count` entries with every MTP
     entry false; otherwise every `full_attention_interval`-th layer is.
-  - `check_config`: whole query heads per KV head and V heads per K head,
-    a rotary width that is even and inside a head, projections within
-    `int`, and context storage fitting float vectors.
+  - `check_config`: at least one decoder layer, whole query heads per KV
+    head and V heads per K head, a rotary width that is even and inside a
+    head, projections and a state head (`k_dim * v_dim`) within `int`, and
+    context storage fitting float vectors.
 - `Qwen35`: the architecture over a `Config`, with its roles as the ids of
   `Role` and its layer kinds `linear` and `full`.
   - `plan(index)`: the embedding gives the vocabulary. Each layer's roles
@@ -76,8 +80,8 @@ refuses it (`server::require_servable`).
       `attention`; `sigmoid_mul` gating the output in place by each head's
       gate read where `attn_q` left it; `attn_output` added into the
       residual.
-    - linear attention: the raw qkv rows, then z, alpha and beta in one
-      `matmul_group`; `causal_conv_silu` from the rows and the state's
+    - linear attention: the raw qkv rows through their own `matmul`, then
+      z, alpha and beta in one `matmul_group`; `causal_conv_silu` from the rows and the state's
       carried ones; `gated_delta_rule` from the sequence's slot, V head `j`
       reading K head `j mod Hk`; `gated_rms_norm` by z in place; `ssm_out`
       added into the residual.

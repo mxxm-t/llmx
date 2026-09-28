@@ -78,9 +78,10 @@ names it.
       `matmul_add`, which folds the residual add into the output
       projections). Each row keeps the same arithmetic, and each op finishes
       before the matrix operations or cache writes that depend on it begin.
-    - The routed down projection reads the SiLU's output as k entries a
-      token row, so the part rebuilds the runs for it in the step's run list
-      (`Step::scratch`), which the runtime has reserved.
+    - The routed SiLU reads the expert products as k entries a token row,
+      so the part rebuilds the runs for it (`end * k`) in the step's run
+      list (`Step::scratch`), which the runtime has reserved; the down
+      projection (`matmul_experts_add`) takes the step's runs unchanged.
 - `slot_widths(config, dense)`: the floats one row takes in each of Qwen3's twelve arena slots, which its plan holds, `ensure` allocates and `footprint` counts.
 - `open_dense(file, prefix)`, `open_routed(file, prefix)`: the registry's
   readers of a qwen3 file and a qwen3moe file, each the architecture over

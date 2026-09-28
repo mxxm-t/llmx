@@ -102,10 +102,10 @@ public:
 
     ~CpuBackend() override { stop_pool(); }
 
-    // A new count stops the running workers, and the next dispatch that needs workers starts them at that count.
-    // The scratch is allocated before anything changes, so a failure leaves the backend as it was.
     bool supports_type(uint32_t type) const override { return quant::Registry::instance().get(type); }
 
+    // A new count stops the running workers, and the next dispatch that needs workers starts them at that count.
+    // The scratch is allocated before anything changes, so a failure leaves the backend as it was.
     void set_threads(int n) override {
         if (n == 0) return;
         int t = (n > 0) ? n : 1;

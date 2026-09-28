@@ -30,7 +30,7 @@ struct Footprint {
     Matrix output;                             // the head's matrix, the embedding table itself when tied
     Matrix output_norm;                        // what runs with the head besides its matrix
     bool tied = false;                         // the head reads the embedding table, adopted once where both sit on one device
-    std::vector<size_t> cache;                 // each layer's cache for every position the budget allows, none for every layer when empty
+    std::vector<size_t> cache;                 // each layer's cache: a KV layer's for every position the budget allows, a state layer's for every slot; none for every layer when empty
     size_t tables = 0;                         // position tables: the host keeps them while the model lives, and every device that copies weights holds its own
     size_t activations_per_row = 0;            // one row of a pass's activations on each device
     size_t logits_per_row = 0;                 // one row of logits where the head runs

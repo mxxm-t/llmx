@@ -1,8 +1,10 @@
 # Vulkan backend
 
 Design for the first vendor backend, ROADMAP #4b, and step 5 of
-[EXECUTION](EXECUTION.md). It implements the whole `Backend` interface over
-a Vulkan device, and nothing else: the model layer holds no address,
+[EXECUTION](EXECUTION.md). It implements the `Backend` interface over
+a Vulkan device, except the five ops of the qwen35 layers, which
+`Backend::implements` reports absent, so a device refuses such a model as it
+loads; and nothing else: the model layer holds no address,
 computes no offset into KV storage, and submits stages through tickets.
 A scheduler can keep several passes in flight over the stages; a backend
 supplies an allocator, an ordered queue, and kernels.
@@ -74,11 +76,11 @@ The workstation has the LunarG SDK 1.4.357 at `C:\VulkanSDK`, installed for this
   no files to find at run time and no runtime compiler. `build.bat` stays
   CPU-only.
 
-### Activation range repair in development
+### Activation range repair
 
 The shared producer keeps extreme finite activation blocks representable by normalizing before division and restoring scale and sum bits after quantization. Ordinary blocks retain their arithmetic. Q8 row consumers optionally request 32-bit denormal and signed-zero/infinity/NaN preservation; the backend selects those modules only when both device properties are reported. Devices without them retain the original modules and may flush subnormal scales. The preserved Q8 row variants request their fused products explicitly into a precise accumulator, since enabling the modes can disable the driver's implicit contraction and change ordinary logits. The preserved Q8 integer-dot vector variant keeps a precise accumulator and separate scale product, integer-dot product and addition; explicitly fusing those operations failed ordinary-input identity on the MI50. The native packed-activation test also holds these consumers to the ordinary modules' bits on normal inputs across row and column tails; any disagreement fails the gate on a tested driver. F32 rows have a separate registry entry for the same ordinary row module, so the Q8 modes and precise accumulator cannot change their arithmetic, including MoE router scores. This is a device capability choice, with no new CLI flag or model-layer policy.
 
-The producer and conditional Q8 consumers pass the native range checks on Radeon. This does not establish all quant types' extreme-value arithmetic or whole-model identity; the integrated MI50, model and performance gates remain open in [STATUS](STATUS.md).
+The producer and conditional Q8 consumers pass the native range checks on Radeon. This does not establish all quant types' extreme-value arithmetic or whole-model identity; the MI50 identity, HF and timing gates are recorded in [STATUS](STATUS.md).
 
 ## Structure
 
@@ -162,7 +164,7 @@ HF gate measures the cost of it.
   types exist, the shader include says how the device decodes them.
   Q4_0 has a second decoder for `embed`, `q4_0_exact`, which computes the CPU's `(nibble - 8) * d` and sets a zero's sign as bits: `embed` matches the CPU bit for bit under every finite scale, and a driver need not keep a zero's sign.
   Every other type's `embed` decode takes a zero's sign from the driver's arithmetic, which the drivers tested keep today; of backend-vulkan's exact embed checks only the Q6_K rows decode a -0, so for Q8_0, Q4_1, Q4_K and Q5_K nothing checks it.
-  A type without a kernel is refused at the first matmul or embed over it, the matmul naming the type by its numeric id.
+  A model holding a type without a kernel is refused as it loads (`Backend::supports_type`), before any weight is adopted; a matmul or embed over one is still refused, the matmul naming the type by its numeric id.
   Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, every type the CPU reads.
 - **matmul, decode** (`nbatch` small): one subgroup per output row, each
   lane accumulating a stride of blocks, one `subgroupAdd` at the end. Rows

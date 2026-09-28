@@ -61,7 +61,7 @@ placement contracts in `docs/EXECUTION.md`.
 - `memory_available()`: the bytes the backend can still allocate now, as its device or operating system reports them, or nothing when it cannot tell; `resident_bytes(type, nin, rows, bytes, product)`: what adopting such a matrix keeps resident, its bytes by default; `product` is a matrix a product reads as its weights. `host_resident()`: host memory the backend holds for itself whatever it loads, such as upload staging, none by default. `reads_in_place()`: whether `adopt` aliases the caller's memory rather than copying it, so weights placed there cost none of the backend's memory; false by default, true on the CPU. `scratch_reserve(free)`: memory the backend's kernels take for themselves beside weights, caches and activations, none by default. A split over several devices is fitted against these (`model/layer_split.hpp`, `budgets_for`).
 - `host_times()` and `device_ms()`, for a backend made to time its work (`make_backend`'s diagnostics): where its calls held the caller since it was made, waiting on tickets, for a free command slot and for staging, and in uploads apart from those waits; and the device time of the work recorded since the last call, by timestamps, which waits for its queue to read. The defaults report nothing and a negative time, which a backend that computes as it records, the CPU, keeps; the server's `--timing` reads them (`server/scheduler.hpp`).
 - `is_cpu()`: whether the backend is the CPU itself, which experts on the CPU (`infer::adds_host_for_experts`) ask so that no second CPU is placed beside it, and which the split's fit does not ask; false by default, true on the CPU, and a device that reads in place still answers false.
-- `matmul(ggml_type, data, X, Y, nin, nout, nbatch, runs)`: the type-generic
+- `matmul(type, data, X, Y, nin, nout, nbatch, runs)`: the type-generic
   matmul. The quant type is resolved through `quant::Registry`, so every block
   format gets the generic CPU batched fallback. Vendor backends require kernels
   and validation for each supported type. A decode token is the one-column
@@ -160,14 +160,14 @@ placement contracts in `docs/EXECUTION.md`.
   the routed down projection joining the residual, row `r` of `Y` adding
   the weighted sum of its k slots, formed in slot order before the add.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass.
-  Each has a form in `Backend` that throws naming the op, which a backend without it runs: the Vulkan backend until the qwen35 plan's step 5 (`docs/STATUS.md`).
+  Each of the five compute ops has a form in `Backend` that throws naming the op, which a backend without it runs: the Vulkan backend until the qwen35 plan's step 5 (`docs/STATUS.md`).
   The CPU implements them all (`backends-cpu.md`).
   - `Op` names each of these five and `op_name(op)` spells it; `implements(op)` says whether a backend runs it, false unless the backend says otherwise and true for every op on the CPU.
-    A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`), so no pass reaches the refusing forms.
+    A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`), so no pass reaches the refusing forms; a stream destination without one of a routed feed-forward part's ops leaves that layer on its host.
   - `StateShape`: one linear-attention layer's state for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, `slot_floats()` a slot, every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32, and `layer_bytes(slots)` one layer's buffer of that many slots.
     `kConvTaps` is the conv's width, 4 in every qwen35 file, and `kL2NormEps` the L2 norms' epsilon, 1e-6, which no file carries.
   - `state_alloc(layers, slots, shape)`: a `StateStorage` of one buffer per layer holding every slot back to back, allocated through `alloc` and zero-filled when it is made and never grown, so no pass allocates state.
-    It refuses a shape with a zero width or V heads that are no multiple of the K heads.
+    It refuses zero layers, zero slots, a shape with zero K or V heads or a zero width, and V heads that are no multiple of the K heads.
     `state_copy(s, dst, src)` copies one slot to another in every layer through `copy`, enqueued as copy is, for a checkpoint restored or a state taken back into a live slot.
     Both are the same on every backend, over its own `alloc` and `copy`.
     A `StateStorage` refuses a missing buffer or one smaller than `layer_bytes(slots)`, so a storage made by hand cannot send an op past a buffer's end.

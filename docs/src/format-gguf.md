@@ -67,6 +67,10 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
     whose size changed since its header was read, since the extents
     `read_gguf` checked no longer describe it. The shards mapped before the
     refused one stay mapped until the model is dropped.
+  - `file_size(m, path)` gives the size `read_gguf` found a file to have,
+    from its start to the end of its payload, and `check_size(m, path, size)`
+    refuses a size that is no longer that one; `map_payload` and the
+    loader's readers check a file through it.
   - `warm(m, tensors, progress = {})` warms the given tensors in their given
     order, touching bytes at page-sized intervals (`core::page_size`) within
     steps of up to 8 MiB. The stride starts at the tensor, so an unaligned

@@ -12,11 +12,15 @@ The lifetime and packed-quantization tests include the implementation and use te
 - `supports_type(type)` accepts F32 and the block types of `decoded_blocks`;
   the model's pre-adoption check and the backend's matrix checks use this
   same query, so they cannot disagree about a weight type.
+  `implements` keeps `Backend`'s answer, false for every `Op`, so the model
+  refuses a qwen35 file on this backend as it loads, naming the layer, its
+  part and the op.
 
 - `make_vulkan_backend(index, diagnostics)`, `vulkan_device_name`: open
   the loader, pick the device, require what the kernels need (Vulkan 1.2,
-  subgroups of 32 lanes or more, 16-bit integers, timeline semaphores,
-  push descriptors); anything missing throws `VulkanUnavailable`, which
+  a compute queue, subgroups of 32 lanes or more whose size divides 256,
+  subgroup arithmetic, 16-bit integers, timeline semaphores, dynamically
+  indexed storage buffer arrays, push descriptors); anything missing throws `VulkanUnavailable`, which
   the test skips on and the CLI reports, as does a loader with no driver
   behind it. The device's `DeviceCaps` choose its `DeviceProfile`
   (`backends/device_profile.hpp`), which `vulkan_device_profile` returns so
@@ -123,9 +127,9 @@ The lifetime and packed-quantization tests include the implementation and use te
   dimension into parts that `shaders/matmul_reduce.comp` adds in order.
   F32, and every type on other devices, take the float tile
   (`shaders/matmul_tile.comp`).
-  The row count where the tile starts winning is one of four measured thresholds in `backends/device_profile.hpp` (8-bit or other types, narrower or at least 4096 wide), which `tile_from` takes once per call from the types of the projections that have rows.
+  The row count where the tile starts winning is one of four measured thresholds in `backends/device_profile.hpp` (8-bit or other types, narrower or at least 4096 wide), which `tile_from` takes once per call from the types of the projections that have rows, Q8_0 grouped with F32 and the width split at the profile's `tile_narrow_nin` (4096).
   A mixed-type group on the row kernel becomes a dispatch per type, each kept on the row kernel.
-  `tile_rows_for` picks a height of 128, 64 or 32 rows from the device's compute units and the projection's width.
+  `tile_rows_for` picks a height of 128, 64 or 32 rows from the workgroups each height gives, the output rows over the height times the column groups, against the profile's workgroups per compute unit and the device's compute units, by the projection's width.
 - Batch invariance: with row runs (`backend.hpp` `RowRuns`) a row's
   matmul kernel and split follow its prompt's extent rather than the
   call's width. Attention uses that extent for tiled versus row dispatch
@@ -136,7 +140,8 @@ The lifetime and packed-quantization tests include the implementation and use te
 - `rms_norm_rows` spreads a row over several workgroups when the output
   does not overlap the input, with the same tree reduction as one, up to
   four workgroups per compute unit over the pass: each reads the whole row
-  for its sum, so a decode row takes sixteen and a pass of many rows one.
+  for its sum, so a 4096-wide decode row takes sixteen and a pass of many
+  rows one.
 - Mixture of experts: `shaders/moe_route.comp` routes a row per workgroup
   through subgroup reductions. The row kernels and both tile kernels take a
   routed mode (push constant `per`): a row kernel runs one entry per
@@ -158,14 +163,14 @@ The lifetime and packed-quantization tests include the implementation and use te
   It gives views of 128-wide heads whose prompt reaches the profile's `attention_tile_rows` to the tiled kernel (`shaders/attention_tile.comp`, 32 query rows a tile as the shader fixes them) and the rest to the per-row kernel, which splits a row's history into parts from the row's own length and merges them (`shaders/attention_merge.comp`); once the longest row fills every split, a workgroup takes up to four query heads of one KV head (the `_g4` builds), loading the history once for them with each head's arithmetic unchanged.
   Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one load a lane, and several tokens a subgroup; other widths keep `attention.comp`.
 - `kv_variant` picks the shader module for a storage's K and V types.
-- The qwen35 layers' ops (`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`, `norm_rope_partial` and `sigmoid_mul`) have no kernels yet, so the backend runs `Backend`'s forms, which refuse each by its name, until the qwen35 plan's step 5 adds them.
+- The qwen35 layers' ops (`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`, `norm_rope_partial` and `sigmoid_mul`) have no kernels yet, so `implements` is false for each, the model refuses a qwen35 file at load (`model-runtime.md`), and `Backend`'s throwing forms stay until the qwen35 plan's step 5 adds them.
   `state_alloc` and `state_copy` are `Backend`'s own, built on this backend's `alloc` and `copy`; `backend-vulkan` checks the underlying buffer operations, while `qwen35-ops` runs `state_alloc` and `state_copy` on the CPU. No device test directly exercises the state wrappers.
 - `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`), both reading the shape from one rule, `pads_f32`; routed stacks and gathered tables are bound as they are. `host_resident()`: the upload staging buffer and the ring of host-visible arenas, which live in host memory. `scratch_reserve(free)`: 256 MiB plus a twentieth of what is free, for tile split partials and attention merge state.
 
-## Finite activation range repair in progress
+## Finite activation range repair
 
 `xquant.glsl` keeps the activation packing and its scale arithmetic together.
-The current branch normalizes extreme finite blocks before division, uses a representable scale and restores the scale and scaled sums as bits so gradual underflow does not depend on the producer shader's floating-point mode.
+`xquant.glsl` normalizes extreme finite blocks before division, uses a representable scale and restores the scale and scaled sums as bits so gradual underflow does not depend on the producer shader's floating-point mode.
 Ordinary blocks keep their existing scale, reciprocal and rounding expressions. A packed table's values and the word-wise input share one ordinary-block check before their vector overload calls the scalar bit-shift routine; the scalar range arithmetic has one implementation.
 The packed-twin probe passes on the MI50. `shaders/float_controls.glsl` gives the Q8 row and integer-dot consumer modules 32-bit denormal and signed-zero/infinity/NaN preservation. Device creation queries both properties; only devices reporting both select these modules, and other devices keep their existing modules. The selection changes no kernel layout, column build or decode-order specialization. The preserved Q8 row variants request their fused products explicitly into a precise accumulator, since enabling the modes can disable the driver's implicit contraction and change ordinary logits. The preserved Q8 integer-dot vector variant keeps a precise accumulator and separate scale product, integer-dot product and addition; explicitly fusing those operations failed ordinary-input identity on the MI50. The native packed-activation test also holds these consumers to the ordinary modules' bits on normal inputs across row and column tails; any disagreement fails the gate on a tested driver. The integrated native regression passes on Radeon, including fallback execution with unsupported modes explicitly refused. Radeon whole-model identity passes on the pinned four small quants in both cache types; MI50 integration and performance gates remain. Preserving the packed producer does not imply that every consumer on every device preserves tiny results.
-See STATUS's dated Vulkan finite activation range block for the remaining work and scope.
+Native tests pass on Windows and Linux, and identity against main holds on the CPU, the Radeon VII and the MI50s for the four small quants and for 8B Q8_0 in both cache types, and for 30B-A3B Q4_K_M once F32 rows kept the ordinary module; STATUS records the gates and the cost.

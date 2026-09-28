@@ -26,7 +26,7 @@ A compile without them stops at one `#error` at the top of the header.
   past the end, and a nonempty write still requires a non-null source.
 - `row_dot`: one weight row against one activation row in float, the one float decode row dot.
   F32 takes `dot_f32`, Q8_0 `dot_row_impl`, and Q4_K, Q5_K and Q6_K their fused dequant+FMA dots, falling back to `dot_row_dequant` when a fused sum overflows.
-  A single-column decode matmul of those types calls it in one pooled loop over the rows, and a routed decode entry calls it for every type.
+  A decode run of those types calls it in one pooled loop over weight rows, walking all activation columns against each row before moving on; a routed decode entry calls it for every type.
   Q8_0 always takes this float path; the other supported quantized types take `q8_dots.hpp` unless `set_decode_activations8(false)` selects their float reference path.
   Other types, routed Q4_0 and Q4_1 decode among them, take `dot_row_dequant`, which dequantizes and sums in double, while a dense Q4_0 or Q4_1 decode keeps the batched float path, so the two differ in rounding.
   The Q6_K dot rounds each scaled group sum before accumulating it, through separate intrinsics, because compilers fused the two into one FMA or not by the code around them and by their contraction rules.
@@ -49,7 +49,7 @@ A compile without them stops at one `#error` at the top of the header.
 - F32 matrices use those same float dot kernels directly on resident host
   weights, without a dequantization buffer or row copy. Quantized inputs retain
   the existing row staging and fused decode paths.
-  Single-column F32 decode goes through `row_dot`, `dot_f32` one row at a time for contiguous weight access; this has a different reduction order from the fused four-row dot.
+  F32 decode goes through `row_dot`, `dot_f32` one row at a time for contiguous weight access; this has a different reduction order from the fused four-row dot.
 - `DOT_ROWS` is the fused kernel's width, not a tuning constant. A cache-byte
   budget was measured instead and was worse at every size (see
   `docs/STATUS.md`).

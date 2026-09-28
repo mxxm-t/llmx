@@ -1,0 +1,1142 @@
+{
+  "scope": "Completed CPU dispatch development checkpoint, not final-head merge validation. Select row-first float decode dispatch on the precision repair. Final main comparison and hosted CI for the resulting head remain required.",
+  "base": "96ef9c6b1c3654354594b82f9f8b226ce3163381",
+  "precision_head": "22c377bd6f1a89118bda8e674ae6d5d0d449b60e",
+  "implementation": "Keep one pooled loop over weight rows and process every decode column against its row before moving on. Existing row_dot math, thresholds, other integer kernels and Vulkan code are unchanged. No new flag, helper, kernel or runtime allocation.",
+  "selected_runtime_sha256_lf": "a5ef3ecae6ac56a59275e826f3847cbc8310eb6ee138c17df0b6558735a7a487",
+  "windows_row_build": {
+    "artifact": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-host-20260929\\build-state.json",
+      "sha256": "ea8aa4ba515d5ed2d48ffe98fd7654c5315f51c9ea8f43ab2ed991dd5a9e1d9b"
+    },
+    "arms": {
+      "baseline": {
+        "head": "7a1f3644ee5074dbf40a03c18fe32d889b620720",
+        "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-batch-host-20260929\\build-candidate\\Release\\llmx.exe",
+        "sha256": "6e7d0d1f9fa99bf3c6f01063e33bd13ecbae4ccf78559e0c375adfe972b97d34",
+        "version": "llmx 0.1.0+g7a1f3644ee50",
+        "tool": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-batch-host-20260929\\build-candidate\\Release\\llmx-model-logits.exe",
+        "tool_sha256": "db09c9c407aa6198711454b3b9ddd44fa9ed4dd1d471ad52b7d0c9d7d1240fc4"
+      },
+      "candidate": {
+        "head": "fbef3ccea35821dfbe0970919a670d5ef625fa95",
+        "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-host-20260929\\build-candidate\\Release\\llmx.exe",
+        "sha256": "9ffd749a31fae4e2b8112e872929e3653ae4cd9c01eda76ec93b7719df74d224",
+        "version": "llmx 0.1.0+gfbef3ccea358",
+        "tool": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-host-20260929\\build-candidate\\Release\\llmx-model-logits.exe",
+        "tool_sha256": "e15a8dcc8a32a63d166e56a66f08dc882323af1cd096c3ce85181d3db6631654"
+      },
+      "layout": {
+        "head": "338ce7ad08f8e13aa35a2e1db7b21b81dcc57c10",
+        "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-host-20260929\\build-layout\\Release\\llmx.exe",
+        "sha256": "aa166e2c85a63d8540b681c5a4b8792f4e33f3388e074d93ca9c4551c53449b9",
+        "version": "llmx 0.1.0+g338ce7ad08f8",
+        "tool": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-host-20260929\\build-layout\\Release\\llmx-model-logits.exe",
+        "tool_sha256": "11124b65f2a7389a3fd7cd0c311f13ba1bd572352d15c9aa9923699bae11ba5b"
+      }
+    },
+    "native": {
+      "passed": 3,
+      "total": 3,
+      "seconds": 19.56,
+      "log": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-host-20260929\\candidate-native.log"
+    }
+  },
+  "precision_hosted": {
+    "artifact": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-final-20260929\\hosted.json",
+      "sha256": "9fc2c67666c1b52df15f0afb0cf8e0b02ff208260a24bc9e24eaa2dc15f4f4eb"
+    },
+    "result": [
+      {
+        "id": 36485574243,
+        "head_sha": "22c377bd6f1a89118bda8e674ae6d5d0d449b60e",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/36485574243"
+      }
+    ]
+  },
+  "precision_single_sequence": {
+    "artifact": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-final-20260929\\validation\\summary.json",
+      "sha256": "c1a8905636bb8915a66f9829fbccc784f6b12935f253c605abdc1cae12993417"
+    },
+    "result": {
+      "complete": true,
+      "models": {
+        "0.6B": {
+          "cells": {
+            "pp64": {
+              "baseline": {
+                "median": 542.99,
+                "min": 541.83,
+                "max": 550.82,
+                "means": [
+                  542.15,
+                  550.82,
+                  543.83,
+                  541.83
+                ],
+                "block_change_percent": [
+                  0.0,
+                  0.0
+                ]
+              },
+              "candidate": {
+                "median": 557.645,
+                "min": 534.53,
+                "max": 561.54,
+                "means": [
+                  561.54,
+                  560.86,
+                  554.43,
+                  534.53
+                ],
+                "block_change_percent": [
+                  2.6958753726096463,
+                  0.2873830534511512
+                ]
+              },
+              "layout": {
+                "median": 544.53,
+                "min": 532.92,
+                "max": 560.02,
+                "means": [
+                  532.92,
+                  539.85,
+                  560.02,
+                  549.21
+                ],
+                "block_change_percent": [
+                  -1.847134965460706,
+                  2.1663510154089627
+                ]
+              },
+              "reference": "baseline",
+              "candidate_vs_layout_block_percent": [
+                4.628505073664124,
+                -1.8391260363937456
+              ]
+            },
+            "tg32": {
+              "baseline": {
+                "median": 59.955,
+                "min": 59.26,
+                "max": 60.0,
+                "means": [
+                  59.91,
+                  59.26,
+                  60.0,
+                  60.0
+                ],
+                "block_change_percent": [
+                  0.0,
+                  0.0
+                ]
+              },
+              "candidate": {
+                "median": 59.59,
+                "min": 59.04,
+                "max": 60.51,
+                "means": [
+                  60.51,
+                  59.04,
+                  59.98,
+                  59.2
+                ],
+                "block_change_percent": [
+                  0.31278027415388987,
+                  -0.685460390848236
+                ]
+              },
+              "layout": {
+                "median": 59.36,
+                "min": 58.52,
+                "max": 60.03,
+                "means": [
+                  60.03,
+                  59.31,
+                  59.41,
+                  58.52
+                ],
+                "block_change_percent": [
+                  0.14232042318300664,
+                  -1.7277986633272069
+                ]
+              },
+              "reference": "baseline",
+              "candidate_vs_layout_block_percent": [
+                0.17021759656712376,
+                1.060664418117585
+              ]
+            }
+          },
+          "monitor": {
+            "calls": 12,
+            "bracketed": 12,
+            "flagged": 4,
+            "with_unknowns": 12
+          }
+        },
+        "8B": {
+          "cells": {
+            "pp64": {
+              "baseline": {
+                "median": 40.07,
+                "min": 38.97,
+                "max": 40.12,
+                "means": [
+                  40.06,
+                  40.12,
+                  38.97,
+                  40.08
+                ],
+                "block_change_percent": [
+                  0.0,
+                  0.0
+                ]
+              },
+              "candidate": {
+                "median": 40.129999999999995,
+                "min": 40.0,
+                "max": 41.12,
+                "means": [
+                  40.25,
+                  41.12,
+                  40.01,
+                  40.0
+                ],
+                "block_change_percent": [
+                  1.4783882158082795,
+                  1.2244001928161108
+                ]
+              },
+              "layout": {
+                "median": 40.275,
+                "min": 39.84,
+                "max": 40.59,
+                "means": [
+                  40.59,
+                  39.84,
+                  40.5,
+                  40.05
+                ],
+                "block_change_percent": [
+                  0.3074652194516858,
+                  1.905990011839731
+                ]
+              },
+              "reference": "baseline",
+              "candidate_vs_layout_block_percent": [
+                1.167333850770591,
+                -0.6688417618477938
+              ]
+            },
+            "tg32": {
+              "baseline": {
+                "median": 4.89,
+                "min": 4.86,
+                "max": 4.89,
+                "means": [
+                  4.89,
+                  4.89,
+                  4.89,
+                  4.86
+                ],
+                "block_change_percent": [
+                  0.0,
+                  0.0
+                ]
+              },
+              "candidate": {
+                "median": 4.895,
+                "min": 4.88,
+                "max": 4.92,
+                "means": [
+                  4.91,
+                  4.92,
+                  4.88,
+                  4.88
+                ],
+                "block_change_percent": [
+                  0.5111954348537395,
+                  0.10303796422039824
+                ]
+              },
+              "layout": {
+                "median": 4.905,
+                "min": 4.85,
+                "max": 4.93,
+                "means": [
+                  4.93,
+                  4.9,
+                  4.91,
+                  4.85
+                ],
+                "block_change_percent": [
+                  0.5107793626124568,
+                  0.10114638632245931
+                ]
+              },
+              "reference": "baseline",
+              "candidate_vs_layout_block_percent": [
+                0.0004139578301254332,
+                0.001889666568488657
+              ]
+            }
+          },
+          "monitor": {
+            "calls": 12,
+            "bracketed": 12,
+            "flagged": 12,
+            "with_unknowns": 12
+          }
+        }
+      }
+    }
+  },
+  "precision_eight_sequences": {
+    "artifact": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-final-20260929\\concurrent\\summary.json",
+      "sha256": "de546e3ba5f398e76a0f7365a3c55f6758421b903aeb807158adc3197b5d109d"
+    },
+    "result": {
+      "complete": true,
+      "models": {
+        "0.6B": {
+          "cells": {
+            "pp64": {
+              "baseline": {
+                "median": 594.29,
+                "min": 555.24,
+                "max": 599.81,
+                "means": [
+                  555.24,
+                  599.81,
+                  593.18,
+                  595.4
+                ],
+                "block_change_percent": [
+                  0.0,
+                  0.0
+                ]
+              },
+              "candidate": {
+                "median": 574.02,
+                "min": 527.89,
+                "max": 584.31,
+                "means": [
+                  567.56,
+                  584.31,
+                  580.48,
+                  527.89
+                ],
+                "block_change_percent": [
+                  -0.211538768603714,
+                  -6.853255013948845
+                ]
+              },
+              "layout": {
+                "median": 577.765,
+                "min": 560.85,
+                "max": 587.28,
+                "means": [
+                  587.28,
+                  573.5,
+                  560.85,
+                  582.03
+                ],
+                "block_change_percent": [
+                  0.5638966084245745,
+                  -3.8612696599544805
+                ]
+              },
+              "reference": "baseline",
+              "candidate_vs_layout_block_percent": [
+                -0.7710872422214021,
+                -3.11215401265611
+              ]
+            },
+            "tg8": {
+              "baseline": {
+                "median": 146.03500000000003,
+                "min": 142.07,
+                "max": 147.98,
+                "means": [
+                  146.71,
+                  142.07,
+                  145.36,
+                  147.98
+                ],
+                "block_change_percent": [
+                  0.0,
+                  0.0
+                ]
+              },
+              "candidate": {
+                "median": 97.49,
+                "min": 95.72,
+                "max": 98.08,
+                "means": [
+                  97.46,
+                  97.52,
+                  98.08,
+                  95.72
+                ],
+                "block_change_percent": [
+                  -32.472759747643074,
+                  -33.935583289056694
+                ]
+              },
+              "layout": {
+                "median": 96.86500000000001,
+                "min": 95.48,
+                "max": 98.35,
+                "means": [
+                  95.48,
+                  97.97,
+                  98.35,
+                  95.76
+                ],
+                "block_change_percent": [
+                  -33.008190216337475,
+                  -33.83089168676102
+                ]
+              },
+              "reference": "baseline",
+              "candidate_vs_layout_block_percent": [
+                0.7992476549349314,
+                -0.15821824558986952
+              ]
+            }
+          },
+          "monitor": {
+            "calls": 12,
+            "bracketed": 12,
+            "flagged": 7,
+            "with_unknowns": 12
+          }
+        },
+        "8B": {
+          "cells": {
+            "pp64": {
+              "baseline": {
+                "median": 40.394999999999996,
+                "min": 40.03,
+                "max": 40.56,
+                "means": [
+                  40.56,
+                  40.47,
+                  40.03,
+                  40.32
+                ],
+                "block_change_percent": [
+                  0.0,
+                  0.0
+                ]
+              },
+              "candidate": {
+                "median": 39.77,
+                "min": 38.99,
+                "max": 41.04,
+                "means": [
+                  38.99,
+                  41.04,
+                  40.02,
+                  39.52
+                ],
+                "block_change_percent": [
+                  -1.2664577797227072,
+                  -1.0094007433927632
+                ]
+              },
+              "layout": {
+                "median": 40.695,
+                "min": 40.15,
+                "max": 40.84,
+                "means": [
+                  40.84,
+                  40.79,
+                  40.6,
+                  40.15
+                ],
+                "block_change_percent": [
+                  0.7405097354344692,
+                  0.4969160646595583
+                ]
+              },
+              "reference": "baseline",
+              "candidate_vs_layout_block_percent": [
+                -1.992214969358297,
+                -1.498868688749777
+              ]
+            },
+            "tg8": {
+              "baseline": {
+                "median": 7.41,
+                "min": 7.38,
+                "max": 7.48,
+                "means": [
+                  7.38,
+                  7.44,
+                  7.38,
+                  7.48
+                ],
+                "block_change_percent": [
+                  0.0,
+                  0.0
+                ]
+              },
+              "candidate": {
+                "median": 6.635,
+                "min": 6.37,
+                "max": 6.67,
+                "means": [
+                  6.64,
+                  6.63,
+                  6.67,
+                  6.37
+                ],
+                "block_change_percent": [
+                  -10.458130986139658,
+                  -12.268884128344471
+                ]
+              },
+              "layout": {
+                "median": 6.62,
+                "min": 6.61,
+                "max": 6.65,
+                "means": [
+                  6.65,
+                  6.62,
+                  6.61,
+                  6.62
+                ],
+                "block_change_percent": [
+                  -10.458334383372714,
+                  -10.967053858689436
+                ]
+              },
+              "reference": "baseline",
+              "candidate_vs_layout_block_percent": [
+                0.00022715372967052616,
+                -1.4621893648097517
+              ]
+            }
+          },
+          "monitor": {
+            "calls": 12,
+            "bracketed": 12,
+            "flagged": 12,
+            "with_unknowns": 12
+          }
+        }
+      }
+    }
+  },
+  "column_dispatch_windows_06": {
+    "artifact": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-batch-host-20260929\\diagnostic\\summary.json",
+      "sha256": "9464b5b94c0bb9a2ad65ea86a726bf62dd6aa3f4e42ba3114066ce0edef8a390"
+    },
+    "result": {
+      "cells": {
+        "pp64": {
+          "baseline": {
+            "median": 578.12,
+            "min": 533.74,
+            "max": 588.9,
+            "means": [
+              582.67,
+              573.57,
+              588.9,
+              533.74
+            ],
+            "block_change_percent": [
+              0.0,
+              0.0
+            ]
+          },
+          "candidate": {
+            "median": 566.745,
+            "min": 538.43,
+            "max": 583.6,
+            "means": [
+              569.51,
+              583.6,
+              538.43,
+              563.98
+            ],
+            "block_change_percent": [
+              -0.2750618284720563,
+              -1.7096631019643427
+            ]
+          },
+          "layout": {
+            "median": 570.3199999999999,
+            "min": 502.77,
+            "max": 590.21,
+            "means": [
+              570.74,
+              569.9,
+              590.21,
+              502.77
+            ],
+            "block_change_percent": [
+              -1.3461721423174033,
+              -2.8366887505687943
+            ]
+          },
+          "reference": "baseline"
+        },
+        "tg8": {
+          "baseline": {
+            "median": 96.155,
+            "min": 93.04,
+            "max": 98.22,
+            "means": [
+              97.78,
+              98.22,
+              93.04,
+              94.53
+            ],
+            "block_change_percent": [
+              0.0,
+              0.0
+            ]
+          },
+          "candidate": {
+            "median": 122.16,
+            "min": 120.02,
+            "max": 124.0,
+            "means": [
+              122.4,
+              121.92,
+              124.0,
+              120.02
+            ],
+            "block_change_percent": [
+              24.653134755816186,
+              30.082230168905767
+            ]
+          },
+          "layout": {
+            "median": 121.65,
+            "min": 118.87,
+            "max": 122.66,
+            "means": [
+              118.87,
+              122.66,
+              121.74,
+              121.56
+            ],
+            "block_change_percent": [
+              23.214730130814075,
+              29.71563159459705
+            ]
+          },
+          "reference": "baseline"
+        }
+      },
+      "monitor": {
+        "calls": 12,
+        "bracketed": 12,
+        "flagged": 5,
+        "with_unknowns": 12
+      }
+    }
+  },
+  "column_dispatch_windows_8": {
+    "artifact": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-batch-host-20260929\\diagnostic-8B\\summary.json",
+      "sha256": "6e3c46cba91c50b71902eaae2fd9ac41daa8cdf9ab242226864c0a703d99e597"
+    },
+    "result": {
+      "cells": {
+        "pp64": {
+          "baseline": {
+            "median": 40.665,
+            "min": 40.43,
+            "max": 41.1,
+            "means": [
+              40.75,
+              40.58,
+              40.43,
+              41.1
+            ],
+            "block_change_percent": [
+              0.0,
+              0.0
+            ]
+          },
+          "candidate": {
+            "median": 40.13,
+            "min": 39.58,
+            "max": 40.38,
+            "means": [
+              40.38,
+              39.95,
+              39.58,
+              40.31
+            ],
+            "block_change_percent": [
+              -1.2307579013512093,
+              -2.012311614189566
+            ]
+          },
+          "layout": {
+            "median": 39.845,
+            "min": 39.67,
+            "max": 40.1,
+            "means": [
+              40.1,
+              39.67,
+              39.7,
+              39.99
+            ],
+            "block_change_percent": [
+              -1.9193221493879697,
+              -2.254184605413223
+            ]
+          },
+          "reference": "baseline"
+        },
+        "tg8": {
+          "baseline": {
+            "median": 6.5600000000000005,
+            "min": 6.33,
+            "max": 6.66,
+            "means": [
+              6.66,
+              6.33,
+              6.59,
+              6.53
+            ],
+            "block_change_percent": [
+              0.0,
+              0.0
+            ]
+          },
+          "candidate": {
+            "median": 8.89,
+            "min": 8.78,
+            "max": 9.08,
+            "means": [
+              9.08,
+              8.78,
+              8.85,
+              8.93
+            ],
+            "block_change_percent": [
+              37.51536079834192,
+              35.51833801148994
+            ]
+          },
+          "layout": {
+            "median": 8.855,
+            "min": 8.73,
+            "max": 9.03,
+            "means": [
+              9.03,
+              8.85,
+              8.73,
+              8.86
+            ],
+            "block_change_percent": [
+              37.68180182375212,
+              34.067862365745285
+            ]
+          },
+          "reference": "baseline"
+        }
+      },
+      "monitor": {
+        "calls": 12,
+        "bracketed": 12,
+        "flagged": 12,
+        "with_unknowns": 12
+      }
+    }
+  },
+  "row_dispatch_windows_06": {
+    "artifact": {
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-row-host-20260929\\diagnostic\\summary.json",
+      "sha256": "444d1eb0bd39ac3b45752294914468ddc9b328255442bcd1f15c549e20a34357"
+    },
+    "result": {
+      "cells": {
+        "pp64": {
+          "baseline": {
+            "median": 576.54,
+            "min": 567.59,
+            "max": 588.95,
+            "means": [
+              567.59,
+              579.43,
+              588.95,
+              573.65
+            ],
+            "block_change_percent": [
+              0.0,
+              0.0
+            ]
+          },
+          "candidate": {
+            "median": 579.4,
+            "min": 568.94,
+            "max": 584.22,
+            "means": [
+              568.94,
+              584.22,
+              579.27,
+              579.53
+            ],
+            "block_change_percent": [
+              0.5318300138154264,
+              -0.3182238073607513
+            ]
+          },
+          "layout": {
+            "median": 575.075,
+            "min": 565.06,
+            "max": 585.33,
+            "means": [
+              565.06,
+              583.03,
+              585.33,
+              567.12
+            ],
+            "block_change_percent": [
+              0.0863559860941443,
+              -0.8768348009985272
+            ]
+          },
+          "reference": "baseline"
+        },
+        "tg8": {
+          "baseline": {
+            "median": 120.485,
+            "min": 115.03,
+            "max": 122.72,
+            "means": [
+              119.23,
+              115.03,
+              121.74,
+              122.72
+            ],
+            "block_change_percent": [
+              0.0,
+              0.0
+            ]
+          },
+          "candidate": {
+            "median": 150.095,
+            "min": 148.69,
+            "max": 150.66,
+            "means": [
+              150.66,
+              149.69,
+              148.69,
+              150.5
+            ],
+            "block_change_percent": [
+              28.232185418974165,
+              22.386864555294174
+            ]
+          },
+          "layout": {
+            "median": 150.475,
+            "min": 145.92,
+            "max": 153.76,
+            "means": [
+              149.56,
+              153.76,
+              151.39,
+              145.92
+            ],
+            "block_change_percent": [
+              29.48846467334041,
+              21.599470261523535
+            ]
+          },
+          "reference": "baseline"
+        }
+      },
+      "monitor": {
+        "calls": 12,
+        "bracketed": 12,
+        "flagged": 7,
+        "with_unknowns": 12
+      }
+    }
+  },
+  "rig_manifest": {
+    "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q8-dispatch-rig-evidence-20260929.json",
+    "sha256": "db9fec1ceacf78abf6f2cc0c156be5fed9688d6b878bbc4d9b1f5d5c329b9f88"
+  },
+  "rig_results": {
+    "row_identity": {
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/cpu-q8-row-batch-experiment-20260929/identity.json",
+      "sha256": "2e6e6bd4e09d856405efe0769824b61a35396fad2077c3082c29c28ecddc04d5",
+      "result": {
+        "complete": true,
+        "scope": "Row-first CPU F32 full output against retained same-container22c377b captures from the preceding diagnostic. No new reference math or tolerance.",
+        "tool_sha256": "cbe761b6b40da3b795813ac2b922d6eded4e929b6cc0a5acf5aa53ea232d5f3a",
+        "source_sha256": "a5ef3ecae6ac56a59275e826f3847cbc8310eb6ee138c17df0b6558735a7a487",
+        "captures": [
+          {
+            "model": "0.6B",
+            "argv": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "bash",
+              "-c",
+              "ulimit -c 0; exec \"$@\"",
+              "llmx-row-identity",
+              "timeout",
+              "300",
+              "/work/cpu-q8-row-batch-experiment-20260929/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/work/mxfp4-device-check-20260928/mi50-f32/tokens.txt",
+              "/work/cpu-q8-row-batch-experiment-20260929/identity-0.6B",
+              "cpu",
+              "f32",
+              "512",
+              "0"
+            ],
+            "sha256": {
+              "batched": "609a050068fddd72e9a400779f92e4d5d959d195297e5f494cdbb8e5c554bff3",
+              "decode": "c3968f4ba875c11effb8836db6b95e325d3e931ceff9225265d23a5c9ed83e0d",
+              "greedy": "60520800bde317e28660f0973681055bf67f006dd35c111d23fd936642e0d433"
+            },
+            "reference": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/cpu-q8-batch-experiment-20260929/cpu-identity.json",
+            "reference_sha256": "ba3fb4f55930b9587be3fb1ed725887510da719b412e7caefe1bf71b5e5cd03d",
+            "identical": true
+          },
+          {
+            "model": "8B",
+            "argv": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "bash",
+              "-c",
+              "ulimit -c 0; exec \"$@\"",
+              "llmx-row-identity",
+              "timeout",
+              "300",
+              "/work/cpu-q8-row-batch-experiment-20260929/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/work/mxfp4-device-check-20260928/mi50-f32/tokens.txt",
+              "/work/cpu-q8-row-batch-experiment-20260929/identity-8B",
+              "cpu",
+              "f32",
+              "512",
+              "0"
+            ],
+            "sha256": {
+              "batched": "b04ec6661e84ab2c8a9aad88d7df51aa310c3e7e49d90f566cb786f13d76e1f9",
+              "decode": "2d09b1846cffd989605130a58c3f8cd6a04ace831c87b79fe6795f9e3ba98b22",
+              "greedy": "e9b34cb84769229dd5b9900648ef1563178f9bee06adf353de332ed57389c01c"
+            },
+            "reference": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/cpu-q8-batch-experiment-20260929/cpu-8b-identity.json",
+            "reference_sha256": "9df05620587563f0d81ef52a052df7a806a7cc6f5edeccb84037c57040a1b0b7",
+            "identical": true
+          }
+        ]
+      }
+    },
+    "row_qwen3_timing": {
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/cpu-q8-row-batch-experiment-20260929/diagnostic/summary.json",
+      "sha256": "926eecd930ab0d054a2c1dde638e6d53ec238654766a7083a111298299b90071",
+      "result": {
+        "complete": true,
+        "scope": "Linux-only quick row-first vs column-first CPU decode diagnostic; both same dirty clone kind at22c377b and same build identity/options/container. No layout control, no small-effect or merge verdict. Independent of Windows timing.",
+        "cells": {
+          "pp64": {
+            "column": {
+              "median": 200.25,
+              "min": 178.8,
+              "max": 211.16,
+              "means": [
+                197.68,
+                178.8,
+                202.82,
+                211.16
+              ]
+            },
+            "row": {
+              "median": 197.285,
+              "min": 193.99,
+              "max": 211.1,
+              "means": [
+                197.17,
+                197.4,
+                193.99,
+                211.1
+              ],
+              "block_change_percent": [
+                4.9370543134633404,
+                -2.214925197136264
+              ]
+            }
+          },
+          "tg8": {
+            "column": {
+              "median": 54.46,
+              "min": 53.66,
+              "max": 55.41,
+              "means": [
+                54.96,
+                55.41,
+                53.96,
+                53.66
+              ]
+            },
+            "row": {
+              "median": 62.805,
+              "min": 62.65,
+              "max": 63.06,
+              "means": [
+                62.65,
+                63.06,
+                62.75,
+                62.86
+              ],
+              "block_change_percent": [
+                13.899045279140786,
+                16.71663247765398
+              ]
+            }
+          }
+        },
+        "monitor": {
+          "calls": 8,
+          "bracketed": 8,
+          "flagged": 2,
+          "with_unknowns": 8
+        },
+        "limitations": [
+          "No layout control; do not resolve small differences from this screen.",
+          "All raw samples retained; activity flags do not prove interference.",
+          "Linux results stand alone and must not be subtracted from Windows results."
+        ]
+      }
+    },
+    "row_qwen35_timing": {
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/cpu-q8-row-batch-experiment-20260929/diagnostic-qwen35/summary.json",
+      "sha256": "f2660cb3e24d10925a9db8c7a44100faed74022b75ab5ef3edafd5ad7da15cdf",
+      "result": {
+        "complete": true,
+        "scope": "Linux-only Qwen3.5-0.8B Q8 row-first vs column-first CPU decode diagnostic, covering the architecture with short F32 gate projections; both same dirty clone kind at22c377b and same build identity/options/container. No layout control, no small-effect or merge verdict. Independent of Windows timing.",
+        "cells": {
+          "pp64": {
+            "column": {
+              "median": 169.99,
+              "min": 168.72,
+              "max": 170.54,
+              "means": [
+                168.72,
+                169.79,
+                170.54,
+                170.19
+              ]
+            },
+            "row": {
+              "median": 170.135,
+              "min": 169.61,
+              "max": 170.57,
+              "means": [
+                169.61,
+                170.57,
+                170.37,
+                169.9
+              ],
+              "block_change_percent": [
+                0.4934403286398714,
+                -0.13504683383971372
+              ]
+            }
+          },
+          "tg8": {
+            "column": {
+              "median": 41.5,
+              "min": 40.24,
+              "max": 43.42,
+              "means": [
+                41.14,
+                43.42,
+                40.24,
+                41.86
+              ]
+            },
+            "row": {
+              "median": 49.58,
+              "min": 49.53,
+              "max": 49.78,
+              "means": [
+                49.53,
+                49.58,
+                49.78,
+                49.58
+              ],
+              "block_change_percent": [
+                17.249330613197667,
+                21.04646454096366
+              ]
+            }
+          }
+        },
+        "monitor": {
+          "calls": 8,
+          "bracketed": 8,
+          "flagged": 2,
+          "with_unknowns": 8
+        },
+        "limitations": [
+          "No layout control; do not resolve small differences from this screen.",
+          "All raw samples retained; activity flags do not prove interference.",
+          "Linux results stand alone and must not be subtracted from Windows results."
+        ]
+      },
+      "scope_correction": "The predeclared plan called the short projections F32. Actual model metadata shows Q8_0 weights with shape [1024, 16]; the measured model and commands were unchanged. The original plan and summary are retained. This is a model-level check, not an isolated F32 short-row performance claim."
+    },
+    "row_native": {
+      "passed": 3,
+      "total": 3,
+      "seconds": 30.54,
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/cpu-q8-row-batch-experiment-20260929/native.log"
+    },
+    "precision_final": {
+      "native": {
+        "passed": 37,
+        "total": 37,
+        "seconds": 57.29
+      },
+      "device_identity_cells": 10,
+      "device_suite": "23 applicable components pass; qwen35 device execution unsupported and explicitly skipped",
+      "cpu_hf": "Both f32 and f16 caches pass all six required real-model fixtures, including Qwen3.5 Q8_0 and Q4_K_M",
+      "artifacts": {
+        "final_build": {
+          "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/cpu-q8-final-20260929/build-state.json",
+          "sha256": "cd4528195718f84bec6b6f2d6f060c013fac7c0fa4aa14f8b8fbb08a12df64e7"
+        },
+        "final_validation": {
+          "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/cpu-q8-final-20260929/validation/state.json",
+          "sha256": "da8b40819740ea53c37a99dcf26fa8fc72195c760e939ade5c56eaad77c1498d"
+        }
+      }
+    }
+  },
+  "limits": [
+    "Each Windows cell has all twelve planned calls and same-header layout control; the Linux quick screens retain all eight calls but have no layout control.",
+    "Background flags and missing telemetry are retained with every cell; flags do not prove interference and missing counters are not zero.",
+    "Linux and Windows numbers are independent results, never subtracted across environments.",
+    "The Qwen3.5 diagnostic plan mistakenly called its short projections F32. Actual metadata shows Q8_0 shape [1024,16]. The model and commands did not change; this is not an isolated F32 short-row performance claim.",
+    "The selected row-first implementation has not yet completed its final single-sequence and eight-sequence comparison against main, full native/device suite or exact-head hosted gate.",
+    "The reference-runtime performance floor is a separate phase-final gate, not claimed here."
+  ],
+  "evidence_retention": "All individual timing samples and their activity records remain in the hash-pinned raw artifacts. This checkpoint embeds aggregates, not duplicate per-sample telemetry."
+}

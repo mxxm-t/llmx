@@ -333,20 +333,22 @@ public:
             matmul_q8_prompt(type, data, X, Y, nin, nout, nbatch);
             return;
         }
-        if (decode && nbatch > 1) {
-            for (size_t c = 0; c < nbatch; ++c) matmul_raw(type, data, X + c * nin, Y + c * nout, nin, nout, 1, true);
-            return;
-        }
         const size_t rowbytes = quant::row_bytes(type, nin);
         const bool f32 = type == quant::GGML_TYPE_F32;
         // A decode row of a type with a float row dot takes it with no dequantized scratch, streaming each resident row once; prefill keeps the fused kernels that reuse weights across batch columns.
         // F32 splits its rows as the batched float path below does, from DOT_ROWS rows per worker in whole DOT_ROWS chunks.
         if (decode && (f32 || type == quant::GGML_TYPE_Q8_0 || is_kquant(type))) {
             const auto dots = [&](size_t o0, size_t o1) {
-                for (size_t o = o0; o < o1; ++o) Y[o] = row_dot(type, data + o * rowbytes, X, nin);
+                for (size_t o = o0; o < o1; ++o)
+                    for (size_t c = 0; c < nbatch; ++c)
+                        Y[c * nout + o] = row_dot(type, data + o * rowbytes, X + c * nin, nin);
             };
             if (f32) split_rows(nout, dots, DOT_ROWS, DOT_ROWS);
             else split_rows(nout, dots);
+            return;
+        }
+        if (decode && nbatch > 1) {
+            for (size_t c = 0; c < nbatch; ++c) matmul_raw(type, data, X + c * nin, Y + c * nout, nin, nout, 1, true);
             return;
         }
         const quant::QuantType* qt = quant::Registry::instance().get(type);

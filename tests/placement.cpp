@@ -272,7 +272,11 @@ void layer_split_fits() {
     try { infer::split_layers(logits, {budget("a", GiB), budget("b", GiB)}, 4, {}, 128 * MiB); } catch (const std::runtime_error&) { refused = true; }
     auto carried = infer::split_layers(logits, {budget("cpu", 2 * GiB, true), budget("a", GiB)}, 4, {1, 2}, 128 * MiB);
     require(refused && carried.host == 4 * 64 * MiB && carried.stages[0].other >= carried.host, "the host's logits not fitted to the host");
-    checked += 2;
+    // A caller that keeps its own count of logits rows, as a server does for its passes in flight, is fitted for that count, fewer or more than a pass's rows.
+    auto fewer = infer::split_layers(logits, {budget("cpu", 2 * GiB, true), budget("a", GiB)}, 4, {1, 2}, 128 * MiB, 2, 2);
+    auto more = infer::split_layers(logits, {budget("cpu", 2 * GiB, true), budget("a", GiB)}, 4, {1, 2}, 128 * MiB, 2, 8);
+    require(fewer.host == 2 * 64 * MiB && more.host == 8 * 64 * MiB, "the logits rows the caller keeps not the ones fitted");
+    checked += 3;
     // The host keeps the position tables, two handoff buffers on each used device but the last, which sends nothing, and each used backend's staging, never an unused one's.
     // Two devices staging 68 MiB each beside 64 MiB of tables need 202 MiB of the host: with 140 MiB free one device runs every layer, and with 100 MiB none can.
     infer::Footprint staged = three;

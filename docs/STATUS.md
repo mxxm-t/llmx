@@ -4,6 +4,14 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Early backend weight-type refusal (2026-09-28, branch fix/model-type-capability-main, in progress)
+
+- **Goal:** check each role's weight type on its assigned backend before any weight adoption or model allocation; decide stream eligibility once and leave a layer at home when its stream destination lacks a type.
+- **Base:** current main `56ac913c`. This ports the previously validated `0785a60` capability feature without its unrelated pending Qwen model dependency. The old branch and its evidence are retained. Qwen's later operation checks belong in this same layer-validation loop; its model implementation is not taken over or imported.
+- **Done:** the existing early-refusal regression builds against unfixed main in a fresh MSVC Release directory and fails as expected: `missing early type refusal for embedding`. The process exits 1; configure/build exit 0. Commands, compile output, failure log and test SHA-256 are retained under `C:/Users/Marko/AppData/Local/Temp/llmx-type-capability-main-check-20260928` in `test-first.json` and its logs. This test-only checkpoint deliberately precedes the fix.
+- **Left:** port, focused CPU/Radeon builds and tests, existing-model identity, complete documentation reconciliation and applicable device/hosted merge gates.
+- **Gotchas:** a home backend lacking a required type must refuse even if a stream destination supports it. A type on an optional destination affects that layer alone. The CLI owns no duplicate placement policy. Existing numerical bounds and operation behavior stay unchanged.
+
 ## Server resume wave submission (2026-09-28, merged at `54f0f91e`)
 
 Merged on Gitea and GitHub main by fast-forward from `0b74b69d` after all six hosted jobs passed at exact head `54f0f91e7209ef8264abf8c280b92bfe8646bd31` in [run 36388197249](https://github.com/mxxm-t/llmx/actions/runs/36388197249), including macOS and the required HF reference.

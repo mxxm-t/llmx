@@ -716,6 +716,46 @@ void placement_checks() {
     rejects("a negative layer share", [&] { infer::place_model(weights, {cpu(), cpu()}, request, options); });
 }
 
+// A device with one missing weight type, whose counters distinguish an early refusal from a failed upload.
+struct TypeBackend : backend::CpuBackend {
+    uint32_t refused = quant::GGML_TYPE_Q8_0;
+    size_t adoptions = 0, allocations = 0;
+    bool supports_type(uint32_t type) const { return type != refused && quant::Registry::instance().get(type); }
+    backend::BufferPtr adopt(const void* data, size_t bytes) override {
+        ++adoptions;
+        return backend::CpuBackend::adopt(data, bytes);
+    }
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+        ++allocations;
+        return backend::CpuBackend::alloc(bytes, where);
+    }
+};
+
+void type_capability_checks() {
+    const auto file = fixture(true, quant::GGML_TYPE_Q8_0, false, true, 2);
+    const auto weights = infer::gguf_weights(file);
+    for (const int part : {0, 1, 2}) {
+        auto home = std::make_shared<TypeBackend>(), limited = std::make_shared<TypeBackend>();
+        home->refused = UINT32_MAX;
+        home->set_threads(1); limited->set_threads(1);
+        infer::Placement place;
+        place.mixer_device = {0, part == 2 ? 1 : 0};
+        place.ffn_device = {0, 0};
+        place.embed_device = part == 0 ? 1 : 0;
+        place.output_device = part == 1 ? 1 : 0;
+        std::string error;
+        try { infer::Model model(weights, {home, limited}, place); }
+        catch (const std::runtime_error& e) { error = e.what(); }
+        const std::string role = part == 0 ? "embedding" : part == 1 ? "head" : "layer 1's mixer";
+        require(error.find(role) != std::string::npos && error.find("type 8") != std::string::npos &&
+                    error.find("device 1") != std::string::npos,
+                "missing early type refusal for " + role + ": " + error);
+        require(!home->adoptions && !limited->adoptions && !home->allocations && !limited->allocations,
+                "unsupported " + role + " reached adoption or allocation");
+        ++checks;
+    }
+}
+
 // A pass whose positions reach past the context is refused, whether a prompt or a step takes it there.
 void context_checks() {
     auto cpu = std::make_shared<backend::CpuBackend>();
@@ -789,6 +829,7 @@ int main(int argc, char** argv) {
     try {
         const bool write = argc == 3 && std::string(argv[1]) == "--write";
         if (argc != 2 && !write) throw std::runtime_error("usage: llmx-model-validation-test REFUSALS.txt | --write REFUSALS.txt");
+        type_capability_checks();
         metadata_checks();
         tensor_checks();
         moe_metadata_checks();

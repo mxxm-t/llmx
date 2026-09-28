@@ -144,6 +144,19 @@ void check_limit(const std::string& what, const std::string& source, bool render
     }
 }
 
+// A template that must render `expected`, as Jinja 3.1.6 renders it.
+void check_output(const std::string& what, const std::string& source, const std::string& expected, Tally& tally) {
+    ++tally.cases;
+    const chat::ChatFormat format = chat::chat_format(source, "", "");
+    if (!format.program) return tally.fail(what + ": refused: " + format.refusal);
+    try {
+        const std::string got = format.render({ { "user", "x", std::nullopt } }, false);
+        if (got != expected) tally.fail(what + ": renders \"" + got + "\" where Jinja renders \"" + expected + "\"");
+    } catch (const chat::TemplateError& e) {
+        tally.fail(what + ": fails with \"" + e.what() + "\"");
+    }
+}
+
 std::string repeated(const std::string& s, size_t n) {
     std::string out;
     for (size_t k = 0; k < n; ++k) out += s;
@@ -349,6 +362,17 @@ int main(int argc, char** argv) {
                     "a namespace holding a namespace is not supported", tally);
         check_limit("a namespace in a list in a namespace", "{% set ns = namespace(a=1) %}{% set ns.all = [ns] %}", false,
                     "a namespace holding a namespace is not supported", tally);
+        // A filter or test given more positional arguments than it reads fails, as Jinja fails it, rather than drop them; join's second, Jinja's attribute, fails where Jinja would render other text.
+        check_limit("upper given an argument", "{{ 'a'|upper(1) }}", false, "upper() takes at most 0 arguments", tally);
+        check_limit("first given an argument", "{{ [1]|first(1) }}", false, "first() takes at most 0 arguments", tally);
+        check_limit("eq given two arguments", "{{ [1, 2]|select('eq', 1, 2)|list }}", false, "eq() takes at most 1 arguments", tally);
+        check_limit("odd given an argument", "{{ [1, 2]|select('odd', 1)|list }}", false, "odd() takes at most 0 arguments", tally);
+        check_limit("join given an attribute", "{{ ['a', 'b']|join(', ', 'x') }}", false, "join's attribute argument is not supported", tally);
+        // The tests Jinja names by operator, reached by string through the select filters.
+        check_output("the operator-named tests",
+                     "{{ [1, 2, 1, 3]|select('==', 1)|list }}{{ [1, 2, 3]|reject('<', 2)|list }}{{ [1, 2, 3]|select('>=', 2)|list }}"
+                     "{{ [1, 2]|select('!=', 1)|list }}{{ [1, 2, 3]|select('<=', 2)|list }}{{ [1, 2, 3]|select('>', 2)|list }}",
+                     "[1, 1][2, 3][2, 3][2][1, 2][3]", tally);
         std::cout << templates << " templates and " << features << " feature templates over " << tally.cases << " cases, "
                   << refused << " refusals, " << splits << " splits and " << goldens << " model chat goldens against the HF reference renderer: " << tally.failures << " failed\n";
         if (!templates && !features) throw std::runtime_error("no templates in the fixture");

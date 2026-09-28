@@ -108,6 +108,21 @@ class ReferenceConsumer(unittest.TestCase):
             else:
                 self.assertRegex(text.getvalue(), r"baseline\s+SKIP")
 
+    def test_a_component_that_compared_nothing_is_a_skip(self):
+        # A component that ran none of its comparisons returns common.SKIPPED, which the runner prints as SKIP, not PASS.
+        import decode_probe, f32, moe, server, shards, split
+        with contextlib.redirect_stdout(io.StringIO()):
+            with patch.dict(os.environ, {"LLMX_CACHE_TYPE": "f16"}):
+                for component in (f32, moe, server, shards):
+                    self.assertEqual(component.run(), common.SKIPPED, component.__name__)
+            # No tool sits beside the Python interpreter.
+            with patch.object(common, "EXE", sys.executable):
+                for component in (split, decode_probe):
+                    self.assertEqual(component.run(), common.SKIPPED, component.__name__)
+            with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ),                  patch.object(baseline, "snapshot_path", side_effect=lambda repo, revision, file: Path(directory) / file):
+                os.environ.pop("LLMX_BASELINE_GGUF", None)
+                self.assertEqual(baseline.run(), common.SKIPPED)
+
     def test_required_type_runner_refuses_invalid_selection(self):
         import run_tests
         for required in ("", "Q8_0,", "NO_SUCH_TYPE", "39"):

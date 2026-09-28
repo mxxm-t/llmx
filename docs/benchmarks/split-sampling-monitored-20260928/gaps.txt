@@ -1,0 +1,21 @@
+== mon1
+Samples outside every arm's server (before the first, between arms, after the last), flagged by flags.md with no arm container: F4 there is any GPU use or VRAM on GPU[4] or GPU[6].
+19:53:22 to 19:53:35 UTC: 4 samples, 4 flagged (F1); card4/card6 use max 0/0, vram max 0/0
+19:55:10 to 19:55:10 UTC: 0 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0
+19:56:46 to 19:56:46 UTC: 0 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0
+19:58:23 to 19:58:23 UTC: 0 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0
+19:59:56 to 20:00:13 UTC: 6 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0
+== mon2
+Samples outside every arm's server (before the first, between arms, after the last), flagged by flags.md with no arm container: F4 there is any GPU use or VRAM on GPU[4] or GPU[6].
+20:00:19 to 20:00:32 UTC: 4 samples, 1 flagged (F1); card4/card6 use max 0/0, vram max 0/0
+20:02:06 to 20:02:06 UTC: 0 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0
+20:03:42 to 20:03:42 UTC: 0 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0
+20:05:19 to 20:05:19 UTC: 0 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0
+20:06:52 to 20:07:10 UTC: 6 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0
+== mon3
+Samples outside every arm's server (before the first, between arms, after the last), flagged by flags.md with no arm container: F4 there is any GPU use or VRAM on GPU[4] or GPU[6].
+20:07:11 to 20:07:25 UTC: 4 samples, 3 flagged (F1 F3 F5); card4/card6 use max 0/0, vram max 0/0
+20:08:58 to 20:08:58 UTC: 0 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0
+20:10:35 to 20:10:35 UTC: 0 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0
+20:12:11 to 20:12:11 UTC: 0 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0
+20:13:45 to 20:14:02 UTC: 6 samples, 0 flagged (); card4/card6 use max 0/0, vram max 0/0

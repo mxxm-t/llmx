@@ -1,0 +1,14 @@
+# Activity flags for the monitored sampling pool on/off run (defined before the first server starts)
+
+Samples come from `monitor.py` on the host every 3 s through every arm: system CPU busy share, every process's CPU since the last sample, disk read and write MB/s, load average, and every card's GPU use and VRAM from rocm-smi.
+The benchmark's own processes are those in the arm's container (its `llmx` server and the `server_load.py` client) and the monitor itself; everything else is background.
+
+A sample is flagged when any of these holds:
+- F1, background CPU: processes outside the arm's container use more than 200 percent CPU (two cores) together.
+- F2, host saturation: system CPU busy is above 90 percent of the host's 16 logical CPUs.
+- F3, disk: read plus write above 200 MB/s.
+- F4, measured cards: GPU use or VRAM on either measured card (GPU[4], GPU[6]) while the arm's server is not running, or VRAM above what one server holds (reported, not inferred) from another process during the arm.
+- F5, other cards: GPU use above 10 percent on any card other than the measured two, which shares the host's PCIe and CPU.
+
+A server step (one arm, one sampling mode, all three levels and both rounds) is flagged when more than 10 percent of its samples are flagged, and its flags are listed by kind next to its results.
+No run is stopped, discarded or replaced because of a flag; every round is kept.

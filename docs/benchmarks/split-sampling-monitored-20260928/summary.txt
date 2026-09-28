@@ -1,0 +1,43 @@
+All rounds of all blocks (on / off):
+  g 16 users | tok/s on 550.5 (sd 7.2, 12) off 535.6 (sd 7.6, 12) +2.8% | itl p50 20.27 / 21.11 | itl p99 25.13 / 26.00 | ttft p99 1133 / 1132
+  g 32 users | tok/s on 659.1 (sd 5.6, 12) off 635.9 (sd 6.7, 12) +3.6% | itl p50 32.75 / 34.42 | itl p99 389.52 / 406.29 | ttft p99 2063 / 2085
+  g 64 users | tok/s on 724.6 (sd 3.6, 12) off 695.5 (sd 6.0, 12) +4.2% | itl p50 58.24 / 61.92 | itl p99 490.56 / 495.31 | ttft p99 4019 / 4047
+  s 16 users | tok/s on 550.7 (sd 7.6, 12) off 534.5 (sd 7.0, 12) +3.0% | itl p50 20.23 / 21.13 | itl p99 24.93 / 25.91 | ttft p99 1136 / 1137
+  s 32 users | tok/s on 657.3 (sd 7.4, 12) off 636.8 (sd 7.0, 12) +3.2% | itl p50 32.81 / 34.46 | itl p99 393.94 / 404.53 | ttft p99 2072 / 2069
+  s 64 users | tok/s on 724.1 (sd 4.1, 12) off 697.6 (sd 3.7, 12) +3.8% | itl p50 58.26 / 61.68 | itl p99 489.93 / 494.79 | ttft p99 4025 / 4043
+Block mon1:
+  g 16 users | tok/s on 551.6 (sd 9.7, 4) off 538.1 (sd 9.4, 4) +2.5% | itl p50 20.29 / 21.06 | itl p99 25.04 / 26.34 | ttft p99 1123 / 1121
+  g 32 users | tok/s on 662.3 (sd 6.5, 4) off 639.0 (sd 7.3, 4) +3.6% | itl p50 32.67 / 34.49 | itl p99 395.86 / 396.82 | ttft p99 2041 / 2046
+  g 64 users | tok/s on 727.1 (sd 3.5, 4) off 699.1 (sd 4.6, 4) +4.0% | itl p50 58.27 / 61.84 | itl p99 484.70 / 487.57 | ttft p99 3976 / 3995
+  s 16 users | tok/s on 552.1 (sd 8.4, 4) off 536.6 (sd 7.4, 4) +2.9% | itl p50 20.24 / 21.11 | itl p99 24.94 / 25.85 | ttft p99 1127 / 1123
+  s 32 users | tok/s on 659.9 (sd 7.3, 4) off 637.2 (sd 8.8, 4) +3.6% | itl p50 32.84 / 34.60 | itl p99 383.52 / 396.59 | ttft p99 2042 / 2046
+  s 64 users | tok/s on 726.8 (sd 4.0, 4) off 700.4 (sd 3.4, 4) +3.8% | itl p50 58.29 / 61.77 | itl p99 484.77 / 487.54 | ttft p99 3979 / 3990
+Block mon2:
+  g 16 users | tok/s on 550.9 (sd 6.7, 4) off 535.6 (sd 7.0, 4) +2.9% | itl p50 20.26 / 21.09 | itl p99 25.09 / 25.67 | ttft p99 1133 / 1135
+  g 32 users | tok/s on 657.7 (sd 4.7, 4) off 634.1 (sd 6.4, 4) +3.7% | itl p50 32.81 / 34.38 | itl p99 372.73 / 412.46 | ttft p99 2068 / 2107
+  g 64 users | tok/s on 724.6 (sd 1.7, 4) off 692.2 (sd 7.8, 4) +4.7% | itl p50 58.15 / 62.16 | itl p99 493.12 / 498.40 | ttft p99 4031 / 4073
+  s 16 users | tok/s on 551.4 (sd 8.2, 4) off 533.5 (sd 6.4, 4) +3.3% | itl p50 20.21 / 21.14 | itl p99 24.73 / 26.07 | ttft p99 1135 / 1143
+  s 32 users | tok/s on 655.1 (sd 8.6, 4) off 636.5 (sd 7.5, 4) +2.9% | itl p50 32.81 / 34.42 | itl p99 393.97 / 406.53 | ttft p99 2095 / 2078
+  s 64 users | tok/s on 723.6 (sd 3.8, 4) off 695.8 (sd 3.8, 4) +4.0% | itl p50 58.18 / 61.74 | itl p99 492.24 / 499.21 | ttft p99 4042 / 4063
+Block mon3:
+  g 16 users | tok/s on 549.1 (sd 7.0, 4) off 533.2 (sd 7.7, 4) +3.0% | itl p50 20.25 / 21.20 | itl p99 25.25 / 25.98 | ttft p99 1143 / 1141
+  g 32 users | tok/s on 657.3 (sd 5.7, 4) off 634.6 (sd 7.1, 4) +3.6% | itl p50 32.76 / 34.39 | itl p99 399.98 / 409.57 | ttft p99 2079 / 2101
+  g 64 users | tok/s on 722.2 (sd 4.0, 4) off 695.2 (sd 4.3, 4) +3.9% | itl p50 58.30 / 61.75 | itl p99 493.88 / 499.97 | ttft p99 4049 / 4074
+  s 16 users | tok/s on 548.7 (sd 8.0, 4) off 533.3 (sd 8.6, 4) +2.9% | itl p50 20.25 / 21.15 | itl p99 25.13 / 25.81 | ttft p99 1147 / 1144
+  s 32 users | tok/s on 657.0 (sd 7.7, 4) off 636.8 (sd 6.9, 4) +3.2% | itl p50 32.78 / 34.35 | itl p99 404.34 / 410.48 | ttft p99 2079 / 2084
+  s 64 users | tok/s on 721.8 (sd 3.6, 4) off 696.6 (sd 2.6, 4) +3.6% | itl p50 58.32 / 61.52 | itl p99 492.77 / 497.63 | ttft p99 4055 / 4077
+Steps no flag marked:
+  g 16 users | tok/s on 552.1 (sd 5.0, 8) off 536.3 (sd 7.3, 10) +3.0% | itl p50 20.27 / 21.11 | itl p99 23.46 / 25.23 | ttft p99 1124 / 1129
+  g 32 users | tok/s on 660.0 (sd 4.4, 8) off 635.9 (sd 6.4, 10) +3.8% | itl p50 32.80 / 34.41 | itl p99 385.39 / 408.21 | ttft p99 2049 / 2086
+  g 64 users | tok/s on 725.3 (sd 2.4, 8) off 695.6 (sd 6.6, 10) +4.3% | itl p50 58.24 / 61.87 | itl p99 491.64 / 496.77 | ttft p99 4008 / 4052
+  s 16 users | tok/s on 549.6 (sd 7.9, 10) off 535.1 (sd 7.1, 10) +2.7% | itl p50 20.23 / 21.14 | itl p99 25.64 / 25.18 | ttft p99 1143 / 1133
+  s 32 users | tok/s on 656.3 (sd 7.7, 10) off 637.7 (sd 6.3, 10) +2.9% | itl p50 32.79 / 34.41 | itl p99 398.61 / 406.13 | ttft p99 2084 / 2068
+  s 64 users | tok/s on 723.1 (sd 3.8, 10) off 697.4 (sd 3.7, 10) +3.7% | itl p50 58.26 / 61.66 | itl p99 491.03 / 496.10 | ttft p99 4041 / 4048
+Rounds 144, failed or short requests 0.
+Steps flagged: 5 of 24.
+  mon1 on-a g: 12 of 14 samples (F1:12 F3:1), background CPU mean 270%, may share the arm's cores 20/47, cpuset unknown 250/400, XDEV's gpu3 container 0.0/0.0; llmx-p2-fix5-cpu 250; host 19
+  mon1 on-a s: 12 of 14 samples (F1:12), background CPU mean 441%, may share the arm's cores 19/37, cpuset unknown 422/792, XDEV's gpu3 container 0.0/0.0; llmx-p2-fix5-cpu 271; llmx-p2-fix3-ident2 151; host 16
+  mon1 off-a s: 7 of 15 samples (F1:7), background CPU mean 239%, may share the arm's cores 26/131, cpuset unknown 214/441, XDEV's gpu3 container 0.0/0.0; llmx-p2-fix3-ident2 132; llmx-p2-fix5-cpu 81; host 19; docker.servi 6
+  mon1 off-b g: 12 of 14 samples (F1:12), background CPU mean 202%, may share the arm's cores 15/24, cpuset unknown 102/102, XDEV's gpu3 container 0.0/0.0; llmx-p2-fix5-tsan 102; llmx-p2-fix3-plan 86; host 14
+  mon3 on-a g: 3 of 14 samples (F5:3), background CPU mean 37%, may share the arm's cores 21/55, cpuset unknown 0/0, XDEV's gpu3 container 0.0/0.0; host 21; llmx-p2-x-mxfp4-gpu2-20260928 15
+XDEV's gpu3 container CPU (mean/max percent) per step: mon1 on-a g 0.0/0.0, mon1 on-a s 0.0/0.0, mon1 off-a s 0.0/0.0, mon1 off-a g 0.0/0.0, mon1 off-b g 0.0/0.0, mon1 off-b s 0.0/0.0, mon1 on-b s 0.0/0.0, mon1 on-b g 0.0/0.0, mon2 on-a g 0.0/0.0, mon2 on-a s 0.0/0.0, mon2 off-a s 0.0/0.0, mon2 off-a g 0.0/0.0, mon2 off-b g 0.0/0.0, mon2 off-b s 0.0/0.0, mon2 on-b s 0.0/0.0, mon2 on-b g 0.0/0.0, mon3 on-a g 0.0/0.0, mon3 on-a s 0.0/0.0, mon3 off-a s 0.0/0.0, mon3 off-a g 0.0/0.0, mon3 off-b g 0.0/0.0, mon3 off-b s 0.0/0.0, mon3 on-b s 0.0/0.0, mon3 on-b g 0.0/0.0

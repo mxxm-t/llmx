@@ -1,0 +1,1 @@
+2026-09-28 22:55:35 Plan extended before any on/off result was compared: an arm takes about 1.5 min rather than the half hour estimated, so blocks mon1, mon2 and mon3 run back to back, each on, off, off, on under the same flags and monitoring, and all three are reported.

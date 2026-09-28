@@ -561,7 +561,7 @@ inline size_t bytes_of(const GGUFModel& m, const std::vector<size_t>& tensors) {
     return total;
 }
 
-// Read the pages of `tensors` into memory in the order given, one byte of every page in steps of up to 8 MiB, so that a weight's first reader does not fault them in.
+// Warm `tensors` in order by touching bytes at page-sized intervals within steps of up to 8 MiB; an unaligned tensor can leave its final page untouched.
 // `progress` gets their bytes: 0 first when there are any, then after every step, and their total last, so tensors holding no bytes report (0, 0) once.
 // Their files must be mapped (map_payload); a tensor that is not is refused before any progress.
 inline void warm(const GGUFModel& m, const std::vector<size_t>& tensors, const format::LoadProgress& progress = {}) {

@@ -33,7 +33,7 @@ Both limits bound committed memory, not physical memory, so beside the host's av
 
 ## The page size and owned pages
 
-`core::page_size()` is the size of a page of memory (`GetSystemInfo`'s `dwPageSize` on Windows, `sysconf(_SC_PAGESIZE)` elsewhere), read once; it throws when the operating system gives no positive size, since every use steps or multiplies by it. `format::MappedFile::drop` releases whole pages of it, and `gguf::warm` reads one byte of every page.
+`core::page_size()` is the size of a page of memory (`GetSystemInfo`'s `dwPageSize` on Windows, `sysconf(_SC_PAGESIZE)` elsewhere), read once; it throws when the operating system gives no positive size, since every use steps or multiplies by it. `format::MappedFile::drop` releases whole pages of it, and `gguf::warm` touches tensor bytes at page-sized intervals, which need not touch the last page of an unaligned tensor.
 
 `core::HostPages(bytes)` is page-aligned memory the process owns, rounded up to whole pages (`VirtualAlloc` on Windows, an anonymous private `mmap` elsewhere) and given back when it goes; it moves and does not copy, and an allocation the operating system refuses throws. A size past the largest whole number of pages a `size_t` holds cannot be rounded up, and it and `reserved` refuse it with a `std::length_error` naming the size rather than wrap it to an empty object. The loader's read ring is up to four of them, fewer when a load has fewer pieces to read (`infer::detail::stream`), since a read aligned to the page, and to the file system's block beyond it, is what a file system serves whole and what a read around the file cache needs.
 

@@ -66,9 +66,11 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
     whose size changed since its header was read, since the extents
     `read_gguf` checked no longer describe it. The shards mapped before the
     refused one stay mapped until the model is dropped.
-  - `warm(m, tensors, progress = {})` reads the pages of the given tensors
-    into memory in the order given, one byte of every page (`core::page_size`)
-    in steps of up to 8 MiB, so their first reader does not fault them in.
+  - `warm(m, tensors, progress = {})` warms the given tensors in their given
+    order, touching bytes at page-sized intervals (`core::page_size`) within
+    steps of up to 8 MiB. The stride starts at the tensor, so an unaligned
+    tensor can leave its final page untouched; warming does not guarantee
+    that every page is resident when a later reader reaches it.
     Their files must be mapped; a tensor that is not is refused before any
     progress. `bytes_of(m, tensors)` is their bytes, padding excluded. Whether to warm at all is the loader's rule
     ([load](inference-load.md)).

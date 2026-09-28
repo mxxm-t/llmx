@@ -44,6 +44,16 @@ void powers() {
 }
 
 void boundaries() {
+    // Rounded F32 scales of 4/7, 10/7 and 11/7 minimum subnormals are 1, 1 and 2 units: exact ratios, with the existing [-8,7] clamp.
+    for (const auto& c : std::array<std::array<unsigned, 3>, 3>{{{{4, 4, 12}}, {{10, 0, 15}}, {{11, 2, 14}}}}) {
+        std::array<float, 32> input{};
+        std::array<uint8_t, 18> output{};
+        for (size_t j = 0; j < input.size(); ++j)
+            input[j] = (j % 2 ? 1.0f : -1.0f) * float(c[0]) * std::numeric_limits<float>::denorm_min();
+        quant::quantize_row_q4_0(input.data(), output.data(), 1);
+        for (size_t j = 0; j < input.size(); ++j)
+            require(((output[2 + j % 16] >> (j < 16 ? 0 : 4)) & 15u) == c[1 + j % 2], "Q4_0 rounded subnormal scale");
+    }
     for (int exponent : {-148, -130, -127, 0}) {
         const float unit = std::ldexp(1.0f, exponent);
         const std::array<float, 8> values{{-7, -2.5f, -1.5f, -0.5f, 0.5f, 1.5f, 2.5f, 7}};

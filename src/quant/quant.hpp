@@ -56,7 +56,7 @@ inline void dequantize_row_q8_0(const uint8_t* src, float* dst, size_t nblocks) 
 
 // Q4_0 block quantization.
 // A block holds 32 floats compressed into a 2-byte f16 scale + 16 bytes of nibbles (Q4_0_TYPESIZE = 18 bytes per block).
-// The scale is d = amax/7 so the quantized range [-8, 7] maps to [-amax, amax].
+// The scale is d = amax/7, so ordinary scaling maps [-amax, amax] onto codes -7 to 7; rounding a tiny scale in F32 can reach the clamp at -8 too.
 // Each byte holds two values: the low nibble is element j, the high nibble element j+16; the stored nibble is unsigned 0..15 where the true value = nibble - 8.
 // Decoding as d*(nibble - 8) gives the format's -0 at nibble 8 under a negative scale; the product is exact in f32, since |nibble - 8| is at most 8.
 inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {
@@ -72,7 +72,14 @@ inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {
         const uint16_t d16 = f32_to_f16(d);
         y[0] = (uint8_t)(d16 & 0xff);
         y[1] = (uint8_t)(d16 >> 8);
-        const float id = (d > 0.0f) ? (1.0f / d) : 0.0f;
+        float id = (d > 0.0f) ? (1.0f / d) : 0.0f;
+        float scaled[Q4_0_BLOCK];
+        // Normalize only a block whose reciprocal overflows, keeping the ordinary packing loop unchanged.
+        if (!std::isfinite(id)) {
+            for (size_t j = 0; j < Q4_0_BLOCK; ++j) scaled[j] = x[j] / d;
+            x = scaled;
+            id = 1.0f;
+        }
 
         for (size_t j = 0; j < Q4_0_BLOCK / 2; j++) {
             int lo = (int)std::round(x[j] * id) + 8;

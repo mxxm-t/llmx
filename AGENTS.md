@@ -214,7 +214,7 @@ huge and ordinary inputs, once on the float dots and once on the decode dots
 over quantized activations, which cannot overflow since each block is scaled
 first and are bounded against the sum of magnitudes.
 
-`quantize-range` checks Q4_0 packing from finite F32 inputs against exact integer expectations: every code from -7 to 7 at every position, with power-of-two scales across exponents -149 through 124, half-way rounding, output guards and a scale that underflows even in F32. Binary16 scale underflow and overflow remain format limits; this checks defined packed codes, not finite decoded weights for every magnitude. It runs with gradual underflow and does not establish nonfinite-input handling.
+`quantize-range` checks Q4_0 packing from finite F32 inputs against exact integer expectations: every code from -7 to 7 at every position, with power-of-two scales across exponents -149 through 124, half-way rounding, rounded subnormal scales, output guards and a scale that underflows even in F32. Binary16 scale underflow and overflow remain format limits; this checks defined packed codes, not finite decoded weights for every magnitude. It runs with gradual underflow and does not establish nonfinite-input handling.
 
 `q8-dots` checks those decode dots (`backends/cpu/q8_dots.hpp`), 8-bit for
 Q8_0/Q4_K/Q5_K and 16-bit for Q4_0/Q4_1/Q6_K, against a double-precision

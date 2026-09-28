@@ -7,6 +7,7 @@ Block quantization kernels, in namespace `quant`.
 - `dequantize_row_q8_0(src, dst, nblocks)`: reverse.
 - `quantize_row_q4_0` / `dequantize_row_q4_0`: Q4_0 block = 2-byte f16 scale (`d = amax/7`) + 16 bytes of nibbles; each byte holds value `j` in the low nibble and `j+16` in the high nibble, stored unsigned 0..15 where the true value is `nibble - 8`.
   The decode computes `d*(nibble - 8)`, so under a negative scale, which `quantize` never writes but other files carry, nibble 8 gives -0 as the format does.
+  Encoding normally multiplies by the reciprocal of the F32 scale, preserving its existing rounding. If that reciprocal is infinite for a tiny positive scale, it divides that block into a 32-float local array and packs it with multiplier 1, keeping the values bounded before the integer casts and leaving the ordinary packing loop unchanged. A scale rounded to zero in F32 keeps zero codes; a scale representable in F32 can still round to zero in the stored binary16 format. Rounding a tiny scale in F32 can reach the -8 clamp as well as the ordinary -7 to 7 codes. `quantize-range` checks exact codes across power-of-two scales, half-way cases and rounded subnormal scales under gradual underflow; nonfinite inputs are outside its scope.
 - `quantize_row_q4_1` / `dequantize_row_q4_1`: Q4_1 block = f16 scale + f16
   min + 16 bytes of nibbles (20 bytes). The nibble is unsigned and the block
   carries its own offset, so the value is `d*q + m`, not `d*(q-8)`.

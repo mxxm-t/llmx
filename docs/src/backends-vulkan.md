@@ -19,10 +19,12 @@ The lifetime and packed-quantization tests include the implementation and use te
 - `make_vulkan_backend(index, diagnostics)`, `vulkan_device_name`: open
   the loader, pick the device, require what the kernels need (Vulkan 1.2,
   a compute queue, subgroups of 32 lanes or more whose size divides 256,
-  subgroup arithmetic, 16-bit integers, timeline semaphores, dynamically
+  subgroup arithmetic and shuffles, 8- and 16-bit integers, 8- and 16-bit storage buffer access, timeline semaphores, dynamically
   indexed storage buffer arrays, push descriptors); anything missing throws `VulkanUnavailable`, which
   the test skips on and the CLI reports, as does a loader with no driver
-  behind it. The device's `DeviceCaps` choose its `DeviceProfile`
+  behind it.
+  `missing_device_need` holds the features and subgroup properties of that list in one place and names the first one missing.
+  `attention_head_fits` takes a head of at most four elements per subgroup lane and 256 in all, what the attention kernels read, which `kv_alloc` and `attention` check, so a 32-lane device refuses a head wider than 128. The device's `DeviceCaps` choose its `DeviceProfile`
   (`backends/device_profile.hpp`), which `vulkan_device_profile` returns so
   the test predicts the kernel the backend picks.
 - `vulkan_kernel_statistics` returns the driver's per-kernel registers,

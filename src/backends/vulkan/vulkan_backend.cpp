@@ -367,6 +367,30 @@ const size_t kF32Pad = 32;   // floats after each row of a padded F32 matrix (pa
 // F32 rows a multiple of 256 floats wide would otherwise all read the same memory channel (docs/VULKAN.md).
 static bool pads_f32(uint32_t type, size_t nin) { return type == quant::GGML_TYPE_F32 && nin && nin % 256 == 0; }
 
+// What the kernels need of a device beyond Vulkan 1.2's core, the first one missing as the refusal names it, or empty.
+inline std::string missing_device_need(const VkPhysicalDeviceSubgroupProperties& sg, const VkPhysicalDeviceFeatures2& f2,
+                                       const VkPhysicalDeviceVulkan11Features& f11, const VkPhysicalDeviceVulkan12Features& f12) {
+    // The row kernel places one subgroup per row group in a 256-lane workgroup, so the subgroup size must divide it.
+    if (!sg.subgroupSize || 256 % sg.subgroupSize) return "has an unsupported subgroup size";
+    // A block of 32 activations is quantized across 32 consecutive lanes (shaders/xquant.glsl), and every narrower lane group the kernels fix fits such a subgroup, so the kernel choices do not check the width again.
+    if (sg.subgroupSize < 32) return "has subgroups narrower than 32 lanes";
+    if (!(sg.supportedOperations & VK_SUBGROUP_FEATURE_ARITHMETIC_BIT)) return "has no subgroup arithmetic";
+    if (!(sg.supportedOperations & VK_SUBGROUP_FEATURE_SHUFFLE_BIT)) return "has no subgroup shuffles";
+    // Timeline semaphores are what submit and wait are built on.
+    if (!f12.timelineSemaphore) return "has no timeline semaphores";
+    // The row kernels select a projection's buffers per workgroup, dynamic indexing of a storage buffer array.
+    if (!f2.features.shaderStorageBufferArrayDynamicIndexing) return "cannot index storage buffer arrays dynamically";
+    // The kernels read quantized blocks as 8-bit values and half scales and activations as 16-bit ones (shaders/q.glsl, shaders/quantize_x.comp).
+    if (!f2.features.shaderInt16) return "has no 16-bit integer arithmetic";
+    if (!f12.shaderInt8) return "has no 8-bit integer arithmetic";
+    if (!f11.storageBuffer16BitAccess) return "has no 16-bit storage buffer access";
+    if (!f12.storageBuffer8BitAccess) return "has no 8-bit storage buffer access";
+    return {};
+}
+
+// The attention kernels read at most four elements of a head per lane of a subgroup (shaders/attention.comp), and no head wider than 256.
+inline bool attention_head_fits(size_t head_dim, uint32_t subgroup_size) { return head_dim <= 256 && head_dim <= 4 * (size_t)subgroup_size; }
+
 // The tile kernel's row count, specialization constant 0: the shorter heights fill a device a taller tile would leave idle, the taller reads less shared memory per product.
 const uint32_t kTileRowsSmall = 32, kTileRowsShort = 64, kTileRowsTall = 128;   // the small height is variant 1 of the short kernels
 
@@ -821,15 +845,8 @@ public:
         fn.vkGetPhysicalDeviceProperties2(d.physical, &dp);
         d.caps.device = d.props.deviceName;
         d.caps.driver = drv.driverName;
-        // The row kernel places one subgroup per row group in a 256-lane workgroup, so the subgroup size must divide it.
-        if (!d.caps.subgroup_size || 256 % d.caps.subgroup_size ||
-            !(sg.supportedOperations & VK_SUBGROUP_FEATURE_ARITHMETIC_BIT))
-            throw VulkanUnavailable("vulkan: " + d.caps.device + " has an unsupported subgroup size or no subgroup arithmetic");
         if (d.props.apiVersion < VK_API_VERSION_1_2)
             throw VulkanUnavailable("vulkan: " + d.caps.device + " is older than Vulkan 1.2");
-        // A block of 32 activations is quantized across 32 consecutive lanes (shaders/xquant.glsl), and every narrower lane group the kernels fix fits such a subgroup, so the kernel choices do not check the width again.
-        if (d.caps.subgroup_size < 32)
-            throw VulkanUnavailable("vulkan: " + d.caps.device + " has subgroups narrower than 32 lanes");
 
         // A compute family without graphics keeps the queue clear of the desktop; any compute family will do.
         uint32_t families = 0;
@@ -846,7 +863,6 @@ public:
         if (chosen < 0) throw VulkanUnavailable("vulkan: " + d.caps.device + " has no compute queue");
         d.queue_family = (uint32_t)chosen;
 
-        // Timeline semaphores are what submit and wait are built on; the 8- and 16-bit storage and arithmetic features are what the kernels read quantized blocks and half scales with.
         VkPhysicalDeviceVulkan12Features f12{};
         f12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
         VkPhysicalDeviceVulkan11Features f11{};
@@ -856,28 +872,22 @@ public:
         f2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         f2.pNext = &f11;
         fn.vkGetPhysicalDeviceFeatures2(d.physical, &f2);
-        if (!f12.timelineSemaphore)
-            throw VulkanUnavailable("vulkan: " + d.caps.device + " has no timeline semaphores");
+        if (const std::string need = missing_device_need(sg, f2, f11, f12); !need.empty())
+            throw VulkanUnavailable("vulkan: " + d.caps.device + " " + need);
         VkPhysicalDeviceVulkan12Features e12{};
         e12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
         e12.timelineSemaphore = VK_TRUE;
-        e12.shaderInt8 = f12.shaderInt8;
+        e12.shaderInt8 = VK_TRUE;
         e12.shaderFloat16 = f12.shaderFloat16;
-        e12.storageBuffer8BitAccess = f12.storageBuffer8BitAccess;
+        e12.storageBuffer8BitAccess = VK_TRUE;
         VkPhysicalDeviceVulkan11Features e11{};
         e11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
         e11.pNext = &e12;
-        e11.storageBuffer16BitAccess = f11.storageBuffer16BitAccess;
+        e11.storageBuffer16BitAccess = VK_TRUE;
         VkPhysicalDeviceFeatures2 e2{};
         e2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         e2.pNext = &e11;
-        // The row kernels select a projection's buffers per workgroup, dynamic indexing of a storage buffer array.
-        if (!f2.features.shaderStorageBufferArrayDynamicIndexing)
-            throw VulkanUnavailable("vulkan: " + d.caps.device + " cannot index storage buffer arrays dynamically");
         e2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
-        // The row kernel's activations are 16-bit integers (shaders/quantize_x.comp).
-        if (!f2.features.shaderInt16)
-            throw VulkanUnavailable("vulkan: " + d.caps.device + " has no 16-bit integer arithmetic");
         e2.features.shaderInt16 = VK_TRUE;
 
         uint32_t ext_count = 0;
@@ -2162,7 +2172,9 @@ public:
                                         KVType v_type = KVType::f32) override {
         if (!layers || !n_head_kv || !head_dim)
             throw std::runtime_error("vulkan: KV storage without layers, heads or width");
-        if (head_dim > 256) throw std::runtime_error("vulkan: head width above 256 is not supported");
+        if (!attention_head_fits(head_dim, dev_->caps.subgroup_size))
+            throw std::runtime_error("vulkan: a head " + std::to_string(head_dim) + " wide is not supported on this device, whose attention takes at most " +
+                                     std::to_string(std::min<size_t>(256, 4 * (size_t)dev_->caps.subgroup_size)));
         return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type);
     }
 
@@ -2186,7 +2198,7 @@ public:
     // Every view of the batch through the view table: one tiled and one per-row dispatch at most, and a merge when the per-row one splits histories.
     void attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out,
                    int n_head, int n_head_kv, int head_dim) override {
-        if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 || head_dim <= 0 || head_dim > 256)
+        if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 || head_dim <= 0 || !attention_head_fits((size_t)head_dim, dev_->caps.subgroup_size))
             throw std::runtime_error("vulkan: invalid attention dimensions");
         std::vector<Placed> placed = place_views(views, n_views);
         if (placed.empty()) return;

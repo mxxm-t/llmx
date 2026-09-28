@@ -419,7 +419,7 @@ class Qwen35Consumer(unittest.TestCase):
     def test_suite_form_skips_only_what_it_cannot_run(self):
         name = "baseline-qwen35[%s]: " % self.FILE
         with tempfile.TemporaryDirectory() as directory:
-            self.assertEqual(self.hosted(Path(directory), present=False), (True, name + "SKIP - fixture model not on disk\n"))
+            self.assertEqual(self.hosted(Path(directory), present=False), (common.SKIPPED, name + "SKIP - fixture model not on disk\n"))
         for refusal in (ARCHITECTURE_REFUSAL, DEVICE_REFUSAL):
             with tempfile.TemporaryDirectory() as directory:
                 self.assertEqual(self.hosted(Path(directory), refuse=refusal),

@@ -227,7 +227,7 @@ def check_logits_input(directory, model, cases):
 
 def run():
     if common.f32_cache_skip("f32"):
-        return True
+        return common.SKIPPED
     worst = 0.0
     with tempfile.TemporaryDirectory(prefix="llmx_f32_") as directory:
         for fixture in golden("baseline_f32.json")["fixtures"]:

@@ -1151,7 +1151,7 @@ def check_departed(model):
 
 def run():
     if common.f32_cache_skip("server"):
-        return True
+        return common.SKIPPED
     with tempfile.TemporaryDirectory(prefix="llmx_server_") as directory:
         # Every reply that names the model carries its file name, so the synthetic model's holds a byte that is not UTF-8 where the file system takes one (Linux), and characters beyond ASCII elsewhere.
         # On Windows a name read in the system code page instead of as UTF-8 fails only where one of its UTF-8 bytes has no mapping there, so U+00E1 brings 0xA1 for code page 1257, U+00E0 brings 0xA0 for 932, and U+4E2D breaks 936, 949 and 950.

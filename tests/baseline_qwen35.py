@@ -238,9 +238,10 @@ def pinned(model):
 
 
 def run_hosted():
-    """The 512-token check of every qwen35 fixture of the gate on disk, which the hosted HF job downloads, in the suite's form: a line for each file, and False on the first failure."""
+    """The 512-token check of every qwen35 fixture of the gate on disk, which the hosted HF job downloads, in the suite's form: a line for each file, False on the first failure, and common.SKIPPED when no file was on disk."""
     import tempfile
     from baseline import PINNED, snapshot_path
+    ran = 0
     for spec in (s for s in PINNED if s["family"] == "qwen35" and s["gate"]):
         name = "baseline-qwen35[%s]" % spec["file"]
         if os.environ.get("LLMX_BASELINE_GGUF"):
@@ -251,6 +252,7 @@ def run_hosted():
         if not model:
             print("%s: SKIP - fixture model not on disk" % name)
             continue
+        ran += 1
         failures, count = [], [0]
 
         def run(label, arguments):
@@ -289,7 +291,7 @@ def run_hosted():
             return False
         else:
             print("%s: %d checks  [ok]" % (name, count[0]))
-    return True
+    return True if ran else common.SKIPPED
 
 
 def main(argv=None):

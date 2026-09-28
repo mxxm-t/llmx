@@ -88,6 +88,7 @@ def run_logits():
 
     if ran == 0:
         print("baseline-logits: SKIP - no fixture model on disk")
+        return common.SKIPPED
     return True
 
 
@@ -144,13 +145,15 @@ def run_perplexity():
         doc = json.load(f)
     with tempfile.TemporaryDirectory(prefix="llmx_ppl_") as directory:
         path = ppl_excerpt(doc, directory)
+        ran = 0
         for spec in BASELINE_MODELS:
             model = find_fixture(spec)
             if not model:
                 print("baseline-ppl[%s]: SKIP - fixture model not on disk" % spec["file"])
                 continue
+            ran += 1
             check_model_ppl(doc, path, model, spec)
-    return True
+    return True if ran else common.SKIPPED
 
 
 def check_model_ppl(doc, path, model, spec, name="baseline-ppl"):
@@ -243,7 +246,14 @@ def missing_gate_models():
 
 
 def run():
-    return run_tokenizer() and run_logits() and run_perplexity() and baseline_qwen35.run_hosted()
+    """Each part in turn, stopping at the first failure; SKIP when no part compared anything."""
+    parts = []
+    for part in (run_tokenizer, run_logits, run_perplexity, baseline_qwen35.run_hosted):
+        ok = part()
+        if not ok:
+            return ok
+        parts.append(ok)
+    return common.SKIPPED if all(ok == common.SKIPPED for ok in parts) else True
 
 
 def run_tokenizer():
@@ -258,7 +268,7 @@ def run_tokenizer():
         print("baseline: SKIP - no fixture model on disk (%s). "
               "Set LLMX_BASELINE_GGUF or `python tools/gen_baseline.py` deps."
               % doc["gguf_file"])
-        return True
+        return common.SKIPPED
 
     failures = common.tokenize_failures(model, doc["cases"])
     n = len(doc["cases"])

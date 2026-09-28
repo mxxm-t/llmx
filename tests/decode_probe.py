@@ -86,7 +86,7 @@ def run(require=False):
     if not os.path.exists(tool):
         assert not require, "decode-probe: %s not found beside the executable" % tool
         print("decode-probe: SKIP - %s not found beside the executable" % tool)
-        return True
+        return common.SKIPPED
     with tempfile.TemporaryDirectory(prefix="llmx_probe_") as directory:
         model = f32.write_model(os.path.join(directory, "tiny-f32.gguf"), f32.tensors(False))
         # The greedy path two steps long, read from the tool itself: each step's best id is the next step's forced id.

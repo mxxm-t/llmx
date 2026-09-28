@@ -201,7 +201,7 @@ def check_q8(directory, golden):
 
 def run():
     if common.f32_cache_skip("moe"):
-        return True
+        return common.SKIPPED
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_moe.json"), encoding="utf-8") as f:
         golden = json.load(f)
     assert golden["config"] == CONFIG and golden["dense_layers"] == list(DENSE_LAYERS), "MoE fixture config changed"

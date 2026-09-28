@@ -8,7 +8,7 @@ from common import run_f32_cache as cli
 
 def run():
     if common.f32_cache_skip("shards"):
-        return True
+        return common.SKIPPED
     worst = 0.0
     cases = 0
     with tempfile.TemporaryDirectory(prefix="llmx_sharded_hf_") as directory:

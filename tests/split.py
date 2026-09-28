@@ -87,7 +87,7 @@ def run(require=False):
     if not os.path.exists(tool):
         assert not require, "split: %s not found beside the executable" % tool
         print("split: SKIP - %s not found beside the executable" % tool)
-        return True
+        return common.SKIPPED
     runs = 0
     with tempfile.TemporaryDirectory(prefix="llmx_split_") as directory:
         text = os.path.join(directory, "text.txt")

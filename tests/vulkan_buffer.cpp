@@ -450,6 +450,46 @@ std::shared_ptr<backend::Device> fake_device(Failure failure) {
 }
 }
 
+namespace {
+// The device needs the kernels declare, on property and feature values rather than a device: all present, then each taken away in turn, which must be named.
+int device_need_checks() {
+    VkPhysicalDeviceSubgroupProperties sg{};
+    sg.subgroupSize = 64;
+    sg.supportedOperations = VK_SUBGROUP_FEATURE_BASIC_BIT | VK_SUBGROUP_FEATURE_ARITHMETIC_BIT | VK_SUBGROUP_FEATURE_SHUFFLE_BIT;
+    VkPhysicalDeviceFeatures2 f2{};
+    f2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
+    f2.features.shaderInt16 = VK_TRUE;
+    VkPhysicalDeviceVulkan11Features f11{};
+    f11.storageBuffer16BitAccess = VK_TRUE;
+    VkPhysicalDeviceVulkan12Features f12{};
+    f12.timelineSemaphore = VK_TRUE;
+    f12.shaderInt8 = VK_TRUE;
+    f12.storageBuffer8BitAccess = VK_TRUE;
+    int failures = 0;
+    const auto expect = [&](const char* what, const std::string& need) {
+        const std::string got = backend::missing_device_need(sg, f2, f11, f12);
+        const bool ok = need.empty() ? got.empty() : got.find(need) != std::string::npos;
+        std::cout << "device_need " << what << ": \"" << got << "\"" << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    };
+    expect("all present", "");
+    sg.subgroupSize = 32; expect("32 lanes", ""); sg.subgroupSize = 16; expect("16 lanes", "narrower than 32"); sg.subgroupSize = 96; expect("96 lanes", "subgroup size"); sg.subgroupSize = 64;
+    sg.supportedOperations &= ~VK_SUBGROUP_FEATURE_ARITHMETIC_BIT; expect("no subgroup arithmetic", "subgroup arithmetic"); sg.supportedOperations |= VK_SUBGROUP_FEATURE_ARITHMETIC_BIT;
+    sg.supportedOperations &= ~VK_SUBGROUP_FEATURE_SHUFFLE_BIT; expect("no subgroup shuffle", "subgroup shuffle"); sg.supportedOperations |= VK_SUBGROUP_FEATURE_SHUFFLE_BIT;
+    f12.timelineSemaphore = VK_FALSE; expect("no timeline semaphores", "timeline semaphores"); f12.timelineSemaphore = VK_TRUE;
+    f2.features.shaderStorageBufferArrayDynamicIndexing = VK_FALSE; expect("no dynamic indexing", "storage buffer arrays"); f2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
+    f2.features.shaderInt16 = VK_FALSE; expect("no 16-bit integers", "16-bit integer arithmetic"); f2.features.shaderInt16 = VK_TRUE;
+    f12.shaderInt8 = VK_FALSE; expect("no 8-bit integers", "8-bit integer arithmetic"); f12.shaderInt8 = VK_TRUE;
+    f11.storageBuffer16BitAccess = VK_FALSE; expect("no 16-bit storage", "16-bit storage"); f11.storageBuffer16BitAccess = VK_TRUE;
+    f12.storageBuffer8BitAccess = VK_FALSE; expect("no 8-bit storage", "8-bit storage"); f12.storageBuffer8BitAccess = VK_TRUE;
+    // The attention kernel reads four elements of a head per lane of a subgroup, so a head wider than four subgroups does not fit.
+    const bool widths = backend::attention_head_fits(128, 32) && !backend::attention_head_fits(256, 32) && backend::attention_head_fits(256, 64) &&
+                        !backend::attention_head_fits(260, 64) && backend::attention_head_fits(64, 64);
+    std::cout << "attention head widths against 32- and 64-lane subgroups" << (widths ? " PASS\n" : " FAIL\n");
+    return failures + !widths;
+}
+}
+
 int main(int argc, char** argv) {
     try {
         if (argc == 2 && std::string(argv[1]) == "--queue") {
@@ -482,6 +522,8 @@ int main(int argc, char** argv) {
         }
         ++cases;
         if (calls.buffers || calls.memory || calls.maps || calls.bad_release) ++failures;
+        failures += device_need_checks();
+        cases += 13;
         std::cout << "vulkan-buffer: " << cases << " cases, " << failures << " failures (fake API; no device)\n";
         return failures ? 1 : 0;
     } catch (const backend::VulkanUnavailable& e) {

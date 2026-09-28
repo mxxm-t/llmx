@@ -77,7 +77,7 @@ A compile without them stops at one `#error` at the top of the header.
 - The `rms_norm_raw` helper under `rms_norm_rows`, `gated_rms_norm` and `norm_rope_raw`, and
   `rope_raw` under `norm_rope_raw`: AVX2 vectorized with scalar tails for
   non-multiples of 8.
-  The tails' multiply-adds are explicit FMAs, `rope_raw`'s the same ones as its vector body, so a build that contracts expressions and one that does not give the same bits (docs/QWEN35.md, Row classes).
+  The tails' multiply-adds are explicit FMAs, `rope_raw`'s the same ones as its vector body, so a build that contracts expressions and one that does not give the same bits (docs/QWEN35.md, Row classes), and `rms_norm_raw`'s tail scales by the row's factor times the weight, as its body does.
   `norm_rope_raw` norms each head and rotates its first dims from heads read at a stride of their own into contiguous heads, the one norm and rope of both `norm_rope_rows`, in place at the full rotary width, and `norm_rope_partial`.
 - `silu_of`, `sigmoid_of`, `softplus_of` and `decay_of`: the elementwise ops' transcendental steps, each computed in one place with `std::exp` per element.
   `softplus_of` takes its argument as it is above 20, and its `exp` in float and its log in double, rounded once, so its value does not follow how the C library rounds the float `log1p`, and `decay_of` gives 0 for a decay factor below 2^-126, as every backend does, so the factor does not depend on the host's denormal handling, though a state value it scales below 2^-126 does.

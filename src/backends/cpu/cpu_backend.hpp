@@ -819,7 +819,7 @@ public:
             __m256 wv = _mm256_loadu_ps(w + i);
             _mm256_storeu_ps(dst + i, _mm256_mul_ps(x, _mm256_mul_ps(rv, wv)));
         }
-        for (; i < n; i++) dst[i] = src[i] * r * w[i];
+        for (; i < n; i++) dst[i] = src[i] * (r * w[i]);
     }
 
     void rope_raw(float* x, const float* cos, const float* sin, int half) const {

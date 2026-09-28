@@ -52,6 +52,9 @@ if(LLMX_HAS_BACKEND_VULKAN)
         quantize_x8 matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group attention_vec)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
     set(LLMX_VK_VARIANTS matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
+        matmul_row_preserve=matmul_row=LLMX_PRESERVE_F32
+        matmul_row_q8w_preserve=matmul_row=LLMX_Q8W+LLMX_PRESERVE_F32
+        matmul_vec_q8_preserve=matmul_vec_q8=LLMX_PRESERVE_F32
         matmul_row_k=matmul_row=LLMX_KQUANT
         matmul_row_q4_dot=matmul_row=LLMX_Q4+LLMX_DOT
         matmul_row_q4_dot8=matmul_row=LLMX_Q4+LLMX_DOT+LLMX_X8
@@ -90,7 +93,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
                     -mfmt=num -I ${LLMX_VK_SHADER_DIR} ${define} -o ${spv} ${LLMX_VK_SHADER_DIR}/${source}.comp
             DEPENDS ${LLMX_VK_SHADER_DIR}/${source}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
                     ${LLMX_VK_SHADER_DIR}/qdecode.glsl ${LLMX_VK_SHADER_DIR}/f16.glsl ${LLMX_VK_SHADER_DIR}/xquant.glsl
-                    ${LLMX_VK_SHADER_DIR}/views.glsl
+                    ${LLMX_VK_SHADER_DIR}/views.glsl ${LLMX_VK_SHADER_DIR}/float_controls.glsl
             COMMENT "glslc ${shader}"
             VERBATIM)
         list(APPEND LLMX_VK_SPV ${spv})
@@ -344,6 +347,15 @@ if(BUILD_TESTING)
         add_test(NAME vulkan-buffer COMMAND llmx-vulkan-lifetime-test)
         add_test(NAME vulkan-lifetime COMMAND llmx-vulkan-lifetime-test --queue)
         set_tests_properties(vulkan-buffer vulkan-lifetime PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
+        # Reads the private packed activation buffers, before consumer float arithmetic can flush them.
+        add_executable(llmx-vulkan-quantization-test tests/vulkan_quantization.cpp)
+        add_dependencies(llmx-vulkan-quantization-test llmx-vulkan-shaders)
+        target_include_directories(llmx-vulkan-quantization-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_BINARY_DIR}/generated ${LLMX_VULKAN_INCLUDE_DIR})
+        target_link_libraries(llmx-vulkan-quantization-test PRIVATE ${CMAKE_DL_LIBS})
+        list(APPEND LLMX_TARGETS llmx-vulkan-quantization-test)
+        add_test(NAME vulkan-quantization COMMAND llmx-vulkan-quantization-test)
+        set_tests_properties(vulkan-quantization PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
         # Not a test: times the routed expert projections against dense matmuls of the same bytes.
         add_executable(llmx-moe-kernel-bench tools/moe_kernel_bench.cpp)
         target_link_libraries(llmx-moe-kernel-bench PRIVATE llmx-vulkan)

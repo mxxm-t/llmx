@@ -1,0 +1,5400 @@
+{
+  "scope": "MI50 producer-only ordinary whole-model identity against main 7d16fa64; consumer modes not integrated, no performance verdict",
+  "base": "7d16fa64",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "build": {
+    "scope": "Producer-only whole-model identity on 7d16fa64, no performance claim",
+    "jobs": [
+      {
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-vulkan",
+          "cmake",
+          "-S",
+          "/work/src-activation-maincontrol",
+          "-B",
+          "/work/build-activation-maincontrol",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON"
+        ],
+        "started": "2026-09-27T20:37:02.553540",
+        "exit": 0,
+        "completed": "2026-09-27T20:37:03.320750"
+      },
+      {
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-vulkan",
+          "cmake",
+          "--build",
+          "/work/build-activation-maincontrol",
+          "--target",
+          "llmx",
+          "--parallel",
+          "4"
+        ],
+        "started": "2026-09-27T20:37:03.321175",
+        "exit": 0,
+        "completed": "2026-09-27T20:37:56.561541"
+      }
+    ]
+  },
+  "compile": {
+    "previous_run": "activation-producer-model-01",
+    "correction": "CLI requires vulkan:0, not bare 0; input, builds and bounds unchanged; diagnostic placement name aligned",
+    "jobs": [
+      {
+        "arm": "main",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-vulkan",
+          "g++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-mavx2",
+          "-mfma",
+          "-mf16c",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-pthread",
+          "-I/work/build-activation-maincontrol/generated",
+          "-I/work/src-activation-maincontrol/src",
+          "/work/activation-producer-model-02/raw_model.cpp",
+          "/work/build-activation-maincontrol/libllmx-vulkan.a",
+          "-ldl",
+          "-o",
+          "/work/activation-producer-model-02/raw-main"
+        ],
+        "exit": 0
+      },
+      {
+        "arm": "producer",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-vulkan",
+          "g++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-mavx2",
+          "-mfma",
+          "-mf16c",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-pthread",
+          "-I/work/build-activation-rebased/generated",
+          "-I/work/src-activation-rebased/src",
+          "/work/activation-producer-model-02/raw_model.cpp",
+          "/work/build-activation-rebased/libllmx-vulkan.a",
+          "-ldl",
+          "-o",
+          "/work/activation-producer-model-02/raw-producer"
+        ],
+        "exit": 0
+      }
+    ],
+    "artifacts": {
+      "raw-main": "63b3d6aea042ddbf73b12f510690dec2ef05a4d5ee69875289c0a931c82fe678",
+      "raw-producer": "c8282865dd6d6ca059ca2b72d8a43506ce41eaff68f48a7707f154d5fe758289",
+      "raw_model.cpp": "9cc1531ebb7c589d69ad654c93c64c511d3fd9d7e4f18228540b419df6ec7a70",
+      "run.py": "7d29deb502aea541e31a60e1877df0814dd754bfe87deff80ed4ec9630e5c855",
+      "ids.txt": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+      "excerpt.txt": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c"
+    },
+    "production_artifacts": {
+      "build-activation-maincontrol/llmx": "15b4496bc6bdcc66d8d1c06a53d2511338a9d519e53aadfce35eed49fd5f36e3",
+      "activation-producer-model-01/raw-main": "aac786f537ce90bd7bf1b07dd21591ac80f259b2f49ede17ea591528f8b3067b",
+      "build-activation-maincontrol/libllmx-vulkan.a": "3af521b1c30e16cbde79483e6a49720ce2d5e7a7c198e00ff979cec0c581aae9",
+      "build-activation-rebased/llmx": "938aa88e7946e1b996318cf98647fff655ea1dd38d4a4283d01d0ccac489cb55",
+      "activation-producer-model-01/raw-producer": "1dabf328382bc577694e8d4bf9b1f9eb3101975fc1f66e619217d647a9e4fd03",
+      "build-activation-rebased/libllmx-vulkan.a": "95d553402bc0d412911f1eb63bd75c39960cb82b8d53209672ce2d4be50392ce",
+      "activation-producer-model-01/raw_model.cpp": "803ddb228c84089bd6bdabd9b2f9d738786f83c9338bb993ff5129a86c5fcf24",
+      "activation-producer-model-01/ids.txt": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+      "activation-producer-model-01/excerpt.txt": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c"
+    },
+    "versions": {
+      "main": "llmx 0.1.0+unknown",
+      "producer": "llmx 0.1.0+unknown"
+    },
+    "source_differences": [
+      "src/backends/vulkan/vulkan_backend.cpp",
+      "src/backends/vulkan/shaders/xquant.glsl"
+    ]
+  },
+  "container": {
+    "argv": [
+      "docker",
+      "run",
+      "--rm",
+      "--name",
+      "llmx-p2-x-activation-model-02",
+      "--init",
+      "--cpus",
+      "6",
+      "--memory",
+      "24g",
+      "--network",
+      "none",
+      "--ulimit",
+      "core=0",
+      "--device=/dev/dri/renderD132",
+      "-v",
+      "/opt/claude-work/llmx-p2-x-mxfp4-vulkan:/work",
+      "-v",
+      "/opt/claude-work/llmx-vulkan-mi50/models:/models:ro",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "timeout",
+      "--kill-after=10s",
+      "1200s",
+      "python3",
+      "-u",
+      "/work/activation-producer-model-02/run.py"
+    ],
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600"
+  },
+  "complete": {
+    "scope": "Producer-only model identity against 7d16fa64; exact saved float bits and greedy IDs, CLI stdout at printed precision; no performance result",
+    "jobs": [
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-raw-0-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-raw-0-main.bin"
+        ],
+        "started": "2026-09-27T17:43:45.964473",
+        "exit": 0,
+        "completed": "2026-09-27T17:43:47.484099"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-raw-1-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-raw-1-producer.bin"
+        ],
+        "started": "2026-09-27T17:43:47.514763",
+        "exit": 0,
+        "completed": "2026-09-27T17:43:49.136524"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-raw-2-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-raw-2-producer.bin"
+        ],
+        "started": "2026-09-27T17:43:49.165908",
+        "exit": 0,
+        "completed": "2026-09-27T17:43:50.389542"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-raw-3-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-raw-3-main.bin"
+        ],
+        "started": "2026-09-27T17:43:50.417896",
+        "exit": 0,
+        "completed": "2026-09-27T17:43:51.785775"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-0-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:43:51.812559",
+        "exit": 0,
+        "completed": "2026-09-27T17:43:52.929893"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-0-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:43:52.930318",
+        "exit": 0,
+        "completed": "2026-09-27T17:43:53.914110"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-1-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:43:53.914780",
+        "exit": 0,
+        "completed": "2026-09-27T17:43:54.981607"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-1-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:43:54.981983",
+        "exit": 0,
+        "completed": "2026-09-27T17:43:55.998343"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-2-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:43:55.998958",
+        "exit": 0,
+        "completed": "2026-09-27T17:43:57.116357"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-2-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:43:57.116754",
+        "exit": 0,
+        "completed": "2026-09-27T17:43:58.082927"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-3-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:43:58.083600",
+        "exit": 0,
+        "completed": "2026-09-27T17:43:59.200305"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-3-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:43:59.200772",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:00.220246"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-4-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:00.220907",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:01.337826"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-4-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:01.338275",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:02.406466"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-5-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:02.407236",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:03.627028"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-5-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:03.627524",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:04.497956"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-ppl-batched-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:04.498762",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:06.247196"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-ppl-batched-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:06.247689",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:07.915615"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-ppl-decode-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:07.916292",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:10.337405"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-ppl-decode-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:10.337929",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:12.810629"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-raw-0-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-raw-0-main.bin"
+        ],
+        "started": "2026-09-27T17:44:12.812033",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:14.129032"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-raw-1-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-raw-1-producer.bin"
+        ],
+        "started": "2026-09-27T17:44:14.156631",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:15.473965"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-raw-2-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-raw-2-producer.bin"
+        ],
+        "started": "2026-09-27T17:44:15.499158",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:16.677752"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-raw-3-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-raw-3-main.bin"
+        ],
+        "started": "2026-09-27T17:44:16.707281",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:17.874353"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-0-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:17.904651",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:18.772587"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-0-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:18.773148",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:19.697066"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-1-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:19.697849",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:20.563901"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-1-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:20.564487",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:21.530856"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-2-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:21.531648",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:22.449536"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-2-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:22.450141",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:23.318086"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-3-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:23.318888",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:24.240948"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-3-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:24.241506",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:25.112721"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-4-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:25.113684",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:26.135753"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-4-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:26.136427",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:27.058719"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-5-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:27.059545",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:28.075926"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-5-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:28.076580",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:29.004572"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-ppl-batched-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:29.005410",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:30.537757"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-ppl-batched-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:30.538576",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:32.118244"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-ppl-decode-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:32.119129",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:34.561094"
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-ppl-decode-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:44:34.561873",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:36.983532"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-raw-0-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-raw-0-main.bin"
+        ],
+        "started": "2026-09-27T17:44:37.575006",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:38.747153"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-raw-1-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-raw-1-producer.bin"
+        ],
+        "started": "2026-09-27T17:44:38.798769",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:40.055630"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-raw-2-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-raw-2-producer.bin"
+        ],
+        "started": "2026-09-27T17:44:40.105778",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:41.236706"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-raw-3-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-raw-3-main.bin"
+        ],
+        "started": "2026-09-27T17:44:41.288691",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:42.313657"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-0-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:42.354877",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:43.021839"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-0-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:43.022752",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:43.741410"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-1-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:43.742376",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:44.509746"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-1-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:44.510641",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:45.181895"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-2-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:45.182790",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:45.914698"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-2-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:45.915391",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:46.584062"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-3-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:46.584955",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:47.352245"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-3-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:47.352958",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:48.173768"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-4-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:48.174745",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:48.990583"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-4-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:48.991366",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:49.762561"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-5-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:49.763600",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:50.482079"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-5-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:50.482944",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:51.198799"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-ppl-batched-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:51.199868",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:52.667987"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-ppl-batched-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:52.668875",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:54.088273"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-ppl-decode-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:54.089314",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:56.310766"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-ppl-decode-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:44:56.311724",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:58.530991"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-raw-0-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-raw-0-main.bin"
+        ],
+        "started": "2026-09-27T17:44:58.532708",
+        "exit": 0,
+        "completed": "2026-09-27T17:44:59.653231"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-raw-1-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-raw-1-producer.bin"
+        ],
+        "started": "2026-09-27T17:44:59.689168",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:00.859872"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-raw-2-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-raw-2-producer.bin"
+        ],
+        "started": "2026-09-27T17:45:00.887384",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:01.908403"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-raw-3-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-raw-3-main.bin"
+        ],
+        "started": "2026-09-27T17:45:01.938086",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:02.958014"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-0-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:02.995021",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:03.712182"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-0-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:03.713171",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:04.479664"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-1-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:04.480811",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:05.146564"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-1-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:05.147574",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:05.813260"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-2-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:05.814461",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:06.585170"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-2-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:06.586124",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:07.466914"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-3-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:07.467969",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:08.234579"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-3-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:08.235607",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:09.016065"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-4-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:09.017048",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:09.736032"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-4-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:09.737004",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:10.452801"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-5-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:10.453859",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:11.277532"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-5-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:11.278384",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:12.097656"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-ppl-batched-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:12.098806",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:13.423420"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-ppl-batched-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:13.424366",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:14.807745"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-ppl-decode-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:14.808947",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:17.095247"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-ppl-decode-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:17.096188",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:19.491904"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-raw-0-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-raw-0-main.bin"
+        ],
+        "started": "2026-09-27T17:45:20.061530",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:21.252267"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-raw-1-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-raw-1-producer.bin"
+        ],
+        "started": "2026-09-27T17:45:21.299992",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:22.321999"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-raw-2-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-raw-2-producer.bin"
+        ],
+        "started": "2026-09-27T17:45:22.350463",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:23.420982"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-raw-3-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-raw-3-main.bin"
+        ],
+        "started": "2026-09-27T17:45:23.466200",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:24.487663"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-0-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:24.515631",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:25.285713"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-0-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:25.286747",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:25.953110"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-1-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:25.954361",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:26.684198"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-1-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:26.685280",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:27.401203"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-2-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:27.402640",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:28.118626"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-2-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:28.119668",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:28.835572"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-3-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:28.836720",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:29.753597"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-3-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:29.754722",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:30.472277"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-4-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:30.473456",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:31.241188"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-4-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:31.242291",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:31.960234"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-5-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:31.961583",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:32.884424"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-5-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:32.885456",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:33.806942"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-ppl-batched-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:33.808132",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:35.262089"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-ppl-batched-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:35.263247",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:36.695770"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-ppl-decode-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:36.697079",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:39.116422"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-ppl-decode-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:45:39.117497",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:41.391252"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-raw-0-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-raw-0-main.bin"
+        ],
+        "started": "2026-09-27T17:45:41.393342",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:42.412689"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-raw-1-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-raw-1-producer.bin"
+        ],
+        "started": "2026-09-27T17:45:42.441620",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:43.461365"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-raw-2-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-raw-2-producer.bin"
+        ],
+        "started": "2026-09-27T17:45:43.488363",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:44.555716"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-raw-3-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-raw-3-main.bin"
+        ],
+        "started": "2026-09-27T17:45:44.588643",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:45.554956"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-0-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:45.595813",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:46.265738"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-0-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:46.266894",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:46.982593"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-1-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:46.983827",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:47.701079"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-1-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:47.702211",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:48.422629"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-2-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:48.424046",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:49.202734"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-2-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:49.205183",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:49.922927"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-3-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:49.924241",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:50.639802"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-3-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:50.640969",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:51.407816"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-4-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:51.409055",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:52.101959"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-4-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:52.103168",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:52.871223"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-5-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:52.872497",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:53.588265"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-5-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:53.589297",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:54.307685"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-ppl-batched-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:54.309013",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:55.776397"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-ppl-batched-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:55.777537",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:57.147134"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-ppl-decode-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:57.148493",
+        "exit": 0,
+        "completed": "2026-09-27T17:45:59.450539"
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-ppl-decode-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:45:59.451744",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:01.874629"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-raw-0-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-raw-0-main.bin"
+        ],
+        "started": "2026-09-27T17:46:02.503871",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:03.495112"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-raw-1-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-raw-1-producer.bin"
+        ],
+        "started": "2026-09-27T17:46:03.529954",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:04.505266"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-raw-2-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-raw-2-producer.bin"
+        ],
+        "started": "2026-09-27T17:46:04.537915",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:05.457641"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-raw-3-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f16",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-raw-3-main.bin"
+        ],
+        "started": "2026-09-27T17:46:05.488306",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:06.405992"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-0-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:06.437408",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:07.144112"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-0-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:07.145532",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:07.761795"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-1-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:07.763223",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:08.482472"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-1-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:08.483843",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:09.149925"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-2-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:09.151393",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:09.772787"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-2-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:09.774063",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:10.439570"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-3-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:10.441007",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:11.061649"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-3-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:11.062970",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:11.679876"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-4-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:11.681457",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:12.297277"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-4-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:12.298638",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:12.965476"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-5-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:12.967815",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:13.587971"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-5-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:13.589287",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:14.210575"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-ppl-batched-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:14.212179",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:15.480290"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-ppl-batched-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:15.481672",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:16.800591"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-ppl-decode-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:16.802947",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:18.925688"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-ppl-decode-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "started": "2026-09-27T17:46:18.927392",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:20.694958"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-raw-0-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-raw-0-main.bin"
+        ],
+        "started": "2026-09-27T17:46:20.697067",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:21.562981"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-raw-1-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-raw-1-producer.bin"
+        ],
+        "started": "2026-09-27T17:46:21.591309",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:22.506840"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-raw-2-producer",
+        "argv": [
+          "/work/activation-producer-model-02/raw-producer",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-raw-2-producer.bin"
+        ],
+        "started": "2026-09-27T17:46:22.534046",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:23.452187"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-raw-3-main",
+        "argv": [
+          "/work/activation-producer-model-02/raw-main",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "/work/activation-producer-model-02/ids.txt",
+          "f32",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-raw-3-main.bin"
+        ],
+        "started": "2026-09-27T17:46:23.481456",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:24.447403"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-0-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:24.476081",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:25.141325"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-0-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:25.142752",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:25.807897"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-1-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:25.809583",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:26.325015"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-1-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:26.326749",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:26.842302"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-2-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:26.843987",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:27.366409"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-2-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:27.367963",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:27.983235"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-3-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:27.984963",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:28.602600"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-3-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:28.604224",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:29.274603"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-4-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:29.276129",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:29.893429"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-4-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:29.894791",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:30.511222"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-5-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:30.512855",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:31.128918"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-5-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "logits",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:31.130348",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:31.796009"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-ppl-batched-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:31.797711",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:33.068145"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-ppl-batched-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:33.069808",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:34.440616"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-ppl-decode-main",
+        "argv": [
+          "/work/build-activation-maincontrol/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:34.442255",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:36.561610"
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-ppl-decode-producer",
+        "argv": [
+          "/work/build-activation-rebased/llmx",
+          "perplexity",
+          "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "--file",
+          "/work/activation-producer-model-02/excerpt.txt",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--ubatch",
+          "64",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": "2026-09-27T17:46:36.563057",
+        "exit": 0,
+        "completed": "2026-09-27T17:46:38.884970"
+      }
+    ],
+    "pairs": [
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-raw",
+        "artifacts": [
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-raw-0-main.bin",
+            "bytes": 30387800,
+            "sha256": "d30acfd02285f01f5ff8f0a212c60bb319a7a4f1d2fe263aee90922b1d5f4946",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-raw-1-producer.bin",
+            "bytes": 30387800,
+            "sha256": "d30acfd02285f01f5ff8f0a212c60bb319a7a4f1d2fe263aee90922b1d5f4946",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-raw-2-producer.bin",
+            "bytes": 30387800,
+            "sha256": "d30acfd02285f01f5ff8f0a212c60bb319a7a4f1d2fe263aee90922b1d5f4946",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-raw-3-main.bin",
+            "bytes": 30387800,
+            "sha256": "d30acfd02285f01f5ff8f0a212c60bb319a7a4f1d2fe263aee90922b1d5f4946",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-0",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-0-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-0-producer.stdout"
+        ],
+        "sha256": [
+          "b00a823115d0c8d1a5e4eadb3856c7f5e51fbcaec5bfae66631b07b96ae57e5e",
+          "b00a823115d0c8d1a5e4eadb3856c7f5e51fbcaec5bfae66631b07b96ae57e5e"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-1",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-1-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-1-producer.stdout"
+        ],
+        "sha256": [
+          "51c1d2698f5419d184668d0d474966c6b35035d694c56a461ca2d14a2715e01f",
+          "51c1d2698f5419d184668d0d474966c6b35035d694c56a461ca2d14a2715e01f"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-2",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-2-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-2-producer.stdout"
+        ],
+        "sha256": [
+          "eb4377662fbb642f6c8144e99276230c4e77f15415b37b2ff877214d20657910",
+          "eb4377662fbb642f6c8144e99276230c4e77f15415b37b2ff877214d20657910"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-3",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-3-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-3-producer.stdout"
+        ],
+        "sha256": [
+          "eb2e44f8201b8cb32a53c25552f7b83422b9049c0bb527e5571ea31a472b0386",
+          "eb2e44f8201b8cb32a53c25552f7b83422b9049c0bb527e5571ea31a472b0386"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-4",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-4-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-4-producer.stdout"
+        ],
+        "sha256": [
+          "912e67ad2a560467d48f6a0a92e0a3190568194ae135ad7c7d029433bd75dffc",
+          "912e67ad2a560467d48f6a0a92e0a3190568194ae135ad7c7d029433bd75dffc"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-logits-5",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-5-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-logits-5-producer.stdout"
+        ],
+        "sha256": [
+          "fa164bebe5f7e09f94dbd3da5829b51c1e07d55a3b2a0c131c36e7b7ede52ff3",
+          "fa164bebe5f7e09f94dbd3da5829b51c1e07d55a3b2a0c131c36e7b7ede52ff3"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-ppl-batched",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-ppl-batched-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-ppl-batched-producer.stdout"
+        ],
+        "sha256": [
+          "03db9bdef2d6fa04c3f291726cfe34a3b3d15d2c3ca5ecc477cacfb3f81505d3",
+          "03db9bdef2d6fa04c3f291726cfe34a3b3d15d2c3ca5ecc477cacfb3f81505d3"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f16-ppl-decode",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-ppl-decode-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f16-ppl-decode-producer.stdout"
+        ],
+        "sha256": [
+          "6be5f850360f5586baff805d30404e8bd94abb8d35ef793131ccfa75bcae1f63",
+          "6be5f850360f5586baff805d30404e8bd94abb8d35ef793131ccfa75bcae1f63"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-raw",
+        "artifacts": [
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-raw-0-main.bin",
+            "bytes": 30387800,
+            "sha256": "6ba43f5a90ea46a3f7c42f8893950fb00919e942e1b99888f98559dd8a2c9c9e",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-raw-1-producer.bin",
+            "bytes": 30387800,
+            "sha256": "6ba43f5a90ea46a3f7c42f8893950fb00919e942e1b99888f98559dd8a2c9c9e",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-raw-2-producer.bin",
+            "bytes": 30387800,
+            "sha256": "6ba43f5a90ea46a3f7c42f8893950fb00919e942e1b99888f98559dd8a2c9c9e",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-raw-3-main.bin",
+            "bytes": 30387800,
+            "sha256": "6ba43f5a90ea46a3f7c42f8893950fb00919e942e1b99888f98559dd8a2c9c9e",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-0",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-0-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-0-producer.stdout"
+        ],
+        "sha256": [
+          "0d28b62f4bbc405fd7ad193d965b1a6e7fb66ca51a3811762a6da0ed8787f010",
+          "0d28b62f4bbc405fd7ad193d965b1a6e7fb66ca51a3811762a6da0ed8787f010"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-1",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-1-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-1-producer.stdout"
+        ],
+        "sha256": [
+          "ad435d8c13fff544e6a396947196c06c615335ed678b4434a05d231101cf122e",
+          "ad435d8c13fff544e6a396947196c06c615335ed678b4434a05d231101cf122e"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-2",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-2-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-2-producer.stdout"
+        ],
+        "sha256": [
+          "49caf0086606368943abbfe342dc84e0c44823ecf101237b9e010251ccd69e49",
+          "49caf0086606368943abbfe342dc84e0c44823ecf101237b9e010251ccd69e49"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-3",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-3-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-3-producer.stdout"
+        ],
+        "sha256": [
+          "50b3c2bee1954599f64d1c3f9b859a1f6274d7dcc63e1ba3394141cfbf17670f",
+          "50b3c2bee1954599f64d1c3f9b859a1f6274d7dcc63e1ba3394141cfbf17670f"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-4",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-4-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-4-producer.stdout"
+        ],
+        "sha256": [
+          "c396cde5012378b5a474f305a391be0b947fe351f8a6d987ea94a9ddc8f2655e",
+          "c396cde5012378b5a474f305a391be0b947fe351f8a6d987ea94a9ddc8f2655e"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-logits-5",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-5-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-logits-5-producer.stdout"
+        ],
+        "sha256": [
+          "9801de87464fcad07886cc83ff009adb759d27ff364f93e89b570c73488d2bbf",
+          "9801de87464fcad07886cc83ff009adb759d27ff364f93e89b570c73488d2bbf"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-ppl-batched",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-ppl-batched-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-ppl-batched-producer.stdout"
+        ],
+        "sha256": [
+          "ebadde7f130332266b499b7abeb023c9b2c6d97ccd943b8bb3e28e4169e638f4",
+          "ebadde7f130332266b499b7abeb023c9b2c6d97ccd943b8bb3e28e4169e638f4"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q8_0-f32-ppl-decode",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-ppl-decode-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q8_0-f32-ppl-decode-producer.stdout"
+        ],
+        "sha256": [
+          "8e928760337a450d5e0c915d8afad09469200db3e887fee16b7b8f294e69efd4",
+          "8e928760337a450d5e0c915d8afad09469200db3e887fee16b7b8f294e69efd4"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-raw",
+        "artifacts": [
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-raw-0-main.bin",
+            "bytes": 30387800,
+            "sha256": "b0a18ca1a3c83407634a26aef96536d02dde87c66da6bce358e6253691b11d45",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-raw-1-producer.bin",
+            "bytes": 30387800,
+            "sha256": "b0a18ca1a3c83407634a26aef96536d02dde87c66da6bce358e6253691b11d45",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-raw-2-producer.bin",
+            "bytes": 30387800,
+            "sha256": "b0a18ca1a3c83407634a26aef96536d02dde87c66da6bce358e6253691b11d45",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-raw-3-main.bin",
+            "bytes": 30387800,
+            "sha256": "b0a18ca1a3c83407634a26aef96536d02dde87c66da6bce358e6253691b11d45",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-0",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-0-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-0-producer.stdout"
+        ],
+        "sha256": [
+          "8392f191bf4ebf9bd74e0f09c3693adba8159204601801738d3327a2b04fc0d2",
+          "8392f191bf4ebf9bd74e0f09c3693adba8159204601801738d3327a2b04fc0d2"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-1",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-1-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-1-producer.stdout"
+        ],
+        "sha256": [
+          "6dd065eba8feac00d8ad441422e6801b39cd9faaef5389de930216f36c16d6ae",
+          "6dd065eba8feac00d8ad441422e6801b39cd9faaef5389de930216f36c16d6ae"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-2",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-2-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-2-producer.stdout"
+        ],
+        "sha256": [
+          "49beac9a7b7f713f327c49621020edae3c2692cd12c47f750eb4eaf562060994",
+          "49beac9a7b7f713f327c49621020edae3c2692cd12c47f750eb4eaf562060994"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-3",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-3-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-3-producer.stdout"
+        ],
+        "sha256": [
+          "93e6e109e5a14c20ca0411970b20e804158488db7df1b28e20ca8dbfaa308cdf",
+          "93e6e109e5a14c20ca0411970b20e804158488db7df1b28e20ca8dbfaa308cdf"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-4",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-4-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-4-producer.stdout"
+        ],
+        "sha256": [
+          "a4bf9cb6a50a7d8f9e346a7a8d2b3889d3962900a8ea74915bef3e338454562e",
+          "a4bf9cb6a50a7d8f9e346a7a8d2b3889d3962900a8ea74915bef3e338454562e"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-logits-5",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-5-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-logits-5-producer.stdout"
+        ],
+        "sha256": [
+          "f0781e2089565ef8d61c6bc742fbbb54fd1f26769bd215181328f3951fa5e8b1",
+          "f0781e2089565ef8d61c6bc742fbbb54fd1f26769bd215181328f3951fa5e8b1"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-ppl-batched",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-ppl-batched-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-ppl-batched-producer.stdout"
+        ],
+        "sha256": [
+          "cf607f43ce74792557348bc30aa2dacc78f4ba077085d52818384fc8d2aaf04c",
+          "cf607f43ce74792557348bc30aa2dacc78f4ba077085d52818384fc8d2aaf04c"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f16-ppl-decode",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-ppl-decode-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f16-ppl-decode-producer.stdout"
+        ],
+        "sha256": [
+          "fd3d99f62fae71ba137526639b89edeb56259b199d902f3ecd3163b4f3751329",
+          "fd3d99f62fae71ba137526639b89edeb56259b199d902f3ecd3163b4f3751329"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-raw",
+        "artifacts": [
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-raw-0-main.bin",
+            "bytes": 30387800,
+            "sha256": "d632ad1609c9074e5e12582ceb4f6a2e6643f8dfae9c4f65242deecd34aa96d2",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-raw-1-producer.bin",
+            "bytes": 30387800,
+            "sha256": "d632ad1609c9074e5e12582ceb4f6a2e6643f8dfae9c4f65242deecd34aa96d2",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-raw-2-producer.bin",
+            "bytes": 30387800,
+            "sha256": "d632ad1609c9074e5e12582ceb4f6a2e6643f8dfae9c4f65242deecd34aa96d2",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-raw-3-main.bin",
+            "bytes": 30387800,
+            "sha256": "d632ad1609c9074e5e12582ceb4f6a2e6643f8dfae9c4f65242deecd34aa96d2",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-0",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-0-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-0-producer.stdout"
+        ],
+        "sha256": [
+          "f4ab7a35fc237c6daf7ce9b7ee2f3f001e238179e5f21785b1a8e27a4d74ed7c",
+          "f4ab7a35fc237c6daf7ce9b7ee2f3f001e238179e5f21785b1a8e27a4d74ed7c"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-1",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-1-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-1-producer.stdout"
+        ],
+        "sha256": [
+          "c8d3d9c832528258d65159b984184a24fe3dc92232586f990aff23b0a3fff9fe",
+          "c8d3d9c832528258d65159b984184a24fe3dc92232586f990aff23b0a3fff9fe"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-2",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-2-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-2-producer.stdout"
+        ],
+        "sha256": [
+          "8f5d60b095ce4657edd6467a2301022ef12788006b5f7c9d7d06f0c56749fca6",
+          "8f5d60b095ce4657edd6467a2301022ef12788006b5f7c9d7d06f0c56749fca6"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-3",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-3-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-3-producer.stdout"
+        ],
+        "sha256": [
+          "28fad4f714a8f6d1d7677d764b79bb82c0c5a95506df96f164008704a1fadbce",
+          "28fad4f714a8f6d1d7677d764b79bb82c0c5a95506df96f164008704a1fadbce"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-4",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-4-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-4-producer.stdout"
+        ],
+        "sha256": [
+          "203369a63332b84ceaf4ae5de43157ab55ecb56b88adcd80d293f0b4de2aac28",
+          "203369a63332b84ceaf4ae5de43157ab55ecb56b88adcd80d293f0b4de2aac28"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-logits-5",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-5-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-logits-5-producer.stdout"
+        ],
+        "sha256": [
+          "079ea7a9b4ad777ed6f0825272fde9b2e431ae720623a8e42a8841c1308266a7",
+          "079ea7a9b4ad777ed6f0825272fde9b2e431ae720623a8e42a8841c1308266a7"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-ppl-batched",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-ppl-batched-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-ppl-batched-producer.stdout"
+        ],
+        "sha256": [
+          "28693b0eb5617ae26295ab6f76991a67e8e8422ba869bd83c37c33ba55efe08f",
+          "28693b0eb5617ae26295ab6f76991a67e8e8422ba869bd83c37c33ba55efe08f"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_0-f32-ppl-decode",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-ppl-decode-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_0-f32-ppl-decode-producer.stdout"
+        ],
+        "sha256": [
+          "49b69118ce9d5d6c72b72bfc925020e851f2d225bba64023c6eca96da5bc354f",
+          "49b69118ce9d5d6c72b72bfc925020e851f2d225bba64023c6eca96da5bc354f"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-raw",
+        "artifacts": [
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-raw-0-main.bin",
+            "bytes": 30387800,
+            "sha256": "c95e9be1df2d6827182fef77ff6211a40a979d696680b591f3c318e4e420e56e",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-raw-1-producer.bin",
+            "bytes": 30387800,
+            "sha256": "c95e9be1df2d6827182fef77ff6211a40a979d696680b591f3c318e4e420e56e",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-raw-2-producer.bin",
+            "bytes": 30387800,
+            "sha256": "c95e9be1df2d6827182fef77ff6211a40a979d696680b591f3c318e4e420e56e",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-raw-3-main.bin",
+            "bytes": 30387800,
+            "sha256": "c95e9be1df2d6827182fef77ff6211a40a979d696680b591f3c318e4e420e56e",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-0",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-0-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-0-producer.stdout"
+        ],
+        "sha256": [
+          "59b048963f6aa4d05311deb7ea5b7ec2fc2be23012ec0b608d67cdf86aba6ec3",
+          "59b048963f6aa4d05311deb7ea5b7ec2fc2be23012ec0b608d67cdf86aba6ec3"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-1",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-1-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-1-producer.stdout"
+        ],
+        "sha256": [
+          "6ff23874d901f2fb2c355cdc0cffcb9b730c317d7e69440771a4778458d7e9b0",
+          "6ff23874d901f2fb2c355cdc0cffcb9b730c317d7e69440771a4778458d7e9b0"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-2",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-2-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-2-producer.stdout"
+        ],
+        "sha256": [
+          "2abe7bf1046780a2d14e5baf541130d89528b6f44bea2bdede98aad4b5167545",
+          "2abe7bf1046780a2d14e5baf541130d89528b6f44bea2bdede98aad4b5167545"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-3",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-3-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-3-producer.stdout"
+        ],
+        "sha256": [
+          "77a743b45c09423595a9e2513d7034060e4c87405ab9fb61fc9edfd68085594e",
+          "77a743b45c09423595a9e2513d7034060e4c87405ab9fb61fc9edfd68085594e"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-4",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-4-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-4-producer.stdout"
+        ],
+        "sha256": [
+          "2e7924830781626ecb391adc4dd04e1702164de3488376f39cc906b0d24dce67",
+          "2e7924830781626ecb391adc4dd04e1702164de3488376f39cc906b0d24dce67"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-logits-5",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-5-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-logits-5-producer.stdout"
+        ],
+        "sha256": [
+          "f7fb4a04222b1659a74de6bc317906ed62d0d6e3b48b8f696d6137b20d3d4903",
+          "f7fb4a04222b1659a74de6bc317906ed62d0d6e3b48b8f696d6137b20d3d4903"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-ppl-batched",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-ppl-batched-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-ppl-batched-producer.stdout"
+        ],
+        "sha256": [
+          "249ebaa7e49ea62b3e2f7404b49a4003745b4a8ccf0f44a82d19d66dfd8a0631",
+          "249ebaa7e49ea62b3e2f7404b49a4003745b4a8ccf0f44a82d19d66dfd8a0631"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f16-ppl-decode",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-ppl-decode-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f16-ppl-decode-producer.stdout"
+        ],
+        "sha256": [
+          "08501bf89286a554a61126c2499a2c59f36facb45f041647f859ad7d158c294c",
+          "08501bf89286a554a61126c2499a2c59f36facb45f041647f859ad7d158c294c"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-raw",
+        "artifacts": [
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-raw-0-main.bin",
+            "bytes": 30387800,
+            "sha256": "dbaa5fb5a57573939615d3464eb26a0ed726e39443779f81c1af081fe053298b",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-raw-1-producer.bin",
+            "bytes": 30387800,
+            "sha256": "dbaa5fb5a57573939615d3464eb26a0ed726e39443779f81c1af081fe053298b",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-raw-2-producer.bin",
+            "bytes": 30387800,
+            "sha256": "dbaa5fb5a57573939615d3464eb26a0ed726e39443779f81c1af081fe053298b",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-raw-3-main.bin",
+            "bytes": 30387800,
+            "sha256": "dbaa5fb5a57573939615d3464eb26a0ed726e39443779f81c1af081fe053298b",
+            "result": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-0",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-0-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-0-producer.stdout"
+        ],
+        "sha256": [
+          "84151ce9ebae8c502ed57d63969647e2b30911888104f95dfe921db9990a7bdd",
+          "84151ce9ebae8c502ed57d63969647e2b30911888104f95dfe921db9990a7bdd"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-1",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-1-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-1-producer.stdout"
+        ],
+        "sha256": [
+          "fca42388d07b37d2799419f86a901824d429abcc268eddefbb98ed0c2dc1a598",
+          "fca42388d07b37d2799419f86a901824d429abcc268eddefbb98ed0c2dc1a598"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-2",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-2-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-2-producer.stdout"
+        ],
+        "sha256": [
+          "ef08fcc33c24cf62a07a02a55597df6e848665a08e43cdfacbb96bb3577dcf98",
+          "ef08fcc33c24cf62a07a02a55597df6e848665a08e43cdfacbb96bb3577dcf98"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-3",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-3-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-3-producer.stdout"
+        ],
+        "sha256": [
+          "97b36afe2d9bf6f8a2a95a9c530e7a4928f3d0b015d62cb28874608925172488",
+          "97b36afe2d9bf6f8a2a95a9c530e7a4928f3d0b015d62cb28874608925172488"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-4",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-4-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-4-producer.stdout"
+        ],
+        "sha256": [
+          "af3bbafeba8ce813b9b6ef234f171a2b23edd3ffe648367ad840b74fdd215886",
+          "af3bbafeba8ce813b9b6ef234f171a2b23edd3ffe648367ad840b74fdd215886"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-logits-5",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-5-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-logits-5-producer.stdout"
+        ],
+        "sha256": [
+          "8a11bbf0061bd456077879ca38b2aba8f1451c2b14f0c4011d61b1e799525c56",
+          "8a11bbf0061bd456077879ca38b2aba8f1451c2b14f0c4011d61b1e799525c56"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-ppl-batched",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-ppl-batched-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-ppl-batched-producer.stdout"
+        ],
+        "sha256": [
+          "58ecacc5679843793029178f3a0d2ee6ec7a5aa9870f6d814231867510cfedf6",
+          "58ecacc5679843793029178f3a0d2ee6ec7a5aa9870f6d814231867510cfedf6"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q5_K_M-f32-ppl-decode",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-ppl-decode-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q5_K_M-f32-ppl-decode-producer.stdout"
+        ],
+        "sha256": [
+          "a18a3aa18d6ca67e288cc676dbe6823d6877e45160ab908a71607aab13262356",
+          "a18a3aa18d6ca67e288cc676dbe6823d6877e45160ab908a71607aab13262356"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-raw",
+        "artifacts": [
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-raw-0-main.bin",
+            "bytes": 30387800,
+            "sha256": "63e7941ce32d256272b1e548bbde553a773a75faf27d11743ee0d153fc219843",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-raw-1-producer.bin",
+            "bytes": 30387800,
+            "sha256": "63e7941ce32d256272b1e548bbde553a773a75faf27d11743ee0d153fc219843",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-raw-2-producer.bin",
+            "bytes": 30387800,
+            "sha256": "63e7941ce32d256272b1e548bbde553a773a75faf27d11743ee0d153fc219843",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-raw-3-main.bin",
+            "bytes": 30387800,
+            "sha256": "63e7941ce32d256272b1e548bbde553a773a75faf27d11743ee0d153fc219843",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-0",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-0-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-0-producer.stdout"
+        ],
+        "sha256": [
+          "1dff7a67c6b2551079beef2a715998501db679fecd79dab7893382502da764fe",
+          "1dff7a67c6b2551079beef2a715998501db679fecd79dab7893382502da764fe"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-1",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-1-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-1-producer.stdout"
+        ],
+        "sha256": [
+          "6ddbdfff3fb6aafd98a35eb9fd0047c16ea68ebd01f8e37ed91af9194d5fa2c8",
+          "6ddbdfff3fb6aafd98a35eb9fd0047c16ea68ebd01f8e37ed91af9194d5fa2c8"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-2",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-2-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-2-producer.stdout"
+        ],
+        "sha256": [
+          "22876b1499011d026c2c199387a3cc4405098c69514933eccfccf468bc1eb8ea",
+          "22876b1499011d026c2c199387a3cc4405098c69514933eccfccf468bc1eb8ea"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-3",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-3-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-3-producer.stdout"
+        ],
+        "sha256": [
+          "1ec89eb1e75b7891e725d8d605b8756607a49b04c63a4fcf3678b3183b2caaca",
+          "1ec89eb1e75b7891e725d8d605b8756607a49b04c63a4fcf3678b3183b2caaca"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-4",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-4-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-4-producer.stdout"
+        ],
+        "sha256": [
+          "ba660c707db42fcb4f4501e59e0d8a66881b5e5a417a7c8bf57b8c655521328e",
+          "ba660c707db42fcb4f4501e59e0d8a66881b5e5a417a7c8bf57b8c655521328e"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-logits-5",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-5-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-logits-5-producer.stdout"
+        ],
+        "sha256": [
+          "1630778b7a294fa4ab57c956ab409b5d6b71f8440524aac9c50b22c42cb8c18b",
+          "1630778b7a294fa4ab57c956ab409b5d6b71f8440524aac9c50b22c42cb8c18b"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-ppl-batched",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-ppl-batched-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-ppl-batched-producer.stdout"
+        ],
+        "sha256": [
+          "0f2ee502e0797ab304306cae71be01af6e4fafd79215a3c75c03ff5f4f1042ee",
+          "0f2ee502e0797ab304306cae71be01af6e4fafd79215a3c75c03ff5f4f1042ee"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f16-ppl-decode",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-ppl-decode-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f16-ppl-decode-producer.stdout"
+        ],
+        "sha256": [
+          "01f929b5b46df1ec695b7f8750bbfa76f1970d862c3fc6ae67ddacfb54370fa0",
+          "01f929b5b46df1ec695b7f8750bbfa76f1970d862c3fc6ae67ddacfb54370fa0"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-raw",
+        "artifacts": [
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-raw-0-main.bin",
+            "bytes": 30387800,
+            "sha256": "39512c4a3d366af46443b3477ea7f77bef2fc7eb620f6108fa18f9d330962a37",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-raw-1-producer.bin",
+            "bytes": 30387800,
+            "sha256": "39512c4a3d366af46443b3477ea7f77bef2fc7eb620f6108fa18f9d330962a37",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "producer",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-raw-2-producer.bin",
+            "bytes": 30387800,
+            "sha256": "39512c4a3d366af46443b3477ea7f77bef2fc7eb620f6108fa18f9d330962a37",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "arm": "main",
+            "path": "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-raw-3-main.bin",
+            "bytes": 30387800,
+            "sha256": "39512c4a3d366af46443b3477ea7f77bef2fc7eb620f6108fa18f9d330962a37",
+            "result": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-0",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-0-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-0-producer.stdout"
+        ],
+        "sha256": [
+          "2d0b2bc65e37bfddb21bad041f2630185704dff16f1b0a200ff962fbed0a9d53",
+          "2d0b2bc65e37bfddb21bad041f2630185704dff16f1b0a200ff962fbed0a9d53"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-1",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-1-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-1-producer.stdout"
+        ],
+        "sha256": [
+          "d11147276d32d801bba81154993a88c6fc4d4913235a512b5292ff23928d98cd",
+          "d11147276d32d801bba81154993a88c6fc4d4913235a512b5292ff23928d98cd"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-2",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-2-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-2-producer.stdout"
+        ],
+        "sha256": [
+          "b73f21ec02f4475bc90121fc3bb80d7273f69170a3a9d5a9d7a123ba82145a5f",
+          "b73f21ec02f4475bc90121fc3bb80d7273f69170a3a9d5a9d7a123ba82145a5f"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-3",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-3-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-3-producer.stdout"
+        ],
+        "sha256": [
+          "dc470d8d3ea5a6926a988a73ab9e3a9c873206468a1703c218e252b6af8764a6",
+          "dc470d8d3ea5a6926a988a73ab9e3a9c873206468a1703c218e252b6af8764a6"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-4",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-4-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-4-producer.stdout"
+        ],
+        "sha256": [
+          "1837b1b7c0cececc7c1b330ec36a691a642b268fb691e8477fb6f62211e5aaed",
+          "1837b1b7c0cececc7c1b330ec36a691a642b268fb691e8477fb6f62211e5aaed"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-logits-5",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-5-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-logits-5-producer.stdout"
+        ],
+        "sha256": [
+          "b09ffb47a8dc610a2030f30afbb4b9404c8c3f297c6759c9db53d91917892b7b",
+          "b09ffb47a8dc610a2030f30afbb4b9404c8c3f297c6759c9db53d91917892b7b"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-ppl-batched",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-ppl-batched-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-ppl-batched-producer.stdout"
+        ],
+        "sha256": [
+          "2737399ad389f3ea22ee017fde580b4ca89f410b92d51a47c9193e8e9c5cce4b",
+          "2737399ad389f3ea22ee017fde580b4ca89f410b92d51a47c9193e8e9c5cce4b"
+        ],
+        "equal": true
+      },
+      {
+        "name": "Qwen3-0.6B-Q4_K_M-f32-ppl-decode",
+        "paths": [
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-ppl-decode-main.stdout",
+          "/work/activation-producer-model-02/Qwen3-0.6B-Q4_K_M-f32-ppl-decode-producer.stdout"
+        ],
+        "sha256": [
+          "6708000ce166460e44cf60ed2d37c969b53577eb741b10d5cdf2e92973425f4f",
+          "6708000ce166460e44cf60ed2d37c969b53577eb741b10d5cdf2e92973425f4f"
+        ],
+        "equal": true
+      }
+    ],
+    "models": [
+      {
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "path": "/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf"
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "path": "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf"
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+        "path": "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf"
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+        "path": "/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf"
+      }
+    ],
+    "started": "2026-09-27T17:43:45.391599",
+    "passed": true,
+    "completed": "2026-09-27T17:46:38.887774"
+  },
+  "raw_cells": 8,
+  "vectors_per_run": 50,
+  "logit_values_per_run": 7596800,
+  "order": [
+    "main",
+    "producer",
+    "producer",
+    "main"
+  ],
+  "cli_pairs": 64,
+  "control_source_sha256": "8d1d0aaa8c4bd2deec42a1137657de9338730599256dd56eacef6b42041b6ecc",
+  "candidate_source_sha256": "9c444f14a828338c5a8bbd641963c901bf91571b1e72027deb9bec4db152c067",
+  "limitations": [
+    "Raw comparison uses the same private diagnostic source on each runtime library; CLI outputs checked separately at printed precision",
+    "Models are the four pinned 0.6B Qwen3 quant files; no large-model or Radeon whole-model coverage here",
+    "Consumer float controls, complete HF/performance and hosted gates remain",
+    "First harness used unsupported CLI spelling --device 0; failure retained, corrected to vulkan:0 without changing runtime builds or bounds"
+  ],
+  "raw_archive": "/opt/claude-work/llmx-p2-x-mxfp4-vulkan/vulkan-activation-producer-model-20260927.tar.gz",
+  "raw_archive_sha256": "91e51582f967444a1ea6c17636977531cab55627e83a381195f5ae7fbab79415",
+  "raw_archive_bytes": 1030393932,
+  "logit_values_per_arm_per_repeat": 60774400
+}

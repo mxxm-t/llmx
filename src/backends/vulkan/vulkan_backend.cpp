@@ -265,6 +265,15 @@ const uint32_t kSpvMatmulReduce[] = {
 const uint32_t kSpvMatmulVecQ8[] = {
 #include "vulkan/matmul_vec_q8.inc"
 };
+const uint32_t kSpvMatmulRowPreserve[] = {
+#include "vulkan/matmul_row_preserve.inc"
+};
+const uint32_t kSpvMatmulRowQ8wPreserve[] = {
+#include "vulkan/matmul_row_q8w_preserve.inc"
+};
+const uint32_t kSpvMatmulVecQ8Preserve[] = {
+#include "vulkan/matmul_vec_q8_preserve.inc"
+};
 const uint32_t kSpvMoeRoute[] = {
 #include "vulkan/moe_route.inc"
 };
@@ -372,6 +381,8 @@ struct KernelSource {
     size_t bytes;
     uint32_t bindings;
     const uint32_t* counts;
+    const uint32_t* preserved_words = nullptr;
+    size_t preserved_bytes = 0;
 };
 
 const uint32_t kMatmulRowCounts[12] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1, 1};
@@ -404,7 +415,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 4, nullptr},
     {kSpvNormRopeRows, sizeof(kSpvNormRopeRows), 5, nullptr},
     {kSpvEmbed, sizeof(kSpvEmbed), 4, nullptr},
-    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts},
+    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts, kSpvMatmulRowPreserve, sizeof(kSpvMatmulRowPreserve)},
     {kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr},
     {kSpvAttention, sizeof(kSpvAttention), 7, nullptr},
     {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr},
@@ -428,7 +439,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvNormRopeKvV16, sizeof(kSpvNormRopeKvV16), 11, nullptr},
     {kSpvNormRopeKvKV16, sizeof(kSpvNormRopeKvKV16), 11, nullptr},
     {kSpvQuantizeX, sizeof(kSpvQuantizeX), 2, nullptr},
-    {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 12, kMatmulRowCounts},
+    {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 12, kMatmulRowCounts, kSpvMatmulRowQ8wPreserve, sizeof(kSpvMatmulRowQ8wPreserve)},
     {kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr},
     {kSpvMatmulRowQ4Dot, sizeof(kSpvMatmulRowQ4Dot), 12, kMatmulRowCounts},
     {kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 12, kMatmulRowCounts},
@@ -442,7 +453,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts},
     {kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, kMatmulReduceCounts},
-    {kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 12, kMatmulRowCounts},
+    {kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 12, kMatmulRowCounts, kSpvMatmulVecQ8Preserve, sizeof(kSpvMatmulVecQ8Preserve)},
     {kSpvMoeRoute, sizeof(kSpvMoeRoute), 3, nullptr},
     {kSpvMoeCombine, sizeof(kSpvMoeCombine), 3, nullptr},
     {kSpvMoeGroup, sizeof(kSpvMoeGroup), 2, nullptr},
@@ -558,6 +569,7 @@ struct Device {
     VkPhysicalDeviceMemoryProperties memory{};
     DeviceCaps caps{};            // what this device says of itself
     DeviceProfile profile{};      // what measuring its kernels said (backends/device_profile.hpp)
+    bool preserve_float32 = false; // optional Q8 consumer modules retain subnormal activation scales
     bool push_descriptor = false;
     bool memory_budget = false;   // the device reports what is free of each heap (VK_EXT_memory_budget)
     // Host memory imported as device memory, which a copy reads in place (VK_EXT_external_memory_host), and the alignment of its address and size.
@@ -725,6 +737,7 @@ VulkanBuffer& as_vulkan(Buffer& b) {
 
 class VulkanBackend final : public Backend {
     friend struct VulkanLifetimeTest;
+    friend struct VulkanQuantizationTest;
 public:
     explicit VulkanBackend(int index, bool diagnostics = false) : dev_(std::make_shared<Device>()), timed_(diagnostics) {
         Device& d = *dev_;
@@ -772,6 +785,9 @@ public:
         VkPhysicalDeviceProperties2 p2{};
         p2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
         p2.pNext = &sg;
+        VkPhysicalDeviceFloatControlsProperties floats{};
+        floats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES;
+        sg.pNext = &floats;
         // Compute units, which decide the tile height and the split (matmul_group_impl). Core Vulkan does not report them; where the vendor does, ask, else assume a small device.
         uint32_t core_ext_count = 0;
         fn.vkEnumerateDeviceExtensionProperties(d.physical, nullptr, &core_ext_count, nullptr);
@@ -788,6 +804,7 @@ public:
             p2.pNext = &core;
         }
         fn.vkGetPhysicalDeviceProperties2(d.physical, &p2);
+        d.preserve_float32 = floats.shaderDenormPreserveFloat32 && floats.shaderSignedZeroInfNanPreserveFloat32;
         d.caps.subgroup_size = sg.subgroupSize;
         const bool has_units = has_core_props && core.shaderEngineCount && core.shaderArraysPerEngineCount &&
                                core.computeUnitsPerShaderArray;
@@ -2415,10 +2432,11 @@ private:
         try {
             Device& d = *dev_;
             const KernelSource& src = kKernels[id];
+            const bool preserve = d.preserve_float32 && src.preserved_words;
             VkShaderModuleCreateInfo mi{};
             mi.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-            mi.codeSize = src.bytes;
-            mi.pCode = src.words;
+            mi.codeSize = preserve ? src.preserved_bytes : src.bytes;
+            mi.pCode = preserve ? src.preserved_words : src.words;
             VkShaderModule module = VK_NULL_HANDLE;
             check(d.fn.vkCreateShaderModule(d.device, &mi, nullptr, &module), "vkCreateShaderModule");
             k.module = module;

@@ -7,9 +7,12 @@ translation unit (`vulkan_backend.cpp`, built only with
 opened at run time, so a build carries no link dependency; the design,
 kernel notes and measurements are `docs/VULKAN.md`.
 
+The lifetime and packed-quantization tests include the implementation and use test-only friends to inspect private storage and dispatch kernels; there is no runtime probe API.
+
 - `supports_type(type)` accepts F32 and the block types of `decoded_blocks`;
   the model's pre-adoption check and the backend's matrix checks use this
   same query, so they cannot disagree about a weight type.
+
 - `make_vulkan_backend(index, diagnostics)`, `vulkan_device_name`: open
   the loader, pick the device, require what the kernels need (Vulkan 1.2,
   subgroups of 32 lanes or more, 16-bit integers, timeline semaphores,
@@ -158,3 +161,11 @@ kernel notes and measurements are `docs/VULKAN.md`.
 - The qwen35 layers' ops (`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`, `norm_rope_partial` and `sigmoid_mul`) have no kernels yet, so the backend runs `Backend`'s forms, which refuse each by its name, until the qwen35 plan's step 5 adds them.
   `state_alloc` and `state_copy` are `Backend`'s own, built on this backend's `alloc` and `copy`; `backend-vulkan` checks the underlying buffer operations, while `qwen35-ops` runs `state_alloc` and `state_copy` on the CPU. No device test directly exercises the state wrappers.
 - `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`), both reading the shape from one rule, `pads_f32`; routed stacks and gathered tables are bound as they are. `host_resident()`: the upload staging buffer and the ring of host-visible arenas, which live in host memory. `scratch_reserve(free)`: 256 MiB plus a twentieth of what is free, for tile split partials and attention merge state.
+
+## Finite activation range repair in progress
+
+`xquant.glsl` keeps the activation packing and its scale arithmetic together.
+The current branch normalizes extreme finite blocks before division, uses a representable scale and restores the scale and scaled sums as bits so gradual underflow does not depend on the producer shader's floating-point mode.
+Ordinary blocks keep their existing scale, reciprocal and rounding expressions. A packed table's values and the word-wise input share one ordinary-block check before their vector overload calls the scalar bit-shift routine; the scalar range arithmetic has one implementation.
+The packed-twin probe passes on the MI50. `shaders/float_controls.glsl` gives the Q8 row and integer-dot consumer modules 32-bit denormal and signed-zero/infinity/NaN preservation. Device creation queries both properties; only devices reporting both select these modules, and other devices keep their existing modules. The selection changes no kernel layout, column build or decode-order specialization. The preserved Q8 row variants request their fused products explicitly into a precise accumulator, since enabling the modes can disable the driver's implicit contraction and change ordinary logits. The preserved Q8 integer-dot vector variant keeps a precise accumulator and separate scale product, integer-dot product and addition; explicitly fusing those operations failed ordinary-input identity on the MI50. The native packed-activation test also holds these consumers to the ordinary modules' bits on normal inputs across row and column tails; any disagreement fails the gate on a tested driver. The integrated native regression passes on Radeon, including fallback execution with unsupported modes explicitly refused. Radeon whole-model identity passes on the pinned four small quants in both cache types; MI50 integration and performance gates remain. Preserving the packed producer does not imply that every consumer on every device preserves tiny results.
+See STATUS's dated Vulkan finite activation range block for the remaining work and scope.

@@ -1,0 +1,54 @@
+{
+  "date": "2026-09-28",
+  "base": "c82e901a8d65a50310d4ab54f406fcbb0a501c95",
+  "rebased_test_head": "70da40af257a",
+  "scope": "Radeon native producer and conditional Q8 consumer integration; MI50, ordinary whole-model identity, performance and full suites not established here",
+  "archive": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\consumer-20260928-r3\\activation-consumer-radeon-20260928.tar.gz",
+  "archive_sha256": "67586d4e5ff47f68bcedab1cb57c805a6170cc9d86c3228b099ec9809b8f60b4",
+  "archive_bytes": 112310,
+  "binary_sha256": "5978162e45924e045f141ae003ddad054f37473a5a4d904fa8720894358aed45",
+  "source_sha256": {
+    "src/backends/vulkan/vulkan_backend.cpp": "668306d369e0c6413de50cf949715b65469e3394da09d30af0246839120b62fa",
+    "src/backends/vulkan/shaders/xquant.glsl": "dac1d9ba3fe7da81291c0c740ed87f6e7bc3f0fe87a0f35e6271bbf38e7aabaf",
+    "src/backends/vulkan/shaders/float_controls.glsl": "a609b532573fe07835c156a43802b8503d9c84fd2ed5b1f298018779e683c1dc",
+    "src/backends/vulkan/shaders/matmul_row.comp": "1b7c2eb6f3394f9453eb60123c2c01bf338c705d38d04bdc04803ec29763e266",
+    "src/backends/vulkan/shaders/matmul_vec_q8.comp": "7dd9bb81a4892b865902dc2888c9641a95d4a6d2ceea623af510175df7b88658",
+    "tests/vulkan_quantization.cpp": "57e38db181da047b62a7985a08c4f13e02e6c7343defa05a4a241a118aadd2be",
+    "tests/backend_vulkan.cpp": "f14ee75fbf532be64abf9b3d246c8cfcedd86d4a8355c0bcddab668d9314f020",
+    "CMakeLists.txt": "150d38e8720c3f0c238068466912aa8a91611caa3e22d2a4b42d0a2c68f92f38"
+  },
+  "results": {
+    "native_ctests": "2/2 PASS",
+    "public_q8_reconstruction": {
+      "width32": 27360,
+      "width64": 54720,
+      "failures": 0,
+      "skips": 0
+    },
+    "packed": {
+      "values_per_twin": 281024,
+      "scaled_sums": 35128,
+      "identical_lane_word_words": 87820,
+      "failing_blocks": 0
+    },
+    "unsupported_mode_injection": {
+      "accepted_modules": 4,
+      "width32_checked": 24864,
+      "width64_checked": 49728,
+      "width32_skipped": 2496,
+      "width64_skipped": 4992,
+      "failures": 0,
+      "skip_scope": "consumer inputs requiring subnormal activation scales; packed tests retain full range"
+    },
+    "existing_backend_outputs_vs_cpu": 26528948,
+    "decode_column_identities": 122456,
+    "docs": "PASS",
+    "dead_code": "PASS"
+  },
+  "history": [
+    "r1 first narrow Q8 range pass",
+    "r2 wide range passed; dead-code rejected separate optional module registration",
+    "r3 registry owns optional modules; negative-capability execution and docs/dead-code pass"
+  ],
+  "full_suite": "running separately in consumer-suite-20260928; not included in this verdict"
+}

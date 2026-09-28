@@ -1,0 +1,216 @@
+{
+  "date": "2026-09-27",
+  "base": "dbafdec75c8547e164e09220c35e54230baa19b0",
+  "device": "MI50, RADV",
+  "fused": {
+    "cases": 24,
+    "values": 370752,
+    "identical_words": 158790
+  },
+  "public": {
+    "values": 27360,
+    "base_failures": 1288,
+    "diagnostic_failures": 0,
+    "scope": "All normalized producer modules, private Q8 consumer float controls"
+  },
+  "ordinary_identity": {
+    "started": "2026-09-27T19:41:07.816636",
+    "scope": "Ordinary fused outputs and packed twins before/after producer only; no consumer modes",
+    "source_sha256": "e385e8e24a542b6607c2143a4a0a6285ac7936aa18b8d3b3008fe1239566bf70",
+    "jobs": [
+      {
+        "name": "base-build",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-vulkan",
+          "g++",
+          "-std=c++17",
+          "-O2",
+          "-pthread",
+          "-I/work/build-base-main/generated",
+          "-I/work/base-main/src",
+          "/work/activation-ordinary-identity-01/probe.cpp",
+          "-ldl",
+          "-o",
+          "/work/activation-ordinary-identity-01/base"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "base",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-vulkan",
+          "/work/activation-ordinary-identity-01/base",
+          "/work/activation-ordinary-identity-01/base.bin"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "candidate-build",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-vulkan",
+          "g++",
+          "-std=c++17",
+          "-O2",
+          "-pthread",
+          "-I/work/build-activation/generated",
+          "-I/work/base-main/src",
+          "/work/activation-ordinary-identity-01/probe.cpp",
+          "-ldl",
+          "-o",
+          "/work/activation-ordinary-identity-01/candidate"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "candidate",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-vulkan",
+          "/work/activation-ordinary-identity-01/candidate",
+          "/work/activation-ordinary-identity-01/candidate.bin"
+        ],
+        "exit": 0
+      }
+    ],
+    "outputs": {
+      "base": {
+        "sha256": "ce7150f49054307958384093ddd4d6e102457287d6a4b7977e0b83086350e4d0",
+        "bytes": 5511384
+      },
+      "candidate": {
+        "sha256": "ce7150f49054307958384093ddd4d6e102457287d6a4b7977e0b83086350e4d0",
+        "bytes": 5511384
+      }
+    },
+    "identical": true,
+    "completed": "2026-09-27T19:41:19.922702"
+  },
+  "jobs": {
+    "activation-fused-01": {
+      "started": "2026-09-27T19:34:05.559346",
+      "jobs": [
+        {
+          "name": "build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-pthread",
+            "-I/work/build-activation/generated",
+            "-I/work/base-main/src",
+            "/work/activation-fused-01/probe.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-fused-01/probe"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "probe",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-fused-01/probe"
+          ],
+          "exit": 0
+        }
+      ],
+      "completed": "2026-09-27T19:34:11.748514"
+    },
+    "activation-public-fused-01": {
+      "started": "2026-09-27T19:36:28.327913",
+      "jobs": [
+        {
+          "name": "base-build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/build-base-main/generated",
+            "-I/work/base-main/src",
+            "/work/activation-public-fused-01/backend_vulkan.cpp",
+            "/work/base-main/src/backends/vulkan/vulkan_backend.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-public-fused-01/base"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "base",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-public-fused-01/base"
+          ],
+          "exit": 1
+        },
+        {
+          "name": "candidate-build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "g++",
+            "-std=c++17",
+            "-O2",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/activation-public-fused-01/generated",
+            "-I/work/build-activation/generated",
+            "-I/work/build-base-main/generated",
+            "-I/work/base-main/src",
+            "/work/activation-public-fused-01/backend_vulkan.cpp",
+            "/work/base-main/src/backends/vulkan/vulkan_backend.cpp",
+            "-ldl",
+            "-o",
+            "/work/activation-public-fused-01/candidate"
+          ],
+          "exit": 0
+        },
+        {
+          "name": "candidate",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-vulkan",
+            "/work/activation-public-fused-01/candidate"
+          ],
+          "exit": 0
+        }
+      ],
+      "completed": "2026-09-27T19:37:16.769228"
+    }
+  },
+  "archive": {
+    "path": "/opt/claude-work/llmx-p2-x-mxfp4-vulkan/vulkan-activation-fused-20260927.tar.gz",
+    "sha256": "2defe685c46631b029b602b86e0251678a55f0ea4254bbfea9bb0db6138ffe3c",
+    "size": 4494712
+  },
+  "limitations": [
+    "Private Q8 consumer mode integration, not production capability handling",
+    "No HF or matched performance evidence",
+    "Fused attention row/vector/tile extreme cases not established by the merge probe"
+  ]
+}

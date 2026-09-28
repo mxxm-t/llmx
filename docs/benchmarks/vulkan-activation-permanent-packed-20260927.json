@@ -1,0 +1,42 @@
+{
+  "date": "2026-09-27",
+  "scope": "Permanent packed producer test; no consumer float controls",
+  "base": "dbafdec75c8547e164e09220c35e54230baa19b0",
+  "values_per_twin": 281024,
+  "packed_sums": 35128,
+  "identical_lane_word_words": 87820,
+  "base_failing_blocks": 1232,
+  "candidate_failing_blocks": 0,
+  "ctest_exit": 0,
+  "no_device_exit": 77,
+  "commands": [
+    [
+      "docker",
+      "exec",
+      "llmx-p2-x-mxfp4-vulkan",
+      "ctest",
+      "--test-dir",
+      "/work/build-activation",
+      "-R",
+      "^vulkan-quantization$",
+      "--output-on-failure"
+    ],
+    [
+      "docker",
+      "exec",
+      "-e",
+      "VK_DRIVER_FILES=/work/no-such-driver.json",
+      "llmx-p2-x-mxfp4-vulkan",
+      "/work/build-activation/llmx-vulkan-quantization-test"
+    ]
+  ],
+  "hashes": {
+    "base-test": "bce754c59793d12d174c9d71d83f1960659c76b15c57ed6c498ed9be22f99780",
+    "candidate-test": "29eca0dcb62747a261a230ffa5d87bdb57e06fd4e0f607d16c203fcb1e41360f"
+  },
+  "archive": {
+    "path": "/opt/claude-work/llmx-p2-x-mxfp4-vulkan/vulkan-activation-permanent-packed-20260927.tar.gz",
+    "sha256": "af8ba97090106ab8ead80efdefdbdbafebb7410ec07ca8cecfaaf7a209abfa38",
+    "size": 1044105
+  }
+}

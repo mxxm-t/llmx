@@ -1,0 +1,2985 @@
+{
+  "scope": "Peer-reviewed precise accumulator and native ordinary-module equality",
+  "base": "c82e901a",
+  "head": "70da40af257a",
+  "native": [
+    {
+      "arm": "pre-fma-regression",
+      "command": [
+        "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Scripts/cmake.exe",
+        "--build",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-pre-fma-regression",
+        "--config",
+        "Release",
+        "--clean-first",
+        "--target",
+        "llmx-vulkan-quantization-test",
+        "--parallel",
+        "6"
+      ],
+      "exit": 0,
+      "time": "2026-09-28T01:32:32.131827+03:00"
+    },
+    {
+      "arm": "pre-fma-regression",
+      "binaries": {
+        "llmx-vulkan-quantization-test": "777ea4384eb23744ad13d7813c1281b3ba783fa6877233bf2a0730bb0bb7105b"
+      }
+    },
+    {
+      "arm": "precise",
+      "command": [
+        "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Scripts/cmake.exe",
+        "-S",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\source-precise",
+        "-B",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise",
+        "-DLLMX_HAS_BACKEND_VULKAN=ON",
+        "-DBUILD_TESTING=ON",
+        "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include",
+        "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe"
+      ],
+      "exit": 0,
+      "time": "2026-09-28T01:32:35.430558+03:00"
+    },
+    {
+      "arm": "precise",
+      "command": [
+        "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Scripts/cmake.exe",
+        "--build",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise",
+        "--config",
+        "Release",
+        "--clean-first",
+        "--target",
+        "llmx",
+        "raw-model",
+        "llmx-vulkan-quantization-test",
+        "llmx-backend-vulkan-test",
+        "--parallel",
+        "6"
+      ],
+      "exit": 0,
+      "time": "2026-09-28T01:33:47.710993+03:00"
+    },
+    {
+      "arm": "precise",
+      "binaries": {
+        "llmx": "9863e3f5cb8303e3ba9ac260dfcb2a6b830803dad4e011b2ef4406159b095515",
+        "raw-model": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+        "llmx-vulkan-quantization-test": "7a39217799adf5d4e253777a13219489dc497464aa80deb53881469556406e89",
+        "llmx-backend-vulkan-test": "0b085600b9063e6b06420bc20160041fd899f090654f20741ae7aa05e4367cdb"
+      }
+    },
+    {
+      "arm": "pre-fma-regression",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-pre-fma-regression\\Release\\llmx-vulkan-quantization-test.exe"
+      ],
+      "exit": 1,
+      "expected_exit": 1,
+      "time": "2026-09-28T01:33:54.757341+03:00"
+    },
+    {
+      "arm": "precise",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\llmx-vulkan-quantization-test.exe"
+      ],
+      "exit": 0,
+      "expected_exit": 0,
+      "time": "2026-09-28T01:34:01.687256+03:00"
+    }
+  ],
+  "regression": {
+    "ordinary_outputs": 50676,
+    "before_fma_differing": 4410,
+    "precise_differing": 0,
+    "extreme_supported_outputs": 82080,
+    "extreme_supported_failures": 0,
+    "fallback_tiny_skips": 7488
+  },
+  "identity": {
+    "cells": [
+      {
+        "cell": "cpu-Q8_0-f16",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q8_0-f16\\0-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:20.825750+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                4531,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572,
+                15540,
+                553,
+                3757,
+                362
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q8_0-f16\\1-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:22.921713+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                4531,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572,
+                15540,
+                553,
+                3757,
+                362
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q8_0-f16\\2-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:25.003920+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                4531,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572,
+                15540,
+                553,
+                3757,
+                362
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q8_0-f16\\3-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:27.087462+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                4531,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572,
+                15540,
+                553,
+                3757,
+                362
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "cpu-Q8_0-f32",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q8_0-f32\\0-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:29.189980+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q8_0-f32\\1-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:31.276086+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q8_0-f32\\2-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:33.394552+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q8_0-f32\\3-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:35.492704+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "cpu-Q4_0-f16",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_0-f16\\0-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:37.214067+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "686348b45873e2d05ca312ecbedd93f01164a7f924e28ae3b3f7ec8d29847ae2",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_0-f16\\1-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:38.963486+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "686348b45873e2d05ca312ecbedd93f01164a7f924e28ae3b3f7ec8d29847ae2",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_0-f16\\2-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:40.704886+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "686348b45873e2d05ca312ecbedd93f01164a7f924e28ae3b3f7ec8d29847ae2",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_0-f16\\3-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:42.462794+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "686348b45873e2d05ca312ecbedd93f01164a7f924e28ae3b3f7ec8d29847ae2",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "cpu-Q4_0-f32",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_0-f32\\0-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:44.334472+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "e837420237d571c2e7d788729845dc94e8b571d2c77c56296fb45a817fbcd98f",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_0-f32\\1-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:46.046765+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "e837420237d571c2e7d788729845dc94e8b571d2c77c56296fb45a817fbcd98f",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_0-f32\\2-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:47.792225+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "e837420237d571c2e7d788729845dc94e8b571d2c77c56296fb45a817fbcd98f",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_0-f32\\3-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:49.556549+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "e837420237d571c2e7d788729845dc94e8b571d2c77c56296fb45a817fbcd98f",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "cpu-Q5_K_M-f16",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q5_K_M-f16\\0-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:51.790077+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "139dd2b51eea64dc9c9573597145c15834d196586aff005ad7143c1d3fee7c7c",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q5_K_M-f16\\1-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:54.268011+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "139dd2b51eea64dc9c9573597145c15834d196586aff005ad7143c1d3fee7c7c",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q5_K_M-f16\\2-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:56.519963+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "139dd2b51eea64dc9c9573597145c15834d196586aff005ad7143c1d3fee7c7c",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q5_K_M-f16\\3-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:35:58.761702+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "139dd2b51eea64dc9c9573597145c15834d196586aff005ad7143c1d3fee7c7c",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "cpu-Q5_K_M-f32",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q5_K_M-f32\\0-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:00.999251+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "8d16e2c56c8a134f7c6f97e824d9776882bc8072a209cf109dbe2b74199f52da",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q5_K_M-f32\\1-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:03.241118+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "8d16e2c56c8a134f7c6f97e824d9776882bc8072a209cf109dbe2b74199f52da",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q5_K_M-f32\\2-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:05.504373+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "8d16e2c56c8a134f7c6f97e824d9776882bc8072a209cf109dbe2b74199f52da",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q5_K_M-f32\\3-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:07.781622+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "8d16e2c56c8a134f7c6f97e824d9776882bc8072a209cf109dbe2b74199f52da",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "cpu-Q4_K_M-f16",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_K_M-f16\\0-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:09.789090+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "39da1bc253d3e050e2284708c7811ae11538f2d6011fb7974fcab34d9740bbac",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_K_M-f16\\1-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:12.003859+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "39da1bc253d3e050e2284708c7811ae11538f2d6011fb7974fcab34d9740bbac",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_K_M-f16\\2-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:14.014315+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "39da1bc253d3e050e2284708c7811ae11538f2d6011fb7974fcab34d9740bbac",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_K_M-f16\\3-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:16.004081+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "39da1bc253d3e050e2284708c7811ae11538f2d6011fb7974fcab34d9740bbac",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "cpu-Q4_K_M-f32",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_K_M-f32\\0-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:17.991522+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "8dc6822a6eb35b5f6a80d60f00919f6f5c11364433638fa18b5f5eab2c62098c",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_K_M-f32\\1-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:19.941110+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "8dc6822a6eb35b5f6a80d60f00919f6f5c11364433638fa18b5f5eab2c62098c",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_K_M-f32\\2-precise.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:21.902200+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "8dc6822a6eb35b5f6a80d60f00919f6f5c11364433638fa18b5f5eab2c62098c",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\cpu-Q4_K_M-f32\\3-main.bin",
+              "cpu"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:24.230038+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "8dc6822a6eb35b5f6a80d60f00919f6f5c11364433638fa18b5f5eab2c62098c",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "vulkan-0-Q8_0-f16",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q8_0-f16\\0-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:25.653411+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q8_0-f16\\1-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:27.704070+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q8_0-f16\\2-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:29.214279+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q8_0-f16\\3-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:30.623685+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "vulkan-0-Q8_0-f32",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q8_0-f32\\0-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:32.037282+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q8_0-f32\\1-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:33.803785+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q8_0-f32\\2-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:35.307299+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q8_0-f32\\3-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:36.769513+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "vulkan-0-Q4_0-f16",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_0-f16\\0-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:38.046833+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "76befe76032d9f33c9a77d94679564cbfd79d6cdeb081e1d2f1cd8d98755d33c",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_0-f16\\1-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:39.410719+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "76befe76032d9f33c9a77d94679564cbfd79d6cdeb081e1d2f1cd8d98755d33c",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_0-f16\\2-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:40.689432+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "76befe76032d9f33c9a77d94679564cbfd79d6cdeb081e1d2f1cd8d98755d33c",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_0-f16\\3-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:41.975103+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "76befe76032d9f33c9a77d94679564cbfd79d6cdeb081e1d2f1cd8d98755d33c",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "vulkan-0-Q4_0-f32",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_0-f32\\0-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:43.229167+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "6cb44c6e0760e0d1bd761f415987fe79a5bfa50dbef150325131a3b62dfbe697",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_0-f32\\1-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:44.497687+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "6cb44c6e0760e0d1bd761f415987fe79a5bfa50dbef150325131a3b62dfbe697",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_0-f32\\2-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:45.783126+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "6cb44c6e0760e0d1bd761f415987fe79a5bfa50dbef150325131a3b62dfbe697",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_0-f32\\3-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:47.082180+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "6cb44c6e0760e0d1bd761f415987fe79a5bfa50dbef150325131a3b62dfbe697",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                438,
+                264,
+                8640,
+                12089,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                3985,
+                1154,
+                892,
+                572
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "vulkan-0-Q5_K_M-f16",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q5_K_M-f16\\0-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:48.529347+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "a4128808f477a100fd951029ad6e0a442ebd69dcfbce5bb4c442ca2ef6d465aa",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q5_K_M-f16\\1-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:50.014098+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "a4128808f477a100fd951029ad6e0a442ebd69dcfbce5bb4c442ca2ef6d465aa",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q5_K_M-f16\\2-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:51.404000+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "a4128808f477a100fd951029ad6e0a442ebd69dcfbce5bb4c442ca2ef6d465aa",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q5_K_M-f16\\3-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:52.852769+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "a4128808f477a100fd951029ad6e0a442ebd69dcfbce5bb4c442ca2ef6d465aa",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "vulkan-0-Q5_K_M-f32",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q5_K_M-f32\\0-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:54.249893+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "60c9c72e6532d41154f0776312cb8591fc0098fc415e01892deec1f3b9ed992f",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q5_K_M-f32\\1-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:55.639096+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "60c9c72e6532d41154f0776312cb8591fc0098fc415e01892deec1f3b9ed992f",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q5_K_M-f32\\2-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:57.066688+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "60c9c72e6532d41154f0776312cb8591fc0098fc415e01892deec1f3b9ed992f",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q5_K_M-f32\\3-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:58.481630+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "60c9c72e6532d41154f0776312cb8591fc0098fc415e01892deec1f3b9ed992f",
+            "output": {
+              "greedy_ids": [
+                566,
+                9723,
+                304,
+                279,
+                22358,
+                4013,
+                576,
+                8246,
+                1154,
+                892,
+                572,
+                8947,
+                553,
+                279,
+                18096,
+                323
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "vulkan-0-Q4_K_M-f16",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_K_M-f16\\0-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:36:59.825786+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "c7241f5277f3e4837cc3acefdec9444700c31f01abc62026412cb590493d44a6",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_K_M-f16\\1-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:37:01.271701+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "c7241f5277f3e4837cc3acefdec9444700c31f01abc62026412cb590493d44a6",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_K_M-f16\\2-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:37:02.599957+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "c7241f5277f3e4837cc3acefdec9444700c31f01abc62026412cb590493d44a6",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f16",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_K_M-f16\\3-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:37:04.030017+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "c7241f5277f3e4837cc3acefdec9444700c31f01abc62026412cb590493d44a6",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      },
+      {
+        "cell": "vulkan-0-Q4_K_M-f32",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_K_M-f32\\0-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:37:05.424647+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "6e87de25ee7b636e2c92dd8809e5f4cb099f4d7a7129b9952272fe08deeb5527",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_K_M-f32\\1-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:37:06.830047+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "6e87de25ee7b636e2c92dd8809e5f4cb099f4d7a7129b9952272fe08deeb5527",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-precise\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_K_M-f32\\2-precise.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:37:08.260262+03:00",
+            "binary_sha256": "aa5067c5c3163bea841b5df60933a32397cee2a0b5beb5533f99acc489ed2b0e",
+            "sha256": "6e87de25ee7b636e2c92dd8809e5f4cb099f4d7a7129b9952272fe08deeb5527",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          },
+          {
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\build-main\\Release\\raw-model.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\ids.txt",
+              "f32",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928\\precise-identity-r2\\vulkan-0-Q4_K_M-f32\\3-main.bin",
+              "vulkan:0"
+            ],
+            "exit": 0,
+            "finished": "2026-09-28T01:37:09.591502+03:00",
+            "binary_sha256": "716108dcf49f0bd4685fb118a2458d3829db126681316dbdce665a337366b016",
+            "sha256": "6e87de25ee7b636e2c92dd8809e5f4cb099f4d7a7129b9952272fe08deeb5527",
+            "output": {
+              "greedy_ids": [
+                566,
+                572,
+                6311,
+                304,
+                279,
+                1486,
+                576,
+                7996,
+                315,
+                279,
+                19822,
+                37373,
+                1154,
+                15540,
+                553,
+                3757
+              ],
+              "vectors": 50,
+              "values": 7596800
+            }
+          }
+        ],
+        "bit_identical": true
+      }
+    ],
+    "passed": 16,
+    "total": 16
+  },
+  "identity_scope": "64 ABBA runs, four Qwen3-0.6B quants, f16/f32 caches, CPU/Radeon; each run 50 vectors / 7596800 floats",
+  "spirv": [
+    {
+      "module": "matmul_row",
+      "no_contraction_decorations": 0,
+      "fma_results": [],
+      "fma_results_decorated": [],
+      "original_module_unchanged": true
+    },
+    {
+      "module": "matmul_row_q8w",
+      "no_contraction_decorations": 0,
+      "fma_results": [],
+      "fma_results_decorated": [],
+      "original_module_unchanged": true
+    },
+    {
+      "module": "matmul_vec_q8",
+      "no_contraction_decorations": 0,
+      "fma_results": [],
+      "fma_results_decorated": [],
+      "original_module_unchanged": true
+    },
+    {
+      "module": "matmul_row_preserve",
+      "no_contraction_decorations": 40,
+      "fma_results": [
+        668
+      ],
+      "fma_results_decorated": []
+    },
+    {
+      "module": "matmul_row_q8w_preserve",
+      "no_contraction_decorations": 14,
+      "fma_results": [
+        756
+      ],
+      "fma_results_decorated": []
+    },
+    {
+      "module": "matmul_vec_q8_preserve",
+      "no_contraction_decorations": 0,
+      "fma_results": [],
+      "fma_results_decorated": []
+    }
+  ],
+  "precision_limit": "Precise constrains surrounding operations and emits NoContraction decorations; emitted Fma result IDs themselves are not decorated. Do not claim universally correctly rounded FMA on untested drivers. Hard native module equality remains required on each tested driver.",
+  "sources": [
+    "https://registry.khronos.org/SPIR-V/specs/unified1/GLSL.std.450.html",
+    "https://github.com/KhronosGroup/SPIRV-Tools/issues/5658"
+  ],
+  "first_build_failure": "Test called concrete VulkanBackend::alloc without explicit Memory::device; corrected test-only, failed compile log retained.",
+  "first_identity_attempt": "Harness read cells count rather than results array; failed before model runs, corrected into new output directory.",
+  "artifact_directory": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-activation-consumer-identity-20260928",
+  "focused_integrated_gate": [
+    {
+      "name": "configure",
+      "command": [
+        "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Scripts/cmake.exe",
+        "-S",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927",
+        "-B",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\build-consumer-20260928-r3",
+        "-DLLMX_HAS_BACKEND_VULKAN=ON",
+        "-DBUILD_TESTING=ON",
+        "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include",
+        "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe"
+      ],
+      "exit": 0,
+      "finished": "2026-09-28T01:38:35.159491+03:00"
+    },
+    {
+      "name": "build",
+      "command": [
+        "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Scripts/cmake.exe",
+        "--build",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\build-consumer-20260928-r3",
+        "--config",
+        "Release",
+        "--target",
+        "llmx",
+        "llmx-backend-vulkan-test",
+        "llmx-vulkan-quantization-test",
+        "--parallel",
+        "6"
+      ],
+      "exit": 0,
+      "finished": "2026-09-28T01:39:27.777632+03:00",
+      "binary_sha256": "1f00487e269549a55290ee272d21dbefcd66335764a00c32a9e7d9a697498eab",
+      "version": "llmx 0.1.0+g70da40af257a.dirty"
+    },
+    {
+      "name": "native",
+      "command": [
+        "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Scripts/ctest.exe",
+        "--test-dir",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\build-consumer-20260928-r3",
+        "-C",
+        "Release",
+        "-R",
+        "^(backend-vulkan|vulkan-quantization)$",
+        "--output-on-failure"
+      ],
+      "exit": 0,
+      "finished": "2026-09-28T01:39:53.939055+03:00"
+    },
+    {
+      "name": "hf-f16",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\build-consumer-20260928-r3\\Release\\llmx.exe",
+        "--only",
+        "dead-code,docs,f32,moe,baseline",
+        "--device",
+        "vulkan:0",
+        "--no-perf-floor"
+      ],
+      "exit": 0,
+      "finished": "2026-09-28T01:42:07.550075+03:00"
+    },
+    {
+      "name": "hf-f32",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\build-consumer-20260928-r3\\Release\\llmx.exe",
+        "--only",
+        "baseline",
+        "--device",
+        "vulkan:0",
+        "--cache-type",
+        "f32",
+        "--no-perf-floor"
+      ],
+      "exit": 0,
+      "finished": "2026-09-28T01:43:12.268155+03:00"
+    }
+  ],
+  "remaining": [
+    "MI50 native/identity/HF",
+    "matched performance against main",
+    "full Markdown review",
+    "final peer and hosted gate",
+    "merge/publish"
+  ],
+  "focused_artifact_directory": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\consumer-review-20260928",
+  "focused_log_hashes": {
+    "build.log": "b331520354d2692ae753cb42b4d74df100618f422d56864a7af0d85c281adb03",
+    "configure.log": "94159e8e56cf190c19347fc0c7b5d24d107dafa0ee90bcd91a2462673763960f",
+    "hf-f16.log": "2ac4c262714f5679e40c51c4f67e1d43449958096ac2cd5fe01e42dfd6d55969",
+    "hf-f32.log": "ec11fd71d23842f8af7208759366d6e2ef61d98de7a0aedd1e7e7919ca51dc15",
+    "native.log": "cbf2fd81115d8c50f3a1cbec40755d87a98b00a9627965130f8d10b3909bc669"
+  },
+  "peer_review": "LDEV 2026-09-28 01:38: Radeon side satisfied; MI50 proof remains pending.",
+  "production_source_parity": [
+    {
+      "path": "src/backends/backend.hpp",
+      "sha256": "e7ef8b87348f6e062d39b547135b324be59961ac5392d17d3ee38bdc117f63d0"
+    },
+    {
+      "path": "src/backends/cpu/cpu_backend.hpp",
+      "sha256": "e1e4a207b74636dee4f9eead14984490305c0775ed3bff75e8eeda34a5ef5aaa"
+    },
+    {
+      "path": "src/backends/cpu/prefill_placement.hpp",
+      "sha256": "fdadbcea2cb84f37f473eb2d23d01bcd68a18015fa402c5dd0d0f68c723d4f21"
+    },
+    {
+      "path": "src/backends/cpu/q8_dots.hpp",
+      "sha256": "72a6bb100f9ace0f7d7d4cd489b5314adfe2a0047edb15a2d0601f999816bbea"
+    },
+    {
+      "path": "src/backends/device_profile.hpp",
+      "sha256": "f27ca29a0da211ef58de5183c5d370bc591a8e8b5b57f92ae03e33b46007e79b"
+    },
+    {
+      "path": "src/backends/devices.hpp",
+      "sha256": "6271718c0adcae333d54d25521d87e8b13fc96014a7c7fb8e8d54713fe74b2f2"
+    },
+    {
+      "path": "src/backends/kv_storage.hpp",
+      "sha256": "d99513df97457fd98d0be0a69e12c838391aca1c60e5fc978d1d8f8695e62b9d"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/add.comp",
+      "sha256": "91864be8fd1929f0f9b6155b5d4d6316555e6d873b3a2c15fbf5064ec0ee959d"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/attention.comp",
+      "sha256": "cb413b67a8362ff8e8638b3618d9f0b4814de93d243c393670f354be6096d5c8"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/attention_merge.comp",
+      "sha256": "97ba9b091578763205051f7905eef32c1b90c9a30398a7ac27f94b098ecafb94"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/attention_tile.comp",
+      "sha256": "39f7059588ca75f4af4626b7bf519a21c8f67e67f83e11941b7b55a134bcf4aa"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/attention_vec.comp",
+      "sha256": "c07c8ae5537b6581eb5b7595df1644d0b95fa2e96cc940d75bffc67ede8af595"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/embed.comp",
+      "sha256": "2fde9462090f0ee13254653b204ef9ad1d09ef745d9e7987adb946f0fca40042"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/f16.glsl",
+      "sha256": "03706b6c90a6455a987f85aadcac9383c0e655d78a35a152534c71f82530445f"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/float_controls.glsl",
+      "sha256": "a609b532573fe07835c156a43802b8503d9c84fd2ed5b1f298018779e683c1dc"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/gather_rows.comp",
+      "sha256": "823643191b59a08e3e24ffb6c6920720cc199192e42b6bc3c149e62950de3c89"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/kv_write.comp",
+      "sha256": "98273b3b8b24c0a44728ccd43d120f1e835b0edfc8d561ac22fe828f69760002"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/matmul_reduce.comp",
+      "sha256": "97e6971a4e67694eb8e229e399e3ca0a02e136c4682baefca2a905aeebc6b035"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/matmul_row.comp",
+      "sha256": "01455fbb2aa1a92d610708a9fe44c9fbe188232161f66175e28e33e31a6788e7"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/matmul_tile.comp",
+      "sha256": "7ffe4bc52ba87dd380d49f4d9dcc4e037c5f43abe6b61fec79de728cea1f1b5e"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/matmul_tile_q.comp",
+      "sha256": "4bbb6de59c6e7cebc88b451d46fae494f3dfb99d73b19b234ea4e9a594f37d2f"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/matmul_vec_q8.comp",
+      "sha256": "7dd9bb81a4892b865902dc2888c9641a95d4a6d2ceea623af510175df7b88658"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/moe_combine.comp",
+      "sha256": "223f4ea4820ac56bb5d1288ace5ec2a0c69bec38a01bf6fc53b5edc157f94398"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/moe_group.comp",
+      "sha256": "c062113a83c8fcd96bb3755c774f713a873b6ef482b3a46c019f529ab0d69202"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/moe_route.comp",
+      "sha256": "c1bbb66364f776d8c37e55a5deade8a478acdec958618a1df17e1d42d8337d99"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/norm_rope_kv.comp",
+      "sha256": "6e0afc19ceb9ba1a6480cef21b98fe94ef468adc8279294513a2286c25fd8f7c"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/norm_rope_rows.comp",
+      "sha256": "e1d52d28a4253a98308147ac32b8c6bdf5fd6c32f8f84c3efc422d9214f6fe63"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/q.glsl",
+      "sha256": "cbb198159dface11fdd9a312747cbb86b0c77110996c80eb6d123262ad3a15fa"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/qdecode.glsl",
+      "sha256": "134b379e642c7139f0a74223c062587d97f3ac5a1263e4096afb4a996e3a58c8"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/quantize_x.comp",
+      "sha256": "93ca1ebc76569642e1cbcdec2dc24ec0dad86a39d2cae7226fe0bcf4c54f57e9"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/quantize_x8.comp",
+      "sha256": "42e8c78eea2ff4a85d93d9d2d9e9cc9ddb67452a3fa150d816d25942aac79496"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/rms_norm_rows.comp",
+      "sha256": "3ca604de0011ce4e0cc45fd81231c05bb2ba2ecfd9f3b91cfdd0727901402c9e"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/silu_mul.comp",
+      "sha256": "2ddb9a0848718ae0aaeed96df14972cae2b8d90eb7c80c500b78e0c16d9e140c"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/views.glsl",
+      "sha256": "fb26c2e68fd4ee07de1958160fa626ca92b69a786ddf964dd3b157f9fbf8edd3"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/xquant.glsl",
+      "sha256": "dac1d9ba3fe7da81291c0c740ed87f6e7bc3f0fe87a0f35e6271bbf38e7aabaf"
+    },
+    {
+      "path": "src/backends/vulkan/vulkan_backend.cpp",
+      "sha256": "668306d369e0c6413de50cf949715b65469e3394da09d30af0246839120b62fa"
+    },
+    {
+      "path": "src/backends/vulkan/vulkan_backend.hpp",
+      "sha256": "84b6aa95617fbf46682b111b928152c851cd7521ba1731fdddbf1806504bbbbb"
+    },
+    {
+      "path": "src/cli/main.cpp",
+      "sha256": "b4330ed0422c983e0f38a4aa510ad7b2fb83959590a9650ca15cbbed1567e5c6"
+    },
+    {
+      "path": "src/config.hpp",
+      "sha256": "64c29b92f292b3bb77359d86668bc6fddb08de273e853c0eed5e54fc50647900"
+    },
+    {
+      "path": "src/core/cgroup.hpp",
+      "sha256": "386a32fb048e4c47930fd74cf8a5bee999ccb11ee21813137e3b6a576434cc5b"
+    },
+    {
+      "path": "src/core/cpus.hpp",
+      "sha256": "743ba57c57f0f0373934f75f107e5e2bd993c90a53b1515e52d4c406bb79461e"
+    },
+    {
+      "path": "src/core/fp16.hpp",
+      "sha256": "b792551e5a8c5a45969edbf7236ce43f83a859c3d8fee761d4a02401bbf05928"
+    },
+    {
+      "path": "src/core/host_memory.hpp",
+      "sha256": "12c05b9363d86c980d8f792152ac204932887d810cd7acbef2ba113dd9336f34"
+    },
+    {
+      "path": "src/core/json.hpp",
+      "sha256": "e1b1d59f83a2e32d83f24d6fd413e6fa24dc106b2b4491c58add992efca55a0d"
+    },
+    {
+      "path": "src/core/list.hpp",
+      "sha256": "385d03a145039d04bf98d6202866483f7666df55a9a10ff239c6a8709b79c94c"
+    },
+    {
+      "path": "src/core/sha.hpp",
+      "sha256": "288b428cbea4798e7f8a29e2b4735142fd51889e62d30a8423ff3f79a251f7a3"
+    },
+    {
+      "path": "src/core/utf8.hpp",
+      "sha256": "af5469ac9946e89c9cf16fc1c95a60a4c3a81945417801141fed94305ab4fafc"
+    },
+    {
+      "path": "src/format/file_reader.hpp",
+      "sha256": "e0f3a831b4c4e2e0c2cb6c3f9921efd5421790c157718a4af515b4685656b4a3"
+    },
+    {
+      "path": "src/format/format.hpp",
+      "sha256": "3550b93078aa475af9d5af88bd7537175d697fdb9ccff3deff51f7d595fd7e2d"
+    },
+    {
+      "path": "src/format/gguf.hpp",
+      "sha256": "9d633b7581dc1b884d3c4a8b3863cbe50279663fdc74b86ddbf4a646f138c7da"
+    },
+    {
+      "path": "src/format/mapped_file.hpp",
+      "sha256": "856e9f276bb663ed0b12e053d90a592997d3d337dda5650bda054c492b7f0488"
+    },
+    {
+      "path": "src/format/raw_convert.hpp",
+      "sha256": "5c7ec8509f2db1e51ee6bea146ae6bded4fbfc36fcb0313fd38a4e82964ef593"
+    },
+    {
+      "path": "src/hub/manifest.hpp",
+      "sha256": "a3754cd8295c069efe649ef1c91155eed2c7846edadb8e17b5440b48af9eae3b"
+    },
+    {
+      "path": "src/hub/pull.hpp",
+      "sha256": "cfa35941fb65b4f0aa524ba3f856055ffda247e7439d5bf186780655ca810ef0"
+    },
+    {
+      "path": "src/hub/transport.hpp",
+      "sha256": "86ad5fbfb42f1277b2ef1eb89c3d67f17c2dc1506343aae5abdb5544c0d32163"
+    },
+    {
+      "path": "src/inference/chat.hpp",
+      "sha256": "b6c9a105446eb2ec358ac8f3dcf23b6ab5b4ba00c583dad646206f742fb61b05"
+    },
+    {
+      "path": "src/inference/generate.hpp",
+      "sha256": "339e6729cc35632b2233fbc1ca9da346361aa2554c6533edf714db0f0b837df2"
+    },
+    {
+      "path": "src/inference/load.hpp",
+      "sha256": "9be28540eb02b54dc7b8275aefccc7e3f6150487699062228bf32f1d5b2e7dab"
+    },
+    {
+      "path": "src/inference/logprobs.hpp",
+      "sha256": "2f35e089bb17e74ea76789c7f9ab2552916c4ea9b152d7e03ef70ae8a12204c5"
+    },
+    {
+      "path": "src/inference/perplexity.hpp",
+      "sha256": "af5059e232a7a4e72a74dbca7fc2273dc507ba3ba88c86b7c61f7087249072c6"
+    },
+    {
+      "path": "src/inference/sampler.hpp",
+      "sha256": "7b73b51d2332426d29295c4e582bd27a53abafa83b40a3ea31db252ffcb9b6d9"
+    },
+    {
+      "path": "src/model/arch/metadata.hpp",
+      "sha256": "4d610c5a3a902056cdb99138b446d3776b92c6e9db3c3238bd492ea7ef255936"
+    },
+    {
+      "path": "src/model/arch/qwen3.hpp",
+      "sha256": "ae9dc3e4e96c556721202d26270d8163dc44184ceb94658f06916a24979ab15f"
+    },
+    {
+      "path": "src/model/arch/registry.hpp",
+      "sha256": "8c846c7e2efc584e0be195dcdf5fee561ec191c6c750dde075b8ce51205bd384"
+    },
+    {
+      "path": "src/model/architecture.hpp",
+      "sha256": "428c29e91091950f49b9465f5a864e5af1bc6460c9b5bf7bdbe4468433f56dbe"
+    },
+    {
+      "path": "src/model/kv_cache.hpp",
+      "sha256": "ad0a31d3dcece9b6eba84d891d8bcb94685b2a918da0a0db1c27984726a4bc8b"
+    },
+    {
+      "path": "src/model/layer_split.hpp",
+      "sha256": "765d25516ea164e71639030b24571261b530ba177e1d22297c96f5ebedebb847"
+    },
+    {
+      "path": "src/model/place.hpp",
+      "sha256": "640fa2ddcad8c148145a3d3c5289a054595502871ad7bfb40c9d16dcb77a94ed"
+    },
+    {
+      "path": "src/model/runtime.hpp",
+      "sha256": "39f4b4796c2fae1c689bdc1d1946be2aaf968cc2780ed65f83c7c4448e17f514"
+    },
+    {
+      "path": "src/model/weights.hpp",
+      "sha256": "b30d720c31c956e78c31173c917d3b25fc8e52cc9eb884edd2f050ab78c923bb"
+    },
+    {
+      "path": "src/quant/k_quants.hpp",
+      "sha256": "93812e43732685a6ce5014cdff8605c8b15ca62c64a1b299dc8f5134607f757d"
+    },
+    {
+      "path": "src/quant/quant.hpp",
+      "sha256": "84d66fb02863ec40139c2c20335bbd68bbaa20743d84420ccdf090e20b1cf8bd"
+    },
+    {
+      "path": "src/quant/types.hpp",
+      "sha256": "f8407af4e614657dc68dce8ed563e3ed044ae7db33504879c5f01e7625eb809c"
+    },
+    {
+      "path": "src/server/api.hpp",
+      "sha256": "6b261c674985ea1141420688d808ae73047466731aa24f96850f01f7a27df62f"
+    },
+    {
+      "path": "src/server/http.hpp",
+      "sha256": "64b6b5ae823d831bc497324fbaf301a895a0faaed5a85522d988bb7a0930ee39"
+    },
+    {
+      "path": "src/server/policy.hpp",
+      "sha256": "aeccfeac12e10e882e8478ae20189426a03923557c6e9d00e66e80e83dfe56e5"
+    },
+    {
+      "path": "src/server/scheduler.hpp",
+      "sha256": "077fda0634a35e2b6b627973fdececd22ec08c56fb65c8c3563d93862b3ba93e"
+    },
+    {
+      "path": "src/tokenizer/tokenizer.hpp",
+      "sha256": "0b214bd57673fd291c7e426b58340f333e5de1604af2304fbee6ce194b721016"
+    }
+  ],
+  "verdict": "Radeon precise revision passes native regression, ordinary 16-cell identity and touched HF gates; MI50, timing, full Markdown review and final hosted/peer landing gates remain.",
+  "review_archive": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-20260927\\consumer-review-20260928\\activation-review-radeon-20260928.tar.gz",
+  "review_archive_sha256": "0830c26b9a8b9ad828ab87832ea59432aeb00a56389b4db79f68640eb6ca65c2"
+}

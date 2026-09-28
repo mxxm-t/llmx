@@ -4,6 +4,60 @@
 #ifndef LLMX_XQUANT_GLSL
 #define LLMX_XQUANT_GLSL
 
+// Scale an f32 by a power of two as bits, retaining subnormals on devices that flush float arithmetic.
+float xq_shift(float v, int shift) {
+    uint bits = floatBitsToUint(v), signbit = bits & 0x80000000u;
+    uint mantissa = bits & 0x7FFFFFu;
+    int exponent = int((bits >> 23u) & 255u);
+    if (exponent == 255 || (exponent == 0 && mantissa == 0u)) return v;
+    if (exponent == 0) {
+        int left = 23 - findMSB(mantissa);
+        mantissa <<= uint(left);
+        exponent = 1 - left;
+    } else mantissa |= 0x800000u;
+    exponent += shift;
+    if (exponent >= 255) return uintBitsToFloat(signbit | 0x7F800000u);
+    if (exponent > 0) return uintBitsToFloat(signbit | (uint(exponent) << 23u) | (mantissa & 0x7FFFFFu));
+    int right = 1 - exponent;
+    if (right > 24) return uintBitsToFloat(signbit);
+    uint low = mantissa & ((1u << uint(right)) - 1u), halfway = 1u << uint(right - 1);
+    mantissa >>= uint(right);
+    if (low > halfway || (low == halfway && (mantissa & 1u) != 0u)) ++mantissa;
+    return uintBitsToFloat(signbit | mantissa);
+}
+
+// Extreme blocks are normalized before division; ordinary blocks keep their original operations.
+void xq_scale(uint top, float levels, out float d, out float id, out int shift) {
+    float amax = uintBitsToFloat(top);
+    shift = 0;
+    if (top != 0u && (top < 0x08800000u || top >= 0x7E800000u) && top < 0x7F800000u) {
+        int exponent = int(top >> 23u);
+        if (exponent == 0) exponent = findMSB(top) - 22;
+        shift = 127 - exponent;
+        float normalized = xq_shift(amax, shift);
+        uint scale = max(1u, floatBitsToUint(xq_shift(normalized / levels, -shift)));
+        d = xq_shift(uintBitsToFloat(scale), shift);
+        if (scale < 0x00800000u && d * levels < normalized) d = xq_shift(uintBitsToFloat(++scale), shift);
+        // The largest finite input must not round its reconstruction to infinity.
+        if (floatBitsToUint(xq_shift(d * levels, -shift)) == 0x7F800000u) d = xq_shift(uintBitsToFloat(scale - 1u), shift);
+        id = 1.0 / d;
+    } else {
+        d = amax / levels;
+        id = amax > 0.0 ? levels / amax : 0.0;
+    }
+}
+
+// Restore a block's table values under one shared check for the ordinary path.
+vec2 xq_shift(vec2 v, int shift) {
+    if (shift == 0) return v;
+    return vec2(xq_shift(v.x, shift), xq_shift(v.y, shift));
+}
+vec4 xq_shift(vec4 v, int shift) {
+    if (shift == 0) return v;
+    return vec4(xq_shift(v.x, shift), xq_shift(v.y, shift), xq_shift(v.z, shift), xq_shift(v.w, shift));
+}
+float xq_input(float v, int shift) { return shift == 0 ? v : xq_shift(v, shift); }
+
 // Round half away from zero, as the host reference does.
 int xq_round(float v, float id) {
     float r = v * id;
@@ -14,15 +68,15 @@ int xq_round(float v, float id) {
 void xquant_block(uint i, float v, uint n) {
     uint lane = gl_SubgroupInvocationID;
     uint j = i & 31u;
-    float amax = abs(v);
+    uint amax = floatBitsToUint(v) & 0x7FFFFFFFu;
     amax = max(amax, subgroupShuffleXor(amax, 16u));
     amax = max(amax, subgroupShuffleXor(amax, 8u));
     amax = max(amax, subgroupShuffleXor(amax, 4u));
     amax = max(amax, subgroupShuffleXor(amax, 2u));
     amax = max(amax, subgroupShuffleXor(amax, 1u));
-    float d = amax / 32767.0;
-    float id = amax > 0.0 ? 32767.0 / amax : 0.0;
-    int q = xq_round(v, id);
+    float d, id; int shift;
+    xq_scale(amax, 32767.0, d, id, shift);
+    int q = xq_round(xq_input(v, shift), id);
     // Lanes 0 and 1 of each four write the pairs (4m, 4m + 2) and (4m + 1, 4m + 3).
     int q2 = subgroupShuffle(q, min(lane + 2u, gl_SubgroupSize - 1u));
     if ((j & 3u) < 2u) xq[(i - j) / 2u + 2u * (j >> 2u) + (j & 3u)] = (uint(q) & 0xFFFFu) | (uint(q2) << 16u);
@@ -36,10 +90,11 @@ void xquant_block(uint i, float v, uint n) {
     if (j == 0u) {
         uint blk = (i - j) / 32u;
         uint t = n / 2u + 2u * blk, th = n / 2u + 2u * (n / 32u) + 2u * blk;
-        xq[t] = floatBitsToUint(d);
-        xq[t + 1u] = floatBitsToUint(d * float(s + other));
-        xq[th] = floatBitsToUint(d * float(s));
-        xq[th + 1u] = floatBitsToUint(d * float(other));
+        vec4 values = xq_shift(vec4(d, d * float(s + other), d * float(s), d * float(other)), -shift);
+        xq[t] = floatBitsToUint(values.x);
+        xq[t + 1u] = floatBitsToUint(values.y);
+        xq[th] = floatBitsToUint(values.z);
+        xq[th + 1u] = floatBitsToUint(values.w);
     }
 }
 
@@ -49,15 +104,15 @@ void xquant_block(uint i, float v, uint n) {
 void xquant8_block_at(uint i, float v, uint n, uint base, uint blk) {
     uint lane = gl_SubgroupInvocationID;
     uint j = i & 31u;
-    float amax = abs(v);
+    uint amax = floatBitsToUint(v) & 0x7FFFFFFFu;
     amax = max(amax, subgroupShuffleXor(amax, 16u));
     amax = max(amax, subgroupShuffleXor(amax, 8u));
     amax = max(amax, subgroupShuffleXor(amax, 4u));
     amax = max(amax, subgroupShuffleXor(amax, 2u));
     amax = max(amax, subgroupShuffleXor(amax, 1u));
-    float d = amax / 127.0;
-    float id = amax > 0.0 ? 127.0 / amax : 0.0;
-    float r = v * id;
+    float d, id; int shift;
+    xq_scale(amax, 127.0, d, id, shift);
+    float r = xq_input(v, shift) * id;
     int q = clamp(int(sign(r) * floor(abs(r) + 0.5)), -127, 127);
     // Lane 4m of each block packs the word from its own byte and the next three lanes'.
     uint b1 = uint(subgroupShuffle(q, min(lane + 1u, gl_SubgroupSize - 1u))) & 255u;
@@ -72,8 +127,9 @@ void xquant8_block_at(uint i, float v, uint n, uint base, uint blk) {
     s += subgroupShuffleXor(s, 1u);
     if (i < n && j == 0u) {
         uint t = base + n / 4u + 2u * blk;
-        xq[t] = floatBitsToUint(d);
-        xq[t + 1u] = floatBitsToUint(d * float(s));
+        vec2 values = xq_shift(vec2(d, d * float(s)), -shift);
+        xq[t] = floatBitsToUint(values.x);
+        xq[t + 1u] = floatBitsToUint(values.y);
     }
 }
 void xquant8_block(uint i, float v, uint n, uint base) { xquant8_block_at(i, v, n, base, i / 32u); }
@@ -82,14 +138,14 @@ void xquant8_block(uint i, float v, uint n, uint base) { xquant8_block_at(i, v, 
 // Every lane calls, those of a block with nothing to write with `live` false; a maximum and an integer sum do not depend on their order, so the block is the one the lanes above write, bit for bit.
 // Word w of block blk goes to word blk * 8 + w, and the block's scale and scaled sum to words tab + 2 * blk and the next.
 void xquant8_word(vec4 v, bool live, uint w, uint blk, uint tab) {
-    vec4 a = abs(v);
-    float amax = max(max(a.x, a.y), max(a.z, a.w));
+    uvec4 a = floatBitsToUint(v) & 0x7FFFFFFFu;
+    uint amax = max(max(a.x, a.y), max(a.z, a.w));
     amax = max(amax, subgroupShuffleXor(amax, 4u));
     amax = max(amax, subgroupShuffleXor(amax, 2u));
     amax = max(amax, subgroupShuffleXor(amax, 1u));
-    float d = amax / 127.0;
-    float id = amax > 0.0 ? 127.0 / amax : 0.0;
-    vec4 r = v * id;
+    float d, id; int shift;
+    xq_scale(amax, 127.0, d, id, shift);
+    vec4 r = xq_shift(v, shift) * id;
     ivec4 q = clamp(ivec4(sign(r) * floor(abs(r) + 0.5)), -127, 127);
     int s = q.x + q.y + q.z + q.w;
     s += subgroupShuffleXor(s, 4u);
@@ -99,8 +155,9 @@ void xquant8_word(vec4 v, bool live, uint w, uint blk, uint tab) {
     uvec4 b = uvec4(q) & 255u;
     xq[blk * 8u + w] = b.x | (b.y << 8u) | (b.z << 16u) | (b.w << 24u);
     if (w == 0u) {
-        xq[tab + 2u * blk] = floatBitsToUint(d);
-        xq[tab + 2u * blk + 1u] = floatBitsToUint(d * float(s));
+        vec2 values = xq_shift(vec2(d, d * float(s)), -shift);
+        xq[tab + 2u * blk] = floatBitsToUint(values.x);
+        xq[tab + 2u * blk + 1u] = floatBitsToUint(values.y);
     }
 }
 

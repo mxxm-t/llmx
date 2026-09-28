@@ -26,6 +26,7 @@
 #error "Q8_0 and F32 rows take matmul_vec_q8.comp and the plain build on integer-dot devices"
 #endif
 #include "q.glsl"
+#include "float_controls.glsl"
 layout(local_size_x = 256) in;
 // Batch columns a lane keeps in registers, specialization constant 0; the backend takes the one-column build for a one-column chunk, which frees the registers seven unused accumulators would hold.
 layout(constant_id = 0) const uint MAX_COLS = 8;
@@ -221,7 +222,11 @@ void main() {
 // Column c's X column and output row: consecutive from col0, or a grouped chunk's entries.
 #define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (c))
 #define OCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] : out0 + (c))
+#ifdef LLMX_PRESERVE_F32
+    precise float acc[MAX_COLS];
+#else
     float acc[MAX_COLS];
+#endif
     for (uint c = 0u; c < MAX_COLS; ++c) acc[c] = 0.0;
     if (row < nout) {
 #ifdef LLMX_Q8W
@@ -256,7 +261,11 @@ void main() {
                     q8_word(wd, t + 12u, a2, p0, p1);
                     if (t == 0u) q8_word(we, 16u, a2, p0, p1);
                     vec4 dd = xq_pair(col, j);
+#ifdef LLMX_PRESERVE_F32
+                    acc[c] += fma(s0, dd.x * float(p0), s1 * (dd.z * float(p1)));
+#else
                     acc[c] += s0 * (dd.x * float(p0)) + s1 * (dd.z * float(p1));
+#endif
                 }
             }
         }
@@ -275,7 +284,11 @@ void main() {
                     uint a2 = xa_col(col) / 2u + b * 8u;
                     int s = byte_dot(q0, xq2[a2]) + byte_dot(q1, xq2[a2 + 1u]) + byte_dot(q2, xq2[a2 + 2u]) + byte_dot(q3, xq2[a2 + 3u]) +
                             byte_dot(q4, xq2[a2 + 4u]) + byte_dot(q5, xq2[a2 + 5u]) + byte_dot(q6, xq2[a2 + 6u]) + byte_dot(q7, xq2[a2 + 7u]);
+#ifdef LLMX_PRESERVE_F32
+                    acc[c] = fma(scale, xq_block(col, b).x * float(s), acc[c]);
+#else
                     acc[c] += scale * (xq_block(col, b).x * float(s));
+#endif
                 }
             }
         } else if (p.nin % 4u == 0u) {

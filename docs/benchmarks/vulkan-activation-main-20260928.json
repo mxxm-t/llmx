@@ -1,0 +1,3418 @@
+{
+  "scope": "fresh main-derived activation repair checkpoint, final merge gate incomplete",
+  "base": "c6a91bfba3f1ef37f923012688308f3bc276c62e",
+  "activation_parent": "ce5d7e5a",
+  "vector_repair": "e7ea76ad0b2a4ab6087eb7c183e579f54481ef5e",
+  "windows": {
+    "scope": "fresh main-derived activation repair validation",
+    "commands": [
+      {
+        "label": "configure",
+        "argv": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-20260928",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\build",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include",
+          "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+          "-DBUILD_TESTING=ON"
+        ],
+        "pid": 13816,
+        "exit": 0
+      },
+      {
+        "label": "build",
+        "argv": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\build",
+          "--config",
+          "Release",
+          "--parallel",
+          "4"
+        ],
+        "pid": 28432,
+        "exit": 0
+      },
+      {
+        "label": "ctest",
+        "argv": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\build",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "pid": 9460,
+        "exit": 0
+      },
+      {
+        "label": "suite",
+        "argv": [
+          "python",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\build\\Release\\llmx.exe",
+          "--require-tools",
+          "--require-baseline",
+          "--require-device-types",
+          "F32,Q8_0,Q4_0,Q4_1,Q4_K,Q5_K,Q6_K",
+          "--device",
+          "vulkan:0",
+          "--no-perf-floor"
+        ],
+        "pid": 29572,
+        "exit": 0
+      }
+    ]
+  },
+  "linux": {
+    "complete": {
+      "scope": "fresh main-derived activation repair Linux build and full device gate",
+      "commands": [
+        {
+          "label": "configure",
+          "argv": [
+            "docker",
+            "exec",
+            "-w",
+            "/work/activation-main-check-20260928/source",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "1700",
+            "cmake",
+            "-S",
+            "/work/activation-main-check-20260928/source",
+            "-B",
+            "/work/activation-main-check-20260928/build",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DLLMX_HAS_BACKEND_VULKAN=ON",
+            "-DBUILD_TESTING=ON"
+          ],
+          "host_pid": 114556,
+          "exit": 0
+        },
+        {
+          "label": "build",
+          "argv": [
+            "docker",
+            "exec",
+            "-w",
+            "/work/activation-main-check-20260928/source",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "1700",
+            "cmake",
+            "--build",
+            "/work/activation-main-check-20260928/build",
+            "--parallel",
+            "4"
+          ],
+          "host_pid": 114644,
+          "exit": 0
+        },
+        {
+          "label": "ctest",
+          "argv": [
+            "docker",
+            "exec",
+            "-w",
+            "/work/activation-main-check-20260928/source",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "1700",
+            "ctest",
+            "--test-dir",
+            "/work/activation-main-check-20260928/build",
+            "--output-on-failure"
+          ],
+          "host_pid": 119106,
+          "exit": 0
+        },
+        {
+          "label": "suite",
+          "argv": [
+            "docker",
+            "exec",
+            "-w",
+            "/work/activation-main-check-20260928/source",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "timeout",
+            "1700",
+            "python3",
+            "tests/run_tests.py",
+            "--exe",
+            "/work/activation-main-check-20260928/build/llmx",
+            "--require-tools",
+            "--require-baseline",
+            "--require-device-types",
+            "F32,Q8_0,Q4_0,Q4_1,Q4_K,Q5_K,Q6_K",
+            "--device",
+            "vulkan:0",
+            "--no-perf-floor"
+          ],
+          "host_pid": 121568,
+          "exit": 0
+        }
+      ]
+    },
+    "native_tail": "0 sec\n      Start 35: vulkan-lifetime\n35/36 Test #35: vulkan-lifetime ..................   Passed    0.31 sec\n      Start 36: vulkan-quantization\n36/36 Test #36: vulkan-quantization ..............   Passed    1.92 sec\n\n100% tests passed, 0 tests failed out of 36\n\nTotal Test time (real) =  57.29 sec\n",
+    "suite_tail": "40.8602, NLL delta 0.072013 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=64 chunks=2 per-token]: PPL 44.1541 vs HF 40.8602, NLL delta 0.077533 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=123 chunks=2 batched]: PPL 38.1109 vs HF 37.7428, NLL delta 0.009706 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q5_K_M.gguf c=123 chunks=2 per-token]: PPL 38.4322 vs HF 37.7428, NLL delta 0.018106 <= 0.160  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=0 chunks=1 batched]: PPL 31.8318 vs HF 28.7974, NLL delta 0.100184 <= 0.130  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=0 chunks=1 per-token]: PPL 32.0241 vs HF 28.7974, NLL delta 0.106204 <= 0.130  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=4 batched]: PPL 69.7536 vs HF 56.2812, NLL delta 0.214610 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=4 per-token]: PPL 69.6209 vs HF 56.2812, NLL delta 0.212700 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=2 batched]: PPL 49.5745 vs HF 40.8602, NLL delta 0.193323 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=64 chunks=2 per-token]: PPL 49.2324 vs HF 40.8602, NLL delta 0.186393 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=123 chunks=2 batched]: PPL 45.1375 vs HF 37.7428, NLL delta 0.178916 <= 0.250  [ok]\nbaseline-ppl[Qwen3-0.6B-Q4_K_M.gguf c=123 chunks=2 per-token]: PPL 44.9565 vs HF 37.7428, NLL delta 0.174896 <= 0.250  [ok]\nbaseline-qwen35[Qwen3.5-0.8B-Q8_0.gguf]: SKIP - fixture model not on disk\nbaseline-qwen35[Qwen3.5-0.8B-Q4_K_M.gguf]: SKIP - fixture model not on disk\n\n  dead-code  PASS\n  docs       PASS\n  arch-boundary PASS\n  version    PASS\n  cli        PASS\n  reference-generator PASS\n  reference-consumer PASS\n  device-reference PASS\n  roundtrip  PASS\n  raw-blocks PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  moe        PASS\n  qwen35     SKIP\n  split      PASS\n  decode-probe PASS\n  shards     PASS\n  server     PASS\n  server-load PASS\n  chat       PASS\n  threads    PASS\n  baseline   PASS\n",
+    "source_sha256": "9303023816d08cc8cc53da5fe85ee309234fb71348de30f4160c506bd56ebb7c"
+  },
+  "scope_audit": {
+    "base": "c6a91bf",
+    "markdown_total": 69,
+    "changed_md": [
+      "AGENTS.md",
+      "docs/BUILD.md",
+      "docs/CI.md",
+      "docs/STATUS.md",
+      "docs/VULKAN.md",
+      "docs/src/backends-vulkan.md"
+    ],
+    "changed_src": [
+      "src/backends/vulkan/shaders/float_controls.glsl",
+      "src/backends/vulkan/shaders/matmul_row.comp",
+      "src/backends/vulkan/shaders/matmul_vec_q8.comp",
+      "src/backends/vulkan/shaders/xquant.glsl",
+      "src/backends/vulkan/vulkan_backend.cpp"
+    ],
+    "mxfp4_absent": true
+  },
+  "windows_identity": {
+    "cpu": {
+      "scope": "50 full-logit vectors, short and 215-token prefill, 32 forced steps, reset and 16 greedy steps; ABBA",
+      "device": "cpu",
+      "commands": [
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q8_0.gguf-f16-0-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:42:32.401259+00:00",
+          "pid": 9392,
+          "exit": 0,
+          "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              4531,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572,
+              15540,
+              553,
+              3757,
+              362
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q8_0.gguf-f16-1-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:42:34.578200+00:00",
+          "pid": 9268,
+          "exit": 0,
+          "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              4531,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572,
+              15540,
+              553,
+              3757,
+              362
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q8_0.gguf-f16-2-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:42:37.333150+00:00",
+          "pid": 7896,
+          "exit": 0,
+          "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              4531,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572,
+              15540,
+              553,
+              3757,
+              362
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q8_0.gguf-f16-3-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:42:40.104281+00:00",
+          "pid": 17392,
+          "exit": 0,
+          "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              4531,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572,
+              15540,
+              553,
+              3757,
+              362
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q8_0.gguf-f32-0-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:42:42.942591+00:00",
+          "pid": 8608,
+          "exit": 0,
+          "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q8_0.gguf-f32-1-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:42:45.692231+00:00",
+          "pid": 5060,
+          "exit": 0,
+          "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q8_0.gguf-f32-2-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:42:48.470231+00:00",
+          "pid": 25772,
+          "exit": 0,
+          "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q8_0.gguf-f32-3-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:42:51.070219+00:00",
+          "pid": 26164,
+          "exit": 0,
+          "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_0.gguf-f16-0-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:42:54.015342+00:00",
+          "pid": 20432,
+          "exit": 0,
+          "sha256": "686348b45873e2d05ca312ecbedd93f01164a7f924e28ae3b3f7ec8d29847ae2",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_0.gguf-f16-1-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:42:56.175789+00:00",
+          "pid": 16300,
+          "exit": 0,
+          "sha256": "686348b45873e2d05ca312ecbedd93f01164a7f924e28ae3b3f7ec8d29847ae2",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_0.gguf-f16-2-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:42:58.385428+00:00",
+          "pid": 23852,
+          "exit": 0,
+          "sha256": "686348b45873e2d05ca312ecbedd93f01164a7f924e28ae3b3f7ec8d29847ae2",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_0.gguf-f16-3-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:00.554845+00:00",
+          "pid": 17516,
+          "exit": 0,
+          "sha256": "686348b45873e2d05ca312ecbedd93f01164a7f924e28ae3b3f7ec8d29847ae2",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_0.gguf-f32-0-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:03.012109+00:00",
+          "pid": 26476,
+          "exit": 0,
+          "sha256": "e837420237d571c2e7d788729845dc94e8b571d2c77c56296fb45a817fbcd98f",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_0.gguf-f32-1-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:05.233279+00:00",
+          "pid": 20620,
+          "exit": 0,
+          "sha256": "e837420237d571c2e7d788729845dc94e8b571d2c77c56296fb45a817fbcd98f",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_0.gguf-f32-2-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:07.570372+00:00",
+          "pid": 28652,
+          "exit": 0,
+          "sha256": "e837420237d571c2e7d788729845dc94e8b571d2c77c56296fb45a817fbcd98f",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_0.gguf-f32-3-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:09.701531+00:00",
+          "pid": 11868,
+          "exit": 0,
+          "sha256": "e837420237d571c2e7d788729845dc94e8b571d2c77c56296fb45a817fbcd98f",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q5_K_M.gguf-f16-0-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:12.184943+00:00",
+          "pid": 24176,
+          "exit": 0,
+          "sha256": "139dd2b51eea64dc9c9573597145c15834d196586aff005ad7143c1d3fee7c7c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q5_K_M.gguf-f16-1-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:14.724431+00:00",
+          "pid": 19072,
+          "exit": 0,
+          "sha256": "139dd2b51eea64dc9c9573597145c15834d196586aff005ad7143c1d3fee7c7c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q5_K_M.gguf-f16-2-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:17.225923+00:00",
+          "pid": 28344,
+          "exit": 0,
+          "sha256": "139dd2b51eea64dc9c9573597145c15834d196586aff005ad7143c1d3fee7c7c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q5_K_M.gguf-f16-3-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:19.730805+00:00",
+          "pid": 27724,
+          "exit": 0,
+          "sha256": "139dd2b51eea64dc9c9573597145c15834d196586aff005ad7143c1d3fee7c7c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q5_K_M.gguf-f32-0-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:22.331361+00:00",
+          "pid": 28632,
+          "exit": 0,
+          "sha256": "8d16e2c56c8a134f7c6f97e824d9776882bc8072a209cf109dbe2b74199f52da",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q5_K_M.gguf-f32-1-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:24.933939+00:00",
+          "pid": 11392,
+          "exit": 0,
+          "sha256": "8d16e2c56c8a134f7c6f97e824d9776882bc8072a209cf109dbe2b74199f52da",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q5_K_M.gguf-f32-2-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:27.635983+00:00",
+          "pid": 24480,
+          "exit": 0,
+          "sha256": "8d16e2c56c8a134f7c6f97e824d9776882bc8072a209cf109dbe2b74199f52da",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q5_K_M.gguf-f32-3-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:30.082148+00:00",
+          "pid": 16572,
+          "exit": 0,
+          "sha256": "8d16e2c56c8a134f7c6f97e824d9776882bc8072a209cf109dbe2b74199f52da",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_K_M.gguf-f16-0-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:32.887596+00:00",
+          "pid": 15792,
+          "exit": 0,
+          "sha256": "39da1bc253d3e050e2284708c7811ae11538f2d6011fb7974fcab34d9740bbac",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_K_M.gguf-f16-1-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:35.439975+00:00",
+          "pid": 28316,
+          "exit": 0,
+          "sha256": "39da1bc253d3e050e2284708c7811ae11538f2d6011fb7974fcab34d9740bbac",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_K_M.gguf-f16-2-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:37.553989+00:00",
+          "pid": 13816,
+          "exit": 0,
+          "sha256": "39da1bc253d3e050e2284708c7811ae11538f2d6011fb7974fcab34d9740bbac",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_K_M.gguf-f16-3-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:39.849095+00:00",
+          "pid": 8900,
+          "exit": 0,
+          "sha256": "39da1bc253d3e050e2284708c7811ae11538f2d6011fb7974fcab34d9740bbac",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_K_M.gguf-f32-0-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:42.218747+00:00",
+          "pid": 5328,
+          "exit": 0,
+          "sha256": "8dc6822a6eb35b5f6a80d60f00919f6f5c11364433638fa18b5f5eab2c62098c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_K_M.gguf-f32-1-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:44.663373+00:00",
+          "pid": 9788,
+          "exit": 0,
+          "sha256": "8dc6822a6eb35b5f6a80d60f00919f6f5c11364433638fa18b5f5eab2c62098c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_K_M.gguf-f32-2-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:47.006392+00:00",
+          "pid": 8724,
+          "exit": 0,
+          "sha256": "8dc6822a6eb35b5f6a80d60f00919f6f5c11364433638fa18b5f5eab2c62098c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-0.6B-Q4_K_M.gguf-f32-3-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:49.282587+00:00",
+          "pid": 17516,
+          "exit": 0,
+          "sha256": "8dc6822a6eb35b5f6a80d60f00919f6f5c11364433638fa18b5f5eab2c62098c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-8B-Q8_0.gguf-f16-0-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:43:56.074569+00:00",
+          "pid": 3896,
+          "exit": 0,
+          "sha256": "be72a653b53715708e93328f7a970e34f0ba55b7b6e9d921ed51af7265d7eb92",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-8B-Q8_0.gguf-f16-1-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:44:20.603216+00:00",
+          "pid": 15724,
+          "exit": 0,
+          "sha256": "be72a653b53715708e93328f7a970e34f0ba55b7b6e9d921ed51af7265d7eb92",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-8B-Q8_0.gguf-f16-2-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:44:44.503738+00:00",
+          "pid": 1404,
+          "exit": 0,
+          "sha256": "be72a653b53715708e93328f7a970e34f0ba55b7b6e9d921ed51af7265d7eb92",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-8B-Q8_0.gguf-f16-3-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:45:09.435508+00:00",
+          "pid": 9236,
+          "exit": 0,
+          "sha256": "be72a653b53715708e93328f7a970e34f0ba55b7b6e9d921ed51af7265d7eb92",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-8B-Q8_0.gguf-f32-0-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:45:36.931914+00:00",
+          "pid": 1232,
+          "exit": 0,
+          "sha256": "6f3ec159e04a5d57ed72cf586de8540bcf2053023f5794f1ee3ad7a5298226e2",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              892,
+              572,
+              8947,
+              553
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-8B-Q8_0.gguf-f32-1-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:46:03.991643+00:00",
+          "pid": 7880,
+          "exit": 0,
+          "sha256": "6f3ec159e04a5d57ed72cf586de8540bcf2053023f5794f1ee3ad7a5298226e2",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              892,
+              572,
+              8947,
+              553
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-8B-Q8_0.gguf-f32-2-candidate.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:46:31.582198+00:00",
+          "pid": 27180,
+          "exit": 0,
+          "sha256": "6f3ec159e04a5d57ed72cf586de8540bcf2053023f5794f1ee3ad7a5298226e2",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              892,
+              572,
+              8947,
+              553
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-cpu\\Qwen3-8B-Q8_0.gguf-f32-3-main.bin",
+            "cpu"
+          ],
+          "started": "2026-09-28T14:46:58.266056+00:00",
+          "pid": 5292,
+          "exit": 0,
+          "sha256": "6f3ec159e04a5d57ed72cf586de8540bcf2053023f5794f1ee3ad7a5298226e2",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              892,
+              572,
+              8947,
+              553
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        }
+      ],
+      "cells": [
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f16",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f32",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f16",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f32",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f16",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f32",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f16",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f32",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f16",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f32",
+          "identical": true
+        }
+      ],
+      "status": "pass"
+    },
+    "vulkan-0": {
+      "scope": "50 full-logit vectors, short and 215-token prefill, 32 forced steps, reset and 16 greedy steps; ABBA",
+      "device": "vulkan:0",
+      "commands": [
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q8_0.gguf-f16-0-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:05.878421+00:00",
+          "pid": 23112,
+          "exit": 0,
+          "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q8_0.gguf-f16-1-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:08.688118+00:00",
+          "pid": 8548,
+          "exit": 0,
+          "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q8_0.gguf-f16-2-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:10.912484+00:00",
+          "pid": 28340,
+          "exit": 0,
+          "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q8_0.gguf-f16-3-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:12.442884+00:00",
+          "pid": 25796,
+          "exit": 0,
+          "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q8_0.gguf-f32-0-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:13.981937+00:00",
+          "pid": 28564,
+          "exit": 0,
+          "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q8_0.gguf-f32-1-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:15.703605+00:00",
+          "pid": 2072,
+          "exit": 0,
+          "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q8_0.gguf-f32-2-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:17.705141+00:00",
+          "pid": 26472,
+          "exit": 0,
+          "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q8_0.gguf-f32-3-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:19.545642+00:00",
+          "pid": 8216,
+          "exit": 0,
+          "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_0.gguf-f16-0-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:22.031559+00:00",
+          "pid": 15288,
+          "exit": 0,
+          "sha256": "76befe76032d9f33c9a77d94679564cbfd79d6cdeb081e1d2f1cd8d98755d33c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_0.gguf-f16-1-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:24.262746+00:00",
+          "pid": 25460,
+          "exit": 0,
+          "sha256": "76befe76032d9f33c9a77d94679564cbfd79d6cdeb081e1d2f1cd8d98755d33c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_0.gguf-f16-2-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:26.269932+00:00",
+          "pid": 26680,
+          "exit": 0,
+          "sha256": "76befe76032d9f33c9a77d94679564cbfd79d6cdeb081e1d2f1cd8d98755d33c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_0.gguf-f16-3-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:27.627454+00:00",
+          "pid": 26568,
+          "exit": 0,
+          "sha256": "76befe76032d9f33c9a77d94679564cbfd79d6cdeb081e1d2f1cd8d98755d33c",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_0.gguf-f32-0-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:28.978491+00:00",
+          "pid": 27364,
+          "exit": 0,
+          "sha256": "6cb44c6e0760e0d1bd761f415987fe79a5bfa50dbef150325131a3b62dfbe697",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_0.gguf-f32-1-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:30.312102+00:00",
+          "pid": 25356,
+          "exit": 0,
+          "sha256": "6cb44c6e0760e0d1bd761f415987fe79a5bfa50dbef150325131a3b62dfbe697",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_0.gguf-f32-2-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:31.652310+00:00",
+          "pid": 13408,
+          "exit": 0,
+          "sha256": "6cb44c6e0760e0d1bd761f415987fe79a5bfa50dbef150325131a3b62dfbe697",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_0.gguf-f32-3-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:33.194342+00:00",
+          "pid": 9584,
+          "exit": 0,
+          "sha256": "6cb44c6e0760e0d1bd761f415987fe79a5bfa50dbef150325131a3b62dfbe697",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              438,
+              264,
+              8640,
+              12089,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              3985,
+              1154,
+              892,
+              572
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q5_K_M.gguf-f16-0-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:36.036097+00:00",
+          "pid": 27596,
+          "exit": 0,
+          "sha256": "a4128808f477a100fd951029ad6e0a442ebd69dcfbce5bb4c442ca2ef6d465aa",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q5_K_M.gguf-f16-1-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:37.848300+00:00",
+          "pid": 21096,
+          "exit": 0,
+          "sha256": "a4128808f477a100fd951029ad6e0a442ebd69dcfbce5bb4c442ca2ef6d465aa",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q5_K_M.gguf-f16-2-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:39.412129+00:00",
+          "pid": 28344,
+          "exit": 0,
+          "sha256": "a4128808f477a100fd951029ad6e0a442ebd69dcfbce5bb4c442ca2ef6d465aa",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q5_K_M.gguf-f16-3-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:40.987907+00:00",
+          "pid": 25780,
+          "exit": 0,
+          "sha256": "a4128808f477a100fd951029ad6e0a442ebd69dcfbce5bb4c442ca2ef6d465aa",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q5_K_M.gguf-f32-0-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:42.524108+00:00",
+          "pid": 21136,
+          "exit": 0,
+          "sha256": "60c9c72e6532d41154f0776312cb8591fc0098fc415e01892deec1f3b9ed992f",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q5_K_M.gguf-f32-1-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:44.077433+00:00",
+          "pid": 6660,
+          "exit": 0,
+          "sha256": "60c9c72e6532d41154f0776312cb8591fc0098fc415e01892deec1f3b9ed992f",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q5_K_M.gguf-f32-2-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:45.720502+00:00",
+          "pid": 27492,
+          "exit": 0,
+          "sha256": "60c9c72e6532d41154f0776312cb8591fc0098fc415e01892deec1f3b9ed992f",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q5_K_M.gguf-f32-3-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:47.797687+00:00",
+          "pid": 8164,
+          "exit": 0,
+          "sha256": "60c9c72e6532d41154f0776312cb8591fc0098fc415e01892deec1f3b9ed992f",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              9723,
+              304,
+              279,
+              22358,
+              4013,
+              576,
+              8246,
+              1154,
+              892,
+              572,
+              8947,
+              553,
+              279,
+              18096,
+              323
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_K_M.gguf-f16-0-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:50.194300+00:00",
+          "pid": 20328,
+          "exit": 0,
+          "sha256": "c7241f5277f3e4837cc3acefdec9444700c31f01abc62026412cb590493d44a6",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_K_M.gguf-f16-1-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:52.347172+00:00",
+          "pid": 23048,
+          "exit": 0,
+          "sha256": "c7241f5277f3e4837cc3acefdec9444700c31f01abc62026412cb590493d44a6",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_K_M.gguf-f16-2-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:54.375509+00:00",
+          "pid": 12912,
+          "exit": 0,
+          "sha256": "c7241f5277f3e4837cc3acefdec9444700c31f01abc62026412cb590493d44a6",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_K_M.gguf-f16-3-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:55.848160+00:00",
+          "pid": 27400,
+          "exit": 0,
+          "sha256": "c7241f5277f3e4837cc3acefdec9444700c31f01abc62026412cb590493d44a6",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_K_M.gguf-f32-0-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:57.307920+00:00",
+          "pid": 3420,
+          "exit": 0,
+          "sha256": "6e87de25ee7b636e2c92dd8809e5f4cb099f4d7a7129b9952272fe08deeb5527",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_K_M.gguf-f32-1-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:45:58.738561+00:00",
+          "pid": 29000,
+          "exit": 0,
+          "sha256": "6e87de25ee7b636e2c92dd8809e5f4cb099f4d7a7129b9952272fe08deeb5527",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_K_M.gguf-f32-2-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:46:00.426434+00:00",
+          "pid": 29404,
+          "exit": 0,
+          "sha256": "6e87de25ee7b636e2c92dd8809e5f4cb099f4d7a7129b9952272fe08deeb5527",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-0.6B-Q4_K_M.gguf-f32-3-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:46:02.505603+00:00",
+          "pid": 7072,
+          "exit": 0,
+          "sha256": "6e87de25ee7b636e2c92dd8809e5f4cb099f4d7a7129b9952272fe08deeb5527",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              566,
+              572,
+              6311,
+              304,
+              279,
+              1486,
+              576,
+              7996,
+              315,
+              279,
+              19822,
+              37373,
+              1154,
+              15540,
+              553,
+              3757
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-8B-Q8_0.gguf-f16-0-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:46:09.308767+00:00",
+          "pid": 7084,
+          "exit": 0,
+          "sha256": "4fe7dc564b7dbbdd8b0aebed966f9dae95b2365efafe5ccec4255606a266ce1a",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-8B-Q8_0.gguf-f16-1-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:46:16.346871+00:00",
+          "pid": 28696,
+          "exit": 0,
+          "sha256": "4fe7dc564b7dbbdd8b0aebed966f9dae95b2365efafe5ccec4255606a266ce1a",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f16",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-8B-Q8_0.gguf-f16-2-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:46:25.184756+00:00",
+          "pid": 20612,
+          "exit": 0,
+          "sha256": "4fe7dc564b7dbbdd8b0aebed966f9dae95b2365efafe5ccec4255606a266ce1a",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f16",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f16",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-8B-Q8_0.gguf-f16-3-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:46:31.520194+00:00",
+          "pid": 19008,
+          "exit": 0,
+          "sha256": "4fe7dc564b7dbbdd8b0aebed966f9dae95b2365efafe5ccec4255606a266ce1a",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-8B-Q8_0.gguf-f32-0-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:46:37.775414+00:00",
+          "pid": 7776,
+          "exit": 0,
+          "sha256": "bcff26a5c76053fc92ff5e42c94af12d0a7d499263b1edcb54741e7689cbb989",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-8B-Q8_0.gguf-f32-1-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:46:44.334153+00:00",
+          "pid": 27416,
+          "exit": 0,
+          "sha256": "bcff26a5c76053fc92ff5e42c94af12d0a7d499263b1edcb54741e7689cbb989",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f32",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-8B-Q8_0.gguf-f32-2-candidate.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:46:52.126171+00:00",
+          "pid": 17484,
+          "exit": 0,
+          "sha256": "bcff26a5c76053fc92ff5e42c94af12d0a7d499263b1edcb54741e7689cbb989",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f32",
+          "arm": "main",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-build\\Release\\identity-main.exe",
+            "C:/Users/Marko/.lmstudio/models/Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q8_0.gguf",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-project\\ids.txt",
+            "f32",
+            "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-main-check-20260928\\identity-vulkan-0\\Qwen3-8B-Q8_0.gguf-f32-3-main.bin",
+            "vulkan:0"
+          ],
+          "started": "2026-09-28T14:46:58.770226+00:00",
+          "pid": 7636,
+          "exit": 0,
+          "sha256": "bcff26a5c76053fc92ff5e42c94af12d0a7d499263b1edcb54741e7689cbb989",
+          "bytes": 30387800,
+          "summary": {
+            "greedy_ids": [
+              425,
+              10965,
+              465,
+              572,
+              6311,
+              304,
+              279,
+              12425,
+              4013,
+              576,
+              6686,
+              1154,
+              5619,
+              279,
+              3476,
+              315
+            ],
+            "vectors": 50,
+            "values": 7596800
+          }
+        }
+      ],
+      "cells": [
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f16",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q8_0.gguf-f32",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f16",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_0.gguf-f32",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f16",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q5_K_M.gguf-f32",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f16",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-0.6B-Q4_K_M.gguf-f32",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f16",
+          "identical": true
+        },
+        {
+          "cell": "Qwen3-8B-Q8_0.gguf-f32",
+          "identical": true
+        }
+      ],
+      "status": "pass"
+    }
+  },
+  "pending": [
+    "remaining Linux CPU/MI50 identities",
+    "larger MoE Q4_K existing-type identity",
+    "both-cache independent 8B HF on MI50",
+    "matched clean main/candidate timing with background monitoring",
+    "exact final-head hosted CI"
+  ],
+  "source_archive_sha256": "9303023816d08cc8cc53da5fe85ee309234fb71348de30f4160c506bd56ebb7c"
+}

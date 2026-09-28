@@ -10,6 +10,7 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_integer_dot_product : require
 #extension GL_EXT_control_flow_attributes : require
+#include "float_controls.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint MAX_COLS = 8;
 // Rows a subgroup takes (specialization constant 9), and steps whose weights a lane loads before using any (10), so STEPS steps of every row are in flight at once; the backend dispatches by the same rows (kVecBuilds).
@@ -110,7 +111,12 @@ void main() {
 #define OCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] : out0 + (c))
     uint nblk = p.nin / 32u;
     uint xtab = p.nbatch * p.nin / 8u;
+#ifdef LLMX_PRESERVE_F32
+    // Keep normal-input accumulation identical to the ordinary module when float preservation changes contraction.
+    precise float acc[ROWS][MAX_COLS];
+#else
     float acc[ROWS][MAX_COLS];
+#endif
     [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) acc[r][c] = 0.0;
     if (HALF && (nblk & 1u) == 0u && S == 64u) {
         // Each row's first word, a multiple of 17 words since the row's first block is even; per lane its four quant words, a fifth where the bytes straddle (the fourth again where they do not), its scale word and its activation offsets, which a step moves by 272 words, 64 runs of 16 bytes and 32 blocks.

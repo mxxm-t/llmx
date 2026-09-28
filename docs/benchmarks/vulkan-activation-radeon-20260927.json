@@ -1,0 +1,197 @@
+{
+  "date": "2026-09-27",
+  "base": "dbafdec75c8547e164e09220c35e54230baa19b0",
+  "scope": "Radeon producer normalization, fused packing and ordinary identity; no consumer integration",
+  "device": "AMD Radeon VII",
+  "producer": {
+    "blocks": 4381,
+    "values_per_twin": 140192,
+    "failed16": 0,
+    "failed8": 0,
+    "identical_lane_word_words": 43810
+  },
+  "fused": {
+    "cases": 24,
+    "values": 370752,
+    "identical_words": 158790
+  },
+  "ordinary": {
+    "cases": 24,
+    "values_per_arm": 1299136,
+    "identical_words_per_arm": 555510,
+    "output": {
+      "base": {
+        "sha256": "ce7150f49054307958384093ddd4d6e102457287d6a4b7977e0b83086350e4d0",
+        "bytes": 5511384
+      },
+      "candidate": {
+        "sha256": "ce7150f49054307958384093ddd4d6e102457287d6a4b7977e0b83086350e4d0",
+        "bytes": 5511384
+      }
+    }
+  },
+  "fresh_build": true,
+  "warnings": "MSB8029 temp-directory warnings retained; each binary newer than every source input",
+  "run": {
+    "started": "2026-09-27T19:44:36.637644",
+    "scope": "Radeon producer correctness and ordinary identity only",
+    "quiet_check": "QUIET 19:43:50 procs 0 cpu 1%",
+    "jobs": [
+      {
+        "name": "candidate-configure",
+        "argv": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-candidate-r1",
+          "-G",
+          "Visual Studio 18 2026",
+          "-DLLMX_PROBE_SOURCE=C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-activation-20260927"
+        ],
+        "started": "2026-09-27T19:44:36.806006",
+        "completed": "2026-09-27T19:44:40.667278",
+        "exit": 0
+      },
+      {
+        "name": "candidate-build",
+        "argv": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-candidate-r1",
+          "--config",
+          "Release",
+          "--parallel",
+          "2",
+          "--target",
+          "producer",
+          "fused",
+          "ordinary"
+        ],
+        "started": "2026-09-27T19:44:40.668342",
+        "completed": "2026-09-27T19:45:21.582659",
+        "exit": 0
+      },
+      {
+        "name": "candidate-producer",
+        "argv": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-candidate-r1\\Release\\producer\\llmx.exe"
+        ],
+        "started": "2026-09-27T19:45:21.604381",
+        "completed": "2026-09-27T19:45:22.018986",
+        "exit": 0
+      },
+      {
+        "name": "candidate-fused",
+        "argv": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-candidate-r1\\Release\\fused\\llmx.exe"
+        ],
+        "started": "2026-09-27T19:45:22.041705",
+        "completed": "2026-09-27T19:45:22.773405",
+        "exit": 0
+      },
+      {
+        "name": "candidate-ordinary",
+        "argv": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-candidate-r1\\Release\\ordinary\\llmx.exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\windows-producer-01\\candidate.bin"
+        ],
+        "started": "2026-09-27T19:45:22.800991",
+        "completed": "2026-09-27T19:45:23.531008",
+        "exit": 0
+      },
+      {
+        "name": "base-configure",
+        "argv": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-base-r1",
+          "-G",
+          "Visual Studio 18 2026",
+          "-DLLMX_PROBE_SOURCE=C:/Users/Marko/AppData/Local/Temp/llmx-vulkan-activation-base-20260927"
+        ],
+        "started": "2026-09-27T19:45:23.531008",
+        "completed": "2026-09-27T19:45:26.537393",
+        "exit": 0
+      },
+      {
+        "name": "base-build",
+        "argv": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-base-r1",
+          "--config",
+          "Release",
+          "--parallel",
+          "2",
+          "--target",
+          "ordinary"
+        ],
+        "started": "2026-09-27T19:45:26.538436",
+        "completed": "2026-09-27T19:45:37.528749",
+        "exit": 0
+      },
+      {
+        "name": "base-ordinary",
+        "argv": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-base-r1\\Release\\ordinary\\llmx.exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\windows-producer-01\\base.bin"
+        ],
+        "started": "2026-09-27T19:45:37.550065",
+        "completed": "2026-09-27T19:45:37.952525",
+        "exit": 0
+      }
+    ],
+    "binaries": {
+      "candidate-producer": {
+        "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-candidate-r1\\Release\\producer\\llmx.exe",
+        "sha256": "53ab50b73a7aa9c7c9b58510e49142915ec85e16f9869f72b3f07d67087601ac",
+        "mtime": 1790527496.7237947,
+        "newest_source_mtime": 1790527325.0864727
+      },
+      "candidate-fused": {
+        "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-candidate-r1\\Release\\fused\\llmx.exe",
+        "sha256": "a6970ace60cc374fc364931dcbe3b66c302d06492966903419f53f29a388d560",
+        "mtime": 1790527509.0259223,
+        "newest_source_mtime": 1790527325.0864727
+      },
+      "candidate-ordinary": {
+        "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-candidate-r1\\Release\\ordinary\\llmx.exe",
+        "sha256": "09db25ba83208d947cb5f16f4234bc134c82c9d6f49e2cd1b4a5d2c4bd218ddb",
+        "mtime": 1790527521.5240557,
+        "newest_source_mtime": 1790527325.0864727
+      },
+      "base-ordinary": {
+        "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\build-base-r1\\Release\\ordinary\\llmx.exe",
+        "sha256": "817846969b1639119a5e618d4e15725ca91de947c5f88feea9871d595fb8dff3",
+        "mtime": 1790527537.4728382,
+        "newest_source_mtime": 1790527326.979875
+      }
+    },
+    "outputs": {
+      "base": {
+        "sha256": "ce7150f49054307958384093ddd4d6e102457287d6a4b7977e0b83086350e4d0",
+        "bytes": 5511384
+      },
+      "candidate": {
+        "sha256": "ce7150f49054307958384093ddd4d6e102457287d6a4b7977e0b83086350e4d0",
+        "bytes": 5511384
+      }
+    },
+    "identical": true,
+    "status": "pass",
+    "completed": "2026-09-27T19:45:37.969604"
+  },
+  "archive": {
+    "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-vulkan-activation-evidence-20260927\\vulkan-activation-radeon-20260927.tar.gz",
+    "sha256": "12b5984c4da16cc43784d4f64ee3441dbb39776a14b02016811fdadf29a8ed7b",
+    "size": 5168227
+  },
+  "limitations": [
+    "No production consumer float controls or capability handling",
+    "No full Radeon backend suite, HF or performance result",
+    "These executables are private probes, not chat runtimes"
+  ]
+}

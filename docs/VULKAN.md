@@ -74,6 +74,12 @@ The workstation has the LunarG SDK 1.4.357 at `C:\VulkanSDK`, installed for this
   no files to find at run time and no runtime compiler. `build.bat` stays
   CPU-only.
 
+### Activation range repair in development
+
+The shared producer keeps extreme finite activation blocks representable by normalizing before division and restoring scale and sum bits after quantization. Ordinary blocks retain their arithmetic. Q8 row consumers optionally request 32-bit denormal and signed-zero/infinity/NaN preservation; the backend selects those modules only when both device properties are reported. Devices without them retain the original modules and may flush subnormal scales. The preserved Q8 row variants request their fused products explicitly into a precise accumulator, since enabling the modes can disable the driver's implicit contraction and change ordinary logits. The preserved Q8 integer-dot vector variant keeps a precise accumulator and separate scale product, integer-dot product and addition; explicitly fusing those operations failed ordinary-input identity on the MI50. The native packed-activation test also holds these consumers to the ordinary modules' bits on normal inputs across row and column tails; any disagreement fails the gate on a tested driver. This is a device capability choice, with no new CLI flag or model-layer policy.
+
+The producer and conditional Q8 consumers pass the native range checks on Radeon. This does not establish all quant types' extreme-value arithmetic or whole-model identity; the integrated MI50, model and performance gates remain open in [STATUS](STATUS.md).
+
 ## Structure
 
 `src/backends/vulkan/vulkan_backend.hpp` and, because the device code is

@@ -45,6 +45,8 @@ def main():
     parser.add_argument("--require-baseline", action="store_true", help="fail if any gate model pinned in tests/data/fixtures.json is absent")
     parser.add_argument("--require-tools", action="store_true",
                         help="fail, rather than skip, when a tool a component runs is not beside --exe, or numpy, which raw-blocks checks the spec decoders' numpy form with, is not installed")
+    parser.add_argument("--require-device-types", default=None, metavar="NAMES",
+                        help="fail instead of skipping unsupported weight types named here, comma separated, e.g. Q8_0,Q4_K; does not require a component to exercise them")
     parser.add_argument("--device", default=None, help="run every command that takes --device on this backend, e.g. vulkan:0")
     parser.add_argument("--layer-shares", default=None,
                         help="with several devices in --device, their proportions of the layers, e.g. 1,1")
@@ -55,6 +57,16 @@ def main():
     parser.add_argument("--only", default=None, metavar="NAMES",
                         help="run only these components, comma separated, e.g. baseline or split,server")
     args = parser.parse_args()
+    common.REQUIRED_DEVICE_TYPES = {}
+    if args.require_device_types is not None:
+        from spec_decode import TYPES
+        names = {spec[0]: type_id for type_id, spec in TYPES.items()}
+        required = args.require_device_types.split(",")
+        unknown = [name for name in required if name not in names]
+        if unknown:
+            parser.error("unknown required device type %s; the types are %s"
+                         % (", ".join(repr(name) for name in unknown), ", ".join(names)))
+        common.REQUIRED_DEVICE_TYPES = {names[name]: name for name in required}
     common.EXE = os.path.abspath(args.exe)
     common.exe_path()
     if args.device:

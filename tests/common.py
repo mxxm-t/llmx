@@ -18,6 +18,7 @@ EXE = os.path.join(ROOT, "llmx.exe" if os.name == "nt" else "llmx")
 
 # What a component returns when it compared nothing, which tests/run_tests.py reports as SKIP, neither a pass nor a failure.
 SKIPPED = "skipped"
+REQUIRED_DEVICE_TYPES = {}
 
 
 def exe_path():
@@ -174,11 +175,20 @@ def leave_mid_stream(port, body, after_bytes):
 
 
 def device_lacks_kernel(rc, out):
-    """True when the selected device refused the model for want of a kernel, which a test reports as skipped rather than failed."""
-    return (rc != 0 and bool(os.environ.get("LLMX_DEVICE")) and
-            ("unsupported matrix type" in out or "unsupported embedding type" in out or
-             re.search(r"inference: (?:embedding|head|layer [0-9]+'s (?:mixer|feed-forward part)) needs tensor [^\r\n]+ of type (?:[A-Z][A-Z0-9_]* \([0-9]+\)|[0-9]+), "
-                       r"which the backend of device [0-9]+ does not support", out) is not None))
+    """True for a selected device's unsupported type, unless the runner requires that type, in which case the component fails."""
+    if rc == 0 or not os.environ.get("LLMX_DEVICE"):
+        return False
+    match = re.search(r"inference: (?:embedding|head|layer [0-9]+'s (?:mixer|feed-forward part)) needs tensor [^\r\n]+ of type (?:[A-Z][A-Z0-9_]* \(([0-9]+)\)|([0-9]+)), "
+                      r"which the backend of device [0-9]+ does not support", out)
+    if not match:
+        match = re.search(r"unsupported (?:matrix|embedding) type ([0-9]+)\b", out)
+    if not match:
+        return False
+    type_id = int(next(value for value in match.groups() if value is not None))
+    if type_id in REQUIRED_DEVICE_TYPES:
+        raise RuntimeError("required device type %s (%d) refused: %s"
+                           % (REQUIRED_DEVICE_TYPES[type_id], type_id, out.strip()))
+    return True
 
 
 def write_bin(path, floats):

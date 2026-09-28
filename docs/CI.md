@@ -85,6 +85,13 @@ The ordinary CPU jobs can skip real-model checks because their fixtures are
 absent; the separate HF job supplies that coverage.
 The qwen35 pretokenizer is held to HF in every job all the same, with no model: the `tokenizer` component writes a file from `tests/data/baseline_tokenizer_qwen35.json` and requires HF's ids for its 37 texts and one id for each of the 7 control tokens only the GGUF files add.
 
+For device coverage, `run_tests.py --require-device-types Q8_0,Q4_K` makes a selected backend's refusal of any named weight type fail its component instead of being skipped.
+Names are the case-sensitive storage names in `tests/spec_decode.py`, comma separated; empty or unknown names are usage errors.
+The shared `device_lacks_kernel` helper owns this policy, for both early model refusals and backend matrix/embedding refusals.
+Without this option, unsupported device types still skip; types not named keep that behavior too.
+Naming a type does not prove a component exercised it, require missing model files, change architecture or cache skips, or change native CTest's driverless skips.
+Use it with `--device`, the components that exercise the required types and `--require-baseline` when real fixtures are required.
+
 The Python suite also checks reference-generator argument safeguards and that the requested commit, float32 dtype and eager attention reach the HF loader.
 It checks that the qwen35 tokenizer golden keeps every merge its texts reach and gives the added tokens the files' types, that a tokenizer file with another SHA-256 is refused, and that the committed golden holds the generator's texts, commit and digests.
 Every qwen35 reference passes one check of its environment, whose doubles refuse another torch, transformers or tokenizers version and the packages HF would run in place of its torch functions.

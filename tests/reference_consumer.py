@@ -79,6 +79,9 @@ class ReferenceConsumer(unittest.TestCase):
                 self.assertFalse(common.device_lacks_kernel(0, text))
             self.assertTrue(common.device_lacks_kernel(1, early.replace("MXFP4 (39)", "Q8_0 (8)")))
             self.assertFalse(common.device_lacks_kernel(1, "error: inference: failed during upload"))
+            self.assertFalse(common.device_lacks_kernel(1, "error: vulkan: unsupported matrix type unknown"))
+            with patch.dict(os.environ, {"LLMX_DEVICE": ""}):
+                self.assertFalse(common.device_lacks_kernel(1, early))
 
     def test_required_type_runner_fails_a_skipped_component(self):
         import run_tests
@@ -88,7 +91,8 @@ class ReferenceConsumer(unittest.TestCase):
             return common.SKIPPED if common.device_lacks_kernel(1, refusal) else False
 
         for required, want in (([], 0), (["--require-device-types", "Q8_0"], 1),
-                               (["--require-device-types", "MXFP4"], 0)):
+                               (["--require-device-types", "MXFP4"], 0),
+                               (["--require-device-types", "MXFP4,Q8_0"], 1), ([], 0)):
             text = io.StringIO()
             args = ["run_tests.py", "--exe", sys.executable, "--only", "baseline", "--device", "vulkan:0"] + required
             with patch.object(sys, "argv", args), patch.object(common, "EXE", sys.executable), patch.dict(os.environ), patch.object(baseline, "run", refused), contextlib.redirect_stdout(text):
@@ -109,7 +113,6 @@ class ReferenceConsumer(unittest.TestCase):
             self.assertEqual(error.exception.code, 2)
             self.assertIn("unknown required device type", text.getvalue())
             component.assert_not_called()
-
 
     def test_device_type_refusal_is_a_skip_only_for_a_selected_device(self):
         message = "error: inference: layer 3's feed-forward part needs tensor blk.3.ffn_up_exps.weight of type 39, which the backend of device 0 does not support"

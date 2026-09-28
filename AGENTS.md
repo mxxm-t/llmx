@@ -408,7 +408,10 @@ For a CMake build, pass `--exe <path-to-built-llmx>`.
 `--only` runs just the components it names, comma separated (`--only baseline`, `--only split,server`), and refuses a name the suite does not have.
 CI uses `--no-perf-floor` for shared runners, `--require-tools` on every CMake build it runs the suite on so a tool missing beside the executable, or numpy for raw-blocks, fails rather than skips (the `build.bat` binary has no tools beside it), and `--require-baseline` in its real-model job so missing fixtures fail.
 That job also runs `--only baseline` with `--cache-type f32`, `llmx-split-check` on the Q8_0 over two CPU backends and `tools/server_mix_check.py` on the Q8_0; the Vulkan job runs the suite with `--device cpu` on the Vulkan-enabled binary.
-Local performance floors remain enabled by default. See `docs/CI.md` for workflow coverage and reproduction commands.
+Local performance floors remain enabled by default. `--require-device-types Q8_0,Q4_K` makes a selected backend's refusal of any named weight type fail rather than skip through `common.device_lacks_kernel`; names are the case-sensitive storage names in `tests/spec_decode.py`.
+Types not named keep their ordinary skips, and naming a type does not prove it was exercised, require a missing model, or change native CTest's driverless skips.
+The `reference-consumer` component checks early and backend refusals, unrelated failures, required and optional types, runner exit status and invalid selections.
+See `docs/CI.md` for workflow coverage and reproduction commands.
 
 - **Dead code** (`tests/dead_code.py`, component `dead-code`): what no product path reaches, from the source, standard library only; the product is `llmx` and the tools, so code only tests reach is a finding too.
   Its findings and the list they are held to are described in Dead code and stale docs, below.

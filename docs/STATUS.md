@@ -4,28 +4,15 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## Format output failure handling (2026-09-28, branch fix/format-output-failures, in progress)
+## Format output failure handling (2026-09-28, merged at `4b0ec6a5`)
 
-- **Goal:** refuse late write and close failures from GGUF writing and raw dequantization with the affected path, and publish output only after successful completion. Preserve pre-existing destination files when preparing replacement output fails.
-- **Done:** the failing-first commit `c167a908` demonstrates nine failures on unchanged main `c82e901a`: eight limited conversions exit 0 with partial output or lost prior files, and a failed second raw output open overwrites existing JSON. The implementation shares `format::OutputFile`: exclusive sibling staging, exception-enabled writes, explicit checked close and replacement only after completion. Both raw files finish before independent publication; known aliases are refused, a late alias cannot overwrite the first publication, and JSON keeps Windows text mode. Windows filesystem errors use their category and numeric code beside the original UTF-8 path, avoiding an ANSI path embedded in `filesystem_error::what()`. LDEV approved the initial design at 02:09 and the final diagnostic follow-up at 02:28.
-
-  | Check | Result | Scope |
-  |---|---|---|
-  | Linux r2 full native tests | 31/31 pass | Before the final text-mode, alias and diagnostic changes |
-  | Windows r1 full native tests | 32/32 pass | Before the diagnostic repair |
-  | Windows r1 full CPU Python suite | 21 pass, 1 fail, 1 skip | Roundtrip exposed the Unicode diagnostic defect; qwen35 skips while unsupported |
-  | Final Linux r3 | 3/3 affected native tests; roundtrip, docs and dead-code pass | 9 output failures and 7 alias cases |
-  | Final fresh Windows r2 | 3/3 affected native tests; roundtrip, docs and dead-code pass | Repaired diagnostic; 1 output failure and 7 alias cases; POSIX file-size injection unavailable |
-  | CPU Qwen3-0.6B before/after identity | 12/12 cases pass | Greedy/seeded replies, reported logits and batched/per-token NLL, F16/F32 cache |
-  | Linux close-only mutation proof | Pass | Serialization returns with a good stream; checked close refuses the buffered failure, while removing only close falsely succeeds |
-
-  Identity compares reply text and token counts without wall-time lines, and complete logits/PPL stdout; it does not compare full raw logit arrays or establish performance. The first raw comparator included generation timing and reported four differences; its outputs and the reviewed normalization remain in the evidence. No inference arithmetic changed. Final Windows executable SHA-256 is `845ed2c2ca0389cb50d983c7891706f9b72f0d0ad97039b60dc81287144f9ed4`; Linux candidate is `5033fe3ba68420879b4cf06a349713267f911e4cd59c617bdcaed3364ce0ada8`. Logs, raw outputs, build commands, hashes and the Markdown review inventory remain in the owned clone's `writer-evidence-20260928/`; the peer archive is `format-output-review-r2-20260928.tar.gz`, SHA-256 `7a5654579328e803a3ec66455db545b74eb3dc63e563d166e18d2e06c858c34d`, under `/opt/claude-work/llmx-p2-x-mxfp4-vulkan/`.
-  The semantic Markdown review has read all 69 project files, including all 9410 lines of STATUS at the reviewed hash, with source checks and historical/external limits recorded per page in the inventory. Build, CLI, loader, KV, execution ownership, server protocol, chat language boundaries and backend coverage were compared with their owners. ASSETS and STATUS corrections are prepared as separate tested patches; further wording findings were sent to LDEV for the separate docs batch. They landed separately at `5869385b`, with merge record `1ff3dff2`, and are now integrated here. Historical measurements were not rerun. Final diff review also restored a corrupted Unicode test-directory literal to the original characters using ASCII escapes; conversion checks pass with the intended path.
-- **Current-main integration, 2026-09-28:** merged main `1ff3dff2` into the feature in a fresh isolated clone, preserving the failing-test-first history and the original implementation checkpoint. Only STATUS conflicted, because both branches added their records at the top; both records are retained. The runtime and tests remain the validated writer implementation, with main's source-comment corrections. Fresh Windows build and all 32 native tests pass, followed by the full CPU suite with required tools and all four pinned gate models: 22 components pass and unsupported qwen35 skips. The optional qwen35 fixture files remain absent; those are not claimed as passes. Fresh Linux build and all 31 native tests pass, followed by roundtrip/docs/dead-code, including nine injected output failures and seven aliases. The exact commands, build logs, executable hashes and reviewed-source inventory are in [current integration evidence](benchmarks/format-output-current-20260928.json). The Linux source archive has no Git metadata and reports an unknown build revision; these checks make no speed claim.
-- **Documentation checkpoint:** all 69 Markdown pages are reconciled with the integrated tree. Sixty-five exactly match completed main/writer reviews; ARCHITECTURE, USAGE, the GGUF owner page and this STATUS block were checked in merged context against source and validation results. Source changes from the validated writer checkpoint are comments only. The earlier 12-case CPU identity evidence is retained with its stated scope; this integration changes no inference arithmetic.
-- **Left:** run hosted CI on the final integration head, then fast-forward main if it has not moved. The user removed peer review as a merge prerequisite when gates pass.
-- **Gotchas:** a pair of separate files cannot be atomically replaced with one ordinary filesystem rename. Both are staged and closed before JSON then binary are published. A failed second publication may leave the first complete replacement published; the error names the failed path. There is no fsync or power-loss durability guarantee. Output symlinks are refused; a killed process can leave owned staging for later cleanup once the conversion has stopped.
-
+Merged on Gitea and GitHub main by fast-forward from `1ff3dff2` after all six hosted jobs passed at exact head `4b0ec6a59c8dd31176391e73b52ef521bf8decf7` in [run 36381084608](https://github.com/mxxm-t/llmx/actions/runs/36381084608).
+The failing-first test commit `c167a908` precedes implementation `4d1b26ea`; the integration preserves both and adds main's documentation corrections.
+Fresh Windows validation passed 32 native tests and 22 CPU suite components with all four pinned gate models required; unsupported qwen35 skipped. Linux passed 31 native tests plus roundtrip/docs/dead-code, including nine injected output failures and seven alias cases.
+The earlier 12-case CPU identity covers greedy/seeded replies and complete printed logits/PPL with F16/F32 caches; it is not a raw-logit or performance claim. Inference arithmetic did not change.
+The [integration evidence](benchmarks/format-output-current-20260928.json) records commands, hashes, logs and the completed 69-page documentation reconciliation. Full source and both-platform evidence remain in `/opt/claude-work/llmx-p2-x-mxfp4-cpu/format-output-current-20260928.tar.gz`, SHA-256 `7e467ebeb848bd7f84c7b5b65b9c7d925194a5e7b871b4095eea29970116d276`.
+The [output owner](src/format-output_file.md) documents staging, checked close and publication, including the non-atomic JSON/binary pair, refused symlinks and absence of power-loss durability guarantees.
+This separate merge record reconciles STATUS with the completed landing and reuses the byte-identical completed reviews of the other 68 Markdown pages. Peer review is not an additional merge prerequisite under the user's instruction.
 
 ## Documentation consistency review (2026-09-28, merged at `5869385b`)
 
@@ -7708,6 +7695,7 @@ their own measurements; K-quant optimization remains separate work below.
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | Done |
 | GGUF reader size and tensor extent validation | Done |
+| Checked conversion output publication | Done: merged at `4b0ec6a5`; checked write/close before replacement |
 | JSON quantize tensor validation | Done |
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |

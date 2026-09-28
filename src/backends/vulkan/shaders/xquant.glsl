@@ -47,7 +47,15 @@ void xq_scale(uint top, float levels, out float d, out float id, out int shift) 
     }
 }
 
-float xq_restore(float v, int shift) { return shift == 0 ? v : xq_shift(v, -shift); }
+// Restore a block's table values under one shared check for the ordinary path.
+vec2 xq_shift(vec2 v, int shift) {
+    if (shift == 0) return v;
+    return vec2(xq_shift(v.x, shift), xq_shift(v.y, shift));
+}
+vec4 xq_shift(vec4 v, int shift) {
+    if (shift == 0) return v;
+    return vec4(xq_shift(v.x, shift), xq_shift(v.y, shift), xq_shift(v.z, shift), xq_shift(v.w, shift));
+}
 float xq_input(float v, int shift) { return shift == 0 ? v : xq_shift(v, shift); }
 
 // Round half away from zero, as the host reference does.
@@ -82,10 +90,11 @@ void xquant_block(uint i, float v, uint n) {
     if (j == 0u) {
         uint blk = (i - j) / 32u;
         uint t = n / 2u + 2u * blk, th = n / 2u + 2u * (n / 32u) + 2u * blk;
-        xq[t] = floatBitsToUint(xq_restore(d, shift));
-        xq[t + 1u] = floatBitsToUint(xq_restore(d * float(s + other), shift));
-        xq[th] = floatBitsToUint(xq_restore(d * float(s), shift));
-        xq[th + 1u] = floatBitsToUint(xq_restore(d * float(other), shift));
+        vec4 values = xq_shift(vec4(d, d * float(s + other), d * float(s), d * float(other)), -shift);
+        xq[t] = floatBitsToUint(values.x);
+        xq[t + 1u] = floatBitsToUint(values.y);
+        xq[th] = floatBitsToUint(values.z);
+        xq[th + 1u] = floatBitsToUint(values.w);
     }
 }
 
@@ -118,8 +127,9 @@ void xquant8_block_at(uint i, float v, uint n, uint base, uint blk) {
     s += subgroupShuffleXor(s, 1u);
     if (i < n && j == 0u) {
         uint t = base + n / 4u + 2u * blk;
-        xq[t] = floatBitsToUint(xq_restore(d, shift));
-        xq[t + 1u] = floatBitsToUint(xq_restore(d * float(s), shift));
+        vec2 values = xq_shift(vec2(d, d * float(s)), -shift);
+        xq[t] = floatBitsToUint(values.x);
+        xq[t + 1u] = floatBitsToUint(values.y);
     }
 }
 void xquant8_block(uint i, float v, uint n, uint base) { xquant8_block_at(i, v, n, base, i / 32u); }
@@ -135,7 +145,7 @@ void xquant8_word(vec4 v, bool live, uint w, uint blk, uint tab) {
     amax = max(amax, subgroupShuffleXor(amax, 1u));
     float d, id; int shift;
     xq_scale(amax, 127.0, d, id, shift);
-    vec4 r = vec4(xq_input(v.x, shift), xq_input(v.y, shift), xq_input(v.z, shift), xq_input(v.w, shift)) * id;
+    vec4 r = xq_shift(v, shift) * id;
     ivec4 q = clamp(ivec4(sign(r) * floor(abs(r) + 0.5)), -127, 127);
     int s = q.x + q.y + q.z + q.w;
     s += subgroupShuffleXor(s, 4u);
@@ -145,8 +155,9 @@ void xquant8_word(vec4 v, bool live, uint w, uint blk, uint tab) {
     uvec4 b = uvec4(q) & 255u;
     xq[blk * 8u + w] = b.x | (b.y << 8u) | (b.z << 16u) | (b.w << 24u);
     if (w == 0u) {
-        xq[tab + 2u * blk] = floatBitsToUint(xq_restore(d, shift));
-        xq[tab + 2u * blk + 1u] = floatBitsToUint(xq_restore(d * float(s), shift));
+        vec2 values = xq_shift(vec2(d, d * float(s)), -shift);
+        xq[tab + 2u * blk] = floatBitsToUint(values.x);
+        xq[tab + 2u * blk + 1u] = floatBitsToUint(values.y);
     }
 }
 

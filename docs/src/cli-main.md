@@ -84,7 +84,7 @@ Commands and their entry points:
   and the cache types, then runs `server::serve` (see [server](server.md)).
   It raises the refusal of the opened model's `chat::ChatFormat` before the listener opens, then hands the format to the server.
   The sequence and queue limits and `--passes` are refused below 1 here, the one place they are checked; the scheduler refuses `--passes` above 1 on a placement that is not pipelined, which only the placed model tells.
-  `open_model` takes the passes as the slots the fit counts handoff buffers for, the devices listed when `--passes` is not given, since a pipelined split keeps a pass per stage and has at most that many, and with `--timing` makes every device one that times its work.
+  `open_model` takes the passes as the slots the fit counts handoff buffers for, and gives the fit the logits rows the scheduler keeps for them (`server::logit_rows`), the devices listed when `--passes` is not given, since a pipelined split keeps a pass per stage and has at most that many, and with `--timing` makes every device one that times its work.
   The model's name is its file name, read as UTF-8 as the loader reads the path (`u8path`, `u8string`), so on Windows it does not pass through the system code page.
 - `prefill_turn(model, exec, ids, decode_threads, progress, prefilled)`: one turn's prompt for `generate` and each `chat` turn.
   It sets the prompt's worker count (`--threads-batch`, else the resolved decode count), shows `--verbose`'s prefill thread line and the processing line, prefills, and restores the decode count, including automatic selection.

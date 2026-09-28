@@ -97,8 +97,9 @@ struct LayerSplit {
 
 // Consecutive layers per device in the order given: the best plan over every set of devices that could run layers, with every device and the host within its budget (docs/src/model-layer_split.md says what each holds).
 // `shares`, when given, is each device's proportion of the layers in place of the balance, still checked against the budgets.
+// `logit_rows`, when given, is the rows of logits the caller keeps where the head runs, in place of one for each of a pass's `rows`.
 inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {},
-                               std::optional<size_t> host_free = std::nullopt, size_t slots = 1) {
+                               std::optional<size_t> host_free = std::nullopt, size_t slots = 1, std::optional<size_t> logit_rows = std::nullopt) {
     if (devices.empty()) throw std::runtime_error("split: no devices");
     const size_t L = fp.layers.size(), N = devices.size();
     if (!L) throw std::runtime_error("split: a model without layers");
@@ -134,7 +135,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     auto host_for = [&](const std::vector<size_t>& used) {
         Host h;
         // A layer split is pipelined, and every stage but the last sends its residual on.
-        h.need = rows * fp.logits_per_row + fp.tables + (used.size() > 1 ? handoff_buffers(slots, true) * (used.size() - 1) * rows * fp.handoff_per_row : 0);
+        h.need = logit_rows.value_or(rows) * fp.logits_per_row + fp.tables + (used.size() > 1 ? handoff_buffers(slots, true) * (used.size() - 1) * rows * fp.handoff_per_row : 0);
         for (size_t d : used) {
             h.need += devices[d].host_side;
             if (devices[d].host && h.carrier == SIZE_MAX) h.carrier = d;

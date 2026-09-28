@@ -90,6 +90,7 @@ struct PlacementRequest {
     int ubatch = 0;                   // prompt tokens a pass takes, kDefaultUbatch when 0
     size_t decode_rows = 0;           // generated tokens a pass may carry beside a prompt's: a server's decoding requests
     size_t slots = 0;                 // passes the caller keeps in flight (Model::reserve_passes), each with a handoff buffer on every stage but the last, two at least, which a split's fit counts
+    size_t logit_rows = 0;            // rows of logits the caller keeps (Model::reserve_passes), which a split's fit counts; 0 for one per row of a pass
     // Histories the caller holds at once and the tokens each reaches, when it knows them, as bench does its sequences; zero leaves the options' budget as it is.
     // Each history takes whole blocks, up to the model's context, so the budget grows to hold them all where it would not.
     size_t histories = 0, history_tokens = 0;
@@ -146,7 +147,8 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
             throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
         const std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
         const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
-        const LayerSplit split = split_layers(footprint(weights, plan, options), budgets, rows, request.shares, core::host_memory_available(), request.slots);
+        const LayerSplit split = split_layers(footprint(weights, plan, options), budgets, rows, request.shares, core::host_memory_available(), request.slots,
+                                                   request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
         placed = {std::make_unique<Model>(weights, plan, std::move(backends), placement_for(split), options, adopt), split.describe(budgets)};
     } else if (!adds_host_for_experts(backends, request)) {
         placed.model = std::make_unique<Model>(weights, plan, std::move(backends), Placement{}, options, adopt);

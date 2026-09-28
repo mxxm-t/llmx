@@ -11,6 +11,10 @@ queued behind no ticket on failure paths. This is the device execution model
 of `docs/DEVICE-EXECUTION.md`, extended by the implemented batching and
 placement contracts in `docs/EXECUTION.md`.
 
+- `supports_type(type)`: whether the implemented weight-reading operations
+  support that storage type on this device. The default is false. The model checks the
+  types of all assigned roles before adoption, and uses the same query to
+  decide whether a host layer can stream to its mixer device.
 - `alloc(bytes, where)`, `adopt(src, bytes)`, `read(src, off, dst, bytes)`,
   `copy(dst, dst_off, src, src_off, bytes)`: backend-owned storage. `where`
   is `Memory::device` or `Memory::host_visible`; the logits live in the

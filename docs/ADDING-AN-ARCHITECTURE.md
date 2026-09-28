@@ -102,6 +102,8 @@ A layer whose tensors disagree with its kind is refused here, naming the layer, 
 The runtime then:
 - holds the plan to slot 0 as wide as the residual and to every role id inside the row of weights, and treats either as the module's error;
 - checks every role by its kind: its shape, F32 for a norm, and trailing axes of one;
+- checks each assigned backend's weight types through `supports_type`, before adopting any weight;
+- decides whether each host layer can stream to its mixer device once: all its streamed roles must have supported types there, or that layer stays on the host;
 - adopts each role on the device of its part;
 - reads one buffer for a tensor that two roles take on one device;
 - counts each layer's roles in the fit, in file order, and the pass's roles through the fit's three fields for them: the embedding's table, the head's matrix and the head's norm.

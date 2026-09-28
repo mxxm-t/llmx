@@ -7,6 +7,9 @@ translation unit (`vulkan_backend.cpp`, built only with
 opened at run time, so a build carries no link dependency; the design,
 kernel notes and measurements are `docs/VULKAN.md`.
 
+- `supports_type(type)` accepts F32 and the block types of `decoded_blocks`;
+  the model's pre-adoption check and the backend's matrix checks use this
+  same query, so they cannot disagree about a weight type.
 - `make_vulkan_backend(index, diagnostics)`, `vulkan_device_name`: open
   the loader, pick the device, require what the kernels need (Vulkan 1.2,
   subgroups of 32 lanes or more, 16-bit integers, timeline semaphores,

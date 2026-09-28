@@ -25,7 +25,7 @@ delegated to a `backend::Backend`.
   table and the output head. Empty means everything on device 0. Per role
   rather than per layer so expert offload puts a layer's experts on the CPU
   while its mixer stays on the device (`docs/EXECUTION.md`). `stream_from` is the prompt length (`BatchEntry::extent`) from which such
-  a layer runs on its mixer device instead for every row the prompt computes, whatever prefix the history already held, 1 counting as 2 since a one-token prompt never streams; rows a server forks from a donor keep the path they were computed on, the one the donor's prompt took for its prompt rows and the host for its generated tokens (`docs/SERVER.md`, Open gaps). Its `copy` roles (the norm
+  a layer whose streamed weight types the destination supports runs on its mixer device instead for every row the prompt computes, whatever prefix the history already held, 1 counting as 2 since a one-token prompt never streams; rows a server forks from a donor keep the path they were computed on, the one the donor's prompt took for its prompt rows and the host for its generated tokens (`docs/SERVER.md`, Open gaps). Its `copy` roles (the norm
   and router) get a copy there at load, its `window` roles (the expert
   stacks) are written into a per-device window, one buffer per window role
   in role order sized to the largest such layer's, once per pass that needs
@@ -191,6 +191,15 @@ delegated to a `backend::Backend`.
     issues is on the architecture's page ([qwen3](model-arch-qwen3.md)).
   - A file's own checks come before the model is built, in its reader
     (`gguf_weights`, [registry](model-arch-registry.md)).
+    Before any weight is adopted or model buffer allocated, each present
+    role's type must be supported by its assigned backend (`supports_type`),
+    including a tied head placed apart from the embedding. A refusal names
+    the pass role or layer part, tensor, type and device index.
+    A routed layer's streaming eligibility is computed here once: its host
+    reads in place, its distinct mixer device copies weights, and that
+    destination supports every copied or windowed role. If a streamed type
+    is unsupported, the whole layer stays on its host; other eligible layers
+    can still stream. `resolve_tensors` reuses this decision.
     `resolve_tensors` walks the plan's roles in order - the pass's, then
     each layer's followed by a streamed layer's copies - refusing a role
     whose tensor is absent with `TensorIndex`'s text, checking each by its

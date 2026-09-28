@@ -88,6 +88,10 @@ need no dequantization buffer.
 The model layer is one runtime that names no architecture and one module per architecture.
 - The runtime (`model/runtime.hpp` and `model/place.hpp`) owns sequences, passes, stages, the arena, the crossings between devices, placement and the fit, experts on the host and streamed to a device, and the cache storages.
   It indexes a file's tensors by name once and finds each role's tensor there, reads the plan a module declares, and calls the module's parts.
+  Before adopting weights it checks each assigned backend's type support.
+  It decides each host layer's streaming eligibility once, keeping a layer
+  whose destination lacks a weight type on its host; the backend owns the
+  type query over its existing kernel support.
 - A module (`model/arch/qwen3.hpp` for qwen3 and qwen3moe) reads its configuration from the file's metadata and declares a plan: its layers, each layer's kind and tensor roles, the arena slots, the residual width, the context length, the K and V geometry and the position tables.
   It supplies its math as backend ops, which the runtime calls once per layer part: `embed`, `mixer`, `ffn` and `head`.
 - The registry (`model/arch/registry.hpp`) maps each `general.architecture` value to its module and is the only place such a name is accepted.

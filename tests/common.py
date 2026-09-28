@@ -176,7 +176,9 @@ def leave_mid_stream(port, body, after_bytes):
 def device_lacks_kernel(rc, out):
     """True when the selected device refused the model for want of a kernel, which a test reports as skipped rather than failed."""
     return (rc != 0 and bool(os.environ.get("LLMX_DEVICE")) and
-            ("unsupported matrix type" in out or "unsupported embedding type" in out))
+            ("unsupported matrix type" in out or "unsupported embedding type" in out or
+             re.search(r"inference: (?:embedding|head|layer [0-9]+'s (?:mixer|feed-forward part)) needs tensor [^\r\n]+ of type (?:[A-Z][A-Z0-9_]* \([0-9]+\)|[0-9]+), "
+                       r"which the backend of device [0-9]+ does not support", out) is not None))
 
 
 def write_bin(path, floats):

@@ -719,8 +719,16 @@ void placement_checks() {
 // A device with one missing weight type, whose counters distinguish an early refusal from a failed upload.
 struct TypeBackend : backend::CpuBackend {
     uint32_t refused = quant::GGML_TYPE_Q8_0;
-    size_t adoptions = 0, allocations = 0;
-    bool supports_type(uint32_t type) const { return type != refused && quant::Registry::instance().get(type); }
+    size_t adoptions = 0, allocations = 0, routed_calls = 0;
+    bool device = false;
+    bool reads_in_place() const override { return !device; }
+    void matmul_experts(std::initializer_list<backend::Projection> projections, backend::CSlice x, size_t nin,
+                        size_t rows, const Routing& routing, backend::RowRuns runs = {}) override {
+        for (const auto& p : projections) require(supports_type(p.type), "a routed product reached an unsupported backend");
+        ++routed_calls;
+        backend::CpuBackend::matmul_experts(projections, x, nin, rows, routing, runs);
+    }
+    bool supports_type(uint32_t type) const override { return type != refused && quant::Registry::instance().get(type); }
     backend::BufferPtr adopt(const void* data, size_t bytes) override {
         ++adoptions;
         return backend::CpuBackend::adopt(data, bytes);
@@ -747,11 +755,81 @@ void type_capability_checks() {
         try { infer::Model model(weights, {home, limited}, place); }
         catch (const std::runtime_error& e) { error = e.what(); }
         const std::string role = part == 0 ? "embedding" : part == 1 ? "head" : "layer 1's mixer";
-        require(error.find(role) != std::string::npos && error.find("type 8") != std::string::npos &&
+        require(error.find(role) != std::string::npos && error.find("type Q8_0 (8)") != std::string::npos &&
                     error.find("device 1") != std::string::npos,
                 "missing early type refusal for " + role + ": " + error);
         require(!home->adoptions && !limited->adoptions && !home->allocations && !limited->allocations,
                 "unsupported " + role + " reached adoption or allocation");
+        refusals.push_back("unsupported " + role + ": " + error);
+        ++checks;
+    }
+}
+
+// The first layer has a Q4_0 expert or router that one device lacks; the second remains eligible for streaming.
+void type_stream_checks() {
+    for (const bool copied_role : {false, true}) {
+        auto file = fixture(false, quant::GGML_TYPE_Q8_0, false, true, 2);
+        for (auto& kv : file.kv) kv.first.replace(0, 5, "qwen3moe");
+        set(file, "general.architecture", text("qwen3moe"));
+        set(file, "qwen3moe.expert_count", integer(2));
+        set(file, "qwen3moe.expert_used_count", integer(1));
+        set(file, "qwen3moe.expert_feed_forward_length", integer(256));
+        for (int l = 0; l < 2; ++l) {
+            const std::string pre = "blk." + std::to_string(l) + ".";
+            add(file, pre + "ffn_gate_inp.weight", {256, 2}, l == 0 && copied_role ? 2 : 0);
+            for (const char* name : {"ffn_gate_exps.weight", "ffn_up_exps.weight", "ffn_down_exps.weight"})
+                add(file, pre + name, {256, 256, 2}, l == 0 && !copied_role ? 2 : 8);
+        }
+        for (size_t t = 0; t < file.tensors.size(); ++t) {
+            const auto& info = file.tensors[t];
+            if (info.name.find("norm") != std::string::npos) continue;
+            size_t n = 1;
+            for (uint64_t d : info.ne) n *= size_t(d);
+            std::vector<float> values(n);
+            for (size_t i = 0; i < n; ++i) values[i] = float(int((i * 17 + t * 3) % 29) - 14) / 256.0f;
+            uint8_t* dst = file.blob.data() + file.offsets[t];
+            if (!info.type) std::memcpy(dst, values.data(), n * sizeof(float));
+            else {
+                const auto* qt = quant::Registry::instance().get(info.type);
+                qt->quantize(values.data(), dst, n / qt->block_size);
+            }
+        }
+        const auto weights = infer::gguf_weights(file);
+        std::vector<float> expected;
+        for (const bool streaming : {false, true}) {
+            auto device = std::make_shared<TypeBackend>(), host = std::make_shared<TypeBackend>();
+            device->refused = quant::GGML_TYPE_Q4_0; device->device = true;
+            host->refused = UINT32_MAX;
+            device->set_threads(1); host->set_threads(1);
+            infer::Placement place;
+            place.mixer_device = {0, 0}; place.ffn_device = {1, 1}; place.stream_from = streaming ? 2 : 0;
+            infer::Model model(weights, {device, host}, place);
+            std::vector<float> logits = model.prefill({0, 1, 2});
+            require(device->routed_calls == (streaming ? 1u : 0u) && host->routed_calls == (streaming ? 1u : 2u),
+                    "stream eligibility did not leave exactly the unsupported layer on the host");
+            for (uint32_t id : {3u, 4u}) {
+                const auto row = model.step(id);
+                logits.insert(logits.end(), row.begin(), row.end());
+            }
+            for (float v : logits) require(std::isfinite(v), "nonfinite stream fixture logits");
+            require(std::any_of(logits.begin(), logits.end(), [](float v) { return v != 0; }), "zero stream fixture logits");
+            if (!streaming) expected = logits;
+            else require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
+                         "type fallback changed the prompt or follow-up logits");
+            ++checks;
+        }
+        auto device = std::make_shared<TypeBackend>(), host = std::make_shared<TypeBackend>();
+        device->refused = UINT32_MAX; device->device = true; host->refused = quant::GGML_TYPE_Q4_0;
+        device->set_threads(1); host->set_threads(1);
+        infer::Placement place;
+        place.mixer_device = {0, 0}; place.ffn_device = {1, 1}; place.stream_from = 2;
+        std::string error;
+        try { infer::Model model(weights, {device, host}, place); }
+        catch (const std::runtime_error& e) { error = e.what(); }
+        require(error.find("layer 0's feed-forward part") != std::string::npos && error.find("type Q4_0 (2)") != std::string::npos &&
+                    error.find("device 1") != std::string::npos && !device->adoptions && !host->adoptions &&
+                    !device->allocations && !host->allocations, "streaming hid unsupported home weights: " + error);
+        refusals.push_back(std::string("unsupported host ") + (copied_role ? "router" : "expert") + " type: " + error);
         ++checks;
     }
 }
@@ -830,6 +908,7 @@ int main(int argc, char** argv) {
         const bool write = argc == 3 && std::string(argv[1]) == "--write";
         if (argc != 2 && !write) throw std::runtime_error("usage: llmx-model-validation-test REFUSALS.txt | --write REFUSALS.txt");
         type_capability_checks();
+        type_stream_checks();
         metadata_checks();
         tensor_checks();
         moe_metadata_checks();

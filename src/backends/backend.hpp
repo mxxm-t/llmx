@@ -237,6 +237,9 @@ class Backend {
 public:
     virtual ~Backend() = default;
 
+    // Whether the implemented weight-reading ops support this storage type on this device, checked before a model adopts its weights.
+    virtual bool supports_type(uint32_t type) const { (void)type; return false; }
+
     // Set the worker thread count hint; 0 leaves the current count unchanged.
     virtual void set_threads(int n) = 0;
 

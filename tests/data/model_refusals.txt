@@ -1,3 +1,8 @@
+unsupported embedding: inference: embedding needs tensor token_embd.weight of type Q8_0 (8), which the backend of device 1 does not support
+unsupported head: inference: head needs tensor token_embd.weight of type Q8_0 (8), which the backend of device 1 does not support
+unsupported layer 1's mixer: inference: layer 1's mixer needs tensor blk.1.attn_q.weight of type Q8_0 (8), which the backend of device 1 does not support
+unsupported host expert type: inference: layer 0's feed-forward part needs tensor blk.0.ffn_gate_exps.weight of type Q4_0 (2), which the backend of device 1 does not support
+unsupported host router type: inference: layer 0's feed-forward part needs tensor blk.0.ffn_gate_inp.weight of type Q4_0 (2), which the backend of device 1 does not support
 missing block_count: inference: missing metadata qwen3.block_count
 missing embedding_length: inference: missing metadata qwen3.embedding_length
 missing feed_forward_length: inference: missing metadata qwen3.feed_forward_length

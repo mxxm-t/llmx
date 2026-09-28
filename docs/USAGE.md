@@ -368,7 +368,10 @@ use nearly every expert, and the work grows with the prompt. The CPU meets
 a prompt's rows with each expert's weights unpacked once for all of them,
 which is usually fast enough. `--moe-stream-from N` (default 0, never) runs such a layer on the device
 instead for a prompt of at least `N` tokens, its experts copied there
-once per pass of up to 512 tokens. The copy is a fixed cost per pass,
+once per pass of up to 512 tokens. A layer whose streamed weights include a
+type the device cannot execute stays on the CPU; eligible layers still stream.
+A weight type unsupported by its assigned home backend is refused at load,
+before weight adoption or model buffer allocation. The copy is a fixed cost per pass,
 about 0.9 s for twelve Q8_0 layers over the MI50's link and 3 s for thirty
 over the Radeon VII's, so it pays only for long prompts: on the MI50 with
 twelve Q8_0 layers on the CPU, 512 tokens prefill at 411 tok/s streamed

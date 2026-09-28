@@ -61,6 +61,17 @@ def simulated_llmx(docs, tokens, context, refuse=None):
 
 
 class ReferenceConsumer(unittest.TestCase):
+
+    def test_device_type_refusal_is_a_skip_only_for_a_selected_device(self):
+        message = "error: inference: layer 3's feed-forward part needs tensor blk.3.ffn_up_exps.weight of type 39, which the backend of device 0 does not support"
+        for text in (message, message.replace("type 39", "type MXFP4 (39)"), message.replace("type 39", "type Q8_0 (8)")):
+            for device in ("", "vulkan:0"):
+                with patch.dict(os.environ, {"LLMX_DEVICE": device}):
+                    self.assertEqual(common.device_lacks_kernel(1, text), bool(device))
+                    self.assertFalse(common.device_lacks_kernel(0, text))
+                    self.assertFalse(common.device_lacks_kernel(1, "error: inference: incompatible tensor layout blk.3.ffn_up_exps.weight"))
+                    self.assertFalse(common.device_lacks_kernel(1, text.replace("does not support", "failed during upload")))
+
     @classmethod
     def setUpClass(cls):
         cls.docs = consumer.load_goldens()

@@ -1,0 +1,1728 @@
+{
+  "scope": "Focused current-main port of the existing capability fix, without the pending Qwen model dependency. Not full final device, timing or hosted merge gates.",
+  "base": "56ac913c78b89dbc08fc93338b5b38c7578a5ef8",
+  "test_commit": "76423e11809fd74b6fb0239d5928f7ef60f39f84",
+  "previous_feature": "0785a60dccd15a548253797bfd50f0463f019d39",
+  "source_snapshot": "3e539078bc2a8777d08c000f6d9675d8bdf552e0a20c8be6aad7c735e27db7ec",
+  "test_first": {
+    "records": [
+      {
+        "name": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-20260928",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\test-first-build",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DBUILD_TESTING=ON",
+          "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\test-first-build",
+          "--config",
+          "Release",
+          "--target",
+          "llmx-model-validation-test",
+          "--parallel",
+          "6"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "test",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\test-first-build\\Release\\llmx-model-validation-test.exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-20260928\\tests\\data\\model_refusals.txt"
+        ],
+        "exit": 1
+      }
+    ],
+    "test_sha256": "dded13e954665433de352d25ab4fa4cff703c07d0af4fce112e78ebc80888f83"
+  },
+  "windows": {
+    "status": "pass",
+    "pid": 3488,
+    "started": "2026-09-28T10:42:11.311124+00:00",
+    "records": [
+      {
+        "name": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-20260928",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\build-windows",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include",
+          "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+          "-DBUILD_TESTING=ON"
+        ],
+        "started": "2026-09-28T10:42:11.311124+00:00",
+        "pid": 17876,
+        "exit": 0,
+        "completed": "2026-09-28T10:42:14.622151+00:00"
+      },
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\build-windows",
+          "--config",
+          "Release",
+          "--parallel",
+          "6"
+        ],
+        "started": "2026-09-28T10:42:14.622151+00:00",
+        "pid": 27128,
+        "exit": 0,
+        "completed": "2026-09-28T10:43:02.815341+00:00"
+      },
+      {
+        "name": "native",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\build-windows",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "started": "2026-09-28T10:43:02.815341+00:00",
+        "pid": 4836,
+        "exit": 0,
+        "completed": "2026-09-28T10:44:05.231775+00:00"
+      },
+      {
+        "name": "suite",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-20260928\\tests\\run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\build-windows\\Release\\llmx.exe",
+          "--only",
+          "reference-consumer,f32,moe,split,docs,dead-code",
+          "--require-tools",
+          "--no-perf-floor",
+          "--device",
+          "vulkan:0"
+        ],
+        "started": "2026-09-28T10:44:05.232445+00:00",
+        "pid": 28248,
+        "exit": 0,
+        "completed": "2026-09-28T10:46:13.396511+00:00"
+      }
+    ],
+    "exe_sha256": "c95ae8ecf2ab08b10e6df73034fdabf345b3fc568ed526b1f30724d0f575f6f8",
+    "version": "llmx 0.1.0+g76423e11809f.dirty",
+    "completed": "2026-09-28T10:46:13.412105+00:00"
+  },
+  "linux": {
+    "run": {
+      "status": "pass",
+      "pid": 70155,
+      "started": "2026-09-28T10:42:59.421159+00:00",
+      "records": [
+        {
+          "name": "configure",
+          "command": [
+            "cmake",
+            "-S",
+            "/work/type-capability-main-check-20260928/source",
+            "-B",
+            "/work/type-capability-main-check-20260928/build",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DLLMX_HAS_BACKEND_VULKAN=ON",
+            "-DBUILD_TESTING=ON"
+          ],
+          "started": "2026-09-28T10:42:59.421613+00:00",
+          "pid": 70161,
+          "exit": 0,
+          "completed": "2026-09-28T10:43:00.216393+00:00"
+        },
+        {
+          "name": "build",
+          "command": [
+            "cmake",
+            "--build",
+            "/work/type-capability-main-check-20260928/build",
+            "--parallel",
+            "6"
+          ],
+          "started": "2026-09-28T10:43:00.216766+00:00",
+          "pid": 70205,
+          "exit": 0,
+          "completed": "2026-09-28T10:44:39.215088+00:00"
+        },
+        {
+          "name": "native",
+          "command": [
+            "ctest",
+            "--test-dir",
+            "/work/type-capability-main-check-20260928/build",
+            "--output-on-failure"
+          ],
+          "started": "2026-09-28T10:44:39.215380+00:00",
+          "pid": 71155,
+          "exit": 0,
+          "completed": "2026-09-28T10:45:19.872885+00:00"
+        },
+        {
+          "name": "suite",
+          "command": [
+            "python3",
+            "/work/type-capability-main-check-20260928/source/tests/run_tests.py",
+            "--exe",
+            "/work/type-capability-main-check-20260928/build/llmx",
+            "--only",
+            "reference-consumer,f32,moe,split,docs,dead-code",
+            "--require-tools",
+            "--no-perf-floor",
+            "--device",
+            "cpu"
+          ],
+          "started": "2026-09-28T10:45:19.873218+00:00",
+          "pid": 72084,
+          "exit": 0,
+          "completed": "2026-09-28T10:45:42.843546+00:00"
+        }
+      ],
+      "exe_sha256": "6b3a04d2fc3a402dadff451f0f6afc69af08729cea3d04ff0eab0dbf26500118",
+      "version": "llmx 0.1.0+unknown",
+      "completed": "2026-09-28T10:45:42.851184+00:00"
+    },
+    "archive": {
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/type-capability-main-linux-20260928.tar.gz",
+      "sha256": "05fb59842ee511a44d8a0292018949770f97c0ba8b1b46c7d57f5b6b57f6943e",
+      "bytes": 12791842,
+      "files": {
+        "source.tar.gz": "3e539078bc2a8777d08c000f6d9675d8bdf552e0a20c8be6aad7c735e27db7ec",
+        "source.json": "daab902fdd6bd64a15d709101cbbf50ae5eb5feb4d2541a23c13bfdbb3487746",
+        "linux_run.py": "d08e7086f27fca4877bd44be654cac87983d4c56a64020a33792e0b614a5cb84",
+        "linux-state.json": "a67603e29fa1ecfb1e155280d27a65b80afa95b532fe2feb24bd5054b86f9cac",
+        "linux-complete.json": "a67603e29fa1ecfb1e155280d27a65b80afa95b532fe2feb24bd5054b86f9cac",
+        "linux-configure.log": "f0eb25bf566276c04e5b47eddbb06dfb34b8f6c2e71a635352efff7eb8415b81",
+        "linux-build.log": "265015f00dc4c58b87bbf72f804bde8bb0c107a22f26abce472c31eb937ae54d",
+        "linux-native.log": "95d3323923ea0d2dbbff872a731d0ce360847d3ed52a178f729ae31a5324f36f",
+        "linux-suite.log": "b745cf238878ae47436e3e76f4ae5a462634e04371b815b8ecfbe7d861abe1cd",
+        "build/llmx": "6b3a04d2fc3a402dadff451f0f6afc69af08729cea3d04ff0eab0dbf26500118",
+        "build/libllmx-vulkan.a": "01662f24d1b29ed5102e206c3796a76254d214ee9f80daec0af3006b2f7a3458",
+        "build/generated/config.hpp": "491660170fc92e8abfacfc8144606ffc56f159069514c2a1684738c532e0b57c",
+        "build/Testing/Temporary/LastTest.log": "69235885d40bd64ee1e0ab9dc032a45ad6b7fc77a1a9ff3b65869771058e9df8",
+        "build/generated/vulkan/kv_write_v16.inc": "4c38eb5fd5d86171002cfe34f977bb9a8acc709655aa46a5a386e671f8a1c510",
+        "build/generated/vulkan/embed.inc": "02871b0de0885a67ec3094122d420808e91bc9815807d8c8f92ef03ecdc4b9f7",
+        "build/generated/vulkan/matmul_tile_q.inc": "a92ee9d16cda4d8e0f72d4cdcc1a30b9ab300e563ae32e0595b24cb12b05fd80",
+        "build/generated/vulkan/attention_g4.inc": "ed11e15b2900ae4c26673eebe70b6458e5ed34c6ba4a88cfd69a7bf6bee87b9f",
+        "build/generated/vulkan/attention_kv16.inc": "ac329ef8f8e7a8b26a1e3d74f9e74712403a61dc35715d0c8fd199e796e5c533",
+        "build/generated/vulkan/rms_norm_rows.inc": "02165055a66effe31c573e522c2f57e171d33b7fb04da52595d510d2d95c4a28",
+        "build/generated/vulkan/attention_vec_v16.inc": "54f179d90bb79db3252a4e7d5c54572d463e5311d4b176254e212cb52ddeb258",
+        "build/generated/vulkan/matmul_vec_q8.inc": "b01feefc0bc57350ad71b81c626527d54711ba46c22237a46d2741527000336d",
+        "build/generated/vulkan/matmul_row_q4_dot.inc": "820504a07efee0b1719c368c335b7782d5347d1d00a4189a97429e92a849eca3",
+        "build/generated/vulkan/matmul_row_k_dot.inc": "4b65591798cd8484c04e0d7581bbb1885d1d494517689a48fa4a5db33b7f0e56",
+        "build/generated/vulkan/attention_k16_g4.inc": "a80fca0ae5adf26634df9d9762158f1493d6f0938fb1ac8b9a1d49d0bad70108",
+        "build/generated/vulkan/attention_v16.inc": "d625c5fe48c35a8a01f9ae5ed294da6dffed89906b68ddbf9dd990b7ab4938c8",
+        "build/generated/vulkan/moe_group.inc": "54d7a45d8db7202aefc70ec859c249117988f25f3c1a11cfb6114d17cd37a587",
+        "build/generated/vulkan/norm_rope_kv_v16.inc": "a5ef8a8e0729832142d4aa3ca79b1be024f201b7bccaeeaa322bbe2d31ab0886",
+        "build/generated/vulkan/matmul_row_q4.inc": "76c35081f0519a27832b5b7e545442e98126378ba10f88ae8769faf0c7936226",
+        "build/generated/vulkan/matmul_row_k.inc": "f4ab3de9fbb9b03e4cfd1ffb068194c1a13e284a1dfc32509e13e405f1e6a268",
+        "build/generated/vulkan/attention.inc": "9ed3483826709d2f58ab1c1bbd5ded7dbc21eb87724fb2789d6cf60e91e5caf2",
+        "build/generated/vulkan/kv_write_kv16.inc": "07c72290273234fd6a1bbd61643ccc114d9e073595145b324bdbe927e4d75ba8",
+        "build/generated/vulkan/attention_vec_k16_g4.inc": "9a31b38ded674a68da63d410c0b2cb229aed5439c062631125096bace51ae722",
+        "build/generated/vulkan/attention_tile_v16.inc": "7b2b5c3e0c465952d8ff0ecd2c23b7c0d9a0f819271bf3e1727a13a4fcce2e43",
+        "build/generated/vulkan/norm_rope_kv.inc": "669c52250612b206b521528666a3ce935cbe817f521ba4505ca848d8946e9423",
+        "build/generated/vulkan/matmul_row_k5.inc": "e14cc3440dd4fd7d48ba1378704b108d8908790322f0368a58661c9413bc7332",
+        "build/generated/vulkan/matmul_tile_q6.inc": "cc55c0eee65c0f524692cbacc5525e649156d0104c9aaf27eaad48a3269da76d",
+        "build/generated/vulkan/matmul_tile_q8.inc": "1b2ef8441456820ed86ec4d710e898b144a2e262668f9a3c01fa7165b276549c",
+        "build/generated/vulkan/kv_write.inc": "5789604e44fd11500b770aae6359b54db994e744a08afd4fba3999baa02f6f18",
+        "build/generated/vulkan/quantize_x.inc": "487fdb0b641569b790388b150edf6a6ba0cc429e72c511474f2624466aa0f6d0",
+        "build/generated/vulkan/matmul_row_q8w.inc": "5ab49fa86943a29b775e0704b59c3541ba65c1c3c86b82fcd4a570f902ce5a0f",
+        "build/generated/vulkan/matmul_row_k5_dot.inc": "874dc77a38f3185995693a2dc0ea4d9ddd3a70fc57ce1830610fd4662b892f0d",
+        "build/generated/vulkan/moe_combine.inc": "e17faceaa27dda05a3819a8a820414075a23dc16901c3b8c820a4968db1bfedb",
+        "build/generated/vulkan/norm_rope_rows.inc": "76c0ec2c44603934348ab149bb790cb0e0a30214e9367cb448c93f3589f50352",
+        "build/generated/vulkan/attention_vec_k16.inc": "16c03198cf28168c0b01aca94580c86510a3b7149434d1d9859fcdbc12fbb08d",
+        "build/generated/vulkan/attention_vec_v16_g4.inc": "a68b1b075fd2e173b09a39de8811cf85aed3e6d36d6cc848646b312f03704c31",
+        "build/generated/vulkan/attention_tile_kv16.inc": "2ed9756aff1a61ed1a171009dd7c001e3631dbeab938503115da6880f6a6c7bb",
+        "build/generated/vulkan/attention_vec_kv16.inc": "99416fce0083134051de3c48b3845e467b0ef233d48db2ee2d7b7f7ed53dfc43",
+        "build/generated/vulkan/matmul_tile.inc": "92bece543298c4c92a5760d72fc92371a90c4acc50451fd6bc914891076e368a",
+        "build/generated/vulkan/attention_v16_g4.inc": "c5889cbf2571c3afbd793a32ead5ba56136ba26de0a0b321f15c9eb646f323ce",
+        "build/generated/vulkan/kv_write_k16.inc": "c277d556a5efd0d4eb0773c72e5ee2a39cb543a020b098330be2855c5f46ce34",
+        "build/generated/vulkan/moe_route.inc": "d3b45c96874daa5aad108d06725d78ac2e3207d8cd50bf4ce70054df56341c3c",
+        "build/generated/vulkan/matmul_row_q4_dot8.inc": "71e25a610fc2db93ba40a944145d8ed30e67f41e9e98ae47dae60d20809ff4d0",
+        "build/generated/vulkan/attention_vec_g4.inc": "730990e637a6a59b4627bb89c12acd3c2cbb027c92fc7fee0d4a84ed74d058a5",
+        "build/generated/vulkan/matmul_row.inc": "16791db429864508cb0e106cd3c42b3a34c86853d123437b4d33bb7c3f6ef41e",
+        "build/generated/vulkan/quantize_x8.inc": "61c4e3f684c1231ec9fd06ca4cf76300b8688786c394ba43a85210a5c0e73e76",
+        "build/generated/vulkan/attention_tile_k16.inc": "06de9a43d688372793c682335eebca909a1ba7821dd3255eb52b4d1484a50963",
+        "build/generated/vulkan/add.inc": "c5fcf6022b9dd4d471666924d51762739ba7dd4b4899923dcac2867034d3889a",
+        "build/generated/vulkan/attention_merge.inc": "652a549483e0c48b8bd937435d75e3eb8ad1462b334429464e29c3d0e712121c",
+        "build/generated/vulkan/norm_rope_kv_kv16.inc": "dd96b1beb9f4348074dfc10d82aeb691fafae8036e9776d14e823ff12805546f",
+        "build/generated/vulkan/silu_mul.inc": "b86d32f5f4c6215d902fa2822ee3b29778aadf4c4981d3256ae7714d31ca99d0",
+        "build/generated/vulkan/attention_vec.inc": "5cbf1090585da10c2d5e7999fb1043fc97dc34e3c03ccc38b85b0e033dc1f79c",
+        "build/generated/vulkan/matmul_row_k4.inc": "6f2e41754090f45024c5f8cf8c8d79643e76c4790b47d95cf9f836c781130ca4",
+        "build/generated/vulkan/attention_vec_kv16_g4.inc": "472ad2ec47caf692625fb43a2324a689c261907007451be94cb1abe197213fce",
+        "build/generated/vulkan/norm_rope_kv_k16.inc": "c32f29d8d6c56ca39e2e9dec2302b2037d5eb611e44f6057ce946d385b5c6dd3",
+        "build/generated/vulkan/attention_kv16_g4.inc": "817c2f6eeaa3da045bf574a2371dd2c0342be1e8d21b862c7910484382c34248",
+        "build/generated/vulkan/gather_rows.inc": "18fb48ad4171822401e69747ac3d60ec074dc1f24a8ab7ae094a93f0f9ead37a",
+        "build/generated/vulkan/attention_k16.inc": "e9260fe7b898f1ac169d52b20eb81f15832e6041fd8798f8d1b0400d7b987001",
+        "build/generated/vulkan/matmul_row_k4_dot.inc": "88293439768722ca937d21186b7a29dd0b9f19adc5129bae0ac7456295b3e644",
+        "build/generated/vulkan/matmul_reduce.inc": "cb397b35c152ae077a9a82fd046fd3561c3ab66a6877e8521d04bfb34c8e2391",
+        "build/generated/vulkan/matmul_row_k_dot8.inc": "5e286c239723a1f9f131f1d4ed9300f5202d61a8920e27ec73afd63901809874",
+        "build/generated/vulkan/attention_tile.inc": "f7567842ba47683e24516d2886b64f55e40bd94fceb4db9e5c6dba58961efd71"
+      }
+    },
+    "native": {
+      "registered": 35,
+      "passed": 33,
+      "skipped": [
+        "backend-vulkan",
+        "vulkan-lifetime"
+      ],
+      "seconds": 40.62
+    }
+  },
+  "identity": {
+    "pid": 29608,
+    "status": "pass",
+    "started": "2026-09-28T10:47:20.161680+00:00",
+    "records": [
+      {
+        "cell": "cpu-f16",
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-before.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f16",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\cpu-f16-0-before.bin",
+          "cpu"
+        ],
+        "pid": 3080,
+        "exit": 0,
+        "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            9723,
+            304,
+            279,
+            4531,
+            576,
+            7996,
+            315,
+            3985,
+            1154,
+            892,
+            572,
+            15540,
+            553,
+            3757,
+            362
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "cpu-f16",
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f16",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\cpu-f16-1-candidate.bin",
+          "cpu"
+        ],
+        "pid": 25728,
+        "exit": 0,
+        "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            9723,
+            304,
+            279,
+            4531,
+            576,
+            7996,
+            315,
+            3985,
+            1154,
+            892,
+            572,
+            15540,
+            553,
+            3757,
+            362
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "cpu-f16",
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f16",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\cpu-f16-2-candidate.bin",
+          "cpu"
+        ],
+        "pid": 7628,
+        "exit": 0,
+        "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            9723,
+            304,
+            279,
+            4531,
+            576,
+            7996,
+            315,
+            3985,
+            1154,
+            892,
+            572,
+            15540,
+            553,
+            3757,
+            362
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "cpu-f16",
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-before.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f16",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\cpu-f16-3-before.bin",
+          "cpu"
+        ],
+        "pid": 28164,
+        "exit": 0,
+        "sha256": "a86e076437e6c703968806f9cb8be39f36e521e5cbee2d0a372a6066bd0bb518",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            9723,
+            304,
+            279,
+            4531,
+            576,
+            7996,
+            315,
+            3985,
+            1154,
+            892,
+            572,
+            15540,
+            553,
+            3757,
+            362
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "cpu-f32",
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-before.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f32",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\cpu-f32-0-before.bin",
+          "cpu"
+        ],
+        "pid": 1976,
+        "exit": 0,
+        "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "cpu-f32",
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f32",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\cpu-f32-1-candidate.bin",
+          "cpu"
+        ],
+        "pid": 8864,
+        "exit": 0,
+        "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "cpu-f32",
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f32",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\cpu-f32-2-candidate.bin",
+          "cpu"
+        ],
+        "pid": 26152,
+        "exit": 0,
+        "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "cpu-f32",
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-before.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f32",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\cpu-f32-3-before.bin",
+          "cpu"
+        ],
+        "pid": 7872,
+        "exit": 0,
+        "sha256": "fea655a446b067a0661e6d51c6459fca739abab03cd4999bdf22a3fe953c1ef3",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "vulkan-0-f16",
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-before.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f16",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\vulkan-0-f16-0-before.bin",
+          "vulkan:0"
+        ],
+        "pid": 28400,
+        "exit": 0,
+        "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "vulkan-0-f16",
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f16",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\vulkan-0-f16-1-candidate.bin",
+          "vulkan:0"
+        ],
+        "pid": 29332,
+        "exit": 0,
+        "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "vulkan-0-f16",
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f16",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\vulkan-0-f16-2-candidate.bin",
+          "vulkan:0"
+        ],
+        "pid": 16008,
+        "exit": 0,
+        "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "vulkan-0-f16",
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-before.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f16",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\vulkan-0-f16-3-before.bin",
+          "vulkan:0"
+        ],
+        "pid": 24668,
+        "exit": 0,
+        "sha256": "341b28859154cace54f85ce3bee28d50cfaf80c054c3d402f074e80f19aed5df",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "vulkan-0-f32",
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-before.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f32",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\vulkan-0-f32-0-before.bin",
+          "vulkan:0"
+        ],
+        "pid": 2144,
+        "exit": 0,
+        "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "vulkan-0-f32",
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f32",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\vulkan-0-f32-1-candidate.bin",
+          "vulkan:0"
+        ],
+        "pid": 23672,
+        "exit": 0,
+        "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "vulkan-0-f32",
+        "arm": "candidate",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-candidate.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f32",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\vulkan-0-f32-2-candidate.bin",
+          "vulkan:0"
+        ],
+        "pid": 7628,
+        "exit": 0,
+        "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      },
+      {
+        "cell": "vulkan-0-f32",
+        "arm": "before",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-build\\Release\\identity-before.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-project\\ids.txt",
+          "f32",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output\\vulkan-0-f32-3-before.bin",
+          "vulkan:0"
+        ],
+        "pid": 23736,
+        "exit": 0,
+        "sha256": "96d6f39615ecbc8f9cfc2b0176d32e54964078ad1d7e0eae2720041c5bfe7898",
+        "bytes": 30387800,
+        "output": {
+          "greedy_ids": [
+            566,
+            572,
+            6311,
+            304,
+            279,
+            1486,
+            576,
+            7996,
+            315,
+            279,
+            19822,
+            37373,
+            1154,
+            15540,
+            553,
+            3757
+          ],
+          "vectors": 50,
+          "values": 7596800
+        }
+      }
+    ],
+    "cells": [
+      {
+        "cell": "cpu-f16",
+        "bit_identical": true,
+        "summary_identical": true
+      },
+      {
+        "cell": "cpu-f32",
+        "bit_identical": true,
+        "summary_identical": true
+      },
+      {
+        "cell": "vulkan-0-f16",
+        "bit_identical": true,
+        "summary_identical": true
+      },
+      {
+        "cell": "vulkan-0-f32",
+        "bit_identical": true,
+        "summary_identical": true
+      }
+    ],
+    "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+    "ids_sha256": "e68287079c102f53893ada2d7913acd00abd0ad2f8238e14c1318826a152793a",
+    "helper_sha256": "52de91b70573d1a8a4d9928cc7f80565286a7b35d7f7ac39c05193b3d0c733d8",
+    "arms": {
+      "before": {
+        "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\base-source",
+        "build": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\base-build",
+        "library_sha256": "07b2181904af6fc34d17a141b58f6d6300b8c1390d458baf2006d41d48cfeea3",
+        "exe_sha256": "b84200ab78ac20a33e70fedd6a1fcad89494836497490f8a3fa4f3f88f659f44",
+        "source_files": {
+          "src\\config.hpp": "64c29b92f292b3bb77359d86668bc6fddb08de273e853c0eed5e54fc50647900",
+          "src\\backends\\backend.hpp": "e7ef8b87348f6e062d39b547135b324be59961ac5392d17d3ee38bdc117f63d0",
+          "src\\backends\\devices.hpp": "6271718c0adcae333d54d25521d87e8b13fc96014a7c7fb8e8d54713fe74b2f2",
+          "src\\backends\\device_profile.hpp": "f27ca29a0da211ef58de5183c5d370bc591a8e8b5b57f92ae03e33b46007e79b",
+          "src\\backends\\kv_storage.hpp": "d99513df97457fd98d0be0a69e12c838391aca1c60e5fc978d1d8f8695e62b9d",
+          "src\\cli\\main.cpp": "b4330ed0422c983e0f38a4aa510ad7b2fb83959590a9650ca15cbbed1567e5c6",
+          "src\\core\\cgroup.hpp": "386a32fb048e4c47930fd74cf8a5bee999ccb11ee21813137e3b6a576434cc5b",
+          "src\\core\\cpus.hpp": "743ba57c57f0f0373934f75f107e5e2bd993c90a53b1515e52d4c406bb79461e",
+          "src\\core\\fp16.hpp": "b792551e5a8c5a45969edbf7236ce43f83a859c3d8fee761d4a02401bbf05928",
+          "src\\core\\host_memory.hpp": "12c05b9363d86c980d8f792152ac204932887d810cd7acbef2ba113dd9336f34",
+          "src\\core\\json.hpp": "e1b1d59f83a2e32d83f24d6fd413e6fa24dc106b2b4491c58add992efca55a0d",
+          "src\\core\\list.hpp": "385d03a145039d04bf98d6202866483f7666df55a9a10ff239c6a8709b79c94c",
+          "src\\core\\sha.hpp": "288b428cbea4798e7f8a29e2b4735142fd51889e62d30a8423ff3f79a251f7a3",
+          "src\\core\\utf8.hpp": "af5469ac9946e89c9cf16fc1c95a60a4c3a81945417801141fed94305ab4fafc",
+          "src\\format\\file_reader.hpp": "e0f3a831b4c4e2e0c2cb6c3f9921efd5421790c157718a4af515b4685656b4a3",
+          "src\\format\\format.hpp": "3550b93078aa475af9d5af88bd7537175d697fdb9ccff3deff51f7d595fd7e2d",
+          "src\\format\\gguf.hpp": "e8215de4c78a0f4f6ee33000fc1488513c24ace7de7a0212c098f40b0032d9e4",
+          "src\\format\\mapped_file.hpp": "856e9f276bb663ed0b12e053d90a592997d3d337dda5650bda054c492b7f0488",
+          "src\\format\\output_file.hpp": "cf3ac408e90704c6daea6cbccab76521bc43657b2a4b48c1901bc5b776b0a478",
+          "src\\format\\raw_convert.hpp": "d663bec74cbc557cf96640cb5b6ef1c355847eb591ce9fa3b4724b1d260d4296",
+          "src\\hub\\manifest.hpp": "a3754cd8295c069efe649ef1c91155eed2c7846edadb8e17b5440b48af9eae3b",
+          "src\\hub\\pull.hpp": "cfa35941fb65b4f0aa524ba3f856055ffda247e7439d5bf186780655ca810ef0",
+          "src\\hub\\transport.hpp": "86ad5fbfb42f1277b2ef1eb89c3d67f17c2dc1506343aae5abdb5544c0d32163",
+          "src\\inference\\chat.hpp": "b6c9a105446eb2ec358ac8f3dcf23b6ab5b4ba00c583dad646206f742fb61b05",
+          "src\\inference\\generate.hpp": "339e6729cc35632b2233fbc1ca9da346361aa2554c6533edf714db0f0b837df2",
+          "src\\inference\\load.hpp": "0c5cf6a6a33f24f6930dc725bd359cf8401127eba779dc2db7a4234ff292fd68",
+          "src\\inference\\logprobs.hpp": "2f35e089bb17e74ea76789c7f9ab2552916c4ea9b152d7e03ef70ae8a12204c5",
+          "src\\inference\\perplexity.hpp": "af5059e232a7a4e72a74dbca7fc2273dc507ba3ba88c86b7c61f7087249072c6",
+          "src\\inference\\sampler.hpp": "7b73b51d2332426d29295c4e582bd27a53abafa83b40a3ea31db252ffcb9b6d9",
+          "src\\model\\architecture.hpp": "428c29e91091950f49b9465f5a864e5af1bc6460c9b5bf7bdbe4468433f56dbe",
+          "src\\model\\kv_cache.hpp": "74a0a840472d06a09fb888ecef8436dcf3ebddd65bcb0d0e032e79ef1aabdd89",
+          "src\\model\\layer_split.hpp": "765d25516ea164e71639030b24571261b530ba177e1d22297c96f5ebedebb847",
+          "src\\model\\place.hpp": "640fa2ddcad8c148145a3d3c5289a054595502871ad7bfb40c9d16dcb77a94ed",
+          "src\\model\\runtime.hpp": "39f4b4796c2fae1c689bdc1d1946be2aaf968cc2780ed65f83c7c4448e17f514",
+          "src\\model\\weights.hpp": "b30d720c31c956e78c31173c917d3b25fc8e52cc9eb884edd2f050ab78c923bb",
+          "src\\quant\\k_quants.hpp": "8e08ee1863012d5e2cb1af283bee22e0e5dae9f09e603ea9b90284d25361bb3a",
+          "src\\quant\\quant.hpp": "50603dcea2d86aebd1956fc20e691b25b69469ebd4e377f96a481b65165d621c",
+          "src\\quant\\types.hpp": "f8407af4e614657dc68dce8ed563e3ed044ae7db33504879c5f01e7625eb809c",
+          "src\\server\\api.hpp": "6b261c674985ea1141420688d808ae73047466731aa24f96850f01f7a27df62f",
+          "src\\server\\http.hpp": "64b6b5ae823d831bc497324fbaf301a895a0faaed5a85522d988bb7a0930ee39",
+          "src\\server\\policy.hpp": "aeccfeac12e10e882e8478ae20189426a03923557c6e9d00e66e80e83dfe56e5",
+          "src\\server\\scheduler.hpp": "873f694392994b33297740c71be733b1e28cf2534eb5ef4c827cdd4e861100a0",
+          "src\\tokenizer\\tokenizer.hpp": "0b214bd57673fd291c7e426b58340f333e5de1604af2304fbee6ce194b721016",
+          "src\\backends\\cpu\\cpu_backend.hpp": "e1e4a207b74636dee4f9eead14984490305c0775ed3bff75e8eeda34a5ef5aaa",
+          "src\\backends\\cpu\\prefill_placement.hpp": "fdadbcea2cb84f37f473eb2d23d01bcd68a18015fa402c5dd0d0f68c723d4f21",
+          "src\\backends\\cpu\\q8_dots.hpp": "72a6bb100f9ace0f7d7d4cd489b5314adfe2a0047edb15a2d0601f999816bbea",
+          "src\\backends\\vulkan\\vulkan_backend.cpp": "efc1e0433085326af25606e9eaa9e5922e607932fea45701b32937236ba530d6",
+          "src\\backends\\vulkan\\vulkan_backend.hpp": "84b6aa95617fbf46682b111b928152c851cd7521ba1731fdddbf1806504bbbbb",
+          "src\\backends\\vulkan\\shaders\\add.comp": "91864be8fd1929f0f9b6155b5d4d6316555e6d873b3a2c15fbf5064ec0ee959d",
+          "src\\backends\\vulkan\\shaders\\attention.comp": "cb413b67a8362ff8e8638b3618d9f0b4814de93d243c393670f354be6096d5c8",
+          "src\\backends\\vulkan\\shaders\\attention_merge.comp": "97ba9b091578763205051f7905eef32c1b90c9a30398a7ac27f94b098ecafb94",
+          "src\\backends\\vulkan\\shaders\\attention_tile.comp": "39f7059588ca75f4af4626b7bf519a21c8f67e67f83e11941b7b55a134bcf4aa",
+          "src\\backends\\vulkan\\shaders\\attention_vec.comp": "c07c8ae5537b6581eb5b7595df1644d0b95fa2e96cc940d75bffc67ede8af595",
+          "src\\backends\\vulkan\\shaders\\embed.comp": "2fde9462090f0ee13254653b204ef9ad1d09ef745d9e7987adb946f0fca40042",
+          "src\\backends\\vulkan\\shaders\\f16.glsl": "03706b6c90a6455a987f85aadcac9383c0e655d78a35a152534c71f82530445f",
+          "src\\backends\\vulkan\\shaders\\gather_rows.comp": "823643191b59a08e3e24ffb6c6920720cc199192e42b6bc3c149e62950de3c89",
+          "src\\backends\\vulkan\\shaders\\kv_write.comp": "98273b3b8b24c0a44728ccd43d120f1e835b0edfc8d561ac22fe828f69760002",
+          "src\\backends\\vulkan\\shaders\\matmul_reduce.comp": "97e6971a4e67694eb8e229e399e3ca0a02e136c4682baefca2a905aeebc6b035",
+          "src\\backends\\vulkan\\shaders\\matmul_row.comp": "4c5d5bfab64537839064d35468ba5d35217ff1e877be856a84edf8f4af9194bb",
+          "src\\backends\\vulkan\\shaders\\matmul_tile.comp": "7ffe4bc52ba87dd380d49f4d9dcc4e037c5f43abe6b61fec79de728cea1f1b5e",
+          "src\\backends\\vulkan\\shaders\\matmul_tile_q.comp": "4bbb6de59c6e7cebc88b451d46fae494f3dfb99d73b19b234ea4e9a594f37d2f",
+          "src\\backends\\vulkan\\shaders\\matmul_vec_q8.comp": "725d8da3980a6c68ead1a3d8b8b53a4dff4749aa97c8030218826dd57148e006",
+          "src\\backends\\vulkan\\shaders\\moe_combine.comp": "223f4ea4820ac56bb5d1288ace5ec2a0c69bec38a01bf6fc53b5edc157f94398",
+          "src\\backends\\vulkan\\shaders\\moe_group.comp": "c062113a83c8fcd96bb3755c774f713a873b6ef482b3a46c019f529ab0d69202",
+          "src\\backends\\vulkan\\shaders\\moe_route.comp": "c1bbb66364f776d8c37e55a5deade8a478acdec958618a1df17e1d42d8337d99",
+          "src\\backends\\vulkan\\shaders\\norm_rope_kv.comp": "6e0afc19ceb9ba1a6480cef21b98fe94ef468adc8279294513a2286c25fd8f7c",
+          "src\\backends\\vulkan\\shaders\\norm_rope_rows.comp": "e1d52d28a4253a98308147ac32b8c6bdf5fd6c32f8f84c3efc422d9214f6fe63",
+          "src\\backends\\vulkan\\shaders\\q.glsl": "cbb198159dface11fdd9a312747cbb86b0c77110996c80eb6d123262ad3a15fa",
+          "src\\backends\\vulkan\\shaders\\qdecode.glsl": "134b379e642c7139f0a74223c062587d97f3ac5a1263e4096afb4a996e3a58c8",
+          "src\\backends\\vulkan\\shaders\\quantize_x.comp": "93ca1ebc76569642e1cbcdec2dc24ec0dad86a39d2cae7226fe0bcf4c54f57e9",
+          "src\\backends\\vulkan\\shaders\\quantize_x8.comp": "42e8c78eea2ff4a85d93d9d2d9e9cc9ddb67452a3fa150d816d25942aac79496",
+          "src\\backends\\vulkan\\shaders\\rms_norm_rows.comp": "3ca604de0011ce4e0cc45fd81231c05bb2ba2ecfd9f3b91cfdd0727901402c9e",
+          "src\\backends\\vulkan\\shaders\\silu_mul.comp": "2ddb9a0848718ae0aaeed96df14972cae2b8d90eb7c80c500b78e0c16d9e140c",
+          "src\\backends\\vulkan\\shaders\\views.glsl": "fb26c2e68fd4ee07de1958160fa626ca92b69a786ddf964dd3b157f9fbf8edd3",
+          "src\\backends\\vulkan\\shaders\\xquant.glsl": "5130bd4247e9f2198efdbee771f81ddb04af6545db26980f5499333ead14800f",
+          "src\\model\\arch\\metadata.hpp": "4d610c5a3a902056cdb99138b446d3776b92c6e9db3c3238bd492ea7ef255936",
+          "src\\model\\arch\\qwen3.hpp": "ae9dc3e4e96c556721202d26270d8163dc44184ceb94658f06916a24979ab15f",
+          "src\\model\\arch\\registry.hpp": "8c846c7e2efc584e0be195dcdf5fee561ec191c6c750dde075b8ce51205bd384"
+        }
+      },
+      "candidate": {
+        "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-20260928",
+        "build": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\build-windows",
+        "library_sha256": "3c620de7567a23c5c9930f86ed5e80504b2179737231410982732887a1e76c22",
+        "exe_sha256": "535b389be84e3e2a29c3dbf0623f9b2075d93a36c2c2de434351fdd6f3b79584",
+        "source_files": {
+          "src\\config.hpp": "64c29b92f292b3bb77359d86668bc6fddb08de273e853c0eed5e54fc50647900",
+          "src\\backends\\backend.hpp": "a2ece5aa665f4394513dd3d79650ac3f896892f1ceb4f3130835f335233aeb63",
+          "src\\backends\\devices.hpp": "6271718c0adcae333d54d25521d87e8b13fc96014a7c7fb8e8d54713fe74b2f2",
+          "src\\backends\\device_profile.hpp": "f27ca29a0da211ef58de5183c5d370bc591a8e8b5b57f92ae03e33b46007e79b",
+          "src\\backends\\kv_storage.hpp": "d99513df97457fd98d0be0a69e12c838391aca1c60e5fc978d1d8f8695e62b9d",
+          "src\\cli\\main.cpp": "b4330ed0422c983e0f38a4aa510ad7b2fb83959590a9650ca15cbbed1567e5c6",
+          "src\\core\\cgroup.hpp": "386a32fb048e4c47930fd74cf8a5bee999ccb11ee21813137e3b6a576434cc5b",
+          "src\\core\\cpus.hpp": "743ba57c57f0f0373934f75f107e5e2bd993c90a53b1515e52d4c406bb79461e",
+          "src\\core\\fp16.hpp": "b792551e5a8c5a45969edbf7236ce43f83a859c3d8fee761d4a02401bbf05928",
+          "src\\core\\host_memory.hpp": "12c05b9363d86c980d8f792152ac204932887d810cd7acbef2ba113dd9336f34",
+          "src\\core\\json.hpp": "e1b1d59f83a2e32d83f24d6fd413e6fa24dc106b2b4491c58add992efca55a0d",
+          "src\\core\\list.hpp": "385d03a145039d04bf98d6202866483f7666df55a9a10ff239c6a8709b79c94c",
+          "src\\core\\sha.hpp": "288b428cbea4798e7f8a29e2b4735142fd51889e62d30a8423ff3f79a251f7a3",
+          "src\\core\\utf8.hpp": "af5469ac9946e89c9cf16fc1c95a60a4c3a81945417801141fed94305ab4fafc",
+          "src\\format\\file_reader.hpp": "e0f3a831b4c4e2e0c2cb6c3f9921efd5421790c157718a4af515b4685656b4a3",
+          "src\\format\\format.hpp": "3550b93078aa475af9d5af88bd7537175d697fdb9ccff3deff51f7d595fd7e2d",
+          "src\\format\\gguf.hpp": "e8215de4c78a0f4f6ee33000fc1488513c24ace7de7a0212c098f40b0032d9e4",
+          "src\\format\\mapped_file.hpp": "856e9f276bb663ed0b12e053d90a592997d3d337dda5650bda054c492b7f0488",
+          "src\\format\\output_file.hpp": "cf3ac408e90704c6daea6cbccab76521bc43657b2a4b48c1901bc5b776b0a478",
+          "src\\format\\raw_convert.hpp": "d663bec74cbc557cf96640cb5b6ef1c355847eb591ce9fa3b4724b1d260d4296",
+          "src\\hub\\manifest.hpp": "a3754cd8295c069efe649ef1c91155eed2c7846edadb8e17b5440b48af9eae3b",
+          "src\\hub\\pull.hpp": "cfa35941fb65b4f0aa524ba3f856055ffda247e7439d5bf186780655ca810ef0",
+          "src\\hub\\transport.hpp": "86ad5fbfb42f1277b2ef1eb89c3d67f17c2dc1506343aae5abdb5544c0d32163",
+          "src\\inference\\chat.hpp": "b6c9a105446eb2ec358ac8f3dcf23b6ab5b4ba00c583dad646206f742fb61b05",
+          "src\\inference\\generate.hpp": "339e6729cc35632b2233fbc1ca9da346361aa2554c6533edf714db0f0b837df2",
+          "src\\inference\\load.hpp": "0c5cf6a6a33f24f6930dc725bd359cf8401127eba779dc2db7a4234ff292fd68",
+          "src\\inference\\logprobs.hpp": "2f35e089bb17e74ea76789c7f9ab2552916c4ea9b152d7e03ef70ae8a12204c5",
+          "src\\inference\\perplexity.hpp": "af5059e232a7a4e72a74dbca7fc2273dc507ba3ba88c86b7c61f7087249072c6",
+          "src\\inference\\sampler.hpp": "7b73b51d2332426d29295c4e582bd27a53abafa83b40a3ea31db252ffcb9b6d9",
+          "src\\model\\architecture.hpp": "428c29e91091950f49b9465f5a864e5af1bc6460c9b5bf7bdbe4468433f56dbe",
+          "src\\model\\kv_cache.hpp": "74a0a840472d06a09fb888ecef8436dcf3ebddd65bcb0d0e032e79ef1aabdd89",
+          "src\\model\\layer_split.hpp": "765d25516ea164e71639030b24571261b530ba177e1d22297c96f5ebedebb847",
+          "src\\model\\place.hpp": "640fa2ddcad8c148145a3d3c5289a054595502871ad7bfb40c9d16dcb77a94ed",
+          "src\\model\\runtime.hpp": "68d27b7372142f80b4167738d2a0ed45e1abd63c02419dd2945b69699d8712e2",
+          "src\\model\\weights.hpp": "b30d720c31c956e78c31173c917d3b25fc8e52cc9eb884edd2f050ab78c923bb",
+          "src\\quant\\k_quants.hpp": "8e08ee1863012d5e2cb1af283bee22e0e5dae9f09e603ea9b90284d25361bb3a",
+          "src\\quant\\quant.hpp": "50603dcea2d86aebd1956fc20e691b25b69469ebd4e377f96a481b65165d621c",
+          "src\\quant\\types.hpp": "f8407af4e614657dc68dce8ed563e3ed044ae7db33504879c5f01e7625eb809c",
+          "src\\server\\api.hpp": "6b261c674985ea1141420688d808ae73047466731aa24f96850f01f7a27df62f",
+          "src\\server\\http.hpp": "64b6b5ae823d831bc497324fbaf301a895a0faaed5a85522d988bb7a0930ee39",
+          "src\\server\\policy.hpp": "aeccfeac12e10e882e8478ae20189426a03923557c6e9d00e66e80e83dfe56e5",
+          "src\\server\\scheduler.hpp": "873f694392994b33297740c71be733b1e28cf2534eb5ef4c827cdd4e861100a0",
+          "src\\tokenizer\\tokenizer.hpp": "0b214bd57673fd291c7e426b58340f333e5de1604af2304fbee6ce194b721016",
+          "src\\backends\\cpu\\cpu_backend.hpp": "5352757d4ebee7f7ef20a88fcd8e9b8a8d5eb85eab2978ed207534160351061d",
+          "src\\backends\\cpu\\prefill_placement.hpp": "fdadbcea2cb84f37f473eb2d23d01bcd68a18015fa402c5dd0d0f68c723d4f21",
+          "src\\backends\\cpu\\q8_dots.hpp": "72a6bb100f9ace0f7d7d4cd489b5314adfe2a0047edb15a2d0601f999816bbea",
+          "src\\backends\\vulkan\\vulkan_backend.cpp": "deda2a8e6723bb1bd84722a824cbb43d7450b160ca6f3024d64e22bd4c05965f",
+          "src\\backends\\vulkan\\vulkan_backend.hpp": "84b6aa95617fbf46682b111b928152c851cd7521ba1731fdddbf1806504bbbbb",
+          "src\\backends\\vulkan\\shaders\\add.comp": "91864be8fd1929f0f9b6155b5d4d6316555e6d873b3a2c15fbf5064ec0ee959d",
+          "src\\backends\\vulkan\\shaders\\attention.comp": "cb413b67a8362ff8e8638b3618d9f0b4814de93d243c393670f354be6096d5c8",
+          "src\\backends\\vulkan\\shaders\\attention_merge.comp": "97ba9b091578763205051f7905eef32c1b90c9a30398a7ac27f94b098ecafb94",
+          "src\\backends\\vulkan\\shaders\\attention_tile.comp": "39f7059588ca75f4af4626b7bf519a21c8f67e67f83e11941b7b55a134bcf4aa",
+          "src\\backends\\vulkan\\shaders\\attention_vec.comp": "c07c8ae5537b6581eb5b7595df1644d0b95fa2e96cc940d75bffc67ede8af595",
+          "src\\backends\\vulkan\\shaders\\embed.comp": "2fde9462090f0ee13254653b204ef9ad1d09ef745d9e7987adb946f0fca40042",
+          "src\\backends\\vulkan\\shaders\\f16.glsl": "03706b6c90a6455a987f85aadcac9383c0e655d78a35a152534c71f82530445f",
+          "src\\backends\\vulkan\\shaders\\gather_rows.comp": "823643191b59a08e3e24ffb6c6920720cc199192e42b6bc3c149e62950de3c89",
+          "src\\backends\\vulkan\\shaders\\kv_write.comp": "98273b3b8b24c0a44728ccd43d120f1e835b0edfc8d561ac22fe828f69760002",
+          "src\\backends\\vulkan\\shaders\\matmul_reduce.comp": "97e6971a4e67694eb8e229e399e3ca0a02e136c4682baefca2a905aeebc6b035",
+          "src\\backends\\vulkan\\shaders\\matmul_row.comp": "4c5d5bfab64537839064d35468ba5d35217ff1e877be856a84edf8f4af9194bb",
+          "src\\backends\\vulkan\\shaders\\matmul_tile.comp": "7ffe4bc52ba87dd380d49f4d9dcc4e037c5f43abe6b61fec79de728cea1f1b5e",
+          "src\\backends\\vulkan\\shaders\\matmul_tile_q.comp": "4bbb6de59c6e7cebc88b451d46fae494f3dfb99d73b19b234ea4e9a594f37d2f",
+          "src\\backends\\vulkan\\shaders\\matmul_vec_q8.comp": "725d8da3980a6c68ead1a3d8b8b53a4dff4749aa97c8030218826dd57148e006",
+          "src\\backends\\vulkan\\shaders\\moe_combine.comp": "223f4ea4820ac56bb5d1288ace5ec2a0c69bec38a01bf6fc53b5edc157f94398",
+          "src\\backends\\vulkan\\shaders\\moe_group.comp": "c062113a83c8fcd96bb3755c774f713a873b6ef482b3a46c019f529ab0d69202",
+          "src\\backends\\vulkan\\shaders\\moe_route.comp": "c1bbb66364f776d8c37e55a5deade8a478acdec958618a1df17e1d42d8337d99",
+          "src\\backends\\vulkan\\shaders\\norm_rope_kv.comp": "6e0afc19ceb9ba1a6480cef21b98fe94ef468adc8279294513a2286c25fd8f7c",
+          "src\\backends\\vulkan\\shaders\\norm_rope_rows.comp": "e1d52d28a4253a98308147ac32b8c6bdf5fd6c32f8f84c3efc422d9214f6fe63",
+          "src\\backends\\vulkan\\shaders\\q.glsl": "cbb198159dface11fdd9a312747cbb86b0c77110996c80eb6d123262ad3a15fa",
+          "src\\backends\\vulkan\\shaders\\qdecode.glsl": "134b379e642c7139f0a74223c062587d97f3ac5a1263e4096afb4a996e3a58c8",
+          "src\\backends\\vulkan\\shaders\\quantize_x.comp": "93ca1ebc76569642e1cbcdec2dc24ec0dad86a39d2cae7226fe0bcf4c54f57e9",
+          "src\\backends\\vulkan\\shaders\\quantize_x8.comp": "42e8c78eea2ff4a85d93d9d2d9e9cc9ddb67452a3fa150d816d25942aac79496",
+          "src\\backends\\vulkan\\shaders\\rms_norm_rows.comp": "3ca604de0011ce4e0cc45fd81231c05bb2ba2ecfd9f3b91cfdd0727901402c9e",
+          "src\\backends\\vulkan\\shaders\\silu_mul.comp": "2ddb9a0848718ae0aaeed96df14972cae2b8d90eb7c80c500b78e0c16d9e140c",
+          "src\\backends\\vulkan\\shaders\\views.glsl": "fb26c2e68fd4ee07de1958160fa626ca92b69a786ddf964dd3b157f9fbf8edd3",
+          "src\\backends\\vulkan\\shaders\\xquant.glsl": "5130bd4247e9f2198efdbee771f81ddb04af6545db26980f5499333ead14800f",
+          "src\\model\\arch\\metadata.hpp": "4d610c5a3a902056cdb99138b446d3776b92c6e9db3c3238bd492ea7ef255936",
+          "src\\model\\arch\\qwen3.hpp": "ae9dc3e4e96c556721202d26270d8163dc44184ceb94658f06916a24979ab15f",
+          "src\\model\\arch\\registry.hpp": "8c846c7e2efc584e0be195dcdf5fee561ec191c6c750dde075b8ce51205bd384"
+        }
+      }
+    },
+    "identical_shader_modules": {
+      "generated\\vulkan\\add.inc": "c5fcf6022b9dd4d471666924d51762739ba7dd4b4899923dcac2867034d3889a",
+      "generated\\vulkan\\attention.inc": "a3e2da6110a628b064d81e5f719de4d7fcad17b54de5acc61a9ecea392e6084c",
+      "generated\\vulkan\\attention_g4.inc": "6b14d8fc57854cae049e5127642d8a8849081eb71d6c48558f49b91b3400ecdf",
+      "generated\\vulkan\\attention_k16.inc": "01f13d5beda5a761a549a32b8767a931bab0301f6aeba7538b6a92dfa6ce2835",
+      "generated\\vulkan\\attention_k16_g4.inc": "05a83ee4843ab1e156ed2a5d315987a2a8cb04d49501ad3eeee64fddb72e18c2",
+      "generated\\vulkan\\attention_kv16.inc": "44201ae05ebb2a1950618df1cfe19d6b5b93a40bc8aac819c3e2ada64b1a4bf4",
+      "generated\\vulkan\\attention_kv16_g4.inc": "8ec5906ab76d525d18363cc3f5e0552e78804a89cb3eef28453cc0e540f4ed91",
+      "generated\\vulkan\\attention_merge.inc": "feb58c642ed5c6583e558cc602f42ef16e107aa9b45f0db36ae9a3b3dd4622d2",
+      "generated\\vulkan\\attention_tile.inc": "f7567842ba47683e24516d2886b64f55e40bd94fceb4db9e5c6dba58961efd71",
+      "generated\\vulkan\\attention_tile_k16.inc": "06de9a43d688372793c682335eebca909a1ba7821dd3255eb52b4d1484a50963",
+      "generated\\vulkan\\attention_tile_kv16.inc": "2ed9756aff1a61ed1a171009dd7c001e3631dbeab938503115da6880f6a6c7bb",
+      "generated\\vulkan\\attention_tile_v16.inc": "7b2b5c3e0c465952d8ff0ecd2c23b7c0d9a0f819271bf3e1727a13a4fcce2e43",
+      "generated\\vulkan\\attention_v16.inc": "81e1e63f0c28c41333d16c2cd541b9a3a1bb35ff7da7aeb7f37a39ac7f53006a",
+      "generated\\vulkan\\attention_v16_g4.inc": "291c5d6a232392e2680bb09cee6bacdda9aec6369bd6dbe2175eb44df9e1ec54",
+      "generated\\vulkan\\attention_vec.inc": "39579a6110406e270e6790ad82bd666bb133dc5ed9411002ac00edc7cf788739",
+      "generated\\vulkan\\attention_vec_g4.inc": "fb72a79d80840cac93796d54561cd18be5369f69f52afbc03c40d8dda9929046",
+      "generated\\vulkan\\attention_vec_k16.inc": "ed9fb8cfbfc676f69592a044ee3ba92e59e98a213b86b1fe5b811c6fad2bee5b",
+      "generated\\vulkan\\attention_vec_k16_g4.inc": "092173a177d515bda39acfa55ea9c212ba0a238cdbe87397eb04eb2cce1ea4dc",
+      "generated\\vulkan\\attention_vec_kv16.inc": "8a16509b1e5f50e64af173b479562a4ffd46a8b86a382cb42c4de1663d82b488",
+      "generated\\vulkan\\attention_vec_kv16_g4.inc": "b0ae7fbed18e97ae7354d4d3a5608b8bf989d8d34f9185d6561832551f629db7",
+      "generated\\vulkan\\attention_vec_v16.inc": "c4b70ea8cd3c28e82082082e214cd1269649795ea330a4931dedb159e99f510a",
+      "generated\\vulkan\\attention_vec_v16_g4.inc": "7108d26e428d3cb99340561daf631734baed1b90c3cd7df1509d5c62f64e2c1b",
+      "generated\\vulkan\\embed.inc": "02871b0de0885a67ec3094122d420808e91bc9815807d8c8f92ef03ecdc4b9f7",
+      "generated\\vulkan\\gather_rows.inc": "18fb48ad4171822401e69747ac3d60ec074dc1f24a8ab7ae094a93f0f9ead37a",
+      "generated\\vulkan\\kv_write.inc": "5789604e44fd11500b770aae6359b54db994e744a08afd4fba3999baa02f6f18",
+      "generated\\vulkan\\kv_write_k16.inc": "2fc21e27676237e63da86a5b311a1dae6aecaca59d3cc84374b79f1c92598847",
+      "generated\\vulkan\\kv_write_kv16.inc": "551ce7dc2e957ae9876c6d54a522791d3340832fae73c3acb605ac9dd2212776",
+      "generated\\vulkan\\kv_write_v16.inc": "d690a6a6e3e9f3fda4bc1b2dee74f68cf7093ea60599b94f16279d4bf3024c62",
+      "generated\\vulkan\\matmul_reduce.inc": "cb397b35c152ae077a9a82fd046fd3561c3ab66a6877e8521d04bfb34c8e2391",
+      "generated\\vulkan\\matmul_row.inc": "95bcbff31d7a9a8122d9eea9b0c1fdadd8ac4dd57c976e9a4c1be0279fb086cc",
+      "generated\\vulkan\\matmul_row_k.inc": "ff6148175af258dbe5c7bf493aea06bcd88992bf73330cc8592c6b72a68214f5",
+      "generated\\vulkan\\matmul_row_k4.inc": "1158bb40f69f70d746b00d0b73c7952e5fbba3c337b1c57c7ffcd4ffc30a87bf",
+      "generated\\vulkan\\matmul_row_k4_dot.inc": "4089cb219f6647d5369182538639667921cf8af48526c939991a88cc59c1f688",
+      "generated\\vulkan\\matmul_row_k5.inc": "1039ceacb560e75e38015beed57ccdf5c6878d95d2e7011d17305cfcdae4e354",
+      "generated\\vulkan\\matmul_row_k5_dot.inc": "8cb659b88008e2a7d33af3400d87f1551b3b235efccb83dc40d41dea9eadcbb2",
+      "generated\\vulkan\\matmul_row_k_dot.inc": "405b3ec5bb1f9792602a9b8f44d1d4aac4b0b6f93a6deb6e3068462a054da521",
+      "generated\\vulkan\\matmul_row_k_dot8.inc": "c100560ba94049ad9cc54b5f36d1cd96638b5821c81b57a81c300d4f1be5ec14",
+      "generated\\vulkan\\matmul_row_q4.inc": "671baf9419adfb6d217af2d1d73226a7835fa2a625a42337d505088dc93e400f",
+      "generated\\vulkan\\matmul_row_q4_dot.inc": "239eccf9b4e1429953bbf489f709989f96e14bbb79b3f1525a9994dba39743d3",
+      "generated\\vulkan\\matmul_row_q4_dot8.inc": "91dc5d79b7a652b191b1085e9dbb90997bb21f2f88117b735405e273ecb614bb",
+      "generated\\vulkan\\matmul_row_q8w.inc": "bcf35daaa93bf491aaf26c9b374fb841767172aa97d4f4ea46ffbff6939d1962",
+      "generated\\vulkan\\matmul_tile.inc": "64e0fdfd40eff7ae08a3e298e2684b4200773f4f2cc9d7785c6eb1ae40d02133",
+      "generated\\vulkan\\matmul_tile_q.inc": "8c665ffe2639198cba56a8a2e47e6cdf9d653481dde1a0d6d2675b90c4f021fe",
+      "generated\\vulkan\\matmul_tile_q6.inc": "6feebb4d668d21e63c98d5301bc0b3ed44dd31d4961900262901c02ba3de144e",
+      "generated\\vulkan\\matmul_tile_q8.inc": "1b2ef8441456820ed86ec4d710e898b144a2e262668f9a3c01fa7165b276549c",
+      "generated\\vulkan\\matmul_vec_q8.inc": "b6c3a0fb42693bb6df4786bb658beb515275ed35f7cc800a8ba3031f7be414dd",
+      "generated\\vulkan\\moe_combine.inc": "e17faceaa27dda05a3819a8a820414075a23dc16901c3b8c820a4968db1bfedb",
+      "generated\\vulkan\\moe_group.inc": "458b03961154674db9415cc19e5e7d17f475b0088bfe44447e2fcfdd03330a80",
+      "generated\\vulkan\\moe_route.inc": "d3b45c96874daa5aad108d06725d78ac2e3207d8cd50bf4ce70054df56341c3c",
+      "generated\\vulkan\\norm_rope_kv.inc": "669c52250612b206b521528666a3ce935cbe817f521ba4505ca848d8946e9423",
+      "generated\\vulkan\\norm_rope_kv_k16.inc": "96ecaa50156442568274c95adf63a0076c2f628c4a1505d365a9e6217d385744",
+      "generated\\vulkan\\norm_rope_kv_kv16.inc": "863e8da899f2d189c99ab1d39cd14e5dc8263aa6597f4a92e3b784a15643ed90",
+      "generated\\vulkan\\norm_rope_kv_v16.inc": "4bea3ba7dd10ef89605f447fa31a06e465fcc937b271275d5172e06da117140c",
+      "generated\\vulkan\\norm_rope_rows.inc": "76c0ec2c44603934348ab149bb790cb0e0a30214e9367cb448c93f3589f50352",
+      "generated\\vulkan\\quantize_x.inc": "d7854f025f23fba17c14e1e64d9c3c55efaa32adb7648e9a709b37242c040a66",
+      "generated\\vulkan\\quantize_x8.inc": "61c4e3f684c1231ec9fd06ca4cf76300b8688786c394ba43a85210a5c0e73e76",
+      "generated\\vulkan\\rms_norm_rows.inc": "6c68623f7fe8bbd32c965d2ea155f3ae9d60f5a6341eb7befbf423ec6cd3f3ce",
+      "generated\\vulkan\\silu_mul.inc": "5852ceda355cc5dd5f6be2448b68c6aadc6ca3ee15cb3120182968d4474d1e0c"
+    },
+    "completed": "2026-09-28T10:47:50.416650+00:00"
+  },
+  "windows_archive": {
+    "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\type-capability-main-windows-20260928.tar.gz",
+    "sha256": "2f85a89b3bd213801ecc5a3459488b11bb0937f7c89fa3bab3d81244fb018de3",
+    "bytes": 27424606,
+    "files": {
+      "AGENTS.md.patch": "aaac34718db6a62ea459b9cd2678fe4ea03a6a63b4a5785e20f2e001c7549173",
+      "base-build.log": "46faf325917f2c739d400f5349283b92eb989e6876a2a74136e8f6f5b936f7ea",
+      "base-configure.log": "f0468e157381857af672f86311ccfb77d1672b15341c3360cc9827fcb4c6e907",
+      "docs_ADDING-AN-ARCHITECTURE.md.patch": "f27e0e6be32dbb34bbef4817cb5d637d0a6bf6db88ee00fce8a3423c1de6d035",
+      "docs_ARCHITECTURE.md.patch": "6edf068255c330f4fadb00f71f51d6168dfc97f0b977319cc00937c952d4dbef",
+      "docs_src_backends-backend.md.patch": "2c51a2597272e9ebe1a0f2ecb70255ac83e4fe14dd94cdc53b6946ffc470417a",
+      "docs_src_backends-cpu.md.patch": "3f1bb615e0412eb28607ced1e9dce1bf2649d8c937364ff24f553d8918f0bd67",
+      "docs_src_backends-vulkan.md.patch": "c6350c3a6fb16c338d4afb84e151e7e8ce01e0a4ce228f35455e1609938759ac",
+      "docs_src_inference-load.md.patch": "3c46e1be264723501db5bde867eda6ac7d3cf3f3cfb09b058f4018c1028ddf3d",
+      "docs_src_model-place.md.patch": "94c27057f6944a1b17a155ab2083f5a18a55dedad27eabfa0abf35f97dee6992",
+      "docs_src_model-runtime.md.patch": "1ee3ac38d6ed9fc05110b1c5770dc0bd493cd379ed8fd6a78047b1442e16a184",
+      "docs_USAGE.md.patch": "d826a90e9decd9f94d01b9fe3703ab166992df051816548f0569312887b931a4",
+      "identity-build-state.json": "0eef6e2e140796ed211e95b8cee5772668652f9dd2fd10ba4ea6c883c2449b99",
+      "identity-build.log": "c79033ef1d869ebbeb2f693246dafa1a223883e59acc9e1f184fec474f071f8a",
+      "identity-complete.json": "f8f227c327594a4e0e6ecb941c9e3e3c9cf4c84e03121b076423a042c10053d3",
+      "identity-configure.log": "6a033d0146a0f42ea1408a06b831e743cd06370a5cc44ec8ebb679b00e3d52ca",
+      "identity-state.json": "f8f227c327594a4e0e6ecb941c9e3e3c9cf4c84e03121b076423a042c10053d3",
+      "identity_run.py": "5804d42cd619d72753736aadc417a109a4710bb5f592952b129f7210b48c7248",
+      "linux-report.json": "afe3b767d45e4b375468b8d6f79f75ada9aa0cdc325a55e3043e3c846977f9ad",
+      "port-build.log": "56a2a9dc25f47abd4c830d570bfd5be836a2477ebdc68d871a8a89f424fdcd78",
+      "port-incomplete-manifest.log": "931655be59a8a39e2700bd7fe7d857e82a68a0161c9016751c3166727d8511bd",
+      "port-test.log": "1ab12349cb3124654473872fcd804b060c5cc20605036f17760301fe0137cd59",
+      "source.json": "daab902fdd6bd64a15d709101cbbf50ae5eb5feb4d2541a23c13bfdbb3487746",
+      "test-first-build.log": "0247d1beb6627ccc20ebef46fa6aeddd8911c47f83abd3a460a29b0347de221a",
+      "test-first-configure.log": "481d006aa63eb4c56178fd8b924b37e76dcc2dfc6a50cfad70fdabb20d652b60",
+      "test-first-test.log": "a33ea212f2f2e43bd3d038fb8b84b170ce5f71e23694b1e6338eea8ff12b17b5",
+      "test-first.json": "ce78bf167d20697baebb193927bdb01dd34e5660d37569ad54f9a69d25bb803e",
+      "windows-build.log": "abefbdd733b1666812606ea269cb52374fc2585acda7d6c0fbdc1b3c23894af9",
+      "windows-complete.json": "412e4ff7605c5f8882f25a59502e7fb432d4a0a1ef7094e911053150bf06a2b2",
+      "windows-configure.log": "c7349a26d2a0dd162c06095cf0a43c010c83c9201b43707b024d1f612d3521f2",
+      "windows-native.log": "26725690ba610947a6d3f1e4fd9dce054fcc696783958492816340e12525ced0",
+      "windows-state.json": "412e4ff7605c5f8882f25a59502e7fb432d4a0a1ef7094e911053150bf06a2b2",
+      "windows-suite.log": "a2d48dbfc53e6840dd38cbd0c59a56a3813926da6c46af2598f9009cd5d3c005",
+      "windows_run.py": "63b57faf10867ac2475bd6b9ca9e79202a2adb97c6c36c55fe20c9cdd6feb3a4",
+      "source.tar.gz": "3e539078bc2a8777d08c000f6d9675d8bdf552e0a20c8be6aad7c735e27db7ec",
+      "main-source.tar.gz": "f7cf7b851614ad16ca4dc907153abfa511c9bfce5689f3716dcd41bc25438936",
+      "identity-project/arms.json": "29096e9c14243fb2088a634b51f94c5fcb3ff4f9e0dbaf009d6b1c49a8586287",
+      "identity-project/CMakeLists.txt": "1cbf7663adfa3eefd1846e36e5014050777c7016e31712ad59443a00b44fe920",
+      "identity-project/ids.txt": "e68287079c102f53893ada2d7913acd00abd0ad2f8238e14c1318826a152793a",
+      "identity-project/raw_model.cpp": "52de91b70573d1a8a4d9928cc7f80565286a7b35d7f7ac39c05193b3d0c733d8",
+      "build-windows/generated/vulkan/add.inc": "c5fcf6022b9dd4d471666924d51762739ba7dd4b4899923dcac2867034d3889a",
+      "build-windows/generated/vulkan/attention.inc": "a3e2da6110a628b064d81e5f719de4d7fcad17b54de5acc61a9ecea392e6084c",
+      "build-windows/generated/vulkan/attention_g4.inc": "6b14d8fc57854cae049e5127642d8a8849081eb71d6c48558f49b91b3400ecdf",
+      "build-windows/generated/vulkan/attention_k16.inc": "01f13d5beda5a761a549a32b8767a931bab0301f6aeba7538b6a92dfa6ce2835",
+      "build-windows/generated/vulkan/attention_k16_g4.inc": "05a83ee4843ab1e156ed2a5d315987a2a8cb04d49501ad3eeee64fddb72e18c2",
+      "build-windows/generated/vulkan/attention_kv16.inc": "44201ae05ebb2a1950618df1cfe19d6b5b93a40bc8aac819c3e2ada64b1a4bf4",
+      "build-windows/generated/vulkan/attention_kv16_g4.inc": "8ec5906ab76d525d18363cc3f5e0552e78804a89cb3eef28453cc0e540f4ed91",
+      "build-windows/generated/vulkan/attention_merge.inc": "feb58c642ed5c6583e558cc602f42ef16e107aa9b45f0db36ae9a3b3dd4622d2",
+      "build-windows/generated/vulkan/attention_tile.inc": "f7567842ba47683e24516d2886b64f55e40bd94fceb4db9e5c6dba58961efd71",
+      "build-windows/generated/vulkan/attention_tile_k16.inc": "06de9a43d688372793c682335eebca909a1ba7821dd3255eb52b4d1484a50963",
+      "build-windows/generated/vulkan/attention_tile_kv16.inc": "2ed9756aff1a61ed1a171009dd7c001e3631dbeab938503115da6880f6a6c7bb",
+      "build-windows/generated/vulkan/attention_tile_v16.inc": "7b2b5c3e0c465952d8ff0ecd2c23b7c0d9a0f819271bf3e1727a13a4fcce2e43",
+      "build-windows/generated/vulkan/attention_v16.inc": "81e1e63f0c28c41333d16c2cd541b9a3a1bb35ff7da7aeb7f37a39ac7f53006a",
+      "build-windows/generated/vulkan/attention_v16_g4.inc": "291c5d6a232392e2680bb09cee6bacdda9aec6369bd6dbe2175eb44df9e1ec54",
+      "build-windows/generated/vulkan/attention_vec.inc": "39579a6110406e270e6790ad82bd666bb133dc5ed9411002ac00edc7cf788739",
+      "build-windows/generated/vulkan/attention_vec_g4.inc": "fb72a79d80840cac93796d54561cd18be5369f69f52afbc03c40d8dda9929046",
+      "build-windows/generated/vulkan/attention_vec_k16.inc": "ed9fb8cfbfc676f69592a044ee3ba92e59e98a213b86b1fe5b811c6fad2bee5b",
+      "build-windows/generated/vulkan/attention_vec_k16_g4.inc": "092173a177d515bda39acfa55ea9c212ba0a238cdbe87397eb04eb2cce1ea4dc",
+      "build-windows/generated/vulkan/attention_vec_kv16.inc": "8a16509b1e5f50e64af173b479562a4ffd46a8b86a382cb42c4de1663d82b488",
+      "build-windows/generated/vulkan/attention_vec_kv16_g4.inc": "b0ae7fbed18e97ae7354d4d3a5608b8bf989d8d34f9185d6561832551f629db7",
+      "build-windows/generated/vulkan/attention_vec_v16.inc": "c4b70ea8cd3c28e82082082e214cd1269649795ea330a4931dedb159e99f510a",
+      "build-windows/generated/vulkan/attention_vec_v16_g4.inc": "7108d26e428d3cb99340561daf631734baed1b90c3cd7df1509d5c62f64e2c1b",
+      "build-windows/generated/vulkan/embed.inc": "02871b0de0885a67ec3094122d420808e91bc9815807d8c8f92ef03ecdc4b9f7",
+      "build-windows/generated/vulkan/gather_rows.inc": "18fb48ad4171822401e69747ac3d60ec074dc1f24a8ab7ae094a93f0f9ead37a",
+      "build-windows/generated/vulkan/kv_write.inc": "5789604e44fd11500b770aae6359b54db994e744a08afd4fba3999baa02f6f18",
+      "build-windows/generated/vulkan/kv_write_k16.inc": "2fc21e27676237e63da86a5b311a1dae6aecaca59d3cc84374b79f1c92598847",
+      "build-windows/generated/vulkan/kv_write_kv16.inc": "551ce7dc2e957ae9876c6d54a522791d3340832fae73c3acb605ac9dd2212776",
+      "build-windows/generated/vulkan/kv_write_v16.inc": "d690a6a6e3e9f3fda4bc1b2dee74f68cf7093ea60599b94f16279d4bf3024c62",
+      "build-windows/generated/vulkan/matmul_reduce.inc": "cb397b35c152ae077a9a82fd046fd3561c3ab66a6877e8521d04bfb34c8e2391",
+      "build-windows/generated/vulkan/matmul_row.inc": "95bcbff31d7a9a8122d9eea9b0c1fdadd8ac4dd57c976e9a4c1be0279fb086cc",
+      "build-windows/generated/vulkan/matmul_row_k.inc": "ff6148175af258dbe5c7bf493aea06bcd88992bf73330cc8592c6b72a68214f5",
+      "build-windows/generated/vulkan/matmul_row_k4.inc": "1158bb40f69f70d746b00d0b73c7952e5fbba3c337b1c57c7ffcd4ffc30a87bf",
+      "build-windows/generated/vulkan/matmul_row_k4_dot.inc": "4089cb219f6647d5369182538639667921cf8af48526c939991a88cc59c1f688",
+      "build-windows/generated/vulkan/matmul_row_k5.inc": "1039ceacb560e75e38015beed57ccdf5c6878d95d2e7011d17305cfcdae4e354",
+      "build-windows/generated/vulkan/matmul_row_k5_dot.inc": "8cb659b88008e2a7d33af3400d87f1551b3b235efccb83dc40d41dea9eadcbb2",
+      "build-windows/generated/vulkan/matmul_row_k_dot.inc": "405b3ec5bb1f9792602a9b8f44d1d4aac4b0b6f93a6deb6e3068462a054da521",
+      "build-windows/generated/vulkan/matmul_row_k_dot8.inc": "c100560ba94049ad9cc54b5f36d1cd96638b5821c81b57a81c300d4f1be5ec14",
+      "build-windows/generated/vulkan/matmul_row_q4.inc": "671baf9419adfb6d217af2d1d73226a7835fa2a625a42337d505088dc93e400f",
+      "build-windows/generated/vulkan/matmul_row_q4_dot.inc": "239eccf9b4e1429953bbf489f709989f96e14bbb79b3f1525a9994dba39743d3",
+      "build-windows/generated/vulkan/matmul_row_q4_dot8.inc": "91dc5d79b7a652b191b1085e9dbb90997bb21f2f88117b735405e273ecb614bb",
+      "build-windows/generated/vulkan/matmul_row_q8w.inc": "bcf35daaa93bf491aaf26c9b374fb841767172aa97d4f4ea46ffbff6939d1962",
+      "build-windows/generated/vulkan/matmul_tile.inc": "64e0fdfd40eff7ae08a3e298e2684b4200773f4f2cc9d7785c6eb1ae40d02133",
+      "build-windows/generated/vulkan/matmul_tile_q.inc": "8c665ffe2639198cba56a8a2e47e6cdf9d653481dde1a0d6d2675b90c4f021fe",
+      "build-windows/generated/vulkan/matmul_tile_q6.inc": "6feebb4d668d21e63c98d5301bc0b3ed44dd31d4961900262901c02ba3de144e",
+      "build-windows/generated/vulkan/matmul_tile_q8.inc": "1b2ef8441456820ed86ec4d710e898b144a2e262668f9a3c01fa7165b276549c",
+      "build-windows/generated/vulkan/matmul_vec_q8.inc": "b6c3a0fb42693bb6df4786bb658beb515275ed35f7cc800a8ba3031f7be414dd",
+      "build-windows/generated/vulkan/moe_combine.inc": "e17faceaa27dda05a3819a8a820414075a23dc16901c3b8c820a4968db1bfedb",
+      "build-windows/generated/vulkan/moe_group.inc": "458b03961154674db9415cc19e5e7d17f475b0088bfe44447e2fcfdd03330a80",
+      "build-windows/generated/vulkan/moe_route.inc": "d3b45c96874daa5aad108d06725d78ac2e3207d8cd50bf4ce70054df56341c3c",
+      "build-windows/generated/vulkan/norm_rope_kv.inc": "669c52250612b206b521528666a3ce935cbe817f521ba4505ca848d8946e9423",
+      "build-windows/generated/vulkan/norm_rope_kv_k16.inc": "96ecaa50156442568274c95adf63a0076c2f628c4a1505d365a9e6217d385744",
+      "build-windows/generated/vulkan/norm_rope_kv_kv16.inc": "863e8da899f2d189c99ab1d39cd14e5dc8263aa6597f4a92e3b784a15643ed90",
+      "build-windows/generated/vulkan/norm_rope_kv_v16.inc": "4bea3ba7dd10ef89605f447fa31a06e465fcc937b271275d5172e06da117140c",
+      "build-windows/generated/vulkan/norm_rope_rows.inc": "76c0ec2c44603934348ab149bb790cb0e0a30214e9367cb448c93f3589f50352",
+      "build-windows/generated/vulkan/quantize_x.inc": "d7854f025f23fba17c14e1e64d9c3c55efaa32adb7648e9a709b37242c040a66",
+      "build-windows/generated/vulkan/quantize_x8.inc": "61c4e3f684c1231ec9fd06ca4cf76300b8688786c394ba43a85210a5c0e73e76",
+      "build-windows/generated/vulkan/rms_norm_rows.inc": "6c68623f7fe8bbd32c965d2ea155f3ae9d60f5a6341eb7befbf423ec6cd3f3ce",
+      "build-windows/generated/vulkan/silu_mul.inc": "5852ceda355cc5dd5f6be2448b68c6aadc6ca3ee15cb3120182968d4474d1e0c",
+      "build-windows/Release/llmx.exe": "c95ae8ecf2ab08b10e6df73034fdabf345b3fc568ed526b1f30724d0f575f6f8",
+      "build-windows/Release/llmx-vulkan.lib": "3c620de7567a23c5c9930f86ed5e80504b2179737231410982732887a1e76c22",
+      "build-windows/Release/llmx-model-validation-test.exe": "bd34f643bcd475ee717bc62813ec532c31cd7422caabf89c0a59ff5055e39d05",
+      "build-windows/generated/config.hpp": "b5de92ffb78768a726a4030c7e5961c582ab1d7876a647f82dff9aa5691583fb",
+      "build-windows/Testing/Temporary/LastTest.log": "fcb95c5bf736b2667e870cfccf03dbcada1e2c1d83ea94f697f3df9f8c9de0ad",
+      "base-build/generated/vulkan/add.inc": "c5fcf6022b9dd4d471666924d51762739ba7dd4b4899923dcac2867034d3889a",
+      "base-build/generated/vulkan/attention.inc": "a3e2da6110a628b064d81e5f719de4d7fcad17b54de5acc61a9ecea392e6084c",
+      "base-build/generated/vulkan/attention_g4.inc": "6b14d8fc57854cae049e5127642d8a8849081eb71d6c48558f49b91b3400ecdf",
+      "base-build/generated/vulkan/attention_k16.inc": "01f13d5beda5a761a549a32b8767a931bab0301f6aeba7538b6a92dfa6ce2835",
+      "base-build/generated/vulkan/attention_k16_g4.inc": "05a83ee4843ab1e156ed2a5d315987a2a8cb04d49501ad3eeee64fddb72e18c2",
+      "base-build/generated/vulkan/attention_kv16.inc": "44201ae05ebb2a1950618df1cfe19d6b5b93a40bc8aac819c3e2ada64b1a4bf4",
+      "base-build/generated/vulkan/attention_kv16_g4.inc": "8ec5906ab76d525d18363cc3f5e0552e78804a89cb3eef28453cc0e540f4ed91",
+      "base-build/generated/vulkan/attention_merge.inc": "feb58c642ed5c6583e558cc602f42ef16e107aa9b45f0db36ae9a3b3dd4622d2",
+      "base-build/generated/vulkan/attention_tile.inc": "f7567842ba47683e24516d2886b64f55e40bd94fceb4db9e5c6dba58961efd71",
+      "base-build/generated/vulkan/attention_tile_k16.inc": "06de9a43d688372793c682335eebca909a1ba7821dd3255eb52b4d1484a50963",
+      "base-build/generated/vulkan/attention_tile_kv16.inc": "2ed9756aff1a61ed1a171009dd7c001e3631dbeab938503115da6880f6a6c7bb",
+      "base-build/generated/vulkan/attention_tile_v16.inc": "7b2b5c3e0c465952d8ff0ecd2c23b7c0d9a0f819271bf3e1727a13a4fcce2e43",
+      "base-build/generated/vulkan/attention_v16.inc": "81e1e63f0c28c41333d16c2cd541b9a3a1bb35ff7da7aeb7f37a39ac7f53006a",
+      "base-build/generated/vulkan/attention_v16_g4.inc": "291c5d6a232392e2680bb09cee6bacdda9aec6369bd6dbe2175eb44df9e1ec54",
+      "base-build/generated/vulkan/attention_vec.inc": "39579a6110406e270e6790ad82bd666bb133dc5ed9411002ac00edc7cf788739",
+      "base-build/generated/vulkan/attention_vec_g4.inc": "fb72a79d80840cac93796d54561cd18be5369f69f52afbc03c40d8dda9929046",
+      "base-build/generated/vulkan/attention_vec_k16.inc": "ed9fb8cfbfc676f69592a044ee3ba92e59e98a213b86b1fe5b811c6fad2bee5b",
+      "base-build/generated/vulkan/attention_vec_k16_g4.inc": "092173a177d515bda39acfa55ea9c212ba0a238cdbe87397eb04eb2cce1ea4dc",
+      "base-build/generated/vulkan/attention_vec_kv16.inc": "8a16509b1e5f50e64af173b479562a4ffd46a8b86a382cb42c4de1663d82b488",
+      "base-build/generated/vulkan/attention_vec_kv16_g4.inc": "b0ae7fbed18e97ae7354d4d3a5608b8bf989d8d34f9185d6561832551f629db7",
+      "base-build/generated/vulkan/attention_vec_v16.inc": "c4b70ea8cd3c28e82082082e214cd1269649795ea330a4931dedb159e99f510a",
+      "base-build/generated/vulkan/attention_vec_v16_g4.inc": "7108d26e428d3cb99340561daf631734baed1b90c3cd7df1509d5c62f64e2c1b",
+      "base-build/generated/vulkan/embed.inc": "02871b0de0885a67ec3094122d420808e91bc9815807d8c8f92ef03ecdc4b9f7",
+      "base-build/generated/vulkan/gather_rows.inc": "18fb48ad4171822401e69747ac3d60ec074dc1f24a8ab7ae094a93f0f9ead37a",
+      "base-build/generated/vulkan/kv_write.inc": "5789604e44fd11500b770aae6359b54db994e744a08afd4fba3999baa02f6f18",
+      "base-build/generated/vulkan/kv_write_k16.inc": "2fc21e27676237e63da86a5b311a1dae6aecaca59d3cc84374b79f1c92598847",
+      "base-build/generated/vulkan/kv_write_kv16.inc": "551ce7dc2e957ae9876c6d54a522791d3340832fae73c3acb605ac9dd2212776",
+      "base-build/generated/vulkan/kv_write_v16.inc": "d690a6a6e3e9f3fda4bc1b2dee74f68cf7093ea60599b94f16279d4bf3024c62",
+      "base-build/generated/vulkan/matmul_reduce.inc": "cb397b35c152ae077a9a82fd046fd3561c3ab66a6877e8521d04bfb34c8e2391",
+      "base-build/generated/vulkan/matmul_row.inc": "95bcbff31d7a9a8122d9eea9b0c1fdadd8ac4dd57c976e9a4c1be0279fb086cc",
+      "base-build/generated/vulkan/matmul_row_k.inc": "ff6148175af258dbe5c7bf493aea06bcd88992bf73330cc8592c6b72a68214f5",
+      "base-build/generated/vulkan/matmul_row_k4.inc": "1158bb40f69f70d746b00d0b73c7952e5fbba3c337b1c57c7ffcd4ffc30a87bf",
+      "base-build/generated/vulkan/matmul_row_k4_dot.inc": "4089cb219f6647d5369182538639667921cf8af48526c939991a88cc59c1f688",
+      "base-build/generated/vulkan/matmul_row_k5.inc": "1039ceacb560e75e38015beed57ccdf5c6878d95d2e7011d17305cfcdae4e354",
+      "base-build/generated/vulkan/matmul_row_k5_dot.inc": "8cb659b88008e2a7d33af3400d87f1551b3b235efccb83dc40d41dea9eadcbb2",
+      "base-build/generated/vulkan/matmul_row_k_dot.inc": "405b3ec5bb1f9792602a9b8f44d1d4aac4b0b6f93a6deb6e3068462a054da521",
+      "base-build/generated/vulkan/matmul_row_k_dot8.inc": "c100560ba94049ad9cc54b5f36d1cd96638b5821c81b57a81c300d4f1be5ec14",
+      "base-build/generated/vulkan/matmul_row_q4.inc": "671baf9419adfb6d217af2d1d73226a7835fa2a625a42337d505088dc93e400f",
+      "base-build/generated/vulkan/matmul_row_q4_dot.inc": "239eccf9b4e1429953bbf489f709989f96e14bbb79b3f1525a9994dba39743d3",
+      "base-build/generated/vulkan/matmul_row_q4_dot8.inc": "91dc5d79b7a652b191b1085e9dbb90997bb21f2f88117b735405e273ecb614bb",
+      "base-build/generated/vulkan/matmul_row_q8w.inc": "bcf35daaa93bf491aaf26c9b374fb841767172aa97d4f4ea46ffbff6939d1962",
+      "base-build/generated/vulkan/matmul_tile.inc": "64e0fdfd40eff7ae08a3e298e2684b4200773f4f2cc9d7785c6eb1ae40d02133",
+      "base-build/generated/vulkan/matmul_tile_q.inc": "8c665ffe2639198cba56a8a2e47e6cdf9d653481dde1a0d6d2675b90c4f021fe",
+      "base-build/generated/vulkan/matmul_tile_q6.inc": "6feebb4d668d21e63c98d5301bc0b3ed44dd31d4961900262901c02ba3de144e",
+      "base-build/generated/vulkan/matmul_tile_q8.inc": "1b2ef8441456820ed86ec4d710e898b144a2e262668f9a3c01fa7165b276549c",
+      "base-build/generated/vulkan/matmul_vec_q8.inc": "b6c3a0fb42693bb6df4786bb658beb515275ed35f7cc800a8ba3031f7be414dd",
+      "base-build/generated/vulkan/moe_combine.inc": "e17faceaa27dda05a3819a8a820414075a23dc16901c3b8c820a4968db1bfedb",
+      "base-build/generated/vulkan/moe_group.inc": "458b03961154674db9415cc19e5e7d17f475b0088bfe44447e2fcfdd03330a80",
+      "base-build/generated/vulkan/moe_route.inc": "d3b45c96874daa5aad108d06725d78ac2e3207d8cd50bf4ce70054df56341c3c",
+      "base-build/generated/vulkan/norm_rope_kv.inc": "669c52250612b206b521528666a3ce935cbe817f521ba4505ca848d8946e9423",
+      "base-build/generated/vulkan/norm_rope_kv_k16.inc": "96ecaa50156442568274c95adf63a0076c2f628c4a1505d365a9e6217d385744",
+      "base-build/generated/vulkan/norm_rope_kv_kv16.inc": "863e8da899f2d189c99ab1d39cd14e5dc8263aa6597f4a92e3b784a15643ed90",
+      "base-build/generated/vulkan/norm_rope_kv_v16.inc": "4bea3ba7dd10ef89605f447fa31a06e465fcc937b271275d5172e06da117140c",
+      "base-build/generated/vulkan/norm_rope_rows.inc": "76c0ec2c44603934348ab149bb790cb0e0a30214e9367cb448c93f3589f50352",
+      "base-build/generated/vulkan/quantize_x.inc": "d7854f025f23fba17c14e1e64d9c3c55efaa32adb7648e9a709b37242c040a66",
+      "base-build/generated/vulkan/quantize_x8.inc": "61c4e3f684c1231ec9fd06ca4cf76300b8688786c394ba43a85210a5c0e73e76",
+      "base-build/generated/vulkan/rms_norm_rows.inc": "6c68623f7fe8bbd32c965d2ea155f3ae9d60f5a6341eb7befbf423ec6cd3f3ce",
+      "base-build/generated/vulkan/silu_mul.inc": "5852ceda355cc5dd5f6be2448b68c6aadc6ca3ee15cb3120182968d4474d1e0c",
+      "base-build/Release/llmx.exe": "33e72abefc802cecba96fdd04a500559a1d5dc4b3542b11fd0503b44100b21ea",
+      "base-build/Release/llmx-vulkan.lib": "07b2181904af6fc34d17a141b58f6d6300b8c1390d458baf2006d41d48cfeea3",
+      "base-build/generated/config.hpp": "b5de92ffb78768a726a4030c7e5961c582ab1d7876a647f82dff9aa5691583fb",
+      "identity-build/Release/identity-before.exe": "b84200ab78ac20a33e70fedd6a1fcad89494836497490f8a3fa4f3f88f659f44",
+      "identity-build/Release/identity-candidate.exe": "535b389be84e3e2a29c3dbf0623f9b2075d93a36c2c2de434351fdd6f3b79584",
+      "test-first-build/Release/llmx-model-validation-test.exe": "99f9cd66a43a24b9a0ae90b294ad272448064b36811fe49c509c152ebf8fd30e",
+      "test-first-build/generated/config.hpp": "2bebaf5120782b09ef212cfa203dddb31c2a5a8d78482d7c6699a381b5eb8e94",
+      "identity-output/cpu-f16-0-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/cpu-f16-0-before.stdout": "642bb265239cee5973f506797ab751f20589dddc507af43b0de0609f8111c996",
+      "identity-output/cpu-f16-1-candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/cpu-f16-1-candidate.stdout": "642bb265239cee5973f506797ab751f20589dddc507af43b0de0609f8111c996",
+      "identity-output/cpu-f16-2-candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/cpu-f16-2-candidate.stdout": "642bb265239cee5973f506797ab751f20589dddc507af43b0de0609f8111c996",
+      "identity-output/cpu-f16-3-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/cpu-f16-3-before.stdout": "642bb265239cee5973f506797ab751f20589dddc507af43b0de0609f8111c996",
+      "identity-output/cpu-f32-0-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/cpu-f32-0-before.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266",
+      "identity-output/cpu-f32-1-candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/cpu-f32-1-candidate.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266",
+      "identity-output/cpu-f32-2-candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/cpu-f32-2-candidate.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266",
+      "identity-output/cpu-f32-3-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/cpu-f32-3-before.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266",
+      "identity-output/vulkan-0-f16-0-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/vulkan-0-f16-0-before.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266",
+      "identity-output/vulkan-0-f16-1-candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/vulkan-0-f16-1-candidate.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266",
+      "identity-output/vulkan-0-f16-2-candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/vulkan-0-f16-2-candidate.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266",
+      "identity-output/vulkan-0-f16-3-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/vulkan-0-f16-3-before.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266",
+      "identity-output/vulkan-0-f32-0-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/vulkan-0-f32-0-before.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266",
+      "identity-output/vulkan-0-f32-1-candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/vulkan-0-f32-1-candidate.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266",
+      "identity-output/vulkan-0-f32-2-candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/vulkan-0-f32-2-candidate.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266",
+      "identity-output/vulkan-0-f32-3-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identity-output/vulkan-0-f32-3-before.stdout": "7827e86ef77032212e8db71f1009255aa75631e5fde69263511e5e056b108266"
+    }
+  },
+  "raw_arrays": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\identity-output",
+  "docs_review": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "430397ba7c5c9b408a422b85854548c3842baed0663bec403cd404605c0922dc",
+      "review": "reviewed against current source, tests, capability ownership and completed evidence"
+    },
+    {
+      "path": "README.md",
+      "sha256": "712cee39bc9f57feef5c696d05e8e8856f26be12ff058be6bf8ec8b99638486a",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/ADDING-AN-ARCHITECTURE.md",
+      "sha256": "7af7979e508241d2cb784ea96e0813c697d95982d4e0f82fc2a34587eadd4f90",
+      "review": "reviewed against current source, tests, capability ownership and completed evidence"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "sha256": "25198263770775d1d8abbe1e0b9183b0242f4ea5d73f6d6a0fc09e1ff1488dc8",
+      "review": "reviewed against current source, tests, capability ownership and completed evidence"
+    },
+    {
+      "path": "docs/ASSETS.md",
+      "sha256": "cfa00dc8e82c2dad73da2d4d370abced2185f7f63152a008eb7f063507a1b2f4",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/BUILD.md",
+      "sha256": "4697b56196b4c4b290e3a618bf3d6c9390c0192a6d33dbc4912ffd29669a5643",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/CI.md",
+      "sha256": "837eb2258ac68c639333fb82e4eb6794f40df4738816a857febc1db5d7f04d49",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/DEVICE-EXECUTION.md",
+      "sha256": "9ad8cbf2fbf6fce23fc2763552d7422a3b213316e1b53a17caa921a2e096b903",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/EXECUTION.md",
+      "sha256": "52f4f692f5a0b15a4e0b140cb3ead61a3cbe93b4d46ef50b0a344380d40d41d9",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/KV-CACHE.md",
+      "sha256": "db267c0cb2658cebb1f167fe2b26b3c6bba35142fb60a766e14045235d0485a7",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/MULTI-DEVICE.md",
+      "sha256": "e14ce40c611d33781f2ccc72d14c0c6056ca912fad97c7fa16efc5bd05ff1f1f",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/QWEN35.md",
+      "sha256": "6dd60d9d913887ff8de0194896441d37399d55efd3b0475e199a6ec209ebcbc4",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "sha256": "78e3b5a33e71ee35b255a9f812ff56d97c2e633314b42bf1b9e76a5bd5fe5675",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/SERVER.md",
+      "sha256": "0baa0039b2785999d53db1d9938a7c80654122154778fa56b61c6d2c4bf9a3a8",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/STATUS.md",
+      "sha256": "2c6e7501bcaa32ce476959679c582abdc3389b512df025a8fcb7c097b8541576",
+      "review": "reviewed against current source, tests, capability ownership and completed evidence"
+    },
+    {
+      "path": "docs/USAGE.md",
+      "sha256": "6e4d31928d12573743bdac2affbdfbbb7744e6b6a9b3f1571976e8e57ef80f1e",
+      "review": "reviewed against current source, tests, capability ownership and completed evidence"
+    },
+    {
+      "path": "docs/VULKAN.md",
+      "sha256": "8f6c64e09799867cc107fae0adf7d8b163abf10ff0d5aa524ee0fa405578b4da",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+      "sha256": "3bd8d8bae1e3dc6d6768761354ef864e5a421602f9febb35c7ae55dc87ae9a26",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/benchmarks/backend-audit-20260925/README.md",
+      "sha256": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+      "sha256": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+      "sha256": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+      "sha256": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+      "sha256": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+      "sha256": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+      "sha256": "4f780de740f50f297049bc009a71d7561fc553adff5f5c04e3f22f08d9bef0af",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/backends-backend.md",
+      "sha256": "fccc0b75aec68ab2948d16c6b0f277c6716295f46daafedb92478b14492026a4",
+      "review": "reviewed against current source, tests, capability ownership and completed evidence"
+    },
+    {
+      "path": "docs/src/backends-cpu-placement.md",
+      "sha256": "9bfe6807882392da236f72acfad95eaaa63c819a936c0b15fe51e3c734510d29",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/backends-cpu.md",
+      "sha256": "7c684aaf0b062403c502ef5f5f3a0980938d087c6220f9506853140a28cc3b78",
+      "review": "reviewed against current source, tests, capability ownership and completed evidence"
+    },
+    {
+      "path": "docs/src/backends-device_profile.md",
+      "sha256": "50e6824315b1939a08a9e7620ca53e25eed0f4222715dc89419a2c9d8e9ceb51",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/backends-devices.md",
+      "sha256": "75371f7a26f046c5a2b15ed9ed0ab0c9ea74215de75c4bdb5bcc9c6b849a62c4",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/backends-kv_storage.md",
+      "sha256": "c183e255008d5a33391737c044866366b86905789f0c2a16010e2e9607d0a1aa",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/backends-vulkan.md",
+      "sha256": "cf9dd5585e7c50d539d331decf6597c7ecb7e9349726045180967cb55e2b766b",
+      "review": "reviewed against current source, tests, capability ownership and completed evidence"
+    },
+    {
+      "path": "docs/src/cli-main.md",
+      "sha256": "158d8e83fe3f2116de05f51f464ec1a99abaae455a4ae4487b7cec2b7240a743",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/config.md",
+      "sha256": "27e90d7030550b99764797828e98d8f7d61478e10783b3fa10b124cc2f52dddf",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/core-cgroup.md",
+      "sha256": "04bd7a3fb23416403dc81a16064222431a2cea4fbd7cf2d5643657124fa2bea0",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/core-cpus.md",
+      "sha256": "0de85e6dc4c73391b1128ef75cb1af61e7cb8de0f5e65c34ff67b065832161c8",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/core-fp16.md",
+      "sha256": "278296c5f23e5fe0f8786339e0ab38b2e47f1352b40414acd3810c326ce20628",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/core-host_memory.md",
+      "sha256": "91939da85d49d1a4cea633d569cb46124405313686f22f38f27277f321805eea",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/core-json.md",
+      "sha256": "bd61ad39548b3515cb3eadff5197e600b7a1ba5a4ebd303874b2c0193ab8f09d",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/core-list.md",
+      "sha256": "678eb50851ad2cb1c7d5cf6d93b3a2a20c972e090778ce4421ef54a2d649f734",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/core-sha.md",
+      "sha256": "3cd6b7539ad1339e6509bc02c10300d3aa8d1ffd928fecd2a00bf03454289b32",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/core-utf8.md",
+      "sha256": "cd7c0281bd0a1ae3b06231257d9d9de540b06c823aa4b70ef2410640b17b4d69",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/format-file_reader.md",
+      "sha256": "78b8786aa781618555d46c95829b50afabf44c9de6f1c40bc57a4fc737e1fa91",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/format-format.md",
+      "sha256": "4633b7298f093c6353c36b221b51782ede978fb99215390f22271b7afb0c90d3",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/format-gguf.md",
+      "sha256": "f65819abeedadcc368d9f3e1af28adec7b06c83b9ac3f3a31fd5ba644acaf7c1",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/format-mapped_file.md",
+      "sha256": "ca12725fa05fb25174b09740f51291ab3d5b5c48dece7661b3a74d7cdcb1a21a",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/format-output_file.md",
+      "sha256": "b2e5ff986feae020ffd8fcf16cfecd331f459ddf1c8313b024e3de391311fe64",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/format-raw_convert.md",
+      "sha256": "ce9c0b20843b20d60b1a4276bf7d8e492dc1b7aaae9a77e0b593c21caa4a2ac0",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/hub.md",
+      "sha256": "a170b777455f8cd28ea5fa06718a2814dde33279ade20dd60875f168a11c6410",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/inference-chat.md",
+      "sha256": "c635c0aab77c230e5c1e4b46510cb05536c6321ed3fd2e6b976f6db2bf313620",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/inference-generate.md",
+      "sha256": "9d27cb44721bbc51024e25958091da70d2b81ed941cd2e05e503dff984419fa2",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/inference-load.md",
+      "sha256": "f982b4acd7a99319e466c1b42bd4d8fa6c670289b85c90f3196e569519510b67",
+      "review": "reviewed against current source, tests, capability ownership and completed evidence"
+    },
+    {
+      "path": "docs/src/inference-logprobs.md",
+      "sha256": "577783f1da9e774d472fc2b7703e7a5d258c77d1afd20b3a7b22e47cdc3feb16",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/inference-perplexity.md",
+      "sha256": "75eff128998c0be93b2aab8522a20f347d45e17556a04640c3e8d50f45fa0f48",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/inference-sampler.md",
+      "sha256": "49b3a67188e7755b877cb21b94769723e8ba8ff302372d58f5bb27f983a1f988",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/model-arch-metadata.md",
+      "sha256": "30492cfeaab6cd678830b4bbf2f6ac4b14272f7cab4bef771495b4de21cb6787",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/model-arch-qwen3.md",
+      "sha256": "8a652216ab45fc263923b2d10da36fd76e0f9602ebd34fcb4c625358550b8d19",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/model-arch-registry.md",
+      "sha256": "8c35da41fe0c8739ae7442141f629430e0c4507f036d7bfc7e9cdd767db4a5b9",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/model-architecture.md",
+      "sha256": "48f2936f879058113b061430ea679b474bfb1c2cc69d351d8e8a6cb9facf1dac",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/model-kv_cache.md",
+      "sha256": "5f614669a8ea00dc09f875903e6af884152ec914ce6a94f01a2a61dcac3d9be2",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/model-layer_split.md",
+      "sha256": "fc19c4a7d11f6e428769ce88c2299cc7e03267532f6fa3576bbb2ee18a322565",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/model-place.md",
+      "sha256": "dcad663df0cb8b96181aea5de7f36a7fd17a333d572eefc969b979bc9e16d7e9",
+      "review": "reviewed against current source, tests, capability ownership and completed evidence"
+    },
+    {
+      "path": "docs/src/model-runtime.md",
+      "sha256": "e90c17f7f6876af634e27698b95094355a2ad6e540531fedd236424e69d60daa",
+      "review": "reviewed against current source, tests, capability ownership and completed evidence"
+    },
+    {
+      "path": "docs/src/model-weights.md",
+      "sha256": "32006740497fb0157106753390d2ce554a8d9528ffdb8e7e54d2299a71213f9c",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/quant-k_quants.md",
+      "sha256": "313948d0b9a3e91f289be46073b2ff150c37bd33f8b7f471222fdd89d23f763f",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/quant-quant.md",
+      "sha256": "319be831cd637611a764e50d4929133a1146d8de8fd9bd3fc3c96f1a519433cb",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/quant-types.md",
+      "sha256": "3556bce26168ab4be4839d0b2680efaaf9eb0b13dc80d5164581e06d4b4ddb67",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/server.md",
+      "sha256": "80bd9535d1d065c55b1433fcd6cef73ae3bed258244ea4d8d58891d8c4be021d",
+      "review": "unchanged; reuses completed main review"
+    },
+    {
+      "path": "docs/src/tokenizer-tokenizer.md",
+      "sha256": "2811c1274721d6541b76e3c011071e9b2dca2e76bf1ab2d9a56f028d3d531460",
+      "review": "unchanged; reuses completed main review"
+    }
+  ]
+}

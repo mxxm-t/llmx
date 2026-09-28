@@ -197,14 +197,42 @@ public:
                 throw std::runtime_error("inference: placement names a device the model does not have");
             return (size_t)d;
         };
+        device_index(place_.embed_device);
+        device_index(place_.output_device);
+        auto accepts = [&](const Role& role, size_t device) {
+            return !role.tensor || backends[device]->supports_type(weights.tensors[*role.tensor].type);
+        };
+        auto require_type = [&](const Role& role, size_t device, const std::string& part) {
+            if (!accepts(role, device)) {
+                const TensorView& t = weights.tensors[*role.tensor];
+                const quant::QuantType* q = quant::Registry::instance().get(t.type);
+                const std::string type = q ? std::string(q->name) + " (" + std::to_string(t.type) + ")" : std::to_string(t.type);
+                throw std::runtime_error("inference: " + part + " needs tensor " + t.name + " of type " + type +
+                                         ", which the backend of device " + std::to_string(device) + " does not support");
+            }
+        };
+        for (const Role& role : plan_.pass)
+            require_type(role, device_of(role.part, 0), role.part == Part::embed ? "embedding" : "head");
+        // Home weights must run on their assigned device before anything is adopted; a stream destination that lacks a weight type leaves the whole layer at home.
+        stream_device_.assign(n_layer, -1);
+        for (size_t l = 0; l < n_layer; ++l) {
+            const LayerPlan& layer = plan_.layers[l];
+            const size_t a = device_index(place_.mixer_device[l]), f = device_index(place_.ffn_device[l]);
+            // Experts read in place on the host beside a mixer on a device that copies its weights.
+            bool streamed = layer.routed && place_.stream_from && a != f && !backends[a]->reads_in_place() && backends[f]->reads_in_place();
+            for (const Role& role : layer.roles) {
+                require_type(role, device_of(role.part, l), "layer " + std::to_string(l) + "'s " +
+                             (role.part == Part::mixer ? "mixer" : "feed-forward part"));
+                if (role.stream != Stream::none && !accepts(role, a)) streamed = false;
+            }
+            if (streamed) stream_device_[l] = (int)a;
+        }
         devices_.reserve(backends.size());
         for (auto& b : backends) {
             devices_.push_back(std::make_unique<Device>());
             devices_.back()->b = std::move(b);
             devices_.back()->local_layer.assign(n_layer, -1);
         }
-        device_index(place_.embed_device);
-        device_index(place_.output_device);
         devices_[(size_t)place_.embed_device]->used = true;
         devices_[(size_t)place_.output_device]->used = true;
         for (int l = 0; l < (int)n_layer; ++l) {
@@ -608,6 +636,12 @@ private:
     Sequence seq_;
     ExecContext ctx_;
 
+    size_t device_of(Part part, size_t l) const {
+        if (part == Part::embed) return (size_t)place_.embed_device;
+        if (part == Part::head) return (size_t)place_.output_device;
+        return (size_t)(part == Part::mixer ? place_.mixer_device[l] : place_.ffn_device[l]);
+    }
+
     // Resolve every role of the plan to a Weight, in plan order: the pass's roles, then each layer's followed by a streamed layer's copies.
     // Each role reads the tensor plan_model set, a role without one refused here, checked by the role's kind in the same step, so a resolved handle is well-formed by construction and the forward pass never looks a tensor up by name.
     // Each weight is put on the backend that runs its part, by the caller's hook when it gave one, and a tensor two roles take on one device is put there once, as a tied head beside the embedding reads the embedding's buffer.
@@ -639,27 +673,18 @@ private:
             }
             return Weight{t.type, buffer, (size_t)role.in, (size_t)role.out};
         };
-        auto device_of = [&](Part part, size_t l) -> size_t {
-            if (part == Part::embed) return (size_t)place_.embed_device;
-            if (part == Part::head) return (size_t)place_.output_device;
-            return (size_t)(part == Part::mixer ? place_.mixer_device[l] : place_.ffn_device[l]);
-        };
         pass_.assign(plan_.role_ids, Weight{});
         for (const Role& role : plan_.pass) pass_[role.id] = resolve(role, device_of(role.part, 0));
         const size_t n_layer = plan_.layers.size();
         home_.assign(n_layer, {});
         stream_.assign(n_layer, {});
-        stream_device_.assign(n_layer, -1);
         for (size_t l = 0; l < n_layer; ++l) {
             const LayerPlan& layer = plan_.layers[l];
             std::vector<Weight>& row = home_[l];
             row.assign(plan_.role_ids, Weight{});
             for (const Role& role : layer.roles) row[role.id] = resolve(role, device_of(role.part, l));
-            // Experts read in place on the host beside a mixer on a device that copies its weights.
-            const size_t a = (size_t)place_.mixer_device[l], f = (size_t)place_.ffn_device[l];
-            if (!layer.routed || !place_.stream_from || a == f || devices_[a]->b->reads_in_place() || !devices_[f]->b->reads_in_place())
-                continue;
-            stream_device_[l] = (int)a;
+            if (stream_device_[l] < 0) continue;
+            const size_t a = (size_t)stream_device_[l];
             stream_[l] = row;
             for (const Role& role : layer.roles)
                 if (role.stream == Stream::copy) stream_[l][role.id] = resolve(role, a);

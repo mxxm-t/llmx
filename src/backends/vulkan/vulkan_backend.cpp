@@ -998,6 +998,7 @@ public:
         return std::string(kKernelNames[id]) + (!variant ? "" : tile ? "_small" : "_x8");
     }
 
+    bool supports_type(uint32_t type) const override { return type == quant::GGML_TYPE_F32 || decoded_blocks(type); }
     const std::string& name() const { return dev_->caps.device; }
     const DeviceProfile& profile() const { return dev_->profile; }
 
@@ -1546,7 +1547,7 @@ public:
 
     // Throws unless the weights, outputs and X hold the call's `nbatch` rows.
     // matmul_runs checks a call whole before recording any of it, so a call its runs split into several is refused before the first.
-    static void check_group(const Projection* projections, size_t count, CSlice X, size_t nin, size_t nbatch) {
+    void check_group(const Projection* projections, size_t count, CSlice X, size_t nin, size_t nbatch) const {
         for (size_t i = 0; i < count; ++i) {
             const Projection& pr = projections[i];
             check_matrix(pr.type, pr.data, nin, pr.rows);
@@ -1975,8 +1976,8 @@ public:
 
     // Throws unless the kernels decode `type` and `data` holds `rows` rows of `nin` values of it, each whole blocks.
     // `what` names the operand in the errors; tests/common.py matches the unsupported-type one to skip a model the device has no kernel for.
-    static void check_matrix(uint32_t type, CSlice data, size_t nin, size_t rows, const char* what = "matrix") {
-        if (type != quant::GGML_TYPE_F32 && !decoded_blocks(type))
+    void check_matrix(uint32_t type, CSlice data, size_t nin, size_t rows, const char* what = "matrix") const {
+        if (!supports_type(type))
             throw std::runtime_error(std::string("vulkan: unsupported ") + what + " type " + std::to_string(type) +
                                      " (docs/VULKAN.md lists the types the kernels decode)");
         if (bytes_from(data) < size_mul(rows, quant::row_bytes(type, nin)))

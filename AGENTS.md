@@ -194,6 +194,11 @@ logits and NLL against the independent HF fixture.
 
 `model-validation` checks Qwen configuration ranges/defaults, required tensor layouts and in-memory storage before model execution buffers are allocated.
 It covers tied/untied output, supported matrix types and singleton axes, the qwen3moe keys and routed roles, placements the model refuses, `place_model`'s refused requests and a pass past the context.
+It also requires an unsupported embedding, tied head on another device or late
+mixer weight to fail before any adoption or allocation. Two routed layers check
+that a destination missing a copied router or windowed expert type leaves only
+that layer on its host, with exact prompt and follow-up logits; a host missing
+the type is refused even when streaming is requested.
 The fit counts what the model reads: a routed layer that also carries dense matrices is fitted without their width in its activations and without their bytes among its weights.
 Every refusal it provokes must give the label and text listed in `tests/data/model_refusals.txt`, in order, so a change to a refusal's text or to which defect a file is refused for changes that list; `llmx-model-validation-test --write FILE` writes the refusals it sees.
 An asynchronous test backend (`tests/loading_backend.hpp`, which `load-progress` also uses), which plays a device, so it copies what it adopts and says it is not the CPU, also checks loading failure and model teardown drain pending work before releasing buffers, including split placements and backend reuse.

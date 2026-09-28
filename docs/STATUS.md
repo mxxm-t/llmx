@@ -4,47 +4,15 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## Q4_0 quantizer reciprocal range (2026-09-28, branch fix/quantize-q4-range, in progress)
+## Q4_0 quantizer reciprocal range (2026-09-28, merged at `99572401`)
 
-- **Goal:** quantize tiny finite F32 blocks without a nonfinite intermediate reaching an integer cast, keeping ordinary Q4_0 output unchanged.
-- **Done:** the failing-first commit `f3eb187d` demonstrates reciprocal overflow on unchanged main `c82e901a`. Its native test fails at exponent -149, rotation 0, position 0 (code 0 instead of 1), and a GCC sanitizer build refuses the nonfinite integer cast. The implementation keeps multiplication by a finite reciprocal; when it overflows, it first divides the block by the positive F32 scale into a 32-float local array, then packs those values with multiplier 1. It adds no runtime flag and changes no decoder or inference kernel. Tests use independent exact integer expectations, with every code at every position over 274 power-of-two scales, half-way cases, rounded subnormal scales and output guards.
-
-  | Check | Before | Candidate | Scope |
-  |---|---|---|---|
-  | Native packed-code regression | Fails first tiny block | 139981 checks pass, Linux and Windows | Finite inputs under gradual underflow |
-  | GCC float-cast-overflow sanitizer | Invalid infinity-to-int cast | Pass | Same focused test |
-  | Ordinary packed output | 900000 bytes | Byte-identical | 50000 deterministic blocks, exponents -110 through 120 |
-  | Full Windows native suite | Not rerun in this block | 32/32 pass | Fresh MSVC Release build |
-  | Full Windows CPU Python suite | Not rerun in this block | 22 pass, 1 qwen35 skip | Includes independent HF fixtures; missing Qwen3.5 models remain skipped |
-  | Linux native suite | Not rerun in this block | 31/31 pass | GCC 13.3 Release |
-  | Linux conversion, docs and dead-code components | Not rerun in this block | Pass | Independent spec decoding and existing format checks |
-  | Qwen3-0.6B Q8_0 CPU CLI comparison | Main c82 | 12/12 identical | F16/F32 caches; greedy/seeded text and counts, top-20 logits, last-four logits, batched/per-token PPL |
-
-  The ordinary-output SHA-256 in both arms is `e9e9443fd51cf80179455bad33af50b443f5fa3307c5b2c999db4912b8bc7728`; both use GCC 13.3 and the same options. This is a byte comparison, not a timing claim. The first guarded-loop Windows executable SHA-256 was `069e544359f5e6b5d425dcdb94ed12a0efdbf7b32e990e14e142d02967f5a52e`, version `0.1.0+gf3eb187d9fe1.dirty`. Logs and controls remain in the owned clone's `q4-range-evidence-20260928/`.
-  **Encoder timing, 2026-09-28:** three repeated main/candidate/control/control/candidate/main blocks for each working set, six samples per arm and cell, on Windows with MSVC, `/O2 /arch:AVX2 /fp:precise`. The control adds a function immediately before the encoder in the same header, called only after timing. All arms use identical harness and compiler options. Rates are median decimal input GB/s; paired changes are geometric means of within-round throughput ratios.
-
-  | F32 working set | Main GB/s | Candidate GB/s | Header control GB/s | Candidate/main paired | Control/main paired |
-  |---|---:|---:|---:|---:|---:|
-  | 4 MiB | 2.738 | 2.634 | 2.716 | -3.917% | -0.943% |
-  | 64 MiB | 2.724 | 2.626 | 2.720 | -3.613% | -0.276% |
-
-  This is an observed encoding cost for the finite-reciprocal guard, not an inference or whole-command result. The candidate was slower in all three paired rounds in both cells. The single control does not bound every layout effect, but it does not explain away this cost. An earlier 36-call round with a control beside the wrapper gave -4.111%/-3.879% and is retained; the closer header control was added to match the changed file, not to replace samples. All 72 planned calls succeeded and retained the same output hash per working set. One-second Windows CPU/process/disk/GPU monitoring brackets every call of the second round: 11/36 were activity-flagged, all 36 have some unknown process activity, and no sample was discarded. The first round flagged 14/36. Counters cover initialization and output hashing as well as encoding and can miss short-lived work. Raw commands, binary/header hashes, versions, plans, monitors and reproducible analysis are under `q4-range-evidence-20260928/perf*` in the owned clone.
-  **Block fallback follow-up, 2026-09-28:** the alternative above moves the exceptional division before the packing loop instead of choosing multiply or divide for each packed value. In a fresh matched four-arm MSVC build, three interleaved rounds per working set retained all 48 samples:
-
-  | F32 working set | Main GB/s | Guarded loop GB/s | Block fallback GB/s | Header control GB/s | Guarded/main paired | Fallback/main paired |
-  |---|---:|---:|---:|---:|---:|---:|
-  | 4 MiB | 2.738 | 2.635 | 2.691 | 2.736 | -3.843% | -1.760% |
-  | 64 MiB | 2.725 | 2.624 | 2.685 | 2.726 | -3.691% | -1.525% |
-
-  The header control changed -0.211% and -0.110% in this round. All arms gave identical benchmark output hashes; 8/48 runs were activity-flagged, all 48 had some unknown process activity, none had unknown counters and all were bracketed by monitoring. No samples were discarded. This reduces the observed encoding cost on this CPU/compiler; it is not an inference or whole-command result, and one control does not bound every layout effect. The alternative passes all 139981 independent code checks on MSVC and under Linux undefined/float-cast-overflow sanitizers; a fresh comparison keeps all 900000 ordinary-output bytes identical to main with the same SHA-256 above. Sources, build logs, monitoring and complete results are in `q4-range-evidence-20260928/perf-block-fallback/`. The prior full runtime gates above cover the guarded-loop implementation; the revised source's final results follow.
-  The revised block fallback's fresh Windows build passes all 32 native tests and the full CPU Python suite (22 pass, one unsupported-qwen35 component skip; the Qwen3.5 real-model files are absent). Its executable SHA-256 is `f42b282ef8810a09325c69d9e922e4afdf646440b03e04012c15bdd512eb0354`. The sequential Linux rebuild passes all 31 native tests, roundtrip/docs/dead-code and all 12 Qwen3-0.6B CPU comparisons described above. Its executable SHA-256 is `50d1a7140067721796a6d6c0e937245af966a4f60aae46f52a4bdd69a10988ae`; complete logs and raw outputs are in `block-runtime/` beside the earlier results. The Markdown checkpoint reuses the completed full semantic audit through recorded normalized hashes: 61 of this branch's 68 pages match exactly and every difference in the remaining seven was reviewed; the shared STATUS history is identical. The separate documentation corrections still require integration. See `markdown-review-block.json` beside the gate records; this does not claim a fresh rerun of historical results.
-- **Current-main integration, 2026-09-28:** integrated main `5c1bbe7a`, including the separately landed documentation and checked-output fixes, into a fresh isolated clone. STATUS preserves both records. The quantizer conflict is a comment only: retain this feature's scale-range description and main's signed-zero decoding explanation; executable quantizer code remains the tested block fallback. The failing-test-first history is preserved.
-- **Final integration gates:** fresh MSVC Release build passes all 33 native tests (40.53 seconds) and the full CPU suite with required tools and all four pinned gate models: 22 components pass and unsupported qwen35 skips. The optional Qwen3.5 fixture files are absent, not claimed as passes. The executable is newer than every source header and the log confirms compilation of `main.cpp`; SHA-256 `5636779647a571e8831766620644fc85732fdc0429db11e295722f4b0044b8e9`, version `0.1.0+ga7d82d2d9635.dirty`.
-  Fresh GCC 14.2 Release build passes all 32 native tests (40.11 seconds), including the unchanged 139981-check quantizer regression, plus roundtrip/docs/dead-code. Conversion also retains all nine injected output failures and seven alias checks from main's writer fix. Linux executable SHA-256 `8ee8ac3bc17088a2cba787ad1a35c3bd417ffec68c0793158e5d3891f6b503ed`; its source archive has no Git metadata, so version is `unknown`. Both runners completed successfully and are absent. No new speed claim is based on these integration builds.
-  The earlier 12-case CPU CLI identity, 900000 ordinary-output bytes, sanitizer checks and all 120 calls across the first wrapper-control screen, the closer header-control screen and the final four-arm block-fallback matrix remain retained. They apply to the unchanged quantizer implementation with their recorded scope, not to arbitrary model outputs or whole-command performance.
-- **Final documentation checkpoint:** all 69 Markdown pages reconciled: 67 exactly match the completed main or Q4 reviews, while AGENTS and this STATUS block were checked in merged context against CMake, source and evidence. Runtime source hashes agree with the tested Linux source archive. [Integration evidence](benchmarks/q4-range-current-20260928.json) records commands, hashes and the review inventory. The verified source, Windows/Linux binaries and logs, and complete prior Q4 evidence are archived at `/opt/claude-work/llmx-p2-x-mxfp4-cpu/q4-range-current-20260928.tar.gz`, SHA-256 `17fe8e0c57bfe1830b017b89127deb760c2253004044d61ea37518e39eb24bd1`, 20,989,969 bytes.
-- **Left:** run hosted CI at this final integration head, then fast-forward main if it is unchanged. The user removed peer review as an extra prerequisite. No hosted pass or merge is claimed yet.
-- **Gotchas:** a binary16 scale may round to zero for tiny inputs; that format limit remains. Packed integer codes still must be defined. If the F32 scale itself rounds to zero, the existing zero-code behavior remains. A rounded subnormal F32 scale can reach the -8 clamp as well as ordinary codes -7 to 7. Nonfinite source values and scales too large for binary16 are outside the correctness claim. No inference throughput result is claimed.
+Merged on Gitea and GitHub main by fast-forward from `5c1bbe7a` after all six hosted jobs passed at exact head `99572401e1c834fcc5f0ba540afdd1bc2f7b2ca5` in [run 36384593537](https://github.com/mxxm-t/llmx/actions/runs/36384593537).
+Failing-first `f3eb187d` precedes fix `a7d82d2d`; the current-main integration preserves that history. Tiny positive F32 scales whose reciprocal overflows normalize the block before the original packing loop; ordinary packing stays unchanged.
+Fresh Windows validation passed 33 native tests and 22 CPU suite components with all four pinned gate models required; unsupported qwen35 skipped. Linux passed 32 native tests plus roundtrip/docs/dead-code. The native quantizer regression checks 139981 exact codes and boundaries; the earlier sanitizer pass and 900000 ordinary-output bytes remain retained.
+The original 12-case CPU CLI identity and all 120 encoder timing calls remain evidence with their stated scope. The selected fallback's observed paired encoding costs were 1.760% and 1.525% for 4/64 MiB working sets; this is not an inference or whole-command throughput claim. No sample was discarded, including activity-flagged calls.
+[Integration evidence](benchmarks/q4-range-current-20260928.json) records commands, source/binary hashes and the 69-page documentation reconciliation. The verified source, both-platform gates and complete prior evidence remain in `/opt/claude-work/llmx-p2-x-mxfp4-cpu/q4-range-current-20260928.tar.gz`, SHA-256 `17fe8e0c57bfe1830b017b89127deb760c2253004044d61ea37518e39eb24bd1`.
+The [quantizer owner](src/quant-quant.md) records the finite-input/gradual-underflow scope, zero-scale behavior and binary16 format limits.
+This separate merge record reconciles STATUS with the landing; the other 68 Markdown pages match their completed reviews. No extra peer review was required under the user's instruction.
 
 ## Format output failure handling (2026-09-28, merged at `4b0ec6a5`)
 
@@ -7739,6 +7707,7 @@ their own measurements; K-quant optimization remains separate work below.
 | GGUF reader size and tensor extent validation | Done |
 | Checked conversion output publication | Done: merged at `4b0ec6a5`; checked write/close before replacement |
 | JSON quantize tensor validation | Done |
+| Q4_0 finite-input packing | Done: merged at `99572401`; tiny-scale reciprocal overflow handled |
 | Qwen model construction validation | Done |
 | Paged KV cache (block pool, backend-owned blocks) | Done |
 | Device execution model (ROADMAP #4a)     | Done     |

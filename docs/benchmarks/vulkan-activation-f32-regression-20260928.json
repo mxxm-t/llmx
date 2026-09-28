@@ -1,0 +1,240 @@
+{
+  "before": {
+    "argv": [
+      "docker",
+      "exec",
+      "llmx-p2-x-mxfp4-gpu2-20260928",
+      "timeout",
+      "180",
+      "/work/activation-main-check-20260928/f32-regression-before"
+    ],
+    "exit": 1
+  },
+  "stdout": "vulkan-quantization: 281024 values per twin, 35128 packed sums, 87820 identical lane/word words, 0 failing blocks\nvulkan-quantization: width 32, 27360 activation reconstruction values, 0 failed, 0 skipped without float preservation\nvulkan-quantization: width 64, 54720 activation reconstruction values, 0 failed, 0 skipped without float preservation\nvulkan-quantization: width 32, 24864 activation reconstruction values, 0 failed, 2496 skipped without float preservation\nvulkan-quantization: width 64, 49728 activation reconstruction values, 0 failed, 4992 skipped without float preservation\nvulkan-quantization: 4 modules accepted without float preservation\nvulkan-quantization: 50676 ordinary Q8 consumer outputs, 0 differ between modules\nvulkan-quantization: 1599 ordinary F32 outputs, 696 differ between modules\n",
+  "stderr": "ordinary F32 identity: width 128 columns 1 output 0 preserved 1393.44348 ordinary 1393.4436\nordinary F32 identity: width 128 columns 1 output 1 preserved 43.8439026 ordinary 43.8438416\nordinary F32 identity: width 128 columns 1 output 3 preserved 1005.3241 ordinary 1005.32391\nordinary F32 identity: width 128 columns 1 output 4 preserved -435.114563 ordinary -435.114502\nordinary F32 identity: width 128 columns 1 output 5 preserved 1681.78662 ordinary 1681.7865\nordinary F32 identity: width 128 columns 1 output 7 preserved -982.589172 ordinary -982.589294\nordinary F32 identity: width 128 columns 1 output 8 preserved 474.163086 ordinary 474.162994\nordinary F32 identity: width 128 columns 1 output 9 preserved 369.458862 ordinary 369.458832\nF32 rows changed under Q8 preservation\n",
+  "control": [
+    {
+      "cache": "f16",
+      "main": "5c315f9d92104937ffcae64dc5d2558332afadd3cefbb66d855d9db78d11dcbb",
+      "control": "5c315f9d92104937ffcae64dc5d2558332afadd3cefbb66d855d9db78d11dcbb",
+      "identical": true
+    },
+    {
+      "cache": "f32",
+      "main": "877cccb78b7e10e2ecd566c306883fa0dbf242ca6c82e80febc6f261cb82da24",
+      "control": "877cccb78b7e10e2ecd566c306883fa0dbf242ca6c82e80febc6f261cb82da24",
+      "identical": true
+    }
+  ],
+  "moe_differences": [
+    {
+      "cache": "f16",
+      "rows_different": 48,
+      "values_different": 7292907,
+      "max_abs": 8.28407096862793,
+      "first_rows": [
+        {
+          "header": [
+            0,
+            0,
+            151936
+          ],
+          "max_abs": 1.1538004875183105,
+          "top1": [
+            12425,
+            12425
+          ]
+        },
+        {
+          "header": [
+            2,
+            0,
+            151936
+          ],
+          "max_abs": 0.15132904052734375,
+          "top1": [
+            425,
+            425
+          ]
+        },
+        {
+          "header": [
+            2,
+            1,
+            151936
+          ],
+          "max_abs": 0.47695350646972656,
+          "top1": [
+            10965,
+            10965
+          ]
+        },
+        {
+          "header": [
+            2,
+            2,
+            151936
+          ],
+          "max_abs": 8.28407096862793,
+          "top1": [
+            465,
+            465
+          ]
+        },
+        {
+          "header": [
+            2,
+            3,
+            151936
+          ],
+          "max_abs": 0.380678653717041,
+          "top1": [
+            6342,
+            6342
+          ]
+        },
+        {
+          "header": [
+            2,
+            4,
+            151936
+          ],
+          "max_abs": 0.22093772888183594,
+          "top1": [
+            304,
+            304
+          ]
+        },
+        {
+          "header": [
+            2,
+            5,
+            151936
+          ],
+          "max_abs": 0.19216442108154297,
+          "top1": [
+            19571,
+            19571
+          ]
+        },
+        {
+          "header": [
+            2,
+            6,
+            151936
+          ],
+          "max_abs": 0.7277154922485352,
+          "top1": [
+            812,
+            812
+          ]
+        }
+      ]
+    },
+    {
+      "cache": "f32",
+      "rows_different": 48,
+      "values_different": 7292897,
+      "max_abs": 3.1905903816223145,
+      "first_rows": [
+        {
+          "header": [
+            0,
+            0,
+            151936
+          ],
+          "max_abs": 0.5870785713195801,
+          "top1": [
+            12425,
+            12425
+          ]
+        },
+        {
+          "header": [
+            2,
+            0,
+            151936
+          ],
+          "max_abs": 0.11690425872802734,
+          "top1": [
+            425,
+            425
+          ]
+        },
+        {
+          "header": [
+            2,
+            1,
+            151936
+          ],
+          "max_abs": 0.21097946166992188,
+          "top1": [
+            10965,
+            10965
+          ]
+        },
+        {
+          "header": [
+            2,
+            2,
+            151936
+          ],
+          "max_abs": 3.1905903816223145,
+          "top1": [
+            465,
+            465
+          ]
+        },
+        {
+          "header": [
+            2,
+            3,
+            151936
+          ],
+          "max_abs": 0.2237699031829834,
+          "top1": [
+            6342,
+            6342
+          ]
+        },
+        {
+          "header": [
+            2,
+            4,
+            151936
+          ],
+          "max_abs": 0.2850046157836914,
+          "top1": [
+            304,
+            304
+          ]
+        },
+        {
+          "header": [
+            2,
+            5,
+            151936
+          ],
+          "max_abs": 0.13863754272460938,
+          "top1": [
+            19571,
+            19571
+          ]
+        },
+        {
+          "header": [
+            2,
+            6,
+            151936
+          ],
+          "max_abs": 0.6208858489990234,
+          "top1": [
+            812,
+            812
+          ]
+        }
+      ]
+    }
+  ],
+  "scope": "Failing-first F32 row identity regression on the MI50; no production fix in this commit."
+}

@@ -102,6 +102,41 @@ void check_ordinary_identity(backend::VulkanBackend& preserved, backend::VulkanB
     require(failed == 0, "preserved Q8 consumers differ from ordinary modules");
 }
 
+// F32 rows share the generic row source with Q8, but must keep their ordinary arithmetic.
+void check_float_identity(backend::VulkanBackend& preserved, backend::VulkanBackend& ordinary) {
+    uint32_t seed = 913;
+    size_t checked = 0, failed = 0;
+    constexpr size_t rows = 41;
+    for (size_t width : {size_t(33), size_t(128), size_t(2048)}) {
+        std::vector<float> weights(rows * width);
+        for (float& v : weights) v = float(int(random_bits(seed) % 65535u) - 32767) / 4099.0f;
+        const auto wp = preserved.adopt(weights.data(), weights.size() * sizeof(float));
+        const auto wo = ordinary.adopt(weights.data(), weights.size() * sizeof(float));
+        for (size_t columns : {size_t(1), size_t(3), size_t(9)}) {
+            std::vector<float> input(width * columns), actual(rows * columns), expected(rows * columns);
+            for (float& v : input) v = float(int(random_bits(seed) % 65535u) - 32767) / 1009.0f;
+            const auto xp = preserved.adopt(input.data(), input.size() * sizeof(float));
+            const auto xo = ordinary.adopt(input.data(), input.size() * sizeof(float));
+            const auto yp = preserved.alloc(actual.size() * sizeof(float), backend::Memory::device);
+            const auto yo = ordinary.alloc(expected.size() * sizeof(float), backend::Memory::device);
+            const backend::RowRun decode{columns, 1};
+            preserved.matmul(quant::GGML_TYPE_F32, {wp.get(), 0}, {xp.get(), 0}, {yp.get(), 0}, width, rows, columns, {&decode, 1});
+            ordinary.matmul(quant::GGML_TYPE_F32, {wo.get(), 0}, {xo.get(), 0}, {yo.get(), 0}, width, rows, columns, {&decode, 1});
+            preserved.read(*yp, 0, actual.data(), actual.size() * sizeof(float));
+            ordinary.read(*yo, 0, expected.data(), expected.size() * sizeof(float));
+            for (size_t i = 0; i < actual.size(); ++i) {
+                if (!std::isfinite(actual[i]) || !std::isfinite(expected[i]) || std::memcmp(&actual[i], &expected[i], sizeof(float)) != 0) {
+                    if (failed < 8) std::fprintf(stderr, "ordinary F32 identity: width %zu columns %zu output %zu preserved %.9g ordinary %.9g\n", width, columns, i, actual[i], expected[i]);
+                    ++failed;
+                }
+                ++checked;
+            }
+        }
+    }
+    std::cout << "vulkan-quantization: " << checked << " ordinary F32 outputs, " << failed << " differ between modules\n";
+    require(failed == 0, "F32 rows changed under Q8 preservation");
+}
+
 // An identity matrix reads each activation back through the public quantized matmul, so the oracle is the original input rather than the device's quantization formula.
 size_t check_activation_range(backend::Backend& b, size_t width, bool preserves_float32) {
     const size_t blocks = width / 32, row_bytes = blocks * quant::Q8_0_TYPESIZE;
@@ -289,6 +324,7 @@ int main() {
         require(guard.modules != 0, "unsupported-mode check created no modules");
         std::cout << "vulkan-quantization: " << guard.modules << " modules accepted without float preservation\n";
         check_ordinary_identity(b, fallback);
+        check_float_identity(b, fallback);
         return 0;
     } catch (const backend::VulkanUnavailable& e) {
         std::cerr << e.what() << '\n';

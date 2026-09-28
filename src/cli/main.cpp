@@ -83,7 +83,7 @@ struct ExecOptions {
     int cpu_moe = 0;              // routed layers whose experts run on the CPU beside a device: the first N, -1 all
     int moe_stream_from = 0;      // prompt length from which those experts are copied to the device for a pass; 0 never
     infer::LoadMode load_mode{};  // how weights are read; the default is the loader's first mode
-    bool verbose = false;         // the prompt token count, the thread counts, a split's plan and progress
+    bool verbose = false;         // the prompt token count, the thread counts, a split's plan, progress, generate's KV line and perplexity's per-window lines
 };
 
 // A command line the command cannot take: main prints the command's page on stderr and exits with status 2.

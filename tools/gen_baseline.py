@@ -517,7 +517,7 @@ QWEN35_MODELS = {
         "gguf_files": ["Qwen3.5-4B-Q4_K_M.gguf"],
         "template_sha256": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715", "directory": "qwen35-4b"},
 }
-# The characters of wiki.test.raw each perplexity golden scores, by its window: past two windows of 512 tokens, which the hosted HF job scores, and past one of 4096, scored by hand.
+# The characters of wiki.test.raw each perplexity golden scores, by its window: past two windows of 512 tokens, which the hosted HF job scores for a file on disk, and past one of 4096, scored by hand.
 QWEN35_PPL = {512: 5000, 4096: 20000}
 # The chat golden's conversations, each rendered with a generation prompt under the model file's own template.
 QWEN35_CHATS = [

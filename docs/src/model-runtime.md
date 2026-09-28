@@ -25,7 +25,7 @@ delegated to a `backend::Backend`.
   table and the output head. Empty means everything on device 0. Per role
   rather than per layer so expert offload puts a layer's experts on the CPU
   while its mixer stays on the device (`docs/EXECUTION.md`). `stream_from` is the prompt length (`BatchEntry::extent`) from which such
-  a layer whose streamed weight types the destination supports runs on its mixer device instead for every row the prompt computes, whatever prefix the history already held, 1 counting as 2 since a one-token prompt never streams; rows a server forks from a donor keep the path they were computed on, the one the donor's prompt took for its prompt rows and the host for its generated tokens (`docs/SERVER.md`, Open gaps). Its `copy` roles (the norm
+  a layer whose streamed weight types and feed-forward ops the destination supports runs on its mixer device instead for every row the prompt computes, whatever prefix the history already held, 1 counting as 2 since a one-token prompt never streams; rows a server forks from a donor keep the path they were computed on, the one the donor's prompt took for its prompt rows and the host for its generated tokens (`docs/SERVER.md`, Open gaps). Its `copy` roles (the norm
   and router) get a copy there at load, its `window` roles (the expert
   stacks) are written into a per-device window, one buffer per window role
   in role order sized to the largest such layer's, once per pass that needs

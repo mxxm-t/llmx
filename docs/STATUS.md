@@ -4,7 +4,7 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
-## Vulkan activation repair on current main (2026-09-28, fix/vulkan-activation-main, in progress)
+## Vulkan activation repair on current main (2026-09-28, fix/vulkan-activation-main, merged at `1108fc3`)
 
 - **Goal:** finish the finite-activation repair independently of MXFP4 and MoE development.
 - **Integration:** starts from main `c6a91bf` and merges only the activation-range history through `ce5d7e5`, retaining its failing-first commits. CI, STATUS and the Vulkan owner page had documentation-only conflicts; both features' current information is retained. Runtime merged without conflicts, including main's backend capability check. The five-line precise vector repair from `e7ea76a` is included. No MXFP4 decoder, kernel, fixture or runtime capability is introduced.
@@ -32,7 +32,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
 - **Assessment:** this is a correctness repair with a bounded cost, not a speedup. Small-model device decode costs up to 3.710%, 8B decode up to 1.896%, and MI50 MoE decode 3.111-3.579%; the MoE layout controls recover 1.373-1.744%, so layout contributes but does not waive the observed cost. CPU prefill is down 2.192% in aggregate and in both blocks, despite unchanged CPU arithmetic; retain it as measured cost without claiming a cause. The correctness benefit and preserved ordinary-model outputs justify this tradeoff. Comparisons against reference-runtime floors remain at the phase final gate. The earlier `bd19cab` timing and failing MoE captures remain retained.
 - **Publication:** five inherited commits had a personal committer address. The isolated publication branch normalizes it to the public noreply identity; all ten commit trees and messages remain identical, including failing-first history. Original feature refs are retained. [Final local evidence](benchmarks/vulkan-activation-final-20260928.json) pins that mapping, the complete timing matrices and verified raw archives. The final docs reconciliation rechecks STATUS and reuses the 68 unchanged checkpoint reviews.
-- **Left:** exact-head hosted CI before merge; no main merge is claimed in this candidate snapshot. Earlier failed candidates and raw diagnostics are retained in the historical activation records below. MoE ranking failures stay on the separate MXFP4 work and are not waived by this repair.
+- **Left:** nothing of the repair, which main holds at `1108fc3`. Earlier failed candidates and raw diagnostics are retained in the historical activation records below. MoE ranking failures stay on the separate MXFP4 work and are not waived by this repair.
 
 ## Shared device-versus-CPU numerical gate (2026-09-28, branch tests/device-reference, merged)
 
@@ -102,7 +102,7 @@ Historical measurements retain their scope; no numerical bounds or runtime behav
 The user confirmed that peer review is not a merge prerequisite when the gates pass.
 This separate merge-record change reviews STATUS against the completed landing evidence and reuses the unchanged reviews of the other 67 Markdown pages; it does not claim another runtime validation.
 
-## Vulkan finite activation range (2026-09-27, branch fix/vulkan-activation-range, in progress)
+## Vulkan finite activation range (2026-09-27, branch fix/vulkan-activation-range, superseded by the repair above, merged at `1108fc3`)
 
 - **Current:** the grouped-scale producer follow-up passes the packed/consumer and backend checks, all eight four-quant/f16-f32 Radeon whole-logit identity cells against main (32 repeated runs), and independent HF rankings and 64 NLL cells for those four quants with both caches. It changes only the producer; all three preserved consumer modules remain byte-identical to the reviewed repair. In the three f16-cache timing cells, small Q8/Q4 decode improves 1.85/1.82% against the first complete fix, with a modest 0.23% on 8B; decode still costs 2.53/1.34/1.88% against main. Both complete timing rounds and every activity flag are retained below. CPU source and its prior identity proof are unchanged. Integrated MI50 validation, final hosted gate and merge remain open. Peer review is not an additional prerequisite under the user instruction. Earlier failed candidates and the original 144-call matrix remain historical evidence for their exact sources.
 
@@ -3915,8 +3915,18 @@ This separate merge-record change reviews STATUS against the completed landing e
            The case's second request is submitted by the test thread once it sees the first admitted, and must be admitted before the first reaches position 384, where the first's growth step pauses it; on the macOS runner it waited 97 ms in the queue, until the first ended, so it came after that step had taken six of the pool's eight blocks, and nothing paused.
            That is a race between the test thread and the scheduler thread in main's case, on the Qwen3 path, where this branch changes neither the scheduler nor the blocks a pause is decided by; main's case with the test thread 100 ms late to that submission fails with the same text on the Linux machine.
            Its fix is on its own branch, `fix/server-resume-race` (hosted as `gate/merge-60`, not yet on main), whose case submits its later requests from inside a pass; until it merges, this branch's macOS job can still meet the race.
+       - **The rebase tier at `d291e8d` over main `1108fc3`**, whose capability loop the op check now shares, on the Linux machine in containers of six CPUs at load averages of 7 to 19:
+         - CPU-only and Vulkan builds with no warning; CTest 33 of 33 on the CPU-only build, 37 of 37 on the Vulkan build without a device, `backend-vulkan`, `vulkan-lifetime` and `vulkan-quantization` skipped, and 37 of 37 with one MI50 (GPU[7]), none skipped.
+         - `tests/dead_code.py --linked` passes against the list.
+         - Qwen3-0.6B Q8_0 on the CPU against main at `1108fc3`: `logits --last 4`, greedy and seeded `generate` and `perplexity` over four 128-token windows byte-identical.
+         - `llmx-split-check` on the 0.8B Q8_0, `cpu` against `cpu,cpu` with 8 steps and 64-token chunks, bit-identical, passes in flight at P = 2, 3 and 4 included.
+         - The suite with `--require-tools` and `--require-baseline`: `dead-code`, `docs`, `arch-boundary`, `qwen35` (max error 7.1e-7 against HF), `split`, `server` and `baseline` pass in 20 minutes, the 0.8B Q8_0 at its 59 checks and the Q4_K_M at its 114; `baseline` with f32 caches passes again, the same 59 and 114, in 13 minutes.
+         - The review of that head (the Markdown read below) added a placement test of layers whose caches differ and corrected the pages; at the head: CTest and the `docs` and `dead-code` components again.
+       - **Markdown read at the rebased head:** every one of the 71 tracked Markdown files was compared with the other developer's inventory of `c82e901` by content hash: 33 match it and were not read again, and the other 38 were read in full against the code, among them README, AGENTS, ARCHITECTURE, ADDING-AN-ARCHITECTURE, EXECUTION, KV-CACHE, MULTI-DEVICE, ASSETS, BUILD, CI, USAGE, SERVER, VULKAN, ROADMAP, QWEN35, STATUS's live parts and 22 `docs/src` pages.
+         Every finding was rechecked at the cited code before it was fixed, and the few kept as they were say why; the list, one row a finding, is kept with the gate record.
+         The chat renderer's filters ignore positional arguments past those they read, so `join`'s positional `attribute` gives other text; the page now says so, and the fix, with its failing test first, belongs to a branch of its own.
        - Left, beyond step 5:
-         - The hosted run of the rebased head on `gate/merge-29`.
+         - The hosted run of the head on `gate/merge-29`, whose macOS job can still meet the `server-resume` race until `fix/server-resume-race` merges; then main fast-forwarded to it and the merge recorded here.
        - Owed to step 5 from this step, beside step 5's own list: the device's five ops and state storage, after which the op check lets a device take the model and `Backend`'s refusing forms go; the projection grouping measured on the device; the 16k check's CLI mode; and the device's slots, which the CPU's rules above already fix.
   5. **`feat/qwen35-vulkan`:** the device ops (conv, the per-token recurrence with source, destination and checkpoint-row push constants, the gated norm, `sigmoid_mul`, and the copy and tag rules), the projection groups, device state storage, attention at head dim 256, strided partial rope, the CLI's layer split with states, and a CLI mode for `tools/long_context_check.py` (two fresh `generate` runs, plus `logits --last` on the baseline).
      - Owed from step 4's CPU ops: the five ops made pure virtual, with `Backend`'s refusing forms and `qwen35-ops`' `check_refusals` removed; `norm_rope_rows` folded into `norm_rope_partial`, as the user decided on 2026-09-27; `backend-vulkan` checks of `state_alloc` and `state_copy`; and the device's check of the decay flush on a state whose decayed values stay normal, as the CPU's is, since a device that flushes denormals zeroes a value the kept factor scales below 2^-126.

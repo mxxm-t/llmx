@@ -1,0 +1,1062 @@
+{
+  "scope": "Completed local device-tier gates for standalone capability fix; exact-head hosted CI still required. No inference arithmetic or shader changes.",
+  "candidate": "3763f08120e36c2345b5fc5f20be4fafb6be35e8",
+  "previous_evidence": "type-capability-main-20260928.json",
+  "full_device": {
+    "status": "pass",
+    "pid": 22112,
+    "started": "2026-09-28T10:53:18.359762+00:00",
+    "source_commit": "3763f08120e36c2345b5fc5f20be4fafb6be35e8",
+    "source_snapshot": "3e539078bc2a8777d08c000f6d9675d8bdf552e0a20c8be6aad7c735e27db7ec",
+    "exe_sha256": "c95ae8ecf2ab08b10e6df73034fdabf345b3fc568ed526b1f30724d0f575f6f8",
+    "version": "llmx 0.1.0+g76423e11809f.dirty",
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "-X",
+      "utf8",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-20260928\\tests\\run_tests.py",
+      "--exe",
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-main-check-20260928\\build-windows\\Release\\llmx.exe",
+      "--device",
+      "vulkan:0",
+      "--require-baseline",
+      "--require-tools",
+      "--no-perf-floor"
+    ],
+    "child_pid": 23152,
+    "exit": 0,
+    "completed": "2026-09-28T10:59:42.354600+00:00"
+  },
+  "hf_nll_at_printed_precision": {
+    "Qwen3-0.6B-Q8_0.gguf continuous": {
+      "max_nll_error": 0.001224,
+      "bound": 0.01,
+      "cases": 2,
+      "headroom": 0.008776
+    },
+    "Qwen3-0.6B-Q8_0.gguf window": {
+      "max_nll_error": 0.012346,
+      "bound": 0.02,
+      "cases": 6,
+      "headroom": 0.007654
+    },
+    "Qwen3-0.6B-Q4_0.gguf continuous": {
+      "max_nll_error": 0.131524,
+      "bound": 0.16,
+      "cases": 2,
+      "headroom": 0.028476
+    },
+    "Qwen3-0.6B-Q4_0.gguf window": {
+      "max_nll_error": 0.16758,
+      "bound": 0.2,
+      "cases": 6,
+      "headroom": 0.03242
+    },
+    "Qwen3-0.6B-Q5_K_M.gguf continuous": {
+      "max_nll_error": 0.026174,
+      "bound": 0.05,
+      "cases": 2,
+      "headroom": 0.023826
+    },
+    "Qwen3-0.6B-Q5_K_M.gguf window": {
+      "max_nll_error": 0.12951,
+      "bound": 0.16,
+      "cases": 6,
+      "headroom": 0.03049
+    },
+    "Qwen3-0.6B-Q4_K_M.gguf continuous": {
+      "max_nll_error": 0.105204,
+      "bound": 0.13,
+      "cases": 2,
+      "headroom": 0.024796
+    },
+    "Qwen3-0.6B-Q4_K_M.gguf window": {
+      "max_nll_error": 0.21522,
+      "bound": 0.25,
+      "cases": 6,
+      "headroom": 0.03478
+    }
+  },
+  "builds": {
+    "main": {
+      "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\source-main",
+      "commit": "56ac913c78b89dbc08fc93338b5b38c7578a5ef8",
+      "build": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\build-main",
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\build-main\\Release\\llmx.exe",
+      "sha256": "86ea240ff14f27fc37f643cfcf2318914f3f7096bfcd1207159a8c3bf6103995",
+      "version": "llmx 0.1.0+g56ac913c78b8"
+    },
+    "candidate": {
+      "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\source-candidate",
+      "commit": "3763f08120e36c2345b5fc5f20be4fafb6be35e8",
+      "build": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\build-candidate",
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\build-candidate\\Release\\llmx.exe",
+      "sha256": "8b3000ac7a71042613d99648ac2dfae2700ef24fd85e17ad3c03be5c4ab0d990",
+      "version": "llmx 0.1.0+g3763f08120e3"
+    },
+    "control": {
+      "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\source-control",
+      "commit": "6fda07301d8c13b26d0474fd2303aa81234c3b8f",
+      "build": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\build-control",
+      "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\build-control\\Release\\llmx.exe",
+      "sha256": "e22fbb8c4cf8a2f11f97654fd6d0ab5301ddea0c722df97308fe770b1df63232",
+      "version": "llmx 0.1.0+g6fda07301d8c"
+    }
+  },
+  "shader_identity": {
+    "modules": 58,
+    "all_three_arms_equal": true
+  },
+  "plan": {
+    "scope": "Standalone weight-type capability fix against current main on the same Windows Ryzen/Radeon environment. CPU and Vulkan inference checks; model construction/loading excluded. Reference-runtime phase floor is separate.",
+    "base": "56ac913c78b89dbc08fc93338b5b38c7578a5ef8",
+    "candidate": "3763f08120e36c2345b5fc5f20be4fafb6be35e8",
+    "arms": {
+      "main": {
+        "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\source-main",
+        "commit": "56ac913c78b89dbc08fc93338b5b38c7578a5ef8",
+        "build": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\build-main"
+      },
+      "candidate": {
+        "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\source-candidate",
+        "commit": "3763f08120e36c2345b5fc5f20be4fafb6be35e8",
+        "build": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\build-candidate"
+      },
+      "control": {
+        "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\source-control",
+        "commit": "6fda07301d8c13b26d0474fd2303aa81234c3b8f",
+        "build": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-type-capability-timing-20260928\\build-control"
+      }
+    },
+    "rounds": 2,
+    "order": [
+      "main",
+      "candidate",
+      "control",
+      "control",
+      "candidate",
+      "main"
+    ],
+    "models": [
+      {
+        "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+        "expected_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "file": "Qwen3-0.6B-Q8_0.gguf"
+      },
+      {
+        "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+        "expected_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "file": "Qwen3-0.6B-Q4_0.gguf"
+      },
+      {
+        "file": "Qwen3-8B-Q8_0.gguf",
+        "path": "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+        "expected_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6"
+      }
+    ],
+    "cells": [
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "device": "cpu",
+        "cache": "f16"
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "device": "vulkan:0",
+        "cache": "f16"
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "device": "vulkan:0",
+        "cache": "f16"
+      },
+      {
+        "model": "Qwen3-8B-Q8_0.gguf",
+        "device": "vulkan:0",
+        "cache": "f16"
+      }
+    ],
+    "bench_args": [
+      "--p",
+      "247",
+      "--n",
+      "32",
+      "--r",
+      "5",
+      "--threads",
+      "6",
+      "--ubatch",
+      "512",
+      "--seqs",
+      "1",
+      "--depth",
+      "0",
+      "--load-mode",
+      "auto"
+    ],
+    "control": "Private main-only control changes backend.hpp with an unused virtual slot at the new query position and runtime.hpp with a noinline volatile probe called only in model construction. Existing inference behavior and shaders unchanged. Same files as the real interface/constructor changes, but one control does not bound all layout effects. Never merge.",
+    "activity_flags": {
+      "unrelated_process_cpu_percent_one_core": 25,
+      "disk_busy_percent": 20,
+      "unrelated_gpu_engine_percent": 10
+    },
+    "monitor": "Same stdlib Windows PDH and per-process monitor at one-second intervals, before and throughout every measured arm. Report inaccessible/new processes and unavailable counters as unknown.",
+    "retention": "All 48 planned calls retained, including flagged activity and slow calls; four process means per arm/cell, five iterations per phase; two symmetric blocks. No competing owned tests, builds or downloads during measurement.",
+    "interpretation": "Report gains, losses, both block ratios and layout control together. This is a correctness fix: unresolved cost or a material slowdown requires investigation; no per-case cutoff replaces the project tradeoff assessment."
+  },
+  "timing": {
+    "scope": "Standalone weight-type capability fix against current main on the same Windows Ryzen/Radeon environment. CPU and Vulkan inference checks; model construction/loading excluded. Reference-runtime phase floor is separate.",
+    "complete": true,
+    "runs": 48,
+    "monitor_metadata": {
+      "kind": "metadata",
+      "pid": 29388,
+      "logical_cpus": 16,
+      "interval_seconds": 1.0,
+      "initial_counter_collection_bracket": [
+        89518.9790688,
+        89518.9796502
+      ],
+      "counters": {
+        "cpu_percent": "\\Processor(_Total)\\% Processor Time",
+        "disk_idle_percent": "\\PhysicalDisk(*)\\% Idle Time",
+        "disk_bytes_per_second": "\\PhysicalDisk(*)\\Disk Bytes/sec",
+        "gpu_engine_percent": "\\GPU Engine(*)\\Utilization Percentage"
+      },
+      "unavailable": {},
+      "process_cpu_units": "100 percent equals one logical CPU",
+      "limitations": "Sampled intervals may miss short-lived processes; inaccessible/new processes have unknown CPU deltas; GPU engine values are not additive."
+    },
+    "monitor_end": {
+      "kind": "end",
+      "elapsed_seconds": 282.0149553999945,
+      "monitor_cpu_seconds": 4.140625
+    },
+    "monitor_sample_count": 282,
+    "activity_limits": {
+      "unrelated_process_cpu_percent_one_core": 25,
+      "disk_busy_percent": 20,
+      "unrelated_gpu_engine_percent": 10
+    },
+    "flagged_runs": 48,
+    "unknown_process_runs": 48,
+    "unknown_counter_runs": 37,
+    "bracketed_runs": 48,
+    "aggregation": "Rates are medians of four process means per arm per cell. Paired changes are geometric means of the two round ratios, each ratio using geometric means of that round: two candidate and two main process means. All samples retained.",
+    "interpretation_limits": [
+      "Each process reports a mean and SD over five timed iterations; per-iteration raw timings are not exposed.",
+      "System disk activity includes this benchmark model loading. A disk flag is not proof of unrelated work.",
+      "Sampled process counters can miss short-lived processes and leave inaccessible or newly seen processes unknown.",
+      "GPU engine maxima are not additive; benchmark and monitor PIDs are separated from unrelated activity.",
+      "One same-file layout perturbation does not bound all code layout effects.",
+      "This compares the standalone capability fix with main on Windows CPU/Radeon; reference-runtime floors belong to the phase final gate. No MI50 timing is claimed."
+    ],
+    "cells": [
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "device": "cpu",
+        "cache": "f16",
+        "cell_index": 0,
+        "phases": {
+          "pp247": {
+            "main": {
+              "process_samples": 4,
+              "median_tok_s": 524.81,
+              "min_tok_s": 493.36,
+              "max_tok_s": 533.95,
+              "geomean_tok_s": 518.9880598001105
+            },
+            "candidate": {
+              "process_samples": 4,
+              "median_tok_s": 532.77,
+              "min_tok_s": 523.24,
+              "max_tok_s": 538.9,
+              "geomean_tok_s": 531.885938253403,
+              "round_changes_percent": [
+                2.000658098429109,
+                2.9720387002635906
+              ],
+              "paired_change_percent": 2.485197531954819
+            },
+            "control": {
+              "process_samples": 4,
+              "median_tok_s": 542.81,
+              "min_tok_s": 497.83,
+              "max_tok_s": 544.12,
+              "geomean_tok_s": 531.517811970249,
+              "round_changes_percent": [
+                3.1265355130092543,
+                1.706915917706131
+              ],
+              "paired_change_percent": 2.414265980409036
+            }
+          },
+          "tg32": {
+            "main": {
+              "process_samples": 4,
+              "median_tok_s": 56.46,
+              "min_tok_s": 55.43,
+              "max_tok_s": 57.43,
+              "geomean_tok_s": 56.44054435056198
+            },
+            "candidate": {
+              "process_samples": 4,
+              "median_tok_s": 57.085,
+              "min_tok_s": 56.55,
+              "max_tok_s": 57.9,
+              "geomean_tok_s": 57.15221380760045,
+              "round_changes_percent": [
+                2.195709750043795,
+                0.33467852391209085
+              ],
+              "paired_change_percent": 1.2609188398647442
+            },
+            "control": {
+              "process_samples": 4,
+              "median_tok_s": 57.41,
+              "min_tok_s": 54.81,
+              "max_tok_s": 57.8,
+              "geomean_tok_s": 56.84416961302917,
+              "round_changes_percent": [
+                1.6804578256849778,
+                -0.24102624274781048
+              ],
+              "paired_change_percent": 0.7151335393936531
+            }
+          }
+        },
+        "activity": {
+          "main": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 4,
+              "system_disk": 0,
+              "unrelated_gpu": 0
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 1,
+            "unknown_gpu_owner_runs": 0
+          },
+          "candidate": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 4,
+              "system_disk": 0,
+              "unrelated_gpu": 0
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 0,
+            "unknown_gpu_owner_runs": 0
+          },
+          "control": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 4,
+              "system_disk": 0,
+              "unrelated_gpu": 0
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 0,
+            "unknown_gpu_owner_runs": 0
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "device": "vulkan:0",
+        "cache": "f16",
+        "cell_index": 1,
+        "phases": {
+          "pp247": {
+            "main": {
+              "process_samples": 4,
+              "median_tok_s": 2779.535,
+              "min_tok_s": 2776.11,
+              "max_tok_s": 2792.8,
+              "geomean_tok_s": 2781.9873489005345
+            },
+            "candidate": {
+              "process_samples": 4,
+              "median_tok_s": 2782.0950000000003,
+              "min_tok_s": 2777.68,
+              "max_tok_s": 2786.7,
+              "geomean_tok_s": 2782.1402270457925,
+              "round_changes_percent": [
+                0.08058568886355477,
+                -0.06953877773234751
+              ],
+              "paired_change_percent": 0.005495285423262608
+            },
+            "control": {
+              "process_samples": 4,
+              "median_tok_s": 2784.09,
+              "min_tok_s": 2770.26,
+              "max_tok_s": 2794.02,
+              "geomean_tok_s": 2783.101516885315,
+              "round_changes_percent": [
+                0.32277644880640555,
+                -0.2418809648424891
+              ],
+              "paired_change_percent": 0.040049354833526785
+            }
+          },
+          "tg32": {
+            "main": {
+              "process_samples": 4,
+              "median_tok_s": 217.51,
+              "min_tok_s": 216.77,
+              "max_tok_s": 217.63,
+              "geomean_tok_s": 217.3547152196947
+            },
+            "candidate": {
+              "process_samples": 4,
+              "median_tok_s": 217.095,
+              "min_tok_s": 216.4,
+              "max_tok_s": 217.45,
+              "geomean_tok_s": 217.00961236764985,
+              "round_changes_percent": [
+                -0.3013398618139096,
+                -0.016004344105702284
+              ],
+              "paired_change_percent": -0.1587740351968625
+            },
+            "control": {
+              "process_samples": 4,
+              "median_tok_s": 216.95999999999998,
+              "min_tok_s": 216.18,
+              "max_tok_s": 217.48,
+              "geomean_tok_s": 216.89422639892777,
+              "round_changes_percent": [
+                -0.24622070860361722,
+                -0.17748848761486302
+              ],
+              "paired_change_percent": -0.21186051579406007
+            }
+          }
+        },
+        "activity": {
+          "main": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 2,
+              "system_disk": 0,
+              "unrelated_gpu": 4
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 4,
+            "unknown_gpu_owner_runs": 0
+          },
+          "candidate": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 1,
+              "system_disk": 0,
+              "unrelated_gpu": 4
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 4,
+            "unknown_gpu_owner_runs": 0
+          },
+          "control": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 2,
+              "system_disk": 0,
+              "unrelated_gpu": 4
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 4,
+            "unknown_gpu_owner_runs": 0
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "device": "vulkan:0",
+        "cache": "f16",
+        "cell_index": 2,
+        "phases": {
+          "pp247": {
+            "main": {
+              "process_samples": 4,
+              "median_tok_s": 2254.8450000000003,
+              "min_tok_s": 2249.66,
+              "max_tok_s": 2258.84,
+              "geomean_tok_s": 2254.5451397789116
+            },
+            "candidate": {
+              "process_samples": 4,
+              "median_tok_s": 2250.835,
+              "min_tok_s": 2249.66,
+              "max_tok_s": 2258.26,
+              "geomean_tok_s": 2252.3948235302837,
+              "round_changes_percent": [
+                0.08647558388450438,
+                -0.2768990535944815
+              ],
+              "paired_change_percent": -0.09537694369862182
+            },
+            "control": {
+              "process_samples": 4,
+              "median_tok_s": 2253.31,
+              "min_tok_s": 2250.89,
+              "max_tok_s": 2255.19,
+              "geomean_tok_s": 2253.1742198984493,
+              "round_changes_percent": [
+                0.03908968560033532,
+                -0.16060380858109458
+              ],
+              "paired_change_percent": -0.060806938671253974
+            }
+          },
+          "tg32": {
+            "main": {
+              "process_samples": 4,
+              "median_tok_s": 240.60500000000002,
+              "min_tok_s": 240.5,
+              "max_tok_s": 241.13,
+              "geomean_tok_s": 240.70986267379226
+            },
+            "candidate": {
+              "process_samples": 4,
+              "median_tok_s": 240.97,
+              "min_tok_s": 239.12,
+              "max_tok_s": 241.12,
+              "geomean_tok_s": 240.54358155618277,
+              "round_changes_percent": [
+                0.06445036729922915,
+                -0.2024311367588183
+              ],
+              "paired_change_percent": -0.06907947840706363
+            },
+            "control": {
+              "process_samples": 4,
+              "median_tok_s": 240.695,
+              "min_tok_s": 239.93,
+              "max_tok_s": 240.95,
+              "geomean_tok_s": 240.56719352501742,
+              "round_changes_percent": [
+                -0.006162702796153052,
+                -0.1123494347244014
+              ],
+              "paired_change_percent": -0.0592701716456312
+            }
+          }
+        },
+        "activity": {
+          "main": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 2,
+              "system_disk": 0,
+              "unrelated_gpu": 4
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 4,
+            "unknown_gpu_owner_runs": 0
+          },
+          "candidate": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 2,
+              "system_disk": 0,
+              "unrelated_gpu": 4
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 4,
+            "unknown_gpu_owner_runs": 0
+          },
+          "control": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 4,
+              "system_disk": 0,
+              "unrelated_gpu": 4
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 4,
+            "unknown_gpu_owner_runs": 0
+          }
+        }
+      },
+      {
+        "model": "Qwen3-8B-Q8_0.gguf",
+        "device": "vulkan:0",
+        "cache": "f16",
+        "cell_index": 3,
+        "phases": {
+          "pp247": {
+            "main": {
+              "process_samples": 4,
+              "median_tok_s": 286.735,
+              "min_tok_s": 286.07,
+              "max_tok_s": 287.51,
+              "geomean_tok_s": 286.7620457569045
+            },
+            "candidate": {
+              "process_samples": 4,
+              "median_tok_s": 286.71500000000003,
+              "min_tok_s": 286.28,
+              "max_tok_s": 287.19,
+              "geomean_tok_s": 286.72479838048747,
+              "round_changes_percent": [
+                0.06635176971245826,
+                -0.09226676033425862
+              ],
+              "paired_change_percent": -0.01298894918907445
+            },
+            "control": {
+              "process_samples": 4,
+              "median_tok_s": 286.58,
+              "min_tok_s": 286.38,
+              "max_tok_s": 286.75,
+              "geomean_tok_s": 286.57245530065524,
+              "round_changes_percent": [
+                0.010535159618707546,
+                -0.14270483114596777
+              ],
+              "paired_change_percent": -0.06611420829719661
+            }
+          },
+          "tg32": {
+            "main": {
+              "process_samples": 4,
+              "median_tok_s": 43.11,
+              "min_tok_s": 43.07,
+              "max_tok_s": 43.2,
+              "geomean_tok_s": 43.12247312822185
+            },
+            "candidate": {
+              "process_samples": 4,
+              "median_tok_s": 43.105000000000004,
+              "min_tok_s": 43.03,
+              "max_tok_s": 43.23,
+              "geomean_tok_s": 43.11744009544494,
+              "round_changes_percent": [
+                -0.06962983250083932,
+                0.0463204785628335
+              ],
+              "paired_change_percent": -0.0116714845225796
+            },
+            "control": {
+              "process_samples": 4,
+              "median_tok_s": 43.114999999999995,
+              "min_tok_s": 43.09,
+              "max_tok_s": 43.23,
+              "geomean_tok_s": 43.137465619108966,
+              "round_changes_percent": [
+                0.02321532242537394,
+                0.0463204785628335
+              ],
+              "paired_change_percent": 0.0347672334157334
+            }
+          }
+        },
+        "activity": {
+          "main": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 4,
+              "system_disk": 0,
+              "unrelated_gpu": 4
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 4,
+            "unknown_gpu_owner_runs": 0
+          },
+          "candidate": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 3,
+              "system_disk": 0,
+              "unrelated_gpu": 4
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 4,
+            "unknown_gpu_owner_runs": 0
+          },
+          "control": {
+            "flagged_runs": 4,
+            "flags_by_kind": {
+              "unrelated_cpu": 4,
+              "system_disk": 0,
+              "unrelated_gpu": 4
+            },
+            "unknown_process_runs": 4,
+            "unknown_counter_runs": 4,
+            "unknown_gpu_owner_runs": 0
+          }
+        }
+      }
+    ]
+  },
+  "activity_interpretation": {
+    "gpu_flags": "Preserved as defined by non-benchmark PID: all 36 GPU calls flag system PID 4 Copy activity, maximum 63.527 percent. Attribution is unresolved; this can include benchmark driver work, not proof of unrelated application GPU load.",
+    "highest_named_application_gpu_percent": 4.539360197271041,
+    "unknown_counter_items": 701,
+    "unknown_counter_status": 3221228474,
+    "background_cpu_names": [
+      "firefox.exe",
+      "RuneLite.exe",
+      "Code.exe",
+      "codex.exe"
+    ],
+    "retention": "All 48 planned calls retained with all activity flags and both blocks."
+  },
+  "decision": "No material slowdown in this campaign. CPU apparent gain overlaps layout/control and background variability; no speedup claim. Small GPU movements retained, not a demonstrated material regression. Proceed to exact-head hosted CI. External runtime performance and MI50 are not established here.",
+  "archive": {
+    "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\type-capability-main-final-20260928.tar.gz",
+    "sha256": "21519ea75e07cf0ad5ddf8a83684a8f2da30e52cd8f96b92291d2d875fd1bc30",
+    "bytes": 5653945,
+    "verified_files": 206,
+    "shared_path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/type-capability-main-final-20260928.tar.gz",
+    "remote_verified_files": 206
+  },
+  "docs_review": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "430397ba7c5c9b408a422b85854548c3842baed0663bec403cd404605c0922dc",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "README.md",
+      "sha256": "712cee39bc9f57feef5c696d05e8e8856f26be12ff058be6bf8ec8b99638486a",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/ADDING-AN-ARCHITECTURE.md",
+      "sha256": "7af7979e508241d2cb784ea96e0813c697d95982d4e0f82fc2a34587eadd4f90",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "sha256": "25198263770775d1d8abbe1e0b9183b0242f4ea5d73f6d6a0fc09e1ff1488dc8",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/ASSETS.md",
+      "sha256": "cfa00dc8e82c2dad73da2d4d370abced2185f7f63152a008eb7f063507a1b2f4",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/BUILD.md",
+      "sha256": "4697b56196b4c4b290e3a618bf3d6c9390c0192a6d33dbc4912ffd29669a5643",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/CI.md",
+      "sha256": "837eb2258ac68c639333fb82e4eb6794f40df4738816a857febc1db5d7f04d49",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/DEVICE-EXECUTION.md",
+      "sha256": "9ad8cbf2fbf6fce23fc2763552d7422a3b213316e1b53a17caa921a2e096b903",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/EXECUTION.md",
+      "sha256": "52f4f692f5a0b15a4e0b140cb3ead61a3cbe93b4d46ef50b0a344380d40d41d9",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/KV-CACHE.md",
+      "sha256": "db267c0cb2658cebb1f167fe2b26b3c6bba35142fb60a766e14045235d0485a7",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/MULTI-DEVICE.md",
+      "sha256": "e14ce40c611d33781f2ccc72d14c0c6056ca912fad97c7fa16efc5bd05ff1f1f",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/QWEN35.md",
+      "sha256": "6dd60d9d913887ff8de0194896441d37399d55efd3b0475e199a6ec209ebcbc4",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "sha256": "78e3b5a33e71ee35b255a9f812ff56d97c2e633314b42bf1b9e76a5bd5fe5675",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/SERVER.md",
+      "sha256": "0baa0039b2785999d53db1d9938a7c80654122154778fa56b61c6d2c4bf9a3a8",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/STATUS.md",
+      "sha256": "97be6d25d03f15d6626d09fbc24e9a34039e845d77c946787ebb5681e6caaaed",
+      "review": "updated for completed local gates and reviewed against full logs and timing"
+    },
+    {
+      "path": "docs/USAGE.md",
+      "sha256": "6e4d31928d12573743bdac2affbdfbbb7744e6b6a9b3f1571976e8e57ef80f1e",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/VULKAN.md",
+      "sha256": "8f6c64e09799867cc107fae0adf7d8b163abf10ff0d5aa524ee0fa405578b4da",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+      "sha256": "3bd8d8bae1e3dc6d6768761354ef864e5a421602f9febb35c7ae55dc87ae9a26",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/benchmarks/backend-audit-20260925/README.md",
+      "sha256": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+      "sha256": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+      "sha256": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+      "sha256": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+      "sha256": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+      "sha256": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+      "sha256": "4f780de740f50f297049bc009a71d7561fc553adff5f5c04e3f22f08d9bef0af",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/backends-backend.md",
+      "sha256": "fccc0b75aec68ab2948d16c6b0f277c6716295f46daafedb92478b14492026a4",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/backends-cpu-placement.md",
+      "sha256": "9bfe6807882392da236f72acfad95eaaa63c819a936c0b15fe51e3c734510d29",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/backends-cpu.md",
+      "sha256": "7c684aaf0b062403c502ef5f5f3a0980938d087c6220f9506853140a28cc3b78",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/backends-device_profile.md",
+      "sha256": "50e6824315b1939a08a9e7620ca53e25eed0f4222715dc89419a2c9d8e9ceb51",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/backends-devices.md",
+      "sha256": "75371f7a26f046c5a2b15ed9ed0ab0c9ea74215de75c4bdb5bcc9c6b849a62c4",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/backends-kv_storage.md",
+      "sha256": "c183e255008d5a33391737c044866366b86905789f0c2a16010e2e9607d0a1aa",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/backends-vulkan.md",
+      "sha256": "cf9dd5585e7c50d539d331decf6597c7ecb7e9349726045180967cb55e2b766b",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/cli-main.md",
+      "sha256": "158d8e83fe3f2116de05f51f464ec1a99abaae455a4ae4487b7cec2b7240a743",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/config.md",
+      "sha256": "27e90d7030550b99764797828e98d8f7d61478e10783b3fa10b124cc2f52dddf",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/core-cgroup.md",
+      "sha256": "04bd7a3fb23416403dc81a16064222431a2cea4fbd7cf2d5643657124fa2bea0",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/core-cpus.md",
+      "sha256": "0de85e6dc4c73391b1128ef75cb1af61e7cb8de0f5e65c34ff67b065832161c8",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/core-fp16.md",
+      "sha256": "278296c5f23e5fe0f8786339e0ab38b2e47f1352b40414acd3810c326ce20628",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/core-host_memory.md",
+      "sha256": "91939da85d49d1a4cea633d569cb46124405313686f22f38f27277f321805eea",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/core-json.md",
+      "sha256": "bd61ad39548b3515cb3eadff5197e600b7a1ba5a4ebd303874b2c0193ab8f09d",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/core-list.md",
+      "sha256": "678eb50851ad2cb1c7d5cf6d93b3a2a20c972e090778ce4421ef54a2d649f734",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/core-sha.md",
+      "sha256": "3cd6b7539ad1339e6509bc02c10300d3aa8d1ffd928fecd2a00bf03454289b32",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/core-utf8.md",
+      "sha256": "cd7c0281bd0a1ae3b06231257d9d9de540b06c823aa4b70ef2410640b17b4d69",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/format-file_reader.md",
+      "sha256": "78b8786aa781618555d46c95829b50afabf44c9de6f1c40bc57a4fc737e1fa91",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/format-format.md",
+      "sha256": "4633b7298f093c6353c36b221b51782ede978fb99215390f22271b7afb0c90d3",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/format-gguf.md",
+      "sha256": "f65819abeedadcc368d9f3e1af28adec7b06c83b9ac3f3a31fd5ba644acaf7c1",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/format-mapped_file.md",
+      "sha256": "ca12725fa05fb25174b09740f51291ab3d5b5c48dece7661b3a74d7cdcb1a21a",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/format-output_file.md",
+      "sha256": "b2e5ff986feae020ffd8fcf16cfecd331f459ddf1c8313b024e3de391311fe64",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/format-raw_convert.md",
+      "sha256": "ce9c0b20843b20d60b1a4276bf7d8e492dc1b7aaae9a77e0b593c21caa4a2ac0",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/hub.md",
+      "sha256": "a170b777455f8cd28ea5fa06718a2814dde33279ade20dd60875f168a11c6410",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/inference-chat.md",
+      "sha256": "c635c0aab77c230e5c1e4b46510cb05536c6321ed3fd2e6b976f6db2bf313620",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/inference-generate.md",
+      "sha256": "9d27cb44721bbc51024e25958091da70d2b81ed941cd2e05e503dff984419fa2",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/inference-load.md",
+      "sha256": "f982b4acd7a99319e466c1b42bd4d8fa6c670289b85c90f3196e569519510b67",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/inference-logprobs.md",
+      "sha256": "577783f1da9e774d472fc2b7703e7a5d258c77d1afd20b3a7b22e47cdc3feb16",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/inference-perplexity.md",
+      "sha256": "75eff128998c0be93b2aab8522a20f347d45e17556a04640c3e8d50f45fa0f48",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/inference-sampler.md",
+      "sha256": "49b3a67188e7755b877cb21b94769723e8ba8ff302372d58f5bb27f983a1f988",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/model-arch-metadata.md",
+      "sha256": "30492cfeaab6cd678830b4bbf2f6ac4b14272f7cab4bef771495b4de21cb6787",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/model-arch-qwen3.md",
+      "sha256": "8a652216ab45fc263923b2d10da36fd76e0f9602ebd34fcb4c625358550b8d19",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/model-arch-registry.md",
+      "sha256": "8c35da41fe0c8739ae7442141f629430e0c4507f036d7bfc7e9cdd767db4a5b9",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/model-architecture.md",
+      "sha256": "48f2936f879058113b061430ea679b474bfb1c2cc69d351d8e8a6cb9facf1dac",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/model-kv_cache.md",
+      "sha256": "5f614669a8ea00dc09f875903e6af884152ec914ce6a94f01a2a61dcac3d9be2",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/model-layer_split.md",
+      "sha256": "fc19c4a7d11f6e428769ce88c2299cc7e03267532f6fa3576bbb2ee18a322565",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/model-place.md",
+      "sha256": "dcad663df0cb8b96181aea5de7f36a7fd17a333d572eefc969b979bc9e16d7e9",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/model-runtime.md",
+      "sha256": "e90c17f7f6876af634e27698b95094355a2ad6e540531fedd236424e69d60daa",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/model-weights.md",
+      "sha256": "32006740497fb0157106753390d2ce554a8d9528ffdb8e7e54d2299a71213f9c",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/quant-k_quants.md",
+      "sha256": "313948d0b9a3e91f289be46073b2ff150c37bd33f8b7f471222fdd89d23f763f",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/quant-quant.md",
+      "sha256": "319be831cd637611a764e50d4929133a1146d8de8fd9bd3fc3c96f1a519433cb",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/quant-types.md",
+      "sha256": "3556bce26168ab4be4839d0b2680efaaf9eb0b13dc80d5164581e06d4b4ddb67",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/server.md",
+      "sha256": "80bd9535d1d065c55b1433fcd6cef73ae3bed258244ea4d8d58891d8c4be021d",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    },
+    {
+      "path": "docs/src/tokenizer-tokenizer.md",
+      "sha256": "2811c1274721d6541b76e3c011071e9b2dca2e76bf1ab2d9a56f028d3d531460",
+      "review": "hash-identical; reuses completed capability checkpoint review"
+    }
+  ]
+}

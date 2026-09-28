@@ -9,7 +9,7 @@ single temporary file with stream exceptions enabled, binary by default and
 text for raw JSON to preserve platform line endings. `write` runs the
 serializer and explicitly closes the stream, checking buffered completion too.
 Only then can `publish` rename the complete file over the destination.
-Errors opening, writing, closing or publishing name the destination in UTF-8.
+Errors opening, closing or publishing, and stream errors while writing, name the destination in UTF-8; an exception the serializer throws itself passes through unchanged.
 System failures include their category and numeric code, avoiding code-page
 path copies from Windows filesystem exceptions. Destruction
 closes any remaining stream and removes only the owned temporary file and

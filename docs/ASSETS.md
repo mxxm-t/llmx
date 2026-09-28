@@ -464,7 +464,7 @@ A pinned qwen35 file takes its own checkpoint instead, with the converter's chan
 | Q2_K | 4.214239009 | 5.0164, 4.5511, 4.4188 |
 
 The BF16 file's goldens reproduce the committed fp32 ones: every PPL number and token ID is identical, the top-10 IDs agree on 6/6 prompts, and the rounded logits differ by at most 0.0001, as in the 2026-09-19 regeneration below.
-llmx meets its file-exact goldens on the three gate files at the Q8_0 bounds, on the Linux host's CPU, with builds of main's C++ sources at d48f2b2 and at b7b585f giving the same numbers:
+llmx meets its file-exact goldens on the Q8_0, Q4_0 and Q5_K_M gate files at the Q8_0 bounds, on the Linux host's CPU, with builds of main's C++ sources at d48f2b2 and at b7b585f giving the same numbers:
 
 | File | Top-1, top-5 set | Largest NLL delta, batched | Largest NLL delta, `--per-token` |
 |---|---|---:|---:|
@@ -586,7 +586,7 @@ It runs in the qwen35 venv above, offline, and passes the same environment check
 - **The tokenizer** is the one the qwen35 tokenizer golden holds: the pinned `tokenizer.json` read with `tokenizers`, plus the 7 control tokens only `tokenizer_config.json` adds, one id each.
   transformers' own tokenizers of the 0.8B and the 4B give the same ids on all 12 texts the goldens tokenize: the six prompts, the four chat renders and the two excerpts.
 - **The goldens** of each model, 11 KB for the 0.8B:
-  - `baseline_logits.json`: HF's top 10 logits after each of the six prompts of `tests/baseline.py`, with the prompts' ids.
+  - `baseline_logits.json`: HF's top 10 logits after each of the six prompts of `tests/data/baseline_logits.json`, with the prompts' ids.
   - `baseline_chat.json`: one turn with a system message, and two turns with an earlier reply that holds its reasoning, each rendered with a generation prompt by transformers 5.17.0's renderer (the reference of `tools/gen_chat_baseline.py`) under the chat template the model's files carry, taken by SHA-256 from `tests/data/baseline_chat_template.json`; each case keeps the render, its ids and HF's top 10 logits after it.
   - `baseline_perplexity.json`: the first 5,000 characters of `wiki.test.raw`, 1,216 tokens, scored whole and in windows of 512 tokens, which `tests/baseline.py` checks on a hosted file on disk; the hosted job downloads the file only once it joins the gate.
   - `baseline_perplexity_4096.json`: the first 20,000 characters, 4,575 tokens, scored whole and in windows of 4096 tokens, checked by hand.
@@ -630,7 +630,7 @@ Every other file must match every top-1.
 - the MTP block left out, since HF has no module for it.
 
 A file whose `dt_bias` does not come back as the checkpoint's is refused, since that F32 tensor matches bit for bit only in the tiled order.
-It writes the logit and 512-token perplexity goldens, and `tests/baseline_qwen35.py --file-exact DIR` holds the file to them at the Q8_0 file's bounds.
+It writes the logit and 512-token perplexity goldens, and `tests/baseline_qwen35.py --file-exact DIR` holds the file to them at the Q8_0 file's bounds; until that file has bounds, the run measures every check and fails.
 Undone and compared with the checkpoints tensor by tensor, the 0.8B and 4B Q4_K_M files give back every F32 tensor bit for bit except `A_log`, within 1.9e-8 relative from the rounding of -exp, and one value in each of three of the 4B's layer norms, a w under 4e-6 that float32(1 + w) rounds; the quantized tensors differ by their formats' loss, at most 0.0062 relative for Q8_0, 0.020 for Q6_K, 0.041 for Q5_K and 0.090 for Q4_K.
 The Q4_K_M's are committed in `tests/data/qwen35-0.8b-q4_k_m-file-exact`, pinned by SHA-256 in `tests/baseline_qwen35.py` as its correctness gate (above), and a run of the tool at `feat/qwen35-model` in 119 s wrote them byte for byte as the earlier runs had; the Q8_0's are not committed.
 

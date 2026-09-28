@@ -36,7 +36,7 @@ This page covers what a module holds, what the shared runtime does for it, the r
   A module never compares architecture names: the registry entry it is reached through says which variant it reads and under which key prefix.
   The registry also names the synthetic model `llmx bench` times without `--model`.
 - **Includes.**
-  - A module includes the contract (`src/model/architecture.hpp`, `src/model/weights.hpp`), `src/model/arch/metadata.hpp`, the shared graph pieces once a second module needs them (see "One owner"), the backend interface and the format headers its readers read.
+  - A module includes the contract (`src/model/architecture.hpp`, `src/model/weights.hpp`), `src/model/arch/metadata.hpp`, the shared graph pieces once a second module needs them (see "One owner"), the backend interface, the format headers its readers read and the quant headers its synthetic model's writer uses.
   - It may include another module's graph header when it runs that module's blocks, as a drafter of an architecture does.
   - It never includes the runtime or the registry.
 - **Not in a module,** because they are keyed by something other than the architecture:

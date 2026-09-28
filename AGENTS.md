@@ -200,7 +200,7 @@ that a destination missing a copied router or windowed expert type leaves only
 that layer on its host, with exact prompt and follow-up logits; a host missing
 the type is refused even when streaming is requested.
 The fit counts what the model reads: a routed layer that also carries dense matrices is fitted without their width in its activations and without their bytes among its weights.
-Every refusal its checks of the file, the placements and the context provoke must give the label and text listed in `tests/data/model_refusals.txt`, in order, so a change to a refusal's text or to which defect a file is refused for changes that list, while the context storage limit and the loading checks' failures are held to their texts in the test itself; `llmx-model-validation-test --write FILE` writes the refusals it sees.
+Every refusal it provokes through its checks of the file, the placements, the context, the device types and a split's loading must give the label and text listed in `tests/data/model_refusals.txt`, in order, so a change to a refusal's text or to which defect a file is refused for changes that list, while the context storage limit and the other loading, window and hook failures are held to their texts in the test itself; `llmx-model-validation-test --write FILE` writes the refusals it sees.
 An asynchronous test backend (`tests/loading_backend.hpp`, which `load-progress` also uses), which plays a device, so it copies what it adopts and says it is not the CPU, also checks loading failure and model teardown drain pending work before releasing buffers, including split placements and backend reuse.
 Through the loader's own adoption hook (`infer::planning_adopt`), it checks that nothing is read in place on that backend, and that a host running a streamed layer's experts beside it reads exactly that layer's feed-forward norm, router and three expert stacks, the norm and router taken by both.
 It checks the hook both ways: deferring the copies, as the streamed load does, every copied weight gets storage and no weight is written or adopted while the model is built, only the position tables the model computes itself, and a model missing a tensor, or whose cache does not fit, fails after storage but before any weight is uploaded; without deferring, as the mapped load does, every weight is adopted as the model resolves it.
@@ -375,8 +375,8 @@ It exits 77, which CTest reports as skipped, when there is no loader, the loader
 It checks both 8-bit and 16-bit twins against the original finite inputs, using a representable-scale reconstruction bound independent of the runtime quantizer.
 Inputs cover every f32 exponent, reciprocal and normalization boundaries, seeded finite peaks and mixed exponents within a block.
 It checks the stored whole and half sums against double products of the encoded scale and integer sums, output guards and alignment padding, and exact agreement of the word-wise and lane-wise 8-bit writers.
-It also sends 285 blocks through raw Q8_0 identity matrices of widths 32 and 64, directly and through SiLU and RMSNorm, comparing to each producer's actual float output.
-The 82080 reconstructed outputs are bounded by half an 8-bit step plus float-rounding allowance, with the independent f32 scale rounded upward to fit the block peak and floored at the smallest positive f32.
+It also sends 285 peaks, one block of each at width 32 and two at width 64, through raw Q8_0 identity matrices, directly and through SiLU and RMSNorm, comparing to each producer's actual float output.
+On a device with both float-preservation properties the first backend's 82080 reconstructed outputs are bounded by half an 8-bit step plus float-rounding allowance, with the independent f32 scale rounded upward to fit the block peak and floored at the smallest positive f32.
 On devices without both 32-bit float-preservation properties, consumer cases needing subnormal scales are explicitly skipped; the packed-twin checks still cover every finite exponent.
 A second backend selects the fallback while its module-creation call rejects those optional execution modes, then runs the consumer cases that do not need subnormal scales.
 It needs a Vulkan device; without one it exits 77. These producer and Q8 consumer checks do not replace model correctness against HF.
@@ -612,7 +612,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   The `split` component (`tests/split.py`) runs the tool found beside `--exe` on the tiny F32 model, tied and untied, the tiny MoE model and the tiny qwen35 models of Hv = Hk and Hv = 3 Hk, one CPU against `cpu,cpu`, the MoE also against `cpu,cpu,cpu` and the qwen35 models against `cpu,cpu,cpu,cpu`, a layer a stage, where two stages hold only a linear-attention layer's state and no KV, at ubatch 1, 3 and 16 and with f16 and f32 caches, with 3 decode steps after a 13-token text, which fills their 16-token context.
   A model that keeps a recurrent state is not forked, so the tool recomputes it by class from no fork.
   It also writes a synthetic Q8_0 model with a 256-token context, whose decode rows take the CPU's 8-bit dots and prompt rows the float path, and runs it against `cpu,cpu` after a 100-token text with 40 steps and a 150-token text with 8, histories that pass a 128-token block, so every run recomputes from a fork on one backend and on the split, which the component requires.
-  It skips when the tool is not there, unless `--require-tools` is given, and the configured device, shares and cache type do not reach it.
+  It skips when the tool is not there, unless `--require-tools` is given, and the configured device, shares, cache type and load mode do not reach it.
   The HF job runs it on the Q8_0 fixture over the perplexity excerpt, `cpu` against `cpu,cpu` with 8 steps and 64-token chunks; other real models and splits over devices are run by hand.
 - **F32** (`tests/f32.py`): deterministic small-model weights with full logits
   and windowed NLL generated independently by HF. Covers tied/untied weights,
@@ -737,7 +737,7 @@ matters: **each layer depends only on the layers below it** -
 | `core/`      | fp16 <-> f32, JSON parser, UTF-8, file hashes, the host memory a process can still take and owned pages, comma-separated lists, the CPUs a process may use and the cgroups its limits are read from |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
 | `quant/`     | type ids and block sizes, QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
-| `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, raw F32 tensors to and from GGUF |
+| `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, output files published whole, raw F32 tensors to and from GGUF |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | runtime (sequences, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |

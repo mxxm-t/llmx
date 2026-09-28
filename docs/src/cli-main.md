@@ -80,8 +80,8 @@ Commands and their entry points:
 - `serve`: parses host, port, sequence and queue limits, the passes in
   flight (`--passes`), `--timing`, the KV budget
   (`--ctx-size`), `--ubatch`, `--threads`, `--device`, `--layer-shares`,
-  the experts' placement (`--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`)
-  and the cache types, then runs `server::serve` (see [server](server.md)).
+  the experts' placement (`--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`),
+  the cache types and `--load-mode`, then runs `server::serve` (see [server](server.md)).
   It raises the refusal of the opened model's `chat::ChatFormat` before the listener opens, then hands the format to the server.
   The sequence and queue limits and `--passes` are refused below 1 here, the one place they are checked; the scheduler refuses `--passes` above 1 on a placement that is not pipelined, which only the placed model tells.
   `open_model` takes the passes as the slots the fit counts handoff buffers for, and gives the fit the logits rows the scheduler keeps for them (`server::logit_rows`), the devices listed when `--passes` is not given, since a pipelined split keeps a pass per stage and has at most that many, and with `--timing` makes every device one that times its work.

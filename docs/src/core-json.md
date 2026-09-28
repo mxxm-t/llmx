@@ -49,7 +49,7 @@ JSON. Those consumers impose their own document-size limits and validate the
 fields they consume, including duplicate manifest fields, sizes and identities.
 The server (`server/api.hpp`) parses request bodies with it and builds its
 JSON replies with `quote`, and with `number` for log-probabilities.
-`llmx-decode-probe` reads its fixture with it.
+`llmx-decode-probe` reads its fixture with it, and `llmx-model-logits` quotes its JSON output with `quote`.
 
 Some standard libraries set a range-error flag for representable subnormals,
 including values rounded up to minimum normal. The parser accepts that flag

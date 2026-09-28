@@ -8062,7 +8062,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Vulkan allocation failure ownership | Done |
 | Vulkan attention width and mixed-cache validation | Done |
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
-| Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | Planned (block above), built in the background |
+| Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | In progress (block above): the spec decoders, fixtures and MXFP4 writer merged at `e9b13dec`, and MXFP4 is being built on branches of its own |
 | More model architectures (Llama, ...)    | Planned  |
 | Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the device, is next |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (block above); the CPU timing on a quiet host follows |
@@ -8077,10 +8077,10 @@ their own measurements; K-quant optimization remains separate work below.
 | Device execution model (ROADMAP #4a)     | Done     |
 | Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Done: steps 1 to 7, step 7 being the server, see the server row; `--device` lists select a layer split (multi-device row) |
 | KV cache fork (KV-CACHE step 2)          | Done     |
-| Multi-device split (per-layer, per-tensor) | In progress (`docs/MULTI-DEVICE.md`): phase 0 measured, phase 1 (the layer split over a `--device` list fitted to free memory) and phase 2 (a prompt pipelined over the stages) merged; phase 3, passes in flight: step 1, the pass API, step 2, the scheduler over it, step 3, a pass in flight per stage and the 16-slot command ring (`ec03dcfa`), and step 5, the wider Q8_0 decode builds (`perf/decode-columns`), merged; step 4, the in-place rows and the sampling pool, gated on `feat/split-sampling` and waiting on review and the hosted run; steps 6 and 7 and the final server gate follow, then tensor groups |
+| Multi-device split (per-layer, per-tensor) | In progress (`docs/MULTI-DEVICE.md`): phase 0 measured, phase 1 (the layer split over a `--device` list fitted to free memory) and phase 2 (a prompt pipelined over the stages) merged; phase 3, passes in flight: step 1, the pass API, step 2, the scheduler over it, step 3, a pass in flight per stage and the 16-slot command ring (`ec03dcfa`), and step 5, the wider Q8_0 decode builds (`perf/decode-columns`), merged; step 4, the in-place rows and the sampling pool, gated on `feat/split-sampling`, rebased onto `1108fc3b` and waiting on review and the hosted run; step 6, the head split, is being built on `feat/split-head`; step 7 and the final server gate follow, then tensor groups |
 | GPU backends (Vulkan first to write, ROCm first-class) | Vulkan implemented and the recorded dense-model device gate passed on both platforms (forty-seventh checkpoint above): Radeon VII decode 102-115% and prefill 109-455% of the same-card reference Vulkan build; one MI50 decode 102-115% and prefill 102-267%. These are dated gate results, not new measurements from this documentation review. ROCm planned |
 | Multi-node / cluster                     | Planned  |
-| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput 109 to 125 percent of the reference server at 1 to 16 concurrent on the device (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
+| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | Done |
@@ -8115,6 +8115,9 @@ their own measurements; K-quant optimization remains separate work below.
 | HF native formats (ROADMAP #9b)          | Planned  |
 | HF Hub kernels (additional, after #4a)   | Planned  |
 | Documentation consistency review | Done (merged at `5869385b`, six hosted jobs passed) |
+| Shared device-versus-CPU numerical gate | Done (main `c6a91bf`) |
+| Required device types in the test runner | Done (main `56172ea`) |
+| Vulkan finite activation repair | On main at `99020607`; its block records the exact-head hosted run as still owed |
 | Dead-code and stale-docs checks in every job | Done (merged at `75450ea`, block above); the cleanup of the listed findings, branch `cleanup/known-findings`, is next now that the architecture modules have merged, and has not started |
 
 `Done` denotes implemented and validated functionality in this release tree.

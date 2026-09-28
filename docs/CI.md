@@ -37,11 +37,11 @@ Its `decode-probe` component runs `llmx-decode-probe` on the tiny F32 model and 
 The `device-reference` component runs `llmx-model-logits` to capture full logits for the shared numerical criterion (Device versus CPU numerical checks, below).
 CMake builds all three tools in every configuration with tests (the default), and those jobs pass `--require-tools`, so a tool missing beside the executable fails the job rather than skipping.
 The Windows job's second run, on the `build.bat` binary, which has no tools beside it, leaves the flag off.
-The HF job also runs `llmx-split-check <Q8_0> <excerpt> cpu cpu,cpu 8 64` on the real Qwen3-0.6B Q8_0 over the 247-token perplexity excerpt: every position through the prompt path, the prefill in four 64-token chunks pipelined over two CPU stages, 8 greedy steps and a decoding sequence beside a fresh prompt, bit for bit against one backend.
+The HF job also runs `llmx-split-check <Q8_0> <excerpt> cpu cpu,cpu 8 64` on the real Qwen3-0.6B Q8_0 over the 247-token perplexity excerpt: every position through the prompt path, the prefill in four 64-token chunks pipelined over two CPU stages, 8 greedy steps, the prompt and steps recomputed by class, whole and from a fork at a block, a decoding sequence beside a fresh prompt, and passes in flight at two, three and four slots, bit for bit against one backend.
 Splits over GPUs are run by hand on the Radeon VII and the MI50s.
 
 The HF job ends with `tools/server_mix_check.py` on the Qwen3-0.6B Q8_0 on the CPU, `--requests 8 --cli 2`, prompts cut from `tests/data/wiki.test.raw`: eight requests of 120 to 12000 characters each give their ids alone, then all at once, then skewed, the long prompts landing while others decode and every fourth client leaving mid-stream, and the first two give the same text through `generate --temp 0`.
-It is the only hosted check of long prompts landing while others decode and of clients leaving a real model's server.
+It is the only hosted check of long prompts landing on a real model's server while others decode, with clients leaving mid-stream among them.
 
 The original four jobs passed in the [initial hosted run](https://github.com/mxxm-t/llmx/actions/runs/35440893448) at `ec74308`.
 Local Windows MSVC and WSL Linux GCC CMake builds of `ec74308` also passed the suite with both HF fixtures it then had required.

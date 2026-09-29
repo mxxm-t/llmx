@@ -369,6 +369,7 @@ Every kind of refusal of `matmul`, `matmul_add`, `matmul_group`, the routed prod
 `alloc` and `adopt` leave a new buffer held by the command-buffer slot that fills or copies it, so the first pass submits until no slot holds the call's operands, makes the call and then drops them, and a command the call left naming one fails the next submission.
 The second pass writes into an output that must keep what it held.
 What a paused request's resume relies on is checked the same way: 40 generated rows of one sequence in one run of extent 1 beside a prompt's rows must equal, at rows 0, 1, 7, 8, 15, 31 and 39, the row in a matmul of its own, and their attention after a 500-token history in one view of extent 1 beside a 60-row prompt's view must equal every row decoded one call at a time.
+The integer-dot tile of every quantized type and the Q8_0 row kernel must hold the precision of 16-bit activations: against a double product of the unquantized inputs, whose every block holds one value 30 times the others, each output within half a 16-bit step of each block's peak times that block's weights, where 8-bit activations miss by the 8-bit step.
 It exits 77, which CTest reports as skipped, when there is no loader, the loader has no driver or is older than Vulkan 1.2, or device 0 is missing or lacks a feature the backend requires.
 
 `vulkan-quantization` reads the packed activation buffers before consumer arithmetic.

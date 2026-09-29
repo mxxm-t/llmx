@@ -2089,6 +2089,69 @@ size_t check_refusals(backend::Backend& vk) {
 }
 
 // `--isa DIR` opens the backend for diagnostics and writes the driver's representation of every kernel it compiled, one file per kernel, after the checks, then checks each row kernel build's float multiplies and adds against its one-column build's (check_contraction).
+// The integer-dot tile and the Q8_0 row kernel hold the precision of 16-bit activations: against a double product of the unquantized inputs, an output is within half a 16-bit step of each block's peak times that block's weights, where 8-bit activations miss by the 8-bit step (docs/STATUS.md, MI50 prompt activations at 16 bits).
+// Each block of the inputs holds one value 30 times the others, as a residual stream's outliers do, so a block's step follows its peak.
+// The tile case is a batch every type takes the tile at, and the row case three columns, which the Q8_0 row kernel takes; the other types' row kernels read the 8-bit twin on an integer-dot device and are left out.
+size_t check_activation_precision(backend::Backend& vk) {
+    const size_t nin = 1024, nout = 48;
+    const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
+    const size_t tile_cols = std::max<size_t>(64, backend::tile_from_for(prof, false, nin));
+    struct Case { uint32_t type; size_t nbatch; };
+    std::vector<Case> cases = {{quant::GGML_TYPE_Q8_0, 3}};
+    for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+                          quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K})
+        cases.push_back({type, tile_cols});
+    size_t values = 0;
+    for (const Case& c : cases) {
+        std::vector<float> x = uniform(c.nbatch * nin, 300 + (uint32_t)c.nbatch);
+        for (size_t i = 0; i < x.size(); i += 32) x[i + (i / 32) % 32] *= 30.0f;
+        const std::vector<uint8_t> wb = matrix(c.type, nin, nout, 301 + c.type);
+        std::vector<float> w(nout * nin);
+        const size_t rb = wb.size() / nout;
+        for (size_t o = 0; o < nout; ++o) {
+            const uint8_t* src = wb.data() + o * rb;
+            float* dst = w.data() + o * nin;
+            switch (c.type) {
+            case quant::GGML_TYPE_Q8_0: quant::dequantize_row_q8_0(src, dst, nin / 32); break;
+            case quant::GGML_TYPE_Q4_0: quant::dequantize_row_q4_0(src, dst, nin / 32); break;
+            case quant::GGML_TYPE_Q4_1: quant::dequantize_row_q4_1(src, dst, nin / 32); break;
+            case quant::GGML_TYPE_Q4_K: quant::dequantize_row_q4_K(src, dst, nin / 256); break;
+            case quant::GGML_TYPE_Q5_K: quant::dequantize_row_q5_K(src, dst, nin / 256); break;
+            default: quant::dequantize_row_q6_K(src, dst, nin / 256); break;
+            }
+        }
+        const auto wd = vk.adopt(wb.data(), wb.size()), xd = vk.adopt(x.data(), x.size() * sizeof(float));
+        const auto yd = vk.alloc(c.nbatch * nout * sizeof(float));
+        vk.matmul(c.type, {wd.get(), 0}, {xd.get(), 0}, {yd.get(), 0}, nin, nout, c.nbatch);
+        std::vector<float> y(c.nbatch * nout);
+        vk.read(*yd, 0, y.data(), y.size() * sizeof(float));
+        for (size_t b = 0; b < c.nbatch; ++b)
+            for (size_t o = 0; o < nout; ++o) {
+                double exact = 0, size = 0, bound = 0;
+                for (size_t k = 0; k < nin; k += 32) {
+                    double peak = 0, weights = 0;
+                    for (size_t i = k; i < k + 32; ++i) {
+                        const double wi = w[o * nin + i], xi = x[b * nin + i];
+                        exact += wi * xi;
+                        size += std::fabs(wi * xi);
+                        peak = std::max(peak, std::fabs(xi));
+                        weights += std::fabs(wi);
+                    }
+                    bound += peak / 32767.0 / 2.0 * weights;
+                }
+                bound = bound * 1.0001 + 1e-5 * size + 1e-6;
+                const double got = y[b * nout + o];
+                if (!(std::fabs(got - exact) <= bound)) {
+                    std::fprintf(stderr, "  type %u, %zu columns, column %zu row %zu: device %.9g, exact %.9g, bound %.3g\n", c.type, c.nbatch, b, o,
+                                 got, exact, bound);
+                    throw std::runtime_error("a matmul misses the 16-bit activations' precision");
+                }
+            }
+        values += c.nbatch * nout;
+    }
+    return values;
+}
+
 int main(int argc, char** argv) {
     const std::string isa_dir = argc == 3 && std::strcmp(argv[1], "--isa") == 0 ? argv[2] : "";
     backend::BackendPtr b;
@@ -2195,6 +2258,8 @@ int main(int argc, char** argv) {
                   << values << " kernel outputs against the CPU backend\n";
         const size_t columns = check_decode_columns(*b);
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";
+        const size_t precise = check_activation_precision(*b);
+        std::cout << "backend-vulkan: " << precise << " outputs within the 16-bit activations' precision\n";
         std::cout << backend::vulkan_kernel_statistics(*b);
         if (!isa_dir.empty()) {
             const auto representations = backend::vulkan_kernel_representations(*b);

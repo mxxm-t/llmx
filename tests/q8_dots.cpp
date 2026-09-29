@@ -11,6 +11,7 @@
 #include <vector>
 #include "backends/cpu/cpu_backend.hpp"
 #include "quant/quant.hpp"
+#include "quantizers.hpp"
 
 namespace {
 void require(bool ok, const std::string& what) {
@@ -144,11 +145,11 @@ std::vector<uint8_t> packed(uint32_t type, size_t rows, size_t nin, std::mt19937
     const quant::QuantType* qt = quant::Registry::instance().get(type);
     const size_t blocks = rows * nin / qt->block_size;
     std::vector<uint8_t> out(blocks * qt->type_size);
-    if (qt->quantize) {
+    if (const auto quantize = testq::quantizer(type)) {
         std::uniform_real_distribution<float> u(-1.0f, 1.0f);
         std::vector<float> f(rows * nin);
         for (float& v : f) v = u(rng);
-        qt->quantize(f.data(), out.data(), blocks);
+        quantize(f.data(), out.data(), blocks);
         return out;
     }
     for (uint8_t& b : out) b = uint8_t(rng());

@@ -21,6 +21,7 @@
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "model/kv_cache.hpp"
 #include "quant/quant.hpp"
+#include "quantizers.hpp"
 
 namespace {
 void require(bool ok, const char* message) {
@@ -142,7 +143,7 @@ std::vector<uint8_t> matrix(uint32_t type, size_t in, size_t rows, uint32_t seed
             uint8_t* dst = bytes.data() + r * (in / 32) * ts;
             if (type == quant::GGML_TYPE_Q8_0) quant::quantize_row_q8_0(f.data() + r * in, dst, in / 32);
             else if (type == quant::GGML_TYPE_Q4_0) quant::quantize_row_q4_0(f.data() + r * in, dst, in / 32);
-            else quant::quantize_row_q4_1(f.data() + r * in, dst, in / 32);
+            else testq::quantize_row_q4_1(f.data() + r * in, dst, in / 32);
         }
     } else {
         const size_t ts = type == quant::GGML_TYPE_Q6_K ? quant::Q6_K_TYPESIZE : type == quant::GGML_TYPE_Q4_K ? quant::Q4_K_TYPESIZE : quant::Q5_K_TYPESIZE;
@@ -443,7 +444,7 @@ size_t check_kernels(backend::Backend& vk) {
                                      nin / quant::Q4_0_BLOCK);
         std::vector<uint8_t> w41(nout * (nin / quant::Q4_1_BLOCK) * quant::Q4_1_TYPESIZE);
         for (size_t row = 0; row < nout; ++row)
-            quant::quantize_row_q4_1(wf.data() + row * nin,
+            testq::quantize_row_q4_1(wf.data() + row * nin,
                                      w41.data() + row * (nin / quant::Q4_1_BLOCK) * quant::Q4_1_TYPESIZE,
                                      nin / quant::Q4_1_BLOCK);
         // No Q6_K quantizer is needed: any bytes are a valid block and both backends decode the same bytes.

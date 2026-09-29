@@ -4,6 +4,7 @@
 #include <iostream>
 #include <stdexcept>
 #include "backends/cpu/cpu_backend.hpp"
+#include "quantizers.hpp"
 
 static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
@@ -168,7 +169,7 @@ struct Matrix {
             const auto* q = quant::Registry::instance().get(type);
             const size_t blocks = weights.size() / q->block_size;
             packed.resize(blocks * q->type_size);
-            if (q->quantize) q->quantize(weights.data(), packed.data(), blocks);
+            if (const auto quantize = testq::quantizer(type)) quantize(weights.data(), packed.data(), blocks);
             else {
                 for (size_t i = 0; i < packed.size(); ++i)
                     packed[i] = uint8_t(i * 73 + 19);

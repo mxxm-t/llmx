@@ -390,7 +390,7 @@ def check_non_ascii_directory(d):
         print("roundtrip: %s under a non-ASCII directory writes the same files  [ok]" % qtype)
 
 
-# quantize takes only the names of the types it writes: Q4_1 has a quantizer but no GGUF file type here.
+# quantize takes only the names of the types it writes, and Q4_1 is one llmx reads but never writes.
 def check_type_names(d):
     mj, mb, mg = (os.path.join(d, n) for n in ("model.json", "model.bin", "names.gguf"))
     for name in ("q4_1", "Q8_0"):

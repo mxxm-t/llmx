@@ -12,7 +12,7 @@
 #include "quant/k_quants.hpp"
 #include "quant/types.hpp"
 
-// Block quantization: the Q8_0, Q4_0 and Q4_1 row kernels, and the registry pairing each type llmx reads (types.hpp) with its block size and kernels (the K-quants' are in k_quants.hpp).
+// Block quantization: the Q8_0 and Q4_0 quantizers, the Q8_0, Q4_0 and Q4_1 dequantizers, and the registry pairing each type llmx reads (types.hpp) with its block size and kernels (the K-quants' are in k_quants.hpp).
 // A Q8_0 block holds 32 float values as a 2-byte f16 scale and 32 int8 values (Q8_0_TYPESIZE bytes per block).
 // The kernels serve the quantize command (float -> block) and the dequantize command and CPU inference path (block -> float).
 
@@ -108,30 +108,6 @@ inline void dequantize_row_q4_0(const uint8_t* src, float* dst, size_t nblocks) 
 
 // Q4_1 block: 2-byte f16 scale d, 2-byte f16 min m, then 16 bytes of nibbles (Q4_1_TYPESIZE = 20).
 // Unlike Q4_0 the nibble is unsigned and the block carries its own offset, so the value is d*q + m rather than d*(q-8).
-inline void quantize_row_q4_1(const float* src, uint8_t* dst, size_t nblocks) {
-    for (size_t b = 0; b < nblocks; b++) {
-        const float* x = src + b * Q4_1_BLOCK;
-        uint8_t*      y = dst + b * Q4_1_TYPESIZE;
-        float mn = x[0], mx = x[0];
-        for (size_t j = 1; j < Q4_1_BLOCK; j++) {
-            mn = std::min(mn, x[j]);
-            mx = std::max(mx, x[j]);
-        }
-        const float d = (mx - mn) / 15.0f;
-        const float id = (d > 0.0f) ? (1.0f / d) : 0.0f;
-        const uint16_t d16 = f32_to_f16(d), m16 = f32_to_f16(mn);
-        y[0] = (uint8_t)(d16 & 0xff); y[1] = (uint8_t)(d16 >> 8);
-        y[2] = (uint8_t)(m16 & 0xff); y[3] = (uint8_t)(m16 >> 8);
-        for (size_t j = 0; j < Q4_1_BLOCK / 2; j++) {
-            int lo = (int)std::round((x[j] - mn) * id);
-            int hi = (int)std::round((x[j + Q4_1_BLOCK / 2] - mn) * id);
-            lo = std::min(15, std::max(0, lo));
-            hi = std::min(15, std::max(0, hi));
-            y[4 + j] = (uint8_t)(lo | (hi << 4));
-        }
-    }
-}
-
 inline void dequantize_row_q4_1(const uint8_t* src, float* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
         const uint8_t* y = src + b * Q4_1_TYPESIZE;
@@ -175,9 +151,9 @@ private:
           { "Q8_0", Q8_0_BLOCK, Q8_0_TYPESIZE, quantize_row_q8_0, dequantize_row_q8_0 } },
         { GGML_TYPE_Q4_0,
           { "Q4_0", Q4_0_BLOCK, Q4_0_TYPESIZE, quantize_row_q4_0, dequantize_row_q4_0 } },
+        // Q4_1 and the K-quants are read-only: llmx loads files that carry them, including a few Q6_K tensors inside an otherwise Q4_0 file, but produces none, so a quantizer would be unused code; the tests pack Q4_1 with their own (tests/quantizers.hpp).
         { GGML_TYPE_Q4_1,
-          { "Q4_1", Q4_1_BLOCK, Q4_1_TYPESIZE, quantize_row_q4_1, dequantize_row_q4_1 } },
-        // The K-quants are read-only: llmx loads files that carry them, including a few Q6_K tensors inside an otherwise Q4_0 file, but produces none, so a quantizer would be unused code.
+          { "Q4_1", Q4_1_BLOCK, Q4_1_TYPESIZE, nullptr, dequantize_row_q4_1 } },
         { GGML_TYPE_Q4_K,
           { "Q4_K", Q4_K_BLOCK, Q4_K_TYPESIZE, nullptr, dequantize_row_q4_K } },
         { GGML_TYPE_Q5_K,

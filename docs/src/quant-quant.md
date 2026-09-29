@@ -8,10 +8,10 @@ Block quantization kernels, in namespace `quant`.
 - `quantize_row_q4_0` / `dequantize_row_q4_0`: Q4_0 block = 2-byte f16 scale (`d = amax/7`) + 16 bytes of nibbles; each byte holds value `j` in the low nibble and `j+16` in the high nibble, stored unsigned 0..15 where the true value is `nibble - 8`.
   The decode computes `d*(nibble - 8)`, so under a negative scale, which `quantize` never writes but other files carry, nibble 8 gives -0 as the format does.
   Encoding normally multiplies by the reciprocal of the F32 scale, preserving its existing rounding. If that reciprocal is infinite for a tiny positive scale, it divides that block into a 32-float local array and packs it with multiplier 1, keeping the values bounded before the integer casts and leaving the ordinary packing loop unchanged. A scale rounded to zero in F32 keeps zero codes; a scale representable in F32 can still round to zero in the stored binary16 format. Rounding a tiny scale in F32 can reach the -8 clamp as well as the ordinary -7 to 7 codes. `quantize-range` checks exact codes across power-of-two scales, half-way cases and rounded subnormal scales under gradual underflow; nonfinite inputs are outside its scope.
-- `quantize_row_q4_1` / `dequantize_row_q4_1`: Q4_1 block = f16 scale + f16
+- `dequantize_row_q4_1`: Q4_1 block = f16 scale + f16
   min + 16 bytes of nibbles (20 bytes). The nibble is unsigned and the block
   carries its own offset, so the value is `d*q + m`, not `d*(q-8)`.
-  `quantize` writes only Q8_0 and Q4_0 (`format::quant_type_of`), so the Q4_1 quantizer serves only the tests that build Q4_1 weights.
+  llmx reads Q4_1 and never writes it, so the registry gives it no quantizer, as it gives the K-quants none; the tests pack Q4_1 weights with their own (`tests/quantizers.hpp`).
 - `dequantize_row_q6_K` (in `k_quants.hpp`): Q6_K super-block of 256 values in 210 bytes - 128 low
   nibbles, 64 bytes of high 2-bit pairs, 16 int8 group scales, f16 super-block
   scale. Registered READ-ONLY: llmx must load it because common GGUF converters

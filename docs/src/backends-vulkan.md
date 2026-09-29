@@ -33,9 +33,10 @@ The lifetime and packed-quantization tests include the implementation and use te
   the driver's disassembly of each kernel, which
   `vulkan_kernel_representations` returns and `backend-vulkan --isa DIR`
   writes one file per kernel, then holds each row kernel build to its
-  one-column build's counts of float multiplies and adds, and each Q8_0
-  decode build to the counts its shape and forms give, which the first
-  line of that build's representation states (AGENTS.md, Tests). On a queue that
+  one-column build's counts of float multiplies and adds, each Q8_0
+  decode build to the counts its shape and forms give, and a kernel's
+  two-row builds to whole copies of one row and column's products apart,
+  as the first line of each build's representation states its shape (AGENTS.md, Tests). On a queue that
   timestamps it the backend also times the
   dispatches: `vulkan_kernel_times` returns device milliseconds per kernel
   since the last reading, waiting for the queue, and
@@ -99,7 +100,8 @@ The lifetime and packed-quantization tests include the implementation and use te
   Q6_K rows of the output head (`matmul_logits`). Each row kernel but the
   Q8_0 decode kernel is built for eight columns and for one
   (specialization constant 0), the one-column build taken when a chunk is
-  one wide, except the wide Q8_0 kernel, and a third pipeline is the
+  one wide, except the wide Q8_0 kernel, the Q4 and K-quant families also
+  for two rows (below), and a third pipeline is the
   eight-column build grouped by expert (specialization constant 8,
   Mixture of experts below). For integer-dot
   devices the Q4 (Q4_0 and Q4_1) and Q6_K families are built again with
@@ -115,6 +117,8 @@ The lifetime and packed-quantization tests include the implementation and use te
   `for_each_column_chunk` splits a pass's columns: chunks of the widest build the kernel has on the device (the profile's `q8_decode_cols` for this kernel) while more columns remain than it holds, then the rest in the narrowest build that holds them.
   Each Q8_0 decode build holds twice the next narrower's columns, so a chunk fills more than half its build, and a build of one column group checks the column count only before the groups of columns past its first half, while the 32-column build's second group, which gets 1 to 16 columns, checks it before each, and the grouped build, whose runs hold any count, checks it before each group; a build of up to 8 columns also skips the products of the columns past the count in a group the pass fills in part.
   Every build computes a column as the one-column build does, so the split changes only the time; `backend-vulkan` checks each column against the same column alone.
+  The Q4 and K-quant families (`row_kernel_builds_two_rows`) also have two-row builds of 2, 4, 8 and 16 columns (`kRowBuilds`, specialization constants 0 and 9, the latter `build_rows`), which a device takes in place of the eight-column build up to its profile's `row_decode_cols` (16 on the MI50 under RADV, none by default): a cluster takes two adjacent rows and computes every column the build holds, so its chunks too fill more than half a build, and `sg_rows` counts the rows a subgroup's clusters take while the push constant keeps the clusters.
+  `kernel_representations` starts such a build's text with `; row_build cols=C rows=R`.
   The lanes that share a wide Q8_0 block pair (four) and a K-quant block (eight) are fixed by `matmul_row.comp`, and the host mirrors them in constants beside the tile heights rather than in the profile.
 - Wide batches take a tile kernel. Where the profile sets
   `prefer_integer_dot`, every quantized type goes through the 8-bit

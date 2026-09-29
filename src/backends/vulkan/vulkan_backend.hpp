@@ -35,7 +35,7 @@ DeviceProfile vulkan_device_profile(const Backend& backend);
 std::string vulkan_kernel_statistics(const Backend& backend);
 
 // The driver's internal representations (the ISA on AMD) of every kernel a diagnostics backend has compiled, as (kernel name, text).
-// A build of the Q8_0 decode kernel starts with a line of its shape and forms as the backend made it on its device (docs/VULKAN.md): `; q8_decode_build cols=C rows=R steps=S tree=T half=H`, each form 0 or 1.
+// A build of the Q8_0 decode kernel starts with a line of its shape and forms as the backend made it on its device (docs/VULKAN.md): `; q8_decode_build cols=C rows=R steps=S tree=T half=H`, each form 0 or 1; a two-row build of the Q4 and K-quant row kernels with `; row_build cols=C rows=R`.
 // Empty for a backend opened without diagnostics or a device that does not serve them.
 std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend);
 

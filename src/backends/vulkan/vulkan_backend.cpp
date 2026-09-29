@@ -356,9 +356,34 @@ inline uint32_t vec_forms(int variant, const DeviceProfile& profile) {
     return (kVecBuilds[variant].forms & profile.q8_decode_forms) | (profile.q8_decode_forms & kQ8Half);
 }
 
+// Whether a row kernel is one of the Q4 and K-quant families, which have two-row decode builds (shaders/matmul_row.comp, ROWS).
+inline bool row_kernel_builds_two_rows(KernelId id) {
+    switch (id) {
+    case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
+    case K_MATMUL_ROW_Q4_DOT: case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT:
+    case K_MATMUL_ROW_K_DOT8: case K_MATMUL_ROW_Q4_DOT8:
+        return true;
+    default: return false;
+    }
+}
+
+// Those families' builds by pipeline variant: the columns a lane keeps and the rows a cluster takes (specialization constants 0 and 9).
+// Variants 0 to 2 are every row kernel's wide, one-column and grouped builds of one row; 3 to 6 the two-row builds of 2, 4, 8 and 16 columns, which compute every column they hold, so a chunk fills more than half of one.
+// Every build gives a column the same bits (docs/VULKAN.md).
+struct RowBuild {
+    uint32_t cols, rows;
+};
+const RowBuild kRowBuilds[kVariants] = {{kRowColsWide, 1}, {kRowColsOne, 1}, {kRowColsWide, 1}, {2, 2}, {4, 2}, {8, 2}, {16, 2}};
+// The two-row builds, narrowest first.
+const int kRowByWidth[] = {3, 4, 5, 6};
+
+// The rows a cluster takes in a row kernel's build, by pipeline variant: one but in the two-row builds.
+inline uint32_t build_rows(KernelId id, int variant) { return row_kernel_builds_two_rows(id) ? kRowBuilds[variant].rows : 1; }
+
 // The columns a row kernel's build holds, by pipeline variant.
 inline uint32_t build_cols(KernelId id, int variant) {
     if (id == K_MATMUL_VEC_Q8) return kVecBuilds[variant].capacity();
+    if (row_kernel_builds_two_rows(id)) return kRowBuilds[variant].cols;
     return variant == 1 ? kRowColsOne : kRowColsWide;
 }
 
@@ -1079,7 +1104,7 @@ public:
     }
 
     // The driver's internal representations of every kernel compiled so far, under each kernel's name, for a backend opened for diagnostics.
-    // A Q8_0 decode build's text starts with a line giving its shape and forms as its pipeline was made, which backend-vulkan --isa holds its float operations to.
+    // A Q8_0 decode build's text starts with a line giving its shape and forms as its pipeline was made, and a two-row build of the Q4 and K-quant families with its columns and rows, which backend-vulkan --isa holds their float operations to.
     std::vector<std::pair<std::string, std::string>> kernel_representations() const {
         std::vector<std::pair<std::string, std::string>> out;
         const Device& d = *dev_;
@@ -1099,6 +1124,8 @@ public:
                 const uint32_t forms = vec_forms(variant, d.profile);
                 text = "; q8_decode_build cols=" + std::to_string(b.cols) + " rows=" + std::to_string(b.rows) + " steps=" + std::to_string(b.steps) +
                        " tree=" + std::to_string((forms & kQ8Tree) ? 1 : 0) + " half=" + std::to_string((forms & kQ8Half) ? 1 : 0) + "\n";
+            } else if (build_rows((KernelId)id, variant) > 1) {
+                text = "; row_build cols=" + std::to_string(build_cols((KernelId)id, variant)) + " rows=" + std::to_string(build_rows((KernelId)id, variant)) + "\n";
             }
             for (uint32_t e = 0; e < n; ++e) {
                 VkPipelineExecutableInfoKHR ei{};
@@ -1710,7 +1737,7 @@ public:
     }
 
     // The builds a row kernel's plain columns take on this device, narrowest first, as pipeline variants; returns their count.
-    // The Q8_0 decode kernel takes its builds up to the profile's q8_decode_cols, every other row kernel its one-column build where it has one and its wide build.
+    // The Q8_0 decode kernel takes its builds up to the profile's q8_decode_cols, the Q4 and K-quant families their one-column build and their two-row builds up to the profile's row_decode_cols where it sets one, every other row kernel its one-column build where it has one and its wide build.
     size_t column_builds(KernelId id, int (&out)[kVariants]) const {
         size_t n = 0;
         if (id == K_MATMUL_VEC_Q8) {
@@ -1719,6 +1746,11 @@ public:
             return n;
         }
         if (row_kernel_builds_one_column(id)) out[n++] = 1;
+        if (row_kernel_builds_two_rows(id) && dev_->profile.row_decode_cols >= kRowBuilds[kRowByWidth[0]].cols) {
+            for (int v : kRowByWidth)
+                if (kRowBuilds[v].cols <= dev_->profile.row_decode_cols) out[n++] = v;
+            return n;
+        }
         out[n++] = 0;
         return n;
     }
@@ -1727,6 +1759,7 @@ public:
     // Every build gives a column the same bits, so how a pass is chunked changes only its time.
     // Each Q8_0 decode build holds twice the columns of the next narrower, so each of that kernel's chunks fills more than half its build.
     // A build of one column group then checks the count only before the groups past its first half, and the second group of a two-group build, which gets 1 to all of its columns, before each group.
+    // So does each two-row build of the Q4 and K-quant families, which computes every column it holds.
     template <typename Fn>
     void for_each_column_chunk(KernelId id, size_t nbatch, const Fn& each) const {
         int builds[kVariants] = {};
@@ -1795,9 +1828,9 @@ public:
         return RowPlan{kernel, type, wide, cluster};
     }
 
-    // Rows a subgroup takes in a row kernel's build: in matmul_row.comp one row a cluster of lanes, in the Q8_0 decode kernel its build's own (kVecBuilds).
+    // Rows a subgroup takes in a row kernel's build: in matmul_row.comp the build's rows a cluster of lanes (build_rows), in the Q8_0 decode kernel its build's own (kVecBuilds).
     uint32_t sg_rows(const RowPlan& plan, int variant) const {
-        return plan.kernel == K_MATMUL_VEC_Q8 ? kVecBuilds[variant].rows : dev_->caps.subgroup_size / plan.cluster;
+        return plan.kernel == K_MATMUL_VEC_Q8 ? kVecBuilds[variant].rows : dev_->caps.subgroup_size / plan.cluster * build_rows(plan.kernel, variant);
     }
 
     // What a row kernel reads X through: the floats for F32 rows, else the activations' twin (shaders/xquant.glsl), which the norm, SiLU and attention kernels write beside their output and tag.
@@ -1825,7 +1858,7 @@ public:
                       uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
                       uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0) {
         // A Q8_0 decode build whose column groups take the same rows gives each workgroup's rows that many adjacent workgroups.
-        const uint32_t rows_per_sg = sg_rows(plan, variant), per_group = (256 / dev_->caps.subgroup_size) * rows_per_sg;
+        const uint32_t per_group = (256 / dev_->caps.subgroup_size) * sg_rows(plan, variant);
         const uint32_t span = plan.kernel == K_MATMUL_VEC_Q8 ? kVecBuilds[variant].span : 1;
         uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
         uint32_t total = 0;
@@ -1841,7 +1874,8 @@ public:
         const Projection& b = live.size() > 1 ? *live[1] : a;
         const Projection& c = live.size() > 2 ? *live[2] : a;
         const uint32_t t = plan.type, w = plan.wide;
-        const uint32_t pc[22] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, rows_per_sg,
+        // matmul_row.comp counts its rows by cluster, the Q8_0 decode kernel reads neither.
+        const uint32_t pc[22] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, dev_->caps.subgroup_size / plan.cluster,
                                  (uint32_t)live.size(),
                                  nout[0], t, w, start[0],
                                  nout[1], t, w, start[1],
@@ -2499,12 +2533,13 @@ private:
                                    id == K_MATMUL_TILE_Q8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
                                              : build_cols(id, variant);
-            // Constant 7 selects a producer's build that also writes the 8-bit twin, constant 8 a row kernel's grouped build, and constants 9 to 13 are the Q8_0 decode kernel's rows, steps, forms and column groups (kVecBuilds), whose constant 0 is its columns a subgroup rather than the build's.
+            // Constant 7 selects a producer's build that also writes the 8-bit twin, constant 8 a row kernel's grouped build, and constant 9 the rows a build takes, a cluster's in matmul_row.comp (build_rows) and a subgroup's in the Q8_0 decode kernel.
+            // Constants 10 to 13 are the Q8_0 decode kernel's steps, forms and column groups (kVecBuilds), whose constant 0 is its columns a subgroup rather than the build's.
             // Every pipeline gets all eight entries, and a module that declares none ignores them.
             const VecBuild& vb = kVecBuilds[variant];
             const bool vec = id == K_MATMUL_VEC_Q8;
             const uint32_t forms = vec ? vec_forms(variant, d.profile) : 0;
-            const uint32_t spec_data[8] = {vec ? vb.cols : spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u, vb.rows, vb.steps,
+            const uint32_t spec_data[8] = {vec ? vb.cols : spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u, vec ? vb.rows : build_rows(id, variant), vb.steps,
                                            (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Half) ? 1u : 0u, vb.span};
             const uint32_t spec_ids[8] = {0, 7, 8, 9, 10, 11, 12, 13};
             VkSpecializationMapEntry entries[8];

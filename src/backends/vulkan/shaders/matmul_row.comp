@@ -1,7 +1,7 @@
 #version 450
 // Y[b*nout + o] = dot(row o, X column b), the decode kernel, for up to three projections of one X in one dispatch (a layer's q, k and v, or gate and up).
 // Workgroups go to projections in order, so a workgroup's projection and buffers are uniform.
-// A subgroup takes `rows_per_sg` rows, each on a cluster of `cluster` lanes that stride over the row's work units and reduce with xor shuffles; a lane keeps up to eight batch columns in registers.
+// A subgroup takes `rows_per_sg` clusters of `cluster` lanes, each a row (ROWS rows in a two-row build) whose work units its lanes stride over, reducing with xor shuffles; a lane keeps up to MAX_COLS batch columns in registers.
 //
 // Quantized rows meet the activations as a signed 16-bit twin in blocks of 32 (xquant.glsl) with the block's scale and scaled sums; a type's offset (Q4_0's -8, Q4_1's min, the K-quant mins, Q6_K's -32) is folded through the block sum. F32 rows keep float activations.
 //
@@ -16,6 +16,7 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_control_flow_attributes : require
 #ifdef LLMX_DOT
 #extension GL_EXT_integer_dot_product : require
 #endif
@@ -73,6 +74,9 @@ layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
 // As a specialization it costs the plain and routed pipelines nothing.
 layout(constant_id = 8) const bool GROUPED = false;
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
+// Rows a cluster takes, specialization constant 9: the Q4 and K-quant families' two-row decode builds (the backend's kRowBuilds) give a lane two rows' weights, so each column's activation loads serve both, and compute every column they hold, one past the pass's count on its last column and never stored.
+// A row's lanes, blocks, products and reduction are those of the one-row builds, and each block's weights and float terms come from the same macros below, so a column gets the one-column build's bits (docs/VULKAN.md, batch invariance).
+layout(constant_id = 9) const uint ROWS = 1;
 
 uint pi = 0u;
 
@@ -190,6 +194,96 @@ void scale_min_pair(uint s0, uint s1, uint s2, uint c, out float scl, out float 
 }
 #endif
 
+// Each family's block pieces, which the one-row and two-row builds share: a lane's weights at offset o, and a block's float terms over its dots pl and ph (or p0 to p3).
+#ifdef LLMX_Q4
+// Wide Q4_0, lane t's block of a 9-word pair at word o: lane 0 words 0..4 (the scale, then nibble bytes starting two bytes in), lane 1 words 4..8 (the scale in word 4's high half, then aligned nibble words).
+#define Q40W_WEIGHTS(o) \
+    uint wa = w32s[pi].w32[o], wb = w32s[pi].w32[(o) + 1u], wc = w32s[pi].w32[(o) + 2u]; \
+    uint wd = w32s[pi].w32[(o) + 3u], we = w32s[pi].w32[(o) + 4u]; \
+    float d; \
+    uint n0, n1, n2, n3; \
+    if (t == 0u) { \
+        d = unpackHalf2x16(wa).x; \
+        n0 = (wa >> 16u) | (wb << 16u); \
+        n1 = (wb >> 16u) | (wc << 16u); \
+        n2 = (wc >> 16u) | (wd << 16u); \
+        n3 = (wd >> 16u) | (we << 16u); \
+    } else { \
+        d = unpackHalf2x16(wa).y; \
+        n0 = wb; n1 = wc; n2 = wd; n3 = we; \
+    }
+// Q4_0 of an odd block count, the 18-byte block at byte o through 16-bit loads.
+#define Q40_WEIGHTS(o) \
+    float d = unpackHalf2x16(uint(w16s[pi].w16[(o) >> 1u])).x; \
+    uint n0 = hword_at((o) + 2u), n1 = hword_at((o) + 6u), n2 = hword_at((o) + 10u), n3 = hword_at((o) + 14u);
+// Q4_1, the 5-word block at word o, d and m in word 0.
+#define Q41_WEIGHTS(o) \
+    uint w0 = w32s[pi].w32[o]; \
+    uint w1 = w32s[pi].w32[(o) + 1u], w2 = w32s[pi].w32[(o) + 2u]; \
+    uint w3 = w32s[pi].w32[(o) + 3u], w4 = w32s[pi].w32[(o) + 4u]; \
+    vec2 dm = unpackHalf2x16(w0);
+// A Q4 block's four nibble words against the column's activation pairs, into pl and ph.
+#define Q4_DOTS(n0, n1, n2, n3, lo0, lo1, hi0, hi1) \
+    nibble_dots(n0, 0u, 0u, 0u, 0u, XA(lo0), XA(hi0), pl, ph); \
+    nibble_dots(n1, 0u, 0u, 0u, 0u, XB(lo0), XB(hi0), pl, ph); \
+    nibble_dots(n2, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph); \
+    nibble_dots(n3, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
+// Q4_0's term: the scaled dot less the offset of 8 through the block sum.
+#define Q40_TERM(d, xb) ((d) * ((xb).x * float(pl + ph) - 8.0 * (xb).y))
+#ifdef LLMX_DOT
+#define Q41_ADD(acc, dm, xb) acc += (dm).x * ((xb).x * float(pl + ph)) + (dm).y * (xb).y
+#else
+// The minimum's term joins the sum before the scaled dot, as two additions: a driver that reassociates float sums then has one order to contract in every build (docs/VULKAN.md, batch invariance).
+#define Q41_ADD(acc, dm, xb) acc = (acc + (dm).y * (xb).y) + (dm).x * ((xb).x * float(pl + ph))
+#endif
+#endif
+#if defined(LLMX_K4) || defined(LLMX_K5)
+// A Q4_K or Q5_K lane's words of the block at word o: the scale and three sub-scale words, its 16 nibble bytes and Q5_K's fifth bits, and its two groups' scales folded once; the mins multiply the whole group's sum, so only one of the group's two lanes applies them.
+#define K45_WEIGHTS(o) \
+    uvec4 hd = w128s[pi].w128[(o) / 4u]; \
+    vec2 dd = unpackHalf2x16(hd.x); \
+    uint s0 = hd.y, s1 = hd.z, s2 = hd.w; \
+    uvec4 nq = w128s[pi].w128[((o) + (q5 != 0u ? 12u : 4u) + c * 8u + h * 4u) / 4u]; \
+    uvec4 hbv = uvec4(0u); \
+    if (q5 != 0u) hbv = w128s[pi].w128[((o) + 4u + h * 4u) / 4u]; \
+    float scl, mnl, sch, mnh; \
+    scale_min_pair(s0, s1, s2, c, scl, mnl, sch, mnh); \
+    float dl = dd.x * scl, dh = dd.x * sch; \
+    float ml = h == 0u ? dd.y * mnl : 0.0, mh = h == 0u ? dd.y * mnh : 0.0;
+// The low and high groups' dots, each scaled once, less the mins through the group sums.
+#define K45_TERM(dl, dh, ml, mh, xt) ((dl) * ((xt).x * float(pl)) + (dh) * ((xt).z * float(ph)) - ((ml) * (xt).y + (mh) * (xt).w))
+#endif
+#ifdef LLMX_KQUANT
+// A Q6_K lane's words of the block at byte o: its six quant words unpacked to a byte a value, groups 0 to 3's sub-scales and the block's scale; on the 8-bit twin the -32 goes into each byte.
+#ifdef LLMX_X8
+#define Q6K_SIGNED \
+    q0a = signed6(q0a); q0b = signed6(q0b); q1a = signed6(q1a); q1b = signed6(q1b); \
+    q2a = signed6(q2a); q2b = signed6(q2b); q3a = signed6(q3a); q3b = signed6(q3b);
+#endif
+#define Q6K_WEIGHTS(o) \
+    uint lo0, lo1, hi0, hi1, qh0, qh1, sc_a, sc_b; \
+    words_at((o) + n * 64u + l0, lo0, lo1); \
+    words_at((o) + n * 64u + 32u + l0, hi0, hi1); \
+    words_at((o) + 128u + n * 32u + l0, qh0, qh1); \
+    words_at((o) + 192u + n * 8u, sc_a, sc_b); \
+    float d = half_word_at((o) + 208u); \
+    uint sh = (l0 / 16u) * 8u; \
+    float s0 = float((int(sc_a << (24u - sh))) >> 24); \
+    float s1 = float((int(sc_a << (8u - sh))) >> 24); \
+    float s2 = float((int(sc_b << (24u - sh))) >> 24); \
+    float s3 = float((int(sc_b << (8u - sh))) >> 24); \
+    uint q0a = (lo0 & 0x0F0F0F0Fu) | ((qh0 & 0x03030303u) << 4u), q0b = (lo1 & 0x0F0F0F0Fu) | ((qh1 & 0x03030303u) << 4u); \
+    uint q1a = (hi0 & 0x0F0F0F0Fu) | (((qh0 >> 2u) & 0x03030303u) << 4u), q1b = (hi1 & 0x0F0F0F0Fu) | (((qh1 >> 2u) & 0x03030303u) << 4u); \
+    uint q2a = ((lo0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 4u) & 0x03030303u) << 4u), q2b = ((lo1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 4u) & 0x03030303u) << 4u); \
+    uint q3a = ((hi0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 6u) & 0x03030303u) << 4u), q3b = ((hi1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 6u) & 0x03030303u) << 4u); \
+// The four groups' dots, each under its sub-scale and the activation block's scale, under the block's scale.
+#define Q6K_TERM(d, s0, s1, s2, s3, xa, xb) ((d) * ((s0) * ((xa).x * float(p0)) + (s1) * ((xa).z * float(p1)) + \
+                                                    (s2) * ((xb).x * float(p2)) + (s3) * ((xb).z * float(p3))))
+// On the 16-bit twin, the -32 offset times each half-group's sum under its sub-scale, which the first lane of each half applies.
+#define Q6K_HALVES(d, s0, s1, s2, s3, ha, hb) ((d) * 32.0 * (l0 == 0u ? (s0) * (ha).x + (s1) * (ha).z + (s2) * (hb).x + (s3) * (hb).z \
+                                                                   : (s0) * (ha).y + (s1) * (ha).w + (s2) * (hb).y + (s3) * (hb).w))
+#endif
+
 void main() {
     // Which projection this workgroup belongs to, uniform across it.
     uint wg = gl_WorkGroupID.x;
@@ -222,6 +316,202 @@ void main() {
 // Column c's X column and output row: consecutive from col0, or a grouped chunk's entries.
 #define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (c))
 #define OCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] : out0 + (c))
+#if defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT)
+    if (ROWS > 1u) {
+        // The two-row builds: cluster `row` takes rows r0 .. r0 + ROWS - 1, those past the matrix's last read as its last and written by no lane.
+        uint r0 = row * ROWS, w0 = wrow - row + r0;
+        if (r0 >= nout) return;
+        uint rlast = nout - 1u - r0;
+        float accr[ROWS][MAX_COLS];
+        [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) accr[r][c] = 0.0;
+#ifdef LLMX_Q4
+        if (type == TYPE_Q4_0 && wide != 0u) {
+            uint nblocks = p.nin / Q4_0_BLOCK;
+            uint npairs = nblocks / 2u;
+            uint group = l / 2u, t = l - group * 2u;
+            uint groups = p.cluster / 2u;
+            uint wbr[ROWS];
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = (w0 + min(r, rlast)) * nblocks * 9u / 2u;
+            for (uint j = group; j < npairs; j += groups) {
+                float dr[ROWS];
+                uint n0r[ROWS], n1r[ROWS], n2r[ROWS], n3r[ROWS];
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                    uint o = wbr[r] + j * 9u + 4u * t;
+                    Q40W_WEIGHTS(o)
+                    dr[r] = d; n0r[r] = n0; n1r[r] = n1; n2r[r] = n2; n3r[r] = n3;
+                }
+                uint b = 2u * j + t;
+                [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    uint col = XCOL(min(c, ncols - 1u));
+                    uint a4 = xa_col(col) / 4u + b * 4u;
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+                    vec2 xb = xq_block(col, b);
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                        QDOT pl = QDOT(0);
+                        QDOT ph = QDOT(0);
+                        Q4_DOTS(n0r[r], n1r[r], n2r[r], n3r[r], lo0, lo1, hi0, hi1)
+                        accr[r][c] += Q40_TERM(dr[r], xb);
+                    }
+                }
+            }
+        } else if (type == TYPE_Q4_0) {
+            uint nblocks = p.nin / Q4_0_BLOCK;
+            uint wbr[ROWS];
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = (w0 + min(r, rlast)) * nblocks * Q4_0_BYTES;
+            for (uint b = l; b < nblocks; b += p.cluster) {
+                float dr[ROWS];
+                uint n0r[ROWS], n1r[ROWS], n2r[ROWS], n3r[ROWS];
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                    uint o = wbr[r] + b * Q4_0_BYTES;
+                    Q40_WEIGHTS(o)
+                    dr[r] = d; n0r[r] = n0; n1r[r] = n1; n2r[r] = n2; n3r[r] = n3;
+                }
+                [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    uint col = XCOL(min(c, ncols - 1u));
+                    uint a4 = xa_col(col) / 4u + b * 4u;
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+                    vec2 xb = xq_block(col, b);
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                        QDOT pl = QDOT(0);
+                        QDOT ph = QDOT(0);
+                        Q4_DOTS(n0r[r], n1r[r], n2r[r], n3r[r], lo0, lo1, hi0, hi1)
+                        accr[r][c] += Q40_TERM(dr[r], xb);
+                    }
+                }
+            }
+        } else {
+            uint nblocks = p.nin / 32u;
+            uint wbr[ROWS];
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = (w0 + min(r, rlast)) * nblocks * 5u;
+            for (uint b = l; b < nblocks; b += p.cluster) {
+                vec2 dmr[ROWS];
+                uint w1r[ROWS], w2r[ROWS], w3r[ROWS], w4r[ROWS];
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                    uint o = wbr[r] + b * 5u;
+                    Q41_WEIGHTS(o)
+                    dmr[r] = dm; w1r[r] = w1; w2r[r] = w2; w3r[r] = w3; w4r[r] = w4;
+                }
+                [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    uint col = XCOL(min(c, ncols - 1u));
+                    uint a4 = xa_col(col) / 4u + b * 4u;
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+                    vec2 xb = xq_block(col, b);
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                        QDOT pl = QDOT(0);
+                        QDOT ph = QDOT(0);
+                        Q4_DOTS(w1r[r], w2r[r], w3r[r], w4r[r], lo0, lo1, hi0, hi1)
+                        Q41_ADD(accr[r][c], dmr[r], xb);
+                    }
+                }
+            }
+        }
+#endif
+#if defined(LLMX_K4) || defined(LLMX_K5)
+        {
+#ifdef LLMX_K5
+            const uint q5 = 1u;
+#else
+            const uint q5 = 0u;
+#endif
+            uint bw = (q5 != 0u ? Q5_K_BYTES : Q4_K_BYTES) / 4u;
+            uint nblocks = p.nin / Q6_K_BLOCK;
+            uint group = l / 8u, t = l - group * 8u;
+            uint groups = p.cluster / 8u;
+            uint c = t / 2u, h = t - c * 2u;
+            uint sl = 2u * c, sh = 2u * c + 1u;
+            uint wbr[ROWS];
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = (w0 + min(r, rlast)) * nblocks * bw;
+            for (uint b = group; b < nblocks; b += groups) {
+                uvec4 nqr[ROWS], hbr[ROWS];
+                float dlr[ROWS], dhr[ROWS], mlr[ROWS], mhr[ROWS];
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                    uint o = wbr[r] + b * bw;
+                    K45_WEIGHTS(o)
+                    nqr[r] = nq; hbr[r] = hbv; dlr[r] = dl; dhr[r] = dh; mlr[r] = ml; mhr[r] = mh;
+                }
+                uint bl = b * 8u + 2u * c;   // the low group's 32-block, the high group's is next
+                [[unroll]] for (uint cc = 0u; cc < MAX_COLS; ++cc) {
+                    uint col = XCOL(min(cc, ncols - 1u));
+                    uint a4 = xa_col(col) / 4u + (b * 256u + c * 64u + h * 16u) / 8u;
+                    XQ4T lo0 = xq4[a4], hi0 = xq4[a4 + 4u], lo1 = xq4[a4 + 1u], hi1 = xq4[a4 + 5u];
+                    vec4 xt = xq_pair(col, bl / 2u);   // d, ds of the low group, then the high
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                        QDOT pl = QDOT(0);
+                        QDOT ph = QDOT(0);
+                        uvec4 q = nqr[r], hb = hbr[r];
+                        nibble_dots(q.x, fifth(hb.x, sl), fifth(hb.x, sl + 8u), fifth(hb.x, sh), fifth(hb.x, sh + 8u), XA(lo0), XA(hi0), pl, ph);
+                        nibble_dots(q.y, fifth(hb.y, sl), fifth(hb.y, sl + 8u), fifth(hb.y, sh), fifth(hb.y, sh + 8u), XB(lo0), XB(hi0), pl, ph);
+                        nibble_dots(q.z, fifth(hb.z, sl), fifth(hb.z, sl + 8u), fifth(hb.z, sh), fifth(hb.z, sh + 8u), XA(lo1), XA(hi1), pl, ph);
+                        nibble_dots(q.w, fifth(hb.w, sl), fifth(hb.w, sl + 8u), fifth(hb.w, sh), fifth(hb.w, sh + 8u), XB(lo1), XB(hi1), pl, ph);
+                        accr[r][cc] += K45_TERM(dlr[r], dhr[r], mlr[r], mhr[r], xt);
+                    }
+                }
+            }
+        }
+#endif
+#ifdef LLMX_KQUANT
+        {
+            uint nblocks = p.nin / Q6_K_BLOCK;
+            uint group = l / 8u, t = l - group * 8u;
+            uint groups = p.cluster / 8u;
+            uint n = t / 4u, l0 = (t - n * 4u) * 8u;
+            uint wbr[ROWS];
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = (w0 + min(r, rlast)) * nblocks * Q6_K_BYTES;   // bytes
+            for (uint b = group; b < nblocks; b += groups) {
+                float dr[ROWS], s0r[ROWS], s1r[ROWS], s2r[ROWS], s3r[ROWS];
+                uint q0ar[ROWS], q0br[ROWS], q1ar[ROWS], q1br[ROWS], q2ar[ROWS], q2br[ROWS], q3ar[ROWS], q3br[ROWS];
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                    uint o = wbr[r] + b * Q6_K_BYTES;
+                    Q6K_WEIGHTS(o)
+#ifdef LLMX_X8
+                    Q6K_SIGNED
+#endif
+                    dr[r] = d; s0r[r] = s0; s1r[r] = s1; s2r[r] = s2; s3r[r] = s3;
+                    q0ar[r] = q0a; q0br[r] = q0b; q1ar[r] = q1a; q1br[r] = q1b; q2ar[r] = q2a; q2br[r] = q2b; q3ar[r] = q3a; q3br[r] = q3b;
+                }
+                uint bg = b * 8u + n * 4u;   // the 32-block of group 0
+                [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    uint col = XCOL(min(c, ncols - 1u));
+                    uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
+                    XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
+                    vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
+#ifndef LLMX_X8
+                    vec4 ha = vec4(0.0), hb = vec4(0.0);
+                    if (l0 == 0u || l0 == 16u) { ha = xq_halves_pair(col, bg / 2u); hb = xq_halves_pair(col, bg / 2u + 1u); }
+#endif
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+#ifdef LLMX_X8
+                        int p0 = dot4(q0ar[r], x0v.x) + dot4(q0br[r], x0v.y), p1 = dot4(q1ar[r], x1v.x) + dot4(q1br[r], x1v.y);
+                        int p2 = dot4(q2ar[r], x2v.x) + dot4(q2br[r], x2v.y), p3 = dot4(q3ar[r], x3v.x) + dot4(q3br[r], x3v.y);
+                        accr[r][c] += Q6K_TERM(dr[r], s0r[r], s1r[r], s2r[r], s3r[r], xa, xb);
+#else
+                        QDOT p0 = pair_dot(q0ar[r] & 0x00FF00FFu, (q0ar[r] >> 8u) & 0x00FF00FFu, x0v.xy) + pair_dot(q0br[r] & 0x00FF00FFu, (q0br[r] >> 8u) & 0x00FF00FFu, x0v.zw);
+                        QDOT p1 = pair_dot(q1ar[r] & 0x00FF00FFu, (q1ar[r] >> 8u) & 0x00FF00FFu, x1v.xy) + pair_dot(q1br[r] & 0x00FF00FFu, (q1br[r] >> 8u) & 0x00FF00FFu, x1v.zw);
+                        QDOT p2 = pair_dot(q2ar[r] & 0x00FF00FFu, (q2ar[r] >> 8u) & 0x00FF00FFu, x2v.xy) + pair_dot(q2br[r] & 0x00FF00FFu, (q2br[r] >> 8u) & 0x00FF00FFu, x2v.zw);
+                        QDOT p3 = pair_dot(q3ar[r] & 0x00FF00FFu, (q3ar[r] >> 8u) & 0x00FF00FFu, x3v.xy) + pair_dot(q3br[r] & 0x00FF00FFu, (q3br[r] >> 8u) & 0x00FF00FFu, x3v.zw);
+                        accr[r][c] += Q6K_TERM(dr[r], s0r[r], s1r[r], s2r[r], s3r[r], xa, xb);
+                        if (l0 == 0u || l0 == 16u) accr[r][c] -= Q6K_HALVES(dr[r], s0r[r], s1r[r], s2r[r], s3r[r], ha, hb);
+#endif
+                    }
+                }
+            }
+        }
+#endif
+        // Each row and column reduced as the one-row builds reduce one.
+        [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+            if (c >= ncols) break;
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                float s = accr[r][c];
+                for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
+                if (l == 0u && r <= rlast) {
+                    if (p.accum != 0u) ys[pi].y[OCOL(c) * nout + r0 + r] += s;
+                    else ys[pi].y[OCOL(c) * nout + r0 + r] = s;
+                }
+            }
+        }
+        return;
+    }
+#endif
 #ifdef LLMX_PRESERVE_F32
     precise float acc[MAX_COLS];
 #else
@@ -331,20 +621,7 @@ void main() {
             uint groups = p.cluster / 2u;
             for (uint j = group; j < npairs; j += groups) {
                 uint o = wbase + j * 9u + 4u * t;
-                uint wa = w32s[pi].w32[o], wb = w32s[pi].w32[o + 1u], wc = w32s[pi].w32[o + 2u];
-                uint wd = w32s[pi].w32[o + 3u], we = w32s[pi].w32[o + 4u];
-                float d;
-                uint n0, n1, n2, n3;
-                if (t == 0u) {
-                    d = unpackHalf2x16(wa).x;
-                    n0 = (wa >> 16u) | (wb << 16u);
-                    n1 = (wb >> 16u) | (wc << 16u);
-                    n2 = (wc >> 16u) | (wd << 16u);
-                    n3 = (wd >> 16u) | (we << 16u);
-                } else {
-                    d = unpackHalf2x16(wa).y;
-                    n0 = wb; n1 = wc; n2 = wd; n3 = we;
-                }
+                Q40W_WEIGHTS(o)
                 uint b = 2u * j + t;
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = XCOL(c);
@@ -352,12 +629,9 @@ void main() {
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
-                    nibble_dots(n0, 0u, 0u, 0u, 0u, XA(lo0), XA(hi0), pl, ph);
-                    nibble_dots(n1, 0u, 0u, 0u, 0u, XB(lo0), XB(hi0), pl, ph);
-                    nibble_dots(n2, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph);
-                    nibble_dots(n3, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
+                    Q4_DOTS(n0, n1, n2, n3, lo0, lo1, hi0, hi1)
                     vec2 xb = xq_block(col, b);
-                    acc[c] += d * (xb.x * float(pl + ph) - 8.0 * xb.y);
+                    acc[c] += Q40_TERM(d, xb);
                 }
             }
         } else if (type == TYPE_Q4_0) {
@@ -366,20 +640,16 @@ void main() {
             uint bbase = wrow * nblocks * Q4_0_BYTES;
             for (uint b = l; b < nblocks; b += p.cluster) {
                 uint o = bbase + b * Q4_0_BYTES;
-                float d = unpackHalf2x16(uint(w16s[pi].w16[o >> 1u])).x;
-                uint n0 = hword_at(o + 2u), n1 = hword_at(o + 6u), n2 = hword_at(o + 10u), n3 = hword_at(o + 14u);
+                Q40_WEIGHTS(o)
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = XCOL(c);
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
-                    nibble_dots(n0, 0u, 0u, 0u, 0u, XA(lo0), XA(hi0), pl, ph);
-                    nibble_dots(n1, 0u, 0u, 0u, 0u, XB(lo0), XB(hi0), pl, ph);
-                    nibble_dots(n2, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph);
-                    nibble_dots(n3, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
+                    Q4_DOTS(n0, n1, n2, n3, lo0, lo1, hi0, hi1)
                     vec2 xb = xq_block(col, b);
-                    acc[c] += d * (xb.x * float(pl + ph) - 8.0 * xb.y);
+                    acc[c] += Q40_TERM(d, xb);
                 }
             }
         } else {
@@ -388,27 +658,16 @@ void main() {
             uint wbase = wrow * nblocks * 5u;
             for (uint b = l; b < nblocks; b += p.cluster) {
                 uint o = wbase + b * 5u;
-                uint w0 = w32s[pi].w32[o];
-                uint w1 = w32s[pi].w32[o + 1u], w2 = w32s[pi].w32[o + 2u];
-                uint w3 = w32s[pi].w32[o + 3u], w4 = w32s[pi].w32[o + 4u];
-                vec2 dm = unpackHalf2x16(w0);
+                Q41_WEIGHTS(o)
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = XCOL(c);
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
-                    nibble_dots(w1, 0u, 0u, 0u, 0u, XA(lo0), XA(hi0), pl, ph);
-                    nibble_dots(w2, 0u, 0u, 0u, 0u, XB(lo0), XB(hi0), pl, ph);
-                    nibble_dots(w3, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph);
-                    nibble_dots(w4, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
+                    Q4_DOTS(w1, w2, w3, w4, lo0, lo1, hi0, hi1)
                     vec2 xb = xq_block(col, b);
-#ifdef LLMX_DOT
-                    acc[c] += dm.x * (xb.x * float(pl + ph)) + dm.y * xb.y;
-#else
-                    // The minimum's term joins the sum before the scaled dot, as two additions: a driver that reassociates float sums then has one order to contract in every build (docs/VULKAN.md, batch invariance).
-                    acc[c] = (acc[c] + dm.y * xb.y) + dm.x * (xb.x * float(pl + ph));
-#endif
+                    Q41_ADD(acc[c], dm, xb);
                 }
             }
         }
@@ -431,18 +690,7 @@ void main() {
             uint sl = 2u * c, sh = 2u * c + 1u;
             for (uint b = group; b < nblocks; b += groups) {
                 uint o = wbase + b * bw;
-                uvec4 hd = w128s[pi].w128[o / 4u];   // d and dmin, then the three sub-scale words
-                vec2 dd = unpackHalf2x16(hd.x);
-                uint s0 = hd.y, s1 = hd.z, s2 = hd.w;
-                uvec4 nq = w128s[pi].w128[(o + (q5 != 0u ? 12u : 4u) + c * 8u + h * 4u) / 4u];
-                // Q5_K's fifth bits, unpacked just before each word's dots.
-                uvec4 hbv = uvec4(0u);
-                if (q5 != 0u) hbv = w128s[pi].w128[(o + 4u + h * 4u) / 4u];
-                float scl, mnl, sch, mnh;
-                scale_min_pair(s0, s1, s2, c, scl, mnl, sch, mnh);
-                // The block's scales folded once; the mins multiply the whole group's sum, so only one of the group's two lanes applies them.
-                float dl = dd.x * scl, dh = dd.x * sch;
-                float ml = h == 0u ? dd.y * mnl : 0.0, mh = h == 0u ? dd.y * mnh : 0.0;
+                K45_WEIGHTS(o)
                 uint bl = b * 8u + 2u * c;   // the low group's 32-block, the high group's is next
                 for (uint cc = 0u; cc < ncols; ++cc) {
                     uint col = XCOL(cc);
@@ -460,7 +708,7 @@ void main() {
                         nibble_dots(nq.w, fifth(hbv.w, sl), fifth(hbv.w, sl + 8u), fifth(hbv.w, sh), fifth(hbv.w, sh + 8u), XB(lo), XB(hi), pl, ph);
                     }
                     vec4 xt = xq_pair(col, bl / 2u);   // d, ds of the low group, then the high
-                    acc[cc] += dl * (xt.x * float(pl)) + dh * (xt.z * float(ph)) - (ml * xt.y + mh * xt.w);
+                    acc[cc] += K45_TERM(dl, dh, ml, mh, xt);
                 }
             }
         }
@@ -477,27 +725,10 @@ void main() {
             uint n = t / 4u, l0 = (t - n * 4u) * 8u;
             for (uint b = group; b < nblocks; b += groups) {
                 uint o = bbase + b * Q6_K_BYTES;
-                uint lo0, lo1, hi0, hi1, qh0, qh1, sc_a, sc_b;
-                words_at(o + n * 64u + l0, lo0, lo1);
-                words_at(o + n * 64u + 32u + l0, hi0, hi1);
-                words_at(o + 128u + n * 32u + l0, qh0, qh1);
-                words_at(o + 192u + n * 8u, sc_a, sc_b);
-                float d = half_word_at(o + 208u);
-                // Sub-scales of groups 0..3 are bytes l0/16 + 0, 2, 4, 6.
-                uint sh = (l0 / 16u) * 8u;
-                float s0 = float((int(sc_a << (24u - sh))) >> 24);
-                float s1 = float((int(sc_a << (8u - sh))) >> 24);
-                float s2 = float((int(sc_b << (24u - sh))) >> 24);
-                float s3 = float((int(sc_b << (8u - sh))) >> 24);
-                uint q0a = (lo0 & 0x0F0F0F0Fu) | ((qh0 & 0x03030303u) << 4u), q0b = (lo1 & 0x0F0F0F0Fu) | ((qh1 & 0x03030303u) << 4u);
-                uint q1a = (hi0 & 0x0F0F0F0Fu) | (((qh0 >> 2u) & 0x03030303u) << 4u), q1b = (hi1 & 0x0F0F0F0Fu) | (((qh1 >> 2u) & 0x03030303u) << 4u);
-                uint q2a = ((lo0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 4u) & 0x03030303u) << 4u), q2b = ((lo1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 4u) & 0x03030303u) << 4u);
-                uint q3a = ((hi0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 6u) & 0x03030303u) << 4u), q3b = ((hi1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 6u) & 0x03030303u) << 4u);
+                Q6K_WEIGHTS(o)
                 uint bg = b * 8u + n * 4u;   // the 32-block of group 0
 #ifdef LLMX_X8
-                // On the 8-bit twin the -32 goes into each byte, so a group is two four-wide dots of signed bytes and needs no half sums.
-                q0a = signed6(q0a); q0b = signed6(q0b); q1a = signed6(q1a); q1b = signed6(q1b);
-                q2a = signed6(q2a); q2b = signed6(q2b); q3a = signed6(q3a); q3b = signed6(q3b);
+                Q6K_SIGNED
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = XCOL(c);
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
@@ -505,8 +736,7 @@ void main() {
                     int p0 = dot4(q0a, x0v.x) + dot4(q0b, x0v.y), p1 = dot4(q1a, x1v.x) + dot4(q1b, x1v.y);
                     int p2 = dot4(q2a, x2v.x) + dot4(q2b, x2v.y), p3 = dot4(q3a, x3v.x) + dot4(q3b, x3v.y);
                     vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
-                    acc[c] += d * (s0 * (xa.x * float(p0)) + s1 * (xa.z * float(p1)) +
-                                   s2 * (xb.x * float(p2)) + s3 * (xb.z * float(p3)));
+                    acc[c] += Q6K_TERM(d, s0, s1, s2, s3, xa, xb);
                 }
 #else
                 for (uint c = 0u; c < ncols; ++c) {
@@ -518,13 +748,11 @@ void main() {
                     QDOT p2 = pair_dot(q2a & 0x00FF00FFu, (q2a >> 8u) & 0x00FF00FFu, x2v.xy) + pair_dot(q2b & 0x00FF00FFu, (q2b >> 8u) & 0x00FF00FFu, x2v.zw);
                     QDOT p3 = pair_dot(q3a & 0x00FF00FFu, (q3a >> 8u) & 0x00FF00FFu, x3v.xy) + pair_dot(q3b & 0x00FF00FFu, (q3b >> 8u) & 0x00FF00FFu, x3v.zw);
                     vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
-                    acc[c] += d * (s0 * (xa.x * float(p0)) + s1 * (xa.z * float(p1)) +
-                                   s2 * (xb.x * float(p2)) + s3 * (xb.z * float(p3)));
+                    acc[c] += Q6K_TERM(d, s0, s1, s2, s3, xa, xb);
                     // The -32 offset times each half-group's sum under its sub-scale, applied by the first lane of each half.
                     if (l0 == 0u || l0 == 16u) {
                         vec4 ha = xq_halves_pair(col, bg / 2u), hb = xq_halves_pair(col, bg / 2u + 1u);
-                        acc[c] -= d * 32.0 * (l0 == 0u ? s0 * ha.x + s1 * ha.z + s2 * hb.x + s3 * hb.z
-                                                       : s0 * ha.y + s1 * ha.w + s2 * hb.y + s3 * hb.w);
+                        acc[c] -= Q6K_HALVES(d, s0, s1, s2, s3, ha, hb);
                     }
                 }
 #endif

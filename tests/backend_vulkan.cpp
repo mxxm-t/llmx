@@ -1,6 +1,7 @@
 // Vulkan backend test (docs/VULKAN.md): storage and submission over a real device, then every kernel against the CPU backend on random inputs, and every decode column of every row kernel build against the same column alone.
 // Bit exact where the arithmetic is the same operation in the same order, a stated tolerance where a transcendental or a reduction order differs.
 // Exits 77, which CTest reports as skipped, when there is no loader or no device.
+#include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <fstream>
@@ -11,6 +12,7 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -1542,7 +1544,7 @@ size_t check_kernels(backend::Backend& vk) {
 // 300 outputs leave the last workgroup rows past the end, and the grouped projections of 37 and 129 rows a subgroup that holds rows past the end.
 size_t check_decode_columns(backend::Backend& vk) {
     const size_t nout = 300, widest = 64;
-    // Each width's remainder past the widest Q8_0 decode build, 8, 16 or 32 columns, takes the 1-, 2-, 4-, 8-, 16- or 32-column build, and 18 and 29 a 32-column build's second group in part.
+    // Each width's remainder past the widest Q8_0 decode build, 8, 16 or 32 columns, takes the 1-, 2-, 4-, 8-, 16- or 32-column build, and 18 and 29 a 32-column build's second group in part; past the widest two-row build, 16 columns, the 1-, 2-, 4-, 8- or 16-column build.
     const size_t widths[] = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 33, 34, 36, 40, 48, 64};
     const uint32_t f32 = quant::GGML_TYPE_F32, q8 = quant::GGML_TYPE_Q8_0, q40 = quant::GGML_TYPE_Q4_0, q41 = quant::GGML_TYPE_Q4_1;
     const uint32_t q4k = quant::GGML_TYPE_Q4_K, q5k = quant::GGML_TYPE_Q5_K, q6k = quant::GGML_TYPE_Q6_K;
@@ -1708,7 +1710,7 @@ FloatOps float_ops(const std::string& text) {
 
 // The row kernel builds check_contraction checked, by how.
 struct ContractionChecks {
-    size_t same = 0, whole_columns = 0, decode = 0, kinds_only = 0, grouped = 0;
+    size_t same = 0, whole_columns = 0, two_rows = 0, decode = 0, kinds_only = 0, grouped = 0;
 };
 
 // A Q8_0 decode build's float operations as its shape and forms give them (matmul_vec_q8.comp), where its one-column build takes `levels` shuffled adds a reduction and `extra` multiplies other than its products'.
@@ -1724,23 +1726,31 @@ struct DecodeBuild {
     unsigned cols = 0, rows = 0, steps = 0;
     bool tree = false, half = false;
 };
+// The value after ` key=` on a representation's first line, or false where the key is missing or its value is not a number.
+bool header_field(const std::string& line, const char* key, unsigned& v) {
+    const std::string at = std::string(" ") + key + "=";
+    const size_t p = line.find(at);
+    if (p == std::string::npos || p + at.size() >= line.size() || !std::isdigit((unsigned char)line[p + at.size()])) return false;
+    v = unsigned(std::stoul(line.substr(p + at.size())));
+    return true;
+}
 bool decode_build(const std::string& text, DecodeBuild& b) {
     const std::string head = "; q8_decode_build";
     const std::string line = text.substr(0, text.find('\n'));
     if (line.compare(0, head.size(), head) != 0) return false;
-    // The value after ` key=` on that line, or false where the key is missing or its value is not a number.
-    auto field = [&](const char* key, unsigned& v) {
-        const std::string at = std::string(" ") + key + "=";
-        const size_t p = line.find(at);
-        if (p == std::string::npos || p + at.size() >= line.size() || !std::isdigit((unsigned char)line[p + at.size()])) return false;
-        v = unsigned(std::stoul(line.substr(p + at.size())));
-        return true;
-    };
+    auto field = [&](const char* key, unsigned& v) { return header_field(line, key, v); };
     unsigned tree = 0, half = 0;
     if (!field("cols", b.cols) || !field("rows", b.rows) || !field("steps", b.steps) || !field("tree", tree) || !field("half", half)) return false;
     b.tree = tree != 0;
     b.half = half != 0;
     return b.cols && b.rows && b.steps;
+}
+// A two-row build of the Q4 and K-quant row kernels, read from the first line of its representation: the columns it holds and the rows a cluster takes.
+bool row_build(const std::string& text, unsigned& cols, unsigned& rows) {
+    const std::string head = "; row_build";
+    const std::string line = text.substr(0, text.find('\n'));
+    if (line.compare(0, head.size(), head) != 0) return false;
+    return header_field(line, "cols", cols) && header_field(line, "rows", rows) && cols && rows;
 }
 DecodeOps decode_ops(const DecodeBuild& b, size_t levels, size_t extra) {
     DecodeOps n;
@@ -1767,6 +1777,7 @@ DecodeOps decode_ops(const DecodeBuild& b, size_t levels, size_t extra) {
 // Every build of a row kernel holds its one-column build's float multiply and add counts, and a grouped build its wide build's: a screen on how the driver contracts and reduces a column's products and sums, which sees a change only where it changes the counts.
 // Reassociation that keeps the counts shows only in the decode-column check, which is what holds batch invariance (docs/VULKAN.md, batch invariance).
 // A build of `matmul_row.comp` holds the one-column build's counts exactly where the driver keeps the column loop rolled, and otherwise those counts and N - 1 copies of one column's, N its columns.
+// A kernel's two-row builds (the first line of each one's representation gives its columns and rows) differ from each other by whole copies of one row and column's products, since they compute every column they hold.
 // The Q8_0 decode kernel's builds differ in rows, steps, copies of their products and forms (as the first line of each one's representation gives them), so where its one-column build reduces over shuffled adds each build holds the counts its shape and forms give (decode_ops), the transposed reduction only where the one-column build's reduction takes six levels.
 // A kernel's builds are named after it: the wide build plain, then `_grouped` and `_<N>col`; a kernel whose driver gives no disassembly is not checked.
 ContractionChecks check_contraction(const std::vector<std::pair<std::string, std::string>>& representations) {
@@ -1787,6 +1798,13 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
         return s.size() > suffix.size() && s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
     };
     const std::string vec = "matmul_vec_q8", one_suffix = "_1col", grouped_suffix = "_grouped";
+    struct TwoRow {
+        std::string kernel, name;
+        size_t cols;
+        unsigned rows;
+        FloatOps got, ref;
+    };
+    std::vector<TwoRow> two_row;
     for (const auto& o : ops) {
         if (!ends(o.first, grouped_suffix)) continue;
         const std::string wide = o.first.substr(0, o.first.size() - grouped_suffix.size());
@@ -1835,6 +1853,13 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                 ++n.decode;
                 continue;
             }
+            unsigned two_cols = 0, rows = 1;
+            for (const auto& kr : representations)
+                if (kr.first == b && row_build(kr.second, two_cols, rows) && two_cols != cols) fail("a two-row build whose shape gives other columns than its name");
+            if (rows > 1) {
+                two_row.push_back({kernel, b, cols, rows, got, ref});
+                continue;
+            }
             if (got == ref) {
                 ++n.same;
                 continue;
@@ -1847,6 +1872,28 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
             ++n.whole_columns;
         }
     }
+    // A kernel's two-row builds, which compute every column they hold, differ by whole copies of one row and column's products for each column more, the same in every pair of them, a column's no more than the one-column build holds and in its proportion of fused products.
+    std::map<std::string, std::vector<size_t>> column_ops;
+    for (size_t i = 0; i < two_row.size(); ++i)
+        for (size_t j = 0; j < two_row.size(); ++j) {
+            const TwoRow &a = two_row[i], &c = two_row[j];
+            if (a.kernel != c.kernel || c.cols <= a.cols) continue;
+            auto fail = [&](const char* what) { throw std::runtime_error(std::string(what) + ": " + a.name + " and " + c.name); };
+            if (a.rows != c.rows) fail("two-row builds of one kernel with other rows");
+            const size_t step = size_t(a.rows) * (c.cols - a.cols);
+            const size_t ga[5] = {a.got.mul, a.got.mad, a.got.fused, a.got.add, a.got.lane_add}, gc[5] = {c.got.mul, c.got.mad, c.got.fused, c.got.add, c.got.lane_add};
+            const size_t r[5] = {a.ref.mul, a.ref.mad, a.ref.fused, a.ref.add, a.ref.lane_add};
+            size_t per[5];
+            for (int k = 0; k < 5; ++k) {
+                if (gc[k] < ga[k] || (gc[k] - ga[k]) % step != 0 || (gc[k] - ga[k]) / step > r[k])
+                    fail("two-row builds' float multiplies and adds differ by other than whole copies of a row and column's products");
+                per[k] = (gc[k] - ga[k]) / step;
+            }
+            if (per[1] * r[2] != per[2] * r[1]) fail("a two-row build fuses a column's products in another proportion than its one-column build");
+            auto seen = column_ops.emplace(a.kernel, std::vector<size_t>(per, per + 5));
+            if (!std::equal(per, per + 5, seen.first->second.begin())) fail("two-row builds of one kernel differ by other products a column in another pair");
+            ++n.two_rows;
+        }
     return n;
 }
 
@@ -2160,7 +2207,8 @@ int main(int argc, char** argv) {
             std::cout << "backend-vulkan: " << written << " kernel representations written to " << isa_dir << "\n";
             const ContractionChecks c = check_contraction(representations);
             std::cout << "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: " << c.same << " the same, "
-                      << c.whole_columns << " those and whole columns, " << c.decode << " Q8_0 decode builds those their shape and forms give, "
+                      << c.whole_columns << " those and whole columns, " << c.two_rows << " pairs of two-row builds whole columns apart, " << c.decode
+                      << " Q8_0 decode builds those their shape and forms give, "
                       << c.kinds_only << " their kinds only; " << c.grouped << " grouped builds the same as their wide build\n";
         }
         return 0;

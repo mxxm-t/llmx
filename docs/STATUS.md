@@ -9945,3 +9945,13 @@ feature ships, delete its block and mark the row `Done` above.
 
 When you start a feature, open a block above before writing code - see
 `AGENTS.md` -> "Starting a feature".
+
+
+## Server consistency tool controls (2026-09-30)
+
+- Goal: separate the existing fresh-phase server validation from private MXFP4 work and select the same KV cache type explicitly for server and CLI comparisons.
+- Done: reused the private fresh-phase tool and its offline tests independently of MXFP4. Added `--cache-type f16|f32`, forwarded once to both KV sides for every server and CLI comparison. Runtime source stays on main893e3c9. Fresh Windows CPU build,35/35 CTest, nine offline tool tests and the complete CPU server/docs/dead-code components pass. Real pinned Qwen3-0.6B Q8_0 checks pass separately with F16 and F32: four concurrent and three completed staggered replies exact in ids/logprobs/top lists, clean cancellation, fresh repeat and four CLI text matches per cache. No performance claim.
+- Left: hosted CI at the exact branch head, then fast-forward only if main has not moved. No main merge yet.
+- Gotchas: the tool proves same-runtime request consistency, not independent HF correctness or throughput. Explicit cache selection must reach every server lifetime and CLI comparison. Other MXFP4 gates remain separate.
+- Checkpoint: 77 Markdown files reconciled against main893e3c9; 74 unchanged. AGENTS, USAGE and this block reviewed against the tool, its help and the completed checks. Existing MXFP4 feature records stay on their separate branch.
+- Evidence: local archive `llmx-server-mix-cache-local-evidence-20260930.tar.gz`, SHA-256 `f459ad28af2006f7c9f02ae5f18a0f819685fcac48c5325eb332b8001be461cf`, 17 payloads verified; contains build/CTest/suite logs, command and artifact hashes, real-model replies and per-phase health.

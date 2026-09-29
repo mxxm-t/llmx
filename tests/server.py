@@ -14,6 +14,7 @@ import baseline
 import common
 import f32
 import moe
+import server_mix_tool
 from tokenizer import build_byte_vocab
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
@@ -1150,6 +1151,8 @@ def check_departed(model):
 
 
 def run():
+    if not server_mix_tool.run():
+        return False
     if common.f32_cache_skip("server"):
         return common.SKIPPED
     with tempfile.TemporaryDirectory(prefix="llmx_server_") as directory:

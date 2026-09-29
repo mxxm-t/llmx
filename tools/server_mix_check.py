@@ -14,6 +14,8 @@ Every request that runs to its end must give its ids alone, the CLI its text; a 
 --logprobs asks every request of these phases for its log-probabilities and top five too, which must equal alone's as its ids do.
 --ids writes every phase's ids, with --logprobs beside their values, so two builds can be compared byte for byte.
 --passes N serves with N passes in flight, which a layer split takes above one.
+--fresh-phases starts each capped phase and the final repeat on a fresh server and requires zero prefix reuse and pauses, isolating batching from history reuse.
+--ctx-size sets the server pool; leave enough room for every active request in this mode.
 
 --uncapped runs other phases on a pool too small for its requests: 12 uncapped greedy requests through /v1/completions, streamed with logprobs 5, with --max-seqs 6 and --ctx-size 4096 unless given.
 Each runs alone, where it never pauses, then all at once, where requests are paused and resumed; each must give its tokens and every log-probability alone.
@@ -22,6 +24,7 @@ It reports the pauses, the tokens resumes recomputed, the wall time of the run t
     python tools/server_mix_check.py --model M.gguf --text wiki.txt --device vulkan:0,vulkan:1,vulkan:2 --layer-shares 1,1,1
 """
 import argparse
+import contextlib
 import http.client
 import json
 import os
@@ -171,6 +174,34 @@ def uncapped(args, text, flags):
     return 1 if differ else 0
 
 
+@contextlib.contextmanager
+def serving(args, flags):
+    """One capped-phase server, drained by the caller and always stopped on exit."""
+    command = [common.EXE, "serve", args.model, "--max-seqs", str(args.max_seqs or 8)] + flags
+    if args.ctx_size is not None:
+        command += ["--ctx-size", str(args.ctx_size)]
+    proc, port, log = common.start_server(command, wait=1800)
+    try:
+        yield port
+    finally:
+        common.stop_server(proc, log)
+
+
+def check_phase(port, name, fresh, failures):
+    """A finished phase has no requests left; a fresh phase must not have reused or paused one."""
+    deadline = time.monotonic() + 120
+    state = health(port)
+    while any(state[k] for k in ("active", "queued", "paused")) and time.monotonic() < deadline:
+        time.sleep(0.2)
+        state = health(port)
+    if any(state[k] for k in ("active", "queued", "paused")):
+        failures.append(name + " left requests active, queued or paused")
+    if fresh:
+        print("fresh phase %s: %s" % (name, json.dumps(state, sort_keys=True)), flush=True)
+        if any(state[k] for k in ("prefix_hits", "prefix_tokens", "pauses")):
+            failures.append(name + " reused a donor or paused a request")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--exe", default=common.EXE)
@@ -178,18 +209,22 @@ def main():
     p.add_argument("--text", required=True, help="text the prompts are cut from")
     p.add_argument("--device", default="cpu")
     p.add_argument("--layer-shares")
+    p.add_argument("--cache-type", choices=["f16", "f32"], help="KV cache type for both sides, on every server and CLI comparison; omitted uses the runtime default")
     p.add_argument("--requests", type=int, help="16, or 12 with --uncapped")
     p.add_argument("--max-seqs", type=int, help="8, or 6 with --uncapped")
-    p.add_argument("--ctx-size", type=int, help="the pool of the uncapped phases, 4096 by default")
+    p.add_argument("--ctx-size", type=int, help="server KV pool; 4096 with --uncapped, otherwise the model default")
     p.add_argument("--seed", type=int, help="1, or 7 with --uncapped")
     p.add_argument("--uncapped", action="store_true", help="the uncapped phases in place of the others")
     p.add_argument("--logprobs", action="store_true", help="the capped phases compare log-probabilities and the top five beside the ids")
     p.add_argument("--sampled", action="store_true", help="the capped phases draw every request at the defaults with a seed of its own, in place of greedy")
     p.add_argument("--passes", type=int, help="passes in flight, the server's own number when not given")
+    p.add_argument("--fresh-phases", action="store_true", help="fresh server for each capped phase; fail on prefix reuse or pauses")
     p.add_argument("--cli", type=int, default=4,
                    help="requests also checked against the CLI; the first four cover every prompt length, the last two several ubatch chunks")
     p.add_argument("--ids", metavar="PATH", help="write the ids of every phase as JSON, the skewed phase's clients that left as null; with --uncapped each token's text and values")
     args = p.parse_args()
+    if args.fresh_phases and args.uncapped:
+        p.error("--fresh-phases cannot be combined with --uncapped")
     if args.uncapped and args.sampled:
         p.error("--sampled draws the capped phases, which --uncapped replaces")
     common.EXE = os.path.abspath(args.exe)
@@ -197,46 +232,51 @@ def main():
     with open(args.text, encoding="utf-8", errors="replace") as f:
         text = f.read()
     flags = ["--device", args.device] + (["--layer-shares", args.layer_shares] if args.layer_shares else [])
-    serving = flags + (["--passes", str(args.passes)] if args.passes else [])
+    if args.cache_type:
+        flags += ["--cache-type-k", args.cache_type, "--cache-type-v", args.cache_type]
+    server_flags = flags + (["--passes", str(args.passes)] if args.passes else [])
     if args.uncapped:
-        return uncapped(args, text, serving)
+        return uncapped(args, text, server_flags)
     rng = random.Random(1 if args.seed is None else args.seed)
     reqs = requests_from(text, args.requests or 16, rng, args.logprobs, args.sampled)
-    proc, port, log = common.start_server([common.EXE, "serve", args.model, "--max-seqs", str(args.max_seqs or 8)] + serving,
-                                          wait=1800)
     failures = []
     phases = {}
-    try:
-        replies = [post(port, r) for r in reqs]
-        alone = [answer(r) for r in replies]
-        print("alone: %d requests, %d tokens" % (len(reqs), sum(len(r["ids"]) for r in replies)), flush=True)
+    shared_server = contextlib.nullcontext(None) if args.fresh_phases else serving(args, server_flags)
+    with shared_server as shared_port:
+        def phase():
+            return serving(args, server_flags) if args.fresh_phases else contextlib.nullcontext(shared_port)
 
-        got = run_together(port, reqs)
-        phases["alone"], phases["together"] = alone, [got.get(i) for i in range(len(reqs))]
-        bad = [i for i in range(len(reqs)) if got.get(i) != alone[i]]
-        print("together: %d of %d differ" % (len(bad), len(reqs)), flush=True)
-        failures += ["together %d" % i for i in bad]
+        with phase() as port:
+            replies = [post(port, r) for r in reqs]
+            alone = [answer(r) for r in replies]
+            print("alone: %d requests, %d tokens" % (len(reqs), sum(len(r["ids"]) for r in replies)), flush=True)
+            check_phase(port, "alone", args.fresh_phases, failures)
 
-        # Short requests first with the longest replies, the long prompts landing while they decode, and every fourth client leaving once its stream has begun.
-        delays = [0.0 if len(r["prompt"]) <= 1500 else 0.5 + rng.random() * 2 for r in reqs]
-        leavers = set(range(3, len(reqs), 4))
-        got = run_together(port, reqs, delays, leavers)
-        phases["skewed"] = [None if i in leavers else got.get(i) for i in range(len(reqs))]
-        bad = [i for i in range(len(reqs)) if i not in leavers and got.get(i) != alone[i]]
-        # A client that failed to leave as planned fails the phase as a request that failed to finish does.
-        stuck = [i for i in sorted(leavers) if i not in got or got[i] is not None]
-        print("skewed: %d of %d differ, %d clients left early, %d of them failed" % (len(bad), len(reqs) - len(leavers), len(leavers), len(stuck)), flush=True)
-        failures += ["skewed leaver %d: %s" % (i, got.get(i, "no result")) for i in stuck]
-        failures += ["skewed %d" % i for i in bad]
-        deadline = time.time() + 120
-        while time.time() < deadline and health(port)["active"] != 0:
-            time.sleep(0.2)
-        if health(port)["active"] != 0:
-            failures.append("clients that left stayed active")
-        if answer(post(port, reqs[0])) != alone[0]:
-            failures.append("the first request differs after the load")
-    finally:
-        common.stop_server(proc, log)
+        with phase() as port:
+            got = run_together(port, reqs)
+            phases["alone"], phases["together"] = alone, [got.get(i) for i in range(len(reqs))]
+            bad = [i for i in range(len(reqs)) if got.get(i) != alone[i]]
+            print("together: %d of %d differ" % (len(bad), len(reqs)), flush=True)
+            failures += ["together %d" % i for i in bad]
+            check_phase(port, "together", args.fresh_phases, failures)
+
+        with phase() as port:
+            # Short requests first with the longest replies, the long prompts landing while others decode, and every fourth client leaving once its stream has begun.
+            delays = [0.0 if len(r["prompt"]) <= 1500 else 0.5 + rng.random() * 2 for r in reqs]
+            leavers = set(range(3, len(reqs), 4))
+            got = run_together(port, reqs, delays, leavers)
+            phases["skewed"] = [None if i in leavers else got.get(i) for i in range(len(reqs))]
+            bad = [i for i in range(len(reqs)) if i not in leavers and got.get(i) != alone[i]]
+            stuck = [i for i in sorted(leavers) if i not in got or got[i] is not None]
+            print("skewed: %d of %d differ, %d clients left early, %d of them failed" % (len(bad), len(reqs) - len(leavers), len(leavers), len(stuck)), flush=True)
+            failures += ["skewed leaver %d: %s" % (i, got.get(i, "no result")) for i in stuck]
+            failures += ["skewed %d" % i for i in bad]
+            check_phase(port, "skewed", args.fresh_phases, failures)
+
+        with phase() as port:
+            if answer(post(port, reqs[0])) != alone[0]:
+                failures.append("the first request differs on a fresh server" if args.fresh_phases else "the first request differs after the load")
+            check_phase(port, "repeat" if args.fresh_phases else "recovery", args.fresh_phases, failures)
 
     # The CLI prints the reply's text between its pp and tg lines, which must be the text the server gave the request alone.
     for i in range(min(args.cli, len(reqs))):

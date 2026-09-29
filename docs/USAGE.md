@@ -729,3 +729,9 @@ The driver sets the same thread count for prefill and decode in both arms,
 records it, and rejects mismatched results. The default is six threads; the
 accepted range is 1-64. See [ASSETS.md](ASSETS.md#matched-external-cpu-benchmark)
 for wrapper builds, pinned inputs and measurement scope.
+
+
+For request consistency checks, `python tools/server_mix_check.py --model MODEL.gguf --text corpus.txt --device cpu --requests 4 --max-seqs 4 --fresh-phases --ctx-size 8192 --logprobs --cache-type f32` compares requests alone, concurrent and staggered, then against the CLI.
+The tool's `--cache-type f16|f32` selects both cache sides for every server and CLI call; omit it to test the runtime default.
+`--fresh-phases` starts each capped phase on a fresh server and refuses prefix reuse or pauses, so the pool must hold the requests at once; it cannot be combined with `--uncapped`.
+These are validation-tool options; the runtime itself selects sides with `--cache-type-k` and `--cache-type-v`.

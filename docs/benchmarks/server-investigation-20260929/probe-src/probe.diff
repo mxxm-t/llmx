@@ -1,0 +1,651 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b663749..82d8ab2 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -382,6 +382,9 @@ if(BUILD_TESTING)
+         add_executable(llmx-multi-device-bench tools/multi_device_bench.cpp)
+         target_link_libraries(llmx-multi-device-bench PRIVATE llmx-vulkan)
+         list(APPEND LLMX_TARGETS llmx-multi-device-bench)
++        # Probe only (research/server-perf-probe): decode path against the tile, and the tile's bits by batch.
++        add_executable(llmx-perf-matmul-probe tools/perf_matmul_probe.cpp)
++        target_link_libraries(llmx-perf-matmul-probe PRIVATE llmx-vulkan)
+     endif()
+ endif()
+ 
+diff --git a/src/backends/vulkan/vulkan_backend.cpp b/src/backends/vulkan/vulkan_backend.cpp
+index 13226c2..e2db808 100644
+--- a/src/backends/vulkan/vulkan_backend.cpp
++++ b/src/backends/vulkan/vulkan_backend.cpp
+@@ -2,6 +2,7 @@
+ #include "backends/device_profile.hpp"
+ #include "backends/kv_storage.hpp"
+ #include "backends/vulkan/vulkan_backend.hpp"
++#include "core/probe_trace.hpp"
+ #include "quant/quant.hpp"
+ 
+ #include <algorithm>
+@@ -600,6 +601,8 @@ struct Device {
+     bool memory_budget = false;   // the device reports what is free of each heap (VK_EXT_memory_budget)
+     // Host memory imported as device memory, which a copy reads in place (VK_EXT_external_memory_host), and the alignment of its address and size.
+     PFN_vkGetMemoryHostPointerPropertiesEXT host_pointer_props = nullptr;
++    PFN_vkGetCalibratedTimestampsEXT get_calibrated = nullptr;   // probe
++    bool calibrated = false;
+     size_t host_import_align = 0;
+     // The driver's per-kernel statistics (registers, occupancy), when it reports them.
+     bool exec_stats = false;
+@@ -804,6 +807,7 @@ public:
+         std::vector<VkPhysicalDevice> devices(count);
+         check(fn.vkEnumeratePhysicalDevices(d.instance, &count, devices.data()), "vkEnumeratePhysicalDevices");
+         d.physical = devices[(size_t)index];
++        index_ = index;
+         fn.vkGetPhysicalDeviceProperties(d.physical, &d.props);
+         fn.vkGetPhysicalDeviceMemoryProperties(d.physical, &d.memory);
+         VkPhysicalDeviceSubgroupProperties sg{};
+@@ -908,6 +912,9 @@ public:
+             } else if (std::strcmp(e.extensionName, VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME) == 0) {
+                 enabled.push_back(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME);
+                 d.exec_stats = true;
++            } else if (diagnostics && std::strcmp(e.extensionName, VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME) == 0) {
++                enabled.push_back(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
++                d.calibrated = true;
+             } else if (std::strcmp(e.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0) {
+                 enabled.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+                 d.memory_budget = true;
+@@ -974,6 +981,10 @@ public:
+                 d.device, "vkGetPipelineExecutableInternalRepresentationsKHR");
+             d.exec_ir = d.exec_stats && d.get_exec_ir && diagnostics;
+         }
++        if (d.calibrated) {
++            d.get_calibrated = (PFN_vkGetCalibratedTimestampsEXT)fn.vkGetDeviceProcAddr(d.device, "vkGetCalibratedTimestampsEXT");
++            d.calibrated = d.get_calibrated != nullptr;
++        }
+         if (d.host_import_align)
+             d.host_pointer_props = (PFN_vkGetMemoryHostPointerPropertiesEXT)fn.vkGetDeviceProcAddr(d.device, "vkGetMemoryHostPointerPropertiesEXT");
+         if (!d.push_descriptor)
+@@ -1265,6 +1276,10 @@ public:
+         }
+         ring_ticket_[ring_index_] = ticket;
+         ring_index_ = (ring_index_ + 1) % kRing;
++        if (probe::on && timed_) {
++            const uint64_t t = probe::now_ns();
++            probe::host(probe::SUBMIT, t, t, (uint32_t)ticket, 0, probe::tag, (uint8_t)index_);
++        }
+         return ticket;
+     }
+ 
+@@ -1300,8 +1315,33 @@ public:
+                                            stamps.size() * sizeof(uint64_t), stamps.data(),
+                                            sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT)
+                 == VK_SUCCESS) {
++            // Probe: each dispatch's interval on the host's CLOCK_MONOTONIC, through a calibrated pair read now.
++            uint64_t cal_dev = 0, cal_host = 0;
++            bool cal = false;
++            if (probe::on && dev_->calibrated) {
++                VkCalibratedTimestampInfoEXT ci[2] = {};
++                ci[0].sType = ci[1].sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT;
++                ci[0].timeDomain = VK_TIME_DOMAIN_DEVICE_EXT;
++                ci[1].timeDomain = VK_TIME_DOMAIN_CLOCK_MONOTONIC_EXT;
++                uint64_t ts[2] = {}, dev = 0;
++                const uint64_t h0 = probe::now_ns();
++                cal = dev_->get_calibrated(dev_->device, 2, ci, ts, &dev) == VK_SUCCESS;
++                cal_dev = ts[0];
++                cal_host = ts[1];
++                probe::host(probe::CALIB, h0, probe::now_ns(), (uint32_t)dev, 0, 0, (uint8_t)index_);
++                static bool named = false;
++                if (!named && probe::path()) {
++                    named = true;
++                    if (FILE* f = std::fopen((std::string(probe::path()) + ".names").c_str(), "w")) {
++                        for (int i = 0; i < K_COUNT * kVariants; ++i) std::fprintf(f, "%d %s\n", i, kernel_variant_name(i / kVariants, i % kVariants).c_str());
++                        std::fclose(f);
++                    }
++                }
++            }
++            const auto host_ns = [&](uint64_t tick) { return (uint64_t)((int64_t)cal_host + (int64_t)((double)(int64_t)(tick - cal_dev) * dev_->timestamp_ns)); };
+             for (size_t i = 0; i + 1 < query_kernel_.size() * 2 && i + 1 < stamps.size(); i += 2) {
+                 const int k = query_kernel_[i / 2];
++                if (cal) probe::recs.push_back(probe::Rec{1, (uint8_t)index_, (uint16_t)k, query_tag_[i / 2], 0, 0, host_ns(stamps[i]), host_ns(stamps[i + 1])});
+                 kernel_ns_[k] += double(stamps[i + 1] - stamps[i]) * dev_->timestamp_ns;
+                 ++kernel_calls_[k];
+             }
+@@ -1314,6 +1354,7 @@ public:
+         std::fill(std::begin(kernel_ns_), std::end(kernel_ns_), 0.0);
+         std::fill(std::begin(kernel_calls_), std::end(kernel_calls_), size_t(0));
+         query_kernel_.clear();
++        query_tag_.clear();
+         query_next_ = 0;
+         queries_stale_ = true;
+         return out;
+@@ -1358,6 +1399,7 @@ public:
+         const auto t0 = std::chrono::steady_clock::now();
+         const HostTimes before = host_;
+         write_now(dst_b, off, src, bytes);
++        probe::host(probe::WRITE, (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(t0.time_since_epoch()).count(), probe::now_ns(), (uint32_t)bytes, dst_b.host_ptr() ? 1u : 0u, probe::tag, (uint8_t)index_);
+         host_.write_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() -
+                           (host_.ticket_ms - before.ticket_ms) - (host_.slot_ms - before.slot_ms) - (host_.staging_ms - before.staging_ms);
+     }
+@@ -2583,6 +2625,7 @@ private:
+             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
+             dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries_, query_next_ + 1);
+             query_kernel_.push_back(id * kVariants + variant);
++            query_tag_.push_back(probe::tag);
+             query_next_ += 2;
+         } else {
+             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
+@@ -2653,7 +2696,13 @@ private:
+         if (!timed_) return wait_for(t);
+         const auto t0 = std::chrono::steady_clock::now();
+         wait_for(t);
+-        into += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
++        const auto t1 = std::chrono::steady_clock::now();
++        into += std::chrono::duration<double, std::milli>(t1 - t0).count();
++        if (probe::on && t != 0 && t <= last_ticket_) {
++            const uint16_t kind = &into == &host_.ticket_ms ? probe::WAIT_TICKET : &into == &host_.slot_ms ? probe::WAIT_SLOT : probe::WAIT_STAGING;
++            probe::host(kind, (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(t0.time_since_epoch()).count(),
++                        (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(t1.time_since_epoch()).count(), (uint32_t)t, (uint32_t)last_ticket_, probe::tag, (uint8_t)index_);
++        }
+     }
+ 
+     std::shared_ptr<Device> dev_;
+@@ -2671,11 +2720,13 @@ private:
+     size_t next_half_ = 0;                    // the half of staging the next upload fills first
+     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
+     VkQueryPool queries_ = VK_NULL_HANDLE;    // timestamps, only for a diagnostics backend
+-    static constexpr uint32_t kQueries = 8192;    // two per dispatch; a reading empties the pool, which the next dispatch resets
++    static constexpr uint32_t kQueries = 1u << 17;    // two per dispatch; a reading empties the pool, which the next dispatch resets
+     uint32_t query_next_ = 0;
+     bool queries_stale_ = false;   // the pool holds a read interval's stamps, reset by the next dispatch
+     size_t last_timed_ = 0;        // dispatches the last reading covered
+     std::vector<int> query_kernel_;   // id * kVariants + variant
++    std::vector<uint32_t> query_tag_;   // probe: the tag each timed dispatch was recorded under
++    int index_ = 0;
+     double kernel_ns_[K_COUNT * kVariants] = {0};
+     size_t kernel_calls_[K_COUNT * kVariants] = {0};
+     std::shared_ptr<VulkanBuffer> x8_;        // the integer-dot tile's 8-bit activations
+diff --git a/src/core/probe_trace.hpp b/src/core/probe_trace.hpp
+new file mode 100644
+index 0000000..974de09
+--- /dev/null
++++ b/src/core/probe_trace.hpp
+@@ -0,0 +1,51 @@
++#pragma once
++// Probe only (research/server-perf-probe, never merged): a timeline of the server's scheduler thread and each device's dispatches, written to $LLMX_PROBE_TRACE.
++#include <chrono>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <vector>
++
++namespace probe {
++
++// One record: type 0 a host interval on the scheduler thread, type 1 a dispatch on device `dev` (kind the kernel variant, a its tag), both in CLOCK_MONOTONIC nanoseconds.
++struct Rec {
++    uint8_t type, dev;
++    uint16_t kind;
++    uint32_t a, b, c;
++    uint64_t t0, t1;
++};
++static_assert(sizeof(Rec) == 32, "record layout");
++
++enum Kind : uint16_t {
++    ROUND = 1, FORM = 2, STAGE = 3, WAIT_TICKET = 4, WAIT_SLOT = 5, WAIT_STAGING = 6, WRITE = 7, LOGITS_WAIT = 8,
++    COPY = 9, SAMPLE = 10, RETIRE = 11, READING = 12, SUBMIT = 13, FLUSH = 14, ROOM = 15, CALIB = 16,
++    POOL_RUN = 17, DRAW_COPY = 18, DRAW_SAMPLE = 19, STEP = 20
++};
++
++inline bool on = false;
++inline uint32_t tag = 0xffffffffu;   // (formed pass & 0xffffff) << 8 | stage, for the dispatches recorded now
++inline std::vector<Rec> recs;
++
++inline const char* path() {
++    static const char* p = std::getenv("LLMX_PROBE_TRACE");
++    return p && *p ? p : nullptr;
++}
++inline uint64_t now_ns() {
++    return (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
++}
++inline void host(uint16_t kind, uint64_t t0, uint64_t t1, uint32_t a = 0, uint32_t b = 0, uint32_t c = 0, uint8_t dev = 0) {
++    if (on) recs.push_back(Rec{0, dev, kind, a, b, c, t0, t1});
++}
++inline void flush() {
++    if (!on || !path() || recs.empty()) return;
++    const uint64_t t0 = now_ns();
++    if (FILE* f = std::fopen(path(), "ab")) {
++        std::fwrite(recs.data(), sizeof(Rec), recs.size(), f);
++        std::fclose(f);
++    }
++    recs.clear();
++    host(FLUSH, t0, now_ns());
++}
++
++} // namespace probe
+diff --git a/src/server/scheduler.hpp b/src/server/scheduler.hpp
+index f677a7b..228ab55 100644
+--- a/src/server/scheduler.hpp
++++ b/src/server/scheduler.hpp
+@@ -14,6 +14,9 @@
+ #include <stdexcept>
+ #include <string>
+ #include <vector>
++#include <cstdlib>
++#include <cstring>
++#include "core/probe_trace.hpp"
+ #include "core/cpus.hpp"
+ #include "inference/logprobs.hpp"
+ #include "inference/sampler.hpp"
+@@ -207,6 +210,11 @@ public:
+             pools_.blocks.push_back(model_.kv_pool_blocks(s));
+             pools_.block_tokens.push_back(model_.kv_pool_block_tokens(s));
+         }
++        if (timed && probe::path()) probe::on = true;
++        if (const char* m = std::getenv("LLMX_PROBE_READ")) read_mode_ = std::strcmp(m, "copy") == 0 ? 1 : 0;
++        if (read_mode_) std::fprintf(stderr, "probe: logits read mode %d (1: each row copied to host memory, then sampled from the copy)\n", read_mode_);
++        if (const char* x = std::getenv("LLMX_PROBE_DECODE_EXTENT")) decode_extent_ = (size_t)std::strtoul(x, nullptr, 10);
++        if (decode_extent_) std::fprintf(stderr, "probe: decode rows take extent %zu\n", decode_extent_);
+         size_t p = passes ? passes : model_.pipelined() ? model_.stage_count() : 1;
+         if (p > 1 && !model_.pipelined())
+             throw std::runtime_error("server: " + std::to_string(p) + " passes in flight need a layer split over several devices, each running its layers whole; this placement runs one at a time");
+@@ -347,12 +355,19 @@ public:
+                     fail_all(active, e.what());
+                     host.clear();
+                 }
+-                if (timed_) round_.assembly_ms += ms_since(room_start) - formed_stages_ms_;
++                if (timed_) {
++                    round_.assembly_ms += ms_since(room_start) - formed_stages_ms_;
++                    probe::host(probe::ROOM, (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(room_start.time_since_epoch()).count(), probe::now_ns());
++                }
+             }
+             for (const auto& a : host)
+                 if (slots_[a.first].live && slots_[a.first].ran == a.second) advance(active, a.first, a.second);
+             in_flight_.store(flights_live());
+-            if (timed_) end_round(round_start);
++            if (timed_) {
++                end_round(round_start);
++                probe::host(probe::ROUND, (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(round_start.time_since_epoch()).count(), probe::now_ns(), (uint32_t)round_.rounds);
++                if (round_.rounds % 32 == 0) probe::flush();
++            }
+         }
+         abort_all();
+         for (auto& r : active) { release(*r); r->end("cancel"); }
+@@ -401,6 +416,7 @@ private:
+         const float* row;
+         bool keep_row;
+         Request::Token t;
++        uint64_t c0 = 0, c1 = 0, c2 = 0;   // probe: the draw's start, its copy's end (0 without a copy) and its end
+     };
+ 
+     // A slot of the context reserved for passes: the round's view of it (Flight), its pass's requests by entry with the history each had and the rows each adds, those it samples in logits order, its logits rows and its decode entries.
+@@ -451,7 +467,9 @@ private:
+         waiting.resize(share);
+         for (auto& r : active)
+             if (std::find(waiting.begin(), waiting.end(), r.get()) != waiting.end()) {
+-                add_entry(r, infer::BatchEntry{&r->seq_, &r->last_id_, 1, true});
++                infer::BatchEntry e{&r->seq_, &r->last_id_, 1, true};
++                e.extent = decode_extent_;
++                add_entry(r, e);
+                 ++f.decoders;
+             }
+         size_t budget = ubatch_;
+@@ -493,6 +511,13 @@ private:
+         f.live = true;
+         f.formed = ++formed_;
+         f.ran = 0;
++        if (probe::on) {
++            size_t prompt = 0;
++            for (size_t e = 0; e < entries_.size(); ++e)
++                if (e >= f.decoders) prompt += entries_[e].n;
++            const uint64_t t = probe::now_ns();
++            probe::host(probe::FORM, t, t, (uint32_t)f.formed, (uint32_t)(f.decoders + (entries_.size() << 16)), (uint32_t)(prompt + (f.want << 16)), (uint8_t)k);
++        }
+         if (model_.stage_on_host(0)) host.push_back({k, 0});
+         else advance(active, k, 0);
+         return true;
+@@ -502,12 +527,17 @@ private:
+     void advance(std::vector<std::shared_ptr<Request>>& active, size_t k, size_t s) {
+         const Clock::time_point start = timed_ ? Clock::now() : Clock::time_point{};
+         const backend::Backend::HostTimes before = timed_ ? host_times() : backend::Backend::HostTimes{};
++        const uint64_t probe_t0 = probe::on ? probe::now_ns() : 0;
++        probe::tag = ((uint32_t)(slots_[k].formed & 0xffffff) << 8) | (uint32_t)s;
+         try {
+             model_.run_pass_stage(ctx_, k, s);
+         } catch (const std::exception& e) {
++            probe::tag = 0xffffffffu;
+             fail_pass(active, k, e.what());
+             return;
+         }
++        probe::tag = 0xffffffffu;
++        probe::host(probe::STAGE, probe_t0, probe::now_ns(), (uint32_t)slots_[k].formed, (uint32_t)s, (uint32_t)k);
+         ++slots_[k].ran;
+         if (!timed_) return;
+         // The stage's time on the thread, apart from where it was held and its uploads; on the host that is the stage's own time.
+@@ -550,6 +580,10 @@ private:
+             span_start_ = Clock::now();
+             span_rows_ = 0;
+         } else if (round_.rounds % kReadRounds == 0) {
++            struct ReadingEvent {
++                uint64_t t0;
++                ~ReadingEvent() { probe::host(probe::READING, t0, probe::now_ns()); }
++            } reading{probe::now_ns()};
+             round_.span_ms += ms_since(span_start_);
+             for (size_t s = 0; s < S; ++s) {
+                 const double ms = model_.stage_backend(s).device_ms();
+@@ -593,12 +627,24 @@ private:
+                 Request& r = *f.wanting[w];
+                 if (r.cancel_.load()) continue;
+                 const Clock::time_point read = timed_ ? Clock::now() : Clock::time_point{};
++                const uint64_t p0 = probe::on ? probe::now_ns() : 0;
+                 const float* row = model_.pass_logits(ctx_, k, w);
++                if (probe::on) probe::host(probe::LOGITS_WAIT, p0, probe::now_ns(), (uint32_t)f.formed, (uint32_t)w);
+                 if (timed_) waited += ms_since(read);
+                 draws_.push_back(Draw{&r, row, r.params_.logprobs && r.rows_waiting() < Request::kRowsWaiting, {}});
+             }
++            const uint64_t pr0 = probe::on ? probe::now_ns() : 0;
+             samplers_.run(draws_.size(), [this](size_t i) { draw(draws_[i]); });
++            if (probe::on) {
++                probe::host(probe::POOL_RUN, pr0, probe::now_ns(), (uint32_t)f.formed, (uint32_t)draws_.size(), (uint32_t)read_mode_);
++                for (const Draw& d : draws_) {
++                    if (d.c1) probe::host(probe::DRAW_COPY, d.c0, d.c1, (uint32_t)f.formed);
++                    probe::host(probe::DRAW_SAMPLE, d.c1 ? d.c1 : d.c0, d.c2, (uint32_t)f.formed);
++                }
++            }
++            const uint64_t ps0 = probe::on ? probe::now_ns() : 0;
+             for (Draw& d : draws_) step(d);
++            if (probe::on) probe::host(probe::STEP, ps0, probe::now_ns(), (uint32_t)f.formed, (uint32_t)draws_.size());
+             if (timed_) {
+                 round_.logits_wait_ms += waited;
+                 round_.sampling_ms += ms_since(start) - waited;
+@@ -902,7 +948,17 @@ private:
+     // It touches only d and its request's generator and row copy, which no other draw of the pass shares, since a request wants one row a pass.
+     void draw(Draw& d) {
+         Request& r = *d.r;
++        if (probe::on) d.c0 = probe::now_ns();
++        if (read_mode_ == 1) {
++            // Probe: the row copied out of the mapped logits first, so the copy and the sampler's own work are timed apart.
++            thread_local std::vector<float> copy;
++            copy.resize(ctx_.width);
++            std::memcpy(copy.data(), d.row, ctx_.width * sizeof(float));
++            d.row = copy.data();
++            if (probe::on) d.c1 = probe::now_ns();
++        }
+         d.t.id = infer::sample(d.row, ctx_.width, r.params_, tok_.eos_id, r.gen_, r.rng_);
++        if (probe::on) d.c2 = probe::now_ns();
+         if (tok_.is_eos(d.t.id) || !r.params_.logprobs) return;
+         if (d.keep_row) r.logits_.assign(d.row, d.row + ctx_.width);
+         else Request::fill(d.t, d.row, ctx_.width, r.params_.top_logprobs);
+@@ -1004,6 +1060,8 @@ private:
+     size_t max_seqs_, ubatch_, max_queue_;
+     const bool timed_;
+     Timing round_;                        // the scheduler thread's, published to timing_ each round
++    size_t decode_extent_ = 0;            // probe: the extent decode entries take (0: their own, 1)
++    int read_mode_ = 0;                   // probe: 0 the sampler reads the mapped row in place (main), 1 the row copied to host memory first
+     Timing timing_;                       // under the lock
+     std::vector<double> host_stage_ms_;   // per stage on the host, its time since the last reading
+     Clock::time_point span_start_;
+diff --git a/tools/perf_matmul_probe.cpp b/tools/perf_matmul_probe.cpp
+new file mode 100644
+index 0000000..9186f3f
+--- /dev/null
++++ b/tools/perf_matmul_probe.cpp
+@@ -0,0 +1,263 @@
++// Probe tool (research/server-perf-probe, never merged): an 8B pass's matmuls through the decode path and through the prompt tile, and whether the tile gives a row the same bits whatever shares its call.
++// time MODEL DEVICE ITERS COLS: wall ms of every layer's projections as the model groups them, and the head, at each column count, decode rows (extent 1) against tile rows (extent max(n, 64)) and tile rows at extent 64.
++//   With LLMX_PROBE_DIAG=1 the backend timestamps each dispatch and the tool prints each kernel's device ms per pass as well.
++// check MODEL DEVICE LAYER: for layer LAYER's projections and the head, each column of a tile call against the same column in a call of its own, over widths, orders, extents and calls mixing decode rows.
++#include <algorithm>
++#include <chrono>
++#include <cmath>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <map>
++#include <numeric>
++#include <random>
++#include <string>
++#include <vector>
++#include "backends/vulkan/vulkan_backend.hpp"
++#include "format/gguf.hpp"
++
++namespace {
++
++struct Tensor {
++    std::string name;
++    uint32_t type;
++    size_t nin, nout;
++    backend::BufferPtr buf;
++};
++
++std::vector<backend::RowRun> g_runs;
++backend::RowRuns runs(std::vector<backend::RowRun> r) {
++    g_runs = std::move(r);
++    return backend::RowRuns{g_runs.data(), g_runs.size()};
++}
++backend::RowRuns one(size_t n, size_t extent) { return runs({backend::RowRun{n, extent}}); }
++
++const char* kNames[] = {"attn_q.weight", "attn_k.weight", "attn_v.weight", "attn_output.weight", "ffn_gate.weight", "ffn_up.weight", "ffn_down.weight"};
++
++const char* type_name(uint32_t t) {
++    switch (t) {
++    case 0: return "F32";
++    case 1: return "F16";
++    case 2: return "Q4_0";
++    case 3: return "Q4_1";
++    case 8: return "Q8_0";
++    case 12: return "Q4_K";
++    case 13: return "Q5_K";
++    case 14: return "Q6_K";
++    default: return "?";
++    }
++}
++
++} // namespace
++
++static int run(int argc, char** argv) {
++    if (argc < 3) {
++        std::fprintf(stderr, "usage: %s time|check MODEL [device] [iters|layer] [cols,...]\n", argv[0]);
++        return 2;
++    }
++    const std::string mode = argv[1], path = argv[2];
++    const int device = argc > 3 ? std::atoi(argv[3]) : 0;
++    const int arg4 = argc > 4 ? std::atoi(argv[4]) : (mode == "time" ? 10 : 0);
++    std::vector<size_t> cols = {1, 8, 16, 32, 64, 128};
++    if (argc > 5) {
++        cols.clear();
++        std::string s = argv[5];
++        for (size_t at = 0; at < s.size();) {
++            size_t e = s.find(',', at);
++            if (e == std::string::npos) e = s.size();
++            cols.push_back((size_t)std::atoi(s.substr(at, e - at).c_str()));
++            at = e + 1;
++        }
++    }
++    const char* diag = std::getenv("LLMX_PROBE_DIAG");
++    const bool timed = diag && *diag == '1';
++    gguf::GGUFModel m = gguf::read_gguf(path);
++    gguf::map_payload(m);
++    auto bp = backend::make_vulkan_backend(device, timed);
++    backend::Backend& b = *bp;
++    std::printf("device %s, %s\n", backend::vulkan_device_name(b).c_str(), path.c_str());
++
++    std::map<std::string, size_t> index;
++    for (size_t i = 0; i < m.tensors.size(); ++i) index[m.tensors[i].name] = i;
++    const auto adopt = [&](const std::string& name) {
++        auto it = index.find(name);
++        if (it == index.end()) throw std::runtime_error("no tensor " + name);
++        const auto& t = m.tensors[it->second];
++        Tensor x{name, t.type, (size_t)t.ne[0], (size_t)t.ne[1], nullptr};
++        x.buf = b.adopt(m.tensor_data(it->second), m.tensor_bytes(it->second));
++        return x;
++    };
++    const std::string head_name = index.count("output.weight") ? "output.weight" : "token_embd.weight";
++
++    const size_t NC = 160;
++    size_t maxin = 12288, maxout = 151936;
++    std::vector<float> xs(NC * maxin);
++    std::mt19937 rng(20260928);
++    for (float& v : xs) v = float((rng() >> 8) * (4.0 / 16777216.0) - 2.0);
++    const auto xb = b.adopt(xs.data(), xs.size() * sizeof(float));
++
++    if (mode == "time") {
++        int layers = 0;
++        while (index.count("blk." + std::to_string(layers) + ".attn_q.weight")) ++layers;
++        std::vector<std::vector<Tensor>> L(layers);
++        std::map<std::string, int> type_count;
++        for (int l = 0; l < layers; ++l)
++            for (const char* n : kNames) {
++                L[l].push_back(adopt("blk." + std::to_string(l) + "." + n));
++                type_count[std::string(n) + " " + type_name(L[l].back().type)]++;
++            }
++        const Tensor h = adopt(head_name);
++        type_count[std::string("head ") + type_name(h.type)]++;
++        for (const auto& kv : type_count) std::printf("tensors %s x%d\n", kv.first.c_str(), kv.second);
++        std::printf("layers %d, head %zu x %zu %s\n", layers, h.nin, h.nout, type_name(h.type));
++        const size_t NB = 128;
++        const auto qo = b.alloc(NB * 4096 * 4), ko = b.alloc(NB * 1024 * 4), vo = b.alloc(NB * 1024 * 4);
++        const auto go = b.alloc(NB * 12288 * 4), uo = b.alloc(NB * 12288 * 4), yo = b.alloc(NB * 4096 * 4), ho = b.alloc(NB * maxout * 4);
++        // One pass's matmuls: q, k, v as one group, o added into the residual, gate and up as one group, down added, then the head; `ext` 0 takes decode rows.
++        const auto pass = [&](size_t n, size_t ext) {
++            const backend::RowRun r{n, ext ? ext : 1};
++            const backend::RowRuns rr{&r, 1};
++            for (int l = 0; l < layers; ++l) {
++                const auto& t = L[l];
++                b.matmul_group({{t[0].type, {t[0].buf.get(), 0}, {qo.get(), 0}, t[0].nout}, {t[1].type, {t[1].buf.get(), 0}, {ko.get(), 0}, t[1].nout},
++                                {t[2].type, {t[2].buf.get(), 0}, {vo.get(), 0}, t[2].nout}},
++                               {xb.get(), 0}, t[0].nin, n, rr);
++                b.matmul_add(t[3].type, {t[3].buf.get(), 0}, {xb.get(), 0}, {yo.get(), 0}, t[3].nin, t[3].nout, n, rr);
++                b.matmul_group({{t[4].type, {t[4].buf.get(), 0}, {go.get(), 0}, t[4].nout}, {t[5].type, {t[5].buf.get(), 0}, {uo.get(), 0}, t[5].nout}},
++                               {xb.get(), 0}, t[4].nin, n, rr);
++                b.matmul_add(t[6].type, {t[6].buf.get(), 0}, {xb.get(), 0}, {yo.get(), 0}, t[6].nin, t[6].nout, n, rr);
++            }
++            b.matmul_logits(h.type, {h.buf.get(), 0}, {xb.get(), 0}, {ho.get(), 0}, h.nin, h.nout, n, rr);
++        };
++        for (size_t n : cols) {
++            if (n > NB) continue;
++            const size_t exts[3] = {0, std::max<size_t>(n, 64), 64};
++            const char* names[3] = {"decode", "tile", "tile64"};
++            for (int p = 0; p < 3; ++p) {
++                if (p == 2 && n <= 64) continue;   // the same as tile
++                pass(n, exts[p]);
++                b.sync();
++                if (timed) backend::vulkan_kernel_times(b);
++                const auto t0 = std::chrono::steady_clock::now();
++                for (int i = 0; i < arg4; ++i) pass(n, exts[p]);
++                b.sync();
++                const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / arg4;
++                std::printf("time n=%zu %s pass-matmuls %.2f ms\n", n, names[p], ms);
++                if (timed)
++                    for (const auto& kt : backend::vulkan_kernel_times(b))
++                        if (kt.second > 0) std::printf("  kernel n=%zu %s %s %.3f ms/pass\n", n, names[p], kt.first.c_str(), kt.second / arg4);
++                std::fflush(stdout);
++            }
++        }
++        return 0;
++    }
++
++    // check
++    std::vector<Tensor> ts;
++    for (const char* n : kNames) ts.push_back(adopt("blk." + std::to_string(arg4) + "." + n));
++    ts.push_back(adopt(head_name));
++    for (const Tensor& t : ts) std::printf("tensor %s %s %zu x %zu\n", t.name.c_str(), type_name(t.type), t.nin, t.nout);
++    const auto yb = b.alloc(NC * maxout * sizeof(float));
++    const auto xp = b.alloc(NC * maxin * sizeof(float));
++    // Y = W X for the columns of X at xoff, under `rr`, read back.
++    const auto mm = [&](const Tensor& t, backend::BufferPtr X, size_t n, backend::RowRuns rr, std::vector<float>& out) {
++        if (t.name == head_name) b.matmul_logits(t.type, {t.buf.get(), 0}, {X.get(), 0}, {yb.get(), 0}, t.nin, t.nout, n, rr);
++        else b.matmul(t.type, {t.buf.get(), 0}, {X.get(), 0}, {yb.get(), 0}, t.nin, t.nout, n, rr);
++        b.sync();
++        out.resize(n * t.nout);
++        b.read(*yb, 0, out.data(), out.size() * sizeof(float));
++    };
++    const std::vector<size_t> widths = {1, 2, 3, 5, 8, 13, 16, 17, 31, 32, 33, 48, 63, 64, 65, 100, 128, 129, 160};
++    size_t total_bad = 0;
++    for (const Tensor& t : ts) {
++        for (size_t E : {size_t(64), size_t(512)}) {
++            // Each column alone through the tile at extent E.
++            std::vector<float> alone(NC * t.nout), got, dec1(NC * t.nout);
++            for (size_t c = 0; c < NC; ++c) {
++                std::vector<float> o;
++                b.write(*xp, 0, xs.data() + c * t.nin, t.nin * sizeof(float));
++                mm(t, xp, 1, one(1, E), o);
++                std::memcpy(alone.data() + c * t.nout, o.data(), t.nout * sizeof(float));
++                if (E == 64) {
++                    mm(t, xp, 1, one(1, 1), o);
++                    std::memcpy(dec1.data() + c * t.nout, o.data(), t.nout * sizeof(float));
++                }
++            }
++            size_t bad = 0, compared = 0;
++            for (size_t n : widths) {
++                b.write(*xp, 0, xs.data(), n * t.nin * sizeof(float));
++                mm(t, xp, n, one(n, E), got);
++                for (size_t c = 0; c < n; ++c, ++compared)
++                    if (std::memcmp(got.data() + c * t.nout, alone.data() + c * t.nout, t.nout * sizeof(float))) {
++                        if (++bad <= 3) std::printf("  MISMATCH %s E=%zu n=%zu column %zu\n", t.name.c_str(), E, n, c);
++                    }
++                // The same columns in reverse order.
++                std::vector<float> rev(n * t.nin);
++                for (size_t c = 0; c < n; ++c) std::memcpy(rev.data() + c * t.nin, xs.data() + (n - 1 - c) * t.nin, t.nin * sizeof(float));
++                b.write(*xp, 0, rev.data(), rev.size() * sizeof(float));
++                mm(t, xp, n, one(n, E), got);
++                for (size_t c = 0; c < n; ++c, ++compared)
++                    if (std::memcmp(got.data() + c * t.nout, alone.data() + (n - 1 - c) * t.nout, t.nout * sizeof(float))) {
++                        if (++bad <= 3) std::printf("  MISMATCH reversed %s E=%zu n=%zu column %zu\n", t.name.c_str(), E, n, c);
++                    }
++            }
++            // Decode rows (extent 1) first, then tile rows, in one call: each part against its columns alone.
++            size_t mixed_bad = 0, mixed = 0;
++            for (size_t a : {size_t(1), size_t(7), size_t(16), size_t(40)})
++                for (size_t k : {size_t(1), size_t(17), size_t(64), size_t(100)}) {
++                    if (a + k > NC) continue;
++                    b.write(*xp, 0, xs.data(), (a + k) * t.nin * sizeof(float));
++                    mm(t, xp, a + k, runs({backend::RowRun{a, 1}, backend::RowRun{a + k, E}}), got);
++                    for (size_t c = 0; c < a + k; ++c, ++mixed) {
++                        const float* ref = (c < a && E == 64) ? dec1.data() + c * t.nout : alone.data() + c * t.nout;
++                        if (c < a && E != 64) continue;
++                        if (std::memcmp(got.data() + c * t.nout, ref, t.nout * sizeof(float))) {
++                            if (++mixed_bad <= 3) std::printf("  MISMATCH mixed %s E=%zu decode %zu tile %zu column %zu\n", t.name.c_str(), E, a, k, c);
++                        }
++                    }
++                }
++            total_bad += bad + mixed_bad;
++            std::printf("check %s %s E=%zu: tile columns differing from alone %zu of %zu, mixed calls %zu of %zu\n", t.name.c_str(), type_name(t.type), E,
++                        bad, compared, mixed_bad, mixed);
++            if (E == 64) {
++                // How far the tile's column is from the decode kernel's (informational: a row that switched kernels by batch would move this much).
++                size_t diff = 0;
++                double maxrel = 0;
++                for (size_t c = 0; c < NC; ++c) {
++                    bool d = false;
++                    for (size_t o = 0; o < t.nout; ++o) {
++                        const float u = alone[c * t.nout + o], v = dec1[c * t.nout + o];
++                        if (u != v) {
++                            d = true;
++                            maxrel = std::max(maxrel, (double)std::fabs(u - v) / std::max(1e-6, (double)std::fabs(v)));
++                        }
++                    }
++                    diff += d;
++                }
++                std::printf("check %s %s tile(E=64) against decode kernel: %zu of %zu columns differ, max relative difference %.3g\n", t.name.c_str(),
++                            type_name(t.type), diff, NC, maxrel);
++            }
++        }
++        // Extent 64 against extent 512 for the same column alone: the split follows the extent.
++        std::vector<float> a64, a512;
++        b.write(*xp, 0, xs.data(), t.nin * sizeof(float));
++        mm(t, xp, 1, one(1, 64), a64);
++        mm(t, xp, 1, one(1, 512), a512);
++        std::printf("check %s %s extent 64 against 512 alone: %s\n", t.name.c_str(), type_name(t.type),
++                    std::memcmp(a64.data(), a512.data(), a64.size() * sizeof(float)) ? "differ" : "same bits");
++        std::fflush(stdout);
++    }
++    std::printf("check total mismatches %zu\n", total_bad);
++    return total_bad ? 1 : 0;
++}
++
++int main(int argc, char** argv) {
++    try {
++        return run(argc, argv);
++    } catch (const std::exception& e) {
++        std::fflush(stdout);
++        std::fprintf(stderr, "error: %s\n", e.what());
++        return 1;
++    }
++}

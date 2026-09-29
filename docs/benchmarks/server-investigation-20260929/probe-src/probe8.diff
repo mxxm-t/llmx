@@ -1,0 +1,1229 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b663749..4198bad 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -49,7 +49,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
+     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
+     set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_rows embed matmul_row
+         kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile quantize_x
+-        quantize_x8 matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group attention_vec)
++        quantize_x8 matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group attention_vec matmul_dtile matmul_dtile2)
+     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
+     set(LLMX_VK_VARIANTS matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
+         matmul_row_preserve=matmul_row=LLMX_PRESERVE_F32
+@@ -73,7 +73,9 @@ if(LLMX_HAS_BACKEND_VULKAN)
+         attention_tile_kv16=attention_tile=LLMX_K16+LLMX_V16
+         norm_rope_kv_k16=norm_rope_kv=LLMX_K16 norm_rope_kv_v16=norm_rope_kv=LLMX_V16
+         norm_rope_kv_kv16=norm_rope_kv=LLMX_K16+LLMX_V16
+-        matmul_tile_q6=matmul_tile_q=LLMX_Q6 matmul_tile_q8=matmul_tile_q=LLMX_Q8)
++        matmul_tile_q6=matmul_tile_q=LLMX_Q6 matmul_tile_q8=matmul_tile_q=LLMX_Q8
++        matmul_dtile_q6=matmul_dtile=LLMX_Q6 matmul_dtile_q8=matmul_dtile=LLMX_Q8
++        matmul_dtile2_q6=matmul_dtile2=LLMX_Q6 matmul_dtile2_q8=matmul_dtile2=LLMX_Q8)
+     set(LLMX_VK_SPV)
+     foreach(entry IN LISTS LLMX_VK_SHADERS LLMX_VK_VARIANTS)
+         string(REPLACE "=" ";" parts ${entry})
+@@ -382,6 +384,9 @@ if(BUILD_TESTING)
+         add_executable(llmx-multi-device-bench tools/multi_device_bench.cpp)
+         target_link_libraries(llmx-multi-device-bench PRIVATE llmx-vulkan)
+         list(APPEND LLMX_TARGETS llmx-multi-device-bench)
++        # Probe only (research/server-perf-probe): decode path against the tile, and the tile's bits by batch.
++        add_executable(llmx-perf-matmul-probe tools/perf_matmul_probe.cpp)
++        target_link_libraries(llmx-perf-matmul-probe PRIVATE llmx-vulkan)
+     endif()
+ endif()
+ 
+diff --git a/src/backends/vulkan/shaders/matmul_dtile.comp b/src/backends/vulkan/shaders/matmul_dtile.comp
+new file mode 100644
+index 0000000..f36f8d8
+--- /dev/null
++++ b/src/backends/vulkan/shaders/matmul_dtile.comp
+@@ -0,0 +1,159 @@
++#version 450
++// Probe only (never merged): the integer-dot tile's arithmetic (matmul_tile_q.comp) in the shape of a row kernel, for decode calls of few columns.
++// Each output is the tile's: per quant block, the exact integer dot of the row's 32 weights with the column's 8-bit activations, then the tile's float formula for the type, summed over the blocks in order within the call's part, the parts added by matmul_reduce.comp as the tile's are.
++// A group of 8 lanes takes one row, lane j staging word j of each block exactly as a tile of 32 rows stages it (WPR 8, WW 1); the integer sums meet in a clustered add, which is exact in any order, and every lane of the group then keeps the same float sums.
++// A workgroup takes 32 rows and COLS columns, reading a row's weights once for all of them; the push constants and bindings are the tile's, start0..2 counting workgroups of 32 rows.
++#extension GL_EXT_shader_16bit_storage : require
++#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
++#extension GL_EXT_integer_dot_product : require
++#extension GL_KHR_shader_subgroup_basic : require
++#extension GL_KHR_shader_subgroup_clustered : require
++#extension GL_EXT_control_flow_attributes : require
++#include "q.glsl"
++layout(local_size_x = 256) in;
++layout(constant_id = 0) const uint COLS = 8;
++layout(push_constant) uniform P {
++    uint nin; uint nbatch; uint type; uint accum; uint kper; uint nproj;
++    uint nout0; uint start0; uint nout1; uint start1; uint nout2; uint start2;
++    uint per; uint order0; uint xrow;
++} p;
++layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
++layout(set = 0, binding = 1) readonly buffer W32 { uint w32[]; } ws[3];
++layout(set = 0, binding = 2) readonly buffer XQ { uint xq[]; };
++layout(set = 0, binding = 3) readonly buffer XS { vec2 xs[]; };
++layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
++uint pi = 0u;
++
++#define STEP 2u
++
++uint k4_byte(uvec3 v, uint i) { return (v[i >> 2u] >> (8u * (i & 3u))) & 255u; }
++void scale_min_k4_words(uvec3 v, uint j, out uint sc, out uint mn) {
++    uint bj = k4_byte(v, j), bj4 = k4_byte(v, j + 4u), bjm4 = k4_byte(v, (j + 4u) & 7u);
++    sc = j < 4u ? bj & 63u : (bj4 & 15u) | ((bjm4 >> 6u) << 4u);
++    mn = j < 4u ? bj4 & 63u : (bj4 >> 4u) | ((bj >> 6u) << 4u);
++}
++
++void main() {
++    uint tid = gl_LocalInvocationID.x;
++    uint wg = gl_WorkGroupID.x;
++    if (p.nproj > 1u && wg >= p.start1) pi = 1u;
++    if (p.nproj > 2u && wg >= p.start2) pi = 2u;
++    uint nout = pi == 0u ? p.nout0 : (pi == 1u ? p.nout1 : p.nout2);
++    uint g = tid / 8u, j = tid - g * 8u;
++    uint row = (wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2))) * 32u + g;
++    uint ncg = (p.nbatch + COLS - 1u) / COLS;
++    uint part = gl_WorkGroupID.y / ncg;
++    uint col_base = (gl_WorkGroupID.y - part * ncg) * COLS;
++    uint nblk = p.nin / 32u;
++    uint xtab = p.xrow * p.nin / 8u;
++    uint kbeg = part * p.kper, kend = min(nblk, kbeg + p.kper);
++    uint parts = (nblk + p.kper - 1u) / p.kper;
++    uint before = (pi > 0u ? p.nout0 : 0u) + (pi > 1u ? p.nout1 : 0u);
++    uint yo = parts > 1u ? p.nbatch * (parts * before + part * nout) : 0u;
++    bool rin = row < nout;
++    uint wr = rin ? row : 0u;
++    float acc[COLS];
++    [[unroll]] for (uint c = 0u; c < COLS; ++c) acc[c] = 0.0;
++    for (uint k0 = kbeg; k0 < kend; k0 += STEP) {
++        // Every load of a step first, then its blocks in order.
++        uint v[STEP];
++        vec4 sc4[STEP];
++        uint xw[STEP][COLS];
++        vec2 xc[STEP][COLS];
++        [[unroll]] for (uint s = 0u; s < STEP; ++s) {
++            uint kb = min(k0 + s, kend - 1u);
++            [[unroll]] for (uint c = 0u; c < COLS; ++c) {
++                uint col = min(col_base + c, p.nbatch - 1u);
++                xw[s][c] = xq[(kb * p.xrow + col) * 8u + j];
++                xc[s][c] = xs[xtab + kb * p.xrow + col];
++            }
++#if defined(LLMX_Q8)
++            uint ob = (wr * nblk + kb) * Q8_0_BYTES;
++            bool str = (ob & 3u) == 0u;
++            uint base = ((ob + 2u) >> 2u) + j;
++            uint w0 = ws[pi].w32[base], w1 = ws[pi].w32[str ? base + 1u : base - 1u];
++            v[s] = str ? (w0 >> 16u) | (w1 << 16u) : w0;
++            uint sw = ws[pi].w32[ob >> 2u];
++            sc4[s] = vec4(unpackHalf2x16(str ? sw : sw >> 16u).x, 0.0, 0.0, 0.0);
++#elif defined(LLMX_Q6)
++            uint nsb = p.nin / 256u;
++            uint gg = kb & 7u, n = gg / 4u, which = gg & 3u;
++            uint o = (wr * nsb + kb / 8u) * Q6_K_BYTES;
++            uint lo = (o + n * 64u + (which & 1u) * 32u + j * 4u) >> 2u, hi = (o + 128u + n * 32u + j * 4u) >> 2u;
++            uint l0 = ws[pi].w32[lo], l1 = ws[pi].w32[lo + 1u], h0 = ws[pi].w32[hi], h1 = ws[pi].w32[hi + 1u];
++            bool odd = (o & 3u) != 0u;
++            uint ql = odd ? (l0 >> 16u) | (l1 << 16u) : l0;
++            uint qh = odd ? (h0 >> 16u) | (h1 << 16u) : h0;
++            uint nsh = which >= 2u ? 4u : 0u, hsh = 2u * which;
++            uint b = ((ql >> nsh) & 0x0F0F0F0Fu) | (((qh >> hsh) & 0x03030303u) << 4u);
++            uint t = b ^ 0x20202020u, neg = t & 0x20202020u;
++            v[s] = t | (neg << 1u) | (neg << 2u);
++            uint si = o + 192u + (gg / 4u) * 8u + 2u * (gg & 3u);
++            uint dw = ws[pi].w32[(o + 208u) >> 2u], sw = ws[pi].w32[si >> 2u];
++            float d = unpackHalf2x16((o & 3u) == 0u ? dw : (dw >> 16u)).x;
++            uint sb = sw >> (8u * (si & 3u));
++            float s0 = float(int(sb << 24u) >> 24), s1 = float(int((sb >> 8u) << 24u) >> 24);
++            sc4[s] = vec4(d * s0, d * s1, 0.0, 0.0);
++#else
++            if (p.type == TYPE_Q4_K || p.type == TYPE_Q5_K) {
++                bool k5 = p.type == TYPE_Q5_K;
++                uint bytes = k5 ? Q5_K_BYTES : Q4_K_BYTES, nsb = p.nin / 256u;
++                uint gg = kb & 7u;
++                uint o = (wr * nsb + kb / 8u) * bytes;
++                uint q = ws[pi].w32[(o + (k5 ? 48u : 16u) + (gg / 2u) * 32u) / 4u + j];
++                uint vv = (q >> (4u * (gg & 1u))) & 0x0F0F0F0Fu;
++                if (k5) vv |= ((ws[pi].w32[(o + 16u) / 4u + j] >> gg) & 0x01010101u) << 4u;
++                v[s] = vv;
++                uvec4 h = uvec4(ws[pi].w32[o / 4u], ws[pi].w32[o / 4u + 1u], ws[pi].w32[o / 4u + 2u], ws[pi].w32[o / 4u + 3u]);
++                vec2 dd = unpackHalf2x16(h.x);
++                uint sc, mn;
++                scale_min_k4_words(h.yzw, gg, sc, mn);
++                sc4[s] = vec4(dd.x * float(sc), dd.x * float(sc), dd.y * float(mn), 0.0);
++            } else {
++                bool q41 = p.type == TYPE_Q4_1;
++                uint bytes = q41 ? Q4_1_BYTES : Q4_0_BYTES, qoff = q41 ? 4u : 2u;
++                uint os = (wr * nblk + kb) * bytes;
++                uint q0 = os + qoff;
++                uint i = (q0 >> 2u) + (j & 3u);
++                uint a0 = ws[pi].w32[i], a1 = ws[pi].w32[i + ((q0 & 3u) != 0u ? 1u : 0u)];
++                bool odd = (q0 & 3u) != 0u;
++                uint nw = odd ? (a0 >> 16u) | (a1 << 16u) : a0;
++                uint b = (nw >> (4u * (j >> 2u))) & 0x0F0F0F0Fu;
++                uint t = b ^ 0x08080808u, neg = t & 0x08080808u;
++                v[s] = q41 ? b : t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
++                uint sw = ws[pi].w32[os >> 2u];
++                vec2 dm = unpackHalf2x16(!q41 && (os & 3u) != 0u ? sw >> 16u : sw);
++                sc4[s] = q41 ? vec4(dm.x, dm.x, -dm.y, 0.0) : vec4(dm.x, dm.x, 0.0, 0.0);
++            }
++#endif
++        }
++        [[unroll]] for (uint s = 0u; s < STEP; ++s) {
++            if (k0 + s >= kend) break;
++            [[unroll]] for (uint c = 0u; c < COLS; ++c) {
++                int t = dotPacked4x8EXT(int(v[s]), int(xw[s][c]));
++#if defined(LLMX_Q8)
++                t = subgroupClusteredAdd(t, 8u);
++                float d = sc4[s].x, cc = xc[s][c].x;
++                precise float pp = d * cc * float(t);
++                acc[c] += pp;
++#elif defined(LLMX_Q6)
++                int l = subgroupClusteredAdd(j < 4u ? t : 0, 8u), h = subgroupClusteredAdd(j < 4u ? 0 : t, 8u);
++                vec4 w4 = sc4[s];
++                acc[c] += xc[s][c].x * (w4.x * float(l) + w4.y * float(h));
++#else
++                t = subgroupClusteredAdd(t, 8u);
++                vec4 w4 = sc4[s];
++                acc[c] += w4.x * xc[s][c].x * float(t) - w4.z * xc[s][c].y;
++#endif
++            }
++        }
++    }
++    if (j != 0u || !rin) return;
++    [[unroll]] for (uint c = 0u; c < COLS; ++c) {
++        uint col = col_base + c;
++        if (col < p.nbatch) {
++            if (p.accum != 0u) ys[pi].y[yo + col * nout + row] += acc[c];
++            else ys[pi].y[yo + col * nout + row] = acc[c];
++        }
++    }
++}
+diff --git a/src/backends/vulkan/shaders/matmul_dtile2.comp b/src/backends/vulkan/shaders/matmul_dtile2.comp
+new file mode 100644
+index 0000000..3642bb5
+--- /dev/null
++++ b/src/backends/vulkan/shaders/matmul_dtile2.comp
+@@ -0,0 +1,207 @@
++#version 450
++// Probe only (never merged): the integer-dot tile's arithmetic (matmul_tile_q.comp) in the shape of a row kernel, second form.
++// Each output is the tile's: per quant block, the exact integer dot of the row's 32 weights with the column's 8-bit activations, then the tile's float formula for the type, summed over the blocks in order within the call's part, the parts added by matmul_reduce.comp as the tile's are.
++// A group of 8 lanes takes one row and 8 consecutive blocks a step, lane j block k0 + j whole, so a step's weight reads are contiguous; each lane forms its block's integer dot for every column.
++// The dots and the block's scale values go through shared memory, and lane j then adds columns j, j + 8, ... over the step's blocks in order, evaluating the tile's own expression.
++// The step's activations are staged once in shared memory for the workgroup's 32 rows; the push constants and bindings are the tile's, start0..2 counting workgroups of 32 rows.
++#extension GL_EXT_shader_16bit_storage : require
++#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
++#extension GL_EXT_integer_dot_product : require
++#extension GL_KHR_shader_subgroup_basic : require
++#extension GL_EXT_control_flow_attributes : require
++#include "q.glsl"
++layout(local_size_x = 256) in;
++layout(constant_id = 0) const uint COLS = 8;
++layout(push_constant) uniform P {
++    uint nin; uint nbatch; uint type; uint accum; uint kper; uint nproj;
++    uint nout0; uint start0; uint nout1; uint start1; uint nout2; uint start2;
++    uint per; uint order0; uint xrow;
++} p;
++layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
++layout(set = 0, binding = 1) readonly buffer W32 { uint w32[]; } ws[3];
++layout(set = 0, binding = 2) readonly buffer XQ { uint xq[]; };
++layout(set = 0, binding = 3) readonly buffer XS { vec2 xs[]; };
++layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
++uint pi = 0u;
++
++#define MAXC 16u
++#define XS_ (MAXC * 8u + 1u)
++shared uint xw[8u * XS_];          // a step's activation words: block s, column c, word m at s * XS_ + c * 8 + m, padded against bank conflicts
++shared vec2 xsc[8u][MAXC];        // and each block's scale and scaled sum per column
++#ifdef LLMX_Q6
++shared ivec2 tt[32u][8u][MAXC + 1u];   // per row, block and column: the dot's two halves
++#else
++shared int tt[32u][8u][MAXC + 1u];   // per row, block and column: the block's integer dot
++#endif
++shared vec4 wsv[32u][8u];         // per row and block: the tile's scale values
++
++uint k4_byte(uvec3 v, uint i) { return (v[i >> 2u] >> (8u * (i & 3u))) & 255u; }
++void scale_min_k4_words(uvec3 v, uint j, out uint sc, out uint mn) {
++    uint bj = k4_byte(v, j), bj4 = k4_byte(v, j + 4u), bjm4 = k4_byte(v, (j + 4u) & 7u);
++    sc = j < 4u ? bj & 63u : (bj4 & 15u) | ((bjm4 >> 6u) << 4u);
++    mn = j < 4u ? bj4 & 63u : (bj4 >> 4u) | ((bj >> 6u) << 4u);
++}
++
++void main() {
++    uint tid = gl_LocalInvocationID.x;
++    uint wg = gl_WorkGroupID.x;
++    if (p.nproj > 1u && wg >= p.start1) pi = 1u;
++    if (p.nproj > 2u && wg >= p.start2) pi = 2u;
++    uint nout = pi == 0u ? p.nout0 : (pi == 1u ? p.nout1 : p.nout2);
++    uint g = tid / 8u, j = tid - g * 8u;
++    uint row = (wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2))) * 32u + g;
++    uint ncg = (p.nbatch + COLS - 1u) / COLS;
++    uint part = gl_WorkGroupID.y / ncg;
++    uint col_base = (gl_WorkGroupID.y - part * ncg) * COLS;
++    uint nblk = p.nin / 32u;
++    uint xtab = p.xrow * p.nin / 8u;
++    uint kbeg = part * p.kper, kend = min(nblk, kbeg + p.kper);
++    uint parts = (nblk + p.kper - 1u) / p.kper;
++    uint before = (pi > 0u ? p.nout0 : 0u) + (pi > 1u ? p.nout1 : 0u);
++    uint yo = parts > 1u ? p.nbatch * (parts * before + part * nout) : 0u;
++    bool rin = row < nout;
++    uint wr = rin ? row : 0u;
++    // Lane j adds columns j and j + 8 of its row.
++    float acc0 = 0.0, acc1 = 0.0;
++    for (uint k0 = kbeg; k0 < kend; k0 += 8u) {
++        uint nb = min(8u, kend - k0);
++        // Stage the step's activations: 8 blocks, COLS columns, 8 words each, and their scale pairs.
++        for (uint i = tid; i < 8u * COLS * 8u; i += 256u) {
++            uint s = i / (COLS * 8u), c = (i / 8u) % COLS, w = i % 8u;
++            uint kb = min(k0 + s, kend - 1u), col = min(col_base + c, p.nbatch - 1u);
++            xw[s * XS_ + c * 8u + w] = xq[(kb * p.xrow + col) * 8u + w];
++        }
++        for (uint i = tid; i < 8u * COLS; i += 256u) {
++            uint s = i / COLS, c = i % COLS;
++            uint kb = min(k0 + s, kend - 1u), col = min(col_base + c, p.nbatch - 1u);
++            xsc[s][c] = xs[xtab + kb * p.xrow + col];
++        }
++        // Lane j's block, its 8 staged words as the tile stages them (one thread a row: WPR 1, WW 8), and its scale values.
++        uint kb = min(k0 + j, kend - 1u);
++        uint v[8];
++        vec4 sv;
++#if defined(LLMX_Q8)
++        {
++            uint ob = (wr * nblk + kb) * Q8_0_BYTES;
++            bool str = (ob & 3u) == 0u;
++            uint base = (ob + 2u) >> 2u;
++            uint qv[9];
++            [[unroll]] for (uint m = 0u; m < 8u; ++m) qv[m] = ws[pi].w32[base + m];
++            qv[8] = ws[pi].w32[str ? base + 8u : base - 1u];
++            [[unroll]] for (uint m = 0u; m < 8u; ++m) v[m] = str ? (qv[m] >> 16u) | (qv[m + 1u] << 16u) : qv[m];
++            sv = vec4(unpackHalf2x16(str ? qv[0] : qv[8] >> 16u).x, 0.0, 0.0, 0.0);
++        }
++#elif defined(LLMX_Q6)
++        {
++            uint nsb = p.nin / 256u;
++            uint gg = kb & 7u, n = gg / 4u, which = gg & 3u;
++            uint o = (wr * nsb + kb / 8u) * Q6_K_BYTES;
++            uint lo = (o + n * 64u + (which & 1u) * 32u) >> 2u, hi = (o + 128u + n * 32u) >> 2u;
++            uint lv[9], hv[9];
++            [[unroll]] for (uint m = 0u; m <= 8u; ++m) { lv[m] = ws[pi].w32[lo + m]; hv[m] = ws[pi].w32[hi + m]; }
++            bool odd = (o & 3u) != 0u;
++            uint nsh = which >= 2u ? 4u : 0u, hsh = 2u * which;
++            [[unroll]] for (uint m = 0u; m < 8u; ++m) {
++                uint ql = odd ? (lv[m] >> 16u) | (lv[m + 1u] << 16u) : lv[m];
++                uint qh = odd ? (hv[m] >> 16u) | (hv[m + 1u] << 16u) : hv[m];
++                uint b = ((ql >> nsh) & 0x0F0F0F0Fu) | (((qh >> hsh) & 0x03030303u) << 4u);
++                uint t = b ^ 0x20202020u, neg = t & 0x20202020u;
++                v[m] = t | (neg << 1u) | (neg << 2u);
++            }
++            uint si = o + 192u + (gg / 4u) * 8u + 2u * (gg & 3u);
++            uint dw = ws[pi].w32[(o + 208u) >> 2u], sw = ws[pi].w32[si >> 2u];
++            float d = unpackHalf2x16((o & 3u) == 0u ? dw : (dw >> 16u)).x;
++            uint sb = sw >> (8u * (si & 3u));
++            float s0 = float(int(sb << 24u) >> 24), s1 = float(int((sb >> 8u) << 24u) >> 24);
++            sv = vec4(d * s0, d * s1, 0.0, 0.0);
++        }
++#else
++        if (p.type == TYPE_Q4_K || p.type == TYPE_Q5_K) {
++            bool k5 = p.type == TYPE_Q5_K;
++            uint bytes = k5 ? Q5_K_BYTES : Q4_K_BYTES, nsb = p.nin / 256u;
++            uint gg = kb & 7u;
++            uint o = (wr * nsb + kb / 8u) * bytes;
++            uint base = (o + (k5 ? 48u : 16u) + (gg / 2u) * 32u) / 4u;
++            [[unroll]] for (uint m = 0u; m < 8u; ++m) {
++                uint vv = (ws[pi].w32[base + m] >> (4u * (gg & 1u))) & 0x0F0F0F0Fu;
++                if (k5) vv |= ((ws[pi].w32[(o + 16u) / 4u + m] >> gg) & 0x01010101u) << 4u;
++                v[m] = vv;
++            }
++            uvec4 h = uvec4(ws[pi].w32[o / 4u], ws[pi].w32[o / 4u + 1u], ws[pi].w32[o / 4u + 2u], ws[pi].w32[o / 4u + 3u]);
++            vec2 dd = unpackHalf2x16(h.x);
++            uint sc, mn;
++            scale_min_k4_words(h.yzw, gg, sc, mn);
++            sv = vec4(dd.x * float(sc), dd.x * float(sc), dd.y * float(mn), 0.0);
++        } else {
++            bool q41 = p.type == TYPE_Q4_1;
++            uint bytes = q41 ? Q4_1_BYTES : Q4_0_BYTES, qoff = q41 ? 4u : 2u;
++            uint os = (wr * nblk + kb) * bytes;
++            uint q0 = os + qoff;
++            bool odd = (q0 & 3u) != 0u;
++            [[unroll]] for (uint m = 0u; m < 4u; ++m) {
++                uint i = (q0 >> 2u) + m;
++                uint a0 = ws[pi].w32[i], a1 = ws[pi].w32[i + (odd ? 1u : 0u)];
++                uint nw = odd ? (a0 >> 16u) | (a1 << 16u) : a0;
++                [[unroll]] for (uint hh = 0u; hh < 2u; ++hh) {
++                    uint b = (nw >> (4u * hh)) & 0x0F0F0F0Fu;
++                    uint t = b ^ 0x08080808u, neg = t & 0x08080808u;
++                    v[m + 4u * hh] = q41 ? b : t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
++                }
++            }
++            uint sw = ws[pi].w32[os >> 2u];
++            vec2 dm = unpackHalf2x16(!q41 && (os & 3u) != 0u ? sw >> 16u : sw);
++            sv = q41 ? vec4(dm.x, dm.x, -dm.y, 0.0) : vec4(dm.x, dm.x, 0.0, 0.0);
++        }
++#endif
++        wsv[g][j] = sv;
++        barrier();
++        // Lane j's block against every column: the words in order, as the tile sums them, exact in any order.
++        [[unroll]] for (uint c = 0u; c < COLS; ++c) {
++#ifdef LLMX_Q6
++            int l = 0, h = 0;
++            [[unroll]] for (uint m = 0u; m < 4u; ++m) {
++                l += dotPacked4x8EXT(int(v[m]), int(xw[j * XS_ + c * 8u + m]));
++                h += dotPacked4x8EXT(int(v[m + 4u]), int(xw[j * XS_ + c * 8u + m + 4u]));
++            }
++            tt[g][j][c] = ivec2(l, h);
++#else
++            int t = 0;
++            [[unroll]] for (uint m = 0u; m < 8u; ++m) t += dotPacked4x8EXT(int(v[m]), int(xw[j * XS_ + c * 8u + m]));
++            tt[g][j][c] = t;
++#endif
++        }
++        barrier();
++        // Lane j adds its columns over the step's blocks in order, with the tile's expression.
++        for (uint s = 0u; s < nb; ++s) {
++            vec4 w4 = wsv[g][s];
++            [[unroll]] for (uint q = 0u; q < 2u; ++q) {
++                uint c = j + 8u * q;
++                if (c >= COLS) break;
++                vec2 xc = xsc[s][c];
++                float a = q == 0u ? acc0 : acc1;
++#if defined(LLMX_Q8)
++                float d = w4.x, cc = xc.x;
++                precise float pp = d * cc * float(tt[g][s][c]);
++                a += pp;
++#elif defined(LLMX_Q6)
++                ivec2 lh = tt[g][s][c];
++                a += xc.x * (w4.x * float(lh.x) + w4.y * float(lh.y));
++#else
++                a += w4.x * xc.x * float(tt[g][s][c]) - w4.z * xc.y;
++#endif
++                if (q == 0u) acc0 = a; else acc1 = a;
++            }
++        }
++        barrier();
++    }
++    if (!rin) return;
++    [[unroll]] for (uint q = 0u; q < 2u; ++q) {
++        uint c = j + 8u * q;
++        uint col = col_base + c;
++        if (c < COLS && col < p.nbatch) {
++            float a = q == 0u ? acc0 : acc1;
++            if (p.accum != 0u) ys[pi].y[yo + col * nout + row] += a;
++            else ys[pi].y[yo + col * nout + row] = a;
++        }
++    }
++}
+diff --git a/src/backends/vulkan/vulkan_backend.cpp b/src/backends/vulkan/vulkan_backend.cpp
+index 13226c2..71ec2d9 100644
+--- a/src/backends/vulkan/vulkan_backend.cpp
++++ b/src/backends/vulkan/vulkan_backend.cpp
+@@ -2,6 +2,7 @@
+ #include "backends/device_profile.hpp"
+ #include "backends/kv_storage.hpp"
+ #include "backends/vulkan/vulkan_backend.hpp"
++#include "core/probe_trace.hpp"
+ #include "quant/quant.hpp"
+ 
+ #include <algorithm>
+@@ -280,6 +281,26 @@ const uint32_t kSpvMoeRoute[] = {
+ const uint32_t kSpvMoeCombine[] = {
+ #include "vulkan/moe_combine.inc"
+ };
++const uint32_t kSpvMatmulDtile[] = {
++#include "vulkan/matmul_dtile.inc"
++};
++const uint32_t kSpvMatmulDtileQ6[] = {
++#include "vulkan/matmul_dtile_q6.inc"
++};
++const uint32_t kSpvMatmulDtileQ8[] = {
++#include "vulkan/matmul_dtile_q8.inc"
++};
++const uint32_t kSpvMatmulDtile2[] = {
++#include "vulkan/matmul_dtile2.inc"
++};
++const uint32_t kSpvMatmulDtile2Q6[] = {
++#include "vulkan/matmul_dtile2_q6.inc"
++};
++const uint32_t kSpvMatmulDtile2Q8[] = {
++#include "vulkan/matmul_dtile2_q8.inc"
++};
++// Probe: the columns a decode-tile build takes a weight read, by variant.
++const uint32_t kDtileCols[3] = {8, 16, 4};
+ const uint32_t kSpvMoeGroup[] = {
+ #include "vulkan/moe_group.inc"
+ };
+@@ -298,7 +319,8 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
+                 K_MATMUL_TILE_Q8, K_MATMUL_TILE_Q8_TALL,
+                 K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_MATMUL_ROW_Q4_DOT8,
+                 K_ATTENTION_G4, K_ATTENTION_K16_G4, K_ATTENTION_V16_G4, K_ATTENTION_KV16_G4,
+-                K_ATTENTION_VEC, K_ATTENTION_VEC_K16, K_ATTENTION_VEC_V16, K_ATTENTION_VEC_KV16, K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, K_ATTENTION_VEC_V16_G4, K_ATTENTION_VEC_KV16_G4, K_MATMUL_ROW_F32, K_COUNT };
++                K_ATTENTION_VEC, K_ATTENTION_VEC_K16, K_ATTENTION_VEC_V16, K_ATTENTION_VEC_KV16, K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, K_ATTENTION_VEC_V16_G4, K_ATTENTION_VEC_KV16_G4, K_MATMUL_ROW_F32,
++                K_MATMUL_DTILE, K_MATMUL_DTILE_Q6, K_MATMUL_DTILE_Q8, K_MATMUL_DTILE2, K_MATMUL_DTILE2_Q6, K_MATMUL_DTILE2_Q8, K_COUNT };
+ 
+ // The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
+ // F32 rows have no dot form, and Q8_0 rows take matmul_vec_q8.comp where the dot is preferred.
+@@ -430,6 +452,7 @@ const char* const kKernelNames[K_COUNT] = {
+     "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group", "matmul_row_k_dot8", "matmul_row_q4_dot8",
+     "attention_g4", "attention_k16_g4", "attention_v16_g4", "attention_kv16_g4",
+     "attention_vec", "attention_vec_k16", "attention_vec_v16", "attention_vec_kv16", "attention_vec_g4", "attention_vec_k16_g4", "attention_vec_v16_g4", "attention_vec_kv16_g4", "matmul_row_f32",
++    "matmul_dtile", "matmul_dtile_q6", "matmul_dtile_q8", "matmul_dtile2", "matmul_dtile2_q6", "matmul_dtile2_q8",
+ };
+ 
+ const KernelSource kKernels[K_COUNT] = {
+@@ -497,6 +520,12 @@ const KernelSource kKernels[K_COUNT] = {
+     {kSpvAttentionVecKV16G4, sizeof(kSpvAttentionVecKV16G4), 7, nullptr},
+     // F32 shares the row source, but not the optional Q8 float-preservation modes.
+     {kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts},
++    {kSpvMatmulDtile, sizeof(kSpvMatmulDtile), 5, kMatmulTileQCounts},
++    {kSpvMatmulDtileQ6, sizeof(kSpvMatmulDtileQ6), 5, kMatmulTileQCounts},
++    {kSpvMatmulDtileQ8, sizeof(kSpvMatmulDtileQ8), 5, kMatmulTileQCounts},
++    {kSpvMatmulDtile2, sizeof(kSpvMatmulDtile2), 5, kMatmulTileQCounts},
++    {kSpvMatmulDtile2Q6, sizeof(kSpvMatmulDtile2Q6), 5, kMatmulTileQCounts},
++    {kSpvMatmulDtile2Q8, sizeof(kSpvMatmulDtile2Q8), 5, kMatmulTileQCounts},
+ };
+ 
+ // The variant of a cache kernel for a storage's K and V types.
+@@ -600,6 +629,8 @@ struct Device {
+     bool memory_budget = false;   // the device reports what is free of each heap (VK_EXT_memory_budget)
+     // Host memory imported as device memory, which a copy reads in place (VK_EXT_external_memory_host), and the alignment of its address and size.
+     PFN_vkGetMemoryHostPointerPropertiesEXT host_pointer_props = nullptr;
++    PFN_vkGetCalibratedTimestampsEXT get_calibrated = nullptr;   // probe
++    bool calibrated = false;
+     size_t host_import_align = 0;
+     // The driver's per-kernel statistics (registers, occupancy), when it reports them.
+     bool exec_stats = false;
+@@ -804,6 +835,7 @@ public:
+         std::vector<VkPhysicalDevice> devices(count);
+         check(fn.vkEnumeratePhysicalDevices(d.instance, &count, devices.data()), "vkEnumeratePhysicalDevices");
+         d.physical = devices[(size_t)index];
++        index_ = index;
+         fn.vkGetPhysicalDeviceProperties(d.physical, &d.props);
+         fn.vkGetPhysicalDeviceMemoryProperties(d.physical, &d.memory);
+         VkPhysicalDeviceSubgroupProperties sg{};
+@@ -908,6 +940,9 @@ public:
+             } else if (std::strcmp(e.extensionName, VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME) == 0) {
+                 enabled.push_back(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME);
+                 d.exec_stats = true;
++            } else if (diagnostics && std::strcmp(e.extensionName, VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME) == 0) {
++                enabled.push_back(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
++                d.calibrated = true;
+             } else if (std::strcmp(e.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0) {
+                 enabled.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+                 d.memory_budget = true;
+@@ -974,6 +1009,10 @@ public:
+                 d.device, "vkGetPipelineExecutableInternalRepresentationsKHR");
+             d.exec_ir = d.exec_stats && d.get_exec_ir && diagnostics;
+         }
++        if (d.calibrated) {
++            d.get_calibrated = (PFN_vkGetCalibratedTimestampsEXT)fn.vkGetDeviceProcAddr(d.device, "vkGetCalibratedTimestampsEXT");
++            d.calibrated = d.get_calibrated != nullptr;
++        }
+         if (d.host_import_align)
+             d.host_pointer_props = (PFN_vkGetMemoryHostPointerPropertiesEXT)fn.vkGetDeviceProcAddr(d.device, "vkGetMemoryHostPointerPropertiesEXT");
+         if (!d.push_descriptor)
+@@ -1265,6 +1304,10 @@ public:
+         }
+         ring_ticket_[ring_index_] = ticket;
+         ring_index_ = (ring_index_ + 1) % kRing;
++        if (probe::on && timed_) {
++            const uint64_t t = probe::now_ns();
++            probe::host(probe::SUBMIT, t, t, (uint32_t)ticket, 0, probe::tag, (uint8_t)index_);
++        }
+         return ticket;
+     }
+ 
+@@ -1300,8 +1343,33 @@ public:
+                                            stamps.size() * sizeof(uint64_t), stamps.data(),
+                                            sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT)
+                 == VK_SUCCESS) {
++            // Probe: each dispatch's interval on the host's CLOCK_MONOTONIC, through a calibrated pair read now.
++            uint64_t cal_dev = 0, cal_host = 0;
++            bool cal = false;
++            if (probe::on && dev_->calibrated) {
++                VkCalibratedTimestampInfoEXT ci[2] = {};
++                ci[0].sType = ci[1].sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT;
++                ci[0].timeDomain = VK_TIME_DOMAIN_DEVICE_EXT;
++                ci[1].timeDomain = VK_TIME_DOMAIN_CLOCK_MONOTONIC_EXT;
++                uint64_t ts[2] = {}, dev = 0;
++                const uint64_t h0 = probe::now_ns();
++                cal = dev_->get_calibrated(dev_->device, 2, ci, ts, &dev) == VK_SUCCESS;
++                cal_dev = ts[0];
++                cal_host = ts[1];
++                probe::host(probe::CALIB, h0, probe::now_ns(), (uint32_t)dev, 0, 0, (uint8_t)index_);
++                static bool named = false;
++                if (!named && probe::path()) {
++                    named = true;
++                    if (FILE* f = std::fopen((std::string(probe::path()) + ".names").c_str(), "w")) {
++                        for (int i = 0; i < K_COUNT * kVariants; ++i) std::fprintf(f, "%d %s\n", i, kernel_variant_name(i / kVariants, i % kVariants).c_str());
++                        std::fclose(f);
++                    }
++                }
++            }
++            const auto host_ns = [&](uint64_t tick) { return (uint64_t)((int64_t)cal_host + (int64_t)((double)(int64_t)(tick - cal_dev) * dev_->timestamp_ns)); };
+             for (size_t i = 0; i + 1 < query_kernel_.size() * 2 && i + 1 < stamps.size(); i += 2) {
+                 const int k = query_kernel_[i / 2];
++                if (cal) probe::recs.push_back(probe::Rec{1, (uint8_t)index_, (uint16_t)k, query_tag_[i / 2], 0, 0, host_ns(stamps[i]), host_ns(stamps[i + 1])});
+                 kernel_ns_[k] += double(stamps[i + 1] - stamps[i]) * dev_->timestamp_ns;
+                 ++kernel_calls_[k];
+             }
+@@ -1314,6 +1382,7 @@ public:
+         std::fill(std::begin(kernel_ns_), std::end(kernel_ns_), 0.0);
+         std::fill(std::begin(kernel_calls_), std::end(kernel_calls_), size_t(0));
+         query_kernel_.clear();
++        query_tag_.clear();
+         query_next_ = 0;
+         queries_stale_ = true;
+         return out;
+@@ -1358,6 +1427,7 @@ public:
+         const auto t0 = std::chrono::steady_clock::now();
+         const HostTimes before = host_;
+         write_now(dst_b, off, src, bytes);
++        probe::host(probe::WRITE, (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(t0.time_since_epoch()).count(), probe::now_ns(), (uint32_t)bytes, dst_b.host_ptr() ? 1u : 0u, probe::tag, (uint8_t)index_);
+         host_.write_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() -
+                           (host_.ticket_ms - before.ticket_ms) - (host_.slot_ms - before.slot_ms) - (host_.staging_ms - before.staging_ms);
+     }
+@@ -1668,13 +1738,31 @@ public:
+                 const uint32_t pc[15] = {u32(nin), u32(nbatch), group[0]->type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
+                                          u32(group.size()), t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], 0, 0, u32(x8_row(nbatch))};
+                 const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
+-                const int small = t.height == kTileRowsSmall ? 1 : 0;
++                int small = t.height == kTileRowsSmall ? 1 : 0;
++                // Probe: a call of at most probe::dtile_max columns takes the tile's arithmetic in a row kernel's shape (shaders/matmul_dtile.comp), 32 rows a workgroup and 4, 8 or 16 columns a weight read.
++                KernelId kernel_id = t.kernel;
++                size_t gx_run = t.gx, gy_run = gy;
++                uint32_t pcx[15];
++                std::memcpy(pcx, pc, sizeof(pc));
++                if (probe::dtile_max && nbatch <= probe::dtile_max) {
++                    const uint32_t type0 = group[0]->type;
++                    kernel_id = type0 == quant::GGML_TYPE_Q6_K ? K_MATMUL_DTILE_Q6 : type0 == quant::GGML_TYPE_Q8_0 ? K_MATMUL_DTILE_Q8 : K_MATMUL_DTILE;
++                    if (probe::dtile_version == 2) kernel_id = KernelId(kernel_id + (K_MATMUL_DTILE2 - K_MATMUL_DTILE));
++                    small = nbatch <= 4 ? 2 : nbatch <= 8 ? 0 : 1;
++                    const size_t cols = kDtileCols[small];
++                    gx_run = 0;
++                    for (size_t i = 0; i < group.size(); ++i) {
++                        pcx[7 + 2 * i] = u32(gx_run);
++                        gx_run += groups(group[i]->rows, 32);
++                    }
++                    gy_run = (nbatch + cols - 1) / cols;
++                }
+                 if (parts > 1) {
+                     const size_t n = nbatch * t.rows;
+                     if (!parts_ || parts_->size() < parts * n * sizeof(float)) grow(parts_, parts * n * sizeof(float));
+                     const VkDescriptorBufferInfo pb{parts_->handle(), 0, VK_WHOLE_SIZE};
+-                    dispatch(t.kernel, {pb, pb, pb, bind(a.data), bind(b.data), bind(c.data), x8, x8, x8}, pc, sizeof(pc), u32(t.gx),
+-                             u32(gy * parts), small);
++                    dispatch(kernel_id, {pb, pb, pb, bind(a.data), bind(b.data), bind(c.data), x8, x8, x8}, pcx, sizeof(pcx), u32(gx_run),
++                             u32(gy_run * parts), small);
+                     const size_t n0 = nbatch * a.rows, n1 = group.size() > 1 ? nbatch * b.rows : 0,
+                                  n2 = group.size() > 2 ? nbatch * c.rows : 0;
+                     const size_t start1 = groups(n0, 256), start2 = start1 + groups(n1, 256);
+@@ -1684,8 +1772,8 @@ public:
+                     dispatch(K_MATMUL_REDUCE, {bind(a.out), bind(b.out), bind(c.out), pb}, rc, sizeof(rc),
+                              u32(start2 + groups(n2, 256)));
+                 } else {
+-                    dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8, x8},
+-                             pc, sizeof(pc), u32(t.gx), (uint32_t)gy, small);
++                    dispatch(kernel_id, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8, x8},
++                             pcx, sizeof(pcx), u32(gx_run), (uint32_t)gy_run, small);
+                 }
+             }
+             return;
+@@ -2214,7 +2302,9 @@ public:
+         std::vector<Placed> wide, narrow;
+         for (const Placed& pv : placed) {
+             const size_t extent = pv.view->extent ? pv.view->extent : pv.view->nq;
+-            (extent >= dev_->profile.attention_tile_rows && head_dim == 128 ? wide : narrow).push_back(pv);
++            // Probe: a view at the probe's decode extent keeps the per-row kernel, so only the matmuls of decode rows follow that extent; keyed on the extent, as the kernel choice is, and not on the rows a pass happens to hold.
++            const bool probe_row = probe::decode_extent_value && pv.view->extent == probe::decode_extent_value;
++            (!probe_row && extent >= dev_->profile.attention_tile_rows && head_dim == 128 ? wide : narrow).push_back(pv);
+         }
+         if (!wide.empty()) {
+             ViewTable t = view_table(layer, wide, false);
+@@ -2498,7 +2588,7 @@ private:
+             const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL ||
+                                    id == K_MATMUL_TILE_Q8_TALL;
+             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
+-                                             : build_cols(id, variant);
++                                             : (id >= K_MATMUL_DTILE && id <= K_MATMUL_DTILE2_Q8) ? kDtileCols[variant] : build_cols(id, variant);
+             // Constant 7 selects a producer's build that also writes the 8-bit twin, constant 8 a row kernel's grouped build, and constants 9 to 13 are the Q8_0 decode kernel's rows, steps, forms and column groups (kVecBuilds), whose constant 0 is its columns a subgroup rather than the build's.
+             // Every pipeline gets all eight entries, and a module that declares none ignores them.
+             const VecBuild& vb = kVecBuilds[variant];
+@@ -2583,6 +2673,7 @@ private:
+             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
+             dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries_, query_next_ + 1);
+             query_kernel_.push_back(id * kVariants + variant);
++            query_tag_.push_back(probe::tag);
+             query_next_ += 2;
+         } else {
+             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
+@@ -2653,7 +2744,13 @@ private:
+         if (!timed_) return wait_for(t);
+         const auto t0 = std::chrono::steady_clock::now();
+         wait_for(t);
+-        into += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
++        const auto t1 = std::chrono::steady_clock::now();
++        into += std::chrono::duration<double, std::milli>(t1 - t0).count();
++        if (probe::on && t != 0 && t <= last_ticket_) {
++            const uint16_t kind = &into == &host_.ticket_ms ? probe::WAIT_TICKET : &into == &host_.slot_ms ? probe::WAIT_SLOT : probe::WAIT_STAGING;
++            probe::host(kind, (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(t0.time_since_epoch()).count(),
++                        (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(t1.time_since_epoch()).count(), (uint32_t)t, (uint32_t)last_ticket_, probe::tag, (uint8_t)index_);
++        }
+     }
+ 
+     std::shared_ptr<Device> dev_;
+@@ -2671,11 +2768,13 @@ private:
+     size_t next_half_ = 0;                    // the half of staging the next upload fills first
+     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
+     VkQueryPool queries_ = VK_NULL_HANDLE;    // timestamps, only for a diagnostics backend
+-    static constexpr uint32_t kQueries = 8192;    // two per dispatch; a reading empties the pool, which the next dispatch resets
++    static constexpr uint32_t kQueries = 1u << 17;    // two per dispatch; a reading empties the pool, which the next dispatch resets
+     uint32_t query_next_ = 0;
+     bool queries_stale_ = false;   // the pool holds a read interval's stamps, reset by the next dispatch
+     size_t last_timed_ = 0;        // dispatches the last reading covered
+     std::vector<int> query_kernel_;   // id * kVariants + variant
++    std::vector<uint32_t> query_tag_;   // probe: the tag each timed dispatch was recorded under
++    int index_ = 0;
+     double kernel_ns_[K_COUNT * kVariants] = {0};
+     size_t kernel_calls_[K_COUNT * kVariants] = {0};
+     std::shared_ptr<VulkanBuffer> x8_;        // the integer-dot tile's 8-bit activations
+diff --git a/src/core/probe_trace.hpp b/src/core/probe_trace.hpp
+new file mode 100644
+index 0000000..2b8d9f5
+--- /dev/null
++++ b/src/core/probe_trace.hpp
+@@ -0,0 +1,66 @@
++#pragma once
++// Probe only (research/server-perf-probe, never merged): a timeline of the server's scheduler thread and each device's dispatches, written to $LLMX_PROBE_TRACE.
++#include <chrono>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <vector>
++
++namespace probe {
++
++// One record: type 0 a host interval on the scheduler thread, type 1 a dispatch on device `dev` (kind the kernel variant, a its tag), both in CLOCK_MONOTONIC nanoseconds.
++struct Rec {
++    uint8_t type, dev;
++    uint16_t kind;
++    uint32_t a, b, c;
++    uint64_t t0, t1;
++};
++static_assert(sizeof(Rec) == 32, "record layout");
++
++enum Kind : uint16_t {
++    ROUND = 1, FORM = 2, STAGE = 3, WAIT_TICKET = 4, WAIT_SLOT = 5, WAIT_STAGING = 6, WRITE = 7, LOGITS_WAIT = 8,
++    COPY = 9, SAMPLE = 10, RETIRE = 11, READING = 12, SUBMIT = 13, FLUSH = 14, ROOM = 15, CALIB = 16,
++    POOL_RUN = 17, DRAW_COPY = 18, DRAW_SAMPLE = 19, STEP = 20
++};
++
++inline bool on = false;
++inline uint32_t tag = 0xffffffffu;   // (formed pass & 0xffffff) << 8 | stage, for the dispatches recorded now
++inline std::vector<Rec> recs;
++// Integer-dot tile calls of at most this many columns take the decode-tile kernel (shaders/matmul_dtile.comp); 0 never. $LLMX_PROBE_DTILE sets it for a server, the probe tool directly.
++inline size_t dtile_max = [] {
++    const char* e = std::getenv("LLMX_PROBE_DTILE");
++    return e ? (size_t)std::strtoul(e, nullptr, 10) : (size_t)0;
++}();
++// $LLMX_PROBE_DECODE_EXTENT, the extent the scheduler gives decode rows; attention views of that extent keep the per-row kernel. 0 when unset.
++inline size_t decode_extent_value = [] {
++    const char* e = std::getenv("LLMX_PROBE_DECODE_EXTENT");
++    return e ? (size_t)std::strtoul(e, nullptr, 10) : (size_t)0;
++}();
++// Which decode-tile kernel: 1 shaders/matmul_dtile.comp, 2 (the default) shaders/matmul_dtile2.comp; $LLMX_PROBE_DTILE_V sets it.
++inline int dtile_version = [] {
++    const char* e = std::getenv("LLMX_PROBE_DTILE_V");
++    return e ? std::atoi(e) : 2;
++}();
++
++inline const char* path() {
++    static const char* p = std::getenv("LLMX_PROBE_TRACE");
++    return p && *p ? p : nullptr;
++}
++inline uint64_t now_ns() {
++    return (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
++}
++inline void host(uint16_t kind, uint64_t t0, uint64_t t1, uint32_t a = 0, uint32_t b = 0, uint32_t c = 0, uint8_t dev = 0) {
++    if (on) recs.push_back(Rec{0, dev, kind, a, b, c, t0, t1});
++}
++inline void flush() {
++    if (!on || !path() || recs.empty()) return;
++    const uint64_t t0 = now_ns();
++    if (FILE* f = std::fopen(path(), "ab")) {
++        std::fwrite(recs.data(), sizeof(Rec), recs.size(), f);
++        std::fclose(f);
++    }
++    recs.clear();
++    host(FLUSH, t0, now_ns());
++}
++
++} // namespace probe
+diff --git a/src/server/scheduler.hpp b/src/server/scheduler.hpp
+index f677a7b..228ab55 100644
+--- a/src/server/scheduler.hpp
++++ b/src/server/scheduler.hpp
+@@ -14,6 +14,9 @@
+ #include <stdexcept>
+ #include <string>
+ #include <vector>
++#include <cstdlib>
++#include <cstring>
++#include "core/probe_trace.hpp"
+ #include "core/cpus.hpp"
+ #include "inference/logprobs.hpp"
+ #include "inference/sampler.hpp"
+@@ -207,6 +210,11 @@ public:
+             pools_.blocks.push_back(model_.kv_pool_blocks(s));
+             pools_.block_tokens.push_back(model_.kv_pool_block_tokens(s));
+         }
++        if (timed && probe::path()) probe::on = true;
++        if (const char* m = std::getenv("LLMX_PROBE_READ")) read_mode_ = std::strcmp(m, "copy") == 0 ? 1 : 0;
++        if (read_mode_) std::fprintf(stderr, "probe: logits read mode %d (1: each row copied to host memory, then sampled from the copy)\n", read_mode_);
++        if (const char* x = std::getenv("LLMX_PROBE_DECODE_EXTENT")) decode_extent_ = (size_t)std::strtoul(x, nullptr, 10);
++        if (decode_extent_) std::fprintf(stderr, "probe: decode rows take extent %zu\n", decode_extent_);
+         size_t p = passes ? passes : model_.pipelined() ? model_.stage_count() : 1;
+         if (p > 1 && !model_.pipelined())
+             throw std::runtime_error("server: " + std::to_string(p) + " passes in flight need a layer split over several devices, each running its layers whole; this placement runs one at a time");
+@@ -347,12 +355,19 @@ public:
+                     fail_all(active, e.what());
+                     host.clear();
+                 }
+-                if (timed_) round_.assembly_ms += ms_since(room_start) - formed_stages_ms_;
++                if (timed_) {
++                    round_.assembly_ms += ms_since(room_start) - formed_stages_ms_;
++                    probe::host(probe::ROOM, (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(room_start.time_since_epoch()).count(), probe::now_ns());
++                }
+             }
+             for (const auto& a : host)
+                 if (slots_[a.first].live && slots_[a.first].ran == a.second) advance(active, a.first, a.second);
+             in_flight_.store(flights_live());
+-            if (timed_) end_round(round_start);
++            if (timed_) {
++                end_round(round_start);
++                probe::host(probe::ROUND, (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(round_start.time_since_epoch()).count(), probe::now_ns(), (uint32_t)round_.rounds);
++                if (round_.rounds % 32 == 0) probe::flush();
++            }
+         }
+         abort_all();
+         for (auto& r : active) { release(*r); r->end("cancel"); }
+@@ -401,6 +416,7 @@ private:
+         const float* row;
+         bool keep_row;
+         Request::Token t;
++        uint64_t c0 = 0, c1 = 0, c2 = 0;   // probe: the draw's start, its copy's end (0 without a copy) and its end
+     };
+ 
+     // A slot of the context reserved for passes: the round's view of it (Flight), its pass's requests by entry with the history each had and the rows each adds, those it samples in logits order, its logits rows and its decode entries.
+@@ -451,7 +467,9 @@ private:
+         waiting.resize(share);
+         for (auto& r : active)
+             if (std::find(waiting.begin(), waiting.end(), r.get()) != waiting.end()) {
+-                add_entry(r, infer::BatchEntry{&r->seq_, &r->last_id_, 1, true});
++                infer::BatchEntry e{&r->seq_, &r->last_id_, 1, true};
++                e.extent = decode_extent_;
++                add_entry(r, e);
+                 ++f.decoders;
+             }
+         size_t budget = ubatch_;
+@@ -493,6 +511,13 @@ private:
+         f.live = true;
+         f.formed = ++formed_;
+         f.ran = 0;
++        if (probe::on) {
++            size_t prompt = 0;
++            for (size_t e = 0; e < entries_.size(); ++e)
++                if (e >= f.decoders) prompt += entries_[e].n;
++            const uint64_t t = probe::now_ns();
++            probe::host(probe::FORM, t, t, (uint32_t)f.formed, (uint32_t)(f.decoders + (entries_.size() << 16)), (uint32_t)(prompt + (f.want << 16)), (uint8_t)k);
++        }
+         if (model_.stage_on_host(0)) host.push_back({k, 0});
+         else advance(active, k, 0);
+         return true;
+@@ -502,12 +527,17 @@ private:
+     void advance(std::vector<std::shared_ptr<Request>>& active, size_t k, size_t s) {
+         const Clock::time_point start = timed_ ? Clock::now() : Clock::time_point{};
+         const backend::Backend::HostTimes before = timed_ ? host_times() : backend::Backend::HostTimes{};
++        const uint64_t probe_t0 = probe::on ? probe::now_ns() : 0;
++        probe::tag = ((uint32_t)(slots_[k].formed & 0xffffff) << 8) | (uint32_t)s;
+         try {
+             model_.run_pass_stage(ctx_, k, s);
+         } catch (const std::exception& e) {
++            probe::tag = 0xffffffffu;
+             fail_pass(active, k, e.what());
+             return;
+         }
++        probe::tag = 0xffffffffu;
++        probe::host(probe::STAGE, probe_t0, probe::now_ns(), (uint32_t)slots_[k].formed, (uint32_t)s, (uint32_t)k);
+         ++slots_[k].ran;
+         if (!timed_) return;
+         // The stage's time on the thread, apart from where it was held and its uploads; on the host that is the stage's own time.
+@@ -550,6 +580,10 @@ private:
+             span_start_ = Clock::now();
+             span_rows_ = 0;
+         } else if (round_.rounds % kReadRounds == 0) {
++            struct ReadingEvent {
++                uint64_t t0;
++                ~ReadingEvent() { probe::host(probe::READING, t0, probe::now_ns()); }
++            } reading{probe::now_ns()};
+             round_.span_ms += ms_since(span_start_);
+             for (size_t s = 0; s < S; ++s) {
+                 const double ms = model_.stage_backend(s).device_ms();
+@@ -593,12 +627,24 @@ private:
+                 Request& r = *f.wanting[w];
+                 if (r.cancel_.load()) continue;
+                 const Clock::time_point read = timed_ ? Clock::now() : Clock::time_point{};
++                const uint64_t p0 = probe::on ? probe::now_ns() : 0;
+                 const float* row = model_.pass_logits(ctx_, k, w);
++                if (probe::on) probe::host(probe::LOGITS_WAIT, p0, probe::now_ns(), (uint32_t)f.formed, (uint32_t)w);
+                 if (timed_) waited += ms_since(read);
+                 draws_.push_back(Draw{&r, row, r.params_.logprobs && r.rows_waiting() < Request::kRowsWaiting, {}});
+             }
++            const uint64_t pr0 = probe::on ? probe::now_ns() : 0;
+             samplers_.run(draws_.size(), [this](size_t i) { draw(draws_[i]); });
++            if (probe::on) {
++                probe::host(probe::POOL_RUN, pr0, probe::now_ns(), (uint32_t)f.formed, (uint32_t)draws_.size(), (uint32_t)read_mode_);
++                for (const Draw& d : draws_) {
++                    if (d.c1) probe::host(probe::DRAW_COPY, d.c0, d.c1, (uint32_t)f.formed);
++                    probe::host(probe::DRAW_SAMPLE, d.c1 ? d.c1 : d.c0, d.c2, (uint32_t)f.formed);
++                }
++            }
++            const uint64_t ps0 = probe::on ? probe::now_ns() : 0;
+             for (Draw& d : draws_) step(d);
++            if (probe::on) probe::host(probe::STEP, ps0, probe::now_ns(), (uint32_t)f.formed, (uint32_t)draws_.size());
+             if (timed_) {
+                 round_.logits_wait_ms += waited;
+                 round_.sampling_ms += ms_since(start) - waited;
+@@ -902,7 +948,17 @@ private:
+     // It touches only d and its request's generator and row copy, which no other draw of the pass shares, since a request wants one row a pass.
+     void draw(Draw& d) {
+         Request& r = *d.r;
++        if (probe::on) d.c0 = probe::now_ns();
++        if (read_mode_ == 1) {
++            // Probe: the row copied out of the mapped logits first, so the copy and the sampler's own work are timed apart.
++            thread_local std::vector<float> copy;
++            copy.resize(ctx_.width);
++            std::memcpy(copy.data(), d.row, ctx_.width * sizeof(float));
++            d.row = copy.data();
++            if (probe::on) d.c1 = probe::now_ns();
++        }
+         d.t.id = infer::sample(d.row, ctx_.width, r.params_, tok_.eos_id, r.gen_, r.rng_);
++        if (probe::on) d.c2 = probe::now_ns();
+         if (tok_.is_eos(d.t.id) || !r.params_.logprobs) return;
+         if (d.keep_row) r.logits_.assign(d.row, d.row + ctx_.width);
+         else Request::fill(d.t, d.row, ctx_.width, r.params_.top_logprobs);
+@@ -1004,6 +1060,8 @@ private:
+     size_t max_seqs_, ubatch_, max_queue_;
+     const bool timed_;
+     Timing round_;                        // the scheduler thread's, published to timing_ each round
++    size_t decode_extent_ = 0;            // probe: the extent decode entries take (0: their own, 1)
++    int read_mode_ = 0;                   // probe: 0 the sampler reads the mapped row in place (main), 1 the row copied to host memory first
+     Timing timing_;                       // under the lock
+     std::vector<double> host_stage_ms_;   // per stage on the host, its time since the last reading
+     Clock::time_point span_start_;
+diff --git a/tools/perf_matmul_probe.cpp b/tools/perf_matmul_probe.cpp
+new file mode 100644
+index 0000000..e32f909
+--- /dev/null
++++ b/tools/perf_matmul_probe.cpp
+@@ -0,0 +1,304 @@
++// Probe tool (research/server-perf-probe, never merged): an 8B pass's matmuls through the decode path and through the prompt tile, and whether the tile gives a row the same bits whatever shares its call.
++// time MODEL DEVICE ITERS COLS: wall ms of every layer's projections as the model groups them, and the head, at each column count, decode rows (extent 1) against tile rows (extent max(n, 64)) and tile rows at extent 64.
++//   With LLMX_PROBE_DIAG=1 the backend timestamps each dispatch and the tool prints each kernel's device ms per pass as well.
++// check MODEL DEVICE LAYER: for layer LAYER's projections and the head, each column of a tile call against the same column in a call of its own, over widths, orders, extents and calls mixing decode rows.
++#include <algorithm>
++#include <chrono>
++#include <cmath>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <map>
++#include <numeric>
++#include <random>
++#include <string>
++#include <vector>
++#include "backends/vulkan/vulkan_backend.hpp"
++#include "core/probe_trace.hpp"
++#include "format/gguf.hpp"
++
++namespace {
++
++struct Tensor {
++    std::string name;
++    uint32_t type;
++    size_t nin, nout;
++    backend::BufferPtr buf;
++};
++
++std::vector<backend::RowRun> g_runs;
++backend::RowRuns runs(std::vector<backend::RowRun> r) {
++    g_runs = std::move(r);
++    return backend::RowRuns{g_runs.data(), g_runs.size()};
++}
++backend::RowRuns one(size_t n, size_t extent) { return runs({backend::RowRun{n, extent}}); }
++
++const char* kNames[] = {"attn_q.weight", "attn_k.weight", "attn_v.weight", "attn_output.weight", "ffn_gate.weight", "ffn_up.weight", "ffn_down.weight"};
++
++const char* type_name(uint32_t t) {
++    switch (t) {
++    case 0: return "F32";
++    case 1: return "F16";
++    case 2: return "Q4_0";
++    case 3: return "Q4_1";
++    case 8: return "Q8_0";
++    case 12: return "Q4_K";
++    case 13: return "Q5_K";
++    case 14: return "Q6_K";
++    default: return "?";
++    }
++}
++
++} // namespace
++
++static int run(int argc, char** argv) {
++    if (argc < 3) {
++        std::fprintf(stderr, "usage: %s time|check MODEL [device] [iters|layer] [cols,...]\n", argv[0]);
++        return 2;
++    }
++    const std::string mode = argv[1], path = argv[2];
++    const int device = argc > 3 ? std::atoi(argv[3]) : 0;
++    const int arg4 = argc > 4 ? std::atoi(argv[4]) : (mode == "time" ? 10 : 0);
++    std::vector<size_t> cols = {1, 8, 16, 32, 64, 128};
++    if (argc > 5) {
++        cols.clear();
++        std::string s = argv[5];
++        for (size_t at = 0; at < s.size();) {
++            size_t e = s.find(',', at);
++            if (e == std::string::npos) e = s.size();
++            cols.push_back((size_t)std::atoi(s.substr(at, e - at).c_str()));
++            at = e + 1;
++        }
++    }
++    const char* diag = std::getenv("LLMX_PROBE_DIAG");
++    const bool timed = diag && *diag == '1';
++    gguf::GGUFModel m = gguf::read_gguf(path);
++    gguf::map_payload(m);
++    auto bp = backend::make_vulkan_backend(device, timed);
++    backend::Backend& b = *bp;
++    std::printf("device %s, %s\n", backend::vulkan_device_name(b).c_str(), path.c_str());
++
++    std::map<std::string, size_t> index;
++    for (size_t i = 0; i < m.tensors.size(); ++i) index[m.tensors[i].name] = i;
++    const auto adopt = [&](const std::string& name) {
++        auto it = index.find(name);
++        if (it == index.end()) throw std::runtime_error("no tensor " + name);
++        const auto& t = m.tensors[it->second];
++        Tensor x{name, t.type, (size_t)t.ne[0], (size_t)t.ne[1], nullptr};
++        x.buf = b.adopt(m.tensor_data(it->second), m.tensor_bytes(it->second));
++        return x;
++    };
++    const std::string head_name = index.count("output.weight") ? "output.weight" : "token_embd.weight";
++
++    const size_t NC = 160;
++    size_t maxin = 12288, maxout = 151936;
++    std::vector<float> xs(NC * maxin);
++    std::mt19937 rng(20260928);
++    for (float& v : xs) v = float((rng() >> 8) * (4.0 / 16777216.0) - 2.0);
++    const auto xb = b.adopt(xs.data(), xs.size() * sizeof(float));
++
++    if (mode == "time") {
++        int layers = 0;
++        while (index.count("blk." + std::to_string(layers) + ".attn_q.weight")) ++layers;
++        std::vector<std::vector<Tensor>> L(layers);
++        std::map<std::string, int> type_count;
++        for (int l = 0; l < layers; ++l)
++            for (const char* n : kNames) {
++                L[l].push_back(adopt("blk." + std::to_string(l) + "." + n));
++                type_count[std::string(n) + " " + type_name(L[l].back().type)]++;
++            }
++        const Tensor h = adopt(head_name);
++        type_count[std::string("head ") + type_name(h.type)]++;
++        for (const auto& kv : type_count) std::printf("tensors %s x%d\n", kv.first.c_str(), kv.second);
++        std::printf("layers %d, head %zu x %zu %s\n", layers, h.nin, h.nout, type_name(h.type));
++        const size_t NB = 128;
++        const auto qo = b.alloc(NB * 4096 * 4), ko = b.alloc(NB * 1024 * 4), vo = b.alloc(NB * 1024 * 4);
++        const auto go = b.alloc(NB * 12288 * 4), uo = b.alloc(NB * 12288 * 4), yo = b.alloc(NB * 4096 * 4), ho = b.alloc(NB * maxout * 4);
++        // One pass's matmuls: q, k, v as one group, o added into the residual, gate and up as one group, down added, then the head; `ext` 0 takes decode rows.
++        const auto pass = [&](size_t n, size_t ext) {
++            const backend::RowRun r{n, ext ? ext : 1};
++            const backend::RowRuns rr{&r, 1};
++            for (int l = 0; l < layers; ++l) {
++                const auto& t = L[l];
++                b.matmul_group({{t[0].type, {t[0].buf.get(), 0}, {qo.get(), 0}, t[0].nout}, {t[1].type, {t[1].buf.get(), 0}, {ko.get(), 0}, t[1].nout},
++                                {t[2].type, {t[2].buf.get(), 0}, {vo.get(), 0}, t[2].nout}},
++                               {xb.get(), 0}, t[0].nin, n, rr);
++                b.matmul_add(t[3].type, {t[3].buf.get(), 0}, {xb.get(), 0}, {yo.get(), 0}, t[3].nin, t[3].nout, n, rr);
++                b.matmul_group({{t[4].type, {t[4].buf.get(), 0}, {go.get(), 0}, t[4].nout}, {t[5].type, {t[5].buf.get(), 0}, {uo.get(), 0}, t[5].nout}},
++                               {xb.get(), 0}, t[4].nin, n, rr);
++                b.matmul_add(t[6].type, {t[6].buf.get(), 0}, {xb.get(), 0}, {yo.get(), 0}, t[6].nin, t[6].nout, n, rr);
++            }
++            b.matmul_logits(h.type, {h.buf.get(), 0}, {xb.get(), 0}, {ho.get(), 0}, h.nin, h.nout, n, rr);
++        };
++        for (size_t n : cols) {
++            if (n > NB) continue;
++            // dtile: the tile's arithmetic at extent 64, calls of up to 16 columns through the decode-tile kernel (shaders/matmul_dtile.comp).
++            // dtile2: the same through shaders/matmul_dtile2.comp.
++            const size_t exts[5] = {0, std::max<size_t>(n, 64), 64, 64, 64};
++            const char* names[5] = {"decode", "tile", "tile64", "dtile", "dtile2"};
++            for (int p = 0; p < 5; ++p) {
++                if (p == 2 && n <= 64) continue;   // the same as tile
++                if (p >= 3 && n > 16) continue;    // the same as tile
++                probe::dtile_max = p >= 3 ? 16 : 0;
++                probe::dtile_version = p == 4 ? 2 : 1;
++                pass(n, exts[p]);
++                b.sync();
++                if (timed) backend::vulkan_kernel_times(b);
++                const auto t0 = std::chrono::steady_clock::now();
++                for (int i = 0; i < arg4; ++i) pass(n, exts[p]);
++                b.sync();
++                const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / arg4;
++                std::printf("time n=%zu %s pass-matmuls %.2f ms\n", n, names[p], ms);
++                if (timed)
++                    for (const auto& kt : backend::vulkan_kernel_times(b))
++                        if (kt.second > 0) std::printf("  kernel n=%zu %s %s %.3f ms/pass\n", n, names[p], kt.first.c_str(), kt.second / arg4);
++                std::fflush(stdout);
++            }
++        }
++        return 0;
++    }
++
++    // check
++    std::vector<Tensor> ts;
++    for (const char* n : kNames) ts.push_back(adopt("blk." + std::to_string(arg4) + "." + n));
++    ts.push_back(adopt(head_name));
++    for (const Tensor& t : ts) std::printf("tensor %s %s %zu x %zu\n", t.name.c_str(), type_name(t.type), t.nin, t.nout);
++    const auto yb = b.alloc(NC * maxout * sizeof(float));
++    const auto xp = b.alloc(NC * maxin * sizeof(float));
++    // Y = W X for the columns of X at xoff, under `rr`, read back.
++    const auto mm = [&](const Tensor& t, backend::BufferPtr X, size_t n, backend::RowRuns rr, std::vector<float>& out) {
++        if (t.name == head_name) b.matmul_logits(t.type, {t.buf.get(), 0}, {X.get(), 0}, {yb.get(), 0}, t.nin, t.nout, n, rr);
++        else b.matmul(t.type, {t.buf.get(), 0}, {X.get(), 0}, {yb.get(), 0}, t.nin, t.nout, n, rr);
++        b.sync();
++        out.resize(n * t.nout);
++        b.read(*yb, 0, out.data(), out.size() * sizeof(float));
++    };
++    const std::vector<size_t> widths = {1, 2, 3, 5, 8, 13, 16, 17, 31, 32, 33, 48, 63, 64, 65, 100, 128, 129, 160};
++    size_t total_bad = 0;
++    for (const Tensor& t : ts) {
++        for (size_t E : {size_t(64), size_t(512)}) {
++            // Each column alone through the tile at extent E.
++            std::vector<float> alone(NC * t.nout), got, dec1(NC * t.nout);
++            for (size_t c = 0; c < NC; ++c) {
++                std::vector<float> o;
++                b.write(*xp, 0, xs.data() + c * t.nin, t.nin * sizeof(float));
++                mm(t, xp, 1, one(1, E), o);
++                std::memcpy(alone.data() + c * t.nout, o.data(), t.nout * sizeof(float));
++                if (E == 64) {
++                    mm(t, xp, 1, one(1, 1), o);
++                    std::memcpy(dec1.data() + c * t.nout, o.data(), t.nout * sizeof(float));
++                }
++            }
++            size_t bad = 0, compared = 0;
++            for (size_t n : widths) {
++                b.write(*xp, 0, xs.data(), n * t.nin * sizeof(float));
++                mm(t, xp, n, one(n, E), got);
++                for (size_t c = 0; c < n; ++c, ++compared)
++                    if (std::memcmp(got.data() + c * t.nout, alone.data() + c * t.nout, t.nout * sizeof(float))) {
++                        if (++bad <= 3) std::printf("  MISMATCH %s E=%zu n=%zu column %zu\n", t.name.c_str(), E, n, c);
++                    }
++                // The same columns in reverse order.
++                std::vector<float> rev(n * t.nin);
++                for (size_t c = 0; c < n; ++c) std::memcpy(rev.data() + c * t.nin, xs.data() + (n - 1 - c) * t.nin, t.nin * sizeof(float));
++                b.write(*xp, 0, rev.data(), rev.size() * sizeof(float));
++                mm(t, xp, n, one(n, E), got);
++                for (size_t c = 0; c < n; ++c, ++compared)
++                    if (std::memcmp(got.data() + c * t.nout, alone.data() + (n - 1 - c) * t.nout, t.nout * sizeof(float))) {
++                        if (++bad <= 3) std::printf("  MISMATCH reversed %s E=%zu n=%zu column %zu\n", t.name.c_str(), E, n, c);
++                    }
++            }
++            // Decode rows (extent 1) first, then tile rows, in one call: each part against its columns alone.
++            size_t mixed_bad = 0, mixed = 0;
++            for (size_t a : {size_t(1), size_t(7), size_t(16), size_t(40)})
++                for (size_t k : {size_t(1), size_t(17), size_t(64), size_t(100)}) {
++                    if (a + k > NC) continue;
++                    b.write(*xp, 0, xs.data(), (a + k) * t.nin * sizeof(float));
++                    mm(t, xp, a + k, runs({backend::RowRun{a, 1}, backend::RowRun{a + k, E}}), got);
++                    for (size_t c = 0; c < a + k; ++c, ++mixed) {
++                        const float* ref = (c < a && E == 64) ? dec1.data() + c * t.nout : alone.data() + c * t.nout;
++                        if (c < a && E != 64) continue;
++                        if (std::memcmp(got.data() + c * t.nout, ref, t.nout * sizeof(float))) {
++                            if (++mixed_bad <= 3) std::printf("  MISMATCH mixed %s E=%zu decode %zu tile %zu column %zu\n", t.name.c_str(), E, a, k, c);
++                        }
++                    }
++                }
++            total_bad += bad + mixed_bad;
++            std::printf("check %s %s E=%zu: tile columns differing from alone %zu of %zu, mixed calls %zu of %zu\n", t.name.c_str(), type_name(t.type), E,
++                        bad, compared, mixed_bad, mixed);
++            if (E == 64) {
++                // How far the tile's column is from the decode kernel's (informational: a row that switched kernels by batch would move this much).
++                size_t diff = 0;
++                double maxrel = 0;
++                for (size_t c = 0; c < NC; ++c) {
++                    bool d = false;
++                    for (size_t o = 0; o < t.nout; ++o) {
++                        const float u = alone[c * t.nout + o], v = dec1[c * t.nout + o];
++                        if (u != v) {
++                            d = true;
++                            maxrel = std::max(maxrel, (double)std::fabs(u - v) / std::max(1e-6, (double)std::fabs(v)));
++                        }
++                    }
++                    diff += d;
++                }
++                std::printf("check %s %s tile(E=64) against decode kernel: %zu of %zu columns differ, max relative difference %.3g\n", t.name.c_str(),
++                            type_name(t.type), diff, NC, maxrel);
++            }
++        }
++        // The decode tile: every column of a call of 1 to 16 columns through shaders/matmul_dtile.comp and matmul_dtile2.comp against the same column alone through the tile at extent 64, bit for bit.
++        for (int version = 1; version <= 2; ++version) {
++            probe::dtile_version = version;
++            const size_t ND = 24;
++            std::vector<float> alone(ND * t.nout), got, o;
++            probe::dtile_max = 0;
++            for (size_t c = 0; c < ND; ++c) {
++                b.write(*xp, 0, xs.data() + c * t.nin, t.nin * sizeof(float));
++                mm(t, xp, 1, one(1, 64), o);
++                std::memcpy(alone.data() + c * t.nout, o.data(), t.nout * sizeof(float));
++            }
++            probe::dtile_max = 16;
++            size_t bad = 0, compared = 0;
++            double maxrel = 0;
++            for (size_t first : {size_t(0), size_t(5)})
++                for (size_t n : {1, 2, 3, 4, 5, 7, 8, 9, 12, 13, 16}) {
++                    if (first + n > ND) continue;
++                    b.write(*xp, 0, xs.data() + first * t.nin, n * t.nin * sizeof(float));
++                    mm(t, xp, n, one(n, 64), got);
++                    for (size_t c = 0; c < n; ++c, ++compared) {
++                        const float* ref = alone.data() + (first + c) * t.nout;
++                        if (std::memcmp(got.data() + c * t.nout, ref, t.nout * sizeof(float))) {
++                            if (++bad <= 3) std::printf("  MISMATCH dtile %s n=%zu column %zu\n", t.name.c_str(), n, first + c);
++                            for (size_t q = 0; q < t.nout; ++q) {
++                                const float u = got[c * t.nout + q], v = ref[q];
++                                if (u != v) maxrel = std::max(maxrel, (double)std::fabs(u - v) / std::max(1e-6, (double)std::fabs(v)));
++                            }
++                        }
++                    }
++                }
++            probe::dtile_max = 0;
++            total_bad += bad;
++            std::printf("check %s %s dtile%s (1 to 16 columns) against the tile alone at extent 64: %zu of %zu columns differ, max relative difference %.3g\n",
++                        t.name.c_str(), type_name(t.type), version == 2 ? "2" : "", bad, compared, maxrel);
++        }
++        // Extent 64 against extent 512 for the same column alone: the split follows the extent.
++        std::vector<float> a64, a512;
++        b.write(*xp, 0, xs.data(), t.nin * sizeof(float));
++        mm(t, xp, 1, one(1, 64), a64);
++        mm(t, xp, 1, one(1, 512), a512);
++        std::printf("check %s %s extent 64 against 512 alone: %s\n", t.name.c_str(), type_name(t.type),
++                    std::memcmp(a64.data(), a512.data(), a64.size() * sizeof(float)) ? "differ" : "same bits");
++        std::fflush(stdout);
++    }
++    std::printf("check total mismatches %zu\n", total_bad);
++    return total_bad ? 1 : 0;
++}
++
++int main(int argc, char** argv) {
++    try {
++        return run(argc, argv);
++    } catch (const std::exception& e) {
++        std::fflush(stdout);
++        std::fprintf(stderr, "error: %s\n", e.what());
++        return 1;
++    }
++}

@@ -1,0 +1,9 @@
+Activity flags, fixed 2026-09-29 10:35 EEST before any timed run of this investigation.
+
+monitor.py samples every 10 s for the whole session (jobs/monitor.jsonl): host CPU busy and iowait, each CPU's busy share, disk MB/s, the ten busiest processes with their container, and every card's use and VRAM share.
+A timed level (one load-tool invocation, from its CLOCK_MONOTONIC start to end in NAME.levels) is flagged when any sample inside it shows:
+  cpu   - host CPU busy above 60 percent, or a process outside this investigation's containers (llmx-p2-perf2-*) above 100 percent of one CPU, or any CPU of 4-7,12-15 above 90 percent busy while a process outside this investigation is among the busiest;
+  disk  - disk reads or writes above 100 MB/s (a model load of another arm of this investigation counts too, and is named);
+  gpu   - a card of the run's lane in use above 5 percent in a sample taken while no arm of that lane ran (someone else on the card), which is checked around every arm.
+Every planned run is kept and reported; a flagged run is listed beside the full results, never dropped or replaced.
+The lanes share cores 4-7,12-15 with each other by design (four lanes of GPU-bound serving at once); their mutual CPU use is reported per level as the investigation's own share.

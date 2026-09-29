@@ -2762,6 +2762,54 @@ This separate merge-record change reviews STATUS against the completed landing e
   - Its speculative decoding verifies k drafts as one extent-1 entry of k + 1 rows of one sequence, so verify rows ride in passes as decode rows do. The one-pass rule holds, the rows count against W and in step 8's D, and the MTP block runs on the output device, which the opt-in compute balancing (Decided, 2026-09-27) counts when speculative decoding is on.
   - This phase changes one line of the exact-resume plan. While a request is stalled, the room it needs may be held by capped requests, by requests admitted before it, or by requests held until their pass returns. The exact-resume block takes this wording in phase 3's step 3 commit, or in `fix/server-exact-resume` if that branch has not merged by then.
 
+### Server speed investigation on main `6147753a` (2026-09-29, measurement only, branch `docs/server-investigation`, not merged)
+
+- **Question:** why the server's throughput at 16 to 64 users is low on every quant type, and whether the server, the scheduler or the backend is the cause. Measurement only: the probes it used are on no branch. Record, with every run, the scripts and the probe diffs: [`benchmarks/server-investigation-20260929/`](benchmarks/server-investigation-20260929/README.md).
+- **Setup:** Qwen3-8B Q8_0, Q4_K_M, Q6_K and Q4_0 on MI50s under RADV, clocks held high; llmx main `6147753a` (`llmx 0.1.0+g6147753a24f5`), `serve --max-seqs 64 --threads 6`, untimed; mx-llama.cpp's ROCm server (`eefc4e732`) on the same cards with `-np` equal to the users and its batch and ubatch swept (2048/512, 4096/1024, 1024/256), its old `-np 64` beside it, `-sm layer` on two cards with pipeline parallelism enabled (its log); `tools/server_load.py`, 128-token prompts and replies, greedy, two rounds a level plus a third round at 16 to 64 users, each server's best round. Traced arms served within 2 percent of untimed ones.
+- **Contention:** every timed level is flagged. Up to five of this investigation's lanes shared cores 4-7,12-15 until 11:26, and from 11:06 another track's timing and test containers ran on the same cores; the reference, whose server keeps one CPU busy, rose more than llmx in the third round, so the tables take each side's best server.
+- **Throughput, tok/s at 16 / 32 / 64 users** (best server of each side; before is main `3da159b9` on 2026-09-28 with the reference at `-np 64`):
+
+  | model, cards | llmx before | reference then, `-np 64` | reference now, best setting | llmx now | llmx / reference |
+  |---|---|---|---|---|---|
+  | Q8_0, one MI50 | 305 / 325 / 323 | 208 / 190 / 358 | 221 / 326 / 365 | 341 / 372 / 367 | +55 / +14 / +1% |
+  | Q8_0, two MI50s | 417 / 508 / 559 | 210 / 249 / 335 | 231 / 343 / 394 | 535 / 637 / 719 | +132 / +85 / +83% |
+  | Q4_K_M, one MI50 | 174 / 174 / 173 | 95 / 89 / 157 | 96 / 158 / 170 | 181 / 182 / 181 | +89 / +15 / +7% |
+  | Q4_K_M, two MI50s | 317 / 326 / 330 | 95 / 144 / 168 | 98 / 160 / 162 | 317 / 327 / 330 | +222 / +104 / +104% |
+  | Q6_K, one MI50 | - | - | 152 / 230 / 260 | 143 / 143 / 142 | -6 / -38 / -46% |
+  | Q6_K, two MI50s | - | - | 160 / 244 / 292 | 262 / 267 / 270 | +63 / +9 / -7% |
+  | Q4_0, one MI50 | - | - | 235 / 273 / 262 | 187 / 187 / 186 | -21 / -32 / -29% |
+  | Q4_0, two MI50s | - | - | 235 / 278 / 257 | 329 / 339 / 344 | +40 / +22 / +34% |
+
+- **Where the time goes** (traced, one MI50, a 64-row decode pass; device busy share from 16 users on):
+
+  | model | decode pass, ms: projections + head + attention/KV + other | device busy | host's share of the wall |
+  |---|---|---|---|
+  | Q8_0 | 81.1 + 6.8 + 22.0 + 2.4 = 112.3 | 93 to 94% | 6 to 7% |
+  | Q4_K_M | 227.5 + 38.5 + 21.4 + 2.3 = 289.7 | 95 to 96% | 4 to 5% |
+  | Q6_K | 299.7 + 38.7 + 21.3 + 2.3 = 362.0 | 96 to 97% | 3 to 4% |
+  | Q4_0 | 214.9 + 38.4 + 21.4 + 2.3 = 276.9 | 97% | 3% |
+
+  - One MI50 is device-bound; the server and the scheduler are not what limits it. The decode row kernels of Q4_K, Q6_K and Q4_0 cost 4.0 to 5.5 ms a pass for every row past the first few (Q8_0's 1.4), and those files' Q6_K head 0.6 ms a row, so they serve 140 to 190 tok/s from 8 users on: that is where llmx trails the reference.
+  - On two MI50s stage 1 runs the head and idles stage 0 20 to 24 percent at 64 users; receive waits are backpressure (the producer busy 82 to 94 percent of them, the host awake 61 to 105 us after it finishes).
+- **The decode tile, measured:** the prompt tile at a fixed decode split gives each decode row the same bits whatever shares its call (per type, 0 differing columns), and costs 58 to 70 ms for a 64-row pass's matmuls against the decode path's 94 (Q8_0) to 351 ms (Q6_K). Served on one MI50 with decode rows through it (one-row attention views kept on the per-row kernel), with `tools/server_mix_check.py --logprobs` matching alone, together and skewed on Q8_0 and Q4_K_M (checked on the probe whose attention guard keys on the decode extent, which served the same: Q8_0 431 and Q4_K_M 335 tok/s at 64 users):
+
+  | model | 1 user | 16 users | 32 users | 64 users |
+  |---|---|---|---|---|
+  | Q8_0 | 70 -> 22 (38 with form 2) | 334 -> 228 | 360 -> 341 | 357 -> 432 (+21%) |
+  | Q4_K_M | 82 -> 19 (22) | 176 -> 191 | 177 -> 269 | 177 -> 333 (+88%) |
+  | Q6_K | 55 -> 17 (20) | 139 -> 171 | 141 -> 240 | 140 -> 298 (+113%) |
+  | Q4_0 | 95 -> 19 (34) | 180 -> 191 | 179 -> 270 | 180 -> 329 (+83%) |
+
+  Five probe kernels compute the tile's arithmetic in a row kernel's shape and give the tile's bits on every type, so a switch between one of them and the tile by row count would keep each row's bits; the best is 1.9x to 4.1x slower than today's row kernels at one row (form 2 above), which is the one-user loss.
+- **Ranked fixes**, by measured gain on this workload:
+  1. Decode rows of Q4_K, Q5_K, Q6_K, Q4_0 and Q4_1, and the Q6_K head, through the tile at many rows: +83 to +113 percent at 64 users and +51 to +71 at 32 on one MI50. Needs a row-shaped kernel with the tile's arithmetic at the row kernels' speed for 1 to about 12 rows (the bits are shown possible, the speed is not yet), the one-time decode numerics change through the HF gate with its headroom and the near-tie check, the column-invariance tests over both kernels, and attention of decode rows kept on the per-row kernel by the extent. A second route, not measured: Q8_0-style decode builds for these types (a weight unpacked once for up to 32 columns, every column's bits the same in every build), which keeps one user's speed and is bounded by Q8_0's 1.4 ms a column.
+  2. The same for Q8_0: +21 percent at 64 users, -5 at 32, losses below; the same needs.
+  3. Stage balance on the split: 20 and 16 layers gave +3 to +5 percent on Q4_K_M at 16 to 64 users; the layer fit needs to count the head's time. Q8_0 lost 2 to 8 percent with any move.
+  4. Host work on the split's stage 0 (recording, sampling, stepping): about 16 percent of stage 0 at 64 users on Q8_0, bounded by stage 1 to about 9 percent there and 3 on the K-quant files; needs recording off the scheduler thread (step 7).
+  5. Attention and the KV writes: 22 ms of a 64-row Q8_0 pass, 25 to 35 percent of the pass once 1 or 2 lands; not measured as a fix.
+  - Not fixes: P = S + 1 (-7 to -16 percent on Q8_0), copying rows before sampling (-5 percent), the relay.
+- **Left:** the other developer's review of the ranked fixes; the coordinator's choice of which to build.
+
 ## Layer split phase 2: a prompt pipelined over the stages (2026-09-25, branch feat/split-pipeline, done)
 
 - **Goal:** phase 2's targets (`docs/MULTI-DEVICE.md`, Order of work): prefill on a layer split about one device's times the stage count, single-stream decode about one device's, and pipelined output exact against the same placement run serialized, so still exact against one device.

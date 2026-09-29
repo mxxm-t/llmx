@@ -1,0 +1,29 @@
+device AMD Instinct MI60 / MI50 (RADV VEGA20), /m/models--Qwen--Qwen3-8B-GGUF/snapshots/7c41481f57cb95916b40956ab2f0b139b296d974/Qwen3-8B-Q8_0.gguf
+tensors attn_k.weight Q8_0 x36
+tensors attn_output.weight Q8_0 x36
+tensors attn_q.weight Q8_0 x36
+tensors attn_v.weight Q8_0 x36
+tensors ffn_down.weight Q8_0 x36
+tensors ffn_gate.weight Q8_0 x36
+tensors ffn_up.weight Q8_0 x36
+tensors head Q8_0 x1
+layers 36, head 4096 x 151936 Q8_0
+time n=1 decode pass-matmuls 11.57 ms
+time n=1 tile pass-matmuls 46.03 ms
+time n=1 dtile pass-matmuls 25.25 ms
+time n=2 decode pass-matmuls 11.94 ms
+time n=2 tile pass-matmuls 46.63 ms
+time n=2 dtile pass-matmuls 25.57 ms
+time n=4 decode pass-matmuls 12.87 ms
+time n=4 tile pass-matmuls 47.27 ms
+time n=4 dtile pass-matmuls 25.68 ms
+time n=8 decode pass-matmuls 16.22 ms
+time n=8 tile pass-matmuls 47.87 ms
+time n=8 dtile pass-matmuls 41.95 ms
+time n=16 decode pass-matmuls 26.67 ms
+time n=16 tile pass-matmuls 48.73 ms
+time n=16 dtile pass-matmuls 78.34 ms
+time n=32 decode pass-matmuls 47.05 ms
+time n=32 tile pass-matmuls 50.79 ms
+time n=64 decode pass-matmuls 94.23 ms
+time n=64 tile pass-matmuls 56.11 ms

@@ -1,0 +1,445 @@
+{
+ "arm": "q40-trace",
+ "levels": [
+  {
+   "level": 1,
+   "window_s": 3.012905755,
+   "output_tok_s": 86.5492995215811,
+   "passes": 261,
+   "decode_only_passes": 259,
+   "device_pass": {
+    "decode 1 rows": {
+     "passes": 259,
+     "stage0": {
+      "total": 9.653367104247105,
+      "matmul": 6.293767413127413,
+      "head": 1.1681822393822392,
+      "attention": 1.2866359845559847,
+      "other": 0.9047814671814672
+     }
+    },
+    "with prompt rows": {
+     "passes": 2,
+     "stage0": {
+      "total": 112.99032,
+      "matmul": 104.80912,
+      "head": 1.20168,
+      "attention": 4.40448,
+      "other": 2.57504
+     }
+    }
+   },
+   "critical_path_ms": 10.503866244186046,
+   "critical_device_sum_ms": 9.689079069767441,
+   "thread_share": {
+    "recording": 0.2021759691583848,
+    "relay_upload": 0.0,
+    "receive_wait": 0.0,
+    "slot_wait": 0.0025829812257104606,
+    "staging_wait": 0.0,
+    "logits_wait": 0.7479325110851335,
+    "sampling_pool": 0.016330317308581064,
+    "step": 0.0011752986279519387,
+    "assembly": 0.0009508813859330293,
+    "timing_reads": 0.02435179357277971,
+    "trace_flush": 0.0008720949852611636,
+    "other_in_round": -0.00023903137321996983,
+    "idle": 0.003867184023484332
+   },
+   "rounds": 262,
+   "round_ms": 11.499640286259542,
+   "per_pass_ms": {
+    "pool": 0.18851228735632183,
+    "draw_copy_cpu": 0.0,
+    "draw_sample_cpu": 0.18741613409961685,
+    "step": 0.01356729501915709,
+    "logits_wait": 8.633908685823755,
+    "recording": 2.333858777777778
+   },
+   "devices": {
+    "0": {
+     "stage": 0,
+     "busy": 0.9056138206354217,
+     "summed": 0.9056138206354217,
+     "matmul": 0.610873141964575,
+     "head": 0.10160811684599141,
+     "attention": 0.11359308084298177,
+     "other": 0.07953948098187359,
+     "idle": 0.09438617936457823,
+     "waiting_previous_stage": 0.0,
+     "idle_by_host": {
+      "logits_wait": 0.00497387380110733,
+      "round other": 0.0003798349809318878,
+      "pool_run": 0.016330317308581064,
+      "step": 0.0011752986279519387,
+      "assembly+record0": 0.0008580085838098178,
+      "recording": 0.04641823786486146,
+      "wait_slot": 0.0015138933544238925,
+      "wait_ticket": 0.00012734616718869125,
+      "reading": 0.002722204299417258,
+      "thread idle": 0.00289641054504209,
+      "flush": 0.0008720949852611636
+     }
+    }
+   }
+  },
+  {
+   "level": 8,
+   "window_s": 11.438475877,
+   "output_tok_s": 180.58049331389472,
+   "passes": 267,
+   "decode_only_passes": 261,
+   "device_pass": {
+    "decode 8 rows": {
+     "passes": 250,
+     "stage0": {
+      "total": 35.723799039999996,
+      "matmul": 27.18151104,
+      "head": 4.60689472,
+      "attention": 2.8402521600000004,
+      "other": 1.09514112
+     }
+    },
+    "decode 1 rows": {
+     "passes": 9,
+     "stage0": {
+      "total": 9.755306666666666,
+      "matmul": 6.316053333333333,
+      "head": 1.1726933333333334,
+      "attention": 1.361031111111111,
+      "other": 0.9055288888888888
+     }
+    },
+    "with prompt rows": {
+     "passes": 6,
+     "stage0": {
+      "total": 305.7856266666667,
+      "matmul": 284.5529333333333,
+      "head": 3.1337066666666664,
+      "attention": 10.056506666666666,
+      "other": 8.04248
+     }
+    }
+   },
+   "critical_path_ms": 35.78607710344828,
+   "critical_device_sum_ms": 34.74427586206897,
+   "thread_share": {
+    "recording": 0.06719513021358799,
+    "relay_upload": 0.0,
+    "receive_wait": 0.0,
+    "slot_wait": 0.0005955495359043104,
+    "staging_wait": 0.0,
+    "logits_wait": 0.8891639459109033,
+    "sampling_pool": 0.013000057315240864,
+    "step": 0.0016905680623834742,
+    "assembly": 0.00037891787739965525,
+    "timing_reads": 0.025363211158521026,
+    "trace_flush": 0.0002676494694678631,
+    "other_in_round": 0.00018362306504692032,
+    "idle": 0.0021613473915446193
+   },
+   "rounds": 269,
+   "round_ms": 42.52221515613383,
+   "per_pass_ms": {
+    "pool": 0.5569319925093633,
+    "draw_copy_cpu": 0.0,
+    "draw_sample_cpu": 1.440544970037453,
+    "step": 0.07242517602996254,
+    "logits_wait": 38.09243575280899,
+    "recording": 2.8786886741573032
+   },
+   "devices": {
+    "0": {
+     "stage": 0,
+     "busy": 0.9535248256221854,
+     "summed": 0.9535248256221854,
+     "matmul": 0.751654252581679,
+     "head": 0.10391952326359748,
+     "attention": 0.06888219798446142,
+     "other": 0.029068851792447593,
+     "idle": 0.04647517437781453,
+     "waiting_previous_stage": 0.0,
+     "idle_by_host": {
+      "logits_wait": 0.0030125760958493826,
+      "round other": 0.0003769714642376738,
+      "pool_run": 0.013000057315240864,
+      "step": 0.0016905680623834742,
+      "assembly+record0": 0.0003291528557200978,
+      "recording": 0.02030594997949306,
+      "wait_slot": 0.00027421669055638647,
+      "wait_ticket": 5.296859533692576e-05,
+      "reading": 0.0008128442198051418,
+      "thread idle": 0.0018674403154489425,
+      "flush": 0.0002676494694678631
+     }
+    }
+   }
+  },
+  {
+   "level": 16,
+   "window_s": 21.995903162,
+   "output_tok_s": 186.85700105359518,
+   "passes": 267,
+   "decode_only_passes": 257,
+   "device_pass": {
+    "decode 16 rows": {
+     "passes": 246,
+     "stage0": {
+      "total": 69.6406068292683,
+      "matmul": 54.02090276422764,
+      "head": 9.416961951219513,
+      "attention": 4.813278048780488,
+      "other": 1.3894640650406502
+     }
+    },
+    "decode 1 rows": {
+     "passes": 4,
+     "stage0": {
+      "total": 9.882,
+      "matmul": 6.3594,
+      "head": 1.17152,
+      "attention": 1.42552,
+      "other": 0.92556
+     }
+    },
+    "with prompt rows": {
+     "passes": 10,
+     "stage0": {
+      "total": 383.628176,
+      "matmul": 354.991952,
+      "head": 5.903264,
+      "attention": 12.903696,
+      "other": 9.829264
+     }
+    }
+   },
+   "critical_path_ms": 69.16784761867704,
+   "critical_device_sum_ms": 67.91291517509727,
+   "thread_share": {
+    "recording": 0.03793445315041708,
+    "relay_upload": 0.0,
+    "receive_wait": 0.0,
+    "slot_wait": 0.007893978106794503,
+    "staging_wait": 0.0,
+    "logits_wait": 0.9113858587372153,
+    "sampling_pool": 0.011636814688391561,
+    "step": 0.0029504949408996673,
+    "assembly": 0.00033532603529289897,
+    "timing_reads": 0.025083558194290253,
+    "trace_flush": 0.0001473969482463027,
+    "other_in_round": 0.0003144246885005449,
+    "idle": 0.002317694509951853
+   },
+   "rounds": 270,
+   "round_ms": 81.4663080074074,
+   "per_pass_ms": {
+    "pool": 0.9586601086142321,
+    "draw_copy_cpu": 0.0,
+    "draw_sample_cpu": 2.9132539775280897,
+    "step": 0.24306667041198501,
+    "logits_wait": 75.08147974531835,
+    "recording": 3.125103213483146
+   },
+   "devices": {
+    "0": {
+     "stage": 0,
+     "busy": 0.9682683592549269,
+     "summed": 0.9682683592549269,
+     "matmul": 0.7767223404818152,
+     "head": 0.10992627409713271,
+     "attention": 0.06107791210505785,
+     "other": 0.02054183257092119,
+     "idle": 0.031731640745073036,
+     "waiting_previous_stage": 0.0,
+     "idle_by_host": {
+      "logits_wait": 0.0019330890251170673,
+      "round other": 0.00040517390599339466,
+      "pool_run": 0.011636814688391561,
+      "step": 0.0029504949408996673,
+      "assembly+record0": 0.0003190058143246521,
+      "recording": 0.00819190094959557,
+      "wait_slot": 0.00015885830985274638,
+      "thread idle": 0.0021554178362589754,
+      "wait_ticket": 3.261598283626777e-05,
+      "reading": 0.0005323582266096539,
+      "flush": 0.0001473969482463027
+     }
+    }
+   }
+  },
+  {
+   "level": 32,
+   "window_s": 43.283983185,
+   "output_tok_s": 189.57652109244452,
+   "passes": 274,
+   "decode_only_passes": 256,
+   "device_pass": {
+    "decode 32 rows": {
+     "passes": 238,
+     "stage0": {
+      "total": 137.69547092436974,
+      "matmul": 107.66141781512604,
+      "head": 19.01951193277311,
+      "attention": 9.36861512605042,
+      "other": 1.645926050420168
+     }
+    },
+    "decode 1 rows": {
+     "passes": 3,
+     "stage0": {
+      "total": 9.74896,
+      "matmul": 6.310133333333333,
+      "head": 1.1714133333333332,
+      "attention": 1.3624533333333333,
+      "other": 0.90496
+     }
+    },
+    "with prompt rows": {
+     "passes": 18,
+     "stage0": {
+      "total": 456.45934222222223,
+      "matmul": 417.8262311111111,
+      "head": 10.589991111111113,
+      "attention": 16.97224888888889,
+      "other": 11.070871111111112
+     }
+    }
+   },
+   "critical_path_ms": 134.15405479296874,
+   "critical_device_sum_ms": 132.73215125,
+   "thread_share": {
+    "recording": 0.02592346051434684,
+    "relay_upload": 0.0,
+    "receive_wait": 0.0,
+    "slot_wait": 0.02797414773092353,
+    "staging_wait": 0.0,
+    "logits_wait": 0.9018333642992334,
+    "sampling_pool": 0.011091520203860832,
+    "step": 0.0030560528922356847,
+    "assembly": 0.00021674403115587478,
+    "timing_reads": 0.027869678787280493,
+    "trace_flush": 9.430834917740715e-05,
+    "other_in_round": 0.0003588650779575891,
+    "idle": 0.0015818581138283012
+   },
+   "rounds": 276,
+   "round_ms": 156.8260260326087,
+   "per_pass_ms": {
+    "pool": 1.7521356715328467,
+    "draw_copy_cpu": 0.0,
+    "draw_sample_cpu": 6.1936403941605835,
+    "step": 0.48276694160583944,
+    "logits_wait": 142.46328531386862,
+    "recording": 4.095148281021897
+   },
+   "devices": {
+    "0": {
+     "stage": 0,
+     "busy": 0.9748979224634637,
+     "summed": 0.9748979224634637,
+     "matmul": 0.7871405073183539,
+     "head": 0.11278279587013013,
+     "attention": 0.060803964107260335,
+     "other": 0.014170655167719403,
+     "idle": 0.025102077536536222,
+     "waiting_previous_stage": 0.0,
+     "idle_by_host": {
+      "logits_wait": 0.0010529864547169216,
+      "round other": 0.0004135393899284919,
+      "pool_run": 0.011091520203860832,
+      "step": 0.0030560528922356847,
+      "assembly+record0": 0.00020921526471570734,
+      "recording": 0.003945943682447163,
+      "wait_slot": 0.0005646538789080255,
+      "thread idle": 0.0014803963564565367,
+      "wait_ticket": 3.633953911490043e-05,
+      "reading": 0.0004894668521944626,
+      "flush": 9.430834917740715e-05
+     }
+    }
+   }
+  },
+  {
+   "level": 64,
+   "window_s": 86.773578917,
+   "output_tok_s": 189.25089360977626,
+   "passes": 277,
+   "decode_only_passes": 244,
+   "device_pass": {
+    "decode 64 rows": {
+     "passes": 222,
+     "stage0": {
+      "total": 276.93552576576576,
+      "matmul": 214.8874789189189,
+      "head": 38.364469909909914,
+      "attention": 21.356472072072073,
+      "other": 2.327104864864865
+     }
+    },
+    "with prompt rows": {
+     "passes": 33,
+     "stage0": {
+      "total": 563.3752581818181,
+      "matmul": 503.8818181818182,
+      "head": 21.45434666666667,
+      "attention": 25.587864242424242,
+      "other": 12.451229090909091
+     }
+    }
+   },
+   "critical_path_ms": 269.1145915555556,
+   "critical_device_sum_ms": 267.1987239506173,
+   "thread_share": {
+    "recording": 0.022173981135898985,
+    "relay_upload": 0.0,
+    "receive_wait": 0.0,
+    "slot_wait": 0.21994855532299445,
+    "staging_wait": 0.0,
+    "logits_wait": 0.7064220508829425,
+    "sampling_pool": 0.01088964695006807,
+    "step": 0.0037377311740274272,
+    "assembly": 0.00038640813734410883,
+    "timing_reads": 0.02432173995057533,
+    "trace_flush": 6.816576052092721e-05,
+    "other_in_round": 0.0003019873944010648,
+    "idle": 0.011749733291227136
+   },
+   "rounds": 277,
+   "round_ms": 313.26201775090254,
+   "per_pass_ms": {
+    "pool": 3.4113127761732853,
+    "draw_copy_cpu": 0.0,
+    "draw_sample_cpu": 13.340483332129965,
+    "step": 1.1708892093862817,
+    "logits_wait": 221.2951970433213,
+    "recording": 6.946266072202166
+   },
+   "devices": {
+    "0": {
+     "stage": 0,
+     "busy": 0.9669746418118688,
+     "summed": 0.9669746418118688,
+     "matmul": 0.7758255362083604,
+     "head": 0.11211413014675208,
+     "attention": 0.06784518967036211,
+     "other": 0.011189785786394176,
+     "idle": 0.03302535818813126,
+     "waiting_previous_stage": 0.0,
+     "idle_by_host": {
+      "logits_wait": 0.0008613960370528899,
+      "round other": 0.00034011925482789983,
+      "pool_run": 0.01088964695006807,
+      "step": 0.0037377311740274272,
+      "assembly+record0": 0.00037782454531879383,
+      "recording": 0.002179148265635895,
+      "wait_slot": 0.0001742501714083127,
+      "wait_ticket": 1.8907748423853108e-05,
+      "reading": 0.00043537251167358117,
+      "thread idle": 0.01167423427318771,
+      "flush": 6.816576052092721e-05
+     }
+    }
+   }
+  }
+ ]
+}

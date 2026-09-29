@@ -1,0 +1,25 @@
+=== q40-copy level 8 users: window 11.45 s, output 180.8 tok/s (best round), ttft p99 926 ms, itl p50 37.3 p99 44.0 ms
+  passes 267 (23.3/s): with prompt rows 6, decode rows only 261 (mean 7.7 rows); rows a pass: decode 7.6, prompt 7.7, wanting logits 7.7; decode rows 8:250, 1:11, 0:2, 5:2, 7:1, 3:1
+  device time a pass (dispatch sums), decode 8 rows (250 passes): stage 0 35.71 ms [matmul 27.16, head 4.64, attention/KV 2.84, other 1.08]
+  device time a pass (dispatch sums), decode 1 rows (9 passes): stage 0 9.72 ms [matmul 6.29, head 1.17, attention/KV 1.36, other 0.90]
+  device time a pass (dispatch sums), with prompt rows (6 passes): stage 0 306.22 ms [matmul 284.99, head 3.12, attention/KV 10.08, other 8.03]
+  decode pass critical path (formed to logits read) 35.71 ms mean against 34.73 ms of its dispatches summed over the stages (261 passes)
+  thread (share of wall): recording   6.2%, relay upload   0.0%, receive wait   0.0%, slot wait   0.1%, staging wait   0.0%, logits wait  89.1%, sampling pool   1.8%, step   0.1%, assembly   0.0%, timing reads   2.6%, trace flush   0.0%, other in round   0.0%, idle   0.2%
+  rounds 269, mean round 42.58 ms; per pass: sampling pool run 0.77 ms (its draws 0.88 ms of CPU copying rows and 1.38 ms sampling), step 0.04 ms, logits wait 38.21 ms, recording 2.65 ms
+  device 0 (stage 0): busy  95.2% (dispatches summed  95.2%) [matmul  75.0%, head  10.4%, attention/KV   6.9%, other   2.9%], idle   4.8%: waiting on the previous stage   0.0%; host-side recording 1.9%, pool_run 1.8%, logits_wait 0.3%, thread idle 0.2%, reading 0.1%, step 0.1%, wait_slot 0.0%, assembly+record0 0.0%, flush 0.0%, round other 0.0%, wait_ticket 0.0%
+=== q40-copy level 32 users: window 43.63 s, output 189.0 tok/s (best round), ttft p99 4130 ms, itl p50 141.9 p99 542.9 ms
+  passes 273 (6.3/s): with prompt rows 18, decode rows only 255 (mean 30.9 rows); rows a pass: decode 29.8, prompt 30.0, wanting logits 30.0; decode rows 32:238, 1:4, 0:2, 5:2, 9:2, 13:2
+  device time a pass (dispatch sums), decode 32 rows (238 passes): stage 0 137.62 ms [matmul 107.65, head 19.01, attention/KV 9.32, other 1.64]
+  device time a pass (dispatch sums), with prompt rows (18 passes): stage 0 456.81 ms [matmul 418.10, head 10.60, attention/KV 17.02, other 11.09]
+  decode pass critical path (formed to logits read) 134.50 ms mean against 133.14 ms of its dispatches summed over the stages (255 passes)
+  thread (share of wall): recording   2.6%, relay upload   0.0%, receive wait   0.0%, slot wait   2.8%, staging wait   0.0%, logits wait  89.6%, sampling pool   1.9%, step   0.3%, assembly   0.0%, timing reads   2.5%, trace flush   0.0%, other in round   0.0%, idle   0.2%
+  rounds 276, mean round 158.07 ms; per pass: sampling pool run 3.01 ms (its draws 3.18 ms of CPU copying rows and 6.25 ms sampling), step 0.56 ms, logits wait 143.17 ms, recording 4.20 ms
+  device 0 (stage 0): busy  96.7% (dispatches summed  96.7%) [matmul  78.1%, head  11.2%, attention/KV   6.0%, other   1.4%], idle   3.3%: waiting on the previous stage   0.0%; host-side pool_run 1.9%, recording 0.4%, step 0.3%, thread idle 0.2%, logits_wait 0.1%, wait_slot 0.1%, reading 0.1%, round other 0.0%, assembly+record0 0.0%, flush 0.0%, wait_ticket 0.0%
+=== q40-copy level 64 users: window 86.95 s, output 188.6 tok/s (best round), ttft p99 9401 ms, itl p50 284.7 p99 688.6 ms
+  passes 260 (3.0/s): with prompt rows 34, decode rows only 226 (mean 61.8 rows); rows a pass: decode 57.5, prompt 63.0, wanting logits 58.0; decode rows 64:210, 0:2, 1:2, 5:2, 9:2, 13:2
+  device time a pass (dispatch sums), decode 64 rows (210 passes): stage 0 276.64 ms [matmul 214.97, head 38.36, attention/KV 21.00, other 2.31]
+  device time a pass (dispatch sums), with prompt rows (34 passes): stage 0 549.84 ms [matmul 492.66, head 20.33, attention/KV 24.78, other 12.08]
+  decode pass critical path (formed to logits read) 268.92 ms mean against 267.30 ms of its dispatches summed over the stages (225 passes)
+  thread (share of wall): recording   1.9%, relay upload   0.0%, receive wait   0.0%, slot wait  21.0%, staging wait   0.0%, logits wait  66.1%, sampling pool   1.4%, step   0.3%, assembly   0.0%, timing reads   2.5%, trace flush   0.0%, other in round   0.0%, idle   6.8%
+  rounds 261, mean round 333.15 ms; per pass: sampling pool run 4.66 ms (its draws 5.36 ms of CPU copying rows and 12.67 ms sampling), step 0.99 ms, logits wait 220.89 ms, recording 6.41 ms
+  device 0 (stage 0): busy  91.0% (dispatches summed  91.0%) [matmul  73.2%, head  10.4%, attention/KV   6.3%, other   1.1%], idle   9.0%: waiting on the previous stage   0.0%; host-side thread idle 6.8%, pool_run 1.4%, step 0.3%, recording 0.2%, logits_wait 0.1%, reading 0.0%, round other 0.0%, assembly+record0 0.0%, wait_slot 0.0%, flush 0.0%, wait_ticket 0.0%

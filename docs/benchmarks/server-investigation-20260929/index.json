@@ -1,0 +1,1003 @@
+{
+ "record": "server speed investigation, 2026-09-29, main 6147753a",
+ "files": [
+  {
+   "path": "README.md",
+   "bytes": 49337,
+   "sha256": "9aef0ea39e8e1908796387dad0b0de6987852c2c8a59886a40b1fe28732724af",
+   "what": "the record: method, tables, findings and the ranked fixes"
+  },
+  {
+   "path": "analysis/lane-b-q40-trace.json",
+   "bytes": 21345,
+   "sha256": "9635b517b19e10c5ea91c6f4feccfd250e0453869fdb82d6e5cf51c202982a79",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-b-q40-trace.txt",
+   "bytes": 12615,
+   "sha256": "b6940b96572cd063b43838f3d155234549d593c40f84809769a13e474d9e15bb",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-b-q4k-trace.json",
+   "bytes": 21066,
+   "sha256": "2de94187682bdcce7a54e84eed4f8b7f48d6f0b47933122568f8dd94ec7f76bf",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-b-q4k-trace.txt",
+   "bytes": 12462,
+   "sha256": "636648c5fc2d3984ef702b30d788a9f4a9ecab871f356acefd23ae5615c16eb9",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-b-q6k-trace.json",
+   "bytes": 22230,
+   "sha256": "54520159b10cf98a05231b07163f3b945568113bc15bc8cdd772adfaddb91c40",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-b-q6k-trace.txt",
+   "bytes": 13065,
+   "sha256": "49f245bfd110caf85c736e331e01a4e90571989235829a5b23b5083296dcab59",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-b-q8-trace.json",
+   "bytes": 20958,
+   "sha256": "78eb9b36c5304506f4cfd996fa27131e631255d3fcb8c83f2c7e0ffcdf4f82ff",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-b-q8-trace.txt",
+   "bytes": 12417,
+   "sha256": "7628a81c6e805dc56210c9f09a86c7ea5845a7c653651e3fb27e42a0c6302451",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q40-copy.json",
+   "bytes": 7375,
+   "sha256": "fee4c076d3fc3f368808f69ee8a87aa8bfc720b764e4ffc6c8f3f186567c2f91",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q40-copy.txt",
+   "bytes": 4819,
+   "sha256": "4541fe7073a46316675d435eb2a2b97e79cc81bbd716ea6741ff8ff6d359dcd7",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q40-trace.json",
+   "bytes": 12419,
+   "sha256": "e6afe2f6794647df10fd997b8f5709989788dcb4b23aabdfb8601bae72ece4e1",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q40-trace.txt",
+   "bytes": 8177,
+   "sha256": "deeb7f48955aed4d7fd5429d3faffb24e549ffd5fd41cbefd02487589119779b",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q4k-copy.json",
+   "bytes": 7258,
+   "sha256": "707ee3ce183242ca1aacf992b2c63fa5c8fe55813540b9c505ae3ea5c4a84084",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q4k-copy.txt",
+   "bytes": 4825,
+   "sha256": "ee9d14d7fa47e7c8ec5e1ebabced90a2c018d1452409d6a6d91d7a601df110e8",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q4k-trace.json",
+   "bytes": 11937,
+   "sha256": "59ad6cc551d589dbce22084af876d1f1b96fe989d3c9f869b277e3a032c8e9fd",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q4k-trace.txt",
+   "bytes": 7908,
+   "sha256": "c74681f7967e75ead8016ff289a05e682264d1f6021c569061e6e1c069f1f047",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q6k-copy.json",
+   "bytes": 7309,
+   "sha256": "9e3f60b698eff7a1ff573d5ff35714d6b5e3a070771a9d547163e4ab1fb08c81",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q6k-copy.txt",
+   "bytes": 4827,
+   "sha256": "76341453e3eb131d347e3c0c9b10373a86099c02e818dd6842c43bef041caf58",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q6k-trace.json",
+   "bytes": 11710,
+   "sha256": "880cb705caa6d9fc807fa6ffd2ef62b271a93052c4e586d3fb65c3901705ad19",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q6k-trace.txt",
+   "bytes": 7773,
+   "sha256": "f10085f29317608716c02d24c46595fe603a331adf1f620803d57083639cdf9a",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q8-copy.json",
+   "bytes": 7036,
+   "sha256": "a39d7697c6bd45d4ea50b8d5143d66d6b3c9e2dbb8e690a95570d0eb7bff4958",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q8-copy.txt",
+   "bytes": 4670,
+   "sha256": "8b6cabac6d4d2735922541af4fce955aa4862889c2ad7251b75c144ef1cc0307",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q8-trace.json",
+   "bytes": 11906,
+   "sha256": "16fb89633575e355b958c9291ef49c2f2569a146c5dfd576bd70c21653b575ca",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "analysis/lane-d-q8-trace.txt",
+   "bytes": 7890,
+   "sha256": "a757a7cb1c528e7d43195a8343592c22a34b82c7a7be408e3229ee85ce47ad56",
+   "what": "per traced arm: analyze2.py output, text and JSON"
+  },
+  {
+   "path": "binaries.sha256",
+   "bytes": 2027,
+   "sha256": "947ee3e6e728372355327a3acfd85d2cbadb57232f8935e5e36716d3234db775",
+   "what": "SHA-256 of every llmx and probe binary that ran"
+  },
+  {
+   "path": "flags.json",
+   "bytes": 219499,
+   "sha256": "217e2eab677492801973e26d1c32fa52c69a99bbebfb9214e749989a8f92506b",
+   "what": "the same as JSON"
+  },
+  {
+   "path": "flags.txt",
+   "bytes": 136909,
+   "sha256": "1696178fa24a19838a52a6257c542ab0919784290055543b1b03330dc9cae9d3",
+   "what": "every timed level against the monitor samples inside it, with the activity flags of scripts/FLAGS.txt"
+  },
+  {
+   "path": "micro/micro/check-q40.txt",
+   "bytes": 4790,
+   "sha256": "32df678f740143e68b5bb5db29880bad1bd8f2c9d465ca8b2d6c3ca1f723d514",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/check-q4k-l0.txt",
+   "bytes": 4882,
+   "sha256": "6e9e63d800d76ec5d71e843df6bedecc56156cefa5de8f341e335c00bf81bfbd",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/check-q4k-l3.txt",
+   "bytes": 4883,
+   "sha256": "685d713720b378dd442abc3cd6f01f6e26e7e14df3abe11debae2847421249c3",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/check-q6k.txt",
+   "bytes": 4786,
+   "sha256": "afe32a13ce242f6fff49acd3eb0edfa9bf514be12883b41531eb16be673533d1",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/check-q8.txt",
+   "bytes": 4865,
+   "sha256": "219e5f02037a2003e33df11ea681842cf978e33844f8159586a22edf8f7afa58",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/diag-q40.txt",
+   "bytes": 4521,
+   "sha256": "062015a35599d8bb671b1be48a729e28c2c3a0a78083d5af7c0daba5e4aabb1b",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/diag-q4k.txt",
+   "bytes": 5722,
+   "sha256": "71936fe154ce3599d1b3643dfbf52e38c5912b12a4aba59e2e8a4a10ba61480e",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/diag-q6k.txt",
+   "bytes": 4235,
+   "sha256": "e15f85ad3802050a9dfe03a662ed81d677d3572d2f604800c641c3510713b0f0",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/diag-q8.txt",
+   "bytes": 3940,
+   "sha256": "8983ad336f51ef4f775f083f5c12d9307b013c88f869c8e9cc7f1fcb95f255ef",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/progress",
+   "bytes": 1301,
+   "sha256": "cbdf00ad2a64c81f042897878ccb9182c3ab1f5c1f88603d1fbd1b04599259a6",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/time-q40-1.txt",
+   "bytes": 1095,
+   "sha256": "319efbbfbddf43258cdd1365f70e5005b7d9e6caedb5ec420572aba0a059245a",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/time-q40-2.txt",
+   "bytes": 1095,
+   "sha256": "7917d495975fb4e8499c5e95769ebb687898798369021e6c97449439ac58a638",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/time-q4k-1.txt",
+   "bytes": 1222,
+   "sha256": "eef2f9f210156d136ce5787daa4b87a2acbe192c4784a20a29ccc773e74a5999",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/time-q4k-2.txt",
+   "bytes": 1222,
+   "sha256": "d24f8d5d0608b1bb6486cb977cc74760e8a8bbbf6f5730b4bc9c739d3ca76a4b",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/time-q6k-1.txt",
+   "bytes": 1065,
+   "sha256": "0ac843ce9f76d05907537dd493e01535cc4267eaa9e24c684c1e8286d9cb9886",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/time-q6k-2.txt",
+   "bytes": 1065,
+   "sha256": "37cbe83d71ce75d255c7c43e64db1aef8d2856106d69b4f272df2a263dcc960d",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/time-q8-1.txt",
+   "bytes": 1140,
+   "sha256": "7c6923569ee39010cf718da58cc8590ecf62c0cec9fa74ed6b6c1b084416376c",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro/time-q8-2.txt",
+   "bytes": 1140,
+   "sha256": "9e558a76325af00c33262c654584bda292e45348504eed3a19da69818aa7f33f",
+   "what": "first microbench run (probe2): checks of the tile and the first decode-tile form, timings, timestamped timings"
+  },
+  {
+   "path": "micro/micro3/check-q40.txt",
+   "bytes": 5945,
+   "sha256": "540b62e0de78ffb204e09eb4f5553a0b8313f53b2f002167b971305b85c6170d",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/check-q4k-l0.txt",
+   "bytes": 6037,
+   "sha256": "9c2c21d5b1f24f2413c4f748742100e1ac82491e3b0aa6c45419e7afc976e56a",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/check-q4k-l3.txt",
+   "bytes": 6038,
+   "sha256": "0aa800bd00c54a08b7d1d4f58a6fef2cffb911cd93d61a38732bef6ef6ec67a0",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/check-q6k.txt",
+   "bytes": 5941,
+   "sha256": "7e5bdc945aa90309f15452ec4cc7ef7e7bda06c1dad13672c16135577cfedf09",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/check-q8.txt",
+   "bytes": 6020,
+   "sha256": "092b8b3255349bdb001bfebca57d639b4e08a3fea5ef24223df69aeb2d441f9d",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/diag-q40.txt",
+   "bytes": 5740,
+   "sha256": "c35c18cdd83e1b6d74fc91a124e2264380898833b0ac0a70158bb9a0236d07e1",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/diag-q4k.txt",
+   "bytes": 6946,
+   "sha256": "afc820378fcecbe1d1821ff6d8f42481b95c4719b681f21ba6ae74315122d104",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/diag-q6k.txt",
+   "bytes": 5186,
+   "sha256": "a3880a0a0eacbdbfa6c2ba3462ecfd55135aab8b674cb4455c0e83a587de66d6",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/diag-q8.txt",
+   "bytes": 4891,
+   "sha256": "08ee64d4d737741282176a4760ef5f2253d4245c7dfb95da7aec47dbaedf3938",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/progress",
+   "bytes": 1301,
+   "sha256": "202eca23457cf40f1ad6eb477dbbf7a7efdd44a0093964ae7992675d546a988e",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/time-q40-1.txt",
+   "bytes": 1286,
+   "sha256": "1130625fc7c86bb620886e8eb3a21fb455350d2270b2c606953db7dca05e6ecd",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/time-q40-2.txt",
+   "bytes": 1286,
+   "sha256": "83f994068029bb40ce3ef67edfd200b91b86a753626fdd446075980a3dde4f63",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/time-q4k-1.txt",
+   "bytes": 1413,
+   "sha256": "ebb3a4b5599a517645d52ea0b00d9a65a6a591ad5b291702e3331e4378448ddb",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/time-q4k-2.txt",
+   "bytes": 1413,
+   "sha256": "eaa3acca9074354bfbfd268fdbcd1eeae8a6cc66284b5de34e8938d2bc9f6c39",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/time-q6k-1.txt",
+   "bytes": 1256,
+   "sha256": "94d5c303a288352da6bfb5a8b37a7eb6111825702caa0b7677df55e86c6b6c44",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/time-q6k-2.txt",
+   "bytes": 1256,
+   "sha256": "ed944fa15ac7c0b248baf59dc3a50a12811f9aec03c1b0ededbb5103c9c43a47",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/time-q8-1.txt",
+   "bytes": 1331,
+   "sha256": "3ddb5ab9fe98feccbc361b681fa9dfbc35ea1bf1477cca0171fc3493e9750975",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro3/time-q8-2.txt",
+   "bytes": 1331,
+   "sha256": "e3b2d429fbb5fe4e97c5aa1689f6274de33553fb4da639fb09640097a5583d9c",
+   "what": "probe3: checks and timings with the second form"
+  },
+  {
+   "path": "micro/micro4/check-q40.txt",
+   "bytes": 5953,
+   "sha256": "5193ff199126d38f3c65e62d448e19e665b55a1fe5b42c37f8669df40100135d",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/check-q4k-l0.txt",
+   "bytes": 6045,
+   "sha256": "dda8866d423af12ebe90c6f7bebbef3b8ce2c4840008184009bf8495328900c5",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/check-q4k-l3.txt",
+   "bytes": 6046,
+   "sha256": "6e5e0e662dfddd964a4eb76230372f59e69bc88261df310b0364ba9feaa32c01",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/check-q6k.txt",
+   "bytes": 5949,
+   "sha256": "fe23153b6121026cdee31fb58e12f97bfc7823807dfbd92dec7d21adaee8ad9b",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/check-q8.txt",
+   "bytes": 6028,
+   "sha256": "90cadd0f0613007c833ba581d857c2770cd98d8083be83fd029dda40acbb1318",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/diag-q40.txt",
+   "bytes": 5774,
+   "sha256": "04f8dab2517e4150e26931cdb80d69364aa1d89ce26be3296a0e17228476310b",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/diag-q4k.txt",
+   "bytes": 6993,
+   "sha256": "76466f0815a14bef0b452028b882e8b1d1310d406f69f0458950209b49c82cd0",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/diag-q6k.txt",
+   "bytes": 5209,
+   "sha256": "190387ba961117d5f56338909386e5c84cffa2271b5c7745f5e1e6ed28794a1c",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/diag-q8.txt",
+   "bytes": 4916,
+   "sha256": "a190532391a579b9e6e2511cb0d2e38f435f0200941495389f2244ccd89a0d0e",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/progress",
+   "bytes": 1301,
+   "sha256": "bb3ebb18d182741118d62cf49bf7a10685b58b6c1d6805adf0a8cec5434460d8",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/time-q40-1.txt",
+   "bytes": 1291,
+   "sha256": "26f257b5f29fc770f305ff9d8f89935e471f42f6d44b97c1f0cd0f5b4e53dcda",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/time-q40-2.txt",
+   "bytes": 1291,
+   "sha256": "7b74d4b96e23135e5ab9690577ccdd855907dd0afe8ad9a5937e5c4c4a3f8926",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/time-q4k-1.txt",
+   "bytes": 1422,
+   "sha256": "dc8951be909c560afbbfc40d4e6b509ecf679e925e55d6b55e21248854293d4b",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/time-q4k-2.txt",
+   "bytes": 1422,
+   "sha256": "b8bff33113d65d44abe42b95ff81abbce87fc2d8d3cdd252723a1960b80cdc3d",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/time-q6k-1.txt",
+   "bytes": 1260,
+   "sha256": "166e51c037058570850baf586422f6656eaeecce9156ea8619a751e2ad4811aa",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/time-q6k-2.txt",
+   "bytes": 1260,
+   "sha256": "377f6a1857b5a8375f64e49303ffb60162c55a7f620a89fad4519f1a075afca1",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/time-q8-1.txt",
+   "bytes": 1336,
+   "sha256": "ea6c9e5354d6d3fd046d4fad6aa43472147673c898b5e16862e52b9eaacd52e8",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro4/time-q8-2.txt",
+   "bytes": 1336,
+   "sha256": "c301eb543bd87db5fad88e7296d9c8465fde68e7db011784a0dc38dfbb132e27",
+   "what": "probe4: checks and timings with the third form"
+  },
+  {
+   "path": "micro/micro5/check-q40-k16.txt",
+   "bytes": 5950,
+   "sha256": "68b458daf8334beb0f6c051f8c4a532b2a329deb2464f174c257b4c3bdf07f1a",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/check-q40-k32.txt",
+   "bytes": 5955,
+   "sha256": "893ea4a78536a2bf30033483dfbdd23cdba6979890db45e5f377e163e52bbcb5",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/check-q4k-k16.txt",
+   "bytes": 6044,
+   "sha256": "073a0982153de6508e49865f1b8fab7299d803fb53b163a1c7723011329217b3",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/check-q4k-k32.txt",
+   "bytes": 6050,
+   "sha256": "c17b00e9877672f96426d0e508bb13c2f5e9aedf69f506e159247b9063fd8b58",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/check-q6k-k16.txt",
+   "bytes": 5948,
+   "sha256": "3b62381e801be6975385bfdb8a862482d08c58a4658b1e301288750aec3af08a",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/check-q6k-k32.txt",
+   "bytes": 5956,
+   "sha256": "de5702d412b3d7803cafd03156dae487d8bb3f1d9acc19de05ef90d4f23f2558",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/check-q8-k16.txt",
+   "bytes": 6026,
+   "sha256": "93bb7c14748b00e2d50a948c6d98d024a2487aa921958058e656cf23401b5db6",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/check-q8-k32.txt",
+   "bytes": 6030,
+   "sha256": "6509584fffcc8553964ce2f3cb0b0fb4cc4e4225f0ab9183b73f9befc58a99fb",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/progress",
+   "bytes": 1502,
+   "sha256": "46c44d7493c8dc0aa3275c8e32d7bff2672a9497a02337bd5373fb159273e388",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/time-q40-k16-1.txt",
+   "bytes": 1291,
+   "sha256": "6d5faea032d61c1a5eb683bb32eabd7a995c428e86b87d9138bdddde71a8290a",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/time-q40-k32-1.txt",
+   "bytes": 1291,
+   "sha256": "e4d4e1a4fc99eadbb99e2c0dc0c726315d29fa894438e318bde0f97907149ca5",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/time-q4k-k16-1.txt",
+   "bytes": 1422,
+   "sha256": "7e038b343af588ee234bf3d331a57fad24ce459a6ae018899bc8de5393577680",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/time-q4k-k32-1.txt",
+   "bytes": 1422,
+   "sha256": "8ce8809f759ee45f295ed2bc4b57f5b0b4ec5c617379f1b76675ff8b21116ef2",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/time-q6k-k16-1.txt",
+   "bytes": 1260,
+   "sha256": "797688e9596ca5cdb7f8c6e3b2d293d631f6a7f075bdf82700a95008dadc7aa1",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/time-q6k-k32-1.txt",
+   "bytes": 1260,
+   "sha256": "de1cea0ac31a03a2b124ff2a49fb7de5fcff5f1203223ae429a2f462d6c319f4",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/time-q8-k16-1.txt",
+   "bytes": 1336,
+   "sha256": "895c1b110e44b587301044b6afd42a7b531dda74470c62d78728aba9b99ab2e6",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro5/time-q8-k32-1.txt",
+   "bytes": 1336,
+   "sha256": "b353c24b87e21b8ddbf17352de1372c33b78f0b174c4298b0fdf680d2880892d",
+   "what": "probe5: the decode class with parts of 16 and 32 blocks, checks and one round of timings (stopped after it)"
+  },
+  {
+   "path": "micro/micro6/check-q40.txt",
+   "bytes": 5953,
+   "sha256": "dc55376a3bb3ea9173e4569e56b518fb688066b073c0ed6fd82bd8fca17105cb",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/check-q4k-l0.txt",
+   "bytes": 6045,
+   "sha256": "969ffb7fc17d706abe34c557a6858160d9031fda6cf4b2f05f3dee321c9b24c2",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/check-q4k-l3.txt",
+   "bytes": 6046,
+   "sha256": "eaebc05c101c32a53ba28f97ddcc2aeaeee5932f2a9a65397a62d944796f2aad",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/check-q6k.txt",
+   "bytes": 5949,
+   "sha256": "d7a87d47e636cb26044b379b5fb869390292ab1cc02530c0628abdbb5b26024a",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/check-q8.txt",
+   "bytes": 6028,
+   "sha256": "1cc56d4df31f2d0bd1ea83f33732792e7eea3bf28a999e2ceec44ac2d3be13fa",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/diag-q40.txt",
+   "bytes": 5768,
+   "sha256": "7995ecc4a7ce5a1b414350d95b7c6d475661bd8c35fd2a0f0306eca445d133ea",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/diag-q4k.txt",
+   "bytes": 6985,
+   "sha256": "e4a77047d2a74a16413e168bafda968c0d689857c611207ea49cddbb4165465a",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/diag-q6k.txt",
+   "bytes": 5207,
+   "sha256": "06967c537fbf25a78fd9cd098a8ad5216771e267e1766782a2ff278dbbf97d55",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/diag-q8.txt",
+   "bytes": 4913,
+   "sha256": "569a947a7c60bd1522d4609f0b53f6520eb7c91d6bb3f9e21570e5f5c102ab38",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/progress",
+   "bytes": 1301,
+   "sha256": "3f49bc864f6b4660cc9efaa63659ce30c80d8d246da1a85925647c4bf42bf292",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/time-q40-1.txt",
+   "bytes": 1291,
+   "sha256": "9239931f4bebeaff8471ed952407d801f157ec62cfb95e726919c8c85febfb78",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/time-q40-2.txt",
+   "bytes": 1291,
+   "sha256": "129273dd235cb83e61dff5aa391879fe64d6acb908c820457ffe6872dddc0cb9",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/time-q4k-1.txt",
+   "bytes": 1423,
+   "sha256": "ab50c136e2dd2f50a7ffbfaa66a0b6c9c246b40d2c09423aae0ffb4ec43b8467",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/time-q4k-2.txt",
+   "bytes": 1423,
+   "sha256": "6581e568ec2cb00f42af4472e7976c3816bf941abfc858e470ee20fb84bb2d48",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/time-q6k-1.txt",
+   "bytes": 1261,
+   "sha256": "f2a7df0d72bbdec745da5c2d29818dea3f3cf9cdc37272e83d8e5d7771cccbfb",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/time-q6k-2.txt",
+   "bytes": 1261,
+   "sha256": "05b8d69269f2150d475e432f12a5392cdcb8a631f080c3172c8ad6f37e0c989a",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/time-q8-1.txt",
+   "bytes": 1336,
+   "sha256": "e1ef239cee6126ed8847dcaaff0da04da3c489b27d8505322f3258df6b216834",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro6/time-q8-2.txt",
+   "bytes": 1336,
+   "sha256": "6375d1d4891c91e06cfc1f5fc02a3ad0088695eff0ac551f5f14d0e13a6b65e9",
+   "what": "probe6: checks and timings with the fourth form"
+  },
+  {
+   "path": "micro/micro7/check-q8-l0.txt",
+   "bytes": 4873,
+   "sha256": "6f550e177940a8fafc96f072df1ea04e1b3712064507b43a149c4053e91d60d5",
+   "what": "probe7: checks and timings with the fifth form (Q8_0)"
+  },
+  {
+   "path": "micro/micro7/check-q8-l3.txt",
+   "bytes": 4876,
+   "sha256": "6f6fcb6a2e38105b2e400b6ad732f166f61ca166b92e0306a2483711f49e53db",
+   "what": "probe7: checks and timings with the fifth form (Q8_0)"
+  },
+  {
+   "path": "micro/micro7/diag-q8.txt",
+   "bytes": 5865,
+   "sha256": "66b69778d4b3ec1dc2da819236d1ee5df89cac28112817fff5be44f6eef75be0",
+   "what": "probe7: checks and timings with the fifth form (Q8_0)"
+  },
+  {
+   "path": "micro/micro7/progress",
+   "bytes": 405,
+   "sha256": "8e81dac0cd0d5bbe0b13794edfcf008239dd81103db80eb9136a0c7a392194b1",
+   "what": "probe7: checks and timings with the fifth form (Q8_0)"
+  },
+  {
+   "path": "micro/micro7/time-q8-1.txt",
+   "bytes": 1527,
+   "sha256": "ec66f8d12f8469a788be627d4c0f2a8a70c9001486f0d18be6879909fdd26821",
+   "what": "probe7: checks and timings with the fifth form (Q8_0)"
+  },
+  {
+   "path": "micro/micro7/time-q8-2.txt",
+   "bytes": 1527,
+   "sha256": "4f69ec391a6c18f17a5e263e892cf0d40a93b144bc8fd6dc9d3bbbe04f4030cf",
+   "what": "probe7: checks and timings with the fifth form (Q8_0)"
+  },
+  {
+   "path": "micro/microtab.json",
+   "bytes": 73591,
+   "sha256": "0a08c93ccf81aa23a9b74d55c00406c58532a43c53a1f01725f53be4ce6ac63b",
+   "what": "the same with every run and its file"
+  },
+  {
+   "path": "micro/microtab.md",
+   "bytes": 11432,
+   "sha256": "5f11e225938e769bab2d4ef7427a4678a3038ed3e2e372a0197a53d734862bd4",
+   "what": "the probe tool's time lines per model, path and column count: mean, min, max and runs"
+  },
+  {
+   "path": "models.sha256",
+   "bytes": 342,
+   "sha256": "6ede3c246b111dbbaefb7355ae5e8160a5b2e9ba380aab9d7dcd3f4217eb889b",
+   "what": "SHA-256 of the four model files"
+  },
+  {
+   "path": "previous-20260928.json",
+   "bytes": 85148,
+   "sha256": "b1b207ae635c4b35fded88229fb584058b8073259eafa244b6fce29a3ba3ddc4",
+   "what": "the same as JSON"
+  },
+  {
+   "path": "previous-20260928.txt",
+   "bytes": 37587,
+   "sha256": "5e88582f9f2a4bdd4584547bf0d1ca941ce2f5a56745a3e61bd9408a57855f00",
+   "what": "the servers of 2026-09-28 (main 3da159b9 and the reference at -np 64 and -np = users), from their load records"
+  },
+  {
+   "path": "probe-src/probe.diff",
+   "bytes": 35165,
+   "sha256": "e77ccf8baaf3fb25d62998f252620a579c0347209cd4e68cdffc8db957c4c47a",
+   "what": "each probe tree as a diff against 6147753a, cumulative from probe.diff (trace) to probe7.diff (every decode-tile form), and probe8.diff (form 2 with the attention guard keyed on the decode extent)"
+  },
+  {
+   "path": "probe-src/probe2.diff",
+   "bytes": 55686,
+   "sha256": "d77961f284ad859d5105da853ee265ca4715e4b6973c60587df35baee5ee656b",
+   "what": "each probe tree as a diff against 6147753a, cumulative from probe.diff (trace) to probe7.diff (every decode-tile form), and probe8.diff (form 2 with the attention guard keyed on the decode extent)"
+  },
+  {
+   "path": "probe-src/probe3.diff",
+   "bytes": 69104,
+   "sha256": "c4f27544234d4d1dd074add264e4e6791884f135a64bbbaf609eb5002cf6c9f7",
+   "what": "each probe tree as a diff against 6147753a, cumulative from probe.diff (trace) to probe7.diff (every decode-tile form), and probe8.diff (form 2 with the attention guard keyed on the decode extent)"
+  },
+  {
+   "path": "probe-src/probe4.diff",
+   "bytes": 79722,
+   "sha256": "e4bae805a4f52dd95205a79fa9fb4e238ffe750ba93ff1069328b5f85544d1ed",
+   "what": "each probe tree as a diff against 6147753a, cumulative from probe.diff (trace) to probe7.diff (every decode-tile form), and probe8.diff (form 2 with the attention guard keyed on the decode extent)"
+  },
+  {
+   "path": "probe-src/probe5.diff",
+   "bytes": 80778,
+   "sha256": "f86dfd7c7f72f9ee8c97b0963da1e1c263ce1a9a0f1648956d8fd9079b4df3cb",
+   "what": "each probe tree as a diff against 6147753a, cumulative from probe.diff (trace) to probe7.diff (every decode-tile form), and probe8.diff (form 2 with the attention guard keyed on the decode extent)"
+  },
+  {
+   "path": "probe-src/probe6.diff",
+   "bytes": 91753,
+   "sha256": "ec2df67d4f1e6b885665afde96b31d545ccee10f5951f98274a27ea30f20d53e",
+   "what": "each probe tree as a diff against 6147753a, cumulative from probe.diff (trace) to probe7.diff (every decode-tile form), and probe8.diff (form 2 with the attention guard keyed on the decode extent)"
+  },
+  {
+   "path": "probe-src/probe7.diff",
+   "bytes": 98143,
+   "sha256": "bb1a5b8700c8a50151b590988efd472cad33bb26d2cb13a266f3597359c1b1e5",
+   "what": "each probe tree as a diff against 6147753a, cumulative from probe.diff (trace) to probe7.diff (every decode-tile form), and probe8.diff (form 2 with the attention guard keyed on the decode extent)"
+  },
+  {
+   "path": "probe-src/probe8.diff",
+   "bytes": 69327,
+   "sha256": "a13a9a2dfc2a67e162bb8951fe5253ef07641c33e9b8d4c608ce9408190eec7c",
+   "what": "each probe tree as a diff against 6147753a, cumulative from probe.diff (trace) to probe7.diff (every decode-tile form), and probe8.diff (form 2 with the attention guard keyed on the decode extent)"
+  },
+  {
+   "path": "llmx-evidence/server-investigation-20260929/raw.tar.xz",
+   "bytes": 1277836,
+   "sha256": "d9a870329ea4935818ca233ca282c178870786d6b033baca44b315b3f8573c1d",
+   "what": "every lane directory but the load-tool JSON (tables, server logs, level windows, health, progress, clocks, the mix checks' ids), the witness and microbench runs, the build and fetch logs and the monitor samples; no dispatch traces",
+   "location": "outside the repository (docs/ASSETS.md, Benchmark evidence files)"
+  },
+  {
+   "path": "llmx-evidence/server-investigation-20260929/records.tar.xz",
+   "bytes": 5678032,
+   "sha256": "5b48f3e11d6d43ebd90fba672aa1011fd39fe9e8330fef238a1ae456d025b785",
+   "what": "the load tool's JSON records of every level and request, inter-token gaps included, every time rounded to 0.1 ms",
+   "location": "outside the repository (docs/ASSETS.md, Benchmark evidence files)"
+  },
+  {
+   "path": "scripts/FLAGS.txt",
+   "bytes": 1288,
+   "sha256": "97b2899cd24f2c58815c05347b9b58582942db6dbc72beff2ed39891f31486b2",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/analyze2.py",
+   "bytes": 17784,
+   "sha256": "8ea19df56a04cfd1d1f03b00a78dc870cf9472942ce8837873d37221dff14004",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/build.sh",
+   "bytes": 1138,
+   "sha256": "5732e1b3b90bdae51ad9a9fca5cb8244945ca377abe2940b6cac2ffedbf0a7a1",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/fetch.sh",
+   "bytes": 691,
+   "sha256": "c0186031e06bc195da63640c81df1cecfde7a4c437469be48d454c5d3a6e8b0a",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/flags.py",
+   "bytes": 2834,
+   "sha256": "f567003a3bb9a50d291c5ca666907ffef4fdba7bbee3461fae234d7665ae8463",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/index.py",
+   "bytes": 3223,
+   "sha256": "be944699fb902aa76bf7b0910a28dd8132b47517990719aecd402cc010173937",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/laneA.sh",
+   "bytes": 844,
+   "sha256": "72ce6c6437cb4a086f2a4131beb11ec19f697a8132549f2cb0c6cc8dda0bf7fc",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/laneB.sh",
+   "bytes": 1107,
+   "sha256": "6ad479c6a123c0675b46499d666005b6744434b5e41cfb2021d4c88218fd2537",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/laneD.sh",
+   "bytes": 1013,
+   "sha256": "6af38556dcbd0ee6f60e537fb6d5502ea497e3d2ebd8af00fbcab5953b22760b",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/laneE.sh",
+   "bytes": 1700,
+   "sha256": "c45fe33db48e6c4e4335b9f622567c03bfb9856904eecf6d0aeae5eb66123611",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/laneE2.sh",
+   "bytes": 1670,
+   "sha256": "6eb384d8ba2a03588a31316b6bddec85efcb05ddb1560bbad457cb156b2eb351",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/laneF.sh",
+   "bytes": 743,
+   "sha256": "d0c9b2f66e28b99bc7bab781e0e98505ddfdf1723dd52078a225e794a9b26c04",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/laneH.sh",
+   "bytes": 1209,
+   "sha256": "cc8d832eae9f1c0d2e31163849e7358f3998a2129ced7c9a0bc7f28ed2cdf76e",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/lib.sh",
+   "bytes": 5712,
+   "sha256": "dc0109e1093587fe7287e3c33014b33ce66a86185d380924e5b1510f2a772e44",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/micro2.sh",
+   "bytes": 1602,
+   "sha256": "a86e7b6c321c5664f3bab09c63aa05487b382aabf03c58325822b39700dd68a8",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/micro3.sh",
+   "bytes": 1601,
+   "sha256": "82fcc8941a6f378918443bf60b301623d16aaf3abdbf8f9a10eaf72765051fb4",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/micro4.sh",
+   "bytes": 1553,
+   "sha256": "e2bd8a4fa31e1be1016f836b49e5801d538130c60b8d24522aa804592d676145",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/micro5.sh",
+   "bytes": 1801,
+   "sha256": "4e081807f43940f61411a410bedab8b777af826c0a1113b06415f58dff879470",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/micro6.sh",
+   "bytes": 1552,
+   "sha256": "80a1739b13fc2e93003e8f8c4b7a220af38e5e3ceacdfc60e846bdd21d86fed9",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/micro7.sh",
+   "bytes": 1223,
+   "sha256": "0ebdeed4497ab711b07bf1e39cc540945fa8adad1a531229cc5ec9df5d2e5986",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/microtab.py",
+   "bytes": 2108,
+   "sha256": "23a57e7c049dac4b32e5933b7d586b0908f327662935d0ec6ddfc0c5dacb58f9",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/monitor.py",
+   "bytes": 3524,
+   "sha256": "c26d453b8f876051421b0190747c4fbcec5278aa0c487126522bbbf12301aecd",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/package.sh",
+   "bytes": 2544,
+   "sha256": "314844f0c20bdebc64a2c4803ceb07ff23b6c5de050bf3646343f2c933a550ce",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/report.py",
+   "bytes": 10689,
+   "sha256": "8b50a5dddbc2cdf27c397ddbd7f8a3113c6f312eac4d155fadbc88c4ceaf832a",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/summ2.py",
+   "bytes": 3099,
+   "sha256": "71dc5ac08e026a89e264a7a6d5d68305941c18e32ed0057ecd615d13052b3915",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "scripts/witness.sh",
+   "bytes": 674,
+   "sha256": "3d57ef4354bc6824dc584cfbf75a8abdf11d5618bce18657dec8e69cef7abd03",
+   "what": "the lane, microbench, witness, build, fetch and packaging scripts, the monitor, the flag definitions, and the analysis and table scripts"
+  },
+  {
+   "path": "summary.json",
+   "bytes": 215017,
+   "sha256": "c709b55d981bf378e09e858a0f2450ee4f30c18495b936964518d3cc2153f20d",
+   "what": "the same as JSON"
+  },
+  {
+   "path": "summary.txt",
+   "bytes": 119037,
+   "sha256": "2cbd31ce9465ebdacae2fd453053c0365a6b1cad038e1d573f49775794f00b92",
+   "what": "every server and level of every lane: best round, both rounds, TTFT and ITL p50/p99, failures, configuration witness"
+  }
+ ]
+}

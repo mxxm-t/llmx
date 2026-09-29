@@ -1,0 +1,5288 @@
+[
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   7.87
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   11.22
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   18.33
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   32.18
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   64.41
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   129.18
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   257.81
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   29.12
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   29.25
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   29.43
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   35.21
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   51.26
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   29.4
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   29.68
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   30.19
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   32.48
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   33.97
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   51.45
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   52.16
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   53.19
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   54.08
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   55.7
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   59.12
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k16",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   70.7
+  ],
+  "files": [
+   "micro5/time-q40-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   7.85
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   11.23
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   18.2
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   32.18
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   64.19
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   128.79
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   257.5
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   28.45
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   28.54
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   28.7
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   34.38
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   50.67
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   29.59
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   29.56
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   29.76
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   32.25
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   35.49
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   51.68
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   52.31
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   53.29
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   54.04
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   55.26
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   57.76
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "k32",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   63.9
+  ],
+  "files": [
+   "micro5/time-q40-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   7.84,
+   7.91,
+   7.85,
+   7.89,
+   7.85,
+   7.84,
+   7.88,
+   7.82
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   11.28,
+   11.38,
+   11.25,
+   11.39,
+   11.26,
+   11.24,
+   11.29,
+   11.24
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   18.29,
+   20.87,
+   18.21,
+   18.35,
+   18.3,
+   18.32,
+   18.26,
+   18.26
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   32.65,
+   32.29,
+   32.22,
+   32.7,
+   32.22,
+   32.26,
+   32.27,
+   32.28
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   64.27,
+   64.42,
+   64.12,
+   65.44,
+   64.32,
+   64.47,
+   64.23,
+   64.34
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   129.07,
+   129.22,
+   128.83,
+   130.22,
+   128.95,
+   129.39,
+   129.1,
+   129.22
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   258.5,
+   257.97,
+   257.8,
+   258.11,
+   257.75,
+   258.13,
+   257.87,
+   257.99
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 1,
+  "ms": [
+   32.09,
+   32.15,
+   32.08,
+   32.16
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 2,
+  "ms": [
+   32.23,
+   32.38,
+   32.53,
+   32.44
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 4,
+  "ms": [
+   32.52,
+   32.84,
+   32.56,
+   32.7
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 8,
+  "ms": [
+   51.07,
+   51.12,
+   51.21,
+   51.44
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 16,
+  "ms": [
+   90.49,
+   90.8,
+   90.57,
+   91.37
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   29.0,
+   29.18,
+   28.95,
+   28.99
+  ],
+  "files": [
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   29.12,
+   29.34,
+   29.1,
+   29.05
+  ],
+  "files": [
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   29.42,
+   29.46,
+   29.37,
+   29.33
+  ],
+  "files": [
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   36.24,
+   36.6,
+   36.39,
+   36.54
+  ],
+  "files": [
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   54.49,
+   54.62,
+   54.57,
+   54.34
+  ],
+  "files": [
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   28.61,
+   28.43,
+   28.51,
+   28.73
+  ],
+  "files": [
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   28.7,
+   28.53,
+   28.68,
+   28.54
+  ],
+  "files": [
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   28.85,
+   28.96,
+   28.89,
+   28.89
+  ],
+  "files": [
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   30.85,
+   30.85,
+   31.0,
+   30.86
+  ],
+  "files": [
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   35.2,
+   35.2,
+   35.2,
+   35.25
+  ],
+  "files": [
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 1,
+  "ms": [
+   30.49,
+   30.38
+  ],
+  "files": [
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 2,
+  "ms": [
+   30.46,
+   30.49
+  ],
+  "files": [
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 4,
+  "ms": [
+   30.73,
+   30.79
+  ],
+  "files": [
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 8,
+  "ms": [
+   50.07,
+   50.13
+  ],
+  "files": [
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 16,
+  "ms": [
+   96.33,
+   96.41
+  ],
+  "files": [
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   51.51,
+   51.7,
+   51.47,
+   51.88,
+   51.53,
+   51.73,
+   51.59,
+   51.57
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   52.09,
+   52.48,
+   52.98,
+   52.36,
+   52.15,
+   52.38,
+   52.19,
+   52.19
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   52.8,
+   52.97,
+   52.8,
+   53.59,
+   52.9,
+   53.11,
+   52.85,
+   52.9
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   53.89,
+   53.69,
+   53.64,
+   54.15,
+   53.76,
+   53.82,
+   53.64,
+   53.75
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   54.56,
+   54.56,
+   54.51,
+   55.02,
+   55.91,
+   54.61,
+   54.53,
+   54.91
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   56.6,
+   56.64,
+   56.58,
+   56.75,
+   56.59,
+   56.67,
+   56.74,
+   56.66
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q40",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   64.48,
+   61.74,
+   61.68,
+   61.88,
+   61.71,
+   61.8,
+   61.73,
+   61.87
+  ],
+  "files": [
+   "micro/time-q40-1.txt",
+   "micro/time-q40-2.txt",
+   "micro3/time-q40-1.txt",
+   "micro3/time-q40-2.txt",
+   "micro4/time-q40-1.txt",
+   "micro4/time-q40-2.txt",
+   "micro6/time-q40-1.txt",
+   "micro6/time-q40-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   9.26
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   13.17
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   19.81
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   34.4
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   68.52
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   136.16
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   272.53
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   46.47
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   46.7
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   47.07
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   53.64
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   70.71
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   126.49
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   126.53
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   127.59
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   128.08
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   109.83
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   53.06
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   53.26
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   54.33
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   55.59
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   57.13
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   60.4
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   71.25
+  ],
+  "files": [
+   "micro5/time-q4k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   9.25
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   12.95
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   19.83
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   34.33
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   68.55
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   136.17
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   272.41
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   46.01
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   46.0
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   46.21
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   52.62
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   70.38
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   128.33
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   128.39
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   129.4
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   130.7
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   129.18
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   53.05
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   53.62
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   54.64
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   56.33
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   56.66
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   59.12
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   65.14
+  ],
+  "files": [
+   "micro5/time-q4k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   9.31,
+   9.22,
+   9.28,
+   9.24,
+   9.26,
+   9.22,
+   9.24,
+   9.45
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   12.97,
+   13.04,
+   12.96,
+   13.12,
+   12.96,
+   13.17,
+   12.95,
+   12.98
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   19.93,
+   19.87,
+   19.82,
+   19.87,
+   19.87,
+   19.84,
+   19.89,
+   19.95
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   34.26,
+   34.63,
+   34.27,
+   34.34,
+   34.61,
+   34.41,
+   34.31,
+   34.38
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   68.49,
+   68.71,
+   68.47,
+   68.54,
+   68.39,
+   68.5,
+   68.44,
+   68.58
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   136.13,
+   136.19,
+   136.24,
+   136.32,
+   136.2,
+   136.24,
+   136.32,
+   136.26
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   272.02,
+   272.27,
+   272.28,
+   272.63,
+   272.34,
+   272.79,
+   272.24,
+   272.65
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 1,
+  "ms": [
+   38.13,
+   37.91,
+   37.9,
+   37.94
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 2,
+  "ms": [
+   38.07,
+   38.05,
+   38.1,
+   38.14
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 4,
+  "ms": [
+   38.59,
+   38.43,
+   38.36,
+   38.53
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 8,
+  "ms": [
+   58.26,
+   58.33,
+   58.34,
+   58.42
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 16,
+  "ms": [
+   100.39,
+   100.39,
+   100.45,
+   100.7
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   46.23,
+   46.25,
+   46.34,
+   46.36
+  ],
+  "files": [
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   46.24,
+   46.5,
+   46.33,
+   46.31
+  ],
+  "files": [
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   47.5,
+   46.93,
+   46.55,
+   46.63
+  ],
+  "files": [
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   54.51,
+   54.63,
+   55.55,
+   54.49
+  ],
+  "files": [
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   74.03,
+   73.96,
+   73.73,
+   73.79
+  ],
+  "files": [
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   138.82,
+   139.0,
+   138.63,
+   138.69
+  ],
+  "files": [
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   140.38,
+   139.82,
+   139.97,
+   140.36
+  ],
+  "files": [
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   141.58,
+   141.48,
+   140.78,
+   140.88
+  ],
+  "files": [
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   142.88,
+   139.79,
+   140.43,
+   140.32
+  ],
+  "files": [
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   143.71,
+   143.66,
+   144.03,
+   143.89
+  ],
+  "files": [
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 1,
+  "ms": [
+   44.84,
+   45.94
+  ],
+  "files": [
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 2,
+  "ms": [
+   44.94,
+   44.96
+  ],
+  "files": [
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 4,
+  "ms": [
+   45.48,
+   45.45
+  ],
+  "files": [
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 8,
+  "ms": [
+   64.21,
+   64.18
+  ],
+  "files": [
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 16,
+  "ms": [
+   121.3,
+   121.3
+  ],
+  "files": [
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   52.25,
+   52.33,
+   52.42,
+   52.5,
+   52.25,
+   52.41,
+   52.27,
+   52.49
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   52.83,
+   53.01,
+   52.91,
+   53.06,
+   53.02,
+   52.99,
+   52.84,
+   53.11
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   53.76,
+   53.78,
+   53.78,
+   53.93,
+   57.89,
+   53.93,
+   53.8,
+   53.93
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   54.62,
+   54.6,
+   54.5,
+   54.67,
+   58.94,
+   54.65,
+   54.41,
+   54.65
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   55.54,
+   55.61,
+   55.61,
+   55.65,
+   55.59,
+   55.63,
+   55.58,
+   55.65
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   57.59,
+   57.68,
+   57.7,
+   57.72,
+   57.58,
+   57.66,
+   57.75,
+   57.7
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q4k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   62.68,
+   62.76,
+   62.76,
+   62.88,
+   65.0,
+   62.81,
+   62.74,
+   62.88
+  ],
+  "files": [
+   "micro/time-q4k-1.txt",
+   "micro/time-q4k-2.txt",
+   "micro3/time-q4k-1.txt",
+   "micro3/time-q4k-2.txt",
+   "micro4/time-q4k-1.txt",
+   "micro4/time-q4k-2.txt",
+   "micro6/time-q4k-1.txt",
+   "micro6/time-q4k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   15.79
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   19.63
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   27.39
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   44.08
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   87.7
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   175.45
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   351.13
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   50.57
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   50.92
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   50.87
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   61.04
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   87.93
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   56.76
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   57.18
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   58.0
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   65.05
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   50.9
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   57.74
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   58.9
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   60.89
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   62.07
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   63.88
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   68.5
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k16",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   80.1
+  ],
+  "files": [
+   "micro5/time-q6k-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   15.77
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   19.65
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   27.42
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   44.06
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   87.53
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   175.1
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   350.2
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   48.57
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   48.64
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   48.42
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   58.84
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   85.27
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   55.79
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   56.07
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   56.47
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   63.11
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   51.27
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   58.04
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   58.56
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   59.67
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   60.39
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   61.73
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   64.43
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "k32",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   72.07
+  ],
+  "files": [
+   "micro5/time-q6k-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   15.76,
+   15.83,
+   15.77,
+   15.8,
+   17.58,
+   15.78,
+   15.81,
+   15.77
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   19.7,
+   19.58,
+   19.58,
+   19.61,
+   19.8,
+   19.61,
+   19.64,
+   19.66
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   27.63,
+   27.31,
+   27.22,
+   27.33,
+   27.35,
+   27.34,
+   27.39,
+   27.36
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   44.06,
+   44.05,
+   44.05,
+   44.14,
+   44.08,
+   44.1,
+   44.11,
+   44.17
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   87.67,
+   87.78,
+   87.52,
+   87.83,
+   87.69,
+   87.75,
+   87.79,
+   87.85
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   175.07,
+   175.19,
+   175.35,
+   175.45,
+   175.23,
+   175.53,
+   175.4,
+   175.57
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   350.33,
+   350.58,
+   350.25,
+   351.03,
+   350.31,
+   350.55,
+   350.73,
+   351.22
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 1,
+  "ms": [
+   46.07,
+   46.94,
+   45.85,
+   45.99
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 2,
+  "ms": [
+   46.17,
+   46.04,
+   46.01,
+   46.31
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 4,
+  "ms": [
+   46.42,
+   46.28,
+   46.26,
+   46.67
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 8,
+  "ms": [
+   73.15,
+   73.15,
+   73.05,
+   73.29
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 16,
+  "ms": [
+   128.45,
+   128.43,
+   128.5,
+   128.9
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   49.41,
+   49.09,
+   49.23,
+   49.24
+  ],
+  "files": [
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   49.25,
+   49.3,
+   49.34,
+   50.08
+  ],
+  "files": [
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   49.53,
+   49.76,
+   49.77,
+   49.49
+  ],
+  "files": [
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   61.62,
+   61.87,
+   61.84,
+   61.42
+  ],
+  "files": [
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   92.68,
+   91.78,
+   91.87,
+   91.3
+  ],
+  "files": [
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   54.36,
+   53.52,
+   53.59,
+   53.38
+  ],
+  "files": [
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   53.59,
+   53.65,
+   53.53,
+   53.52
+  ],
+  "files": [
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   53.9,
+   53.75,
+   53.85,
+   53.86
+  ],
+  "files": [
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   59.7,
+   59.07,
+   59.06,
+   58.93
+  ],
+  "files": [
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   51.22,
+   51.23,
+   51.3,
+   51.43
+  ],
+  "files": [
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 1,
+  "ms": [
+   30.97,
+   30.98
+  ],
+  "files": [
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 2,
+  "ms": [
+   31.12,
+   31.2
+  ],
+  "files": [
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 4,
+  "ms": [
+   33.07,
+   33.33
+  ],
+  "files": [
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 8,
+  "ms": [
+   51.82,
+   51.84
+  ],
+  "files": [
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 16,
+  "ms": [
+   107.39,
+   100.19
+  ],
+  "files": [
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   60.45,
+   58.12,
+   57.58,
+   57.66,
+   57.61,
+   57.67,
+   57.6,
+   57.64
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   58.22,
+   58.11,
+   58.09,
+   58.23,
+   58.75,
+   58.22,
+   58.17,
+   58.25
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   58.97,
+   58.95,
+   58.84,
+   59.09,
+   59.36,
+   58.97,
+   58.95,
+   59.0
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   59.77,
+   59.68,
+   59.62,
+   59.94,
+   59.67,
+   59.76,
+   59.78,
+   59.81
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   60.78,
+   60.91,
+   61.09,
+   61.01,
+   60.76,
+   60.92,
+   60.82,
+   60.87
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   63.23,
+   63.26,
+   63.14,
+   63.34,
+   63.18,
+   63.22,
+   63.23,
+   63.58
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q6k",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   69.46,
+   69.41,
+   69.45,
+   69.55,
+   69.46,
+   69.55,
+   69.48,
+   69.55
+  ],
+  "files": [
+   "micro/time-q6k-1.txt",
+   "micro/time-q6k-2.txt",
+   "micro3/time-q6k-1.txt",
+   "micro3/time-q6k-2.txt",
+   "micro4/time-q6k-1.txt",
+   "micro4/time-q6k-2.txt",
+   "micro6/time-q6k-1.txt",
+   "micro6/time-q6k-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   11.52
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   11.86
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   12.86
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   16.17
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   26.59
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   47.4
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   94.27
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   24.92
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   25.07
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   25.61
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   31.15
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   45.02
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   26.81
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   27.12
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   27.65
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   29.52
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   33.82
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   46.81
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   48.29
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   49.46
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   50.27
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   51.55
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   54.64
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k16",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   65.6
+  ],
+  "files": [
+   "micro5/time-q8-k16-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   11.55
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   11.87
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   12.95
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   16.23
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   26.51
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   47.11
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   94.1
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   23.85
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   23.86
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   24.35
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   30.18
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   46.8
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   27.41
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   27.58
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   28.05
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   29.48
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   34.48
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   45.8
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   46.81
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   47.75
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   48.84
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   49.53
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   51.87
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "k32",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   58.15
+  ],
+  "files": [
+   "micro5/time-q8-k32-1.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 1,
+  "ms": [
+   11.56,
+   11.57,
+   11.6,
+   11.58,
+   11.56,
+   11.54,
+   11.55,
+   11.63,
+   11.58,
+   11.61
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 2,
+  "ms": [
+   12.13,
+   11.94,
+   11.93,
+   11.92,
+   11.91,
+   11.99,
+   11.87,
+   11.9,
+   11.92,
+   11.89
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 4,
+  "ms": [
+   12.84,
+   12.87,
+   12.88,
+   12.91,
+   12.85,
+   12.84,
+   12.88,
+   12.9,
+   12.91,
+   12.91
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 8,
+  "ms": [
+   16.18,
+   16.22,
+   16.2,
+   16.25,
+   16.21,
+   16.26,
+   16.2,
+   16.26,
+   16.24,
+   16.27
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 16,
+  "ms": [
+   26.57,
+   26.67,
+   26.63,
+   27.72,
+   26.56,
+   26.58,
+   26.67,
+   26.67,
+   26.72,
+   26.77
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 32,
+  "ms": [
+   47.09,
+   47.05,
+   47.02,
+   47.24,
+   46.91,
+   47.01,
+   47.03,
+   47.08,
+   47.13,
+   47.16
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "decode",
+  "cols": 64,
+  "ms": [
+   93.88,
+   94.23,
+   94.15,
+   94.58,
+   94.08,
+   94.22,
+   94.13,
+   94.41,
+   94.35,
+   94.43
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 1,
+  "ms": [
+   25.18,
+   25.25,
+   25.27,
+   25.29
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 2,
+  "ms": [
+   25.8,
+   25.57,
+   25.42,
+   25.5
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 4,
+  "ms": [
+   25.62,
+   25.68,
+   25.74,
+   25.78
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 8,
+  "ms": [
+   41.6,
+   41.95,
+   41.93,
+   42.12
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile",
+  "cols": 16,
+  "ms": [
+   77.75,
+   78.34,
+   78.42,
+   78.23
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 1,
+  "ms": [
+   24.35,
+   24.37,
+   24.53,
+   24.26
+  ],
+  "files": [
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 2,
+  "ms": [
+   24.45,
+   24.5,
+   25.01,
+   24.38
+  ],
+  "files": [
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 4,
+  "ms": [
+   24.66,
+   24.62,
+   24.73,
+   25.03
+  ],
+  "files": [
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 8,
+  "ms": [
+   31.23,
+   31.3,
+   31.4,
+   31.11
+  ],
+  "files": [
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile2",
+  "cols": 16,
+  "ms": [
+   47.06,
+   47.1,
+   47.02,
+   46.94
+  ],
+  "files": [
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 1,
+  "ms": [
+   26.79,
+   26.72,
+   26.72,
+   26.76,
+   26.85,
+   26.71
+  ],
+  "files": [
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 2,
+  "ms": [
+   26.82,
+   26.84,
+   26.88,
+   26.83,
+   26.87,
+   26.83
+  ],
+  "files": [
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 4,
+  "ms": [
+   27.18,
+   27.12,
+   27.12,
+   27.15,
+   27.16,
+   27.21
+  ],
+  "files": [
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 8,
+  "ms": [
+   29.17,
+   29.12,
+   29.31,
+   29.17,
+   29.16,
+   29.19
+  ],
+  "files": [
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile3",
+  "cols": 16,
+  "ms": [
+   34.39,
+   34.38,
+   39.1,
+   34.39,
+   34.38,
+   34.35
+  ],
+  "files": [
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 1,
+  "ms": [
+   27.58,
+   27.56,
+   27.61,
+   27.58
+  ],
+  "files": [
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 2,
+  "ms": [
+   27.68,
+   27.68,
+   27.67,
+   27.64
+  ],
+  "files": [
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 4,
+  "ms": [
+   30.37,
+   30.34,
+   30.36,
+   30.43
+  ],
+  "files": [
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 8,
+  "ms": [
+   49.5,
+   49.38,
+   49.53,
+   49.4
+  ],
+  "files": [
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile4",
+  "cols": 16,
+  "ms": [
+   95.3,
+   95.25,
+   95.28,
+   95.26
+  ],
+  "files": [
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile5",
+  "cols": 1,
+  "ms": [
+   56.69,
+   56.61
+  ],
+  "files": [
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile5",
+  "cols": 2,
+  "ms": [
+   56.75,
+   56.74
+  ],
+  "files": [
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile5",
+  "cols": 4,
+  "ms": [
+   58.93,
+   58.98
+  ],
+  "files": [
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile5",
+  "cols": 8,
+  "ms": [
+   71.04,
+   71.05
+  ],
+  "files": [
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "dtile5",
+  "cols": 16,
+  "ms": [
+   98.99,
+   98.99
+  ],
+  "files": [
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 1,
+  "ms": [
+   45.81,
+   46.03,
+   45.99,
+   46.08,
+   45.84,
+   45.88,
+   45.9,
+   46.07,
+   45.99,
+   46.06
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 2,
+  "ms": [
+   46.4,
+   46.63,
+   46.57,
+   46.64,
+   47.43,
+   46.49,
+   46.59,
+   46.68,
+   46.61,
+   46.63
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 4,
+  "ms": [
+   47.16,
+   47.27,
+   47.34,
+   47.33,
+   48.04,
+   47.21,
+   47.23,
+   47.25,
+   47.31,
+   47.33
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 8,
+  "ms": [
+   48.0,
+   47.87,
+   47.85,
+   48.08,
+   47.73,
+   47.79,
+   47.81,
+   47.96,
+   47.87,
+   47.99
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 16,
+  "ms": [
+   48.55,
+   48.73,
+   48.69,
+   48.81,
+   49.28,
+   48.61,
+   48.64,
+   48.92,
+   48.71,
+   48.76
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 32,
+  "ms": [
+   50.61,
+   50.79,
+   50.75,
+   50.92,
+   51.42,
+   50.79,
+   50.74,
+   50.89,
+   50.94,
+   50.9
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ },
+ {
+  "model": "q8",
+  "split": "tile split",
+  "path": "tile",
+  "cols": 64,
+  "ms": [
+   55.69,
+   56.11,
+   56.03,
+   57.26,
+   75.72,
+   56.02,
+   56.03,
+   56.14,
+   56.09,
+   56.14
+  ],
+  "files": [
+   "micro/time-q8-1.txt",
+   "micro/time-q8-2.txt",
+   "micro3/time-q8-1.txt",
+   "micro3/time-q8-2.txt",
+   "micro4/time-q8-1.txt",
+   "micro4/time-q8-2.txt",
+   "micro6/time-q8-1.txt",
+   "micro6/time-q8-2.txt",
+   "micro7/time-q8-1.txt",
+   "micro7/time-q8-2.txt"
+  ]
+ }
+]

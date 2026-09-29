@@ -1,0 +1,58 @@
+device AMD Instinct MI60 / MI50 (RADV VEGA20), /m2/Qwen3-8B-Q4_0.gguf
+tensor blk.0.attn_q.weight Q4_0 4096 x 4096
+tensor blk.0.attn_k.weight Q4_0 4096 x 1024
+tensor blk.0.attn_v.weight Q4_0 4096 x 1024
+tensor blk.0.attn_output.weight Q4_0 4096 x 4096
+tensor blk.0.ffn_gate.weight Q4_0 4096 x 12288
+tensor blk.0.ffn_up.weight Q4_0 4096 x 12288
+tensor blk.0.ffn_down.weight Q4_1 12288 x 4096
+tensor output.weight Q6_K 4096 x 151936
+check blk.0.attn_q.weight Q4_0 E=64: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.attn_q.weight Q4_0 tile(E=64) against decode kernel: 160 of 160 columns differ, max relative difference 0.238
+check blk.0.attn_q.weight Q4_0 E=512: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.attn_q.weight Q4_0 dtile2 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.attn_q.weight Q4_0 dtile3 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.attn_q.weight Q4_0 extent 64 against 512 alone: differ
+check blk.0.attn_k.weight Q4_0 E=64: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.attn_k.weight Q4_0 tile(E=64) against decode kernel: 160 of 160 columns differ, max relative difference 0.0367
+check blk.0.attn_k.weight Q4_0 E=512: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.attn_k.weight Q4_0 dtile2 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.attn_k.weight Q4_0 dtile3 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.attn_k.weight Q4_0 extent 64 against 512 alone: same bits
+check blk.0.attn_v.weight Q4_0 E=64: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.attn_v.weight Q4_0 tile(E=64) against decode kernel: 160 of 160 columns differ, max relative difference 0.417
+check blk.0.attn_v.weight Q4_0 E=512: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.attn_v.weight Q4_0 dtile2 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.attn_v.weight Q4_0 dtile3 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.attn_v.weight Q4_0 extent 64 against 512 alone: same bits
+check blk.0.attn_output.weight Q4_0 E=64: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.attn_output.weight Q4_0 tile(E=64) against decode kernel: 160 of 160 columns differ, max relative difference 0.268
+check blk.0.attn_output.weight Q4_0 E=512: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.attn_output.weight Q4_0 dtile2 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.attn_output.weight Q4_0 dtile3 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.attn_output.weight Q4_0 extent 64 against 512 alone: differ
+check blk.0.ffn_gate.weight Q4_0 E=64: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.ffn_gate.weight Q4_0 tile(E=64) against decode kernel: 160 of 160 columns differ, max relative difference 0.387
+check blk.0.ffn_gate.weight Q4_0 E=512: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.ffn_gate.weight Q4_0 dtile2 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.ffn_gate.weight Q4_0 dtile3 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.ffn_gate.weight Q4_0 extent 64 against 512 alone: differ
+check blk.0.ffn_up.weight Q4_0 E=64: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.ffn_up.weight Q4_0 tile(E=64) against decode kernel: 160 of 160 columns differ, max relative difference 0.103
+check blk.0.ffn_up.weight Q4_0 E=512: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.ffn_up.weight Q4_0 dtile2 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.ffn_up.weight Q4_0 dtile3 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.ffn_up.weight Q4_0 extent 64 against 512 alone: differ
+check blk.0.ffn_down.weight Q4_1 E=64: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.ffn_down.weight Q4_1 tile(E=64) against decode kernel: 160 of 160 columns differ, max relative difference 0.0334
+check blk.0.ffn_down.weight Q4_1 E=512: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check blk.0.ffn_down.weight Q4_1 dtile2 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.ffn_down.weight Q4_1 dtile3 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check blk.0.ffn_down.weight Q4_1 extent 64 against 512 alone: differ
+check output.weight Q6_K E=64: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check output.weight Q6_K tile(E=64) against decode kernel: 160 of 160 columns differ, max relative difference 1.4e+04
+check output.weight Q6_K E=512: tile columns differing from alone 0 of 1836, mixed calls 0 of 984
+check output.weight Q6_K dtile2 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check output.weight Q6_K dtile3 (1 to 16 columns) against the tile alone at extent 64: 0 of 160 columns differ, max relative difference 0
+check output.weight Q6_K extent 64 against 512 alone: differ
+check total mismatches 0

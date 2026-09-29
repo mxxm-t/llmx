@@ -1,0 +1,35 @@
+device AMD Instinct MI60 / MI50 (RADV VEGA20), /m2/Qwen3-8B-Q4_0.gguf
+tensors attn_k.weight Q4_0 x36
+tensors attn_output.weight Q4_0 x36
+tensors attn_q.weight Q4_0 x36
+tensors attn_v.weight Q4_0 x36
+tensors ffn_down.weight Q4_0 x32
+tensors ffn_down.weight Q4_1 x4
+tensors ffn_gate.weight Q4_0 x36
+tensors ffn_up.weight Q4_0 x36
+tensors head Q6_K x1
+layers 36, head 4096 x 151936 Q6_K
+time n=1 decode pass-matmuls 7.84 ms
+time n=1 tile pass-matmuls 51.73 ms
+time n=1 dtile2 pass-matmuls 28.99 ms
+time n=1 dtile3 pass-matmuls 28.43 ms
+time n=2 decode pass-matmuls 11.24 ms
+time n=2 tile pass-matmuls 52.38 ms
+time n=2 dtile2 pass-matmuls 29.05 ms
+time n=2 dtile3 pass-matmuls 28.53 ms
+time n=4 decode pass-matmuls 18.32 ms
+time n=4 tile pass-matmuls 53.11 ms
+time n=4 dtile2 pass-matmuls 29.33 ms
+time n=4 dtile3 pass-matmuls 28.96 ms
+time n=8 decode pass-matmuls 32.26 ms
+time n=8 tile pass-matmuls 53.82 ms
+time n=8 dtile2 pass-matmuls 36.54 ms
+time n=8 dtile3 pass-matmuls 30.85 ms
+time n=16 decode pass-matmuls 64.47 ms
+time n=16 tile pass-matmuls 54.61 ms
+time n=16 dtile2 pass-matmuls 54.34 ms
+time n=16 dtile3 pass-matmuls 35.20 ms
+time n=32 decode pass-matmuls 129.39 ms
+time n=32 tile pass-matmuls 56.67 ms
+time n=64 decode pass-matmuls 258.13 ms
+time n=64 tile pass-matmuls 61.80 ms

@@ -1,0 +1,124 @@
+device AMD Instinct MI60 / MI50 (RADV VEGA20), /m2/Qwen3-8B-Q4_0.gguf
+tensors attn_k.weight Q4_0 x36
+tensors attn_output.weight Q4_0 x36
+tensors attn_q.weight Q4_0 x36
+tensors attn_v.weight Q4_0 x36
+tensors ffn_down.weight Q4_0 x32
+tensors ffn_down.weight Q4_1 x4
+tensors ffn_gate.weight Q4_0 x36
+tensors ffn_up.weight Q4_0 x36
+tensors head Q6_K x1
+layers 36, head 4096 x 151936 Q6_K
+time n=1 decode pass-matmuls 8.31 ms
+  kernel n=1 decode quantize_x_x8 0.424 ms/pass
+  kernel n=1 decode matmul_row_k_dot_1col 1.197 ms/pass
+  kernel n=1 decode matmul_row_q4_dot8_1col 6.385 ms/pass
+time n=1 tile pass-matmuls 52.36 ms
+  kernel n=1 tile quantize_x8 0.788 ms/pass
+  kernel n=1 tile matmul_tile_q 45.961 ms/pass
+  kernel n=1 tile matmul_tile_q6_tall 4.304 ms/pass
+  kernel n=1 tile matmul_reduce 1.024 ms/pass
+time n=1 dtile2 pass-matmuls 30.12 ms
+  kernel n=1 dtile2 quantize_x8 0.786 ms/pass
+  kernel n=1 dtile2 matmul_reduce 1.020 ms/pass
+  kernel n=1 dtile2 matmul_dtile2_grouped 24.035 ms/pass
+  kernel n=1 dtile2 matmul_dtile2_q6_grouped 4.002 ms/pass
+time n=1 dtile3 pass-matmuls 29.64 ms
+  kernel n=1 dtile3 quantize_x8 0.781 ms/pass
+  kernel n=1 dtile3 matmul_reduce 1.033 ms/pass
+  kernel n=1 dtile3 matmul_dtile3_grouped 23.046 ms/pass
+  kernel n=1 dtile3 matmul_dtile3_q6_grouped 4.503 ms/pass
+time n=2 decode pass-matmuls 11.64 ms
+  kernel n=2 decode quantize_x_x8 0.438 ms/pass
+  kernel n=2 decode matmul_row_k_dot 1.883 ms/pass
+  kernel n=2 decode matmul_row_q4_dot8 9.122 ms/pass
+time n=2 tile pass-matmuls 52.88 ms
+  kernel n=2 tile quantize_x8 0.786 ms/pass
+  kernel n=2 tile matmul_tile_q 46.330 ms/pass
+  kernel n=2 tile matmul_tile_q6_tall 4.337 ms/pass
+  kernel n=2 tile matmul_reduce 1.050 ms/pass
+time n=2 dtile2 pass-matmuls 30.23 ms
+  kernel n=2 dtile2 quantize_x8 0.779 ms/pass
+  kernel n=2 dtile2 matmul_reduce 1.038 ms/pass
+  kernel n=2 dtile2 matmul_dtile2_grouped 24.126 ms/pass
+  kernel n=2 dtile2 matmul_dtile2_q6_grouped 4.011 ms/pass
+time n=2 dtile3 pass-matmuls 29.72 ms
+  kernel n=2 dtile3 quantize_x8 0.782 ms/pass
+  kernel n=2 dtile3 matmul_reduce 1.048 ms/pass
+  kernel n=2 dtile3 matmul_dtile3_grouped 23.095 ms/pass
+  kernel n=2 dtile3 matmul_dtile3_q6_grouped 4.516 ms/pass
+time n=4 decode pass-matmuls 18.79 ms
+  kernel n=4 decode quantize_x_x8 0.472 ms/pass
+  kernel n=4 decode matmul_row_k_dot 2.867 ms/pass
+  kernel n=4 decode matmul_row_q4_dot8 15.032 ms/pass
+time n=4 tile pass-matmuls 53.82 ms
+  kernel n=4 tile quantize_x8 0.809 ms/pass
+  kernel n=4 tile matmul_tile_q 47.227 ms/pass
+  kernel n=4 tile matmul_tile_q6_tall 4.359 ms/pass
+  kernel n=4 tile matmul_reduce 1.133 ms/pass
+time n=4 dtile2 pass-matmuls 30.56 ms
+  kernel n=4 dtile2 quantize_x8 0.801 ms/pass
+  kernel n=4 dtile2 matmul_reduce 1.122 ms/pass
+  kernel n=4 dtile2 matmul_dtile2_grouped 24.293 ms/pass
+  kernel n=4 dtile2 matmul_dtile2_q6_grouped 4.044 ms/pass
+time n=4 dtile3 pass-matmuls 30.07 ms
+  kernel n=4 dtile3 quantize_x8 0.789 ms/pass
+  kernel n=4 dtile3 matmul_reduce 1.108 ms/pass
+  kernel n=4 dtile3 matmul_dtile3_grouped 23.340 ms/pass
+  kernel n=4 dtile3 matmul_dtile3_q6_grouped 4.531 ms/pass
+time n=8 decode pass-matmuls 32.65 ms
+  kernel n=8 decode quantize_x_x8 0.511 ms/pass
+  kernel n=8 decode matmul_row_k_dot 4.866 ms/pass
+  kernel n=8 decode matmul_row_q4_dot8 27.087 ms/pass
+time n=8 tile pass-matmuls 54.46 ms
+  kernel n=8 tile quantize_x8 0.826 ms/pass
+  kernel n=8 tile matmul_tile_q 47.728 ms/pass
+  kernel n=8 tile matmul_tile_q6_tall 4.380 ms/pass
+  kernel n=8 tile matmul_reduce 1.220 ms/pass
+time n=8 dtile2 pass-matmuls 37.49 ms
+  kernel n=8 dtile2 quantize_x8 0.815 ms/pass
+  kernel n=8 dtile2 matmul_reduce 1.194 ms/pass
+  kernel n=8 dtile2 matmul_dtile2 30.104 ms/pass
+  kernel n=8 dtile2 matmul_dtile2_q6 5.110 ms/pass
+time n=8 dtile3 pass-matmuls 31.99 ms
+  kernel n=8 dtile3 quantize_x8 0.814 ms/pass
+  kernel n=8 dtile3 matmul_reduce 1.196 ms/pass
+  kernel n=8 dtile3 matmul_dtile3 24.585 ms/pass
+  kernel n=8 dtile3 matmul_dtile3_q6 5.119 ms/pass
+time n=16 decode pass-matmuls 64.78 ms
+  kernel n=16 decode quantize_x_x8 0.627 ms/pass
+  kernel n=16 decode matmul_row_k_dot 9.871 ms/pass
+  kernel n=16 decode matmul_row_q4_dot8 53.980 ms/pass
+time n=16 tile pass-matmuls 55.50 ms
+  kernel n=16 tile quantize_x8 0.915 ms/pass
+  kernel n=16 tile matmul_tile_q 48.460 ms/pass
+  kernel n=16 tile matmul_tile_q6_tall 4.459 ms/pass
+  kernel n=16 tile matmul_reduce 1.375 ms/pass
+time n=16 dtile2 pass-matmuls 55.55 ms
+  kernel n=16 dtile2 quantize_x8 0.889 ms/pass
+  kernel n=16 dtile2 matmul_reduce 1.347 ms/pass
+  kernel n=16 dtile2 matmul_dtile2_x8 45.222 ms/pass
+  kernel n=16 dtile2 matmul_dtile2_q6_x8 7.810 ms/pass
+time n=16 dtile3 pass-matmuls 36.38 ms
+  kernel n=16 dtile3 quantize_x8 0.890 ms/pass
+  kernel n=16 dtile3 matmul_reduce 1.327 ms/pass
+  kernel n=16 dtile3 matmul_dtile3_x8 30.422 ms/pass
+  kernel n=16 dtile3 matmul_dtile3_q6_x8 3.434 ms/pass
+time n=32 decode pass-matmuls 129.61 ms
+  kernel n=32 decode quantize_x_x8 0.826 ms/pass
+  kernel n=32 decode matmul_row_k_dot 19.841 ms/pass
+  kernel n=32 decode matmul_row_q4_dot8 108.539 ms/pass
+time n=32 tile pass-matmuls 57.60 ms
+  kernel n=32 tile quantize_x8 1.038 ms/pass
+  kernel n=32 tile matmul_tile_q 49.762 ms/pass
+  kernel n=32 tile matmul_tile_q6_tall 4.576 ms/pass
+  kernel n=32 tile matmul_reduce 1.925 ms/pass
+time n=64 decode pass-matmuls 258.89 ms
+  kernel n=64 decode quantize_x_x8 1.228 ms/pass
+  kernel n=64 decode matmul_row_k_dot 39.894 ms/pass
+  kernel n=64 decode matmul_row_q4_dot8 216.995 ms/pass
+time n=64 tile pass-matmuls 62.73 ms
+  kernel n=64 tile quantize_x8 1.268 ms/pass
+  kernel n=64 tile matmul_tile_q 52.823 ms/pass
+  kernel n=64 tile matmul_tile_q6_tall 5.008 ms/pass
+  kernel n=64 tile matmul_reduce 3.140 ms/pass

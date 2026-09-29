@@ -4240,7 +4240,7 @@ This separate merge-record change reviews STATUS against the completed landing e
        - Speed at or above llama.cpp Vulkan on every cell: pp64, pp247, pp512, pp4096, tg32, tg128 and pp16384/tg512.
          The files are the 0.8B Q4_K_M, the 9B Q4_K_M, and the 27B Q4_K_M and Q8_0 on the MI50, and the 0.8B and 9B Q4_K_M on the Radeon VII (question 9).
      - Size: about 1.6 to 2.1.
-     - **In progress on `feat/qwen35-vulkan`** (2026-09-27), built on `feat/qwen35-model` at `83292c5`, which sits on `refactor/arch-modules` and main `1f7aa85`; it is rebased when those land on main, and merges after them.
+     - **In progress on `feat/qwen35-vulkan`** (2026-09-27), rebased on 2026-09-29 onto main, which holds step 4's model since `c348cfb0`.
        - **Goal:** the dense qwen35 files on the Vulkan backend within the HF bounds on both cards, bit-for-bit slice invariant on the device, and at or above llama.cpp's Vulkan build on every speed cell above.
        - **Done:**
          - `norm_rope_rows` folds into `norm_rope_partial`, as the user decided: `Backend::norm_rope_kv` runs it at the full width in place, which is the CPU's one routine `norm_rope_raw` as before, and the device's kernel, `shaders/norm_rope_partial.comp`, reads the heads at their strides and rotates the first `rope_dim` values; Qwen3 on the device keeps its fused `norm_rope_kv` kernel, whose arithmetic per head is the op's at the full width.
@@ -4257,83 +4257,139 @@ This separate merge-record change reviews STATUS against the completed landing e
          - `tools/long_context_check.py` sends its request, an instruction to summarize and the extract, as one user message through the file's chat template: `/v1/tokenize` and `/v1/chat` with messages, or in its CLI mode `generate --chat`, and its baseline reads the rendered prompt with `logits --chat`.
            As raw text the instruct files continued the extract and looped, and the check compared near-ties inside the loops.
            The device now reads its own tokens right after its two runs, so its card is free during the baseline's reading, which takes hours on the 27B; the margin and the pass rule are as they were.
-         - `generate --chat` and `logits --chat` render the text as one user message with the generation prompt and no system message, as `/v1/chat` renders it; they are kept for the check's CLI mode while `serve` refuses qwen35 files, and this step's review decides whether they stay.
-       - **Gates**, at `c3a3eac` on the Linux machine's MI50 (rocm-smi GPU[5], RADV), in containers of six CPUs at one-minute load averages of 18 to 53 from other work and this step's own CPU baselines, and on the Windows PC's Radeon VII (AMD proprietary driver). `51488aa` after it changes only `tests/common.py` (below). The split runs and the Radeon VII's ran on the branch's states before `c3a3eac` whose kernels are its: the later commits' only kernel change, `precise` on the gated norm's sum, gives the same device logits bit for bit on the 0.8B Q8_0 and the 9B Q4_K_M.
-         - Builds: CPU-only and Vulkan with no warning on Linux; MSVC with the Vulkan backend with no warning from a file this branch touches (`tests/backend_vulkan.cpp` and `tests/hub_transport.cpp` keep main's C4456 and C4996).
-         - CTest: 29 of 29 on the CPU-only build and 32 of 32 on the Vulkan build with the MI50, `backend-vulkan` run; `backend-vulkan` passes on the Radeon VII too.
-         - The suite on the MI50 (`run_tests.py --device vulkan:0 --require-tools`): 21 components pass, `baseline` skips the qwen35 file it does not find in that HF cache (run below), `raw-blocks` fails only because the container has no numpy, and `threads` failed on the `ids:` line `generate --verbose` now prints, which `tests/common.py`'s output frame refused; `51488aa` takes the line, and `threads`, `chat`, `server` and `qwen35` pass with it.
-         - The tiny fixtures (`qwen35` component): max error 8.6e-7 on the MI50 and 1.09e-6 on the Radeon VII, against 2e-5, over the ubatches, threads, `--last`, `--then-ids`, NLL batched and per token and greedy decode.
-         - The real models against HF (`tests/baseline_qwen35.py`), on the MI50 with its 8-bit activations and on the Radeon VII with 16-bit ones:
+         - `generate --chat` and `logits --chat` render the text as one user message with the generation prompt and no system message, as `/v1/chat` renders it; they stay, since the check's CLI mode reads through them while `serve` refuses qwen35 files, and `tests/chat.py` holds them to the text the template renders.
+       - **Rebased** (2026-09-29) onto main `6147753a`, which holds step 4's model (`c348cfb0`), the CPU's Q8 activation precision, the sampling pool and the device-need checks; the step's twelve commits went over it, their documentation conflicts resolved to keep both sides' facts, and `AGENTS.md`'s `backend-group` line, which still named `norm_rope_rows`, now names `norm_rope_partial`.
+         Main then moved to `fcff27ec`, a line of STATUS; the head rebased onto it, `c54f8d5c`, holds `e8650d27`'s code, and builds with no warning, CTest 34 of 34 on the CPU-only build and 38 of 38 on the Vulkan build with the MI50.
+       - **Gates at the rebased head `e8650d27`** (the device tier), against main `6147753a`, both built the same way from detached trees at their own commits.
+         Linux machine: containers of the build image, one MI50 (rocm-smi GPU[7]) or two (GPU[7] and GPU[8]) under RADV, six CPUs pinned to cores the other developer's timing did not use, one-minute load averages of 17 to 44 from other work, among it another agent's server runs on other cards.
+         Windows PC: the Radeon VII under the AMD proprietary driver, Visual Studio 2026.
+         - Builds: CPU-only and Vulkan with no warning on Linux, main's too; MSVC with the Vulkan backend, both arms 73 warning lines, all main's (C4996 in `tests/hub_transport.cpp`, C4244 from `<xutility>` in `llmx-q8-dots-test`, C4456 in `tests/backend_vulkan.cpp` at lines the branch only moves).
+         - CTest: 34 of 34 on the CPU-only build and 38 of 38 on the Vulkan build with the MI50, `backend-vulkan` run.
+           On the Radeon VII 38 of 39: `hub-pull` failed to create a directory past Windows' path limit under the deep temporary worktree, and passes from the project's own worktree, whose path is shorter.
+         - The suite on the MI50 (`run_tests.py --device vulkan:0 --require-tools`): 22 of 24 components pass; `raw-blocks` fails only because the build image has no numpy, and `baseline` on the 0.8B Q8_0's `chat-00` (below).
+           On the CPU (`--require-tools`) 23 of 24, `raw-blocks` for the same reason, `baseline` holding both 0.8B files to their bounds.
+           On the Radeon VII the step's components, `qwen35`, `cli`, `threads` and `chat`, pass.
+         - The tiny fixtures (`qwen35` component): max error 8.6e-7 on the MI50 and 1.09e-6 on the Radeon VII, against 2e-5.
+         - The real models against HF (`tests/baseline_qwen35.py` and, for the 9B and 27B, `tests/baseline_layered.py`), on the MI50 with its 8-bit activations and on the Radeon VII with 16-bit ones, 512-token windows unless named, f16 caches unless named; the largest logit error is on HF's top-10 tokens over the eight rankings, and the layered goldens' NLL cells are the largest over their windows:
 
-           | file | device | windows | cache | top-1 | top-5 lowest (bound) | NLL delta whole, batched / per token (bound) | NLL delta in windows, batched / per token (bound) |
-           |---|---|---:|---|---|---:|---:|---:|
-           | 0.8B Q8_0 | MI50 | 512 | f16 | 8 of 8 | 4 (5) | 0.0013 / 0.0046 (0.02) | 0.0010 / 0.0034 (0.02) |
-           | 0.8B Q8_0 | MI50 | 512 | f32 | 8 of 8 | 4 (5) | 0.0032 / 0.0026 (0.02) | 0.0021 / 0.0015 (0.02) |
-           | 0.8B Q8_0 | MI50 | 4096 | f16 | 8 of 8 | 4 (5) | 0.0081 / 0.0077 (0.02) | 0.0071 / 0.0065 (0.02) |
-           | 0.8B Q8_0 | 2 and 3 MI50s | 512 | f16 | 8 of 8 | 4 (5) | 0.0013 / 0.0046 (0.02) | 0.0010 / 0.0034 (0.02) |
-           | 0.8B Q8_0 | Radeon VII | 512 | f16 | 8 of 8 | 5 (5) | 0.0005 / 0.0005 (0.02) | 0.0003 / 0.0003 (0.02) |
-           | 0.8B Q8_0 | Radeon VII and CPU, 1:1 | 512 | f16 | 8 of 8 | 5 (5) | 0.0005 / 0.0015 (0.02) | 0.0003 / 0.0002 (0.02) |
-           | 0.8B Q4_K_M | MI50 | 512 | f16 | 6 of 8 | 4 (none) | 0.0093 / 0.0116 | 0.0227 / 0.0242 |
-           | 4B Q4_K_M | MI50, and 2 and 3 MI50s | 512 | f16 | 8 of 8 | 4 (4) | 0.0343 / 0.0350 (0.07) | 0.0458 / 0.0471 (0.08) |
-           | 4B Q4_K_M | MI50 | 4096 | f16 | 8 of 8 | 4 (4) | 0.0263 / 0.0265 (0.07) | 0.0255 / 0.0256 (0.08) |
-           | 4B Q4_K_M | Radeon VII | 512 | f16 | 8 of 8 | 4 (4) | 0.0391 / 0.0391 (0.07) | 0.0472 / 0.0472 (0.08) |
-           | 4B Q4_K_M | Radeon VII and CPU, 1:1 | 512 | f16 | 8 of 8 | 4 (4) | 0.0392 / 0.0405 (0.07) | 0.0472 / 0.0475 (0.08) |
+           | file | device | top-1 | top-5 lowest (bound) | largest logit error | NLL delta whole, batched / per token (bound) | NLL delta in windows, batched / per token (bound) |
+           |---|---|---|---:|---:|---:|---:|
+           | 0.8B Q8_0 | CPU | 8 of 8 | 5 (5) | 0.17 | 0.0005 / 0.0005 (0.02) | 0.0003 / 0.0003 (0.02) |
+           | 0.8B Q8_0 | MI50 | 8 of 8 | 4 (5) | 0.48 | 0.0013 / 0.0035 (0.02) | 0.0010 / 0.0021 (0.02) |
+           | 0.8B Q8_0 | MI50, f32 caches | 8 of 8 | 5 (5) | 0.32 | 0.0032 / 0.0030 (0.02) | 0.0021 / 0.0021 (0.02) |
+           | 0.8B Q8_0 | MI50, 4096-token windows | 8 of 8 | 4 (5) | 0.48 | 0.0081 / 0.0075 (0.02) | 0.0071 / 0.0065 (0.02) |
+           | 0.8B Q8_0 | Radeon VII | 8 of 8 | 5 (5) | 0.17 | 0.0005 / 0.0005 (0.02) | 0.0003 / 0.0003 (0.02) |
+           | 0.8B Q8_0 | Radeon VII and CPU, 1:1 | 8 of 8 | 5 (5) | 0.17 | 0.0005 / 0.0005 (0.02) | 0.0003 / 0.0003 (0.02) |
+           | 0.8B Q4_K_M, file-exact | MI50 | 6 of 6 | 5 (5) | | 0.0005 / 0.0006 (0.02) | 0.0001 / 0.0004 (0.02) |
+           | 0.8B Q4_K_M, against its model | MI50 | 6 of 8 at least (6) | 4 (4) | 1.62 | 0.0093 / 0.0094 (0.021) | 0.0227 / 0.0232 (0.025) |
+           | 4B Q4_K_M | MI50 | 8 of 8 | 4 (4) | 2.42 | 0.0343 / 0.0350 (0.07) | 0.0458 / 0.0471 (0.08) |
+           | 4B Q4_K_M | MI50, 4096-token windows | 8 of 8 | 4 (4) | 2.42 | 0.0263 / 0.0265 (0.07) | 0.0255 / 0.0256 (0.08) |
+           | 4B Q4_K_M | Radeon VII | 8 of 8 | 4 (4) | 2.21 | 0.0391 / 0.0391 (0.07) | 0.0472 / 0.0472 (0.08) |
+           | 4B Q4_K_M | Radeon VII and CPU, 1:1 | 8 of 8 | 4 (4) | 2.36 | 0.0389 / 0.0394 (0.07) | 0.0472 / 0.0465 (0.08) |
+           | 9B Q4_K_M, layered | MI50 | 6 of 6 | 4 (4) | | 0.0157 / 0.0154 (0.13) | 0.0429 / 0.0446 (0.25) |
+           | Qwen3.6-27B Q4_K_M, layered | MI50 | 6 of 6 | 5 (4) | | 0.0107 / 0.0115 (0.13) | 0.0102 / 0.0100 (0.25) |
 
-           The 0.8B Q8_0 fails its top-5 bound of 5 on the MI50 in one case, `chat-00`, at both window lengths and both cache types: the device ranks HF's 6th token 5th, where HF's gap between them is 0.30 logits.
-           The cause is the MI50 profile's 8-bit activations: a build whose profile turns the integer dot off gives the CPU's logits within 0.03 on that prompt, and moving any one projection to 16-bit activations shifts the logits by 0.1 to 0.3 each way, so no single projection carries it.
-           The device's largest logit error against HF over the 8 cases is 0.23 to 0.27, against the CPU's 0.20 and the Radeon VII's 0.17; the 16-bit profile runs the 0.8B at 1.4k tok/s pp512 against 6.9k, so it is no fix.
-           Holding the MI50 to this bound needs a gate revision for the user, or a precision change that keeps the integer dot's speed; the NLL deltas sit at a tenth of their bound or less.
-           The 0.8B Q4_K_M has no bounds and is measured: it ranks HF's second token first on the two prompts it does on the CPU.
-         - Bitwise slice invariance on the device: the last 8 positions' logits of every token over a 1,200-character excerpt print the same bytes read in prompt slices of 1, 3, 16, 64 and 512 tokens, on the 0.8B Q8_0 and the 9B Q4_K_M on the MI50.
-           `backend-vulkan` holds the conv and the recurrence to the same bits alone, beside others, in reverse view order and cut into passes of 1, 2 and 3 rows, on both cards.
-         - The layer split: `llmx-split-check` against one card, bit-identical on the prompt path, the chunked prefill a split pipelines, 8 greedy steps (4 on the 27B), the replay by class and the mixed pass, over 2 MI50s (GPU[5] and GPU[3]) and 3 (GPU[5], GPU[3] and GPU[1]): the 0.8B Q8_0 in equal shares and in 8 stages alternating over the cards, whose stages 0 and 4 hold only linear-attention layers (layers 0 to 2 and 12 to 14); the 9B Q4_K_M; and Qwen3.6-27B Q4_K_M.
-           The HF check over 2 and 3 MI50s gives one card's numbers exactly, as the split is bit-identical; the Radeon VII with the CPU at shares 1,1 passes the bounds (table).
-         - The 16k check in its CLI mode (`tools/long_context_check.py --cli`), the CPU reading each device run's tokens, on the MI50:
-           - The 0.8B Q8_0: the same 512 tokens on two fresh runs; the CPU's top choice at all 512, largest gap 0.000.
-           - Qwen3.6-27B Q4_K_M: the same 512 tokens twice; the CPU's top choice at 510, largest gap 0.054.
-           - The 9B Q4_K_M: the same 512 tokens twice; the CPU's top choice at 510, largest gap 0.668 at token 470, one position past the 0.5 margin, so the check fails; the margin stays.
-             There the CPU reads 12168 14.333, 271 13.665 and the MI50, reading the same tokens, 271 13.826, 12168 13.473: a near-tie the two split by about one logit.
-             The CPU's prompt path takes wide K-quant rows through 8-bit prompt dots and the MI50's through the integer-dot tile's 8-bit blocks, rounded differently; at 2k tokens both of the MI50's paths sit within 0.15 logits of the CPU at 64 positions with every top-1 the same, and at 16k the same tokens read three ways part by several logits at a few positions.
-             At position 16844 of a reply the CPU gives 48164 21.53, the MI50 48164 18.10, and float activations (the MI50 with its integer dot off, and the Radeon VII, which agree to 0.002) leave 48164 out of their top five; changing only the attention kernel on the MI50, tile against per-row, moves that logit by 1.2.
-             A run with the integer dot off failed at two positions, the largest 6.07, for the same reason.
-             The tool now prints both readings at a position past its margin.
-             HF16K
-         - The Qwen3 files byte-identical to the base `83292c5`: `generate` greedy and seeded, `logits` of a prompt and of an excerpt's last positions, `perplexity` batched and per token and a two-turn `chat` on Qwen3-0.6B Q8_0, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M, 21 of 21 on the CPU and 21 of 21 on the MI50; on the Radeon VII and the Windows CPU, Qwen3-0.6B Q8_0 and Q4_K_M, 14 of 14 on each.
-         - Qwen3.8-27B Q8_0 (the file with an MTP block, which the model does not run) generates on one MI50 at 19.0 tok/s.
+           The 0.8B Q8_0 fails its top-5 bound of 5 on the MI50 in one case, `chat-00`, with f16 caches at both window lengths: HF puts 332 at 17.96 and 9175 at 17.66, 0.30 apart, as its 5th and 6th; the MI50 reads 9175 17.77 and 332 17.48, 0.29 apart the other way, 332 being 0.48 below HF.
+           `common.top5_overlap` forgives that swap only where llmx's own two are within 0.1; with f32 caches the MI50 reads 17.84 and 17.74, 0.099 apart, so that run passes.
+           The CPU reads 332 17.84 and 9175 17.80, HF's order, and the Radeon VII passes; the MI50's NLL deltas are at most 0.0035 at 512-token windows and 0.0081 at 4096, 17 and 40 percent of the 0.02 bound.
+           The cause is the MI50 profile's 8-bit activations, as measured at `c3a3eac` (below); the bound stays, and the user decides between a gate revision and a precision change that keeps the integer dot's speed.
+         - Bitwise slice invariance on the device: the last 8 positions' logits of every token over a 1,200-character excerpt print the same bytes read in prompt slices of 1, 3, 16, 64 and 512 tokens, on the 0.8B Q8_0 and the 9B Q4_K_M, on the MI50 and on the Radeon VII.
+         - The layer split: `llmx-split-check` against one card, bit-identical on the prompt path, the chunked prefill a split pipelines, the greedy steps, the replay by class, the mixed pass and passes in flight at P = S, S + 1 and 2S, over the two MI50s: the 0.8B Q8_0 in equal shares and in 8 stages alternating over the cards, whose stages 0 and 4 hold only linear-attention layers; the 9B Q4_K_M; and Qwen3.6-27B Q4_K_M with 4 steps.
+           Being bit-identical, a split over MI50s gives one card's HF numbers, the 0.8B Q8_0's `chat-00` at 4 of 5 included.
+           Three MI50s were not at hand after the rebase; the 3-card split passed at `c3a3eac` on the same kernels.
+           The Radeon VII with the CPU at shares 1,1 passes the HF bounds (table).
+         - The Qwen3 files byte-identical to main `6147753a`: `generate` greedy and seeded, `logits` of a prompt and of an excerpt's last positions, `perplexity` batched and per token and a two-turn `chat` on Qwen3-0.6B Q8_0, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M, 21 of 21 on the CPU and 21 of 21 on the MI50; on the Radeon VII and the Windows CPU, Qwen3-0.6B Q8_0 and Q4_K_M, 14 of 14 on each.
+         - The driver's representation of every kernel `backend-vulkan` builds on the MI50, written by `llmx-backend-vulkan-test --isa`: the 77 kernels main and the branch share, Qwen3's attention and `norm_rope_kv` among them, are the same bytes, pipeline hashes included; the branch adds 15 (the qwen35 ops and the 256-wide attention builds) and drops `norm_rope_rows`.
+           No row kernel changed, so the counts screen is not this step's gate; it fails on main and the branch alike, on the Q8_0 decode kernel's one-column build (`matmul_vec_q8`), which the other developer's precision work changed, and is reported to them.
+         - The 16k check in its CLI mode through the chat template (`tools/long_context_check.py --cli`), on one MI50 (GPU[8]), the CPU reading each device run's tokens:
+           - The 9B Q4_K_M: the same 512 tokens on two fresh runs, the SHA-256 of `c3a3eac`'s; the CPU's top choice at 507, largest gap 0.084 logits, none past the 0.5 margin.
+           - The 0.8B Q8_0: the same 171 tokens on two fresh runs, ending at the model's end token; the CPU's top choice at 168, largest gap 0.109 logits. The reply is not the 201 tokens of the run before the rebase, whose base lacked main's Vulkan precision changes since `1f7aa85` (the Q8 consumers' float-preserving modules among them); the 9B Q4_K_M's reply is the same as then.
+           - Qwen3.6-27B Q4_K_M: the same 512 tokens twice, the SHA-256 of `c3a3eac`'s; the CPU's top choice at 510, largest gap 0.033 logits, in 2 h 50 min on four CPUs.
+         - The 9B at 16k against HF: HF's layered float32 forward (`tools/gen_layered_reference.py`'s layers, its eager attention run in 512-query chunks) over the 16,384-token raw-text prompt of the check before it took the chat template and the 512-token reply an MI50 generated from it, the head on the reply's positions; once on the checkpoint and once on the Q4_K_M file's own weights as `tests/spec_decode.py` decodes them (file-exact), in 57 minutes on six CPUs.
+           Each llmx reading reads the same tokens (`logits --then-ids --last 512 --top 50`); the MI50's at `e8650d27` is `c3a3eac`'s byte for byte, and the float readings are `c3a3eac`'s kernels on the Radeon VII and on the MI50 with its integer dot off.
+
+           | reading | against the checkpoint: top-1 HF's, largest error on HF's top 5 | against the file's own weights: top-1 HF's, error on HF's top 5 mean / 99th percentile / largest |
+           |---|---:|---:|
+           | CPU | 463 of 512, 12.84 | 510 of 512, 0.135 / 1.53 / 5.12 |
+           | MI50, 8-bit activations | 464 of 512, 13.36 | 506 of 512, 0.138 / 1.77 / 6.47 |
+           | MI50, float activations | 463 of 512, 13.86 | 512 of 512, 0.001 / 0.018 / 0.075 |
+           | Radeon VII | 463 of 512, 13.86 | 512 of 512, 0.001 / 0.018 / 0.076 |
+
+           The errors are over HF's top five tokens that each reading lists in its top 50, 2,560 values at 512 positions, 2,559 for the MI50's 8-bit reading, which leaves one of them out; they are not full-vocabulary maxima.
+           With float activations llmx is HF on the file's own weights at 16k, every top-1 and within 0.08 logits: the checkpoint's gaps of up to 14 logits are the Q4_K_M quantization, which the looping raw text magnifies.
+           The readings whose prompt rows take 8-bit activations, the CPU's and the MI50's, part from it by up to 5.1 and 6.5 logits at that depth and each misses HF's top-1 at a few positions, the CPU at 2 and the MI50 at 6; the MI50's reading of token 296, 10 logits off on one token, came from its prompt tile, while its decode, which wrote the reply, took HF's top there.
+           At token 470, the position the raw-text check failed at, HF gives 12168 15.231 and 271 13.746: the CPU keeps HF's order (14.333 and 13.665) and the MI50 swaps it (13.473 and 13.826), so the check's CPU baseline is not HF there either.
+           The other raw-text reply, which the MI50 with float activations wrote, is HF's top choice at all 512 positions on the file's own weights; there the CPU takes HF's top at 508 and the MI50's 8-bit reading at 504, largest errors 5.1 and 8.2, the float readings again within 0.08.
+           At its token 461 (position 16844) HF gives 8022 14.488 and 48164 5.523, where the CPU reads 48164 at 21.527 and the MI50 at 18.104.
+           Both raw-text sequences stay regression cases beside the chat-template one, held to HF on the file's own weights where the CPU and the device disagree; the CPU's error there is main's and is recorded for the precision work that follows this step.
+         - Before the rebase, at `c3a3eac`, the 16k check sent raw text, and the 9B failed it by one position, 0.668 logits at token 470 against the 0.5 margin, where the CPU and the MI50, reading the same tokens, split a near-tie by about one logit; the instruct files continued the extract and looped, and the check compared near-ties inside the loops, so it now sends a user message through the chat template, and the tool prints both readings at a position past its margin.
+         - Timing against main on one MI50 (GPU[7]), `bench --model M --device vulkan:0 --p 512 --n 128 --r 3`, in the order main, branch, branch, main, then the reference llama.cpp `7ab4ee7ba` built for Vulkan in the same image (`llama-bench -ngl 99 -p 512 -n 128 -r 3`), tok/s:
+
+           | model | pp512 main / branch / reference | tg128 main / branch / reference |
+           |---|---:|---:|
+           | Qwen3-0.6B Q8_0 | 13066, 13051 / 13009, 13055 / 6608 | 383.0, 373.8 / 370.2, 360.2 / 293.9 |
+           | Qwen3-8B Q8_0 | 1303.0, 1302.1 / 1304.8, 1304.1 / 817.4 | 75.1, 72.9 / 74.3, 74.0 / 54.1 |
+           | Qwen3-30B-A3B Q4_K_M | 1609.4, 1606.9 / 1580.4, 1606.7 / 1107.6 | 126.3, 120.0 / 123.7, 122.7 / 93.5 |
+
+           The 0.6B's tg128 was 3.5 percent lower on the branch in that round; four more ABBA blocks of `--p 64 --n 128 --r 10` give main 334, 375, 375, 367, 376, 366, 371 and 373 against the branch's 381, 375, 380, 380, 382, 371, 378 and 355, medians 372 and 379, so the round's gap was noise, and the kernels are the same bytes (above).
+           The host monitor (vmstat, the busiest processes and every card's use every 5 s, flags set before measuring) flagged another process at 100 percent CPU or more in 541 of 632 samples, mostly another agent's servers on other cards, and iowait above 5 percent in 39; no sample was discarded.
+           On the Radeon VII, `--r 5` in two ABBA blocks: pp512 main 3084, 3074, 3075, 3083 against 3079, 3066, 3079, 3071, tg128 main 202.4, 202.4, 202.6, 202.5 against 202.2, 202.3, 202.4, 202.3, and the Windows reference release at `335b21fcb` 1667 and 173.4; the PC's monitor saw no other process at a quarter of a core or more, and other processes (a game client, an editor) at 1 to 16 percent of a 3D engine in every sample.
          - Speed against llama.cpp's Vulkan build, the same file on the same card, tok/s: `bench --model M --device vulkan:0` with `--p 64 --n 32`, `--p 247 --n 128`, `--p 512`, `--p 4096`, `--p 16384` and `--p 1 --n 512 --depth 16384`, against `llama-bench -ngl 99 -p 64,247,512,4096 -n 32,128`, `-p 16384 -n 0` and `-p 0 -n 512 -d 16384`.
            llmx's tg32 and tg128 decode after its 64- and 247-token prompts, the reference's from an empty context.
-           On one MI50 at `c3a3eac`, two interleaved rounds (llmx, then the reference, twice) at one-minute load averages of 18 to 53, the reference llama.cpp `7ab4ee7ba` built for Vulkan in the same image; each cell is llmx's two rounds, then the reference's:
+           On one MI50 at `e8650d27`, one round, llmx then the reference, the reference llama.cpp `7ab4ee7ba`, llmx / reference:
 
            | cell | 0.8B Q4_K_M | 9B Q4_K_M | Qwen3.6-27B Q4_K_M | Qwen3.6-27B Q8_0 |
            |---|---:|---:|---:|---:|
-           | pp64 | 5478, 5295 / 2426, 2516 | 989, 984 / 258, 258 | 306.0, 305.6 / 82.4, 81.4 | 341.2, 344.0 / 84.2, 81.9 |
-           | pp247 | 8990, 8922 / 4026, 3954 | 1107, 1107 / 592, 582 | 335.8, 334.8 / 205.2, 204.9 | 381.6, 382.2 / 214.5, 205.8 |
-           | pp512 | 10182, 10095 / 5034, 4974 | 1193, 1190 / 708, 706 | 364.5, 364.2 / 214.6, 214.6 | 410.5, 411.9 / 229.1, 213.5 |
-           | pp4096 | 7506, 7508 / 4479, 4469 | 1097, 1095 / 683, 683 | 337.3, 337.1 / 207.5, 207.5 | 377.1, 377.6 / 234.7, 233.9 |
-           | pp16384 | 3717, 3721 / 3110, 3107 | 834, 833 / 587, 588 | 264.8, 264.7 / 180.3, 180.1 | 290.0, 290.2 / 203.8, 204.8 |
-           | tg32 | 332, 274 / 214, 195 | 88.2, 84.1 / 69.5, 70.7 | 30.09, 30.04 / 25.57, 25.49 | 19.37, 19.27 / 17.17, 16.98 |
-           | tg128 | 324, 314 / 235, 212 | 88.5, 86.7 / 72.7, 70.5 | 29.95, 29.87 / 26.22, 25.46 | 19.14, 19.21 / 17.07, 17.29 |
-           | tg512 at 16384 | 236.7, 237.7 / 185.4, 183.2 | 71.6, 75.3 / 64.5, 66.0 | 25.40, 25.32 / 24.01, 24.04 | 17.17, 17.14 / 15.79, 16.36 |
+           | pp64 | 4601 / 2589 | 970.5 / 258.9 | 304.4 / 76.0 | 343.6 / 61.1 |
+           | pp247 | 8798 / 3266 | 1108 / 593.2 | 335.6 / 178.8 | 383.5 / 206.9 |
+           | pp512 | 9630 / 5024 | 1187 / 707.2 | 364.4 / 177.6 | 413.1 / 224.2 |
+           | pp4096 | 7476 / 4453 | 1096 / 674.4 | 337.0 / 205.1 | 378.1 / 233.9 |
+           | pp16384 | 3685 / 3104 | 831.6 / 585.1 | 264.0 / 179.7 | 289.4 / 204.8 |
+           | tg32 | 268.2 / 195.3 | 85.7 / 71.2 | 29.9 / 24.6 | 23.5 / 16.9 |
+           | tg128 | 296.9 / 204.5 | 84.8 / 71.6 | 29.5 / 25.5 | 23.4 / 17.2 |
+           | tg512 at 16384 | 221.2 / 188.0 | 73.6 / 64.9 | 25.4 / 24.6 | 20.6 / 15.8 |
 
-           On the Radeon VII, one round before `c3a3eac` with its kernels, against llama.cpp's Windows Vulkan release at `335b21fcb`, llmx / reference:
+           On the Radeon VII at `e8650d27`, two rounds, against llama.cpp's Windows Vulkan release at `335b21fcb`, llmx's two rounds / the reference's:
 
            | cell | 0.8B Q4_K_M | 9B Q4_K_M |
            |---|---:|---:|
-           | pp64 | 1179 / 306 | 209.5 / 46.0 |
-           | pp247 | 2311 / 842 | 246.2 / 91.9 |
-           | pp512 | 2685 / 1140 | 286.0 / 104.1 |
-           | pp4096 | 2175 / 735 | 270.0 / 90.1 |
-           | pp16384 | 1316 / 355 | 225.5 / 68.7 |
-           | tg32 | 212.6 / 50.3 | 56.8 / 25.2 |
-           | tg128 | 211.6 / 50.8 | 56.0 / 13.7 |
-           | tg512 at 16384 | 171.3 / 23.5 | 47.4 / 33.0 |
+           | pp64 | 1153, 1164 / 572.8, 573.3 | 209.8, 209.4 / 47.4, 47.8 |
+           | pp247 | 2331, 2331 / 840.4, 836.7 | 249.0, 248.4 / 94.2, 95.0 |
+           | pp512 | 2705, 2696 / 1140, 1151 | 292.3, 284.7 / 107.6, 108.1 |
+           | pp4096 | 2189, 2196 / 776.5, 777.5 | 271.9, 267.6 / 93.6, 93.5 |
+           | pp16384 | 1318, 1321 / 357.8, 358.2 | 227.2, 225.7 / 71.5, 71.6 |
+           | tg32 | 209.6, 210.2 / 188.4, 190.3 | 57.4, 56.7 / 43.5, 43.9 |
+           | tg128 | 207.0, 206.8 / 50.8, 50.8 | 57.0, 55.5 / 17.2, 17.3 |
+           | tg512 at 16384 | 168.6, 168.7 / 24.1, 24.1 | 49.1, 49.1 / 34.6, 34.6 |
 
-           Every cell is ahead of the reference on both cards; the closest are the 27B's tg512 at 16384 on the MI50, 5 to 9 percent.
-           The reference's tg128 on the 9B there, 13.7 tok/s, falls below its own tg32 of 25.2, so its decode cells on that card are a weak comparison.
-       - **Left:**
-         - The Radeon VII's runs at the final commit, after the rebase: `backend-vulkan`, the suite's `qwen35`, `cli`, `threads` and `chat` components, the HF check alone and with the CPU, slices, the Qwen3 identity and its speed table.
-         - The two open gate points, each the user's call: the MI50's top-5 of 4 on the 0.8B Q8_0's `chat-00`, and the 9B's 16k check against its margin (above).
-         - The rebase onto main once `feat/qwen35-model` merges, with the device tier rerun on the rebased head.
+           Every cell is ahead of the reference on both cards; the closest are the 27B Q4_K_M's tg512 at 16384 on the MI50, 3 percent, and the 0.8B's tg32 on the Radeon VII, 10 percent.
+           The reference's decode on the Radeon VII falls from tg32 to tg128 (the 0.8B 188 to 51, the 9B 43.5 to 17.2), so its decode cells on that card are a weak comparison.
+       - **Gates on the precision fix** (2026-09-29): the step rebased onto `fix/mi50-prompt-activations` (MI50 prompt activations at 16 bits, above), which sits on main `7af358e9`, at head `27c01bd8`; the rebase met no code, and the gated attention's test takes the fix's stated bound for the 16-bit tile. The qwen35 gates reran unchanged on one MI50 each, the fix's head the base; one-minute load averages 10 to 32, a timing round and the other developer's work beside them.
+         - CTest 38 of 38 on the MI50, 34 of 34 on the CPU-only build; the suite on the MI50 with `--require-tools` passes every component; on the Radeon VII CTest 38 of 39 (`hub-pull`'s path limit, as before), the step's components, the 0.8B Q8_0 and 4B Q4_K_M HF checks alone and with the CPU at 1:1, slices and the 14 Qwen3 cells against the fix all pass.
+         - HF on the MI50, 512-token windows and f16 caches unless named:
+
+           | file | top-1 | top-5 lowest (bound) | largest logit error | NLL delta whole, batched / per token (bound) | NLL delta in windows, batched / per token (bound) |
+           |---|---|---:|---:|---:|---:|
+           | 0.8B Q8_0 | 8 of 8 | 5 (5) | 0.17 | 0.0005 / 0.0005 (0.02) | 0.0003 / 0.0003 (0.02) |
+           | 0.8B Q8_0, f32 caches | 8 of 8 | 5 (5) | 0.17 | 0.0005 / 0.0005 (0.02) | 0.0003 / 0.0003 (0.02) |
+           | 0.8B Q8_0, 4096-token windows | 8 of 8 | 5 (5) | 0.17 | 0.0038 / 0.0038 (0.02) | 0.0034 / 0.0034 (0.02) |
+           | 0.8B Q4_K_M, against its model | 8 of 8 | 4 (4) | 1.82 | 0.0088 / 0.0074 (0.02) | 0.0228 / 0.0245 (0.025) |
+           | 4B Q4_K_M | 8 of 8 | 4 (4) | 2.20 | 0.0391 / 0.0350 (0.07) | 0.0472 / 0.0471 (0.08) |
+           | 4B Q4_K_M, 4096-token windows | 8 of 8 | 4 (4) | 2.20 | 0.0262 / 0.0265 (0.07) | 0.0260 / 0.0256 (0.08) |
+           | 9B Q4_K_M, layered | 6 of 6 | | | 0.0177 / 0.0154 (0.13) | 0.0450 / 0.0446 (0.25) |
+           | Qwen3.6-27B Q4_K_M, layered | 6 of 6 | | | 0.0099 / 0.0115 (0.13) | 0.0148 / 0.0100 (0.25) |
+
+           `chat-00` passes on the 0.8B Q8_0 at every window length and cache type, its largest logit error on HF's top ten 0.17 against 0.48 with the 8-bit activations; the 0.8B Q8_0's cells are the CPU's.
+           The least headroom is the 0.8B Q4_K_M's windowed NLL read one token at a time, 0.0245 against 0.025, where the CPU gives 0.0238 and the 8-bit activations gave 0.0232; the bound stays.
+         - Both raw 16k sequences of the 9B Q4_K_M against HF on the file's own weights: 512 of 512 top-1, errors on HF's top five mean 0.002 and at most 0.134 logits on each, against 504 and 506 of 512 and up to 8.2 at `e8650d27`.
+         - The 16k check in its CLI mode, the CPU reading each device run's tokens: the 9B Q4_K_M the same 512 tokens on two fresh runs, the CPU's top choice at 508, largest gap 0.057 logits (507 and 0.084 at `e8650d27`); the 0.8B Q8_0 the same 225 tokens twice, ending at its end token, the CPU's top choice at all 225; Qwen3.6-27B Q4_K_M the same 512 tokens twice, the CPU's top choice at 510, largest gap 0.054 logits (510 and 0.033 at `e8650d27`).
+         - Bitwise slice invariance on the 0.8B Q8_0 and the 9B Q4_K_M, and `llmx-split-check` over two MI50s, the 0.8B in 2 and 8 stages, the 9B and the 27B Q4_K_M: bit-identical.
+         - Qwen3 identity against the fix: the 21 cells of Qwen3-0.6B and 8B Q8_0 and Qwen3-30B-A3B Q4_K_M give the fix's bytes on the MI50 and on the CPU.
+         - Speed: the prompt cells the fix puts below the reference are its open speed gate (MI50 prompt activations at 16 bits, above), which `perf/mi50-prompt-speed` takes up next; the qwen35 cells among them are the 0.8B Q4_K_M's pp16384 and the 9B's and the 27B's pp247 to pp16384.
+       - **Markdown read at the rebased head:** the 14 pages the branch changes were read in full against the code; every other page, byte-identical to main, whose pages were read against the code for split step 4 and step 4's merges, was searched for each concept this step changes (qwen35 on a device, `implements` and the refusing forms, `norm_rope_rows`, head widths, `generate --file` and `--chat`, `logits --chat`, the 16k check and `serve`'s refusal).
+         Every finding was rechecked at the cited code: eight fixed (pages still saying qwen35 runs only on the CPU or that the device refuses its ops, `norm_rope_rows` in live text, and the head-width rule), and `norm_rope_rows` kept in two plan rows that record a finished step; the list, one row a finding, is kept with the gate record.
+       - **Left:** the hosted run at the head and the fast-forward.
+         The MI50's `chat-00`, which held a top-5 overlap of 4 against its bound of 5 at `e8650d27` (above), passes on the precision fix without a change to any bound, as the user asked (2026-09-29: this step merges only with its gates passing unchanged, which the other developer agreed to).
        - **Not in this step:**
          - The checkpoint row of the recurrence and the conv, which the plan lists here; it has no caller before step 8c's checkpoints, so it arrives with them.
          - Attention skipping its output's activation copy where the output gate follows, which the plan lists among the copy rules; the gate's dispatch drops the copy's tag and writes its own, so this is only the copy's cost, a small part of an attention dispatch, and it would need an argument on `attention` that Qwen3 does not use.

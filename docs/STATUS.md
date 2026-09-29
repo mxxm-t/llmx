@@ -21,6 +21,18 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 - **Merged** at `b5cc467a` after hosted run 36586584029 passed on it (every job, the HF reference included), main having not moved from `660b0aed`.
 - **Gotchas:** under the AMD proprietary driver the prototype's restructured code changed the bits of every build and made one column 25 percent slower, so the two-row builds are a separate path and a device takes them only where its profile sets `row_decode_cols`. A server measured on cores saturated by other work showed a fifth of the gain `bench --seqs 64` showed, since a faster pass leaves the host less time; server timing needs idle cores.
 
+## MI50 prompt activations at 16 bits (2026-09-29, branch fix/mi50-prompt-activations)
+
+- **Goal:** on an MI50, whose profile takes quantized products through the integer dot, the prompt tile and the Q8_0 row kernel read the activations' 16-bit twin instead of 8-bit copies, so the device meets HF on a file's own weights at depth and qwen35 step 5 passes its unchanged gates (block of that step, below); the cost is measured against main and the reference and decided with the user.
+- **Why:** the 8-bit activations part from HF by up to 8.2 logits at 16k on the 9B Q4_K_M and miss the 0.8B Q8_0's `chat-00` top-5 bound, while float activations meet HF within 0.08 (step 5's record); the CPU's prompt path parts from HF the same way, up to 16 logits at one position, and is a separate matter for the CPU.
+- **Done (prototype on `wip/mi50-prompt16`, not for merge):**
+  - `matmul_tile_q.comp` for every type reads the 16-bit twin, its quants widened to signed 16-bit pairs and multiplied by two two-wide 16-bit dots; `matmul_vec_q8.comp` reads the twin's bytes through the four-wide dot, from the other developer's diagnostic port; producers write the twin in place of the tile's 8-bit copy.
+  - Precision on one MI50, stacked on step 5: the 0.8B Q8_0 passes its HF check with f16 and f32 caches, `chat-00` included; the raw 16k 9B Q4_K_M sequence meets HF on the file's own weights at every top-1, errors on HF's top five mean 0.002 and at most 0.134 logits, against 0.138 and 6.47 on main's path.
+  - Cost, pp512 on one MI50, main then the prototype, tok/s: Qwen3-0.6B Q8_0 13066 / 8007, Qwen3-8B Q8_0 1303 / 726, Qwen3-30B-A3B Q4_K_M 1603 / 820, Qwen3-0.6B Q4_K_M 11785 / 7305, Qwen3.5-0.8B Q8_0 11124 / 7033, Qwen3.5-9B Q4_K_M 1191 / 544; decode level. The reference's pp512 on the same card is 6608, 817 and 1108 for the first three and 707 for the 9B, so the 8B, the 30B-A3B and the 9B would fall below it.
+  - A hybrid that keeps the 8-bit tile for batches an RMSNorm wrote costs less (8B 1002, 30B-A3B 855, 9B 805) and leaves errors up to 2.3 logits at 16k, so it is no answer.
+- **Left:** the user's call on the cost; then the failing test first (the integer tile against a double reference of the unquantized inputs within the 16-bit twin's bound), the fix, the removal of the 8-bit tile copy's plumbing, and the device tier on both cards.
+- **Gotchas:** a prompt shorter than the tile crossover (32 rows at the 0.8B's width) takes the row kernel, so `chat-00` needs the Q8_0 row kernel's twin, not the tile's.
+
 ## Fixes from the review of 2026-09-28 (2026-09-29, merged at `41b19afc` and `471841b9`)
 
 Each fix landed with its failing test first where the fix changes behaviour, on a branch of its own, and every finding the Markdown and code review raised was rechecked at the cited code before it was fixed or kept.

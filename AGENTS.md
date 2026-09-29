@@ -342,8 +342,8 @@ It does not establish recovery of partially executed model sessions.
 
 `backend-vulkan` exists only in a build with `LLMX_HAS_BACKEND_VULKAN=ON`.
 It opens device 0, round-trips buffers through adopt, copy, write and read, checks that a weight written in pieces into `alloc_weight` storage, or, where the device imports host pages, copied in pieces into it out of them, holds its bytes and gives the products of the same weight adopted, and that memory off the page or a part of a page is not imported, checks zeroed allocations, host-visible memory read in place after a wait, monotonic tickets and the refusal of a KV budget that overflows, then runs every implemented kernel against the CPU backend on random inputs with bounds fixed in the test: exact where the arithmetic is the same operation in the same order, a stated relative tolerance where a transcendental or a reduction order differs.
-The row kernels read quantized rows against 16-bit integer activations, and on
-a device whose profile prefers the integer dot they and the wide tile read 8-bit
+The row kernels and the integer-dot tile read quantized rows against 16-bit integer activations, and on
+a device whose profile prefers the integer dot the row kernels of every quantized type but Q8_0 read 8-bit
 ones, except the output head's Q4_0, Q4_1 and Q6_K rows, which keep the 16-bit ones, so the CPU reference is fed the activations quantized the same way and
 the comparison is about the dots; the norm, SiLU and attention kernels' twin
 of their output is checked through a matmul from it. Among the kernel checks it
@@ -375,7 +375,7 @@ It exits 77, which CTest reports as skipped, when there is no loader, the loader
 `vulkan-quantization` reads the packed activation buffers before consumer arithmetic.
 It checks both 8-bit and 16-bit twins against the original finite inputs, using a representable-scale reconstruction bound independent of the runtime quantizer.
 Inputs cover every f32 exponent, reciprocal and normalization boundaries, seeded finite peaks and mixed exponents within a block.
-It checks the stored whole and half sums against double products of the encoded scale and integer sums, output guards and alignment padding, and exact agreement of the word-wise and lane-wise 8-bit writers.
+It checks the stored whole and half sums against double products of the encoded scale and integer sums, output guards and alignment padding, and exact agreement of the word-wise and lane-wise 16-bit writers.
 It also sends 285 peaks, one block of each at width 32 and two at width 64, through raw Q8_0 identity matrices, directly and through SiLU and RMSNorm, comparing to each producer's actual float output.
 On a device with both float-preservation properties the first backend's 82080 reconstructed outputs are bounded by half an 8-bit step plus float-rounding allowance, with the independent f32 scale rounded upward to fit the block peak and floored at the smallest positive f32.
 On devices without both 32-bit float-preservation properties, consumer cases needing subnormal scales are explicitly skipped; the packed-twin checks still cover every finite exponent.

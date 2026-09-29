@@ -247,8 +247,8 @@ const uint32_t kSpvMatmulRowQ4Dot8[] = {
 const uint32_t kSpvMatmulTile[] = {
 #include "vulkan/matmul_tile.inc"
 };
-const uint32_t kSpvQuantizeX8[] = {
-#include "vulkan/quantize_x8.inc"
+const uint32_t kSpvQuantizeXW[] = {
+#include "vulkan/quantize_xw.inc"
 };
 const uint32_t kSpvMatmulTileQ[] = {
 #include "vulkan/matmul_tile_q.inc"
@@ -294,7 +294,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_QUANTIZE_X, K_MATMUL_ROW_Q8W, K_MATMUL_TILE_TALL,
                 K_MATMUL_ROW_Q4_DOT,
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
-                K_QUANTIZE_X8, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
+                K_QUANTIZE_XW, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
                 K_MATMUL_TILE_Q8, K_MATMUL_TILE_Q8_TALL,
                 K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_MATMUL_ROW_Q4_DOT8,
                 K_ATTENTION_G4, K_ATTENTION_K16_G4, K_ATTENTION_V16_G4, K_ATTENTION_KV16_G4,
@@ -319,6 +319,16 @@ inline bool is_row_kernel(KernelId id) {
     case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
     case K_MATMUL_ROW_Q4_DOT:
     case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT: case K_MATMUL_VEC_Q8: case K_MATMUL_ROW_K_DOT8: case K_MATMUL_ROW_Q4_DOT8:
+        return true;
+    default: return false;
+    }
+}
+
+// Whether a kernel id is a tile kernel: they take their row count as specialization constant 0 and write only their outputs.
+inline bool is_tile_kernel(KernelId id) {
+    switch (id) {
+    case K_MATMUL_TILE: case K_MATMUL_TILE_TALL: case K_MATMUL_TILE_Q: case K_MATMUL_TILE_Q_TALL:
+    case K_MATMUL_TILE_Q6: case K_MATMUL_TILE_Q6_TALL: case K_MATMUL_TILE_Q8: case K_MATMUL_TILE_Q8_TALL:
         return true;
     default: return false;
     }
@@ -450,7 +460,7 @@ const char* const kKernelNames[K_COUNT] = {
     "quantize_x", "matmul_row_q8w", "matmul_tile_tall",
     "matmul_row_q4_dot",
     "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
-    "quantize_x8", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
+    "quantize_xw", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
     "matmul_tile_q8", "matmul_tile_q8_tall",
     "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group", "matmul_row_k_dot8", "matmul_row_q4_dot8",
     "attention_g4", "attention_k16_g4", "attention_v16_g4", "attention_kv16_g4",
@@ -494,7 +504,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 12, kMatmulRowCounts},
     {kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 12, kMatmulRowCounts},
     {kSpvMatmulRowKDot, sizeof(kSpvMatmulRowKDot), 12, kMatmulRowCounts},
-    {kSpvQuantizeX8, sizeof(kSpvQuantizeX8), 2, nullptr},
+    {kSpvQuantizeXW, sizeof(kSpvQuantizeXW), 2, nullptr},
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts},
@@ -1212,7 +1222,6 @@ public:
     // The tags name a buffer by its handle, which a new buffer can take over once the buffer it named is freed, so a new buffer drops them as a write from the host does.
     void drop_tags() {
         xq_tag_ = XqTag{};
-        x8_tag_ = X8Tag{};
         group_tag_ = GroupTag{};
     }
 
@@ -1431,14 +1440,13 @@ public:
     void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, RowRuns runs = {}) override {
         if (!n) return;
         const bool quant = n % 32 == 0;
-        // Where the integer-dot tile reads dst next, its 8-bit copy in place of the twin, four values a lane (shaders/silu_mul.comp).
+        // Where the integer-dot tile reads dst next, the twin written four values a lane, without the 8-bit twin (shaders/silu_mul.comp).
         const size_t rows = runs.n ? runs.runs[runs.n - 1].end : 0;
         const bool tile = quant && rows && n % rows == 0 && tile_reads(n / rows, rows, runs);
-        const uint32_t pc[4] = {u32(n), tile ? 2u : quant ? 1u : 0u, u32(tile ? n / rows : 0), u32(tile ? x8_row(rows) : 0)};
-        dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), tile ? x8_for(x8_row(rows) * (n / rows)) : quant ? xq_for(n) : bind(dst)}, pc, sizeof(pc),
+        const uint32_t pc[2] = {u32(n), tile ? 2u : quant ? 1u : 0u};
+        dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? xq_for(n) : bind(dst)}, pc, sizeof(pc),
                  groups(tile ? n / 4 : n, 256), 1, twin_variant());
-        if (tile) made_x8(bind(dst), n / rows, rows);
-        else if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_};
+        if (quant) xq_tag_ = XqTag{bind(dst), n, !tile && want_x8_};
     }
 
     void gather_rows(Slice dst, CSlice src, size_t width, const uint32_t* rows,
@@ -1463,16 +1471,15 @@ public:
         // Several workgroups a row when the output does not overlap the input (shaders/rms_norm_rows.comp), up to what fills the device: each reads the whole row for its sum, so a pass of many rows takes one a row.
         const bool overlap = dst.buffer == src.buffer &&
                              dst.offset < src.offset + rows * stride && src.offset < dst.offset + rows * stride;
-        // Where the integer-dot tile reads dst next, its 8-bit copy in place of the twin, four values a lane.
+        // Where the integer-dot tile reads dst next, the twin written four values a lane, without the 8-bit twin.
         const bool tile = quant && !overlap && tile_reads(n, rows, runs);
         const size_t fill = (4 * dev_->caps.compute_units + rows - 1) / rows;
         const size_t chunks = overlap ? 1 : std::max<size_t>(1, std::min((tile ? n / 4 + 255 : n + 255) / 256, fill));
-        struct { uint32_t rows, n, stride; float eps; uint32_t quant, chunks, xrow; }
-            pc{u32(rows), u32(n), u32(stride), eps, tile ? 2u : quant ? 1u : 0u, u32(chunks), u32(x8_row(rows))};
-        dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), tile ? x8_for(x8_row(rows) * n) : quant ? xq_for(rows * n) : bind(dst)},
+        struct { uint32_t rows, n, stride; float eps; uint32_t quant, chunks; }
+            pc{u32(rows), u32(n), u32(stride), eps, tile ? 2u : quant ? 1u : 0u, u32(chunks)};
+        dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), quant ? xq_for(rows * n) : bind(dst)},
                  &pc, sizeof(pc), u32(rows * chunks), 1, twin_variant());
-        if (tile) made_x8(bind(dst), n, rows);
-        else if (quant) xq_tag_ = XqTag{bind(dst), rows * n, want_x8_};
+        if (quant) xq_tag_ = XqTag{bind(dst), rows * n, !tile && want_x8_};
     }
 
     void norm_rope_rows(Slice x, size_t rows, size_t stride, size_t heads, CSlice w,
@@ -1628,8 +1635,7 @@ public:
             const size_t gy = (nbatch + 63) / 64;
             if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
                 throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
-            // On a device whose integer dot is native, quantized types take the integer-dot tile (shaders/matmul_tile_q.comp), X quantized to 8 bits once for every projection that needs it.
-            VkDescriptorBufferInfo x8{};
+            // On a device whose integer dot is native, quantized types take the integer-dot tile (shaders/matmul_tile_q.comp), which reads X's 16-bit twin, made once for every projection that needs it.
             const size_t nblk = nin / 32;
             // The float tile, one projection a dispatch.
             for (const Projection* pr : live) {
@@ -1666,7 +1672,7 @@ public:
                     dispatch(kernel, {bind(pr->out), bind(pr->data), wf, bind(X), bind(pr->data), bind(X)},
                              pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, small);
                 }
-                if (overlaps_x8(bind(pr->out), nbatch * pr->rows)) x8_tag_ = X8Tag{};
+                if (overlaps_twin(bind(pr->out), nbatch * pr->rows)) xq_tag_ = XqTag{};
             }
             // The integer-dot tile takes the projections of one type in one dispatch, since each alone can be too small to fill the device.
             std::vector<const Projection*> pending;
@@ -1677,13 +1683,7 @@ public:
                 for (const Projection* pr : pending)
                     (pr->type == pending[0]->type ? group : rest).push_back(pr);
                 pending.swap(rest);
-                if (!x8.buffer) {
-                    x8 = x8_for(x8_row(nbatch) * nin);
-                    if (!has_x8(X, nin, nbatch)) {
-                        const uint32_t qpc[3] = {u32(nbatch * nin), u32(nin), u32(x8_row(nbatch))};
-                        dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(nbatch * nin / 4, 256));
-                    }
-                }
+                const VkDescriptorBufferInfo xt = tile_twin(X, nbatch * nin);
                 const QTile t = qtile(group, gy, nin);
                 // The split is the one the rows' whole prompt would take (matmul_runs).
                 const size_t st = split_tiles ? split_tiles : gy;
@@ -1693,14 +1693,14 @@ public:
                 const size_t kper = split_blocks(gxs * st, nblk);
                 const size_t parts = (nblk + kper - 1) / kper;
                 const uint32_t pc[15] = {u32(nin), u32(nbatch), group[0]->type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
-                                         u32(group.size()), t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], 0, 0, u32(x8_row(nbatch))};
+                                         u32(group.size()), t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], 0, 0, u32(nbatch)};
                 const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
                 const int small = t.height == kTileRowsSmall ? 1 : 0;
                 if (parts > 1) {
                     const size_t n = nbatch * t.rows;
                     if (!parts_ || parts_->size() < parts * n * sizeof(float)) grow(parts_, parts * n * sizeof(float));
                     const VkDescriptorBufferInfo pb{parts_->handle(), 0, VK_WHOLE_SIZE};
-                    dispatch(t.kernel, {pb, pb, pb, bind(a.data), bind(b.data), bind(c.data), x8, x8, x8}, pc, sizeof(pc), u32(t.gx),
+                    dispatch(t.kernel, {pb, pb, pb, bind(a.data), bind(b.data), bind(c.data), xt, xt, xt}, pc, sizeof(pc), u32(t.gx),
                              u32(gy * parts), small);
                     const size_t n0 = nbatch * a.rows, n1 = group.size() > 1 ? nbatch * b.rows : 0,
                                  n2 = group.size() > 2 ? nbatch * c.rows : 0;
@@ -1711,9 +1711,11 @@ public:
                     dispatch(K_MATMUL_REDUCE, {bind(a.out), bind(b.out), bind(c.out), pb}, rc, sizeof(rc),
                              u32(start2 + groups(n2, 256)));
                 } else {
-                    dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8, x8},
+                    dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), xt, xt, xt},
                              pc, sizeof(pc), u32(t.gx), (uint32_t)gy, small);
                 }
+                for (const Projection* pr : group)
+                    if (overlaps_twin(bind(pr->out), nbatch * pr->rows)) xq_tag_ = XqTag{};
             }
             return;
         }
@@ -1907,7 +1909,6 @@ public:
         dispatch(K_MOE_ROUTE, {bind(scores), bind(ids), bind(weights)}, pc, sizeof(pc), u32(rows));
         group_tag_ = GroupTag{};
         if (overlaps_twin(bind(ids), rows * k) || overlaps_twin(bind(weights), rows * k)) xq_tag_ = XqTag{};
-        if (overlaps_x8(bind(ids), rows * k) || overlaps_x8(bind(weights), rows * k)) x8_tag_ = X8Tag{};
     }
 
     // Calls `each(first, count, tile)` over the token rows of a routed call, a call per stretch of rows that take the same kernel.
@@ -2006,16 +2007,12 @@ public:
             return;
         }
         if (integer_dot_tile(type)) {
-            const VkDescriptorBufferInfo x8 = x8_for(x8_row(xcols) * nin);
-            if (!has_x8(X, nin, xcols)) {
-                const uint32_t qpc[3] = {u32(xcols * nin), u32(nin), u32(x8_row(xcols))};
-                dispatch(K_QUANTIZE_X8, {bind(X), x8}, qpc, sizeof(qpc), groups(xcols * nin / 4, 256));
-            }
+            const VkDescriptorBufferInfo xt = tile_twin(X, xcols * nin);
             const QTile t = qtile(live, max_tiles, nin);
             const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
             const uint32_t pc[15] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),
-                                     t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], u32(per), order0, u32(x8_row(xcols))};
-            dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), x8, x8, tab},
+                                     t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], u32(per), order0, u32(xcols)};
+            dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), xt, xt, tab},
                      pc, sizeof(pc), u32(t.gx), u32(max_tiles), t.height == kTileRowsSmall ? 1 : 0);
         } else {
             for (const Projection* pr : live) {
@@ -2027,10 +2024,8 @@ public:
                          pc, sizeof(pc), groups(pr->rows, height), u32(max_tiles), height == kTileRowsSmall ? 1 : 0);
             }
         }
-        for (const Projection* pr : live) {
-            if (bind(pr->out).buffer == xq_tag_.x.buffer) xq_tag_ = XqTag{};
-            if (overlaps_x8(bind(pr->out), entries * pr->rows)) x8_tag_ = X8Tag{};
-        }
+        for (const Projection* pr : live)
+            if (overlaps_twin(bind(pr->out), entries * pr->rows)) xq_tag_ = XqTag{};
     }
 
     // Whether `floats` floats at a binding overlap the input the activations' twin was made from.
@@ -2064,8 +2059,18 @@ public:
     static size_t x8_base_bytes(size_t n) { return ((n / 2 + n / 8 + 63) & ~size_t(63)) * 4; }
     // Kernels reading the 8-bit twin; Q4_0, Q4_1 and Q6_K output heads select 16-bit variants for ranking precision (docs/VULKAN.md).
     static bool reads_x8(KernelId id) {
-        return id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_ROW_K_DOT8 || id == K_MATMUL_ROW_Q4_DOT8 ||
-               id == K_MATMUL_VEC_Q8;
+        return id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_ROW_K_DOT8 || id == K_MATMUL_ROW_Q4_DOT8;
+    }
+
+    // The 16-bit twin of an n-value batch the integer-dot tile reads: the one a producer wrote, or one made here four values a lane (shaders/quantize_xw.comp).
+    VkDescriptorBufferInfo tile_twin(CSlice X, size_t n) {
+        const VkDescriptorBufferInfo xf = bind(X), xt = xq_for(n);
+        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset)) {
+            const uint32_t pc[1] = {u32(n)};
+            dispatch(K_QUANTIZE_XW, {xf, xt}, pc, sizeof(pc), groups(n / 4, 256));
+            xq_tag_ = XqTag{xf, n, false};
+        }
+        return xt;
     }
 
     // Whether a type's wide matmul goes through the integer-dot tile on this device; profile_for prefers the integer dot only where the device has it.
@@ -2143,26 +2148,12 @@ public:
         size_t parts = std::min((target + workgroups - 1) / workgroups, std::max<size_t>(1, nblk / floor_blocks));
         if (parts <= 1) return nblk;
         size_t kper = (nblk + parts - 1) / parts;
-        kper = (kper + 1) & ~size_t(1);   // a split call's parts are a multiple of the general tile's STEP; the Q8_0 build's step of four reads blocks past the part as zero
+        kper = (kper + 1) & ~size_t(1);   // a split call's parts are a multiple of the tile's STEP of two
         return std::min(kper, nblk);
     }
 
-    // The columns a row of the tile's 8-bit copy of an nbatch-column batch holds (shaders/quantize_x8.comp): nbatch padded to an odd number of four-block, 128-byte runs, so rows start on a cache line and are never a multiple of 256 bytes apart.
-    // Unpadded rows at 512 columns are 16 KB apart, which slowed every writer of the copy (docs/VULKAN.md).
-    static size_t x8_row(size_t nbatch) { return (((nbatch + 3) / 4) | 1) * 4; }
-
-    // The scratch the tile's 8-bit copy of n values, a batch x8_row columns wide, lives in (shaders/quantize_x8.comp), reused stream-ordered.
-    VkDescriptorBufferInfo x8_for(size_t n) {
-        const size_t bytes = n + (n / 32) * 8;
-        if (!x8_ || x8_->size() < bytes) {
-            grow(x8_, bytes);
-            x8_tag_ = X8Tag{};
-        }
-        return VkDescriptorBufferInfo{x8_->handle(), 0, VK_WHOLE_SIZE};
-    }
-
     // Whether the matmul that reads an nbatch x nin batch next, with these runs, takes one integer-dot tile call over all of it whatever its weights' type, dense or routed.
-    // Then the batch's producer writes the tile's 8-bit copy in place of the twin (shaders/xquant.glsl, xquant8_word) and the call skips quantize_x8.
+    // Then the batch's producer writes the twin four values a lane (shaders/xquant.glsl, xquant_word), without the 8-bit twin the row kernels alone read, and the call reads it as it is.
     // That holds when every run's prompt reaches every type's tile threshold and all runs take one split, which is when matmul_runs and expert_runs make a single call; any other batch keeps the twin and the pass.
     // The copy's values are the pass's bit for bit, so which of the two makes it changes no result.
     bool tile_reads(size_t nin, size_t nbatch, RowRuns runs) const {
@@ -2174,23 +2165,6 @@ public:
         for (size_t i = 0; i < runs.n; ++i)
             if (runs.runs[i].extent < from || split_tiles_of(runs.runs[i].extent) != split) return false;
         return true;
-    }
-
-    // A producer wrote the tile's 8-bit copy of the nbatch x nin batch at x into the x8 scratch, and no twin.
-    void made_x8(const VkDescriptorBufferInfo& x, size_t nin, size_t nbatch) {
-        x8_tag_ = X8Tag{x, nin, nbatch};
-        xq_tag_ = XqTag{};
-    }
-    bool has_x8(CSlice X, size_t nin, size_t nbatch) {
-        const VkDescriptorBufferInfo x = bind(X);
-        return x8_tag_.nin == nin && x8_tag_.nbatch == nbatch && x8_tag_.x.buffer == x.buffer && x8_tag_.x.offset == x.offset;
-    }
-    // Whether `floats` floats at a binding overlap the batch the scratch's 8-bit copy was made from.
-    bool overlaps_x8(const VkDescriptorBufferInfo& b, size_t floats) const {
-        if (!x8_tag_.nin || b.buffer != x8_tag_.x.buffer) return false;
-        const VkDeviceSize end = b.offset + floats * sizeof(float);
-        const VkDeviceSize tag_end = x8_tag_.x.offset + x8_tag_.nin * x8_tag_.nbatch * sizeof(float);
-        return b.offset < tag_end && x8_tag_.x.offset < end;
     }
 
     // A stream-ordered scratch outgrown mid-pass: recorded commands still name the old buffer, so it retires with the ring slot.
@@ -2256,17 +2230,17 @@ public:
             check_storage(s, n_head_kv, head_dim);
             size_t tiles = 0;
             for (const Placed& pv : wide) tiles += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
-            // With every view here and the integer-dot tile reading the output next, the tile's 8-bit copy of it (shaders/attention_tile.comp).
+            // With every view here and the integer-dot tile reading the output next, the output's twin written beside it (shaders/attention_tile.comp).
             std::vector<RowRun> vruns;
             for (const Placed& pv : placed) vruns.push_back(RowRun{pv.row0 + pv.view->nq, pv.view->extent});
             const bool tile = narrow.empty() && tile_reads(qstride, rows, RowRuns{vruns.data(), vruns.size()});
-            struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, xrow; }
-                tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(x8_row(rows))};
+            struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows; }
+                tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(rows)};
             dispatch(kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
-                      args(t.words.data(), t.words.size() * sizeof(uint32_t)), tile ? x8_for(x8_row(rows) * qstride) : bind(out)},
+                      args(t.words.data(), t.words.size() * sizeof(uint32_t)), tile ? xq_for(rows * qstride) : bind(out)},
                      &tc, sizeof(tc), u32(tiles * (size_t)n_head));
-            if (tile) made_x8(bind(out), qstride, rows);
+            if (tile) xq_tag_ = XqTag{bind(out), rows * qstride, false};
         }
         if (!narrow.empty()) {
             ViewTable t = view_table(layer, narrow, false);
@@ -2526,9 +2500,7 @@ private:
             ci.stage.module = k.module;
             ci.stage.pName = "main";
             // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
-            const bool tile = id == K_MATMUL_TILE || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q ||
-                              id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6 || id == K_MATMUL_TILE_Q6_TALL ||
-                              id == K_MATMUL_TILE_Q8 || id == K_MATMUL_TILE_Q8_TALL;
+            const bool tile = is_tile_kernel(id);
             const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL ||
                                    id == K_MATMUL_TILE_Q8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
@@ -2571,12 +2543,10 @@ private:
         Kernel& k = kernel(id, variant);
         if (buffers.size() != k.buffers) throw std::logic_error("vulkan: kernel binding count");
         // Routing and grouping write only ids, weights and their own table; route_experts checks those against the twin itself.
-        if (!is_row_kernel(id) && id != K_QUANTIZE_X && id != K_RMS_NORM_ROWS && id != K_SILU_MUL &&
-            id != K_MOE_ROUTE && id != K_MOE_GROUP)
+        // A tile call, such as a router's before its experts, writes only its outputs, which the call checks against the twin itself.
+        if (!is_row_kernel(id) && id != K_QUANTIZE_X && id != K_QUANTIZE_XW && id != K_RMS_NORM_ROWS && id != K_SILU_MUL &&
+            id != K_MOE_ROUTE && id != K_MOE_GROUP && id != K_MATMUL_REDUCE && !is_tile_kernel(id))
             xq_tag_ = XqTag{};
-        // A producer's 8-bit copy lasts through a float tile call, such as a router's before its experts, whose outputs the call checks against it, and through routing, which checks its own.
-        if (id != K_MATMUL_TILE && id != K_MATMUL_TILE_TALL && id != K_MATMUL_REDUCE && id != K_MOE_ROUTE && id != K_MOE_GROUP)
-            x8_tag_ = X8Tag{};
         if (push_bytes > kPushBytes) throw std::logic_error("vulkan: push constants exceed 128 bytes");
         for (const auto& b : buffers)
             if (!b.buffer) throw std::runtime_error("vulkan: dispatch over an empty allocation");
@@ -2713,7 +2683,6 @@ private:
     std::vector<int> query_kernel_;   // id * kVariants + variant
     double kernel_ns_[K_COUNT * kVariants] = {0};
     size_t kernel_calls_[K_COUNT * kVariants] = {0};
-    std::shared_ptr<VulkanBuffer> x8_;        // the integer-dot tile's 8-bit activations
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
     bool logits_ = false;                     // inside matmul_logits
@@ -2728,9 +2697,6 @@ private:
     bool want_x8_ = false;
     int twin_variant() const { return want_x8_ ? 1 : 0; }
     XqTag xq_tag_;
-    // What x8_ holds when a producer wrote it (made_x8): the batch it is the tile's 8-bit copy of, cleared by every dispatch that could write that batch or x8_, by anything that writes a buffer from the host and by a new buffer (drop_tags).
-    struct X8Tag { VkDescriptorBufferInfo x{}; size_t nin = 0, nbatch = 0; };
-    X8Tag x8_tag_;
     std::vector<std::shared_ptr<VulkanBuffer>> pending_[kRing];
     Arena arena_[kRing];
     Kernel kernels_[K_COUNT][kVariants];

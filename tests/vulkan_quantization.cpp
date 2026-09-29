@@ -33,11 +33,9 @@ struct VulkanQuantizationTest {
         }
         ~WithoutPreservation() { backend.dev_->fn.vkCreateShaderModule = create; }
     };
-    static void run(VulkanBackend& b, CSlice x, CSlice y, uint32_t n, bool tile) {
-        if (tile) {
-            const uint32_t args[] = {n, 32, n / 32};
-            b.dispatch(K_QUANTIZE_X8, {b.bind(x), b.bind(y)}, args, sizeof(args), (n / 4 + 255) / 256);
-        } else b.dispatch(K_QUANTIZE_X, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n + 255) / 256, 1, 1);
+    static void run(VulkanBackend& b, CSlice x, CSlice y, uint32_t n, bool words) {
+        if (words) b.dispatch(K_QUANTIZE_XW, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n / 4 + 255) / 256);
+        else b.dispatch(K_QUANTIZE_X, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n + 255) / 256, 1, 1);
     }
 };
 }
@@ -258,23 +256,23 @@ void check(backend::VulkanBackend& b) {
     }
     const uint32_t n = uint32_t(input.size()), base8 = (n / 2 + n / 8 + 63) & ~63u;
     constexpr uint32_t guard = 64, sentinel = 0x12345678u;
-    const uint32_t words8 = n / 4 + n / 16;
-    std::vector<uint32_t> packed(base8 + words8 + 2 * guard, sentinel), tile(words8 + 2 * guard, sentinel);
+    const uint32_t words8 = n / 4 + n / 16, words16 = n / 2 + n / 8;
+    std::vector<uint32_t> packed(base8 + words8 + 2 * guard, sentinel), twin16(words16 + 2 * guard, sentinel);
     const auto x = b.adopt(input.data(), input.size() * sizeof(float));
     const auto q = b.adopt(packed.data(), packed.size() * sizeof(uint32_t));
-    const auto t = b.adopt(tile.data(), tile.size() * sizeof(uint32_t));
+    const auto t = b.adopt(twin16.data(), twin16.size() * sizeof(uint32_t));
     backend::VulkanQuantizationTest::run(b, {x.get(), 0}, {q.get(), guard}, n, false);
     backend::VulkanQuantizationTest::run(b, {x.get(), 0}, {t.get(), guard}, n, true);
     b.read(*q, 0, packed.data(), packed.size() * sizeof(uint32_t));
-    b.read(*t, 0, tile.data(), tile.size() * sizeof(uint32_t));
+    b.read(*t, 0, twin16.data(), twin16.size() * sizeof(uint32_t));
     for (size_t i = 0; i < guard; ++i) {
         require(packed[i] == sentinel && packed[packed.size() - 1 - i] == sentinel, "packed activation guard changed");
-        require(tile[i] == sentinel && tile[tile.size() - 1 - i] == sentinel, "tile activation guard changed");
+        require(twin16[i] == sentinel && twin16[twin16.size() - 1 - i] == sentinel, "word activation guard changed");
     }
     for (size_t i = n / 2 + n / 8; i < base8; ++i)
         require(packed[guard + i] == sentinel, "packed activation alignment gap changed");
-    for (size_t i = 0; i < words8; ++i)
-        require(tile[guard + i] == packed[guard + base8 + i], "8-bit word and lane writers differ");
+    for (size_t i = 0; i < words16; ++i)
+        require(twin16[guard + i] == packed[guard + i], "16-bit word and lane writers differ");
     size_t failures = 0, sums = 0;
     for (int twin = 0; twin < 2; ++twin) for (size_t block = 0; block < peaks.size(); ++block) {
         const int limit = twin ? 127 : 32767;

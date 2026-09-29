@@ -1,4 +1,4 @@
-// The 16-bit twin of a float activation row for the row kernels (matmul_row.comp): blocks of 32 scaled so the largest magnitude is 32767, as position pairs (4m, 4m + 2) and (4m + 1, 4m + 3), then per block the scale and scaled sum, then per block the scaled half sums (Q6_K scales halves apart).
+// The 16-bit twin of a float activation row for the row kernels (matmul_row.comp) and the integer-dot tile (matmul_tile_q.comp): blocks of 32 scaled so the largest magnitude is 32767, as position pairs (4m, 4m + 2) and (4m + 1, 4m + 3), then per block the scale and scaled sum, then per block the scaled half sums (Q6_K scales halves apart).
 // A subgroup writes it: every lane calls with its value at flat position i, and positions i..i+31 aligned to 32 must lie in 32 consecutive lanes.
 // The caller declares `xq` as a writable uint buffer.
 #ifndef LLMX_XQUANT_GLSL
@@ -98,12 +98,41 @@ void xquant_block(uint i, float v, uint n) {
     }
 }
 
-// The 8-bit twin, for integer-dot devices: blocks of 32 scaled so the largest magnitude is 127, four to a word, n / 4 words, then per block the scale and scaled sum, from word `base`.
-// The same lane layout as above; a lane past n calls with a zero.
-// Block blk of the destination takes value i's block: producers keep position order (blk = i / 32), the prefill tile's copy is block-major.
-void xquant8_block_at(uint i, float v, uint n, uint base, uint blk) {
+// The 16-bit twin as above, a lane per four consecutive values: a block is eight consecutive lanes aligned to eight, lane w of them holding values 4w .. 4w + 3 of block blk.
+// Every lane calls, those of a block with nothing to write with `live` false; a maximum and an integer sum do not depend on their order, so the twin is the one the lanes above write, bit for bit.
+void xquant_word(vec4 v, bool live, uint w, uint blk, uint n) {
+    uvec4 a = floatBitsToUint(v) & 0x7FFFFFFFu;
+    uint amax = max(max(a.x, a.y), max(a.z, a.w));
+    amax = max(amax, subgroupShuffleXor(amax, 4u));
+    amax = max(amax, subgroupShuffleXor(amax, 2u));
+    amax = max(amax, subgroupShuffleXor(amax, 1u));
+    float d, id; int shift;
+    xq_scale(amax, 32767.0, d, id, shift);
+    ivec4 q = ivec4(xq_round(xq_input(v.x, shift), id), xq_round(xq_input(v.y, shift), id),
+                    xq_round(xq_input(v.z, shift), id), xq_round(xq_input(v.w, shift), id));
+    // The half sums: lanes 0 to 3 hold values 0 to 15, lanes 4 to 7 values 16 to 31.
+    int s = q.x + q.y + q.z + q.w;
+    s += subgroupShuffleXor(s, 2u);
+    s += subgroupShuffleXor(s, 1u);
+    int other = subgroupShuffleXor(s, 4u);
+    if (!live) return;
+    xq[blk * 16u + 2u * w] = (uint(q.x) & 0xFFFFu) | (uint(q.z) << 16u);
+    xq[blk * 16u + 2u * w + 1u] = (uint(q.y) & 0xFFFFu) | (uint(q.w) << 16u);
+    if (w == 0u) {
+        uint t = n / 2u + 2u * blk, th = n / 2u + 2u * (n / 32u) + 2u * blk;
+        vec4 values = xq_shift(vec4(d, d * float(s + other), d * float(s), d * float(other)), -shift);
+        xq[t] = floatBitsToUint(values.x);
+        xq[t + 1u] = floatBitsToUint(values.y);
+        xq[th] = floatBitsToUint(values.z);
+        xq[th + 1u] = floatBitsToUint(values.w);
+    }
+}
+
+// The 8-bit twin, for the integer-dot row kernels: blocks of 32 scaled so the largest magnitude is 127, four to a word, n / 4 words, then per block the scale and scaled sum, from word `base`.
+// The same lane layout as xquant_block; a lane past n calls with a zero.
+void xquant8_block(uint i, float v, uint n, uint base) {
     uint lane = gl_SubgroupInvocationID;
-    uint j = i & 31u;
+    uint j = i & 31u, blk = i / 32u;
     uint amax = floatBitsToUint(v) & 0x7FFFFFFFu;
     amax = max(amax, subgroupShuffleXor(amax, 16u));
     amax = max(amax, subgroupShuffleXor(amax, 8u));
@@ -132,43 +161,6 @@ void xquant8_block_at(uint i, float v, uint n, uint base, uint blk) {
         xq[t + 1u] = floatBitsToUint(values.y);
     }
 }
-void xquant8_block(uint i, float v, uint n, uint base) { xquant8_block_at(i, v, n, base, i / 32u); }
-
-// The same 8-bit block, a lane per four consecutive values: a block is eight consecutive lanes aligned to eight, lane w of them holding its word w.
-// Every lane calls, those of a block with nothing to write with `live` false; a maximum and an integer sum do not depend on their order, so the block is the one the lanes above write, bit for bit.
-// Word w of block blk goes to word blk * 8 + w, and the block's scale and scaled sum to words tab + 2 * blk and the next.
-void xquant8_word(vec4 v, bool live, uint w, uint blk, uint tab) {
-    uvec4 a = floatBitsToUint(v) & 0x7FFFFFFFu;
-    uint amax = max(max(a.x, a.y), max(a.z, a.w));
-    amax = max(amax, subgroupShuffleXor(amax, 4u));
-    amax = max(amax, subgroupShuffleXor(amax, 2u));
-    amax = max(amax, subgroupShuffleXor(amax, 1u));
-    float d, id; int shift;
-    xq_scale(amax, 127.0, d, id, shift);
-    vec4 r = xq_shift(v, shift) * id;
-    ivec4 q = clamp(ivec4(sign(r) * floor(abs(r) + 0.5)), -127, 127);
-    int s = q.x + q.y + q.z + q.w;
-    s += subgroupShuffleXor(s, 4u);
-    s += subgroupShuffleXor(s, 2u);
-    s += subgroupShuffleXor(s, 1u);
-    if (!live) return;
-    uvec4 b = uvec4(q) & 255u;
-    xq[blk * 8u + w] = b.x | (b.y << 8u) | (b.z << 16u) | (b.w << 24u);
-    if (w == 0u) {
-        vec2 values = xq_shift(vec2(d, d * float(s)), -shift);
-        xq[tab + 2u * blk] = floatBitsToUint(values.x);
-        xq[tab + 2u * blk + 1u] = floatBitsToUint(values.y);
-    }
-}
-
-// The prefill tile's copy of a batch nin wide (quantize_x8.comp) orders blocks by block of the inner dimension, then column, a block of the inner dimension being a row of xrow columns: the block of values 4t .. 4t + 3.
-// Its scale table starts after all rows' quants, at word xquant8_tile_table.
-uint xquant8_tile_block(uint t, uint nin, uint xrow) {
-    uint nblk = nin / 32u, run = t / 8u, col = run / nblk;
-    return (run - col * nblk) * xrow + col;
-}
-uint xquant8_tile_table(uint nin, uint xrow) { return nin / 32u * xrow * 8u; }
-
 // Where the 8-bit twin starts, in words, after the 16-bit twin, rounded up to 256 bytes so it can be bound at its own offset.
 uint xquant8_base(uint n) { return (n / 2u + n / 8u + 63u) & ~63u; }
 

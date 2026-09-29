@@ -1,7 +1,7 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b) for Q8_0 rows through the four-wide 8-bit integer dot: the Q8_0 decode kernel on integer-dot devices, with the row kernel's bindings and push constants (matmul_row.comp).
+// Y[b*nout + o] = dot(row o, X column b) for Q8_0 rows through the four-wide integer dots over 16-bit activations: the Q8_0 decode kernel on integer-dot devices, with the row kernel's bindings and push constants (matmul_row.comp).
 // A subgroup takes ROWS rows; lane l covers quarter l % 4 of blocks l / 4, l / 4 + S / 4 and on, so a step reads S / 4 consecutive blocks of a row, or with HALF half l % 2 of blocks l / 2, l / 2 + 32 and on.
-// A lane keeps MAX_COLS columns and loads each column's eight 8-bit activation values, sixteen with HALF, once for all the subgroup's rows.
+// A lane keeps MAX_COLS columns and loads each column's eight 16-bit activation values, sixteen with HALF, once for all the subgroup's rows.
 // Every other block's quants start two bytes into a word, so a lane loads the words its bytes touch and shifts.
 // The lanes' sums meet in one subgroup reduction per row and column, or with TREE in the same reduction's pairs taken for every row and column at once.
 // A build changes only how many columns and rows share a weight read and how the same operations are scheduled: a column's lanes, their block order, its products and sums and its reduction's pairs are the same in every build, so it computes the same bits in all of them (docs/VULKAN.md).
@@ -10,6 +10,7 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_integer_dot_product : require
 #extension GL_EXT_control_flow_attributes : require
+#include "dot16.glsl"
 #include "float_controls.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint MAX_COLS = 8;
@@ -36,9 +37,8 @@ layout(push_constant) uniform P {
 } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
-// The 8-bit twin (xquant.glsl): per column nin / 4 words of bytes, read two at a time, or four with HALF, then per block the scale and scaled sum.
-layout(set = 0, binding = 7) readonly buffer XQ4 { uvec2 xq4[]; };
-layout(set = 0, binding = 7) readonly buffer XQ16 { uvec4 xq16[]; };
+// The 16-bit twin (xquant.glsl): interleaved pairs, then per block the scale and scaled sum.
+layout(set = 0, binding = 7) readonly buffer XQ { uvec4 xq[]; };
 layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
 // A routed call (per != 0, backend.hpp matmul_experts) runs one entry per workgroup row y: entry e reads X column e / per through the rows of expert ids[e] and writes output row e.
 layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
@@ -110,7 +110,7 @@ void main() {
 #define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (c))
 #define OCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] : out0 + (c))
     uint nblk = p.nin / 32u;
-    uint xtab = p.nbatch * p.nin / 8u;
+    uint xtab = p.nbatch * p.nin / 4u;
 #ifdef LLMX_PRESERVE_F32
     // Keep normal-input accumulation identical to the ordinary module when float preservation changes contraction.
     precise float acc[ROWS][MAX_COLS];
@@ -132,8 +132,8 @@ void main() {
         const uint nin16 = p.nin / 16u;
 // Column g + J's products, one for each row, added to its accumulators.
 #define HALF_PRODUCTS(J) [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
-            int s = dotPacked4x8EXT(int(wq[r][0]), int(xa[J].x)) + dotPacked4x8EXT(int(wq[r][1]), int(xa[J].y)) + \
-                    dotPacked4x8EXT(int(wq[r][2]), int(xa[J].z)) + dotPacked4x8EXT(int(wq[r][3]), int(xa[J].w)); \
+            int s = dot16(wq[r][0], dot16_parts(xa[J].xy)) + dot16(wq[r][1], dot16_parts(xa[J].zw)) + \
+                    dot16(wq[r][2], dot16_parts(xb[J].xy)) + dot16(wq[r][3], dot16_parts(xb[J].zw)); \
             acc[r][g + (J)] += dw[r] * dx[J] * float(s); \
         }
         for (uint bb = bh; bb < nblk; bb += 32u) {
@@ -151,11 +151,12 @@ void main() {
             }
             [[unroll]] for (uint g = 0u; g < MAX_COLS; g += GROUP) {
                 if (g > 0u && (CHECK_EVERY_GROUP || 2u * g > MAX_COLS) && g >= ncols) break;
-                uvec4 xa[GROUP];
+                uvec4 xa[GROUP], xb[GROUP];
                 float dx[GROUP];
                 [[unroll]] for (uint j = 0u; j < GROUP; ++j) {
                     uint col = XCOL(min(g + j, ncols - 1u));
-                    xa[j] = xq16[col * nin16 + lx];
+                    xa[j] = xq[2u * (col * nin16 + lx)];
+                    xb[j] = xq[2u * (col * nin16 + lx) + 1u];
                     dx[j] = xt2[xtab + col * nblk + lb].x;
                 }
                 if (!PARTIAL || 2u * g < MAX_COLS || g + GROUP <= ncols) {
@@ -175,7 +176,7 @@ void main() {
         uint b = lane >> 2u;
 // Column g + J's products of step d, one for each row, added to its accumulators.
 #define COLUMN_PRODUCTS(J) [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
-        int s = dotPacked4x8EXT(int(w0[d][r]), int(xa[J].x)) + dotPacked4x8EXT(int(w1[d][r]), int(xa[J].y)); \
+        int s = dot16(w0[d][r], dot16_parts(xa[J].xy)) + dot16(w1[d][r], dot16_parts(xa[J].zw)); \
         acc[r][g + (J)] += dw[d][r] * dx[J] * float(s); \
     }
 // NS steps of a lane from block b: every row's words for all NS steps first, then per group of columns the NS steps in order, so each column still adds its blocks in order.
@@ -199,11 +200,11 @@ void main() {
             if (g > 0u && (CHECK_EVERY_GROUP || 2u * g > MAX_COLS) && g >= ncols) break; \
             [[unroll]] for (uint d = 0u; d < NS; ++d) { \
                 uint bd = b + d * SB; \
-                uvec2 xa[GROUP]; \
+                uvec4 xa[GROUP]; \
                 float dx[GROUP]; \
                 [[unroll]] for (uint j = 0u; j < GROUP; ++j) { \
                     uint col = XCOL(min(g + j, ncols - 1u)); \
-                    xa[j] = xq4[(col * p.nin + bd * 32u + q * 8u) / 8u]; \
+                    xa[j] = xq[(col * p.nin + bd * 32u + q * 8u) / 8u]; \
                     dx[j] = xt2[xtab + col * nblk + bd].x; \
                 } \
                 if (!PARTIAL || 2u * g < MAX_COLS || g + GROUP <= ncols) { \

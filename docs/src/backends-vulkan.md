@@ -95,8 +95,8 @@ The lifetime and packed-quantization tests include the implementation and use te
   module per family of types, reading quantized rows against an integer
   twin of the activations (`shaders/xquant.glsl`) that the producing
   kernel, the norm, the SiLU or the attention, writes beside its output
-  and tags. The twin is 16-bit, or on a device whose profile prefers the
-  integer dot 8-bit for every quantized family, except the Q4_0, Q4_1 and
+  and tags. The twin is 16-bit, which the integer-dot tile reads too, and on a device whose profile prefers the
+  integer dot the row families but Q8_0 read an 8-bit twin beside it, except the Q4_0, Q4_1 and
   Q6_K rows of the output head (`matmul_logits`). Each row kernel but the
   Q8_0 decode kernel is built for eight columns and for one
   (specialization constant 0), the one-column build taken when a chunk is
@@ -109,7 +109,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   with `LLMX_DOT` and `LLMX_X8` over the 8-bit twin, whose rows take at
   most `q6k_row_lanes` lanes; the Q4_K and Q5_K families have only the
   8-bit dot build, whose rows take at most `k45_row_lanes`. There Q8_0 rows
-  take `shaders/matmul_vec_q8.comp`, the four-wide dot over the 8-bit twin,
+  take `shaders/matmul_vec_q8.comp`, the four-wide dot over the 16-bit twin split into high and low bytes (`shaders/dot16.glsl`),
   and F32 rows the plain build.
   The Q8_0 decode kernel is built for 1, 2, 4, 8, 16 and 32 columns (`kVecBuilds`), with the rows a subgroup takes, the steps of weights a lane loads ahead, its two forms and its column groups as specialization constants 9 to 13; `sg_rows` gives the rows a subgroup takes in any row kernel build, which a dispatch's rows per workgroup follow.
   The 32-column build is two 16-column groups over the same rows, and a dispatch gives each workgroup's rows two adjacent workgroups.
@@ -121,14 +121,14 @@ The lifetime and packed-quantization tests include the implementation and use te
   `kernel_representations` starts such a build's text with `; row_build cols=C rows=R`.
   The lanes that share a wide Q8_0 block pair (four) and a K-quant block (eight) are fixed by `matmul_row.comp`, and the host mirrors them in constants beside the tile heights rather than in the profile.
 - Wide batches take a tile kernel. Where the profile sets
-  `prefer_integer_dot`, every quantized type goes through the 8-bit
+  `prefer_integer_dot`, every quantized type goes through the
   integer-dot tile (`shaders/matmul_tile_q.comp`, Q6_K in its own module
-  `matmul_tile_q6` and Q8_0 in `matmul_tile_q8`) over block-major 8-bit
-  activations. When one tile call reads a whole batch next (`tile_reads`),
+  `matmul_tile_q6` and Q8_0 in `matmul_tile_q8`) over the row kernels'
+  16-bit twin, its quants widened to signed 16-bit pairs. When one tile call reads a whole batch next (`tile_reads`),
   the norm, the SiLU or the wide attention that wrote the batch writes
-  that copy in place of the row kernels' twin (`xquant8_word` in
-  `shaders/xquant.glsl`); otherwise `shaders/quantize_x8.comp` makes it
-  before the call. A layer's projections of one type share one
+  the twin four values a lane (`xquant_word` in `shaders/xquant.glsl`),
+  without the 8-bit twin; otherwise `tile_twin` makes it with
+  `shaders/quantize_xw.comp` before the call. A layer's projections of one type share one
   dispatch, and a call too small to fill the device splits its inner
   dimension into parts that `shaders/matmul_reduce.comp` adds in order.
   F32, and every type on other devices, take the float tile

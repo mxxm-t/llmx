@@ -1,0 +1,18 @@
+#version 450
+// The 16-bit twin of a batch of activation rows (xquant.glsl), a lane per four values over the batch as one flat run, since a row is whole blocks of 32: the integer-dot tile's input where the batch's producer did not write it.
+// A lane loads its four values at once and writes its two words itself (xquant_word), so a block is eight consecutive lanes and its maximum and sums take a few shuffles, where the lane-per-value pass takes five for each.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; } p;
+layout(set = 0, binding = 0) readonly buffer X { vec4 x[]; };
+layout(set = 0, binding = 1) writeonly buffer Q { uint xq[]; };
+
+#include "xquant.glsl"
+
+void main() {
+    uint t = gl_GlobalInvocationID.x;
+    // Every lane takes part in the shuffles, a lane past the end with zeros; n is whole blocks, so a block is live or not as a whole.
+    bool live = t < p.n / 4u;
+    xquant_word(live ? x[t] : vec4(0.0), live, t & 7u, t / 8u, p.n);
+}

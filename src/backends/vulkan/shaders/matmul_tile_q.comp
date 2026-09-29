@@ -1,7 +1,7 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b) for wide batches through the four-wide 8-bit integer dot, on devices where it is native, against activations quantized to 8 bits per block of 32 (quantize_x8.comp).
+// Y[b*nout + o] = dot(row o, X column b) for wide batches through the two-wide 16-bit integer dot, on devices where the integer dot is native, against the activations' 16-bit twin (xquant.glsl), which the row kernels read too.
 // A workgroup computes a TILE_ROWS x 64 tile, walking the inner dimension one quant block of 32 at a time, over all of it or over one part when the call is split; matmul_reduce.comp adds the parts in order.
-// Each step stages, per row, the block's quants as 8 words of signed bytes with its scale and minimum, and per column the activation block's 8 words with its scale and scaled sum.
+// Each step stages, per row, the block's quants widened to the twin's signed 16-bit pairs with its scale and minimum, and per column the twin's 16 words of the block with its scale and scaled sum.
 // A thread forms (TILE_ROWS / 16) x 4 dots of 32 products, as two of 16 since Q6_K scales the halves apart.
 // Types: Q4_0, Q4_1, Q4_K and Q5_K, Q6_K in its own build (LLMX_Q6) and Q8_0 in its own build (LLMX_Q8).
 // The Q8_0 build stages one float scale per row and per column, since Q8_0 has one scale per block and no minimum, and takes no type branch.
@@ -12,20 +12,30 @@
 #ifdef LLMX_Q8
 #extension GL_EXT_control_flow_attributes : require
 #endif
+// Four signed quants of a word, as the twin holds four values: values 0 and 2 in one pair of 16-bit halves, 1 and 3 in the other.
+uvec2 weight16(uint w) {
+    uint q0 = uint(int(w << 24u) >> 24), q1 = uint(int(w << 16u) >> 24);
+    uint q2 = uint(int(w << 8u) >> 24), q3 = uint(int(w) >> 24);
+    return uvec2((q0 & 65535u) | (q2 << 16u), (q1 & 65535u) | (q3 << 16u));
+}
+// Four products of 16-bit values through two two-wide dots, exact in 32 bits.
+int dot_pairs(uvec2 w, uvec2 x) {
+    return dotEXT(unpack16(int(w.x)), unpack16(int(x.x))) + dotEXT(unpack16(int(w.y)), unpack16(int(x.y)));
+}
 #include "q.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
 // Up to three projections of one X and one type per dispatch; workgroups start0, start1 and start2 on begin each projection's row tiles. kper is the quant blocks a workgroup sums, a multiple of two when the call is split; blocks of a step past its part read as zero.
 // When the call is split, projection q's part z goes to y at parts * nbatch * (rows of the projections before q) + z * nbatch * nout_q, all projections sharing one scratch buffer.
-// xrow is the columns a row of the 8-bit activations holds, nbatch padded (quantize_x8.comp).
+// xcols is the columns of X the twin holds, which a routed call's entries read by entry / per; the scale table follows their pairs.
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint type; uint accum; uint kper; uint nproj;
     uint nout0; uint start0; uint nout1; uint start1; uint nout2; uint start2;
-    uint per; uint order0; uint xrow;
+    uint per; uint order0; uint xcols;
 } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 1) readonly buffer W32 { uint w32[]; } ws[3];
-// The 8-bit activations bound twice: as words for the quants and as pairs for the per-block scale table after them.
+// The twin bound twice: as words for the pairs and as pairs of floats for the per-block scale table after them.
 layout(set = 0, binding = 2) readonly buffer XQ { uint xq[]; };
 layout(set = 0, binding = 3) readonly buffer XS { vec2 xs[]; };
 // A routed call (per != 0, backend.hpp matmul_experts) runs workgroup row y as tile y of the grouping (moe_group.comp): up to 64 entries of one expert, column c being entry tab[order0 + first + c], which reads X column entry / per through the expert's rows and writes output row entry.
@@ -38,26 +48,20 @@ uint pi = 0u;   // this workgroup's projection, uniform across it
 #define WPR (256u / TILE_ROWS)   // threads that stage one row's 8 words
 #define WW (8u / WPR)            // and how many words each
 
-// Quant blocks staged per barrier, so their loads are in flight together.
-// The Q8_0 build stages four: its float scales keep the tallest tile's shared arrays at 27 KB, still two workgroups per compute unit.
+// Quant blocks staged per barrier, so their loads are in flight together; two keep the tallest tile's widened quants and activations below 32 KB.
 #ifndef STEP
-#ifdef LLMX_Q8
-#define STEP 4u
-#else
 #define STEP 2u
 #endif
-#endif
-// k-major: word w of every row, then of every column; block s of a step at words 8s to 8s + 7.
-shared uint wq[8u * STEP][TILE_ROWS];
+// k-major: pair w of every row, then of every column, each four values; block s of a step at pairs 8s to 8s + 7.
+shared uvec2 wq[8u * STEP][TILE_ROWS];
+shared uvec2 xw[8u * STEP][64];
 #ifdef LLMX_Q8
 shared float wsc[STEP * TILE_ROWS];   // per row and block: the scale
-shared uint xw[8u * STEP][64];
 // Per column and block: the activation scale, one stored by each of a column's four threads, so a step of two leaves two unused.
 shared float xsc[4u * 64u];
 #else
 // Per row and block: the scale of each half and the minimum it subtracts; only Q6_K scales its halves apart.
 shared vec4 wsc[STEP * TILE_ROWS];
-shared uint xw[8u * STEP][64];
 shared vec2 xsc[STEP * 64u];     // per column and block: the activation scale and scale times integer sum
 #endif
 
@@ -80,19 +84,18 @@ void store_scales(uint wrow, uint wseg, bool ok, vec4 v) {
 }
 #endif
 
-// A step's activations: a column's four threads each load two of a block's eight words and one of the step's 2 * STEP scale values (STEP of 2 or 4).
-// In the Q8_0 build a block has one scale value, and thread xseg loads block xseg's.
+// A step's activations: a column's four threads each load four of a block's sixteen words and one of the step's scale values, 2 * STEP of them, or STEP in the Q8_0 build, where a block has one and thread xseg loads block xseg's.
 #ifdef LLMX_Q8
 #define XSC 1u
 #else
 #define XSC (STEP / 2u)
 #endif
 // Stores them from the registers they were loaded into, zero past the batch or the thread's part of the inner dimension.
-void store_x(uint k0, uint kend, bool xin, uint xcol, uint xseg, uvec2 xv[STEP], float xf[XSC]) {
+void store_x(uint k0, uint kend, bool xin, uint xcol, uint xseg, uvec4 xv[STEP], float xf[XSC]) {
     for (uint s = 0u; s < STEP; ++s) {
         bool colv = xin && k0 + s < kend;
-        xw[s * 8u + xseg * 2u][xcol] = colv ? xv[s].x : 0u;
-        xw[s * 8u + xseg * 2u + 1u][xcol] = colv ? xv[s].y : 0u;
+        xw[s * 8u + xseg * 2u][xcol] = colv ? xv[s].xy : uvec2(0u);
+        xw[s * 8u + xseg * 2u + 1u][xcol] = colv ? xv[s].zw : uvec2(0u);
     }
 #ifdef LLMX_Q8
     xsc[xseg * 64u + xcol] = xin && xseg < STEP && k0 + xseg < kend ? xf[0] : 0.0;
@@ -126,9 +129,9 @@ void main() {
     }
     uint tr = tid / 16u, tc = tid - tr * 16u;         // micro-tile at rows tr*MROWS.., columns tc*4..
     uint wrow = tid / WPR, wseg = tid - wrow * WPR;   // W stager: row wrow, words wseg*WW..
-    uint xcol = tid / 4u, xseg = tid - xcol * 4u;     // X stager: column xcol, words xseg*2..
+    uint xcol = tid / 4u, xseg = tid - xcol * 4u;     // X stager: column xcol, words xseg*4..
     uint nblk = p.nin / 32u;
-    uint xtab = p.xrow * p.nin / 8u;                  // the scale table's start, in pairs
+    uint xtab = p.xcols * p.nin / 4u;                  // the scale table's start, in pairs
     uint kbeg = part * p.kper, kend = min(nblk, kbeg + p.kper);
     uint parts = (nblk + p.kper - 1u) / p.kper;
     uint before = (pi > 0u ? p.nout0 : 0u) + (pi > 1u ? p.nout1 : 0u);
@@ -146,20 +149,20 @@ void main() {
         // Every global load of a step goes out before the first is waited for.
         // The compiler waits for a load under a branch it cannot prove uniform inside that branch, and moves a load down into the block that first uses it.
         // So a load out of range reads a valid address and its zero is selected when it is stored, and each type's staging ends by storing the activations loaded before it.
-        uvec2 xv[STEP];
+        uvec4 xv[STEP];
         float xf[XSC];
         for (uint s = 0u; s < STEP; ++s) {
             uint kb = k0 + s;
-            uint xb = xin && kb < kend ? (kb * p.xrow + xc) * 8u + xseg * 2u : 0u;
-            xv[s] = uvec2(xq[xb], xq[xb + 1u]);
+            uint xb = xin && kb < kend ? (xc * nblk + kb) * 16u + xseg * 4u : 0u;
+            xv[s] = uvec4(xq[xb], xq[xb + 1u], xq[xb + 2u], xq[xb + 3u]);
         }
         for (uint k = 0u; k < XSC; ++k) {
 #ifdef LLMX_Q8
             uint kb = k0 + xseg;
-            xf[k] = xs[xin && xseg < STEP && kb < kend ? xtab + kb * p.xrow + xc : 0u].x;
+            xf[k] = xs[xin && xseg < STEP && kb < kend ? xtab + xc * nblk + kb : 0u].x;
 #else
             uint kb = k0 + xseg % STEP;
-            xf[k] = xs[xin && kb < kend ? xtab + kb * p.xrow + xc : 0u][xseg / STEP + k * (4u / STEP)];
+            xf[k] = xs[xin && kb < kend ? xtab + xc * nblk + kb : 0u][xseg / STEP + k * (4u / STEP)];
 #endif
         }
         uint row = row_base + wrow, wr = expert * nout + row;
@@ -199,7 +202,7 @@ void main() {
                     uint b = ((ql >> nsh) & 0x0F0F0F0Fu) | (((qh >> hsh) & 0x03030303u) << 4u);
                     // b - 32 per byte: flipping bit 5 gives b - 32 or b + 32, and a set bit 5 then means negative, so it is copied into bits 6 and 7.
                     uint t = b ^ 0x20202020u, neg = t & 0x20202020u;
-                    wq[s * 8u + wseg * WW + m][wrow] = ok ? t | (neg << 1u) | (neg << 2u) : 0u;
+                    wq[s * 8u + wseg * WW + m][wrow] = weight16(ok ? t | (neg << 1u) | (neg << 2u) : 0u);
                 }
             }
             float d = unpackHalf2x16((os & 3u) == 0u ? dw : (dw >> 16u)).x;
@@ -227,7 +230,7 @@ void main() {
             for (uint s = 0u; s < STEP; ++s) {
                 for (uint m = 0u; m < WW; ++m) {
                     uint v = str[s] ? (qv[s][m] >> 16u) | (qv[s][m + 1u] << 16u) : qv[s][m];
-                    wq[s * 8u + wseg * WW + m][wrow] = okw[s] ? v : 0u;
+                    wq[s * 8u + wseg * WW + m][wrow] = weight16(okw[s] ? v : 0u);
                 }
             }
             if (wseg == 0u)
@@ -258,7 +261,7 @@ void main() {
                 for (uint m = 0u; m < WW; ++m) {
                     uint v = (qv[s][m] >> (4u * (g & 1u))) & 0x0F0F0F0Fu;
                     v = k5 ? v | (((hv[s][m] >> g) & 0x01010101u) << 4u) : v;
-                    wq[s * 8u + wseg * WW + m][wrow] = ok ? v : 0u;
+                    wq[s * 8u + wseg * WW + m][wrow] = weight16(ok ? v : 0u);
                 }
             }
             vec2 dd = unpackHalf2x16(h.x);
@@ -299,7 +302,7 @@ void main() {
                         // Q4_0's b - 8 per byte: flipping bit 3 gives b - 8 or b + 8, and a set bit 3 then means negative, so it is copied into bits 4 to 7.
                         uint t = b ^ 0x08080808u, neg = t & 0x08080808u;
                         uint v = q41 ? b : t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
-                        wq[s * 8u + w + 4u * h][wrow] = ok ? v : 0u;
+                        wq[s * 8u + w + 4u * h][wrow] = weight16(ok ? v : 0u);
                     }
                 }
             }
@@ -310,7 +313,7 @@ void main() {
 #endif
         barrier();
 #ifdef LLMX_Q8
-      // Unrolled, since the compiler keeps four blocks a loop.
+      // Keep the block loop unrolled.
       [[unroll]]
 #endif
       for (uint s = 0u; s < STEP; ++s) {
@@ -326,14 +329,18 @@ void main() {
 #endif
         int t[MROWS][4];
         for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) t[i][j] = 0;
+#ifdef LLMX_Q8
+        [[unroll]]
+#endif
         for (uint w = 0u; w < 8u; ++w) {
-            uvec4 b = uvec4(xw[s * 8u + w][tc * 4u], xw[s * 8u + w][tc * 4u + 1u], xw[s * 8u + w][tc * 4u + 2u], xw[s * 8u + w][tc * 4u + 3u]);
+            uvec2 b0 = xw[s * 8u + w][tc * 4u], b1 = xw[s * 8u + w][tc * 4u + 1u];
+            uvec2 b2 = xw[s * 8u + w][tc * 4u + 2u], b3 = xw[s * 8u + w][tc * 4u + 3u];
             for (uint i = 0u; i < MROWS; ++i) {
-                uint a = wq[s * 8u + w][tr * MROWS + i];
-                t[i][0] += dotPacked4x8EXT(int(a), int(b.x));
-                t[i][1] += dotPacked4x8EXT(int(a), int(b.y));
-                t[i][2] += dotPacked4x8EXT(int(a), int(b.z));
-                t[i][3] += dotPacked4x8EXT(int(a), int(b.w));
+                uvec2 a = wq[s * 8u + w][tr * MROWS + i];
+                t[i][0] += dot_pairs(a, b0);
+                t[i][1] += dot_pairs(a, b1);
+                t[i][2] += dot_pairs(a, b2);
+                t[i][3] += dot_pairs(a, b3);
             }
         }
         for (uint i = 0u; i < MROWS; ++i) {
@@ -363,15 +370,16 @@ void main() {
             int l[RG6][4], h[RG6][4];
             for (uint i = 0u; i < RG6; ++i) for (uint j = 0u; j < 4u; ++j) { l[i][j] = 0; h[i][j] = 0; }
             for (uint w = 0u; w < 4u; ++w) {
-                uvec4 bl = uvec4(xw[s * 8u + w][tc * 4u], xw[s * 8u + w][tc * 4u + 1u], xw[s * 8u + w][tc * 4u + 2u], xw[s * 8u + w][tc * 4u + 3u]);
-                uvec4 bh = uvec4(xw[s * 8u + w + 4u][tc * 4u], xw[s * 8u + w + 4u][tc * 4u + 1u], xw[s * 8u + w + 4u][tc * 4u + 2u], xw[s * 8u + w + 4u][tc * 4u + 3u]);
+                uvec2 l0 = xw[s * 8u + w][tc * 4u], l1 = xw[s * 8u + w][tc * 4u + 1u], l2 = xw[s * 8u + w][tc * 4u + 2u], l3 = xw[s * 8u + w][tc * 4u + 3u];
+                uvec2 h0 = xw[s * 8u + w + 4u][tc * 4u], h1 = xw[s * 8u + w + 4u][tc * 4u + 1u];
+                uvec2 h2 = xw[s * 8u + w + 4u][tc * 4u + 2u], h3 = xw[s * 8u + w + 4u][tc * 4u + 3u];
                 for (uint i = 0u; i < RG6; ++i) {
                     uint r = tr * MROWS + i0 + i;
-                    uint a = wq[s * 8u + w][r], e = wq[s * 8u + w + 4u][r];
-                    l[i][0] += dotPacked4x8EXT(int(a), int(bl.x)); h[i][0] += dotPacked4x8EXT(int(e), int(bh.x));
-                    l[i][1] += dotPacked4x8EXT(int(a), int(bl.y)); h[i][1] += dotPacked4x8EXT(int(e), int(bh.y));
-                    l[i][2] += dotPacked4x8EXT(int(a), int(bl.z)); h[i][2] += dotPacked4x8EXT(int(e), int(bh.z));
-                    l[i][3] += dotPacked4x8EXT(int(a), int(bl.w)); h[i][3] += dotPacked4x8EXT(int(e), int(bh.w));
+                    uvec2 a = wq[s * 8u + w][r], e = wq[s * 8u + w + 4u][r];
+                    l[i][0] += dot_pairs(a, l0); h[i][0] += dot_pairs(e, h0);
+                    l[i][1] += dot_pairs(a, l1); h[i][1] += dot_pairs(e, h1);
+                    l[i][2] += dot_pairs(a, l2); h[i][2] += dot_pairs(e, h2);
+                    l[i][3] += dot_pairs(a, l3); h[i][3] += dot_pairs(e, h3);
                 }
             }
             for (uint i = 0u; i < RG6; ++i) {

@@ -145,8 +145,12 @@ void layer_split_fits() {
     ++checked;
     // A device that copies weights keeps back the scratch a Vulkan device reports (Backend::scratch_reserve); a host keeps none.
     auto budget = [](const char* name, std::optional<size_t> bytes, bool host = false) {
-        const size_t scratch = host ? 0 : ((size_t)256 << 20) + bytes.value_or(0) / 20;
-        return infer::DeviceBudget{name, bytes, host, {}, 0, scratch};
+        infer::DeviceBudget d;
+        d.name = name;
+        d.bytes = bytes;
+        d.host = host;
+        d.scratch = host ? 0 : ((size_t)256 << 20) + bytes.value_or(0) / 20;
+        return d;
     };
     auto split = [&](std::vector<infer::DeviceBudget> d, std::vector<int> shares = {}) {
         return infer::split_layers(fp, d, 2, shares);

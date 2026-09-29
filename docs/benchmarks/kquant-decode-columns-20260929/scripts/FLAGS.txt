@@ -1,0 +1,9 @@
+Activity flags for the K-quant decode columns measurement, fixed 2026-09-29 before any timed run.
+
+monitor.py samples every 10 s for the whole session (mon/monitor.jsonl): host CPU busy and iowait, each CPU's busy share, disk MB/s, the ten busiest processes with their container, and every card's use and VRAM share.
+A timed run (one probe invocation or one load-tool level, from its CLOCK_MONOTONIC start to end) is flagged when any sample inside it shows:
+  cpu   - host CPU busy above 60 percent, or a process outside this work's containers (llmx-p2-kqcols-*) above 100 percent of one CPU, or any CPU of this work's cores (4-7,12-15) above 90 percent busy while a process outside this work is among the busiest;
+  disk  - disk reads or writes above 100 MB/s (a model load of another arm of this work counts too);
+  gpu   - the run's card in use above 5 percent in a sample taken while none of this work's containers ran on it.
+Every planned run is kept and reported; a flagged run is listed beside the full results, never dropped or replaced.
+Arms of one comparison run on one card, interleaved, in alternating order between rounds.

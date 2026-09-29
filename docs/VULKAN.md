@@ -169,7 +169,8 @@ HF gate measures the cost of it.
   Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, every type the CPU reads.
 - **matmul, decode** (`nbatch` small): each row takes a cluster of lanes, the subgroup's width or fewer for a short row and at most `q6k_row_lanes` or `k45_row_lanes` in the 8-bit integer-dot families, each lane accumulating a stride of blocks and the cluster meeting in an xor-shuffle reduction at the end. Rows
   are the outer loop and the batch the inner, as on the CPU, so a weight
-  block is read once per chunk of eight columns. Q8_0 rows are read as
+  block is read once per chunk of a build's columns, eight, or on the MI50
+  up to 32 in the Q8_0 decode kernel and 16 in the two-row builds below. Q8_0 rows are read as
   32-bit words over pairs of blocks, since a pair is 68 bytes and a row
   with an even block count starts every pair on a word boundary, with each
   weight word meeting four 16-bit activations in one 8-byte load; the first version read 16-bit words and

@@ -4,6 +4,23 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## Two-row decode builds for the Q4 and K-quant rows (2026-09-29, branch perf/kquant-decode-columns)
+
+- **Goal:** many users on the Vulkan server go faster for Q4_0, Q4_1, Q4_K, Q5_K and Q6_K rows and the Q6_K head without changing a result bit or one user's speed: the second route of the server investigation's first ranked fix (block below, Layer split phase 3). Record: [`benchmarks/kquant-decode-columns-20260929/`](benchmarks/kquant-decode-columns-20260929/README.md).
+- **Done:** measured first with a probe of an 8B pass's decode matmuls on one MI50: two adjacent rows a cluster, with every column of a build computed and no branch in the column loop, was the form that paid; three or four rows, column loads issued in groups and activations staged in shared memory did not. `matmul_row.comp` gains the two-row path beside the unchanged one-row code, both taking each block's weights and float terms from the same macros, and the backend builds of 2, 4, 8 and 16 columns (`kRowBuilds`), which the profile's `row_decode_cols` turns on, 16 on the MI50 under RADV; the `--isa` screen holds a kernel's two-row builds whole copies of a row and column's products apart.
+- **Measured** on one MI50 against main `660b0aed`, both built the same way, arms interleaved on each card:
+
+  | Qwen3-8B | decode matmuls of a pass, 8 / 64 columns, ms | served, one MI50, 16 / 32 / 64 users, tok/s | served, two MI50s, 16 / 32 / 64 users | reference best, one MI50 / two |
+  |---|---|---|---|---|
+  | Q4_K_M | 33.8 -> 24.7 / 268.3 -> 195.3 | 183 / 183 / 182 -> 228 / 231 / 229 | 318 / 326 / 330 -> 387 / 407 / 415 | 96 / 158 / 170 ; 98 / 160 / 162 |
+  | Q6_K | 44.1 -> 35.9 / 351.3 -> 260.9 | 144 / 143 / 141 -> 177 / 178 / 177 | 255 / 261 / 263 -> 295 / 322 / 326 | 152 / 230 / 260 ; 160 / 244 / 292 |
+  | Q4_0 | 31.9 -> 21.7 / 253.6 -> 156.4 | 190 / 189 / 190 -> 266 / 268 / 265 | 330 / 339 / 344 -> 421 / 469 / 478 | 235 / 273 / 262 ; 235 / 278 / 257 |
+
+  One user is level (89 and 89, 57 and 57, 99 and 100 tok/s on one MI50) and the one-column and grouped builds compile to main's instructions; at 8 users +13 to +31 percent. Q6_K still trails the reference on one MI50 at 32 and 64 users. Every level's activity flags are in the record.
+- **Gates:** CTest 38 of 38 on an MI50; `backend-vulkan --isa` on the MI50 holds every two-row build to the new rule and fails only at the Q8_0 decode kernel's one-column build, as main does (reported 2026-09-29); on the Radeon VII, which keeps its builds, `backend-vulkan --isa` passes and layer 0's and the head's digests and matmul times equal main's. CLI byte identity against main, generate, logits and per-token perplexity: 18 of 18 on an MI50 and 12 of 12 on the CPU over Qwen3-0.6B Q4_K_M, Q4_0 and Q5_K_M and Qwen3-8B Q4_K_M, Q6_K and Q4_0. `tools/server_mix_check.py --ids --logprobs`, 16 requests alone, together and skewed on one MI50: the ids and values files are byte-equal to main's on 8B Q4_K_M, Q6_K and Q4_0 and 0.6B Q4_0, and every request matches alone. The suite on an MI50 passes but for the section reference this block adds.
+- **Left:** the hosted run and the merge.
+- **Gotchas:** under the AMD proprietary driver the prototype's restructured code changed the bits of every build and made one column 25 percent slower, so the two-row builds are a separate path and a device takes them only where its profile sets `row_decode_cols`. A server measured on cores saturated by other work showed a fifth of the gain `bench --seqs 64` showed, since a faster pass leaves the host less time; server timing needs idle cores.
+
 ## Fixes from the review of 2026-09-28 (2026-09-29, merged at `41b19afc` and `471841b9`)
 
 Each fix landed with its failing test first where the fix changes behaviour, on a branch of its own, and every finding the Markdown and code review raised was rechecked at the cited code before it was fixed or kept.
@@ -2808,7 +2825,7 @@ This separate merge-record change reviews STATUS against the completed landing e
   4. Host work on the split's stage 0 (recording, sampling, stepping): about 16 percent of stage 0 at 64 users on Q8_0, bounded by stage 1 to about 9 percent there and 3 on the K-quant files; needs recording off the scheduler thread (step 7).
   5. Attention and the KV writes: 22 ms of a 64-row Q8_0 pass, 25 to 35 percent of the pass once 1 or 2 lands; not measured as a fix.
   - Not fixes: P = S + 1 (-7 to -16 percent on Q8_0), copying rows before sampling (-5 percent), the relay.
-- **Left:** the other developer's review of the ranked fixes; the coordinator's choice of which to build.
+- **Left:** the second route of fix 1, Q8_0-style decode builds for these rows, was the one built: Two-row decode builds for the Q4 and K-quant rows (above), +22 to +42 percent at 16 to 64 users with one user level.
 
 ## Layer split phase 2: a prompt pipelined over the stages (2026-09-25, branch feat/split-pipeline, done)
 
@@ -8170,6 +8187,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Multi-device split (per-layer, per-tensor) | In progress (`docs/MULTI-DEVICE.md`): phase 0 measured, phase 1 (the layer split over a `--device` list fitted to free memory) and phase 2 (a prompt pipelined over the stages) merged; phase 3, passes in flight: step 1, the pass API, step 2, the scheduler over it, step 3, a pass in flight per stage and the 16-slot command ring (`ec03dcfa`), and step 5, the wider Q8_0 decode builds (`perf/decode-columns`), merged; step 4, the in-place rows and the sampling pool, merged at `41b19afc`; step 6, the head split, measured on 2, 3, 4 and 8 cards and not merged (the user, 2026-09-29): bit-identical to one card, it served 17 to 23 percent below the whole head on 8 cards and below it on 2 to 4, and `feat/split-head` keeps it as a record to revisit after step 7; step 7 and the final server gate follow, then tensor groups |
 | GPU backends (Vulkan first to write, ROCm first-class) | Vulkan implemented and the recorded dense-model device gate passed on both platforms (forty-seventh checkpoint above): Radeon VII decode 102-115% and prefill 109-455% of the same-card reference Vulkan build; one MI50 decode 102-115% and prefill 102-267%. These are dated gate results, not new measurements from this documentation review. ROCm planned |
 | Multi-node / cluster                     | Planned  |
+| Two-row decode builds for the Q4 and K-quant rows | In progress (block above), `perf/kquant-decode-columns` |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |

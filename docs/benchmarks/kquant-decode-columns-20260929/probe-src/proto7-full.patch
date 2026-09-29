@@ -1,0 +1,1007 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b663749c..5912fd1a 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -382,6 +382,9 @@ if(BUILD_TESTING)
+         add_executable(llmx-multi-device-bench tools/multi_device_bench.cpp)
+         target_link_libraries(llmx-multi-device-bench PRIVATE llmx-vulkan)
+         list(APPEND LLMX_TARGETS llmx-multi-device-bench)
++        # PROTOTYPE, never merged.
++        add_executable(llmx-kq-probe tools/kq_probe.cpp)
++        target_link_libraries(llmx-kq-probe PRIVATE llmx-vulkan)
+     endif()
+ endif()
+ 
+diff --git a/src/backends/vulkan/shaders/matmul_row.comp b/src/backends/vulkan/shaders/matmul_row.comp
+index 0518d0a5..da323bfa 100644
+--- a/src/backends/vulkan/shaders/matmul_row.comp
++++ b/src/backends/vulkan/shaders/matmul_row.comp
+@@ -16,6 +16,7 @@
+ #extension GL_KHR_shader_subgroup_shuffle : require
+ #extension GL_EXT_shader_16bit_storage : require
+ #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
++#extension GL_EXT_control_flow_attributes : require
+ #ifdef LLMX_DOT
+ #extension GL_EXT_integer_dot_product : require
+ #endif
+@@ -73,6 +74,35 @@ layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
+ // As a specialization it costs the plain and routed pipelines nothing.
+ layout(constant_id = 8) const bool GROUPED = false;
+ layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
++// Adjacent rows a cluster takes in the Q4 and K-quant families, specialization constant 14: a lane keeps every row's weights and loads each column's activations once for all of them.
++// A row's lanes, blocks, products and reduction are the same whatever the rows, so each row gets the bits it gets alone.
++layout(constant_id = 14) const uint ROWS = 1;
++// PROTOTYPE: columns whose activation loads issue together in the Q4 and K-quant families (specialization constant 15).
++layout(constant_id = 15) const uint GROUP_COLS = 1;
++// PROTOTYPE diagnostic (specialization constant 16): 1 reads every column's activations from the call's first column.
++layout(constant_id = 16) const uint DIAG = 0;
++// PROTOTYPE: the wide builds' staged activations (specialization constant 17): each iteration's blocks of the chunk's columns copied once per workgroup into shared memory, which every row of the workgroup reads.
++layout(constant_id = 17) const bool STAGE = false;
++#ifdef LLMX_X8
++const uint XV2 = 8u;   // values a uvec2 of the twin holds
++#define XW2(i) xq4[i]
++#define SX4(i) sx[i]
++#else
++const uint XV2 = 4u;
++#define XW2(i) xq2[i]
++#define SX4(i) uvec4(sx[i], sx[(i) + 1u])
++#endif
++// Values an iteration covers at most, 32 for each lane of a 32-lane cluster, and what a column stages of them: the values, then the scale table, then for the 16-bit Q6_K rows the half sums.
++const uint SVALS = 1024u;
++const uint SACT = SVALS / XV2;
++#if defined(LLMX_KQUANT) && !defined(LLMX_X8)
++const uint STAB = 2u * SVALS / 32u;
++#else
++const uint STAB = SVALS / 32u;
++#endif
++const uint SCOL = SACT + STAB;
++shared uvec2 sx[STAGE ? MAX_COLS * SCOL : 1u];
++const uint CG = MAX_COLS < GROUP_COLS ? MAX_COLS : GROUP_COLS;
+ 
+ uint pi = 0u;
+ 
+@@ -203,7 +233,7 @@ void main() {
+     uint lane = gl_SubgroupInvocationID;
+     uint rsub = lane / p.cluster;      // which of the subgroup's rows
+     uint l = lane - rsub * p.cluster;  // lane within the row's cluster
+-    uint row = (local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
++    uint row = ((local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub) * ROWS;
+     uint col0 = p.col0, out0 = p.col0, wrow = row, g_first = 0u, g_cnt = 0u;
+     if (GROUPED) {
+         uint y = gl_WorkGroupID.y;
+@@ -220,15 +250,24 @@ void main() {
+     // One in the one-column build, so the column loops collapse.
+     const uint ncols = MAX_COLS == 1u ? 1u : GROUPED ? g_cnt : p.ncols;
+ // Column c's X column and output row: consecutive from col0, or a grouped chunk's entries.
+-#define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (c))
++#define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (DIAG == 1u ? 0u : (c)))
+ #define OCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] : out0 + (c))
+ #ifdef LLMX_PRESERVE_F32
+-    precise float acc[MAX_COLS];
++    precise float acc[ROWS][MAX_COLS];
+ #else
+-    float acc[MAX_COLS];
++    float acc[ROWS][MAX_COLS];
+ #endif
+-    for (uint c = 0u; c < MAX_COLS; ++c) acc[c] = 0.0;
+-    if (row < nout) {
++    [[unroll]] for (uint r = 0u; r < ROWS; ++r) for (uint c = 0u; c < MAX_COLS; ++c) acc[r][c] = 0.0;
++// Row r's weight row: rows past the last read the last one again, and write nothing.
++#define WROW(r) ((r) == 0u && !STAGE ? wrow : wrow - row + min(row + (r), nout - 1u))
++// Stages values V0 .. V0 + NV of the chunk's columns into sx: the values, the scale table and, for the 16-bit Q6_K rows, the half sums, every lane of the workgroup taking part.
++#if defined(LLMX_KQUANT) && !defined(LLMX_X8)
++#define HTAB_(c, k) floatBitsToUint(xt2[p.nbatch * p.nin / 4u + p.nbatch * p.nin / 32u + (c) * (p.nin / 32u) + (k)])
++#else
++#define HTAB_(c, k) uvec2(0u)
++#endif
++#define STAGE_COPY(V0, NV) {         uint na_ = (NV) / XV2, nt_ = (NV) / 32u;         for (uint i_ = gl_LocalInvocationIndex; i_ < ncols * SCOL; i_ += 256u) {             uint cc_ = i_ / SCOL, k_ = i_ - cc_ * SCOL, col_ = XCOL(cc_);             if (k_ < na_) sx[i_] = XW2((col_ * p.nin + (V0)) / XV2 + k_);             else if (k_ >= SACT && k_ < SACT + nt_) sx[i_] = floatBitsToUint(xt2[XTAB2 + col_ * (p.nin / 32u) + (V0) / 32u + k_ - SACT]);             else if (STAB != SVALS / 32u && k_ >= SACT + STAB / 2u && k_ < SACT + STAB / 2u + nt_) sx[i_] = HTAB_(col_, (V0) / 32u + k_ - SACT - STAB / 2u);         }         memoryBarrierShared();         barrier(); }
++    if (STAGE || row < nout) {
+ #ifdef LLMX_Q8W
+         {
+             uint nblocks = p.nin / Q8_0_BLOCK;
+@@ -262,9 +301,9 @@ void main() {
+                     if (t == 0u) q8_word(we, 16u, a2, p0, p1);
+                     vec4 dd = xq_pair(col, j);
+ #ifdef LLMX_PRESERVE_F32
+-                    acc[c] += fma(s0, dd.x * float(p0), s1 * (dd.z * float(p1)));
++                    acc[0][c] += fma(s0, dd.x * float(p0), s1 * (dd.z * float(p1)));
+ #else
+-                    acc[c] += s0 * (dd.x * float(p0)) + s1 * (dd.z * float(p1));
++                    acc[0][c] += s0 * (dd.x * float(p0)) + s1 * (dd.z * float(p1));
+ #endif
+                 }
+             }
+@@ -285,9 +324,9 @@ void main() {
+                     int s = byte_dot(q0, xq2[a2]) + byte_dot(q1, xq2[a2 + 1u]) + byte_dot(q2, xq2[a2 + 2u]) + byte_dot(q3, xq2[a2 + 3u]) +
+                             byte_dot(q4, xq2[a2 + 4u]) + byte_dot(q5, xq2[a2 + 5u]) + byte_dot(q6, xq2[a2 + 6u]) + byte_dot(q7, xq2[a2 + 7u]);
+ #ifdef LLMX_PRESERVE_F32
+-                    acc[c] = fma(scale, xq_block(col, b).x * float(s), acc[c]);
++                    acc[0][c] = fma(scale, xq_block(col, b).x * float(s), acc[0][c]);
+ #else
+-                    acc[c] += scale * (xq_block(col, b).x * float(s));
++                    acc[0][c] += scale * (xq_block(col, b).x * float(s));
+ #endif
+                 }
+             }
+@@ -303,112 +342,187 @@ void main() {
+                 vec4 w3 = uintBitsToFloat(w128s[pi].w128[wbase4 + i + 3u * cl]);
+                 for (uint c = 0u; c < ncols; ++c) {
+                     uint xb = XCOL(c) * n4 + i;
+-                    acc[c] += dot(w0, xt4[xb]);
+-                    acc[c] += dot(w1, xt4[xb + cl]);
+-                    acc[c] += dot(w2, xt4[xb + 2u * cl]);
+-                    acc[c] += dot(w3, xt4[xb + 3u * cl]);
++                    acc[0][c] += dot(w0, xt4[xb]);
++                    acc[0][c] += dot(w1, xt4[xb + cl]);
++                    acc[0][c] += dot(w2, xt4[xb + 2u * cl]);
++                    acc[0][c] += dot(w3, xt4[xb + 3u * cl]);
+                 }
+             }
+             for (; i < n4; i += cl) {
+                 vec4 w = uintBitsToFloat(w128s[pi].w128[wbase4 + i]);
+-                for (uint c = 0u; c < ncols; ++c) acc[c] += dot(w, xt4[XCOL(c) * n4 + i]);
++                for (uint c = 0u; c < ncols; ++c) acc[0][c] += dot(w, xt4[XCOL(c) * n4 + i]);
+             }
+         } else {
+             uint wbase = wrow * p.nin;
+             for (uint i = l; i < p.nin; i += p.cluster) {
+                 float w = wfs[pi].wf[wbase + i];
+-                for (uint c = 0u; c < ncols; ++c) acc[c] += w * x[XCOL(c) * p.nin + i];
++                for (uint c = 0u; c < ncols; ++c) acc[0][c] += w * x[XCOL(c) * p.nin + i];
+             }
+         }
+ #endif
+ #ifdef LLMX_Q4
++        // The Q4 families' columns in groups of CG: a group's activation loads issue together, then each column's products for every row.
++// The four activation pairs of a Q4 block for column c and the block's scale entry.
++#define Q4_LOADS(J, COLIDX) { uint col_ = XCOL(COLIDX); uint a4_ = xa_col(col_) / 4u + b * 4u; \
++                    lo0[J] = xq4[a4_]; lo1[J] = xq4[a4_ + 1u]; hi0[J] = xq4[a4_ + 2u]; hi1[J] = xq4[a4_ + 3u]; xb[J] = xq_block(col_, b); }
+         if (type == TYPE_Q4_0 && wide != 0u) {
+             // Two lanes per 9-word pair, a block each: lane 0 words 0..4 (the scale, then nibble bytes starting two bytes in), lane 1 words 4..8 (the scale in word 4's high half, then aligned nibble words).
+             uint nblocks = p.nin / Q4_0_BLOCK;
+             uint npairs = nblocks / 2u;
+-            uint wbase = wrow * nblocks * 9u / 2u;   // words: a pair is 9
+             uint group = l / 2u, t = l - group * 2u;
+             uint groups = p.cluster / 2u;
++            uint wb[ROWS];
++            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wb[r] = WROW(r) * nblocks * 9u / 2u + 4u * t;   // words: a pair is 9
+             for (uint j = group; j < npairs; j += groups) {
+-                uint o = wbase + j * 9u + 4u * t;
+-                uint wa = w32s[pi].w32[o], wb = w32s[pi].w32[o + 1u], wc = w32s[pi].w32[o + 2u];
+-                uint wd = w32s[pi].w32[o + 3u], we = w32s[pi].w32[o + 4u];
+-                float d;
+-                uint n0, n1, n2, n3;
+-                if (t == 0u) {
+-                    d = unpackHalf2x16(wa).x;
+-                    n0 = (wa >> 16u) | (wb << 16u);
+-                    n1 = (wb >> 16u) | (wc << 16u);
+-                    n2 = (wc >> 16u) | (wd << 16u);
+-                    n3 = (wd >> 16u) | (we << 16u);
+-                } else {
+-                    d = unpackHalf2x16(wa).y;
+-                    n0 = wb; n1 = wc; n2 = wd; n3 = we;
++                float d[ROWS];
++                uint n0[ROWS], n1[ROWS], n2[ROWS], n3[ROWS];
++                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                    uint o = wb[r] + j * 9u;
++                    uint wa = w32s[pi].w32[o], wbb = w32s[pi].w32[o + 1u], wc = w32s[pi].w32[o + 2u];
++                    uint wd = w32s[pi].w32[o + 3u], we = w32s[pi].w32[o + 4u];
++                    if (t == 0u) {
++                        d[r] = unpackHalf2x16(wa).x;
++                        n0[r] = (wa >> 16u) | (wbb << 16u);
++                        n1[r] = (wbb >> 16u) | (wc << 16u);
++                        n2[r] = (wc >> 16u) | (wd << 16u);
++                        n3[r] = (wd >> 16u) | (we << 16u);
++                    } else {
++                        d[r] = unpackHalf2x16(wa).y;
++                        n0[r] = wbb; n1[r] = wc; n2[r] = wd; n3[r] = we;
++                    }
+                 }
+                 uint b = 2u * j + t;
+-                for (uint c = 0u; c < ncols; ++c) {
+-                    uint col = XCOL(c);
+-                    uint a4 = xa_col(col) / 4u + b * 4u;
+-                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+-                    QDOT pl = QDOT(0);
+-                    QDOT ph = QDOT(0);
+-                    nibble_dots(n0, 0u, 0u, 0u, 0u, XA(lo0), XA(hi0), pl, ph);
+-                    nibble_dots(n1, 0u, 0u, 0u, 0u, XB(lo0), XB(hi0), pl, ph);
+-                    nibble_dots(n2, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph);
+-                    nibble_dots(n3, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
+-                    vec2 xb = xq_block(col, b);
+-                    acc[c] += d * (xb.x * float(pl + ph) - 8.0 * xb.y);
++                [[unroll]] for (uint g = 0u; g < MAX_COLS; g += CG) {
++                    if (g > 0u && g >= ncols) break;
++                    XQ4T lo0[CG], lo1[CG], hi0[CG], hi1[CG];
++                    vec2 xb[CG];
++                    [[unroll]] for (uint k = 0u; k < CG; ++k) Q4_LOADS(k, min(g + k, ncols - 1u))
++                    if (g + CG <= ncols) {
++                        [[unroll]] for (uint k = 0u; k < CG; ++k) {
++                            [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                                QDOT pl = QDOT(0);
++                                QDOT ph = QDOT(0);
++                                nibble_dots(n0[r], 0u, 0u, 0u, 0u, XA(lo0[k]), XA(hi0[k]), pl, ph);
++                                nibble_dots(n1[r], 0u, 0u, 0u, 0u, XB(lo0[k]), XB(hi0[k]), pl, ph);
++                                nibble_dots(n2[r], 0u, 0u, 0u, 0u, XA(lo1[k]), XA(hi1[k]), pl, ph);
++                                nibble_dots(n3[r], 0u, 0u, 0u, 0u, XB(lo1[k]), XB(hi1[k]), pl, ph);
++                                acc[r][g + k] += d[r] * (xb[k].x * float(pl + ph) - 8.0 * xb[k].y);
++                            }
++                        }
++                    } else {
++                        [[unroll]] for (uint k = 0u; k < CG; ++k) if (k == 0u || g + k < ncols) {
++                            [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                                QDOT pl = QDOT(0);
++                                QDOT ph = QDOT(0);
++                                nibble_dots(n0[r], 0u, 0u, 0u, 0u, XA(lo0[k]), XA(hi0[k]), pl, ph);
++                                nibble_dots(n1[r], 0u, 0u, 0u, 0u, XB(lo0[k]), XB(hi0[k]), pl, ph);
++                                nibble_dots(n2[r], 0u, 0u, 0u, 0u, XA(lo1[k]), XA(hi1[k]), pl, ph);
++                                nibble_dots(n3[r], 0u, 0u, 0u, 0u, XB(lo1[k]), XB(hi1[k]), pl, ph);
++                                acc[r][g + k] += d[r] * (xb[k].x * float(pl + ph) - 8.0 * xb[k].y);
++                            }
++                        }
++                    }
+                 }
+             }
+         } else if (type == TYPE_Q4_0) {
+             // 16-bit loads over 18-byte blocks for an odd block count.
+             uint nblocks = p.nin / Q4_0_BLOCK;
+-            uint bbase = wrow * nblocks * Q4_0_BYTES;
++            uint wb[ROWS];
++            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wb[r] = WROW(r) * nblocks * Q4_0_BYTES;
+             for (uint b = l; b < nblocks; b += p.cluster) {
+-                uint o = bbase + b * Q4_0_BYTES;
+-                float d = unpackHalf2x16(uint(w16s[pi].w16[o >> 1u])).x;
+-                uint n0 = hword_at(o + 2u), n1 = hword_at(o + 6u), n2 = hword_at(o + 10u), n3 = hword_at(o + 14u);
+-                for (uint c = 0u; c < ncols; ++c) {
+-                    uint col = XCOL(c);
+-                    uint a4 = xa_col(col) / 4u + b * 4u;
+-                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+-                    QDOT pl = QDOT(0);
+-                    QDOT ph = QDOT(0);
+-                    nibble_dots(n0, 0u, 0u, 0u, 0u, XA(lo0), XA(hi0), pl, ph);
+-                    nibble_dots(n1, 0u, 0u, 0u, 0u, XB(lo0), XB(hi0), pl, ph);
+-                    nibble_dots(n2, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph);
+-                    nibble_dots(n3, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
+-                    vec2 xb = xq_block(col, b);
+-                    acc[c] += d * (xb.x * float(pl + ph) - 8.0 * xb.y);
++                float d[ROWS];
++                uint n0[ROWS], n1[ROWS], n2[ROWS], n3[ROWS];
++                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                    uint o = wb[r] + b * Q4_0_BYTES;
++                    d[r] = unpackHalf2x16(uint(w16s[pi].w16[o >> 1u])).x;
++                    n0[r] = hword_at(o + 2u); n1[r] = hword_at(o + 6u); n2[r] = hword_at(o + 10u); n3[r] = hword_at(o + 14u);
++                }
++                [[unroll]] for (uint g = 0u; g < MAX_COLS; g += CG) {
++                    if (g > 0u && g >= ncols) break;
++                    XQ4T lo0[CG], lo1[CG], hi0[CG], hi1[CG];
++                    vec2 xb[CG];
++                    [[unroll]] for (uint k = 0u; k < CG; ++k) Q4_LOADS(k, min(g + k, ncols - 1u))
++                    if (g + CG <= ncols) {
++                        [[unroll]] for (uint k = 0u; k < CG; ++k) {
++                            [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                                QDOT pl = QDOT(0);
++                                QDOT ph = QDOT(0);
++                                nibble_dots(n0[r], 0u, 0u, 0u, 0u, XA(lo0[k]), XA(hi0[k]), pl, ph);
++                                nibble_dots(n1[r], 0u, 0u, 0u, 0u, XB(lo0[k]), XB(hi0[k]), pl, ph);
++                                nibble_dots(n2[r], 0u, 0u, 0u, 0u, XA(lo1[k]), XA(hi1[k]), pl, ph);
++                                nibble_dots(n3[r], 0u, 0u, 0u, 0u, XB(lo1[k]), XB(hi1[k]), pl, ph);
++                                acc[r][g + k] += d[r] * (xb[k].x * float(pl + ph) - 8.0 * xb[k].y);
++                            }
++                        }
++                    } else {
++                        [[unroll]] for (uint k = 0u; k < CG; ++k) if (k == 0u || g + k < ncols) {
++                            [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                                QDOT pl = QDOT(0);
++                                QDOT ph = QDOT(0);
++                                nibble_dots(n0[r], 0u, 0u, 0u, 0u, XA(lo0[k]), XA(hi0[k]), pl, ph);
++                                nibble_dots(n1[r], 0u, 0u, 0u, 0u, XB(lo0[k]), XB(hi0[k]), pl, ph);
++                                nibble_dots(n2[r], 0u, 0u, 0u, 0u, XA(lo1[k]), XA(hi1[k]), pl, ph);
++                                nibble_dots(n3[r], 0u, 0u, 0u, 0u, XB(lo1[k]), XB(hi1[k]), pl, ph);
++                                acc[r][g + k] += d[r] * (xb[k].x * float(pl + ph) - 8.0 * xb[k].y);
++                            }
++                        }
++                    }
+                 }
+             }
+         } else {
+             // Q4_1: one lane per 5-word block, d and m in word 0.
+             uint nblocks = p.nin / 32u;
+-            uint wbase = wrow * nblocks * 5u;
++            uint wb[ROWS];
++            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wb[r] = WROW(r) * nblocks * 5u;
+             for (uint b = l; b < nblocks; b += p.cluster) {
+-                uint o = wbase + b * 5u;
+-                uint w0 = w32s[pi].w32[o];
+-                uint w1 = w32s[pi].w32[o + 1u], w2 = w32s[pi].w32[o + 2u];
+-                uint w3 = w32s[pi].w32[o + 3u], w4 = w32s[pi].w32[o + 4u];
+-                vec2 dm = unpackHalf2x16(w0);
+-                for (uint c = 0u; c < ncols; ++c) {
+-                    uint col = XCOL(c);
+-                    uint a4 = xa_col(col) / 4u + b * 4u;
+-                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
+-                    QDOT pl = QDOT(0);
+-                    QDOT ph = QDOT(0);
+-                    nibble_dots(w1, 0u, 0u, 0u, 0u, XA(lo0), XA(hi0), pl, ph);
+-                    nibble_dots(w2, 0u, 0u, 0u, 0u, XB(lo0), XB(hi0), pl, ph);
+-                    nibble_dots(w3, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph);
+-                    nibble_dots(w4, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
+-                    vec2 xb = xq_block(col, b);
+-#ifdef LLMX_DOT
+-                    acc[c] += dm.x * (xb.x * float(pl + ph)) + dm.y * xb.y;
+-#else
+-                    // The minimum's term joins the sum before the scaled dot, as two additions: a driver that reassociates float sums then has one order to contract in every build (docs/VULKAN.md, batch invariance).
+-                    acc[c] = (acc[c] + dm.y * xb.y) + dm.x * (xb.x * float(pl + ph));
+-#endif
++                vec2 dm[ROWS];
++                uint w1[ROWS], w2[ROWS], w3[ROWS], w4[ROWS];
++                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                    uint o = wb[r] + b * 5u;
++                    dm[r] = unpackHalf2x16(w32s[pi].w32[o]);
++                    w1[r] = w32s[pi].w32[o + 1u]; w2[r] = w32s[pi].w32[o + 2u];
++                    w3[r] = w32s[pi].w32[o + 3u]; w4[r] = w32s[pi].w32[o + 4u];
++                }
++                [[unroll]] for (uint g = 0u; g < MAX_COLS; g += CG) {
++                    if (g > 0u && g >= ncols) break;
++                    XQ4T lo0[CG], lo1[CG], hi0[CG], hi1[CG];
++                    vec2 xb[CG];
++                    [[unroll]] for (uint k = 0u; k < CG; ++k) Q4_LOADS(k, min(g + k, ncols - 1u))
++                    if (g + CG <= ncols) {
++                        [[unroll]] for (uint k = 0u; k < CG; ++k) {
++                            [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                                QDOT pl = QDOT(0);
++                                QDOT ph = QDOT(0);
++                                nibble_dots(w1[r], 0u, 0u, 0u, 0u, XA(lo0[k]), XA(hi0[k]), pl, ph);
++                                nibble_dots(w2[r], 0u, 0u, 0u, 0u, XB(lo0[k]), XB(hi0[k]), pl, ph);
++                                nibble_dots(w3[r], 0u, 0u, 0u, 0u, XA(lo1[k]), XA(hi1[k]), pl, ph);
++                                nibble_dots(w4[r], 0u, 0u, 0u, 0u, XB(lo1[k]), XB(hi1[k]), pl, ph);
++    #ifdef LLMX_DOT
++                                acc[r][g + k] += dm[r].x * (xb[k].x * float(pl + ph)) + dm[r].y * xb[k].y;
++    #else
++                                // The minimum's term joins the sum before the scaled dot, as two additions: a driver that reassociates float sums then has one order to contract in every build (docs/VULKAN.md, batch invariance).
++                                acc[r][g + k] = (acc[r][g + k] + dm[r].y * xb[k].y) + dm[r].x * (xb[k].x * float(pl + ph));
++    #endif
++                            }
++                        }
++                    } else {
++                        [[unroll]] for (uint k = 0u; k < CG; ++k) if (k == 0u || g + k < ncols) {
++                            [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                                QDOT pl = QDOT(0);
++                                QDOT ph = QDOT(0);
++                                nibble_dots(w1[r], 0u, 0u, 0u, 0u, XA(lo0[k]), XA(hi0[k]), pl, ph);
++                                nibble_dots(w2[r], 0u, 0u, 0u, 0u, XB(lo0[k]), XB(hi0[k]), pl, ph);
++                                nibble_dots(w3[r], 0u, 0u, 0u, 0u, XA(lo1[k]), XA(hi1[k]), pl, ph);
++                                nibble_dots(w4[r], 0u, 0u, 0u, 0u, XB(lo1[k]), XB(hi1[k]), pl, ph);
++    #ifdef LLMX_DOT
++                                acc[r][g + k] += dm[r].x * (xb[k].x * float(pl + ph)) + dm[r].y * xb[k].y;
++    #else
++                                // The minimum's term joins the sum before the scaled dot, as two additions: a driver that reassociates float sums then has one order to contract in every build (docs/VULKAN.md, batch invariance).
++                                acc[r][g + k] = (acc[r][g + k] + dm[r].y * xb[k].y) + dm[r].x * (xb[k].x * float(pl + ph));
++    #endif
++                            }
++                        }
++                    }
+                 }
+             }
+         }
+@@ -424,44 +538,84 @@ void main() {
+ #endif
+             uint bw = (q5 != 0u ? Q5_K_BYTES : Q4_K_BYTES) / 4u;
+             uint nblocks = p.nin / Q6_K_BLOCK;
+-            uint wbase = wrow * nblocks * bw;
+             uint group = l / 8u, t = l - group * 8u;
+             uint groups = p.cluster / 8u;
+             uint c = t / 2u, h = t - c * 2u;
+             uint sl = 2u * c, sh = 2u * c + 1u;
+-            for (uint b = group; b < nblocks; b += groups) {
+-                uint o = wbase + b * bw;
+-                uvec4 hd = w128s[pi].w128[o / 4u];   // d and dmin, then the three sub-scale words
+-                vec2 dd = unpackHalf2x16(hd.x);
+-                uint s0 = hd.y, s1 = hd.z, s2 = hd.w;
+-                uvec4 nq = w128s[pi].w128[(o + (q5 != 0u ? 12u : 4u) + c * 8u + h * 4u) / 4u];
+-                // Q5_K's fifth bits, unpacked just before each word's dots.
+-                uvec4 hbv = uvec4(0u);
+-                if (q5 != 0u) hbv = w128s[pi].w128[(o + 4u + h * 4u) / 4u];
+-                float scl, mnl, sch, mnh;
+-                scale_min_pair(s0, s1, s2, c, scl, mnl, sch, mnh);
+-                // The block's scales folded once; the mins multiply the whole group's sum, so only one of the group's two lanes applies them.
+-                float dl = dd.x * scl, dh = dd.x * sch;
+-                float ml = h == 0u ? dd.y * mnl : 0.0, mh = h == 0u ? dd.y * mnh : 0.0;
++            uint wb[ROWS];
++            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wb[r] = WROW(r) * nblocks * bw;
++            uint niter = STAGE ? (nblocks + groups - 1u) / groups : 0u;
++            for (uint it = 0u, b = group; STAGE ? it < niter : b < nblocks; ++it, b += groups) {
++                if (STAGE) STAGE_COPY(it * groups * 256u, min(groups * 256u, p.nin - it * groups * 256u))
++                if (!STAGE || b < nblocks) {
++                uvec4 nq[ROWS], hbv[ROWS];
++                float dl[ROWS], dh[ROWS], ml[ROWS], mh[ROWS];
++                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                    uint o = wb[r] + b * bw;
++                    uvec4 hd = w128s[pi].w128[o / 4u];   // d and dmin, then the three sub-scale words
++                    vec2 dd = unpackHalf2x16(hd.x);
++                    nq[r] = w128s[pi].w128[(o + (q5 != 0u ? 12u : 4u) + c * 8u + h * 4u) / 4u];
++                    // Q5_K's fifth bits, unpacked just before each word's dots.
++                    hbv[r] = uvec4(0u);
++                    if (q5 != 0u) hbv[r] = w128s[pi].w128[(o + 4u + h * 4u) / 4u];
++                    float scl, mnl, sch, mnh;
++                    scale_min_pair(hd.y, hd.z, hd.w, c, scl, mnl, sch, mnh);
++                    // The block's scales folded once; the mins multiply the whole group's sum, so only one of the group's two lanes applies them.
++                    dl[r] = dd.x * scl;
++                    dh[r] = dd.x * sch;
++                    ml[r] = h == 0u ? dd.y * mnl : 0.0;
++                    mh[r] = h == 0u ? dd.y * mnh : 0.0;
++                }
+                 uint bl = b * 8u + 2u * c;   // the low group's 32-block, the high group's is next
+-                for (uint cc = 0u; cc < ncols; ++cc) {
+-                    uint col = XCOL(cc);
+-                    uint a4 = xa_col(col) / 4u + (b * 256u + c * 64u + h * 16u) / 8u;
+-                    QDOT pl = QDOT(0);
+-                    QDOT ph = QDOT(0);
+-                    {
+-                        XQ4T lo = xq4[a4], hi = xq4[a4 + 4u];
+-                        nibble_dots(nq.x, fifth(hbv.x, sl), fifth(hbv.x, sl + 8u), fifth(hbv.x, sh), fifth(hbv.x, sh + 8u), XA(lo), XA(hi), pl, ph);
+-                        nibble_dots(nq.y, fifth(hbv.y, sl), fifth(hbv.y, sl + 8u), fifth(hbv.y, sh), fifth(hbv.y, sh + 8u), XB(lo), XB(hi), pl, ph);
++                [[unroll]] for (uint g = 0u; g < MAX_COLS; g += CG) {
++                    if (g > 0u && g >= ncols) break;
++                    XQ4T lo0[CG], hi0[CG], lo1[CG], hi1[CG];
++                    vec4 xt[CG];
++                    [[unroll]] for (uint k = 0u; k < CG; ++k) {
++                        if (STAGE) {
++                            uint s_ = min(g + k, ncols - 1u) * SCOL, v_ = group * 256u + c * 64u + h * 16u, t_ = s_ + SACT + group * 8u + 2u * c;
++                            lo0[k] = SX4(s_ + v_ / XV2); hi0[k] = SX4(s_ + (v_ + 32u) / XV2); lo1[k] = SX4(s_ + (v_ + 8u) / XV2); hi1[k] = SX4(s_ + (v_ + 40u) / XV2);
++                            xt[k] = vec4(uintBitsToFloat(sx[t_]), uintBitsToFloat(sx[t_ + 1u]));
++                        } else {
++                        uint col = DIAG == 3u ? col0 + min(g + k, ncols - 1u) * p.per : XCOL(min(g + k, ncols - 1u));
++                        uint a4 = xa_col(col) / 4u + (b * 256u + c * 64u + h * 16u) / 8u;
++                        lo0[k] = xq4[a4]; hi0[k] = xq4[a4 + 4u]; lo1[k] = xq4[a4 + 1u]; hi1[k] = xq4[a4 + 5u];
++                        xt[k] = xq_pair(col, bl / 2u);   // d, ds of the low group, then the high
++                        }
+                     }
+-                    {
+-                        XQ4T lo = xq4[a4 + 1u], hi = xq4[a4 + 5u];
+-                        nibble_dots(nq.z, fifth(hbv.z, sl), fifth(hbv.z, sl + 8u), fifth(hbv.z, sh), fifth(hbv.z, sh + 8u), XA(lo), XA(hi), pl, ph);
+-                        nibble_dots(nq.w, fifth(hbv.w, sl), fifth(hbv.w, sl + 8u), fifth(hbv.w, sh), fifth(hbv.w, sh + 8u), XB(lo), XB(hi), pl, ph);
++                    if (DIAG == 2u) {
++                        [[unroll]] for (uint k = 0u; k < CG; ++k) [[unroll]] for (uint r = 0u; r < ROWS; ++r)
++                            acc[r][g + k] += uintBitsToFloat(((lo0[k].x ^ hi0[k].y ^ lo1[k].x ^ hi1[k].y) & 0x007FFFFFu) | 0x3F800000u) + xt[k].x;
++                    } else if (g + CG <= ncols) {
++                        [[unroll]] for (uint k = 0u; k < CG; ++k) {
++                            [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                                QDOT pl = QDOT(0);
++                                QDOT ph = QDOT(0);
++                                uvec4 q = nq[r], hb = hbv[r];
++                                nibble_dots(q.x, fifth(hb.x, sl), fifth(hb.x, sl + 8u), fifth(hb.x, sh), fifth(hb.x, sh + 8u), XA(lo0[k]), XA(hi0[k]), pl, ph);
++                                nibble_dots(q.y, fifth(hb.y, sl), fifth(hb.y, sl + 8u), fifth(hb.y, sh), fifth(hb.y, sh + 8u), XB(lo0[k]), XB(hi0[k]), pl, ph);
++                                nibble_dots(q.z, fifth(hb.z, sl), fifth(hb.z, sl + 8u), fifth(hb.z, sh), fifth(hb.z, sh + 8u), XA(lo1[k]), XA(hi1[k]), pl, ph);
++                                nibble_dots(q.w, fifth(hb.w, sl), fifth(hb.w, sl + 8u), fifth(hb.w, sh), fifth(hb.w, sh + 8u), XB(lo1[k]), XB(hi1[k]), pl, ph);
++                                acc[r][g + k] += dl[r] * (xt[k].x * float(pl)) + dh[r] * (xt[k].z * float(ph)) - (ml[r] * xt[k].y + mh[r] * xt[k].w);
++                            }
++                        }
++                    } else {
++                        [[unroll]] for (uint k = 0u; k < CG; ++k) if (k == 0u || g + k < ncols) {
++                            [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                                QDOT pl = QDOT(0);
++                                QDOT ph = QDOT(0);
++                                uvec4 q = nq[r], hb = hbv[r];
++                                nibble_dots(q.x, fifth(hb.x, sl), fifth(hb.x, sl + 8u), fifth(hb.x, sh), fifth(hb.x, sh + 8u), XA(lo0[k]), XA(hi0[k]), pl, ph);
++                                nibble_dots(q.y, fifth(hb.y, sl), fifth(hb.y, sl + 8u), fifth(hb.y, sh), fifth(hb.y, sh + 8u), XB(lo0[k]), XB(hi0[k]), pl, ph);
++                                nibble_dots(q.z, fifth(hb.z, sl), fifth(hb.z, sl + 8u), fifth(hb.z, sh), fifth(hb.z, sh + 8u), XA(lo1[k]), XA(hi1[k]), pl, ph);
++                                nibble_dots(q.w, fifth(hb.w, sl), fifth(hb.w, sl + 8u), fifth(hb.w, sh), fifth(hb.w, sh + 8u), XB(lo1[k]), XB(hi1[k]), pl, ph);
++                                acc[r][g + k] += dl[r] * (xt[k].x * float(pl)) + dh[r] * (xt[k].z * float(ph)) - (ml[r] * xt[k].y + mh[r] * xt[k].w);
++                            }
++                        }
+                     }
+-                    vec4 xt = xq_pair(col, bl / 2u);   // d, ds of the low group, then the high
+-                    acc[cc] += dl * (xt.x * float(pl)) + dh * (xt.z * float(ph)) - (ml * xt.y + mh * xt.w);
+                 }
++                }
++                if (STAGE) barrier();
+             }
+         }
+ #endif
+@@ -471,74 +625,133 @@ void main() {
+             // Position l0 + i has one value per 32-group: low nibble of ql[l0 + i] with qh bits 0..1, low nibble of ql[l0 + 32 + i] with bits 2..3, the high nibbles with bits 4..5 and 6..7.
+             // Each group has its own sub-scale, index l0 / 16 for all eight; values are packed as unsigned bytes 0..63 and the -32 offset folded through the block sum.
+             uint nblocks = p.nin / Q6_K_BLOCK;
+-            uint bbase = wrow * nblocks * Q6_K_BYTES;   // bytes
+             uint group = l / 8u, t = l - group * 8u;
+             uint groups = p.cluster / 8u;
+             uint n = t / 4u, l0 = (t - n * 4u) * 8u;
+-            for (uint b = group; b < nblocks; b += groups) {
+-                uint o = bbase + b * Q6_K_BYTES;
+-                uint lo0, lo1, hi0, hi1, qh0, qh1, sc_a, sc_b;
+-                words_at(o + n * 64u + l0, lo0, lo1);
+-                words_at(o + n * 64u + 32u + l0, hi0, hi1);
+-                words_at(o + 128u + n * 32u + l0, qh0, qh1);
+-                words_at(o + 192u + n * 8u, sc_a, sc_b);
+-                float d = half_word_at(o + 208u);
+-                // Sub-scales of groups 0..3 are bytes l0/16 + 0, 2, 4, 6.
+-                uint sh = (l0 / 16u) * 8u;
+-                float s0 = float((int(sc_a << (24u - sh))) >> 24);
+-                float s1 = float((int(sc_a << (8u - sh))) >> 24);
+-                float s2 = float((int(sc_b << (24u - sh))) >> 24);
+-                float s3 = float((int(sc_b << (8u - sh))) >> 24);
+-                uint q0a = (lo0 & 0x0F0F0F0Fu) | ((qh0 & 0x03030303u) << 4u), q0b = (lo1 & 0x0F0F0F0Fu) | ((qh1 & 0x03030303u) << 4u);
+-                uint q1a = (hi0 & 0x0F0F0F0Fu) | (((qh0 >> 2u) & 0x03030303u) << 4u), q1b = (hi1 & 0x0F0F0F0Fu) | (((qh1 >> 2u) & 0x03030303u) << 4u);
+-                uint q2a = ((lo0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 4u) & 0x03030303u) << 4u), q2b = ((lo1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 4u) & 0x03030303u) << 4u);
+-                uint q3a = ((hi0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 6u) & 0x03030303u) << 4u), q3b = ((hi1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 6u) & 0x03030303u) << 4u);
+-                uint bg = b * 8u + n * 4u;   // the 32-block of group 0
++            // Sub-scales of groups 0..3 are bytes l0/16 + 0, 2, 4, 6.
++            uint sh = (l0 / 16u) * 8u;
++            uint wb[ROWS];
++            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wb[r] = WROW(r) * nblocks * Q6_K_BYTES;   // bytes
++            uint niter = STAGE ? (nblocks + groups - 1u) / groups : 0u;
++            for (uint it = 0u, b = group; STAGE ? it < niter : b < nblocks; ++it, b += groups) {
++                if (STAGE) STAGE_COPY(it * groups * 256u, min(groups * 256u, p.nin - it * groups * 256u))
++                if (!STAGE || b < nblocks) {
++                float d[ROWS], s0[ROWS], s1[ROWS], s2[ROWS], s3[ROWS];
++                uint q0a[ROWS], q0b[ROWS], q1a[ROWS], q1b[ROWS], q2a[ROWS], q2b[ROWS], q3a[ROWS], q3b[ROWS];
++                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++                    uint o = wb[r] + b * Q6_K_BYTES;
++                    uint lo0, lo1, hi0, hi1, qh0, qh1, sc_a, sc_b;
++                    words_at(o + n * 64u + l0, lo0, lo1);
++                    words_at(o + n * 64u + 32u + l0, hi0, hi1);
++                    words_at(o + 128u + n * 32u + l0, qh0, qh1);
++                    words_at(o + 192u + n * 8u, sc_a, sc_b);
++                    d[r] = half_word_at(o + 208u);
++                    s0[r] = float((int(sc_a << (24u - sh))) >> 24);
++                    s1[r] = float((int(sc_a << (8u - sh))) >> 24);
++                    s2[r] = float((int(sc_b << (24u - sh))) >> 24);
++                    s3[r] = float((int(sc_b << (8u - sh))) >> 24);
++                    q0a[r] = (lo0 & 0x0F0F0F0Fu) | ((qh0 & 0x03030303u) << 4u); q0b[r] = (lo1 & 0x0F0F0F0Fu) | ((qh1 & 0x03030303u) << 4u);
++                    q1a[r] = (hi0 & 0x0F0F0F0Fu) | (((qh0 >> 2u) & 0x03030303u) << 4u); q1b[r] = (hi1 & 0x0F0F0F0Fu) | (((qh1 >> 2u) & 0x03030303u) << 4u);
++                    q2a[r] = ((lo0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 4u) & 0x03030303u) << 4u); q2b[r] = ((lo1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 4u) & 0x03030303u) << 4u);
++                    q3a[r] = ((hi0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 6u) & 0x03030303u) << 4u); q3b[r] = ((hi1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 6u) & 0x03030303u) << 4u);
+ #ifdef LLMX_X8
+-                // On the 8-bit twin the -32 goes into each byte, so a group is two four-wide dots of signed bytes and needs no half sums.
+-                q0a = signed6(q0a); q0b = signed6(q0b); q1a = signed6(q1a); q1b = signed6(q1b);
+-                q2a = signed6(q2a); q2b = signed6(q2b); q3a = signed6(q3a); q3b = signed6(q3b);
+-                for (uint c = 0u; c < ncols; ++c) {
+-                    uint col = XCOL(c);
+-                    uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
+-                    XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
+-                    int p0 = dot4(q0a, x0v.x) + dot4(q0b, x0v.y), p1 = dot4(q1a, x1v.x) + dot4(q1b, x1v.y);
+-                    int p2 = dot4(q2a, x2v.x) + dot4(q2b, x2v.y), p3 = dot4(q3a, x3v.x) + dot4(q3b, x3v.y);
+-                    vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
+-                    acc[c] += d * (s0 * (xa.x * float(p0)) + s1 * (xa.z * float(p1)) +
+-                                   s2 * (xb.x * float(p2)) + s3 * (xb.z * float(p3)));
++                    // On the 8-bit twin the -32 goes into each byte, so a group is two four-wide dots of signed bytes and needs no half sums.
++                    q0a[r] = signed6(q0a[r]); q0b[r] = signed6(q0b[r]); q1a[r] = signed6(q1a[r]); q1b[r] = signed6(q1b[r]);
++                    q2a[r] = signed6(q2a[r]); q2b[r] = signed6(q2b[r]); q3a[r] = signed6(q3a[r]); q3b[r] = signed6(q3b[r]);
++#endif
+                 }
+-#else
+-                for (uint c = 0u; c < ncols; ++c) {
+-                    uint col = XCOL(c);
+-                    uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
+-                    XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
+-                    QDOT p0 = pair_dot(q0a & 0x00FF00FFu, (q0a >> 8u) & 0x00FF00FFu, x0v.xy) + pair_dot(q0b & 0x00FF00FFu, (q0b >> 8u) & 0x00FF00FFu, x0v.zw);
+-                    QDOT p1 = pair_dot(q1a & 0x00FF00FFu, (q1a >> 8u) & 0x00FF00FFu, x1v.xy) + pair_dot(q1b & 0x00FF00FFu, (q1b >> 8u) & 0x00FF00FFu, x1v.zw);
+-                    QDOT p2 = pair_dot(q2a & 0x00FF00FFu, (q2a >> 8u) & 0x00FF00FFu, x2v.xy) + pair_dot(q2b & 0x00FF00FFu, (q2b >> 8u) & 0x00FF00FFu, x2v.zw);
+-                    QDOT p3 = pair_dot(q3a & 0x00FF00FFu, (q3a >> 8u) & 0x00FF00FFu, x3v.xy) + pair_dot(q3b & 0x00FF00FFu, (q3b >> 8u) & 0x00FF00FFu, x3v.zw);
+-                    vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
+-                    acc[c] += d * (s0 * (xa.x * float(p0)) + s1 * (xa.z * float(p1)) +
+-                                   s2 * (xb.x * float(p2)) + s3 * (xb.z * float(p3)));
+-                    // The -32 offset times each half-group's sum under its sub-scale, applied by the first lane of each half.
+-                    if (l0 == 0u || l0 == 16u) {
+-                        vec4 ha = xq_halves_pair(col, bg / 2u), hb = xq_halves_pair(col, bg / 2u + 1u);
+-                        acc[c] -= d * 32.0 * (l0 == 0u ? s0 * ha.x + s1 * ha.z + s2 * hb.x + s3 * hb.z
+-                                                       : s0 * ha.y + s1 * ha.w + s2 * hb.y + s3 * hb.w);
++                uint bg = b * 8u + n * 4u;   // the 32-block of group 0
++                [[unroll]] for (uint g = 0u; g < MAX_COLS; g += CG) {
++                    if (g > 0u && g >= ncols) break;
++                    XQ4T x0v[CG], x1v[CG], x2v[CG], x3v[CG];
++                    vec4 xa[CG], xb[CG];
++#ifndef LLMX_X8
++                    vec4 ha[CG], hb[CG];
++#endif
++                    [[unroll]] for (uint k = 0u; k < CG; ++k) {
++                        if (STAGE) {
++                            uint s_ = min(g + k, ncols - 1u) * SCOL, v_ = group * 256u + n * 128u + l0, t_ = s_ + SACT + group * 8u + n * 4u;
++                            x0v[k] = SX4(s_ + v_ / XV2); x1v[k] = SX4(s_ + (v_ + 32u) / XV2); x2v[k] = SX4(s_ + (v_ + 64u) / XV2); x3v[k] = SX4(s_ + (v_ + 96u) / XV2);
++                            xa[k] = vec4(uintBitsToFloat(sx[t_]), uintBitsToFloat(sx[t_ + 1u])); xb[k] = vec4(uintBitsToFloat(sx[t_ + 2u]), uintBitsToFloat(sx[t_ + 3u]));
++#ifndef LLMX_X8
++                            ha[k] = vec4(0.0); hb[k] = vec4(0.0);
++                            if (l0 == 0u || l0 == 16u) {
++                                uint h_ = t_ + STAB / 2u;
++                                ha[k] = vec4(uintBitsToFloat(sx[h_]), uintBitsToFloat(sx[h_ + 1u])); hb[k] = vec4(uintBitsToFloat(sx[h_ + 2u]), uintBitsToFloat(sx[h_ + 3u]));
++                            }
++#endif
++                        } else {
++                        uint col = XCOL(min(g + k, ncols - 1u));
++                        uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
++                        x0v[k] = xq4[a4]; x1v[k] = xq4[a4 + 4u]; x2v[k] = xq4[a4 + 8u]; x3v[k] = xq4[a4 + 12u];
++                        xa[k] = xq_pair(col, bg / 2u); xb[k] = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
++#ifndef LLMX_X8
++                        ha[k] = vec4(0.0); hb[k] = vec4(0.0);
++                        if (l0 == 0u || l0 == 16u) { ha[k] = xq_halves_pair(col, bg / 2u); hb[k] = xq_halves_pair(col, bg / 2u + 1u); }
++#endif
++                        }
++                    }
++                    if (g + CG <= ncols) {
++                        [[unroll]] for (uint k = 0u; k < CG; ++k) {
++                            [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++    #ifdef LLMX_X8
++                                int p0 = dot4(q0a[r], x0v[k].x) + dot4(q0b[r], x0v[k].y), p1 = dot4(q1a[r], x1v[k].x) + dot4(q1b[r], x1v[k].y);
++                                int p2 = dot4(q2a[r], x2v[k].x) + dot4(q2b[r], x2v[k].y), p3 = dot4(q3a[r], x3v[k].x) + dot4(q3b[r], x3v[k].y);
++                                acc[r][g + k] += d[r] * (s0[r] * (xa[k].x * float(p0)) + s1[r] * (xa[k].z * float(p1)) +
++                                                         s2[r] * (xb[k].x * float(p2)) + s3[r] * (xb[k].z * float(p3)));
++    #else
++                                QDOT p0 = pair_dot(q0a[r] & 0x00FF00FFu, (q0a[r] >> 8u) & 0x00FF00FFu, x0v[k].xy) + pair_dot(q0b[r] & 0x00FF00FFu, (q0b[r] >> 8u) & 0x00FF00FFu, x0v[k].zw);
++                                QDOT p1 = pair_dot(q1a[r] & 0x00FF00FFu, (q1a[r] >> 8u) & 0x00FF00FFu, x1v[k].xy) + pair_dot(q1b[r] & 0x00FF00FFu, (q1b[r] >> 8u) & 0x00FF00FFu, x1v[k].zw);
++                                QDOT p2 = pair_dot(q2a[r] & 0x00FF00FFu, (q2a[r] >> 8u) & 0x00FF00FFu, x2v[k].xy) + pair_dot(q2b[r] & 0x00FF00FFu, (q2b[r] >> 8u) & 0x00FF00FFu, x2v[k].zw);
++                                QDOT p3 = pair_dot(q3a[r] & 0x00FF00FFu, (q3a[r] >> 8u) & 0x00FF00FFu, x3v[k].xy) + pair_dot(q3b[r] & 0x00FF00FFu, (q3b[r] >> 8u) & 0x00FF00FFu, x3v[k].zw);
++                                acc[r][g + k] += d[r] * (s0[r] * (xa[k].x * float(p0)) + s1[r] * (xa[k].z * float(p1)) +
++                                                         s2[r] * (xb[k].x * float(p2)) + s3[r] * (xb[k].z * float(p3)));
++                                // The -32 offset times each half-group's sum under its sub-scale, applied by the first lane of each half.
++                                if (l0 == 0u || l0 == 16u)
++                                    acc[r][g + k] -= d[r] * 32.0 * (l0 == 0u ? s0[r] * ha[k].x + s1[r] * ha[k].z + s2[r] * hb[k].x + s3[r] * hb[k].z
++                                                                             : s0[r] * ha[k].y + s1[r] * ha[k].w + s2[r] * hb[k].y + s3[r] * hb[k].w);
++    #endif
++                            }
++                        }
++                    } else {
++                        [[unroll]] for (uint k = 0u; k < CG; ++k) if (k == 0u || g + k < ncols) {
++                            [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++    #ifdef LLMX_X8
++                                int p0 = dot4(q0a[r], x0v[k].x) + dot4(q0b[r], x0v[k].y), p1 = dot4(q1a[r], x1v[k].x) + dot4(q1b[r], x1v[k].y);
++                                int p2 = dot4(q2a[r], x2v[k].x) + dot4(q2b[r], x2v[k].y), p3 = dot4(q3a[r], x3v[k].x) + dot4(q3b[r], x3v[k].y);
++                                acc[r][g + k] += d[r] * (s0[r] * (xa[k].x * float(p0)) + s1[r] * (xa[k].z * float(p1)) +
++                                                         s2[r] * (xb[k].x * float(p2)) + s3[r] * (xb[k].z * float(p3)));
++    #else
++                                QDOT p0 = pair_dot(q0a[r] & 0x00FF00FFu, (q0a[r] >> 8u) & 0x00FF00FFu, x0v[k].xy) + pair_dot(q0b[r] & 0x00FF00FFu, (q0b[r] >> 8u) & 0x00FF00FFu, x0v[k].zw);
++                                QDOT p1 = pair_dot(q1a[r] & 0x00FF00FFu, (q1a[r] >> 8u) & 0x00FF00FFu, x1v[k].xy) + pair_dot(q1b[r] & 0x00FF00FFu, (q1b[r] >> 8u) & 0x00FF00FFu, x1v[k].zw);
++                                QDOT p2 = pair_dot(q2a[r] & 0x00FF00FFu, (q2a[r] >> 8u) & 0x00FF00FFu, x2v[k].xy) + pair_dot(q2b[r] & 0x00FF00FFu, (q2b[r] >> 8u) & 0x00FF00FFu, x2v[k].zw);
++                                QDOT p3 = pair_dot(q3a[r] & 0x00FF00FFu, (q3a[r] >> 8u) & 0x00FF00FFu, x3v[k].xy) + pair_dot(q3b[r] & 0x00FF00FFu, (q3b[r] >> 8u) & 0x00FF00FFu, x3v[k].zw);
++                                acc[r][g + k] += d[r] * (s0[r] * (xa[k].x * float(p0)) + s1[r] * (xa[k].z * float(p1)) +
++                                                         s2[r] * (xb[k].x * float(p2)) + s3[r] * (xb[k].z * float(p3)));
++                                // The -32 offset times each half-group's sum under its sub-scale, applied by the first lane of each half.
++                                if (l0 == 0u || l0 == 16u)
++                                    acc[r][g + k] -= d[r] * 32.0 * (l0 == 0u ? s0[r] * ha[k].x + s1[r] * ha[k].z + s2[r] * hb[k].x + s3[r] * hb[k].z
++                                                                             : s0[r] * ha[k].y + s1[r] * ha[k].w + s2[r] * hb[k].y + s3[r] * hb[k].w);
++    #endif
++                            }
++                        }
+                     }
+                 }
+-#endif
++                }
++                if (STAGE) barrier();
+             }
+         }
+ #endif
+     }
+     // Reduce within each cluster; every lane joins every shuffle and lanes past the last row add zero.
+     for (uint c = 0u; c < ncols; ++c) {
+-        float s = acc[c];
+-        for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
+-        if (l == 0u && row < nout && c < ncols) {
+-            if (p.accum != 0u) ys[pi].y[OCOL(c) * nout + row] += s;
+-            else ys[pi].y[OCOL(c) * nout + row] = s;
++        [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
++            float s = acc[r][c];
++            for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
++            if (l == 0u && row + r < nout && c < ncols) {
++                if (p.accum != 0u) ys[pi].y[OCOL(c) * nout + row + r] += s;
++                else ys[pi].y[OCOL(c) * nout + row + r] = s;
++            }
+         }
+     }
+ }
+diff --git a/src/backends/vulkan/vulkan_backend.cpp b/src/backends/vulkan/vulkan_backend.cpp
+index 13226c23..46eb43b7 100644
+--- a/src/backends/vulkan/vulkan_backend.cpp
++++ b/src/backends/vulkan/vulkan_backend.cpp
+@@ -356,9 +356,29 @@ inline uint32_t vec_forms(int variant, const DeviceProfile& profile) {
+     return (kVecBuilds[variant].forms & profile.q8_decode_forms) | (profile.q8_decode_forms & kQ8Half);
+ }
+ 
++// PROTOTYPE: the Q4 and K-quant row kernels' wide build takes its rows a cluster, columns and merged loads from the environment.
++inline bool kq_family(KernelId id) {
++    switch (id) {
++    case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
++    case K_MATMUL_ROW_Q4_DOT: case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT:
++    case K_MATMUL_ROW_K_DOT8: case K_MATMUL_ROW_Q4_DOT8: return true;
++    default: return false;
++    }
++}
++inline uint32_t proto_env(const char* name, uint32_t dflt) {
++    const char* e = std::getenv(name);
++    return e && *e ? (uint32_t)std::atoi(e) : dflt;
++}
++inline bool kq_head(KernelId id) { return id == K_MATMUL_ROW_K_DOT || id == K_MATMUL_ROW_Q4_DOT; }
++inline uint32_t row_build_rows(KernelId id, int variant) {
++    if (!kq_family(id) || variant != 0) return 1;
++    return proto_env(kq_head(id) ? "LLMX_KQ_HEAD_ROWS" : "LLMX_KQ_ROWS", 1);
++}
++
+ // The columns a row kernel's build holds, by pipeline variant.
+ inline uint32_t build_cols(KernelId id, int variant) {
+     if (id == K_MATMUL_VEC_Q8) return kVecBuilds[variant].capacity();
++    if (kq_family(id) && variant == 0) return proto_env(kq_head(id) ? "LLMX_KQ_HEAD_COLS" : "LLMX_KQ_COLS", kRowColsWide);
+     return variant == 1 ? kRowColsOne : kRowColsWide;
+ }
+ 
+@@ -1825,7 +1845,8 @@ public:
+                       uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
+                       uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0) {
+         // A Q8_0 decode build whose column groups take the same rows gives each workgroup's rows that many adjacent workgroups.
+-        const uint32_t rows_per_sg = sg_rows(plan, variant), per_group = (256 / dev_->caps.subgroup_size) * rows_per_sg;
++        const uint32_t rows_per_sg = sg_rows(plan, variant),
++                       per_group = (256 / dev_->caps.subgroup_size) * rows_per_sg * row_build_rows(plan.kernel, variant);
+         const uint32_t span = plan.kernel == K_MATMUL_VEC_Q8 ? kVecBuilds[variant].span : 1;
+         uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
+         uint32_t total = 0;
+@@ -2504,13 +2525,17 @@ private:
+             const VecBuild& vb = kVecBuilds[variant];
+             const bool vec = id == K_MATMUL_VEC_Q8;
+             const uint32_t forms = vec ? vec_forms(variant, d.profile) : 0;
+-            const uint32_t spec_data[8] = {vec ? vb.cols : spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u, vb.rows, vb.steps,
+-                                           (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Half) ? 1u : 0u, vb.span};
+-            const uint32_t spec_ids[8] = {0, 7, 8, 9, 10, 11, 12, 13};
+-            VkSpecializationMapEntry entries[8];
+-            for (uint32_t i = 0; i < 8; ++i) entries[i] = {spec_ids[i], i * uint32_t(sizeof(uint32_t)), sizeof(uint32_t)};
++            const uint32_t spec_data[12] = {vec ? vb.cols : spec_value, variant == 1 ? 1u : 0u, variant == 2 ? 1u : 0u, vb.rows, vb.steps,
++                                            (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Half) ? 1u : 0u, vb.span,
++                                            row_build_rows(id, variant), kq_family(id) && variant == 0 ? proto_env(kq_head(id) ? "LLMX_KQ_HEAD_CG" : "LLMX_KQ_CG", 1) : 1u,
++                                            kq_family(id) && variant == 0 ? proto_env("LLMX_KQ_DIAG", 0) : 0u,
++                                            (id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_ROW_K_DOT8) && variant == 0
++                                                ? proto_env("LLMX_KQ_STAGE", 0) : 0u};
++            const uint32_t spec_ids[12] = {0, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
++            VkSpecializationMapEntry entries[12];
++            for (uint32_t i = 0; i < 12; ++i) entries[i] = {spec_ids[i], i * uint32_t(sizeof(uint32_t)), sizeof(uint32_t)};
+             VkSpecializationInfo spec{};
+-            spec.mapEntryCount = 8;
++            spec.mapEntryCount = 12;
+             spec.pMapEntries = entries;
+             spec.dataSize = sizeof(spec_data);
+             spec.pData = spec_data;
+diff --git a/tools/kq_probe.cpp b/tools/kq_probe.cpp
+new file mode 100644
+index 00000000..715d7080
+--- /dev/null
++++ b/tools/kq_probe.cpp
+@@ -0,0 +1,244 @@
++// PROTOTYPE probe, never merged: an 8B pass's decode matmuls per column count, and each decode column's bits against the same column alone on a real model's tensors.
++// time MODEL DEVICE ITERS COLS: wall ms of every layer's projections as the model groups them, and the head, through decode rows (extent 1), at each column count.
++//   With LLMX_PROBE_DIAG=1 the backend timestamps each dispatch and the tool prints each kernel's device ms per pass.
++// check MODEL DEVICE LAYER: layer LAYER's projections alone, grouped and added, and the head: every column of calls of 1 to 64 columns against the column alone, and a digest of the columns alone to compare builds.
++#include <chrono>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <map>
++#include <random>
++#include <string>
++#include <vector>
++#include "backends/vulkan/vulkan_backend.hpp"
++#include "format/gguf.hpp"
++
++namespace {
++
++struct Tensor {
++    std::string name;
++    uint32_t type;
++    size_t nin, nout;
++    backend::BufferPtr buf;
++};
++
++const char* kNames[] = {"attn_q.weight", "attn_k.weight", "attn_v.weight", "attn_output.weight", "ffn_gate.weight", "ffn_up.weight", "ffn_down.weight"};
++
++const char* type_name(uint32_t t) {
++    switch (t) {
++    case 0: return "F32";
++    case 2: return "Q4_0";
++    case 3: return "Q4_1";
++    case 8: return "Q8_0";
++    case 12: return "Q4_K";
++    case 13: return "Q5_K";
++    case 14: return "Q6_K";
++    default: return "?";
++    }
++}
++
++uint64_t fnv(const float* p, size_t n, uint64_t h = 1469598103934665603ull) {
++    const unsigned char* b = (const unsigned char*)p;
++    for (size_t i = 0; i < n * sizeof(float); ++i) h = (h ^ b[i]) * 1099511628211ull;
++    return h;
++}
++
++} // namespace
++
++static int run(int argc, char** argv) {
++    if (argc < 3) {
++        std::fprintf(stderr, "usage: %s time|check MODEL [device] [iters|layer] [cols,...]\n", argv[0]);
++        return 2;
++    }
++    const std::string mode = argv[1], path = argv[2];
++    const int device = argc > 3 ? std::atoi(argv[3]) : 0;
++    const int arg4 = argc > 4 ? std::atoi(argv[4]) : (mode == "time" ? 10 : 0);
++    std::vector<size_t> cols = {1, 8, 16, 32, 64};
++    if (argc > 5) {
++        cols.clear();
++        std::string s = argv[5];
++        for (size_t at = 0; at < s.size();) {
++            size_t e = s.find(',', at);
++            if (e == std::string::npos) e = s.size();
++            cols.push_back((size_t)std::atoi(s.substr(at, e - at).c_str()));
++            at = e + 1;
++        }
++    }
++    const char* diag = std::getenv("LLMX_PROBE_DIAG");
++    const bool timed = diag && *diag == '1';
++    gguf::GGUFModel m = gguf::read_gguf(path);
++    gguf::map_payload(m);
++    auto bp = backend::make_vulkan_backend(device, timed);
++    backend::Backend& b = *bp;
++    std::printf("device %s, %s\n", backend::vulkan_device_name(b).c_str(), path.c_str());
++    for (const char* e : {"LLMX_KQ_ROWS", "LLMX_KQ_COLS", "LLMX_KQ_CG", "LLMX_KQ_HEAD_ROWS", "LLMX_KQ_HEAD_COLS", "LLMX_KQ_HEAD_CG", "LLMX_KQ_STAGE"})
++        std::printf("env %s=%s\n", e, std::getenv(e) ? std::getenv(e) : "");
++
++    std::map<std::string, size_t> index;
++    for (size_t i = 0; i < m.tensors.size(); ++i) index[m.tensors[i].name] = i;
++    const auto adopt = [&](const std::string& name) {
++        auto it = index.find(name);
++        if (it == index.end()) throw std::runtime_error("no tensor " + name);
++        const auto& t = m.tensors[it->second];
++        Tensor x{name, t.type, (size_t)t.ne[0], (size_t)t.ne[1], nullptr};
++        x.buf = b.adopt(m.tensor_data(it->second), m.tensor_bytes(it->second));
++        return x;
++    };
++    const std::string head_name = index.count("output.weight") ? "output.weight" : "token_embd.weight";
++
++    const size_t NC = 64, maxin = 12288, maxout = 151936;
++    std::vector<float> xs(NC * maxin);
++    std::mt19937 rng(20260929);
++    for (float& v : xs) v = float((rng() >> 8) * (4.0 / 16777216.0) - 2.0);
++    const auto xb = b.adopt(xs.data(), xs.size() * sizeof(float));
++
++    if (mode == "time") {
++        int layers = 0;
++        while (index.count("blk." + std::to_string(layers) + ".attn_q.weight")) ++layers;
++        std::vector<std::vector<Tensor>> L(layers);
++        std::map<std::string, int> type_count;
++        for (int l = 0; l < layers; ++l)
++            for (const char* n : kNames) {
++                L[l].push_back(adopt("blk." + std::to_string(l) + "." + n));
++                type_count[std::string(n) + " " + type_name(L[l].back().type)]++;
++            }
++        const Tensor h = adopt(head_name);
++        type_count[std::string("head ") + type_name(h.type)]++;
++        for (const auto& kv : type_count) std::printf("tensors %s x%d\n", kv.first.c_str(), kv.second);
++        const size_t NB = 64;
++        const auto qo = b.alloc(NB * 4096 * 4), ko = b.alloc(NB * 1024 * 4), vo = b.alloc(NB * 1024 * 4);
++        const auto go = b.alloc(NB * 12288 * 4), uo = b.alloc(NB * 12288 * 4), yo = b.alloc(NB * 4096 * 4), ho = b.alloc(NB * maxout * 4);
++        // One pass's decode matmuls: q, k, v as one group, o added into the residual, gate and up as one group, down added, then the head.
++        const auto pass = [&](size_t n) {
++            const backend::RowRun r{n, 1};
++            const backend::RowRuns rr{&r, 1};
++            for (int l = 0; l < layers; ++l) {
++                const auto& t = L[l];
++                b.matmul_group({{t[0].type, {t[0].buf.get(), 0}, {qo.get(), 0}, t[0].nout}, {t[1].type, {t[1].buf.get(), 0}, {ko.get(), 0}, t[1].nout},
++                                {t[2].type, {t[2].buf.get(), 0}, {vo.get(), 0}, t[2].nout}},
++                               {xb.get(), 0}, t[0].nin, n, rr);
++                b.matmul_add(t[3].type, {t[3].buf.get(), 0}, {xb.get(), 0}, {yo.get(), 0}, t[3].nin, t[3].nout, n, rr);
++                b.matmul_group({{t[4].type, {t[4].buf.get(), 0}, {go.get(), 0}, t[4].nout}, {t[5].type, {t[5].buf.get(), 0}, {uo.get(), 0}, t[5].nout}},
++                               {xb.get(), 0}, t[4].nin, n, rr);
++                b.matmul_add(t[6].type, {t[6].buf.get(), 0}, {xb.get(), 0}, {yo.get(), 0}, t[6].nin, t[6].nout, n, rr);
++            }
++            b.matmul_logits(h.type, {h.buf.get(), 0}, {xb.get(), 0}, {ho.get(), 0}, h.nin, h.nout, n, rr);
++        };
++        for (size_t n : cols) {
++            if (n > NB) continue;
++            pass(n);
++            b.sync();
++            if (timed) backend::vulkan_kernel_times(b);
++            const auto t0 = std::chrono::steady_clock::now();
++            for (int i = 0; i < arg4; ++i) pass(n);
++            b.sync();
++            const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / arg4;
++            std::printf("time n=%zu decode pass-matmuls %.2f ms\n", n, ms);
++            if (timed)
++                for (const auto& kt : backend::vulkan_kernel_times(b))
++                    if (kt.second > 0) std::printf("  kernel n=%zu %s %.3f ms/pass\n", n, kt.first.c_str(), kt.second / arg4);
++            std::fflush(stdout);
++        }
++        return 0;
++    }
++
++    // check
++    std::vector<Tensor> ts;
++    for (const char* n : kNames) ts.push_back(adopt("blk." + std::to_string(arg4) + "." + n));
++    ts.push_back(adopt(head_name));
++    const auto yb = b.alloc(NC * maxout * sizeof(float));
++    const auto y1 = b.alloc(NC * maxout * sizeof(float));
++    const auto y2 = b.alloc(NC * maxout * sizeof(float));
++    const std::vector<float> base(NC * 12288, 0.25f);
++    // n decode columns of X from col0 through tensor t into y, as the model calls it.
++    const auto mm = [&](const Tensor& t, size_t col0, size_t n, backend::BufferPtr y, bool add, std::vector<float>& out) {
++        const backend::RowRun r{n, 1};
++        const backend::RowRuns rr{&r, 1};
++        const backend::CSlice w{t.buf.get(), 0}, x{xb.get(), col0 * t.nin};
++        if (add) {
++            b.write(*y, 0, base.data() + col0 * t.nout, n * t.nout * sizeof(float));
++            b.matmul_add(t.type, w, x, {y.get(), 0}, t.nin, t.nout, n, rr);
++        } else if (t.name == head_name) b.matmul_logits(t.type, w, x, {y.get(), 0}, t.nin, t.nout, n, rr);
++        else b.matmul(t.type, w, x, {y.get(), 0}, t.nin, t.nout, n, rr);
++        b.sync();
++        out.resize(n * t.nout);
++        b.read(*y, 0, out.data(), out.size() * sizeof(float));
++    };
++    size_t total_bad = 0, total = 0;
++    uint64_t digest_all = 1469598103934665603ull;
++    const std::vector<size_t> widths = {1, 2, 3, 4, 5, 7, 8, 9, 13, 15, 16, 17, 24, 31, 32, 33, 40, 48, 63, 64};
++    for (size_t ti = 0; ti < ts.size(); ++ti) {
++        const Tensor& t = ts[ti];
++        const bool adds = t.name.find("attn_output") != std::string::npos || t.name.find("ffn_down") != std::string::npos;
++        std::vector<float> alone(NC * t.nout), o;
++        for (size_t c = 0; c < NC; ++c) {
++            mm(t, c, 1, yb, adds, o);
++            std::memcpy(alone.data() + c * t.nout, o.data(), t.nout * sizeof(float));
++        }
++        const uint64_t dg = fnv(alone.data(), alone.size());
++        digest_all = fnv(alone.data(), alone.size(), digest_all);
++        size_t bad = 0, compared = 0;
++        for (size_t n : widths) {
++            mm(t, 0, n, yb, adds, o);
++            for (size_t c = 0; c < n; ++c, ++compared)
++                if (std::memcmp(o.data() + c * t.nout, alone.data() + c * t.nout, t.nout * sizeof(float)))
++                    if (++bad <= 3) std::printf("  MISMATCH %s n=%zu column %zu\n", t.name.c_str(), n, c);
++        }
++        total_bad += bad;
++        total += compared;
++        std::printf("check %s %s %zu x %zu: digest %016llx, columns differing from alone %zu of %zu\n", t.name.c_str(), type_name(t.type), t.nin, t.nout,
++                    (unsigned long long)dg, bad, compared);
++        std::fflush(stdout);
++    }
++    // Grouped as the model groups them: q, k, v, and gate, up, each column against the tensor's column alone (recomputed per call of one).
++    for (const auto& g : std::vector<std::vector<size_t>>{{0, 1, 2}, {4, 5}}) {
++        std::vector<std::vector<float>> alone(g.size());
++        for (size_t i = 0; i < g.size(); ++i) {
++            const Tensor& t = ts[g[i]];
++            alone[i].resize(NC * t.nout);
++            std::vector<float> o;
++            for (size_t c = 0; c < NC; ++c) {
++                mm(t, c, 1, yb, false, o);
++                std::memcpy(alone[i].data() + c * t.nout, o.data(), t.nout * sizeof(float));
++            }
++        }
++        size_t bad = 0, compared = 0;
++        const backend::BufferPtr outs[3] = {yb, y1, y2};
++        for (size_t n : widths) {
++            const backend::RowRun r{n, 1};
++            const backend::RowRuns rr{&r, 1};
++            std::vector<backend::Projection> pr;
++            for (size_t i = 0; i < g.size(); ++i) {
++                const Tensor& t = ts[g[i]];
++                pr.push_back({t.type, {t.buf.get(), 0}, {outs[i].get(), 0}, t.nout});
++            }
++            if (pr.size() == 3) b.matmul_group({pr[0], pr[1], pr[2]}, {xb.get(), 0}, ts[g[0]].nin, n, rr);
++            else b.matmul_group({pr[0], pr[1]}, {xb.get(), 0}, ts[g[0]].nin, n, rr);
++            b.sync();
++            for (size_t i = 0; i < g.size(); ++i) {
++                const Tensor& t = ts[g[i]];
++                std::vector<float> o(n * t.nout);
++                b.read(*outs[i], 0, o.data(), o.size() * sizeof(float));
++                for (size_t c = 0; c < n; ++c, ++compared)
++                    if (std::memcmp(o.data() + c * t.nout, alone[i].data() + c * t.nout, t.nout * sizeof(float)))
++                        if (++bad <= 3) std::printf("  MISMATCH group %s n=%zu column %zu\n", t.name.c_str(), n, c);
++            }
++        }
++        total_bad += bad;
++        total += compared;
++        std::printf("check group of %zu from %s: columns differing from alone %zu of %zu\n", g.size(), ts[g[0]].name.c_str(), bad, compared);
++    }
++    std::printf("check digest %016llx, total mismatches %zu of %zu\n", (unsigned long long)digest_all, total_bad, total);
++    return total_bad ? 1 : 0;
++}
++
++int main(int argc, char** argv) {
++    try {
++        return run(argc, argv);
++    } catch (const std::exception& e) {
++        std::fflush(stdout);
++        std::fprintf(stderr, "error: %s\n", e.what());
++        return 1;
++    }
++}

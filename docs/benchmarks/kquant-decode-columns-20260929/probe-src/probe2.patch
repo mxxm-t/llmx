@@ -1,0 +1,265 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b663749c..229b11e6 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -382,6 +382,10 @@ if(BUILD_TESTING)
+         add_executable(llmx-multi-device-bench tools/multi_device_bench.cpp)
+         target_link_libraries(llmx-multi-device-bench PRIVATE llmx-vulkan)
+         list(APPEND LLMX_TARGETS llmx-multi-device-bench)
++        # PROTOTYPE, never merged.
++        add_executable(llmx-kq-probe tools/kq_probe.cpp)
++        target_link_libraries(llmx-kq-probe PRIVATE llmx-vulkan)
++        list(APPEND LLMX_TARGETS llmx-kq-probe)
+     endif()
+ endif()
+ 
+diff --git a/tools/kq_probe.cpp b/tools/kq_probe.cpp
+new file mode 100644
+index 00000000..8f012ea7
+--- /dev/null
++++ b/tools/kq_probe.cpp
+@@ -0,0 +1,244 @@
++// PROTOTYPE probe, never merged: an 8B pass's decode matmuls per column count, and each decode column's bits against the same column alone on a real model's tensors.
++// time MODEL DEVICE ITERS COLS: wall ms of every layer's projections as the model groups them, and the head, through decode rows (extent 1), at each column count.
++//   With LLMX_PROBE_DIAG=1 the backend timestamps each dispatch and the tool prints each kernel's device ms per pass.
++// check MODEL DEVICE LAYER: layer LAYER's projections alone, grouped and added, and the head: every column of calls of 1 to 64 columns against the column alone, and a digest of the columns alone to compare builds.
++#include <chrono>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <map>
++#include <random>
++#include <string>
++#include <vector>
++#include "backends/vulkan/vulkan_backend.hpp"
++#include "format/gguf.hpp"
++
++namespace {
++
++struct Tensor {
++    std::string name;
++    uint32_t type;
++    size_t nin, nout;
++    backend::BufferPtr buf;
++};
++
++const char* kNames[] = {"attn_q.weight", "attn_k.weight", "attn_v.weight", "attn_output.weight", "ffn_gate.weight", "ffn_up.weight", "ffn_down.weight"};
++
++const char* type_name(uint32_t t) {
++    switch (t) {
++    case 0: return "F32";
++    case 2: return "Q4_0";
++    case 3: return "Q4_1";
++    case 8: return "Q8_0";
++    case 12: return "Q4_K";
++    case 13: return "Q5_K";
++    case 14: return "Q6_K";
++    default: return "?";
++    }
++}
++
++uint64_t fnv(const float* p, size_t n, uint64_t h = 1469598103934665603ull) {
++    const unsigned char* b = (const unsigned char*)p;
++    for (size_t i = 0; i < n * sizeof(float); ++i) h = (h ^ b[i]) * 1099511628211ull;
++    return h;
++}
++
++} // namespace
++
++static int run(int argc, char** argv) {
++    if (argc < 3) {
++        std::fprintf(stderr, "usage: %s time|check MODEL [device] [iters|layer] [cols,...]\n", argv[0]);
++        return 2;
++    }
++    const std::string mode = argv[1], path = argv[2];
++    const int device = argc > 3 ? std::atoi(argv[3]) : 0;
++    const int arg4 = argc > 4 ? std::atoi(argv[4]) : (mode == "time" ? 10 : 0);
++    std::vector<size_t> cols = {1, 8, 16, 32, 64};
++    if (argc > 5) {
++        cols.clear();
++        std::string s = argv[5];
++        for (size_t at = 0; at < s.size();) {
++            size_t e = s.find(',', at);
++            if (e == std::string::npos) e = s.size();
++            cols.push_back((size_t)std::atoi(s.substr(at, e - at).c_str()));
++            at = e + 1;
++        }
++    }
++    const char* diag = std::getenv("LLMX_PROBE_DIAG");
++    const bool timed = diag && *diag == '1';
++    gguf::GGUFModel m = gguf::read_gguf(path);
++    gguf::map_payload(m);
++    auto bp = backend::make_vulkan_backend(device, timed);
++    backend::Backend& b = *bp;
++    std::printf("device %s, %s\n", backend::vulkan_device_name(b).c_str(), path.c_str());
++    for (const char* e : {"LLMX_KQ_ROWS", "LLMX_KQ_COLS", "LLMX_KQ_MERGE", "LLMX_KQ_HEAD_ROWS", "LLMX_KQ_HEAD_COLS"})
++        std::printf("env %s=%s\n", e, std::getenv(e) ? std::getenv(e) : "");
++
++    std::map<std::string, size_t> index;
++    for (size_t i = 0; i < m.tensors.size(); ++i) index[m.tensors[i].name] = i;
++    const auto adopt = [&](const std::string& name) {
++        auto it = index.find(name);
++        if (it == index.end()) throw std::runtime_error("no tensor " + name);
++        const auto& t = m.tensors[it->second];
++        Tensor x{name, t.type, (size_t)t.ne[0], (size_t)t.ne[1], nullptr};
++        x.buf = b.adopt(m.tensor_data(it->second), m.tensor_bytes(it->second));
++        return x;
++    };
++    const std::string head_name = index.count("output.weight") ? "output.weight" : "token_embd.weight";
++
++    const size_t NC = 64, maxin = 12288, maxout = 151936;
++    std::vector<float> xs(NC * maxin);
++    std::mt19937 rng(20260929);
++    for (float& v : xs) v = float((rng() >> 8) * (4.0 / 16777216.0) - 2.0);
++    const auto xb = b.adopt(xs.data(), xs.size() * sizeof(float));
++
++    if (mode == "time") {
++        int layers = 0;
++        while (index.count("blk." + std::to_string(layers) + ".attn_q.weight")) ++layers;
++        std::vector<std::vector<Tensor>> L(layers);
++        std::map<std::string, int> type_count;
++        for (int l = 0; l < layers; ++l)
++            for (const char* n : kNames) {
++                L[l].push_back(adopt("blk." + std::to_string(l) + "." + n));
++                type_count[std::string(n) + " " + type_name(L[l].back().type)]++;
++            }
++        const Tensor h = adopt(head_name);
++        type_count[std::string("head ") + type_name(h.type)]++;
++        for (const auto& kv : type_count) std::printf("tensors %s x%d\n", kv.first.c_str(), kv.second);
++        const size_t NB = 64;
++        const auto qo = b.alloc(NB * 4096 * 4), ko = b.alloc(NB * 1024 * 4), vo = b.alloc(NB * 1024 * 4);
++        const auto go = b.alloc(NB * 12288 * 4), uo = b.alloc(NB * 12288 * 4), yo = b.alloc(NB * 4096 * 4), ho = b.alloc(NB * maxout * 4);
++        // One pass's decode matmuls: q, k, v as one group, o added into the residual, gate and up as one group, down added, then the head.
++        const auto pass = [&](size_t n) {
++            const backend::RowRun r{n, 1};
++            const backend::RowRuns rr{&r, 1};
++            for (int l = 0; l < layers; ++l) {
++                const auto& t = L[l];
++                b.matmul_group({{t[0].type, {t[0].buf.get(), 0}, {qo.get(), 0}, t[0].nout}, {t[1].type, {t[1].buf.get(), 0}, {ko.get(), 0}, t[1].nout},
++                                {t[2].type, {t[2].buf.get(), 0}, {vo.get(), 0}, t[2].nout}},
++                               {xb.get(), 0}, t[0].nin, n, rr);
++                b.matmul_add(t[3].type, {t[3].buf.get(), 0}, {xb.get(), 0}, {yo.get(), 0}, t[3].nin, t[3].nout, n, rr);
++                b.matmul_group({{t[4].type, {t[4].buf.get(), 0}, {go.get(), 0}, t[4].nout}, {t[5].type, {t[5].buf.get(), 0}, {uo.get(), 0}, t[5].nout}},
++                               {xb.get(), 0}, t[4].nin, n, rr);
++                b.matmul_add(t[6].type, {t[6].buf.get(), 0}, {xb.get(), 0}, {yo.get(), 0}, t[6].nin, t[6].nout, n, rr);
++            }
++            b.matmul_logits(h.type, {h.buf.get(), 0}, {xb.get(), 0}, {ho.get(), 0}, h.nin, h.nout, n, rr);
++        };
++        for (size_t n : cols) {
++            if (n > NB) continue;
++            pass(n);
++            b.sync();
++            if (timed) backend::vulkan_kernel_times(b);
++            const auto t0 = std::chrono::steady_clock::now();
++            for (int i = 0; i < arg4; ++i) pass(n);
++            b.sync();
++            const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / arg4;
++            std::printf("time n=%zu decode pass-matmuls %.2f ms\n", n, ms);
++            if (timed)
++                for (const auto& kt : backend::vulkan_kernel_times(b))
++                    if (kt.second > 0) std::printf("  kernel n=%zu %s %.3f ms/pass\n", n, kt.first.c_str(), kt.second / arg4);
++            std::fflush(stdout);
++        }
++        return 0;
++    }
++
++    // check
++    std::vector<Tensor> ts;
++    for (const char* n : kNames) ts.push_back(adopt("blk." + std::to_string(arg4) + "." + n));
++    ts.push_back(adopt(head_name));
++    const auto yb = b.alloc(NC * maxout * sizeof(float));
++    const auto y1 = b.alloc(NC * maxout * sizeof(float));
++    const auto y2 = b.alloc(NC * maxout * sizeof(float));
++    const std::vector<float> base(NC * 12288, 0.25f);
++    // n decode columns of X from col0 through tensor t into y, as the model calls it.
++    const auto mm = [&](const Tensor& t, size_t col0, size_t n, backend::BufferPtr y, bool add, std::vector<float>& out) {
++        const backend::RowRun r{n, 1};
++        const backend::RowRuns rr{&r, 1};
++        const backend::CSlice w{t.buf.get(), 0}, x{xb.get(), col0 * t.nin};
++        if (add) {
++            b.write(*y, 0, base.data() + col0 * t.nout, n * t.nout * sizeof(float));
++            b.matmul_add(t.type, w, x, {y.get(), 0}, t.nin, t.nout, n, rr);
++        } else if (t.name == head_name) b.matmul_logits(t.type, w, x, {y.get(), 0}, t.nin, t.nout, n, rr);
++        else b.matmul(t.type, w, x, {y.get(), 0}, t.nin, t.nout, n, rr);
++        b.sync();
++        out.resize(n * t.nout);
++        b.read(*y, 0, out.data(), out.size() * sizeof(float));
++    };
++    size_t total_bad = 0, total = 0;
++    uint64_t digest_all = 1469598103934665603ull;
++    const std::vector<size_t> widths = {1, 2, 3, 4, 5, 7, 8, 9, 13, 15, 16, 17, 24, 31, 32, 33, 40, 48, 63, 64};
++    for (size_t ti = 0; ti < ts.size(); ++ti) {
++        const Tensor& t = ts[ti];
++        const bool adds = t.name.find("attn_output") != std::string::npos || t.name.find("ffn_down") != std::string::npos;
++        std::vector<float> alone(NC * t.nout), o;
++        for (size_t c = 0; c < NC; ++c) {
++            mm(t, c, 1, yb, adds, o);
++            std::memcpy(alone.data() + c * t.nout, o.data(), t.nout * sizeof(float));
++        }
++        const uint64_t dg = fnv(alone.data(), alone.size());
++        digest_all = fnv(alone.data(), alone.size(), digest_all);
++        size_t bad = 0, compared = 0;
++        for (size_t n : widths) {
++            mm(t, 0, n, yb, adds, o);
++            for (size_t c = 0; c < n; ++c, ++compared)
++                if (std::memcmp(o.data() + c * t.nout, alone.data() + c * t.nout, t.nout * sizeof(float)))
++                    if (++bad <= 3) std::printf("  MISMATCH %s n=%zu column %zu\n", t.name.c_str(), n, c);
++        }
++        total_bad += bad;
++        total += compared;
++        std::printf("check %s %s %zu x %zu: digest %016llx, columns differing from alone %zu of %zu\n", t.name.c_str(), type_name(t.type), t.nin, t.nout,
++                    (unsigned long long)dg, bad, compared);
++        std::fflush(stdout);
++    }
++    // Grouped as the model groups them: q, k, v, and gate, up, each column against the tensor's column alone (recomputed per call of one).
++    for (const auto& g : std::vector<std::vector<size_t>>{{0, 1, 2}, {4, 5}}) {
++        std::vector<std::vector<float>> alone(g.size());
++        for (size_t i = 0; i < g.size(); ++i) {
++            const Tensor& t = ts[g[i]];
++            alone[i].resize(NC * t.nout);
++            std::vector<float> o;
++            for (size_t c = 0; c < NC; ++c) {
++                mm(t, c, 1, yb, false, o);
++                std::memcpy(alone[i].data() + c * t.nout, o.data(), t.nout * sizeof(float));
++            }
++        }
++        size_t bad = 0, compared = 0;
++        const backend::BufferPtr outs[3] = {yb, y1, y2};
++        for (size_t n : widths) {
++            const backend::RowRun r{n, 1};
++            const backend::RowRuns rr{&r, 1};
++            std::vector<backend::Projection> pr;
++            for (size_t i = 0; i < g.size(); ++i) {
++                const Tensor& t = ts[g[i]];
++                pr.push_back({t.type, {t.buf.get(), 0}, {outs[i].get(), 0}, t.nout});
++            }
++            if (pr.size() == 3) b.matmul_group({pr[0], pr[1], pr[2]}, {xb.get(), 0}, ts[g[0]].nin, n, rr);
++            else b.matmul_group({pr[0], pr[1]}, {xb.get(), 0}, ts[g[0]].nin, n, rr);
++            b.sync();
++            for (size_t i = 0; i < g.size(); ++i) {
++                const Tensor& t = ts[g[i]];
++                std::vector<float> o(n * t.nout);
++                b.read(*outs[i], 0, o.data(), o.size() * sizeof(float));
++                for (size_t c = 0; c < n; ++c, ++compared)
++                    if (std::memcmp(o.data() + c * t.nout, alone[i].data() + c * t.nout, t.nout * sizeof(float)))
++                        if (++bad <= 3) std::printf("  MISMATCH group %s n=%zu column %zu\n", t.name.c_str(), n, c);
++            }
++        }
++        total_bad += bad;
++        total += compared;
++        std::printf("check group of %zu from %s: columns differing from alone %zu of %zu\n", g.size(), ts[g[0]].name.c_str(), bad, compared);
++    }
++    std::printf("check digest %016llx, total mismatches %zu of %zu\n", (unsigned long long)digest_all, total_bad, total);
++    return total_bad ? 1 : 0;
++}
++
++int main(int argc, char** argv) {
++    try {
++        return run(argc, argv);
++    } catch (const std::exception& e) {
++        std::fflush(stdout);
++        std::fprintf(stderr, "error: %s\n", e.what());
++        return 1;
++    }
++}

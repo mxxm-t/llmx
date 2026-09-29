@@ -134,10 +134,10 @@ static void check_contracts(backend::CpuBackend& cpu) {
     rejects([&] { cpu.embed({yb.get(), 0}, quant::GGML_TYPE_Q8_0, {wb.get(), 0}, nin, nout, &id, 1); },
             "embed gathered a row that ends inside a block");
 
-    // Runs that reach past the call, runs out of order that would take one path, and runs short of the call.
+    // Runs out of order that reach past the call, runs in order that reach past it, runs out of order that would take one path, and runs short of the call.
     // Q8_0 covers the separate float calls and Q4_0 the grouped integer dots, each with whole rows of 64 values.
-    const backend::RowRun past[2] = {{3, 1}, {2, 2}}, merged[2] = {{3, 1}, {2, 1}}, short_of[1] = {{1, 1}};
-    for (const backend::RowRuns runs : {backend::RowRuns{past, 2}, backend::RowRuns{merged, 2}, backend::RowRuns{short_of, 1}}) {
+    const backend::RowRun past[2] = {{3, 1}, {2, 2}}, in_order_past[2] = {{1, 1}, {3, 1}}, merged[2] = {{3, 1}, {2, 1}}, short_of[1] = {{1, 1}};
+    for (const backend::RowRuns runs : {backend::RowRuns{past, 2}, backend::RowRuns{in_order_past, 2}, backend::RowRuns{merged, 2}, backend::RowRuns{short_of, 1}}) {
         rejects([&] { cpu.matmul(quant::GGML_TYPE_F32, {wfb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, 64, nout, 2, runs); },
                 "matmul accepted malformed row runs");
         for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0}) rejects([&] {

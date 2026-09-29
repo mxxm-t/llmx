@@ -337,7 +337,7 @@ unchanged storage and a zero thread hint preserving the current pool.
 It pins that construction and count changes start no threads, and that the first dispatch at a count starts one pool of that size, which later dispatches reuse.
 A start that fails partway fails its dispatch and keeps the count, and the next dispatch starts the whole pool without a new count.
 It checks `quant::row_bytes` against the block layouts over one row and over several, zero rows taking zero bytes however wide a whole-block row, and its refusals of an unknown type and a partial block, with rows or with none, and of a size that wraps in one row or across rows.
-Decode and batched `matmul` and `embed` must refuse a Q8_0 row that ends inside a block, and `matmul` and `matmul_group` must refuse row runs that reach past the call, are out of order or fall short of it, all before writing any output.
+Decode and batched `matmul` and `embed` must refuse a Q8_0 row that ends inside a block, and `matmul` and `matmul_group` must refuse row runs that reach past the call, in order or not, are out of order or fall short of it, all before writing any output.
 It does not establish recovery of partially executed model sessions.
 
 `backend-vulkan` exists only in a build with `LLMX_HAS_BACKEND_VULKAN=ON`.

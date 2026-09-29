@@ -477,8 +477,10 @@ inline std::string missing_device_need(const VkPhysicalDeviceSubgroupProperties&
     return {};
 }
 
-// The attention kernels read at most four elements of a head per lane of a subgroup (shaders/attention.comp), and no head wider than 256.
-inline bool attention_head_fits(size_t head_dim, uint32_t subgroup_size) { return head_dim <= 256 && head_dim <= 4 * (size_t)subgroup_size; }
+// Heads 128 and 256 wide take the tiled and vector kernels, whose lane groups fit every subgroup the device check accepts (shaders/attention_tile.comp, shaders/attention_vec.comp).
+// Other widths take the per-row kernel, which reads at most four elements of a head per lane of a subgroup (shaders/attention.comp); no head is wider than 256.
+inline size_t attention_row_width(uint32_t subgroup_size) { return std::min<size_t>(256, 4 * (size_t)subgroup_size); }
+inline bool attention_head_fits(size_t head_dim, uint32_t subgroup_size) { return head_dim == 128 || head_dim == 256 || head_dim <= attention_row_width(subgroup_size); }
 
 // The tile kernel's row count, specialization constant 0: the shorter heights fill a device a taller tile would leave idle, the taller reads less shared memory per product.
 const uint32_t kTileRowsSmall = 32, kTileRowsShort = 64, kTileRowsTall = 128;   // the small height is variant 1 of the short kernels
@@ -2368,8 +2370,8 @@ public:
         if (!layers || !n_head_kv || !head_dim)
             throw std::runtime_error("vulkan: KV storage without layers, heads or width");
         if (!attention_head_fits(head_dim, dev_->caps.subgroup_size))
-            throw std::runtime_error("vulkan: a head " + std::to_string(head_dim) + " wide is not supported on this device, whose attention takes at most " +
-                                     std::to_string(std::min<size_t>(256, 4 * (size_t)dev_->caps.subgroup_size)));
+            throw std::runtime_error("vulkan: a head " + std::to_string(head_dim) + " wide is not supported on this device, whose attention takes heads 128 or 256 wide or at most " +
+                                     std::to_string(attention_row_width(dev_->caps.subgroup_size)));
         return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type);
     }
 

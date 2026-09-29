@@ -24,7 +24,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   the test skips on and the CLI reports, as does a loader with no driver
   behind it.
   `missing_device_need` holds the features and subgroup properties of that list in one place and names the first one missing.
-  `attention_head_fits` takes a head of at most four elements per subgroup lane and 256 in all, what the attention kernels read, which `kv_alloc` and `attention` check, so a 32-lane device refuses a head wider than 128. The device's `DeviceCaps` choose its `DeviceProfile`
+  `attention_head_fits` takes a head 128 or 256 wide, which the tiled and vector kernels read on any subgroup the device check accepts, and a head of another width up to four elements per subgroup lane and 256 in all (`attention_row_width`), which the per-row kernel reads; `kv_alloc` and `attention` check it, so a 32-lane device refuses a head of another width above 128. The device's `DeviceCaps` choose its `DeviceProfile`
   (`backends/device_profile.hpp`), which `vulkan_device_profile` returns so
   the test predicts the kernel the backend picks.
 - `vulkan_kernel_statistics` returns the driver's per-kernel registers,
@@ -162,7 +162,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   projection's slots land in scratch and `shaders/moe_combine.comp` adds
   their weighted sum to the residual; it reuses the grouping made for gate and up and reads the twin the SiLU writes for its input, while the router and gate and up share their input's twin.
 - The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16, written and read through view tables, so every view of a batch goes through one dispatch of each cache kernel.
-  It derives from `BlockKVStorage` (`backends-kv_storage.md`), which grows it, keeps its accounting and checks each view as the table is built; its `retire` hands the buffers a growth copied from to `keep_until_retired`, and `kv_alloc` refuses heads wider than 256, or than four subgroups, since the per-row attention kernel gives a lane four of a head's values.
+  It derives from `BlockKVStorage` (`backends-kv_storage.md`), which grows it, keeps its accounting and checks each view as the table is built; its `retire` hands the buffers a growth copied from to `keep_until_retired`, and `kv_alloc` refuses a head `attention_head_fits` does not take.
   Attention can dispatch tiled and row kernels plus a history-split merge in one layer.
   It gives views of 128- or 256-wide heads whose prompt reaches the profile's `attention_tile_rows` to the tiled kernel (`shaders/attention_tile.comp`, 32 query rows a tile as the shader fixes them, its `_d256` builds staging 8 keys a tile where the 128-wide ones stage 16) and the rest to the per-row kernel, which splits a row's history into parts from the row's own length and merges them (`shaders/attention_merge.comp`); once the longest row fills every split, a workgroup takes up to four query heads of one KV head (the `_g4` builds), loading the history once for them with each head's arithmetic unchanged.
   Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one 16-byte load a lane for an f16 side and two for f32, and several tokens a subgroup, and heads 256 wide its `_d256` builds, 32 lanes a token; other widths keep `attention.comp`.

@@ -2,9 +2,8 @@
 
 Design for the first vendor backend, ROADMAP #4b, and step 5 of
 [EXECUTION](EXECUTION.md). It implements the `Backend` interface over
-a Vulkan device, except the five ops of the qwen35 layers, which
-`Backend::implements` reports absent, so a device refuses such a model as it
-loads; and nothing else: the model layer holds no address,
+a Vulkan device, the qwen35 layers' ops included, and nothing else:
+the model layer holds no address,
 computes no offset into KV storage, and submits stages through tickets.
 A scheduler can keep several passes in flight over the stages; a backend
 supplies an allocator, an ordered queue, and kernels.
@@ -595,7 +594,10 @@ HF gate measures the cost of it.
   through the block table, a small buffer uploaded per call. GQA maps
   `n_head / n_head_kv` query heads to one KV head. Each attention kernel
   processes its selected views through a view table. Head widths up to
-  256.
+  256: heads 128 and 256 wide take the vector and tiled kernels below on
+  any device, and a head of another width takes this kernel, whose lanes
+  read four of its values each, so on a 32-lane device it is at most 128
+  wide (`attention_head_fits`).
   Once the dispatch's longest row fills every split (2048 tokens at the
   defaults), a workgroup takes up to four query heads of one KV head and
   loads each token's key and value once for them, in the `_g4` builds;

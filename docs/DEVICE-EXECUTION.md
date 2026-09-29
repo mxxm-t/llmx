@@ -206,8 +206,9 @@ separate streams. `embed` replaces the per-token host-side `dequant_row`.
 From writing this step:
 
 - Fuse the per-head norm with RoPE. The model never applies one without the
-  other, so `norm_rope_rows` matches the only caller; two orthogonal ops would
-  not.
+  other, so one op, `norm_rope_rows` then and `norm_rope_partial` since
+  qwen35's partial rope took its place, matches the only caller; two
+  orthogonal ops would not.
 - Dispatch thresholds stay backend-private. The CPU pool declines under two
   rows per worker; a GPU wants every row in one launch at any count. Keeping
   the rule in the backend rather than the model is what allows both.

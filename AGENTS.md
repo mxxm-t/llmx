@@ -6,8 +6,8 @@ making changes.
 ## What this is
 
 **llmx** - a ground-up, dependency-free LLM inference runtime. It reads/writes
-GGUF v3, runs quantized or F32 Qwen3 and Qwen3-MoE transformers on x86 CPU with AVX2/FMA/F16C
-or on a Vulkan device, and the dense Qwen 3.5 hybrid (qwen35) on the CPU, and is structured so formats, quantizations, backends, and multi-device / cluster
+GGUF v3, runs quantized or F32 Qwen3, Qwen3-MoE and dense Qwen 3.5 hybrid (qwen35) transformers on x86 CPU with AVX2/FMA/F16C
+or on a Vulkan device, and is structured so formats, quantizations, backends, and multi-device / cluster
 serving can be added later without touching the core.
 
 ## Build
@@ -863,7 +863,7 @@ In the code: code that runs but serves nothing, paths for inputs or devices that
   Vulkan is the only optional backend today; ROCm, CUDA and SYCL are planned and each gets its option with its implementation.
 - **Model architectures** are compiled in and selected from metadata by
   `src/model/arch/registry.hpp`, one module per architecture under `src/model/arch/`
-  on a runtime they share; today qwen3 and qwen3moe, and qwen35 on the CPU. A new one follows
+  on a runtime they share; today qwen3, qwen3moe and qwen35. A new one follows
   `docs/ADDING-AN-ARCHITECTURE.md`.
 - **Split mode** is a runtime flag: a `--device` list splits by layers
   (`docs/MULTI-DEVICE.md`); tensor groups and node count are planned. See

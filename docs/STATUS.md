@@ -4,6 +4,15 @@ Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
 
+## MI50 prompt speed at 16 bits (2026-09-30, branch perf/mi50-prompt-speed)
+
+- **Goal:** the speed gate the 16-bit prompt fix left open (MI50 prompt activations at 16 bits, below): every qwen35 prompt cell at or above the reference on one MI50 with the fix's precision kept, and the Qwen3 cells it put below the reference restored.
+- **Done:**
+  - Which projections need 16 bits, measured with a probe that rounds the 16-bit twin to 8-bit precision by projection role (`wip/mi50-bisect`, not for merge): against HF on the 9B Q4_K_M file's own weights over both raw 16k sequences, every role but the feed-forward down projection after a full-attention layer loses top-1 positions at 8 bits, the linear-attention output projection most (492 and 494 of 512, up to 10.9 logits); 8 bits with a scale per 8 values still gives 499 of 512, and a coarser step of the twin passes 512 of 512 at 13 bits and not at 12 (512 and 511). So the speed has to come from the 16-bit tile, not from 8-bit activations on some roles.
+  - The tile's dots take the running sum as their accumulator (`dot_pairs`): the driver had summed each pair apart and added it after, about 500 more adds per 1024 dots in the Q8_0 tall build. The logits are the same bytes (Qwen3-0.6B and 8B Q8_0, Qwen3-30B-A3B Q4_K_M, the last 64 positions of a 3,000-character excerpt), and pp512 on one MI50 at default clocks, in the order before, after, after, before, goes from 734 and 725 to 846 and 839 tok/s on the 8B Q8_0 and from 821 and 821 to 1068 and 1069 on the 30B-A3B.
+- **Left:** the qwen35 cells and a timing round against main and the reference at default clocks, the HF checks and the device tier; further tile work if cells stay below the reference.
+- **Gotchas:** the 16-bit tile is bound by its two-wide dots, twice the four-wide 8-bit dots per product, so each instruction around them counts.
+
 ## Server consistency tool controls merged (2026-09-30)
 
 The fresh-phase server consistency tool and explicit `--cache-type f16|f32` selection merged at `83b943a` on Gitea and GitHub, fast-forwarded from `893e3c9` after all seven jobs of [hosted run 36640683980](https://github.com/mxxm-t/llmx/actions/runs/36640683980) passed on that exact head. Both remote main refs were verified and the temporary gate branch was deleted. Runtime source is unchanged.

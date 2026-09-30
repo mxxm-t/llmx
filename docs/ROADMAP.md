@@ -70,7 +70,7 @@ the weights it streams from `format::FileSpan`s, which
 `gguf::GGUFModel::span` gives for GGUF. A second format is such a reader plus
 one branch in `infer::load_model`; the CLI, the tokenizer and the chat format still consume
 `gguf::GGUFModel` directly.
-- safetensors, raw `.bin`+`.json`, ONNX export path
+- safetensors, raw `.bin`+`.json`
 - Choose the reader by the file's header when a second format exists
 - safetensors is HF-native and unlocks most of the Hub; see #9b
 

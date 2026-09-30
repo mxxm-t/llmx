@@ -4,6 +4,7 @@ import os
 import re
 import struct
 import tempfile
+import threading
 
 import common
 from common import run_f32_cache as cli
@@ -35,8 +36,6 @@ UBATCHES = (1, 2, 3, 5, 16)
 # llmx's refusals of a qwen35 file: of the architecture, where it does not run it, and at load on a device whose backend lacks the linear attention's ops.
 # Either skips this component, and the real-model checks, rather than failing or passing them.
 REFUSALS = ("unsupported metadata general.architecture", "which the backend of its device does not implement")
-# The server's refusal of a model whose layers keep a recurrent state, until its scheduler holds states.
-SERVE_REFUSAL = "serve: the model's layers keep a recurrent state, which the server does not hold yet"
 
 
 def refusal(rc, out):
@@ -223,6 +222,49 @@ def write_fixture(directory, fixture):
     return write_model(path, gguf_tensors(fixture, raw_weights(fixture)), eos_id=EOS, config=gguf_config(fixture), arch="qwen35")
 
 
+def check_serve(directory):
+    """The Hv = 3 Hk model served with a context of 1024: greedy ids through /v1/generate alone, four at once and from the CLI are the same, and uncapped requests on a pool too small for them together are paused and resumed with the text each gives alone."""
+    # Imported here, since the server test imports the baseline checks, which import this module.
+    import server
+    fixture = FIXTURES[1]
+    config = dict(gguf_config(fixture), context_length=1024)
+    model = write_model(os.path.join(directory, "tiny-qwen35-serve.gguf"), gguf_tensors(fixture, raw_weights(fixture)), eos_id=EOS, config=config, arch="qwen35")
+    prompts = ["hello world", "abc", "the quick brown fox", "0123456789"]
+    bodies = [{"prompt": text, "temperature": 0, "max_tokens": 24, "ignore_eos": True} for text in prompts]
+    srv = server.Server(model, "--max-seqs", "4")
+    try:
+        server.alone_and_together(srv, bodies)
+        for body in bodies:
+            ids = server.post_ok(srv, "/v1/generate", body)["ids"]
+            p = common.run_process(["generate", model, body["prompt"], "-n", "24", "--temp", "0", "--ignore-eos"], cache="f32")
+            assert p.returncode == 0, p.stderr.decode("utf-8", "replace")
+            # A token below 256 is its byte, so the bytes printed are the ids drawn.
+            assert list(common.generate_text(p.stdout)) == ids, (body["prompt"], ids)
+    finally:
+        srv.close()
+    # Uncapped, each request runs to the context the pool holds, so four together pause and resume, each recomputing its history from its start.
+    uncapped = [{"prompt": text, "temperature": 0, "ignore_eos": True} for text in prompts]
+    srv = server.Server(model, "--max-seqs", "4", "--ctx-size", "1024")
+    try:
+        alone = [server.post_ok(srv, "/v1/completions", body)["choices"][0]["text"] for body in uncapped]
+        results = {}
+        def worker(i):
+            results[i] = srv.post("/v1/completions", uncapped[i], timeout=600)
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(len(uncapped))]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        for i, body in enumerate(uncapped):
+            status, reply = results[i]
+            assert status == 200 and reply["choices"][0]["text"] == alone[i], (body, reply, alone[i])
+        health = srv.get("/v1/health")
+        assert health["active"] == 0 and health["paused"] == 0 and health["pauses"] > 0 and health["recomputed"] > 0, health
+        assert health["taken_back"] == 0 and health["donors"] == 0, health
+    finally:
+        srv.close()
+
+
 def check_scores(name, model, perplexity):
     """The windowed NLL of the longest text within 1e-5 of HF's, scored in batched passes of three tokens and one token at a time, the decode path, at 1 and 4 threads."""
     for threads in (1, 4):
@@ -258,9 +300,7 @@ def run():
         if refusal(rc, out):
             print("qwen35: SKIP - llmx does not run the qwen35 architecture here (%s), so nothing was compared" % refusal(rc, out))
             return common.SKIPPED
-        # The server refuses the model before it listens, so the command ends rather than serving.
-        p = common.run_process(["serve", models["hv1"], "--port", "0"], text=True, timeout=120)
-        assert p.returncode != 0 and SERVE_REFUSAL in p.stderr, "qwen35 serve not refused: exit %d, %s" % (p.returncode, p.stderr[-300:])
+        check_serve(directory)
         # The bench holds a state slot for each sequence it decodes at once.
         rc, out = cli(["bench", "--model", models["hv3"], "--p", "4", "--n", "2", "--r", "1", "--seqs", "3"])
         reports = re.findall(r"^bench: (.+?)\s+\S+ \+- \S+ tok/s  \((\d+) runs\)$", out, re.M)
@@ -280,7 +320,7 @@ def run():
                     printed = [cli(["logits", models[which], text, "--top", str(VOCAB)]) for which in (fixture["base"], spec["name"])]
                     assert printed[0] == printed[1], "%s logits differ from %s's on %r" % (name, fixture["base"], text)
     print("qwen35: all 257 logits vs HF's token-by-token goldens, Hv = Hk tied and Hv = 3 Hk untied, ubatches, threads, --last rows, "
-          "NLL batched and per token, greedy decode after a prefill, an MTP block that leaves the logits as they were, serve refused and bench --seqs 3; max error %.8f  [ok]" % worst)
+          "NLL batched and per token, greedy decode after a prefill, an MTP block that leaves the logits as they were, serve alone, together, from the CLI and through pauses, and bench --seqs 3; max error %.8f  [ok]" % worst)
     return True
 
 

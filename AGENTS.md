@@ -808,6 +808,19 @@ A branch runs the checks of what it can break, once, when it is complete; betwee
 A branch lands when the hosted run is green at the head that lands and main has not moved since: main is fast-forwarded to it, and STATUS records the merge in a commit of its own.
 Comparisons against the reference runtimes belong to the phase's final gate, not to each branch.
 
+### Traps the gates exist for
+
+Each of these let a wrong result or a wrong measurement through here once.
+They are part of the gates, not advice.
+
+- **A check counts only for the path it reaches.** A tiny model below a fast path's size threshold runs another kernel, and a green result says nothing about the path it skipped. A numerics change names the path each check exercised and proves it ran, through a counter, a log line or a forced-path unit check, and exercises the threshold's edges.
+- **Short checks do not bound long ones.** A device prompt path with 8-bit activations passed every tiny fixture and the 512-token HF windows, then missed 6 to 8 of 512 top-1 tokens on a 9B model at 16k tokens against HF on the file's own weights. A change of prompt or decode numerics on a device runs the long-context checks, the raw and the chat-template 16k sequences against file-exact HF, before it merges.
+- **A bound follows the precision a path computes in, never the weight type.** F32 bounds hold F32 paths. A path in another precision is held to a budget calibrated for that precision: a reference run with the exact weights, activations rounded to that precision and F32 sums, measured against file-exact HF over the dense, tied and MoE fixtures and extra seeds, then frozen with its headroom stated before any candidate is rerun. A budget is never set just above a failing candidate, and the real-model bounds are not widened to let a path through.
+- **Correctness is not traded for speed by default.** A faster path in a lower precision than the rule gives (8-bit activations, say) is an opt-in with its own bound, never the default, and never decides a merge of the default path. A fallback is never narrower than the precision asked for, and says so when taken.
+- **Measure what a user runs.** Timing runs at the device's default clocks and power state. Setting performance levels or holding clocks high flatters a kernel and makes its figures incomparable with any other run; every arm, llmx before, llmx after and the reference, runs on the same device in the same environment (Principles, above).
+- **An open speed gate is recorded, not waived.** First support of a model or a type may merge while it is below the reference, with the cells below it listed in STATUS and the recovery work named, and that work follows at once. It never covers a slowdown on a path main already has, which the timing round against main catches at every merge.
+- **A review finding is rechecked before it is acted on.** A reviewer's finding, a person's or a tool's, is checked against the code, then fixed or rejected with the evidence beside it.
+
 ## Checkpoints
 
 Update `docs/STATUS.md` and commit at each meaningful checkpoint - at minimum

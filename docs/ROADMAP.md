@@ -218,6 +218,13 @@ and implemented HF coverage are recorded in STATUS.
   activity imbalance, without automatically stopping or replacing busy runs.
   Never remove only slow samples. Missing telemetry is a stated limitation,
   not proof of idleness; small differences may remain unresolved.
+- **Precision policy [planned].** Activation precision follows the model and the device, as vLLM resolves its dtype, instead of a choice per weight type.
+  - `auto` takes the model's declared dtype where the device runs it natively, else F16. A GGUF, which records no source dtype, takes its architecture's documented default (BF16 for the Qwen families).
+  - A dtype flag (`auto`, `f16`, `bf16`, `f32`) overrides it. A valid value is never refused: a device without it natively takes a fast exact emulation, else F32, with a warning. F16 and BF16 never stand in for each other.
+  - Weights are read exactly and sums are F32. The F32 intermediates llmx keeps today (norms, softmax, rope, recurrent state, residual) stay until a narrower change is measured and passes the gates.
+  - A kernel may implement a dtype in another form, such as block-scaled 16-bit integers for F16, only when it passes that dtype's calibrated budget and exact range checks, with a witness that it ran.
+  - One owner resolves the policy once for a run. The requested, effective and native, emulated or fallback precision of each device is shown once, on the CLI and in `/v1/health`.
+  - The tests take their tolerances from one owner keyed by the precision that ran (AGENTS.md, Merge gates).
 - Path-controlled perplexity on real text as the lossless gate (see
   `correctness-gate` skill)
 - A long-context check of KV cache and RoPE correctness at depth

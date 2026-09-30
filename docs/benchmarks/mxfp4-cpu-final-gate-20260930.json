@@ -1,0 +1,2769 @@
+{
+  "scope": "CPU MXFP4 final integration evidence. Original-source timing and correctness retained through conflict-free integration; no MXFP4 device support or speed-parity claim.",
+  "head": "d81ed428c41bd6464170e18499860d1653eddde2",
+  "base_main": "4141ec56a4cba13c879edcd4a6943cfff1b99490",
+  "archives": [
+    {
+      "file": "mxfp4-cpu-q35-perf-evidence-20260930.tar.gz",
+      "sha256": "bcfc0e2ee51f554052c0618c2d7327d5a7fe45aa4e61eb263cbb9a2ae4de685e",
+      "verified_payloads": 267
+    },
+    {
+      "file": "mxfp4-cpu-q5-followup-evidence-20260930.tar.gz",
+      "sha256": "ed930558f615a57de594545d8eeaa6c8cdff227a218c5aa3dd55e0bc65c11ed6",
+      "verified_payloads": 79
+    },
+    {
+      "file": "mxfp4-cpu-current-linux-evidence-20260930.tar.gz",
+      "sha256": "669f5a1f0182c0f065e17b3328fd1a0115ab23b88f3967432dee357a72af0a7e",
+      "verified_payloads": 335
+    }
+  ],
+  "windows_final": {
+    "status": "pass",
+    "pid": 33412,
+    "arms": {
+      "candidate": {
+        "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-speed-integration-20260930",
+        "head": "2ee59c32ddfd58fc6a0c92b312110fa8782736d0",
+        "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-speed-integration-20260930\\build\\Release\\llmx.exe",
+        "version": "llmx 0.1.0+g2ee59c32ddfd",
+        "sha256": "045cefcbfeff7aa7299710ea8acffc06cd9be85ee9f6630a298122b5e293c481"
+      }
+    },
+    "commands": [
+      {
+        "label": "candidate-configure",
+        "args": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-speed-integration-20260930",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-speed-integration-20260930\\build",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DBUILD_TESTING=ON"
+        ],
+        "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-speed-integration-20260930",
+        "started": "2026-09-30T03:31:28.682107+00:00",
+        "pid": 31272,
+        "exit": 0
+      },
+      {
+        "label": "candidate-build",
+        "args": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-speed-integration-20260930\\build",
+          "--config",
+          "Release",
+          "--parallel",
+          "2"
+        ],
+        "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-speed-integration-20260930",
+        "started": "2026-09-30T03:31:32.625746+00:00",
+        "pid": 26136,
+        "exit": 0
+      },
+      {
+        "label": "native",
+        "args": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-speed-integration-20260930\\build",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-speed-integration-20260930",
+        "started": "2026-09-30T03:32:52.081619+00:00",
+        "pid": 30632,
+        "exit": 0
+      },
+      {
+        "label": "suite",
+        "args": [
+          "python",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-speed-integration-20260930\\build\\Release\\llmx.exe",
+          "--require-tools",
+          "--no-perf-floor",
+          "--only",
+          "dead-code,docs,device-reference,mxfp4"
+        ],
+        "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-speed-integration-20260930",
+        "started": "2026-09-30T03:34:11.321468+00:00",
+        "pid": 11332,
+        "exit": 0
+      }
+    ],
+    "scope": "Clean conflict-free integration 2ee59c32 of validated peer5bb4596f into CPU MX branch. Reuses existing build/CTest runner; all native tests plus four affected components. CPU feature patch unchanged; no new timing claim."
+  },
+  "linux_final": {
+    "status": "pass",
+    "launcher_pid": 315990,
+    "commands": [
+      {
+        "name": "candidate-clone",
+        "command": [
+          "git",
+          "clone",
+          "--depth",
+          "1",
+          "--single-branch",
+          "--branch",
+          "integrate/mxfp4-cpu-main",
+          "http://11.10.10.12:3000/admin/llmx.git",
+          "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-speed-linux-20260930/candidate/source"
+        ],
+        "started": "2026-09-30T04:00:58.513123+00:00",
+        "pid": 369471,
+        "returncode": 0
+      },
+      {
+        "name": "candidate-configure",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu2-20260928",
+          "taskset",
+          "-c",
+          "0,1",
+          "timeout",
+          "--kill-after=10s",
+          "3600",
+          "cmake",
+          "-S",
+          "/work/mxfp4-cpu-speed-linux-20260930/candidate/source",
+          "-B",
+          "/work/mxfp4-cpu-speed-linux-20260930/candidate/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DBUILD_TESTING=ON"
+        ],
+        "started": "2026-09-30T04:00:59.695587+00:00",
+        "pid": 369582,
+        "returncode": 0
+      },
+      {
+        "name": "candidate-build",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu2-20260928",
+          "taskset",
+          "-c",
+          "0,1",
+          "timeout",
+          "--kill-after=10s",
+          "3600",
+          "cmake",
+          "--build",
+          "/work/mxfp4-cpu-speed-linux-20260930/candidate/build",
+          "--parallel",
+          "2"
+        ],
+        "started": "2026-09-30T04:01:00.412292+00:00",
+        "pid": 369725,
+        "returncode": 0
+      },
+      {
+        "name": "native",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu2-20260928",
+          "taskset",
+          "-c",
+          "0,1",
+          "timeout",
+          "--kill-after=10s",
+          "3600",
+          "ctest",
+          "--test-dir",
+          "/work/mxfp4-cpu-speed-linux-20260930/candidate/build",
+          "--output-on-failure"
+        ],
+        "started": "2026-09-30T04:06:08.697330+00:00",
+        "pid": 380945,
+        "returncode": 0
+      },
+      {
+        "name": "cpu-suite",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu2-20260928",
+          "taskset",
+          "-c",
+          "0,1",
+          "timeout",
+          "--kill-after=10s",
+          "3600",
+          "python3",
+          "-X",
+          "utf8",
+          "/work/mxfp4-cpu-speed-linux-20260930/candidate/source/tests/run_tests.py",
+          "--exe",
+          "/work/mxfp4-cpu-speed-linux-20260930/candidate/build/llmx",
+          "--require-tools",
+          "--no-perf-floor",
+          "--only",
+          "dead-code,docs,device-reference,mxfp4"
+        ],
+        "started": "2026-09-30T04:07:13.368914+00:00",
+        "pid": 384726,
+        "returncode": 0
+      }
+    ],
+    "arms": {
+      "candidate": {
+        "head": "d81ed428c41bd6464170e18499860d1653eddde2",
+        "version": "llmx 0.1.0+gd81ed428c41b",
+        "source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-speed-linux-20260930/candidate/source",
+        "build": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-speed-linux-20260930/candidate/build",
+        "sha256": "53293e4dbef7ec90988fb9d81ebef487e7aa16097ef19165dc7df3db4f4ca66e"
+      }
+    },
+    "scope": "Fresh Linux Vulkan-enabled integration build at d81ed428 after conflict-free peer-main merge. Wait for verified live CPU timing, then all native tests and four focused components; no repeated full model matrix or new performance claim.",
+    "container": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600"
+  },
+  "matrix": {
+    "scope": "Current main c1398b1b versus CPU MXFP4 9be203b9, same-header layout control and pinned mx CPU library, existing compare_cpu.cpp. Four existing 0.6B mixtures plus MXFP4 0.6B, 8B and required local 14B. 215 prompt /32 decode tokens, F32 cache, ubatch128, six threads; all planned samples retained.",
+    "plan_sha256": "9f8a8c19669b7f78cf634b16852c852fe5bd5c8a088aaec9e6d20b32638c3984",
+    "terminal": "pass",
+    "calls": 100,
+    "all_planned_calls_retained": true,
+    "primary_iteration": 1,
+    "summary": [
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "iteration": 0,
+        "arms": {
+          "main": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1087.0415835,
+              "median": 1086.8538155,
+              "minimum": 1071.728418,
+              "maximum": 1102.730285
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 1027.6858315,
+              "median": 967.1688174999999,
+              "minimum": 829.744282,
+              "maximum": 1346.661409
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1085.96866,
+              "median": 1085.454807,
+              "minimum": 1071.615534,
+              "maximum": 1101.349492
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 1019.227952,
+              "median": 973.599307,
+              "minimum": 814.87416,
+              "maximum": 1314.839034
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1077.452005,
+              "median": 1078.0951825000002,
+              "minimum": 1065.634791,
+              "maximum": 1087.982864
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 960.8569904999999,
+              "median": 952.971949,
+              "minimum": 821.116199,
+              "maximum": 1116.367865
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1331.6193170000001,
+              "median": 1330.057402,
+              "minimum": 1323.405207,
+              "maximum": 1342.957257
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 906.628997,
+              "median": 888.8393915,
+              "minimum": 785.749472,
+              "maximum": 1063.087733
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_main": {
+            "pp_ms": 0.12888684917859994,
+            "tg_ms": -0.6604862445737103
+          },
+          "candidate_vs_reference": {
+            "pp_ms": 22.534571998997997,
+            "tg_ms": -8.705831535683284
+          },
+          "layout_vs_main": {
+            "pp_ms": 0.8124174138028684,
+            "tg_ms": 1.4897467354519023
+          },
+          "layout_vs_candidate": {
+            "pp_ms": 0.6826507176234342,
+            "tg_ms": 2.1645293989655423
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "iteration": 1,
+        "arms": {
+          "main": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1036.21711325,
+              "median": 1039.4236695,
+              "minimum": 1016.713383,
+              "maximum": 1049.307731
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 1028.900971,
+              "median": 962.3270735,
+              "minimum": 834.539459,
+              "maximum": 1356.410278
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1033.396103,
+              "median": 1024.8067095000001,
+              "minimum": 1021.754776,
+              "maximum": 1062.216217
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 1009.732573,
+              "median": 949.0211185,
+              "minimum": 819.131339,
+              "maximum": 1321.756716
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1030.310628,
+              "median": 1027.8984685,
+              "minimum": 1024.281384,
+              "maximum": 1041.164191
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 1006.95591425,
+              "median": 966.3553770000001,
+              "minimum": 826.859925,
+              "maximum": 1268.252978
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1341.0804145,
+              "median": 1331.621046,
+              "minimum": 1313.318428,
+              "maximum": 1387.761138
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 863.468898,
+              "median": 842.0921155,
+              "minimum": 785.848175,
+              "maximum": 983.843186
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_main": {
+            "pp_ms": 1.426313846747873,
+            "tg_ms": 1.402071538832672
+          },
+          "candidate_vs_reference": {
+            "pp_ms": 29.938751732967628,
+            "tg_ms": -11.267294364219138
+          },
+          "layout_vs_main": {
+            "pp_ms": 1.1212392423172401,
+            "tg_ms": -0.4168552890455035
+          },
+          "layout_vs_candidate": {
+            "pp_ms": -0.30078447383151685,
+            "tg_ms": -1.7937767939796068
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "iteration": 0,
+        "arms": {
+          "main": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1181.71851625,
+              "median": 1184.7972485,
+              "minimum": 1160.223729,
+              "maximum": 1197.055839
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 788.752869,
+              "median": 789.2752525000001,
+              "minimum": 718.78532,
+              "maximum": 857.675651
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1171.08875875,
+              "median": 1175.9487629999999,
+              "minimum": 1142.713642,
+              "maximum": 1189.743867
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 762.87074825,
+              "median": 745.537802,
+              "minimum": 719.709138,
+              "maximum": 840.698251
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1174.42752025,
+              "median": 1174.7533555,
+              "minimum": 1156.171394,
+              "maximum": 1192.031976
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 738.627716,
+              "median": 744.00839,
+              "minimum": 711.678703,
+              "maximum": 754.815381
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 991.78919475,
+              "median": 992.027932,
+              "minimum": 973.51458,
+              "maximum": 1009.586335
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 575.01313425,
+              "median": 573.4751695,
+              "minimum": 551.226813,
+              "maximum": 601.875385
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_main": {
+            "pp_ms": 0.7524550200151969,
+            "tg_ms": 5.866563758761623
+          },
+          "candidate_vs_reference": {
+            "pp_ms": -15.640207871879863,
+            "tg_ms": -23.07899506080311
+          },
+          "layout_vs_main": {
+            "pp_ms": 0.854978873052481,
+            "tg_ms": 6.084187101707306
+          },
+          "layout_vs_candidate": {
+            "pp_ms": 0.10175816858943865,
+            "tg_ms": 0.2055638109134783
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "iteration": 1,
+        "arms": {
+          "main": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1116.43815075,
+              "median": 1113.2584765000001,
+              "minimum": 1096.129745,
+              "maximum": 1143.105905
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 783.98654225,
+              "median": 774.296212,
+              "minimum": 722.657959,
+              "maximum": 864.695786
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1114.86597525,
+              "median": 1119.6481370000001,
+              "minimum": 1086.012465,
+              "maximum": 1134.155162
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 759.15312725,
+              "median": 750.8165584999999,
+              "minimum": 716.381217,
+              "maximum": 818.598175
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1120.6233200000001,
+              "median": 1119.6201019999999,
+              "minimum": 1108.436793,
+              "maximum": 1134.816283
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 747.11446775,
+              "median": 740.4059295,
+              "minimum": 723.005678,
+              "maximum": 784.640334
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 976.43092325,
+              "median": 972.3037400000001,
+              "minimum": 957.581142,
+              "maximum": 1003.535071
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 579.8408415,
+              "median": 577.1205454999999,
+              "minimum": 555.126681,
+              "maximum": 609.995594
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_main": {
+            "pp_ms": -0.5706846900241813,
+            "tg_ms": 3.1272157272221435
+          },
+          "candidate_vs_reference": {
+            "pp_ms": -13.159884085976914,
+            "tg_ms": -23.13428107486257
+          },
+          "layout_vs_main": {
+            "pp_ms": -0.5681950054876483,
+            "tg_ms": 4.577257035594817
+          },
+          "layout_vs_candidate": {
+            "pp_ms": 0.0025039743346999543,
+            "tg_ms": 1.4060704520600265
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "iteration": 0,
+        "arms": {
+          "main": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1124.6453875,
+              "median": 1126.2915910000002,
+              "minimum": 1104.806521,
+              "maximum": 1141.191847
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 753.90742375,
+              "median": 740.9423055,
+              "minimum": 712.327823,
+              "maximum": 821.417261
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1125.65623125,
+              "median": 1126.778751,
+              "minimum": 1112.889529,
+              "maximum": 1136.177894
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 761.27694775,
+              "median": 747.774141,
+              "minimum": 710.495638,
+              "maximum": 839.063871
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1123.07522875,
+              "median": 1120.9937329999998,
+              "minimum": 1110.33694,
+              "maximum": 1139.976509
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 765.34711775,
+              "median": 741.160619,
+              "minimum": 711.53494,
+              "maximum": 867.532293
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 954.81036025,
+              "median": 956.8087825,
+              "minimum": 930.752309,
+              "maximum": 974.871567
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 741.64575125,
+              "median": 634.0258819999999,
+              "minimum": 578.822874,
+              "maximum": 1119.708367
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_main": {
+            "pp_ms": -0.04323475212569816,
+            "tg_ms": -0.9136228608900288
+          },
+          "candidate_vs_reference": {
+            "pp_ms": -15.084591216257326,
+            "tg_ms": -15.211579641933625
+          },
+          "layout_vs_main": {
+            "pp_ms": 0.47260371258475153,
+            "tg_ms": -0.029455626001095858
+          },
+          "layout_vs_candidate": {
+            "pp_ms": 0.5160615826565351,
+            "tg_ms": 0.8923196713990444
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "iteration": 1,
+        "arms": {
+          "main": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1064.9613615,
+              "median": 1067.265618,
+              "minimum": 1050.704114,
+              "maximum": 1074.610096
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 755.010687,
+              "median": 757.896784,
+              "minimum": 717.676967,
+              "maximum": 786.572213
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1066.8282239999999,
+              "median": 1067.567507,
+              "minimum": 1055.427669,
+              "maximum": 1076.750213
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 748.90855875,
+              "median": 716.381747,
+              "minimum": 706.299174,
+              "maximum": 856.571567
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1073.23399875,
+              "median": 1077.280798,
+              "minimum": 1053.683995,
+              "maximum": 1084.690404
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 769.716838,
+              "median": 764.8664335,
+              "minimum": 717.714428,
+              "maximum": 831.420057
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 929.895911,
+              "median": 933.507844,
+              "minimum": 911.439888,
+              "maximum": 941.128068
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 644.6464805,
+              "median": 642.6423565,
+              "minimum": 577.996709,
+              "maximum": 715.3045
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_main": {
+            "pp_ms": -0.028278211730925484,
+            "tg_ms": 5.7950997738081655
+          },
+          "candidate_vs_reference": {
+            "pp_ms": -12.557488132691919,
+            "tg_ms": -10.29330951113695
+          },
+          "layout_vs_main": {
+            "pp_ms": -0.9296721911866923,
+            "tg_ms": -0.9112243909184414
+          },
+          "layout_vs_candidate": {
+            "pp_ms": -0.9016489496548208,
+            "tg_ms": -6.3389742805336375
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "arms": {
+          "main": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1128.127391,
+              "median": 1129.9786279999998,
+              "minimum": 1109.475204,
+              "maximum": 1143.077104
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 795.018302,
+              "median": 788.0472955,
+              "minimum": 769.641761,
+              "maximum": 834.336856
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1115.73050475,
+              "median": 1117.229178,
+              "minimum": 1102.081718,
+              "maximum": 1126.381945
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 890.02227675,
+              "median": 840.045087,
+              "minimum": 763.955828,
+              "maximum": 1116.043105
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1127.326834,
+              "median": 1126.9136745,
+              "minimum": 1111.491926,
+              "maximum": 1143.988061
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 837.01100675,
+              "median": 821.788333,
+              "minimum": 794.193499,
+              "maximum": 910.273862
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1662.372508,
+              "median": 1663.4187975,
+              "minimum": 1644.598055,
+              "maximum": 1678.054382
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 682.00992075,
+              "median": 660.9379025000001,
+              "minimum": 635.546953,
+              "maximum": 770.616925
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_main": {
+            "pp_ms": 1.1411669379082223,
+            "tg_ms": -6.1898810319451325
+          },
+          "candidate_vs_reference": {
+            "pp_ms": 48.88787638698779,
+            "tg_ms": -21.321139456887263
+          },
+          "layout_vs_main": {
+            "pp_ms": 0.2719776651356698,
+            "tg_ms": -4.1058063427142795
+          },
+          "layout_vs_candidate": {
+            "pp_ms": -0.8593822862515976,
+            "tg_ms": 2.22158836611277
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "arms": {
+          "main": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1077.18040775,
+              "median": 1076.711366,
+              "minimum": 1070.926704,
+              "maximum": 1084.372195
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 779.61660775,
+              "median": 777.891325,
+              "minimum": 769.536727,
+              "maximum": 793.147054
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1069.92658575,
+              "median": 1071.2339040000002,
+              "minimum": 1060.902416,
+              "maximum": 1076.336119
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 963.54085525,
+              "median": 866.870348,
+              "minimum": 777.4733,
+              "maximum": 1342.949425
+            },
+            "flagged_calls": 3,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1072.288747,
+              "median": 1072.3043899999998,
+              "minimum": 1054.066087,
+              "maximum": 1090.480121
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 850.246208,
+              "median": 849.8730785,
+              "minimum": 777.749388,
+              "maximum": 923.489287
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1655.9105785000002,
+              "median": 1656.485381,
+              "minimum": 1639.413277,
+              "maximum": 1671.258275
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 687.310538,
+              "median": 679.9739205,
+              "minimum": 635.592054,
+              "maximum": 753.702257
+            },
+            "flagged_calls": 2,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_main": {
+            "pp_ms": 0.511322688681437,
+            "tg_ms": -10.264398038909505
+          },
+          "candidate_vs_reference": {
+            "pp_ms": 54.63339750680629,
+            "tg_ms": -21.559905461202845
+          },
+          "layout_vs_main": {
+            "pp_ms": 0.4109818108643859,
+            "tg_ms": -8.469706279794808
+          },
+          "layout_vs_candidate": {
+            "pp_ms": -0.09983042221803906,
+            "tg_ms": 1.9999774001548287
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-MXFP4.gguf",
+        "iteration": 0,
+        "arms": {
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1167.58426575,
+              "median": 1158.133933,
+              "minimum": 1137.148352,
+              "maximum": 1216.920845
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 791.21278175,
+              "median": 731.6107855,
+              "minimum": 650.331574,
+              "maximum": 1051.297982
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1142.73522,
+              "median": 1139.1194025,
+              "minimum": 1134.425198,
+              "maximum": 1158.276877
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 718.76144475,
+              "median": 721.4860265,
+              "minimum": 672.341645,
+              "maximum": 759.732081
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1006.02718825,
+              "median": 1006.2878635,
+              "minimum": 999.800986,
+              "maximum": 1011.73204
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 575.79408975,
+              "median": 582.0200325000001,
+              "minimum": 546.773507,
+              "maximum": 592.362787
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_reference": {
+            "pp_ms": -13.111270223009697,
+            "tg_ms": -20.446767046738668
+          },
+          "layout_vs_candidate": {
+            "pp_ms": 1.6692306757543962,
+            "tg_ms": 1.4033201792023942
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-MXFP4.gguf",
+        "iteration": 1,
+        "arms": {
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1096.115143,
+              "median": 1091.735415,
+              "minimum": 1085.697755,
+              "maximum": 1115.291987
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 717.0312972500001,
+              "median": 719.1487995,
+              "minimum": 652.129799,
+              "maximum": 777.697791
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 1098.3415365,
+              "median": 1097.5984345000002,
+              "minimum": 1093.755182,
+              "maximum": 1104.414095
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 842.43613375,
+              "median": 741.52541,
+              "minimum": 714.118268,
+              "maximum": 1172.575447
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 994.59887175,
+              "median": 994.151607,
+              "minimum": 973.269038,
+              "maximum": 1016.823235
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 584.41308725,
+              "median": 577.5727965,
+              "minimum": 567.706815,
+              "maximum": 614.799941
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_reference": {
+            "pp_ms": -8.938411877020592,
+            "tg_ms": -19.686607708784752
+          },
+          "layout_vs_candidate": {
+            "pp_ms": -0.5341679903790086,
+            "tg_ms": -3.0176458147266993
+          }
+        }
+      },
+      {
+        "model": "Qwen3-8B-MXFP4.gguf",
+        "iteration": 0,
+        "arms": {
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 15398.41036,
+              "median": 15355.81754,
+              "minimum": 15234.12249,
+              "maximum": 15647.88387
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 6704.54585975,
+              "median": 6662.4476715,
+              "minimum": 6366.985482,
+              "maximum": 7126.302614
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 15291.590955,
+              "median": 15315.34201,
+              "minimum": 14889.54283,
+              "maximum": 15646.13697
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 6778.576849,
+              "median": 6542.518862,
+              "minimum": 6374.670316,
+              "maximum": 7654.599356
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 12072.609785,
+              "median": 11959.1712,
+              "minimum": 11848.26815,
+              "maximum": 12523.82859
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 5036.862096,
+              "median": 4913.4513695,
+              "minimum": 4365.994483,
+              "maximum": 5954.551162
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_reference": {
+            "pp_ms": -22.11960601350047,
+            "tg_ms": -26.251557809327263
+          },
+          "layout_vs_candidate": {
+            "pp_ms": 0.26428094112147527,
+            "tg_ms": 1.833067844810743
+          }
+        }
+      },
+      {
+        "model": "Qwen3-8B-MXFP4.gguf",
+        "iteration": 1,
+        "arms": {
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 15247.91164,
+              "median": 15257.565354999999,
+              "minimum": 14951.84563,
+              "maximum": 15524.67022
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 6805.4252095,
+              "median": 6488.2689295,
+              "minimum": 6311.098163,
+              "maximum": 7934.064816
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 15191.1915275,
+              "median": 15211.822305,
+              "minimum": 14818.92371,
+              "maximum": 15522.19779
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 6502.4780025,
+              "median": 6323.920481,
+              "minimum": 6268.798327,
+              "maximum": 7093.272721
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 12001.0256325,
+              "median": 11984.972904999999,
+              "minimum": 11966.28565,
+              "maximum": 12067.87107
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 4689.3577505,
+              "median": 4701.519239,
+              "minimum": 4372.639547,
+              "maximum": 4981.752977
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_reference": {
+            "pp_ms": -21.448982022073082,
+            "tg_ms": -27.538157094201864
+          },
+          "layout_vs_candidate": {
+            "pp_ms": 0.3007072333796934,
+            "tg_ms": 2.5988379992091692
+          }
+        }
+      },
+      {
+        "model": "Qwen3-14B-MXFP4.gguf",
+        "iteration": 0,
+        "arms": {
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 28827.83254,
+              "median": 28767.639385000002,
+              "minimum": 28567.32924,
+              "maximum": 29208.72215
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 11994.602015,
+              "median": 11619.320325,
+              "minimum": 11470.12166,
+              "maximum": 13269.64575
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 28983.800997500002,
+              "median": 28814.874645,
+              "minimum": 28568.77572,
+              "maximum": 29736.67898
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 13639.313377499999,
+              "median": 13209.79264,
+              "minimum": 11623.87472,
+              "maximum": 16513.79351
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 22560.855167499998,
+              "median": 22516.490455,
+              "minimum": 22267.29829,
+              "maximum": 22943.14147
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 11964.034065,
+              "median": 11680.256870000001,
+              "minimum": 10041.11783,
+              "maximum": 14454.50469
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_reference": {
+            "pp_ms": -21.729794531766387,
+            "tg_ms": 0.5244415619465315
+          },
+          "layout_vs_candidate": {
+            "pp_ms": -0.16392665448640154,
+            "tg_ms": -12.040100540139886
+          }
+        }
+      },
+      {
+        "model": "Qwen3-14B-MXFP4.gguf",
+        "iteration": 1,
+        "arms": {
+          "candidate": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 28893.7223775,
+              "median": 28735.33901,
+              "minimum": 28433.05465,
+              "maximum": 29671.15684
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 15387.5371175,
+              "median": 13263.260305,
+              "minimum": 11514.78525,
+              "maximum": 23508.84261
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 28609.4423025,
+              "median": 28602.677145,
+              "minimum": 28513.365,
+              "maximum": 28719.04992
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 13654.559967500001,
+              "median": 13155.209115000001,
+              "minimum": 12799.86626,
+              "maximum": 15507.95538
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 4,
+              "mean": 22568.217695,
+              "median": 22521.61765,
+              "minimum": 22348.75858,
+              "maximum": 22880.8769
+            },
+            "tg_ms": {
+              "n": 4,
+              "mean": 10473.89017725,
+              "median": 10445.56466,
+              "minimum": 9791.456249,
+              "maximum": 11212.97514
+            },
+            "flagged_calls": 4,
+            "unknown_calls": 4
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_reference": {
+            "pp_ms": -21.623970950325667,
+            "tg_ms": -21.244366620308142
+          },
+          "layout_vs_candidate": {
+            "pp_ms": 0.46380925927833605,
+            "tg_ms": 0.8213566888632284
+          }
+        }
+      }
+    ],
+    "blocks": [
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "iteration": 0,
+        "block": 0,
+        "arms": {
+          "main": {
+            "pp_ms": 1096.99741,
+            "tg_ms": 837.8165385
+          },
+          "candidate": {
+            "pp_ms": 1097.6615145,
+            "tg_ms": 848.151689
+          },
+          "layout": {
+            "pp_ms": 1087.5990175000002,
+            "tg_ms": 822.5922795
+          },
+          "reference": {
+            "pp_ms": 1338.9583,
+            "tg_ms": 792.813352
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "iteration": 0,
+        "block": 1,
+        "arms": {
+          "main": {
+            "pp_ms": 1077.0857569999998,
+            "tg_ms": 1217.5551245000001
+          },
+          "candidate": {
+            "pp_ms": 1074.2758055,
+            "tg_ms": 1190.304215
+          },
+          "layout": {
+            "pp_ms": 1067.3049925,
+            "tg_ms": 1099.1217015
+          },
+          "reference": {
+            "pp_ms": 1324.280334,
+            "tg_ms": 1020.444642
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "iteration": 1,
+        "block": 0,
+        "arms": {
+          "main": {
+            "pp_ms": 1039.4236695,
+            "tg_ms": 842.255034
+          },
+          "candidate": {
+            "pp_ms": 1024.242397,
+            "tg_ms": 823.157372
+          },
+          "layout": {
+            "pp_ms": 1027.8984685,
+            "tg_ms": 836.586886
+          },
+          "reference": {
+            "pp_ms": 1331.621046,
+            "tg_ms": 787.265408
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "iteration": 1,
+        "block": 1,
+        "arms": {
+          "main": {
+            "pp_ms": 1033.010557,
+            "tg_ms": 1215.546908
+          },
+          "candidate": {
+            "pp_ms": 1042.549809,
+            "tg_ms": 1196.3077739999999
+          },
+          "layout": {
+            "pp_ms": 1032.7227874999999,
+            "tg_ms": 1177.3249425
+          },
+          "reference": {
+            "pp_ms": 1350.5397830000002,
+            "tg_ms": 939.672388
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "iteration": 0,
+        "block": 0,
+        "arms": {
+          "main": {
+            "pp_ms": 1195.9727915,
+            "tg_ms": 753.028144
+          },
+          "candidate": {
+            "pp_ms": 1186.7087895,
+            "tg_ms": 725.9635940000001
+          },
+          "layout": {
+            "pp_ms": 1191.0640365,
+            "tg_ms": 723.344459
+          },
+          "reference": {
+            "pp_ms": 1008.3774579999999,
+            "tg_ms": 554.408145
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "iteration": 0,
+        "block": 1,
+        "arms": {
+          "main": {
+            "pp_ms": 1167.4642410000001,
+            "tg_ms": 824.477594
+          },
+          "candidate": {
+            "pp_ms": 1155.4687279999998,
+            "tg_ms": 799.7779025
+          },
+          "layout": {
+            "pp_ms": 1157.791004,
+            "tg_ms": 753.910973
+          },
+          "reference": {
+            "pp_ms": 975.2009315,
+            "tg_ms": 595.6181235
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "iteration": 1,
+        "block": 0,
+        "arms": {
+          "main": {
+            "pp_ms": 1134.0069374999998,
+            "tg_ms": 732.3818
+          },
+          "candidate": {
+            "pp_ms": 1131.5773585000002,
+            "tg_ms": 724.3364845
+          },
+          "layout": {
+            "pp_ms": 1132.061979,
+            "tg_ms": 726.1305135
+          },
+          "reference": {
+            "pp_ms": 991.141648,
+            "tg_ms": 560.7981589999999
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_0.gguf",
+        "iteration": 1,
+        "block": 1,
+        "arms": {
+          "main": {
+            "pp_ms": 1098.8693640000001,
+            "tg_ms": 835.5912845
+          },
+          "candidate": {
+            "pp_ms": 1098.1545919999999,
+            "tg_ms": 793.9697699999999
+          },
+          "layout": {
+            "pp_ms": 1109.184661,
+            "tg_ms": 768.098422
+          },
+          "reference": {
+            "pp_ms": 961.7201984999999,
+            "tg_ms": 598.883524
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "iteration": 0,
+        "block": 0,
+        "arms": {
+          "main": {
+            "pp_ms": 1132.800136,
+            "tg_ms": 727.7005369999999
+          },
+          "candidate": {
+            "pp_ms": 1129.527691,
+            "tg_ms": 719.452326
+          },
+          "layout": {
+            "pp_ms": 1132.2528135,
+            "tg_ms": 718.59319
+          },
+          "reference": {
+            "pp_ms": 963.1641950000001,
+            "tg_ms": 582.9766205
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "iteration": 0,
+        "block": 1,
+        "arms": {
+          "main": {
+            "pp_ms": 1116.490639,
+            "tg_ms": 780.1143105000001
+          },
+          "candidate": {
+            "pp_ms": 1121.7847715,
+            "tg_ms": 803.1015695
+          },
+          "layout": {
+            "pp_ms": 1113.897644,
+            "tg_ms": 812.1010455
+          },
+          "reference": {
+            "pp_ms": 946.4565255,
+            "tg_ms": 900.3148819999999
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "iteration": 1,
+        "block": 0,
+        "arms": {
+          "main": {
+            "pp_ms": 1067.265618,
+            "tg_ms": 738.2618145
+          },
+          "candidate": {
+            "pp_ms": 1068.271984,
+            "tg_ms": 716.381747
+          },
+          "layout": {
+            "pp_ms": 1080.7071175,
+            "tg_ms": 726.5041905
+          },
+          "reference": {
+            "pp_ms": 940.943132,
+            "tg_ms": 582.4388445
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "iteration": 1,
+        "block": 1,
+        "arms": {
+          "main": {
+            "pp_ms": 1062.657105,
+            "tg_ms": 771.7595595
+          },
+          "candidate": {
+            "pp_ms": 1065.384464,
+            "tg_ms": 781.4353705
+          },
+          "layout": {
+            "pp_ms": 1065.76088,
+            "tg_ms": 812.9294855
+          },
+          "reference": {
+            "pp_ms": 918.84869,
+            "tg_ms": 706.8541164999999
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "block": 0,
+        "arms": {
+          "main": {
+            "pp_ms": 1138.8920914999999,
+            "tg_ms": 776.795914
+          },
+          "candidate": {
+            "pp_ms": 1125.239825,
+            "tg_ms": 779.4483945
+          },
+          "layout": {
+            "pp_ms": 1139.4924895,
+            "tg_ms": 796.5698015
+          },
+          "reference": {
+            "pp_ms": 1677.6881604999999,
+            "tg_ms": 638.0855405
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "block": 1,
+        "arms": {
+          "main": {
+            "pp_ms": 1117.3626905,
+            "tg_ms": 813.2406900000001
+          },
+          "candidate": {
+            "pp_ms": 1106.2211845,
+            "tg_ms": 1000.596159
+          },
+          "layout": {
+            "pp_ms": 1115.1611785,
+            "tg_ms": 877.452212
+          },
+          "reference": {
+            "pp_ms": 1647.0568555,
+            "tg_ms": 725.934301
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "block": 0,
+        "arms": {
+          "main": {
+            "pp_ms": 1078.868292,
+            "tg_ms": 772.8915545
+          },
+          "candidate": {
+            "pp_ms": 1071.2339040000002,
+            "tg_ms": 796.8819965
+          },
+          "layout": {
+            "pp_ms": 1085.603802,
+            "tg_ms": 785.6139375
+          },
+          "reference": {
+            "pp_ms": 1669.5792685000001,
+            "tg_ms": 640.795198
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "block": 1,
+        "arms": {
+          "main": {
+            "pp_ms": 1075.4925235,
+            "tg_ms": 786.3416609999999
+          },
+          "candidate": {
+            "pp_ms": 1068.6192675,
+            "tg_ms": 1130.199714
+          },
+          "layout": {
+            "pp_ms": 1058.973692,
+            "tg_ms": 914.8784785
+          },
+          "reference": {
+            "pp_ms": 1642.2418885000002,
+            "tg_ms": 733.825878
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-MXFP4.gguf",
+        "iteration": 0,
+        "block": 0,
+        "arms": {
+          "candidate": {
+            "pp_ms": 1158.133933,
+            "tg_ms": 690.0221885000001
+          },
+          "layout": {
+            "pp_ms": 1149.6418589999998,
+            "tg_ms": 692.53262
+          },
+          "reference": {
+            "pp_ms": 1005.766513,
+            "tg_ms": 569.568147
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-MXFP4.gguf",
+        "iteration": 0,
+        "block": 1,
+        "arms": {
+          "candidate": {
+            "pp_ms": 1177.0345985,
+            "tg_ms": 892.4033750000001
+          },
+          "layout": {
+            "pp_ms": 1135.828581,
+            "tg_ms": 744.9902695000001
+          },
+          "reference": {
+            "pp_ms": 1006.2878635,
+            "tg_ms": 582.0200325000001
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-MXFP4.gguf",
+        "iteration": 1,
+        "block": 0,
+        "arms": {
+          "candidate": {
+            "pp_ms": 1103.4927275,
+            "tg_ms": 688.09001
+          },
+          "layout": {
+            "pp_ms": 1099.610069,
+            "tg_ms": 717.0837985
+          },
+          "reference": {
+            "pp_ms": 995.0461365,
+            "tg_ms": 591.253378
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-MXFP4.gguf",
+        "iteration": 1,
+        "block": 1,
+        "arms": {
+          "candidate": {
+            "pp_ms": 1088.7375585,
+            "tg_ms": 745.9725845
+          },
+          "layout": {
+            "pp_ms": 1097.073004,
+            "tg_ms": 967.788469
+          },
+          "reference": {
+            "pp_ms": 994.151607,
+            "tg_ms": 577.5727965
+          }
+        }
+      },
+      {
+        "model": "Qwen3-8B-MXFP4.gguf",
+        "iteration": 0,
+        "block": 0,
+        "arms": {
+          "candidate": {
+            "pp_ms": 15504.294979999999,
+            "tg_ms": 6383.447059
+          },
+          "layout": {
+            "pp_ms": 15476.71424,
+            "tg_ms": 6532.9278305
+          },
+          "reference": {
+            "pp_ms": 12251.00923,
+            "tg_ms": 4913.4513695
+          }
+        }
+      },
+      {
+        "model": "Qwen3-8B-MXFP4.gguf",
+        "iteration": 0,
+        "block": 1,
+        "arms": {
+          "candidate": {
+            "pp_ms": 15292.525740000001,
+            "tg_ms": 7025.6446605
+          },
+          "layout": {
+            "pp_ms": 15106.46767,
+            "tg_ms": 7024.225867499999
+          },
+          "reference": {
+            "pp_ms": 11894.21034,
+            "tg_ms": 5160.2728225
+          }
+        }
+      },
+      {
+        "model": "Qwen3-8B-MXFP4.gguf",
+        "iteration": 1,
+        "block": 0,
+        "arms": {
+          "candidate": {
+            "pp_ms": 15417.557639999999,
+            "tg_ms": 6488.2689295
+          },
+          "layout": {
+            "pp_ms": 15445.17937,
+            "tg_ms": 6721.140568000001
+          },
+          "reference": {
+            "pp_ms": 12031.58865,
+            "tg_ms": 4968.176253
+          }
+        }
+      },
+      {
+        "model": "Qwen3-8B-MXFP4.gguf",
+        "iteration": 1,
+        "block": 1,
+        "arms": {
+          "candidate": {
+            "pp_ms": 15078.26564,
+            "tg_ms": 7122.5814895
+          },
+          "layout": {
+            "pp_ms": 14937.203685,
+            "tg_ms": 6283.815437
+          },
+          "reference": {
+            "pp_ms": 11970.462615,
+            "tg_ms": 4410.539248
+          }
+        }
+      },
+      {
+        "model": "Qwen3-14B-MXFP4.gguf",
+        "iteration": 0,
+        "block": 0,
+        "arms": {
+          "candidate": {
+            "pp_ms": 28948.39656,
+            "tg_ms": 12398.3181
+          },
+          "layout": {
+            "pp_ms": 29218.56767,
+            "tg_ms": 15299.85771
+          },
+          "reference": {
+            "pp_ms": 22794.159050000002,
+            "tg_ms": 13685.376055
+          }
+        }
+      },
+      {
+        "model": "Qwen3-14B-MXFP4.gguf",
+        "iteration": 0,
+        "block": 1,
+        "arms": {
+          "candidate": {
+            "pp_ms": 28707.268519999998,
+            "tg_ms": 11590.88593
+          },
+          "layout": {
+            "pp_ms": 28749.034325,
+            "tg_ms": 11978.769045000001
+          },
+          "reference": {
+            "pp_ms": 22327.551285,
+            "tg_ms": 10242.692074999999
+          }
+        }
+      },
+      {
+        "model": "Qwen3-14B-MXFP4.gguf",
+        "iteration": 1,
+        "block": 0,
+        "arms": {
+          "candidate": {
+            "pp_ms": 29155.367305,
+            "tg_ms": 18586.304065
+          },
+          "layout": {
+            "pp_ms": 28538.814250000003,
+            "tg_ms": 14153.910820000001
+          },
+          "reference": {
+            "pp_ms": 22740.189489999997,
+            "tg_ms": 11038.293495
+          }
+        }
+      },
+      {
+        "model": "Qwen3-14B-MXFP4.gguf",
+        "iteration": 1,
+        "block": 1,
+        "arms": {
+          "candidate": {
+            "pp_ms": 28632.077449999997,
+            "tg_ms": 12188.77017
+          },
+          "layout": {
+            "pp_ms": 28680.070355,
+            "tg_ms": 13155.209115000001
+          },
+          "reference": {
+            "pp_ms": 22396.2459,
+            "tg_ms": 9909.4868595
+          }
+        }
+      }
+    ],
+    "diagnostic_top1_logit_sum_identity": {
+      "Qwen3-0.6B-Q8_0.gguf": {
+        "distinct_summaries": 1,
+        "all_equal": true
+      },
+      "Qwen3-0.6B-Q4_0.gguf": {
+        "distinct_summaries": 1,
+        "all_equal": true
+      },
+      "Qwen3-0.6B-Q4_K_M.gguf": {
+        "distinct_summaries": 1,
+        "all_equal": true
+      },
+      "Qwen3-0.6B-Q5_K_M.gguf": {
+        "distinct_summaries": 1,
+        "all_equal": true
+      }
+    },
+    "monitoring": {
+      "samples": 2363,
+      "flags": {
+        "unrelated_cpu": 72,
+        "disk_io": 41,
+        "gpu_busy": 56
+      },
+      "unknown_calls": 100,
+      "sample_seconds": {
+        "n": 2363,
+        "mean": 0.09202504368035624,
+        "median": 0.0926845190115273,
+        "minimum": 0.036972836940549314,
+        "maximum": 0.34304506704211235
+      },
+      "limitations": [
+        "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+        "Activity windows cover whole helper calls, including model loading; phase-level attribution is unavailable.",
+        "CPU rates integrate sampled process ticks; new and disappearing processes have unknown deltas, never assumed idle.",
+        "Disk bytes sum non-partition device counters and can count multiple physical writes for one logical operation.",
+        "GPU flags use observed sample endpoints; unsampled activity is not ruled out.",
+        "Host runner and recorded docker launchers are orchestration, separate from unrelated work."
+      ]
+    }
+  },
+  "q5_followup": {
+    "scope": "Bounded Q5 follow-up: unchanged binaries and monitor, eight balanced four-arm blocks, 32 measured calls plus four readiness; retain initial 100-call matrix separately. Each arm occupies every ordinal position twice.",
+    "plan_sha256": "1e9448611a75ad3fc8f2ea9354f1e2eb9b10bead0adf07ccfa52cd4e3d734d2f",
+    "terminal": "pass",
+    "calls": 32,
+    "all_planned_calls_retained": true,
+    "primary_iteration": 1,
+    "summary": [
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "arms": {
+          "main": {
+            "pp_ms": {
+              "n": 8,
+              "mean": 1141.11060575,
+              "median": 1130.762666,
+              "minimum": 1109.772193,
+              "maximum": 1214.575404
+            },
+            "tg_ms": {
+              "n": 8,
+              "mean": 888.47928325,
+              "median": 862.4052805,
+              "minimum": 822.221345,
+              "maximum": 972.251311
+            },
+            "flagged_calls": 8,
+            "unknown_calls": 8
+          },
+          "candidate": {
+            "pp_ms": {
+              "n": 8,
+              "mean": 1146.312105875,
+              "median": 1136.8669475000002,
+              "minimum": 1118.767849,
+              "maximum": 1196.82773
+            },
+            "tg_ms": {
+              "n": 8,
+              "mean": 860.411580375,
+              "median": 862.780563,
+              "minimum": 801.346576,
+              "maximum": 902.624498
+            },
+            "flagged_calls": 8,
+            "unknown_calls": 8
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 8,
+              "mean": 1706.235418125,
+              "median": 1698.5650930000002,
+              "minimum": 1663.35345,
+              "maximum": 1779.416695
+            },
+            "tg_ms": {
+              "n": 8,
+              "mean": 737.188650625,
+              "median": 710.9538975,
+              "minimum": 659.873542,
+              "maximum": 889.514766
+            },
+            "flagged_calls": 8,
+            "unknown_calls": 8
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 8,
+              "mean": 1138.77376875,
+              "median": 1123.468803,
+              "minimum": 1114.756635,
+              "maximum": 1189.462814
+            },
+            "tg_ms": {
+              "n": 8,
+              "mean": 881.09737375,
+              "median": 859.0105825,
+              "minimum": 812.618391,
+              "maximum": 959.210841
+            },
+            "flagged_calls": 8,
+            "unknown_calls": 8
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_main": {
+            "pp_ms": -0.5369389543273817,
+            "tg_ms": -0.043496865378500615
+          },
+          "candidate_vs_reference": {
+            "pp_ms": 49.40755351672319,
+            "tg_ms": -17.597367396882348
+          },
+          "layout_vs_main": {
+            "pp_ms": 0.649227017298859,
+            "tg_ms": 0.3951869824607046
+          },
+          "layout_vs_candidate": {
+            "pp_ms": 1.1925693409752913,
+            "tg_ms": 0.4388747445960517
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "arms": {
+          "main": {
+            "pp_ms": {
+              "n": 8,
+              "mean": 1079.012585875,
+              "median": 1075.7311305,
+              "minimum": 1047.011871,
+              "maximum": 1102.81805
+            },
+            "tg_ms": {
+              "n": 8,
+              "mean": 921.9059361249999,
+              "median": 854.313003,
+              "minimum": 822.70868,
+              "maximum": 1352.025304
+            },
+            "flagged_calls": 8,
+            "unknown_calls": 8
+          },
+          "candidate": {
+            "pp_ms": {
+              "n": 8,
+              "mean": 1089.060895,
+              "median": 1086.6610850000002,
+              "minimum": 1072.912734,
+              "maximum": 1126.588108
+            },
+            "tg_ms": {
+              "n": 8,
+              "mean": 891.236509,
+              "median": 867.866903,
+              "minimum": 800.112568,
+              "maximum": 1147.919021
+            },
+            "flagged_calls": 8,
+            "unknown_calls": 8
+          },
+          "reference": {
+            "pp_ms": {
+              "n": 8,
+              "mean": 1701.7066505,
+              "median": 1684.7735105000002,
+              "minimum": 1637.550069,
+              "maximum": 1790.752332
+            },
+            "tg_ms": {
+              "n": 8,
+              "mean": 776.99290625,
+              "median": 735.2000695,
+              "minimum": 656.224592,
+              "maximum": 1062.786234
+            },
+            "flagged_calls": 8,
+            "unknown_calls": 8
+          },
+          "layout": {
+            "pp_ms": {
+              "n": 8,
+              "mean": 1082.28751375,
+              "median": 1079.670476,
+              "minimum": 1046.721022,
+              "maximum": 1128.25959
+            },
+            "tg_ms": {
+              "n": 8,
+              "mean": 941.23097275,
+              "median": 883.7074035,
+              "minimum": 806.224865,
+              "maximum": 1355.332654
+            },
+            "flagged_calls": 8,
+            "unknown_calls": 8
+          }
+        },
+        "speed_change_percent": {
+          "candidate_vs_main": {
+            "pp_ms": -1.0058292001871139,
+            "tg_ms": -1.5617486913197753
+          },
+          "candidate_vs_reference": {
+            "pp_ms": 55.04130347135785,
+            "tg_ms": -15.286541408757925
+          },
+          "layout_vs_main": {
+            "pp_ms": -0.3648655388442723,
+            "tg_ms": -3.326259391239794
+          },
+          "layout_vs_candidate": {
+            "pp_ms": 0.6474761656815264,
+            "tg_ms": -1.792505125255528
+          }
+        }
+      }
+    ],
+    "blocks": [
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "block": 0,
+        "arms": {
+          "main": {
+            "pp_ms": 1131.459937,
+            "tg_ms": 961.054238
+          },
+          "candidate": {
+            "pp_ms": 1126.01859,
+            "tg_ms": 801.346576
+          },
+          "reference": {
+            "pp_ms": 1663.35345,
+            "tg_ms": 659.873542
+          },
+          "layout": {
+            "pp_ms": 1114.756635,
+            "tg_ms": 824.271388
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "block": 1,
+        "arms": {
+          "main": {
+            "pp_ms": 1130.065395,
+            "tg_ms": 856.115123
+          },
+          "candidate": {
+            "pp_ms": 1132.122357,
+            "tg_ms": 822.35677
+          },
+          "reference": {
+            "pp_ms": 1677.937836,
+            "tg_ms": 665.767633
+          },
+          "layout": {
+            "pp_ms": 1121.242754,
+            "tg_ms": 812.618391
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "block": 2,
+        "arms": {
+          "main": {
+            "pp_ms": 1214.575404,
+            "tg_ms": 859.000601
+          },
+          "candidate": {
+            "pp_ms": 1158.32653,
+            "tg_ms": 900.114952
+          },
+          "reference": {
+            "pp_ms": 1779.416695,
+            "tg_ms": 889.514766
+          },
+          "layout": {
+            "pp_ms": 1123.269477,
+            "tg_ms": 959.210841
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "block": 3,
+        "arms": {
+          "main": {
+            "pp_ms": 1161.478257,
+            "tg_ms": 972.251311
+          },
+          "candidate": {
+            "pp_ms": 1130.2448,
+            "tg_ms": 849.231603
+          },
+          "reference": {
+            "pp_ms": 1735.677705,
+            "tg_ms": 739.547443
+          },
+          "layout": {
+            "pp_ms": 1176.517047,
+            "tg_ms": 952.891858
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "block": 4,
+        "arms": {
+          "main": {
+            "pp_ms": 1133.614694,
+            "tg_ms": 822.221345
+          },
+          "candidate": {
+            "pp_ms": 1118.767849,
+            "tg_ms": 901.271257
+          },
+          "reference": {
+            "pp_ms": 1696.570727,
+            "tg_ms": 706.240943
+          },
+          "layout": {
+            "pp_ms": 1189.462814,
+            "tg_ms": 938.140246
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "block": 5,
+        "arms": {
+          "main": {
+            "pp_ms": 1122.991138,
+            "tg_ms": 829.981233
+          },
+          "candidate": {
+            "pp_ms": 1196.82773,
+            "tg_ms": 902.624498
+          },
+          "reference": {
+            "pp_ms": 1694.613737,
+            "tg_ms": 708.822222
+          },
+          "layout": {
+            "pp_ms": 1123.668129,
+            "tg_ms": 843.625101
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "block": 6,
+        "arms": {
+          "main": {
+            "pp_ms": 1124.927828,
+            "tg_ms": 865.80996
+          },
+          "candidate": {
+            "pp_ms": 1141.611538,
+            "tg_ms": 830.017464
+          },
+          "reference": {
+            "pp_ms": 1700.559459,
+            "tg_ms": 713.085573
+          },
+          "layout": {
+            "pp_ms": 1115.820318,
+            "tg_ms": 868.103261
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 0,
+        "block": 7,
+        "arms": {
+          "main": {
+            "pp_ms": 1109.772193,
+            "tg_ms": 941.400455
+          },
+          "candidate": {
+            "pp_ms": 1166.577453,
+            "tg_ms": 876.329523
+          },
+          "reference": {
+            "pp_ms": 1701.753736,
+            "tg_ms": 814.657083
+          },
+          "layout": {
+            "pp_ms": 1145.452976,
+            "tg_ms": 849.917904
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "block": 0,
+        "arms": {
+          "main": {
+            "pp_ms": 1047.011871,
+            "tg_ms": 857.280219
+          },
+          "candidate": {
+            "pp_ms": 1081.739244,
+            "tg_ms": 830.406526
+          },
+          "reference": {
+            "pp_ms": 1637.550069,
+            "tg_ms": 656.224592
+          },
+          "layout": {
+            "pp_ms": 1075.930667,
+            "tg_ms": 806.224865
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "block": 1,
+        "arms": {
+          "main": {
+            "pp_ms": 1070.526091,
+            "tg_ms": 822.70868
+          },
+          "candidate": {
+            "pp_ms": 1075.855785,
+            "tg_ms": 800.112568
+          },
+          "reference": {
+            "pp_ms": 1657.874352,
+            "tg_ms": 791.426922
+          },
+          "layout": {
+            "pp_ms": 1068.193709,
+            "tg_ms": 815.592902
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "block": 2,
+        "arms": {
+          "main": {
+            "pp_ms": 1090.292706,
+            "tg_ms": 826.253869
+          },
+          "candidate": {
+            "pp_ms": 1072.912734,
+            "tg_ms": 1147.919021
+          },
+          "reference": {
+            "pp_ms": 1679.899945,
+            "tg_ms": 1062.786234
+          },
+          "layout": {
+            "pp_ms": 1046.721022,
+            "tg_ms": 1355.332654
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "block": 3,
+        "arms": {
+          "main": {
+            "pp_ms": 1102.81805,
+            "tg_ms": 1352.025304
+          },
+          "candidate": {
+            "pp_ms": 1074.542194,
+            "tg_ms": 883.731109
+          },
+          "reference": {
+            "pp_ms": 1790.752332,
+            "tg_ms": 708.324106
+          },
+          "layout": {
+            "pp_ms": 1095.932849,
+            "tg_ms": 870.784463
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "block": 4,
+        "arms": {
+          "main": {
+            "pp_ms": 1099.322743,
+            "tg_ms": 851.345787
+          },
+          "candidate": {
+            "pp_ms": 1091.582926,
+            "tg_ms": 847.212041
+          },
+          "reference": {
+            "pp_ms": 1688.116088,
+            "tg_ms": 691.12768
+          },
+          "layout": {
+            "pp_ms": 1083.921321,
+            "tg_ms": 836.011187
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "block": 5,
+        "arms": {
+          "main": {
+            "pp_ms": 1075.583556,
+            "tg_ms": 847.770588
+          },
+          "candidate": {
+            "pp_ms": 1094.138514,
+            "tg_ms": 874.61839
+          },
+          "reference": {
+            "pp_ms": 1787.09977,
+            "tg_ms": 703.278422
+          },
+          "layout": {
+            "pp_ms": 1076.250366,
+            "tg_ms": 896.630344
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "block": 6,
+        "arms": {
+          "main": {
+            "pp_ms": 1070.666965,
+            "tg_ms": 870.841094
+          },
+          "candidate": {
+            "pp_ms": 1095.127655,
+            "tg_ms": 884.777001
+          },
+          "reference": {
+            "pp_ms": 1690.929715,
+            "tg_ms": 762.076033
+          },
+          "layout": {
+            "pp_ms": 1128.25959,
+            "tg_ms": 1047.364851
+          }
+        }
+      },
+      {
+        "model": "Qwen3-0.6B-Q5_K_M.gguf",
+        "iteration": 1,
+        "block": 7,
+        "arms": {
+          "main": {
+            "pp_ms": 1075.878705,
+            "tg_ms": 947.021948
+          },
+          "candidate": {
+            "pp_ms": 1126.588108,
+            "tg_ms": 861.115416
+          },
+          "reference": {
+            "pp_ms": 1681.430933,
+            "tg_ms": 840.699261
+          },
+          "layout": {
+            "pp_ms": 1083.090586,
+            "tg_ms": 901.906516
+          }
+        }
+      }
+    ],
+    "diagnostic_top1_logit_sum_identity": {
+      "Qwen3-0.6B-Q5_K_M.gguf": {
+        "distinct_summaries": 1,
+        "all_equal": true
+      }
+    },
+    "monitoring": {
+      "samples": 177,
+      "flags": {
+        "unrelated_cpu": 32,
+        "disk_io": 10,
+        "gpu_busy": 32
+      },
+      "unknown_calls": 32,
+      "sample_seconds": {
+        "n": 177,
+        "mean": 0.10953669425094827,
+        "median": 0.10966637905221432,
+        "minimum": 0.07588801393285394,
+        "maximum": 0.14433758100494742
+      },
+      "limitations": [
+        "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+        "Activity windows cover whole helper calls, including model loading; phase-level attribution is unavailable.",
+        "CPU rates integrate sampled process ticks; new and disappearing processes have unknown deltas, never assumed idle.",
+        "Disk bytes sum non-partition device counters and can count multiple physical writes for one logical operation.",
+        "GPU flags use observed sample endpoints; unsampled activity is not ruled out.",
+        "Host runner and recorded docker launchers are orchestration, separate from unrelated work."
+      ]
+    }
+  },
+  "assessment": "Full-matrix Q5 decode -10.26%, block changes -3.01%/-30.42%; the unchanged layout control also loses -8.47%. A separate fixed balanced 32-call follow-up gives -1.56% candidate and -3.33% layout; candidate block differences span -28.02% to +52.99%. This does not establish a stable 10% regression or identify a cause. All samples and activity are retained. Small existing-type tradeoffs accepted for first CPU support; mx parity remains an open speed gate under the recorded first-support decision.",
+  "hosted": {
+    "run": 36665074026,
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/36665074026",
+    "head": "d81ed428c41bd6464170e18499860d1653eddde2",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "CPU (Linux UBSan)",
+        "conclusion": "success",
+        "started": "2026-09-30T03:35:18Z",
+        "completed": "2026-09-30T03:42:40Z",
+        "seconds": 442.0
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "conclusion": "success",
+        "started": "2026-09-30T03:35:19Z",
+        "completed": "2026-09-30T03:43:48Z",
+        "seconds": 509.0
+      },
+      {
+        "name": "HF reference (CPU)",
+        "conclusion": "success",
+        "started": "2026-09-30T03:35:19Z",
+        "completed": "2026-09-30T04:17:31Z",
+        "seconds": 2532.0
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "conclusion": "success",
+        "started": "2026-09-30T03:35:18Z",
+        "completed": "2026-09-30T03:40:31Z",
+        "seconds": 313.0
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "conclusion": "success",
+        "started": "2026-09-30T03:35:18Z",
+        "completed": "2026-09-30T03:45:26Z",
+        "seconds": 608.0
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "conclusion": "success",
+        "started": "2026-09-30T03:35:20Z",
+        "completed": "2026-09-30T03:44:07Z",
+        "seconds": 527.0
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "conclusion": "success",
+        "started": "2026-09-30T03:35:18Z",
+        "completed": "2026-09-30T03:40:40Z",
+        "seconds": 322.0
+      }
+    ]
+  },
+  "landing": {
+    "head": "d81ed428c41bd6464170e18499860d1653eddde2",
+    "base": "4141ec56a4cba13c879edcd4a6943cfff1b99490",
+    "hosted_run": 36665074026,
+    "started": "2026-09-30T04:19:14.208788+00:00",
+    "remotes": {
+      "gitea": "d81ed428c41bd6464170e18499860d1653eddde2",
+      "github": "d81ed428c41bd6464170e18499860d1653eddde2"
+    }
+  },
+  "prepublish": {
+    "head": "d81ed428c41bd6464170e18499860d1653eddde2",
+    "base": "4141ec56a4cba13c879edcd4a6943cfff1b99490",
+    "outgoing_commits": 16,
+    "files": 50,
+    "identity": "pass",
+    "ascii": "pass",
+    "tracked_clean": "pass",
+    "fast_forward": "pass",
+    "cpu_delta_unchanged": "pass",
+    "status_only_since_windows_build": "pass",
+    "changed_runtime_files": [
+      "src/backends/cpu/cpu_backend.hpp",
+      "src/backends/cpu/q8_dots.hpp",
+      "src/quant/mxfp4.hpp",
+      "src/quant/quant.hpp",
+      "src/quant/types.hpp"
+    ],
+    "diffstat": "50 files changed, 21889 insertions(+), 74 deletions(-)"
+  },
+  "documentation_review": {
+    "scope": "All tracked Markdown reconciled to the last recorded CPU checkpoint e4690cee; only STATUS and VULKAN changed on integration. VULKAN accumulator description checked against dot_pairs and retained peer evidence; all other pages byte-identical to their prior review. This checkpoint replaces completed active blocks with this merge record and updates the quantization progress row.",
+    "pages": 78
+  }
+}

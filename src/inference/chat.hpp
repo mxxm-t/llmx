@@ -60,6 +60,110 @@ inline Message assistant_turn(const std::string& text) {
     return m;
 }
 
+// Whether a rendered prompt leaves the reply inside an open <think>, as the Qwen 3.5 templates open one after the assistant's header: its last <think> has no </think> after it.
+inline bool opens_reasoning(const std::string& prompt) {
+    const size_t open = prompt.rfind("<think>");
+    return open != std::string::npos && prompt.find("</think>", open) == std::string::npos;
+}
+
+// A reply split into its reasoning and its content as it arrives in pieces, as a reasoning model's reply is shown: the reasoning is the text inside <think> up to the first </think>, and the content the rest.
+// The <think> is open from the start when the template opened it (`opened`, see opens_reasoning), or opens where the reply itself begins with <think> after any newlines; a reply that does neither is all content, byte for byte.
+// The newlines around the reasoning and those opening the content after it are dropped, as assistant_turn drops them, and a reply cut off inside <think> is all reasoning.
+// Text that may be the start of <think> or </think>, or newlines that may end the reasoning, is held until a later piece shows which it is, so any cut of the text gives the same parts.
+class ReplySplit {
+public:
+    struct Parts {
+        std::string reasoning, content;
+    };
+    explicit ReplySplit(bool opened) : state_(opened ? State::reasoning : State::start) {}
+
+    Parts feed(const std::string& piece) {
+        Parts out;
+        take(out, piece);
+        return out;
+    }
+    Parts finish() {
+        Parts out;
+        if (state_ == State::start) out.content += held_;
+        if (state_ == State::reasoning) reason(out, held_, true);
+        held_.clear();
+        return out;
+    }
+    // Whether the reply has reasoning: the template opened it, or the reply opened it itself.
+    bool reasoned() const { return state_ == State::reasoning || state_ == State::reply; }
+
+private:
+    enum class State { start, reasoning, reply, plain };
+    State state_;
+    std::string held_;
+    bool reasoning_started_ = false, reply_started_ = false;
+
+    void take(Parts& out, const std::string& piece) {
+        switch (state_) {
+        case State::plain:
+            out.content += piece;
+            return;
+        case State::reply:
+            reply(out, piece);
+            return;
+        case State::start: {
+            held_ += piece;
+            static const std::string open = "<think>";
+            const size_t lead = std::min(held_.find_first_not_of('\n'), held_.size());
+            const size_t n = held_.size() - lead;
+            if (n < open.size() && held_.compare(lead, n, open, 0, n) == 0) return;
+            if (held_.compare(lead, open.size(), open) == 0) {
+                const std::string rest = held_.substr(lead + open.size());
+                held_.clear();
+                state_ = State::reasoning;
+                take(out, rest);
+            } else {
+                out.content += held_;
+                held_.clear();
+                state_ = State::plain;
+            }
+            return;
+        }
+        case State::reasoning: {
+            held_ += piece;
+            static const std::string close = "</think>";
+            const size_t end = held_.find(close);
+            if (end != std::string::npos) {
+                reason(out, held_.substr(0, end), true);
+                const std::string rest = held_.substr(end + close.size());
+                held_.clear();
+                state_ = State::reply;
+                reply(out, rest);
+                return;
+            }
+            size_t keep = 0;
+            for (size_t k = std::min(held_.size(), close.size() - 1); k > 0 && !keep; --k)
+                if (held_.compare(held_.size() - k, k, close, 0, k) == 0) keep = k;
+            size_t cut = held_.size() - keep;
+            while (cut > 0 && held_[cut - 1] == '\n') --cut;
+            reason(out, held_.substr(0, cut), false);
+            held_.erase(0, cut);
+            return;
+        }
+        }
+    }
+    void reason(Parts& out, std::string s, bool last) {
+        if (!reasoning_started_) {
+            s.erase(0, std::min(s.find_first_not_of('\n'), s.size()));
+            reasoning_started_ = !s.empty();
+        }
+        if (last) s.erase(s.find_last_not_of('\n') + 1);
+        out.reasoning += s;
+    }
+    void reply(Parts& out, std::string s) {
+        if (!reply_started_) {
+            s.erase(0, std::min(s.find_first_not_of('\n'), s.size()));
+            reply_started_ = !s.empty();
+        }
+        out.content += s;
+    }
+};
+
 namespace jj {
 
 // The longest string or list one operation builds, and the most loop iterations and macro calls one render runs: far past any chat prompt, so a template that would run away fails instead.
@@ -2734,9 +2838,12 @@ private:
 
 } // namespace jj
 
-// The variables a chat render reads, as the reference renderer passes them for a conversation without tools or documents.
+// A template variable a request sets beside the conversation, as `enable_thinking` switches the Qwen templates' reasoning.
+using TemplateVar = std::pair<std::string, jj::Value>;
+
+// The variables a chat render reads, as the reference renderer passes them for a conversation without tools or documents, then `vars`.
 inline jj::Value context(const std::vector<Message>& messages, bool add_generation_prompt,
-                         const std::string& bos_token, const std::string& eos_token) {
+                         const std::string& bos_token, const std::string& eos_token, const std::vector<TemplateVar>& vars = {}) {
     using jj::Value;
     std::vector<Value> list;
     for (const auto& m : messages) {
@@ -2753,6 +2860,7 @@ inline jj::Value context(const std::vector<Message>& messages, bool add_generati
     c->set("add_generation_prompt", Value::boolean(add_generation_prompt));
     c->set("bos_token", Value::str(bos_token));
     c->set("eos_token", Value::str(eos_token));
+    for (const auto& [name, value] : vars) c->set(name, value);
     return Value::dict(c);
 }
 
@@ -2775,10 +2883,10 @@ struct ChatFormat {
     void require() const {
         if (!program) throw Refused("the model's chat template is refused: " + refusal);
     }
-    // The prompt for `messages`, with the assistant's header after them when `add_generation_prompt`; a failing render raises TemplateError.
-    std::string render(const std::vector<Message>& messages, bool add_generation_prompt) const {
+    // The prompt for `messages`, with the assistant's header after them when `add_generation_prompt` and the request's own variables `vars`; a failing render raises TemplateError.
+    std::string render(const std::vector<Message>& messages, bool add_generation_prompt, const std::vector<TemplateVar>& vars = {}) const {
         require();
-        return program->render(context(messages, add_generation_prompt, bos, eos));
+        return program->render(context(messages, add_generation_prompt, bos, eos, vars));
     }
 };
 

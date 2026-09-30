@@ -7,9 +7,14 @@ Namespace `chat`, with the language itself in `chat::jj`.
 - `Message`: `{ role, content, reasoning_content }`, the last absent when a turn has no reasoning apart from its reply.
 - `assistant_turn(text) -> Message`: an assistant reply split as the Qwen templates split one themselves, the reply after the last `</think>` without the newlines that open it and the reasoning before the first `</think>`, after the last `<think>` there, without the newlines around it.
   A text without `</think>` is all reply.
-  It is the one owner of the split.
+  It is the one owner of the split of a turn a conversation keeps.
+- `opens_reasoning(prompt)`: whether a rendered prompt leaves the reply inside an open `<think>`, its last `<think>` not closed, as the Qwen 3.5 templates leave it.
+- `ReplySplit(opened)`: a reply split into its reasoning and its content as it arrives in pieces, the one owner of the split of a reply as a client receives it.
+  The reasoning is the text inside `<think>` up to the first `</think>`, the `<think>` open from the start when the template opened it (`opened`) or opened where the reply begins with `<think>` after any newlines, as Qwen3's replies do; the content is the rest.
+  The newlines around the reasoning and those opening the content after it are dropped, a reply cut off inside `<think>` is all reasoning, and a reply that opens no `<think>` is all content, byte for byte.
+  Text that may be the start of a tag, or newlines that may end the reasoning, is held until a later piece shows which it is, so any cut of a reply gives the same parts; `feed(piece)` gives each piece's parts, `finish()` the held rest, and `reasoned()` whether the reply had reasoning.
 - `ChatFormat`: the template parsed once (`program`), or the reason it is refused (`refusal`), the text of the start and end tokens, and whether a conversation keeps an assistant turn split under it (`split_turns`).
-  `render(messages, add_generation_prompt)` renders a prompt and raises `TemplateError` where the reference raises, and `Refused` on a refused template; `require()` raises `Refused` with the refusal.
+  `render(messages, add_generation_prompt, vars)` renders a prompt, with a request's own variables `vars` (`TemplateVar`, a name and a value) set beside the rest, and raises `TemplateError` where the reference raises, and `Refused` on a refused template; `require()` raises `Refused` with the refusal.
   `assistant(text)` is an assistant turn as a conversation keeps it: split by `assistant_turn` when `split_turns`, and whole otherwise.
   `chat` records each of its replies through it, and the server reads an assistant message a client sends back through it when the message carries no `reasoning_content`, so a conversation renders the same through both.
 - `chat_format(source, bos, eos)` parses a template's source; `chat_format(file, tok)` takes the file's template, or ChatML when it carries none, with its tokenizer's start and end text.
@@ -17,8 +22,8 @@ Namespace `chat`, with the language itself in `chat::jj`.
 - `Refused` is a template the renderer does not take; `TemplateError` is a render that fails.
 
 The variables a render reads are those the reference passes for a conversation without tools or documents: `messages` (each a dict of `role`, `content` and, when present, `reasoning_content`, in that order), `tools` and `documents` as none, `add_generation_prompt`, `bos_token` and `eos_token`.
-The thinking variables (`enable_thinking` and the like) are not passed, so a template takes its own default.
-`context(messages, add_generation_prompt, bos, eos)` builds them, and `jj::Template::render` renders any such dict, which the fixture test uses for tools, tool calls and content given as parts.
+The thinking variables (`enable_thinking` and the like) are passed only when a request sets them, the server's `chat_template_kwargs`, so a template otherwise takes its own default.
+`context(messages, add_generation_prompt, bos, eos, vars)` builds them, and `jj::Template::render` renders any such dict, which the fixture test uses for tools, tool calls and content given as parts.
 
 ## Which turns are split
 

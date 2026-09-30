@@ -262,10 +262,31 @@ private:
         return messages;
     }
 
+    // A request's chat_template_kwargs: variables of a boolean, number, string or null the template reads beside the conversation, none of them one the render itself sets.
+    static std::vector<chat::TemplateVar> template_vars(const jmini::Value& body) {
+        std::vector<chat::TemplateVar> vars;
+        const jmini::Value* kwargs = body.get("chat_template_kwargs");
+        if (!kwargs || kwargs->t == jmini::Value::T::Null) return vars;
+        if (!kwargs->isObject()) throw BadRequest(400, "chat_template_kwargs must be an object");
+        static const char* const reserved[] = {"messages", "tools", "documents", "add_generation_prompt", "bos_token", "eos_token"};
+        for (const auto& [name, v] : kwargs->obj) {
+            if (std::find(std::begin(reserved), std::end(reserved), name) != std::end(reserved))
+                throw BadRequest(400, "chat_template_kwargs cannot set " + name);
+            if (v.t == jmini::Value::T::Bool) vars.push_back({name, chat::jj::Value::boolean(v.b)});
+            else if (v.isString()) vars.push_back({name, chat::jj::Value::str(v.asString())});
+            else if (v.t == jmini::Value::T::Null) vars.push_back({name, chat::jj::Value::none()});
+            else if (v.isNumber())
+                vars.push_back({name, v.num == std::floor(v.num) && std::fabs(v.num) < 9007199254740992.0 ? chat::jj::Value::integer((int64_t)v.num) : chat::jj::Value::number(v.num)});
+            else throw BadRequest(400, "chat_template_kwargs values must be booleans, numbers, strings or null");
+        }
+        return vars;
+    }
+
     // A render the template itself fails, such as its raise_exception on a conversation it does not take, is the request's fault.
     std::string render_messages(const jmini::Value& body) {
         const std::vector<chat::Message> messages = messages_of(body);
-        try { return format_.render(messages, true); }
+        const std::vector<chat::TemplateVar> vars = template_vars(body);
+        try { return format_.render(messages, true, vars); }
         catch (const chat::TemplateError& e) { throw BadRequest(400, std::string("the chat template refused the messages: ") + e.what()); }
     }
 
@@ -412,13 +433,15 @@ private:
                ",\"model\":" + jmini::quote(cfg_.model_name);
     }
     // One streamed chunk of a compatible route: a chat delta or a text piece, with the finish reason on the last, and the chunk's logprobs when the request asked for them.
+    // A chat delta carries `reasoning` as reasoning_content beside its content when a reply's reasoning is split off.
     std::string chunk(Route route, const std::string& id, const std::string& piece, bool first,
-                      const std::string* finish, const std::string& logprobs = "") const {
+                      const std::string* finish, const std::string& logprobs = "", const std::string* reasoning = nullptr) const {
         const std::string fr = finish ? jmini::quote(finish_reason(*finish)) : "null";
         const std::string lp = logprobs.empty() ? "" : ",\"logprobs\":" + logprobs;
         if (route == Route::chat_completions) {
-            std::string delta = first ? "{\"role\":\"assistant\",\"content\":" + jmini::quote(piece) + "}"
-                              : finish ? "{}" : "{\"content\":" + jmini::quote(piece) + "}";
+            const std::string thought = reasoning ? "\"reasoning_content\":" + jmini::quote(*reasoning) + "," : "";
+            std::string delta = first ? "{\"role\":\"assistant\"," + thought + "\"content\":" + jmini::quote(piece) + "}"
+                              : finish ? "{}" : "{" + thought + "\"content\":" + jmini::quote(piece) + "}";
             return head(id, "chat.completion.chunk") + ",\"choices\":[{\"index\":0,\"delta\":" + delta + lp +
                    ",\"finish_reason\":" + fr + "}]}";
         }
@@ -475,6 +498,9 @@ private:
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }
         const std::string id = (route == Route::chat_completions ? "chatcmpl-" : "cmpl-") + std::to_string(next_id_.fetch_add(1));
+        // A chat reply gives its reasoning as reasoning_content, apart from its content, as clients show a reasoning model's: inside the <think> its template opened or it opened itself.
+        const bool split = route == Route::chat_completions;
+        chat::ReplySplit splitter(chat::opens_reasoning(prompt));
 
         // Drain the channel.
         // A write that fails means the client went away: cancel the request and stop.
@@ -516,7 +542,13 @@ private:
                     continue;
                 }
                 if (compat(route)) {
-                    c.write_chunk("data: " + chunk(route, id, piece, first, nullptr, params.logprobs ? compat_logprobs(route, &s, 1) : "") + "\n\n");
+                    const std::string lp = params.logprobs ? compat_logprobs(route, &s, 1) : "";
+                    if (split) {
+                        const chat::ReplySplit::Parts parts = splitter.feed(piece);
+                        c.write_chunk("data: " + chunk(route, id, parts.content, first, nullptr, lp, parts.reasoning.empty() ? nullptr : &parts.reasoning) + "\n\n");
+                    } else {
+                        c.write_chunk("data: " + chunk(route, id, piece, first, nullptr, lp) + "\n\n");
+                    }
                 } else {
                     std::string lp;
                     if (params.logprobs) lp = ",\"logprob\":" + jmini::number(s.token.logprob) + (params.top_logprobs ? ",\"top_logprobs\":" + native_top(s.token) : "");
@@ -537,7 +569,16 @@ private:
             }
             const size_t prompt_tokens = r->prompt_tokens();
             if (stream && compat(route)) {
-                if (!pending.empty() || first) c.write_chunk("data: " + chunk(route, id, pending, first, nullptr, no_logprobs) + "\n\n");
+                if (split) {
+                    chat::ReplySplit::Parts parts = splitter.feed(pending);
+                    const chat::ReplySplit::Parts last = splitter.finish();
+                    parts.reasoning += last.reasoning;
+                    parts.content += last.content;
+                    if (!parts.reasoning.empty() || !parts.content.empty() || first)
+                        c.write_chunk("data: " + chunk(route, id, parts.content, first, nullptr, no_logprobs, parts.reasoning.empty() ? nullptr : &parts.reasoning) + "\n\n");
+                } else if (!pending.empty() || first) {
+                    c.write_chunk("data: " + chunk(route, id, pending, first, nullptr, no_logprobs) + "\n\n");
+                }
                 c.write_chunk("data: " + last_chunk(route, id, finish, *r, gen.size(), no_logprobs) + "\n\n");
                 if (include_usage)
                     c.write_chunk("data: " + head(id, route == Route::chat_completions ? "chat.completion.chunk" : "text_completion") +
@@ -551,8 +592,15 @@ private:
                 c.end_stream();
             } else if (compat(route)) {
                 const std::string lp = params.logprobs ? ",\"logprobs\":" + compat_logprobs(route, sampled.data(), sampled.size()) : "";
+                std::string message = "\"content\":" + jmini::quote(text);
+                if (split) {
+                    const chat::ReplySplit::Parts parts = splitter.feed(text);
+                    const chat::ReplySplit::Parts last = splitter.finish();
+                    message = (splitter.reasoned() ? "\"reasoning_content\":" + jmini::quote(parts.reasoning + last.reasoning) + "," : std::string()) +
+                              "\"content\":" + jmini::quote(parts.content + last.content);
+                }
                 const std::string choice = route == Route::chat_completions
-                    ? "{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":" + jmini::quote(text) + "}"
+                    ? "{\"index\":0,\"message\":{\"role\":\"assistant\"," + message + "}"
                     : "{\"index\":0,\"text\":" + jmini::quote(text);
                 c.respond(200, "application/json",
                           head(id, route == Route::chat_completions ? "chat.completion" : "text_completion") + ",\"choices\":[" + choice + lp +

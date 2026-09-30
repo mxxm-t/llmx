@@ -1,5 +1,19 @@
 # llmx - Development Status
 
+## Reasoning apart from the answer, and chat_template_kwargs (2026-09-30, branch feat/server-reasoning, lands by fast-forward)
+
+- **Goal:** a chat client shows a reasoning model's thinking apart from its answer. The Qwen 3.5 templates end the prompt inside an open `<think>`, and Qwen3's replies open one themselves, so `/v1/chat/completions` gave the reasoning, a stray `</think>` and the answer as one content, which Open WebUI printed whole.
+- **Done:**
+  - `chat::ReplySplit` is the one owner of the split of a reply as it streams: the text inside `<think>` up to the first `</think>` is `reasoning_content`, and the rest `content`.
+  - It works whether the template opened the `<think>` (`chat::opens_reasoning`) or the reply opened it after newlines.
+  - Every cut of a reply gives the same parts, a reply cut off inside `<think>` is all reasoning, and a reply without `<think>` is content byte for byte.
+  - `/v1/chat` and the CLI keep the text whole.
+  - `chat_template_kwargs` pass booleans, numbers, strings and null to the template, so a client sets `enable_thinking`. A name the render sets is refused with 400.
+- **Gates:**
+  - CTest and the CPU suite with `--require-tools` pass every component; the `server` and `chat` components pass with the Qwen3-0.6B Q8_0 fixture present.
+  - The hosted run passed on the change's previous head, before the rebase onto qwen35moe.
+  - In production since 2026-09-30 15:11 on Qwen3.6-27B and then Qwen3.8-27B Q8_0: a greedy "hello" gives the thinking as `reasoning_content` and the answer alone as `content`, and `enable_thinking` false answers without reasoning.
+
 ## Commit policy (2026-09-30, docs only, lands by fast-forward)
 
 - **Goal:** a leaner history: 375 of main's 1048 commits were docs, 101 of them merge records.

@@ -24,6 +24,7 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
     Prompt processing gains 1 to 37 percent on every model; decode is level (the 0.6B's tg32 and tg128 2.5 and 3.2 percent lower, within that model's decode spread).
     Serving Qwen3-8B Q8_0 (1024-token prompts, 64-token replies, main, change, change, main): 26.7, 28.7, 28.8 and 26.7 tok/s at 1 user, 35.9, 39.7, 39.7 and 35.8 at 16, 36.0, 39.9, 39.9 and 36.0 at 64; time to first token at 1 user 1442, 1276, 1273 and 1447 ms.
     Of 2056 monitor samples, flags set beforehand: host idle below 25 percent in 84, iowait above 5 percent in 20, another process at a full CPU or more in 542 (builds, python3 and the other developer's comparison jobs), another card busy in 1972; no run was dropped.
+- **Merged** the accumulating dots at `5bb4596f` (2026-09-30) by fast-forward from `c1398b1b` on Gitea and GitHub after hosted run 36661292234 passed on it, every job; the MI50 gave main's logits in every Qwen3 cell on the CPU and the device and on the five qwen35 files, CTest 38 of 38 and 34 of 34 and the suite with `--require-tools` passed there, and the Radeon VII, which takes no integer tile, gave main's bytes in its 14 Qwen3 cells with CTest 38 of 39 (`hub-pull`'s path limit, as on main).
 - **Left:** five prompt cells are still below the reference: Qwen3-8B Q8_0 pp512 (3.9 percent), Qwen3-30B-A3B Q4_K_M pp512 (3.9 percent), Qwen3.5-9B Q4_K_M pp16384 (1.1 percent) and Qwen3.6-27B Q4_K_M pp247 (0.1 percent) and pp16384 (1.6 percent). Next, on a branch of its own, the Q6_K tile, which runs at about half the Q4 tile's rate and takes 17 to 24 percent of the 9B's and 27B's prompt time, then the Q8_0 tile's remaining overhead; every timing at default clocks with all arms on one card.
 - **Gotchas:** the 16-bit tile is bound by its two-wide dots, twice the four-wide 8-bit dots per product, so each instruction around them counts.
 
@@ -8436,7 +8437,7 @@ their own measurements; K-quant optimization remains separate work below.
 | CPU attention value accumulation      | Done |
 | CPU grouped projections              | Done |
 | CPU Q8 activation precision and batched float decode | Done (`36350ca`) |
-| MI50 prompt activations at 16 bits | Done (`ef3b9428`); its speed gate stays open for `perf/mi50-prompt-speed` |
+| MI50 prompt activations at 16 bits | Done (`ef3b9428`); its speed gate stays open, the accumulating dots merged at `5bb4596f` and five prompt cells left (MI50 prompt speed at 16 bits, above) |
 | CPU Q8 scale / load scheduling       | Done |
 | Head-major CPU KV storage             | Done |
 | CPU worker exception safety           | Done |

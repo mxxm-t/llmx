@@ -146,6 +146,7 @@ python tests/roundtrip.py
 python tests/run_tests.py --exe build/Release/llmx.exe
 ```
 `llmx.exe info FILE` lists the metadata and tensors of a written GGUF.
+On Windows with `LongPathsEnabled` set, the round-trip component also reads a GGUF and writes identical metadata/payload through paths longer than 260 characters; it records a skip of this case if the policy is disabled or unavailable. Both MSVC build routes embed the shared `cmake/windows.manifest`; no test or runtime enables the system policy.
 
 ## Tests
 

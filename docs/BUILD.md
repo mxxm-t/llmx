@@ -32,6 +32,8 @@ The [README](../README.md#build) keeps a short quick start.
 Install Visual Studio 2022 or later, or the Build Tools for Visual Studio, with the **Desktop development with C++** workload.
 Install git, and Python 3 to run the tests.
 
+Both MSVC build routes embed `cmake/windows.manifest` in their executables to opt into Windows long paths. Paths beyond 260 characters also require the Windows `LongPathsEnabled` policy; llmx does not change that system setting. The round-trip test exercises long model/output paths when the policy is enabled and reports that case as skipped otherwise.
+
 ### `build.bat`: the CPU backend without CMake
 
 From a Command Prompt in the repository root:

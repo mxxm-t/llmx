@@ -1,0 +1,1451 @@
+{
+  "status": "Current-main integration development checkpoint, not final merge readiness",
+  "head": "9be203b963bcafc2af60289fcffdd295706471fc",
+  "main": "c1398b1b7916bc0753e33ea5742fa2c495b84826",
+  "checks": {
+    "windows": {
+      "manifest": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-check-20260930\\complete.json",
+      "sha256": "5ee4508b1c60c2185d2b80be10f155b0a6e7ce8ba46ba233af26bbbf55455039",
+      "result": {
+        "status": "pass",
+        "pid": 15924,
+        "arms": {
+          "candidate": {
+            "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+            "head": "9be203b963bcafc2af60289fcffdd295706471fc",
+            "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build\\Release\\llmx.exe",
+            "version": "llmx 0.1.0+g9be203b963bc",
+            "sha256": "bae5186c88fd80c0d80af94826e23614022e995505261d0af7dcae16ddcb98ee"
+          }
+        },
+        "commands": [
+          {
+            "label": "candidate-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+              "-B",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build",
+              "-G",
+              "Visual Studio 18 2026",
+              "-A",
+              "x64",
+              "-DLLMX_HAS_BACKEND_VULKAN=OFF",
+              "-DBUILD_TESTING=ON"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+            "started": "2026-09-30T01:25:45.470327+00:00",
+            "pid": 34296,
+            "exit": 0
+          },
+          {
+            "label": "candidate-build",
+            "args": [
+              "cmake",
+              "--build",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build",
+              "--config",
+              "Release",
+              "--parallel",
+              "2"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+            "started": "2026-09-30T01:25:49.544107+00:00",
+            "pid": 30804,
+            "exit": 0
+          },
+          {
+            "label": "native",
+            "args": [
+              "ctest",
+              "--test-dir",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build",
+              "-C",
+              "Release",
+              "--output-on-failure"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+            "started": "2026-09-30T01:26:55.336978+00:00",
+            "pid": 32732,
+            "exit": 0
+          },
+          {
+            "label": "suite",
+            "args": [
+              "python",
+              "-X",
+              "utf8",
+              "tests/run_tests.py",
+              "--exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build\\Release\\llmx.exe",
+              "--require-tools",
+              "--no-perf-floor",
+              "--only",
+              "dead-code,docs,arch-boundary,cli,reference-consumer,roundtrip,raw-blocks,f32,moe,mxfp4,qwen35,split,shards,server,chat"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+            "started": "2026-09-30T01:27:39.651626+00:00",
+            "pid": 26036,
+            "exit": 0
+          }
+        ],
+        "scope": "Fresh detached CPU integration 9be203b9 after main c1398b1b; native and focused backend/CLI/format/HF checks, not a final merge gate. No performance claims."
+      }
+    },
+    "linux": {
+      "manifest": "C:\\Users\\Marko\\AppData\\Local\\Temp\\mxfp4-cpu-main-q35-linux-complete-20260930.json",
+      "sha256": "b18497f018ebd40a9e5309e8d429d04914d206af8fce578ec3e55f214adcae44",
+      "result": {
+        "status": "pass",
+        "launcher_pid": 81858,
+        "commands": [
+          {
+            "name": "candidate-clone",
+            "command": [
+              "git",
+              "clone",
+              "--depth",
+              "1",
+              "--single-branch",
+              "--branch",
+              "integrate/mxfp4-cpu-main",
+              "http://11.10.10.12:3000/admin/llmx.git",
+              "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-q35-linux-20260930/candidate/source"
+            ],
+            "started": "2026-09-30T01:25:45.387893+00:00",
+            "pid": 81893,
+            "returncode": 0
+          },
+          {
+            "name": "candidate-configure",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "2,3",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "cmake",
+              "-S",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/source",
+              "-B",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_HAS_BACKEND_VULKAN=ON",
+              "-DBUILD_TESTING=ON"
+            ],
+            "started": "2026-09-30T01:25:46.526331+00:00",
+            "pid": 81916,
+            "returncode": 0
+          },
+          {
+            "name": "candidate-build",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "2,3",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "cmake",
+              "--build",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build",
+              "--parallel",
+              "2"
+            ],
+            "started": "2026-09-30T01:25:48.394978+00:00",
+            "pid": 82092,
+            "returncode": 0
+          },
+          {
+            "name": "native",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "2,3",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "ctest",
+              "--test-dir",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build",
+              "--output-on-failure"
+            ],
+            "started": "2026-09-30T01:32:08.183222+00:00",
+            "pid": 93165,
+            "returncode": 0
+          },
+          {
+            "name": "cpu-suite",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "2,3",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "python3",
+              "-X",
+              "utf8",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/source/tests/run_tests.py",
+              "--exe",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx",
+              "--require-tools",
+              "--no-perf-floor",
+              "--only",
+              "dead-code,docs,arch-boundary,cli,reference-consumer,roundtrip,raw-blocks,f32,moe,mxfp4,qwen35,split,shards,server,chat"
+            ],
+            "started": "2026-09-30T01:33:12.694104+00:00",
+            "pid": 96045,
+            "returncode": 0
+          }
+        ],
+        "arms": {
+          "candidate": {
+            "head": "9be203b963bcafc2af60289fcffdd295706471fc",
+            "version": "llmx 0.1.0+g9be203b963bc",
+            "source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-q35-linux-20260930/candidate/source",
+            "build": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-q35-linux-20260930/candidate/build",
+            "sha256": "d2f1b6dae0f4c25d6fdbf7a4b54805aabe56159e7929803e858636c0f342ab23"
+          }
+        },
+        "scope": "Fresh detached integration 9be203b9 after main c1398b1b, Vulkan-enabled Linux build, native and focused checks. Development validation only, no performance or merge claim.",
+        "container": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600"
+      }
+    },
+    "windows_prior_identity": {
+      "manifest": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\complete.json",
+      "sha256": "1e476ad98519afa32982edb5aed39303f980eee503107bbe95ce722546c1ea5b",
+      "result": {
+        "status": "pass",
+        "pid": 12136,
+        "tokens": [
+          284,
+          8397,
+          425,
+          10965,
+          465,
+          284,
+          715,
+          8397,
+          425,
+          10965,
+          465,
+          374,
+          458,
+          6364,
+          4531,
+          1154,
+          12425,
+          323,
+          33496,
+          12089,
+          659,
+          1260,
+          1030,
+          264,
+          8640,
+          569,
+          12,
+          31,
+          39400,
+          3476,
+          389,
+          279,
+          12425,
+          4013,
+          576,
+          8596,
+          304,
+          220,
+          17,
+          15,
+          15,
+          15,
+          659,
+          1096,
+          572,
+          8110,
+          553
+        ],
+        "scope": "Clean prior CPU integration f55f025a versus main-reconciled 9be203b9, raw full-vocabulary prompt/decode/64greedy identity on four existing quant mixtures, both caches. Correctness only; host HF checks may run concurrently.",
+        "runs": [
+          {
+            "arm": "prior",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f16",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q8_0-f16-prior",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "8219ac78cfdb5bbc3601878c1cef119ff72092f5826693f9f050a9a5ba0329ed",
+            "pid": 16008,
+            "exit": 0,
+            "captures": {
+              "batched": "7a2cf9daaf6fbae8fd39642b0e2073c6c10bac8a30121f9df3df42af5fef3722",
+              "decode": "122e3706d9c45e1b378e84d7dadfcdc066372c44920146f9d37dd1b8bfe4395c",
+              "greedy": "d5d0b1cc83aaeefa83a5d79cf0326bae68e5e7825f3cdbe5cfd5062a61a5993e"
+            }
+          },
+          {
+            "arm": "integrated",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f16",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q8_0-f16-integrated",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "a50782e4a305d8508aa78676d71f5c999f44222ccbebef026ca5df0254979d05",
+            "pid": 34436,
+            "exit": 0,
+            "captures": {
+              "batched": "7a2cf9daaf6fbae8fd39642b0e2073c6c10bac8a30121f9df3df42af5fef3722",
+              "decode": "122e3706d9c45e1b378e84d7dadfcdc066372c44920146f9d37dd1b8bfe4395c",
+              "greedy": "d5d0b1cc83aaeefa83a5d79cf0326bae68e5e7825f3cdbe5cfd5062a61a5993e"
+            }
+          },
+          {
+            "arm": "prior",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f32",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q8_0-f32-prior",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "8219ac78cfdb5bbc3601878c1cef119ff72092f5826693f9f050a9a5ba0329ed",
+            "pid": 32980,
+            "exit": 0,
+            "captures": {
+              "batched": "de702a50ec27b9da6caf7f105cccf5617c3b7ff8c97ff2f97680cf7b1a1e551b",
+              "decode": "7f6b8b11fae226494f9509a8ea64e4bc2bb754aa894986c071f863e3578318d5",
+              "greedy": "f1b9413415dac847c378e2f7ca8d7109fb42f44e9567cbf987a20d4b1a0d0abb"
+            }
+          },
+          {
+            "arm": "integrated",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f32",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q8_0-f32-integrated",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "a50782e4a305d8508aa78676d71f5c999f44222ccbebef026ca5df0254979d05",
+            "pid": 33836,
+            "exit": 0,
+            "captures": {
+              "batched": "de702a50ec27b9da6caf7f105cccf5617c3b7ff8c97ff2f97680cf7b1a1e551b",
+              "decode": "7f6b8b11fae226494f9509a8ea64e4bc2bb754aa894986c071f863e3578318d5",
+              "greedy": "f1b9413415dac847c378e2f7ca8d7109fb42f44e9567cbf987a20d4b1a0d0abb"
+            }
+          },
+          {
+            "arm": "prior",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f16",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q4_0-f16-prior",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "8219ac78cfdb5bbc3601878c1cef119ff72092f5826693f9f050a9a5ba0329ed",
+            "pid": 28980,
+            "exit": 0,
+            "captures": {
+              "batched": "26b5d3356e73be922982ea9ee75bb5d8ead32b08a8a3c890ae4a9b800c7e2d97",
+              "decode": "ccaa636da8d0aa2d8d48c7fbf42a0a9bb1e6fae66476774d895fdb19b1bc8f3c",
+              "greedy": "7414be4afac0782e2f6b6140e193773a6b18c996941aa46afaed94e3b8d11dc0"
+            }
+          },
+          {
+            "arm": "integrated",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f16",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q4_0-f16-integrated",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "a50782e4a305d8508aa78676d71f5c999f44222ccbebef026ca5df0254979d05",
+            "pid": 32152,
+            "exit": 0,
+            "captures": {
+              "batched": "26b5d3356e73be922982ea9ee75bb5d8ead32b08a8a3c890ae4a9b800c7e2d97",
+              "decode": "ccaa636da8d0aa2d8d48c7fbf42a0a9bb1e6fae66476774d895fdb19b1bc8f3c",
+              "greedy": "7414be4afac0782e2f6b6140e193773a6b18c996941aa46afaed94e3b8d11dc0"
+            }
+          },
+          {
+            "arm": "prior",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f32",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q4_0-f32-prior",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "8219ac78cfdb5bbc3601878c1cef119ff72092f5826693f9f050a9a5ba0329ed",
+            "pid": 26384,
+            "exit": 0,
+            "captures": {
+              "batched": "70e10d834a737931e0fb3bdc761fa6f24c29ea50894bbda2e301ed70745d699a",
+              "decode": "85790e20a9ecb929561fc42ef609900e0632fcae26ca24f97f9c254a786e3f09",
+              "greedy": "c2c61bcf0a03a379adcb6510c81de230db6e0e5141afff3893355b4a7b109447"
+            }
+          },
+          {
+            "arm": "integrated",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f32",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q4_0-f32-integrated",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "a50782e4a305d8508aa78676d71f5c999f44222ccbebef026ca5df0254979d05",
+            "pid": 19004,
+            "exit": 0,
+            "captures": {
+              "batched": "70e10d834a737931e0fb3bdc761fa6f24c29ea50894bbda2e301ed70745d699a",
+              "decode": "85790e20a9ecb929561fc42ef609900e0632fcae26ca24f97f9c254a786e3f09",
+              "greedy": "c2c61bcf0a03a379adcb6510c81de230db6e0e5141afff3893355b4a7b109447"
+            }
+          },
+          {
+            "arm": "prior",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f16",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q5_K_M-f16-prior",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "8219ac78cfdb5bbc3601878c1cef119ff72092f5826693f9f050a9a5ba0329ed",
+            "pid": 14244,
+            "exit": 0,
+            "captures": {
+              "batched": "14873ba5ca59153aae0751b8bcf9429fd0fd938e15491c6d62bc1b3bf16bc12f",
+              "decode": "c2d5f2fb1ba2bfe7686e38fcb7ff984c52642afd2da7303b69ad538f304ad312",
+              "greedy": "cd381c992d9e785d686b85045c02ec0cfb6da943ad6dc24d69474d9f6f46b5c1"
+            }
+          },
+          {
+            "arm": "integrated",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f16",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q5_K_M-f16-integrated",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "a50782e4a305d8508aa78676d71f5c999f44222ccbebef026ca5df0254979d05",
+            "pid": 31404,
+            "exit": 0,
+            "captures": {
+              "batched": "14873ba5ca59153aae0751b8bcf9429fd0fd938e15491c6d62bc1b3bf16bc12f",
+              "decode": "c2d5f2fb1ba2bfe7686e38fcb7ff984c52642afd2da7303b69ad538f304ad312",
+              "greedy": "cd381c992d9e785d686b85045c02ec0cfb6da943ad6dc24d69474d9f6f46b5c1"
+            }
+          },
+          {
+            "arm": "prior",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f32",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q5_K_M-f32-prior",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "8219ac78cfdb5bbc3601878c1cef119ff72092f5826693f9f050a9a5ba0329ed",
+            "pid": 31644,
+            "exit": 0,
+            "captures": {
+              "batched": "91d8960de3759165b27fc28e7e2ce6d8eb995e1349e707340eb022e812e809d6",
+              "decode": "21b04014faa702b323c732c60b7b17b6a3baba8cd7d3a3a0dc1f4a57621d961f",
+              "greedy": "736723050ae90545a5ae34f07fc6f0b9d6c98dd2a3766cf1c1b4daef6cd89013"
+            }
+          },
+          {
+            "arm": "integrated",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f32",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q5_K_M-f32-integrated",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "a50782e4a305d8508aa78676d71f5c999f44222ccbebef026ca5df0254979d05",
+            "pid": 31424,
+            "exit": 0,
+            "captures": {
+              "batched": "91d8960de3759165b27fc28e7e2ce6d8eb995e1349e707340eb022e812e809d6",
+              "decode": "21b04014faa702b323c732c60b7b17b6a3baba8cd7d3a3a0dc1f4a57621d961f",
+              "greedy": "736723050ae90545a5ae34f07fc6f0b9d6c98dd2a3766cf1c1b4daef6cd89013"
+            }
+          },
+          {
+            "arm": "prior",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f16",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q4_K_M-f16-prior",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "8219ac78cfdb5bbc3601878c1cef119ff72092f5826693f9f050a9a5ba0329ed",
+            "pid": 9932,
+            "exit": 0,
+            "captures": {
+              "batched": "0c2bba96df3ddf1a34e76251c20e5cae23445b0a1f99252946f8342ca5efe96b",
+              "decode": "b540b5b77b3bee464c7098128ad63af21ccd899c91ee21392e772bf0885cb2e1",
+              "greedy": "8288b37031935f6decd9216d9f7c2a75645a9b5918329fc82c56a4d1d6378e27"
+            }
+          },
+          {
+            "arm": "integrated",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f16",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q4_K_M-f16-integrated",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "a50782e4a305d8508aa78676d71f5c999f44222ccbebef026ca5df0254979d05",
+            "pid": 33440,
+            "exit": 0,
+            "captures": {
+              "batched": "0c2bba96df3ddf1a34e76251c20e5cae23445b0a1f99252946f8342ca5efe96b",
+              "decode": "b540b5b77b3bee464c7098128ad63af21ccd899c91ee21392e772bf0885cb2e1",
+              "greedy": "8288b37031935f6decd9216d9f7c2a75645a9b5918329fc82c56a4d1d6378e27"
+            }
+          },
+          {
+            "arm": "prior",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f32",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q4_K_M-f32-prior",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "8219ac78cfdb5bbc3601878c1cef119ff72092f5826693f9f050a9a5ba0329ed",
+            "pid": 25336,
+            "exit": 0,
+            "captures": {
+              "batched": "e79992dceaa98f972e4840883afc00dfd68fe784029ee3ae53a78d7292f080d4",
+              "decode": "7211bdd38601042c5a90a23cb825ce5bd9e5b5aa62c9477dc13ac437c3cac955",
+              "greedy": "acd610c5effde08ead7fac3d34d878cba2fa6df3a25ee71138799b39b350f80e"
+            }
+          },
+          {
+            "arm": "integrated",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f32",
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\tokens.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-q35-windows-identity-20260930\\Qwen3-0.6B-Q4_K_M-f32-integrated",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "a50782e4a305d8508aa78676d71f5c999f44222ccbebef026ca5df0254979d05",
+            "pid": 32956,
+            "exit": 0,
+            "captures": {
+              "batched": "e79992dceaa98f972e4840883afc00dfd68fe784029ee3ae53a78d7292f080d4",
+              "decode": "7211bdd38601042c5a90a23cb825ce5bd9e5b5aa62c9477dc13ac437c3cac955",
+              "greedy": "acd610c5effde08ead7fac3d34d878cba2fa6df3a25ee71138799b39b350f80e"
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          }
+        ]
+      }
+    }
+  },
+  "source_and_docs_review": {
+    "head": "9be203b963bcafc2af60289fcffdd295706471fc",
+    "main": "c1398b1b7916bc0753e33ea5742fa2c495b84826",
+    "markdown_total": 78,
+    "markdown_changed_from_prior_checkpoint": [
+      "AGENTS.md",
+      "README.md",
+      "docs/ARCHITECTURE.md",
+      "docs/DEVICE-EXECUTION.md",
+      "docs/EXECUTION.md",
+      "docs/QWEN35.md",
+      "docs/ROADMAP.md",
+      "docs/STATUS.md",
+      "docs/USAGE.md",
+      "docs/VULKAN.md",
+      "docs/src/backends-backend.md",
+      "docs/src/backends-cpu.md",
+      "docs/src/backends-vulkan.md",
+      "docs/src/cli-main.md",
+      "docs/src/config.md",
+      "docs/src/model-arch-qwen35.md"
+    ],
+    "markdown_unchanged": 62,
+    "feature_runtime_edit_hashes": {
+      "src/backends/cpu/cpu_backend.hpp": "7426650e4da8b4214a8b74beed077fa468241a714de3d7cc471e4df42c984731",
+      "src/backends/cpu/q8_dots.hpp": "12a91327df7b8f181d7f15d5ebf48920070eba9c161daca950dd80806e9f40b0",
+      "src/quant/mxfp4.hpp": "bcde8d77c56f32cb26498204368fe8416ac7a3b598e2b3bf32a8bbf2f2b26e7a",
+      "src/quant/quant.hpp": "d7ce4d6cd210d7d3a875e3904af060f13b78ed935f6996475175a63d2c9f53ae",
+      "src/quant/types.hpp": "4276ed8626b2a2e27ef242dfb9017f91376d06e6681217ed742ea77981b8a559"
+    },
+    "scope": "All tracked Markdown reconciled by normalized content. Sixteen changed pages reviewed at integration scope; unchanged content retains prior review. Peer historical numerical claims are inherited records, not rerun measurements. Feature runtime additions/removals match the earlier CPU-only delta exactly; current main supplies the changed backend interface.",
+    "documentation_correction": "Scope the qwen35 load claim to the operation-support check; unsupported tensor types are still refused."
+  },
+  "completed_prior_source": {
+    "head": "f55f025a1332999ee69acf905badf4b97598362d",
+    "archive": {
+      "archive": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-linux-final-20260930.tar.gz",
+      "sha256": "e55bbb62ce8b2a89fe6bbc455a9ab6b117966746e4eec2d83879eed58625a9a2",
+      "payloads": 99,
+      "source": "f55f025a1332999ee69acf905badf4b97598362d",
+      "scope": "Clean Linux native/full CPU suite, both-cache dense MX HF, existing-type raw identity and fresh MoE identity to the independently HF-compared control. Includes first read-only-mount harness failure. Raw float binaries remain beside capture manifests, not duplicated here. Does not settle the real-MoE HF acceptance criterion; newer integration 9be203b9 checks are separate."
+    },
+    "locally_verified_payloads": 99,
+    "dense_hf": {
+      "status": "pass",
+      "pid": 73522,
+      "scope": "Existing real dense-model HF consumers and pinned bounds, both caches; clean CPU f55f025a source; no performance or final merge claim.",
+      "exe_sha256": "c1ad4c9e1d2994fccbe7076fed4c27b85e0b946be49d192832e7fe7fd8470723",
+      "runs": [
+        {
+          "model": {
+            "name": "mx-06",
+            "path": "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+            "sha256": "84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45",
+            "bytes": 322830656,
+            "kind": "new",
+            "prompt_lengths": [
+              64,
+              512,
+              4096
+            ],
+            "host_path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/fixtures/Qwen3-0.6B-MXFP4.gguf"
+          },
+          "cache": "f32",
+          "command": [
+            "docker",
+            "exec",
+            "-e",
+            "LLMX_CACHE_TYPE=f32",
+            "llmx-p2-x-vulkan-phase-20260929",
+            "taskset",
+            "-c",
+            "0-3,8-11",
+            "timeout",
+            "--kill-after=10s",
+            "1800",
+            "python3",
+            "-X",
+            "utf8",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/source/tests/baseline_mxfp4.py",
+            "--exe",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx",
+            "--model",
+            "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+            "--device",
+            "cpu",
+            "--cache-type",
+            "f32"
+          ],
+          "reference_sha256": {
+            "baseline_perplexity.json": "11f4e48274c0d1394e3d6d64fd5eb8194011267d14b8c74c9865b3593a7e5000",
+            "baseline_logits.json": "91c4e641885048836dec14018294b0b57a64ff99daafc34f70821f5a015329a7"
+          },
+          "start": 1790731217.285322,
+          "pid": 73544,
+          "exit": 0,
+          "ended": 1790731276.3224761
+        },
+        {
+          "model": {
+            "name": "mx-06",
+            "path": "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+            "sha256": "84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45",
+            "bytes": 322830656,
+            "kind": "new",
+            "prompt_lengths": [
+              64,
+              512,
+              4096
+            ],
+            "host_path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/fixtures/Qwen3-0.6B-MXFP4.gguf"
+          },
+          "cache": "f16",
+          "command": [
+            "docker",
+            "exec",
+            "-e",
+            "LLMX_CACHE_TYPE=f16",
+            "llmx-p2-x-vulkan-phase-20260929",
+            "taskset",
+            "-c",
+            "0-3,8-11",
+            "timeout",
+            "--kill-after=10s",
+            "1800",
+            "python3",
+            "-X",
+            "utf8",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/source/tests/baseline_mxfp4.py",
+            "--exe",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx",
+            "--model",
+            "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+            "--device",
+            "cpu",
+            "--cache-type",
+            "f16"
+          ],
+          "reference_sha256": {
+            "baseline_perplexity.json": "11f4e48274c0d1394e3d6d64fd5eb8194011267d14b8c74c9865b3593a7e5000",
+            "baseline_logits.json": "91c4e641885048836dec14018294b0b57a64ff99daafc34f70821f5a015329a7"
+          },
+          "start": 1790731276.3231015,
+          "pid": 75464,
+          "exit": 0,
+          "ended": 1790731332.432039
+        },
+        {
+          "model": {
+            "name": "mx-8",
+            "path": "/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf",
+            "sha256": "ebfb5ea2edd1cd6ba5c08a0f31d6c40bb0984a360fe1f694adacb21adfb4d807",
+            "bytes": 4358354368,
+            "kind": "new",
+            "prompt_lengths": [
+              64,
+              512,
+              4096
+            ],
+            "host_path": "/zpool1/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf"
+          },
+          "cache": "f32",
+          "command": [
+            "docker",
+            "exec",
+            "-e",
+            "LLMX_CACHE_TYPE=f32",
+            "llmx-p2-x-vulkan-phase-20260929",
+            "taskset",
+            "-c",
+            "0-3,8-11",
+            "timeout",
+            "--kill-after=10s",
+            "1800",
+            "python3",
+            "-X",
+            "utf8",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/source/tests/baseline.py",
+            "--exe",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf",
+            "--device",
+            "cpu",
+            "--file-exact",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/source/tests/data/mxfp4-8b-file-exact"
+          ],
+          "reference_sha256": {
+            "baseline_perplexity.json": "b26745bc1c23e0f83b903a0f282da83cbe3dfdd210d20656e6184f5b4ae8f933",
+            "baseline_logits.json": "46e49605cbcaf3a2cebc78c4a0a5ef8c0499f20f1f1d22e34644df03e3b7ab4c"
+          },
+          "start": 1790731336.8194742,
+          "pid": 77146,
+          "exit": 0,
+          "ended": 1790731605.6880903
+        },
+        {
+          "model": {
+            "name": "mx-8",
+            "path": "/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf",
+            "sha256": "ebfb5ea2edd1cd6ba5c08a0f31d6c40bb0984a360fe1f694adacb21adfb4d807",
+            "bytes": 4358354368,
+            "kind": "new",
+            "prompt_lengths": [
+              64,
+              512,
+              4096
+            ],
+            "host_path": "/zpool1/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf"
+          },
+          "cache": "f16",
+          "command": [
+            "docker",
+            "exec",
+            "-e",
+            "LLMX_CACHE_TYPE=f16",
+            "llmx-p2-x-vulkan-phase-20260929",
+            "taskset",
+            "-c",
+            "0-3,8-11",
+            "timeout",
+            "--kill-after=10s",
+            "1800",
+            "python3",
+            "-X",
+            "utf8",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/source/tests/baseline.py",
+            "--exe",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx",
+            "--model",
+            "/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf",
+            "--device",
+            "cpu",
+            "--file-exact",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/source/tests/data/mxfp4-8b-file-exact"
+          ],
+          "reference_sha256": {
+            "baseline_perplexity.json": "b26745bc1c23e0f83b903a0f282da83cbe3dfdd210d20656e6184f5b4ae8f933",
+            "baseline_logits.json": "46e49605cbcaf3a2cebc78c4a0a5ef8c0499f20f1f1d22e34644df03e3b7ab4c"
+          },
+          "start": 1790731605.6887348,
+          "pid": 84136,
+          "exit": 0,
+          "ended": 1790731868.5945728
+        }
+      ]
+    },
+    "moe_raw_identity": {
+      "complete": true,
+      "status": "pass",
+      "pid": 55992,
+      "head": "f55f025a1332999ee69acf905badf4b97598362d",
+      "scope": "Fresh CPU captures through the unchanged model-logits tool; compare every raw capture with archived CPU 8274c70 before reusing independent HF diagnostic metrics. No criterion changes, no performance claim.",
+      "runs": [
+        {
+          "window": "w0",
+          "cache": "f32",
+          "runtime": "cpu",
+          "name": "w0-cpu-f32",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-vulkan-phase-20260929",
+            "taskset",
+            "-c",
+            "0-3,8-11",
+            "timeout",
+            "--kill-after=10s",
+            "1200",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-Coder-30B-A3B-Instruct-MXFP4_MOE.gguf",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w0.ids",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w0-cpu-f32",
+            "cpu",
+            "f32",
+            "512",
+            "0"
+          ],
+          "start": 1790730579.2193923,
+          "pid": 56240,
+          "exit": 0,
+          "end": 1790730701.1744702,
+          "version": "0.1.0+gf55f025a1332",
+          "captures": {
+            "batched": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w0-cpu-f32.batched.bin",
+              "sha256": "ffb33fbb79b3c75904095e7127197483c903033409c706e0b7038e6ebad67c8a"
+            },
+            "decode": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w0-cpu-f32.decode.bin",
+              "sha256": "2f0a05271b40e2b0d33d184ff3b38ee3b4f16dc614cd2f81550f60ca075d0e7d"
+            },
+            "greedy": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w0-cpu-f32.greedy.bin",
+              "sha256": "910521d76a5ab3d049c1e479e62194c757cdd26973caa4125f21dd3461b00fff"
+            }
+          },
+          "greedy_ids_equal": true
+        },
+        {
+          "window": "w0",
+          "cache": "f16",
+          "runtime": "cpu",
+          "name": "w0-cpu-f16",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-vulkan-phase-20260929",
+            "taskset",
+            "-c",
+            "0-3,8-11",
+            "timeout",
+            "--kill-after=10s",
+            "1200",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-Coder-30B-A3B-Instruct-MXFP4_MOE.gguf",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w0.ids",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w0-cpu-f16",
+            "cpu",
+            "f16",
+            "512",
+            "0"
+          ],
+          "start": 1790730701.4735951,
+          "pid": 60341,
+          "exit": 0,
+          "end": 1790730776.2044253,
+          "version": "0.1.0+gf55f025a1332",
+          "captures": {
+            "batched": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w0-cpu-f16.batched.bin",
+              "sha256": "1acc5849636d15190b05181738879bd4dbae333423f967b2650e81c8f5c44f92"
+            },
+            "decode": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w0-cpu-f16.decode.bin",
+              "sha256": "1a62bca2ba0c39996243a137a35679fc5903677c5bb41fd42b905767dcf4a6db"
+            },
+            "greedy": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w0-cpu-f16.greedy.bin",
+              "sha256": "b142d8b115fd4aed86f9bc2813e9d7d19a94851d924060673f7cea842ee28a90"
+            }
+          },
+          "greedy_ids_equal": true
+        },
+        {
+          "window": "w512",
+          "cache": "f32",
+          "runtime": "cpu",
+          "name": "w512-cpu-f32",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-vulkan-phase-20260929",
+            "taskset",
+            "-c",
+            "0-3,8-11",
+            "timeout",
+            "--kill-after=10s",
+            "1200",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-Coder-30B-A3B-Instruct-MXFP4_MOE.gguf",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w512.ids",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w512-cpu-f32",
+            "cpu",
+            "f32",
+            "512",
+            "0"
+          ],
+          "start": 1790730776.4986732,
+          "pid": 62484,
+          "exit": 0,
+          "end": 1790730882.9359624,
+          "version": "0.1.0+gf55f025a1332",
+          "captures": {
+            "batched": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w512-cpu-f32.batched.bin",
+              "sha256": "a8bc60039431077c7f6d0af3e5ec7d427280dd47e5dbb03a4b46ca4794f2cd1f"
+            },
+            "decode": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w512-cpu-f32.decode.bin",
+              "sha256": "f2aeee37150f5ebac8a78aa302ca5b41dd20024aefae20f0cf75dc54b6a919dd"
+            },
+            "greedy": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w512-cpu-f32.greedy.bin",
+              "sha256": "9c22eeebf03b779a963c921889ad7bf01c0f36429e4a6a79c68b7eaf78583d53"
+            }
+          },
+          "greedy_ids_equal": true
+        },
+        {
+          "window": "w512",
+          "cache": "f16",
+          "runtime": "cpu",
+          "name": "w512-cpu-f16",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-vulkan-phase-20260929",
+            "taskset",
+            "-c",
+            "0-3,8-11",
+            "timeout",
+            "--kill-after=10s",
+            "1200",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-Coder-30B-A3B-Instruct-MXFP4_MOE.gguf",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w512.ids",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w512-cpu-f16",
+            "cpu",
+            "f16",
+            "512",
+            "0"
+          ],
+          "start": 1790730883.4867568,
+          "pid": 65360,
+          "exit": 0,
+          "end": 1790730988.100216,
+          "version": "0.1.0+gf55f025a1332",
+          "captures": {
+            "batched": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w512-cpu-f16.batched.bin",
+              "sha256": "9f2fceb527322352df65ca23b510acd449c5dd3c35992733ecc20521497200a1"
+            },
+            "decode": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w512-cpu-f16.decode.bin",
+              "sha256": "b121eb1f4503ba754d9964ff6a95fe105d1a8a3c9b06945cc82b233f9f305cef"
+            },
+            "greedy": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w512-cpu-f16.greedy.bin",
+              "sha256": "4578169965748ccf0356dc3e24ed44817fedc71067919d48bf2508029c7bd8cb"
+            }
+          },
+          "greedy_ids_equal": true
+        },
+        {
+          "window": "w2048",
+          "cache": "f32",
+          "runtime": "cpu",
+          "name": "w2048-cpu-f32",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-vulkan-phase-20260929",
+            "taskset",
+            "-c",
+            "0-3,8-11",
+            "timeout",
+            "--kill-after=10s",
+            "1200",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-Coder-30B-A3B-Instruct-MXFP4_MOE.gguf",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w2048.ids",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w2048-cpu-f32",
+            "cpu",
+            "f32",
+            "512",
+            "0"
+          ],
+          "start": 1790730988.6697283,
+          "pid": 67890,
+          "exit": 0,
+          "end": 1790731096.093341,
+          "version": "0.1.0+gf55f025a1332",
+          "captures": {
+            "batched": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w2048-cpu-f32.batched.bin",
+              "sha256": "b02d444f1ab9c584788b2218c50c598019f567e4224ba26d84a0b366d2959c0f"
+            },
+            "decode": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w2048-cpu-f32.decode.bin",
+              "sha256": "1b0775974dbf4e3409ebbc042fb457a2a5452522921d4a064b9fda2f4c58fa65"
+            },
+            "greedy": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w2048-cpu-f32.greedy.bin",
+              "sha256": "2a69e63c66cacaf79b1914b3409efad1092d1dda4e057bb120a380d4b0ff0f10"
+            }
+          },
+          "greedy_ids_equal": true
+        },
+        {
+          "window": "w2048",
+          "cache": "f16",
+          "runtime": "cpu",
+          "name": "w2048-cpu-f16",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-vulkan-phase-20260929",
+            "taskset",
+            "-c",
+            "0-3,8-11",
+            "timeout",
+            "--kill-after=10s",
+            "1200",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/models/llmx-xdev-mxfp4-20260928/Qwen3-Coder-30B-A3B-Instruct-MXFP4_MOE.gguf",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w2048.ids",
+            "/work/mxfp4-cpu-main-moe-replay-20260930/w2048-cpu-f16",
+            "cpu",
+            "f16",
+            "512",
+            "0"
+          ],
+          "start": 1790731096.6505573,
+          "pid": 70728,
+          "exit": 0,
+          "end": 1790731212.7346437,
+          "version": "0.1.0+gf55f025a1332",
+          "captures": {
+            "batched": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w2048-cpu-f16.batched.bin",
+              "sha256": "996850984613ba9702fa9f8119223bec7a9bde7fe9dd4ce23a2c920710d76e62"
+            },
+            "decode": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w2048-cpu-f16.decode.bin",
+              "sha256": "3147813567be1afdf86f533f79fe7adc89196df21367623e3852e2634c28dc42"
+            },
+            "greedy": {
+              "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-moe-replay-20260930/w2048-cpu-f16.greedy.bin",
+              "sha256": "007994e3dc6f2064b9bd28faf2152785259413109df9b1d34b25dec67d4c27d9"
+            }
+          },
+          "greedy_ids_equal": true
+        }
+      ],
+      "source_diff_8274c70_to_f55f025a": [
+        "src/backends/device_profile.hpp",
+        "src/backends/vulkan/shaders/embed.comp",
+        "src/backends/vulkan/shaders/float_controls.glsl",
+        "src/backends/vulkan/shaders/matmul_reduce.comp",
+        "src/backends/vulkan/shaders/matmul_row.comp",
+        "src/backends/vulkan/shaders/matmul_tile.comp",
+        "src/backends/vulkan/shaders/matmul_vec_q8.comp",
+        "src/backends/vulkan/shaders/moe_group.comp",
+        "src/backends/vulkan/shaders/predecode_mxfp4.comp",
+        "src/backends/vulkan/shaders/q.glsl",
+        "src/backends/vulkan/shaders/qdecode.glsl",
+        "src/backends/vulkan/vulkan_backend.cpp"
+      ],
+      "model_sha256": "a1964ca2e5b89dc2a8c2454c0bf50c809204ea216c928e1d20c3f99d7977f0d1",
+      "tool_sha256": "240b17222b1a836571b8a4b44d9aaaffc0892f3405d11a12791f8ff842cd4e4c",
+      "windows": [
+        {
+          "name": "w0",
+          "tokens": 247,
+          "source": "Original pinned 1024-character excerpt, separate tokenization",
+          "ids_sha256": "c20c52dde29e91550f51290e22a5a18d591fb98f1630397b38253ebf22d26c59"
+        },
+        {
+          "name": "w512",
+          "start": 512,
+          "end": 1023,
+          "tokens": 512,
+          "ids_sha256": "15caf54c85c5fae35e5aa83f0aa27d6630685fecde128caf965a6b084e7414a0"
+        },
+        {
+          "name": "w2048",
+          "start": 2048,
+          "end": 2559,
+          "tokens": 512,
+          "ids_sha256": "48277ab6fac21aab93599a7f5bcf29e5cb395ab384e76220afb6bb66668e06c9"
+        }
+      ],
+      "plan_source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-moe-control-20260929/plan.json",
+      "plan_sha256": "13d2a7ee99143b44bda2bf84daaf0293f958de84de8813637e286e9f7c0d6047",
+      "cpu_reference": {
+        "state": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-prompt16-moe-replay-20260929/complete.json",
+        "sha256": "eec262abd7e52f6edead7f4d4a8757a9ca8f1cdcbf7b0ab48eeef567cf8880d8",
+        "tool_sha256": "441e3eee3f6970891b7077d8dfd4cba55b11463b00fce64f2b8079f4c2428ea5",
+        "head": "8274c70a3f977a62c5b7a5a29259613ce68d0423"
+      },
+      "identity": [
+        {
+          "window": "w0",
+          "cache": "f32",
+          "phase": "batched",
+          "current_sha256": "ffb33fbb79b3c75904095e7127197483c903033409c706e0b7038e6ebad67c8a",
+          "prior_sha256": "ffb33fbb79b3c75904095e7127197483c903033409c706e0b7038e6ebad67c8a",
+          "equal": true
+        },
+        {
+          "window": "w0",
+          "cache": "f32",
+          "phase": "decode",
+          "current_sha256": "2f0a05271b40e2b0d33d184ff3b38ee3b4f16dc614cd2f81550f60ca075d0e7d",
+          "prior_sha256": "2f0a05271b40e2b0d33d184ff3b38ee3b4f16dc614cd2f81550f60ca075d0e7d",
+          "equal": true
+        },
+        {
+          "window": "w0",
+          "cache": "f32",
+          "phase": "greedy",
+          "current_sha256": "910521d76a5ab3d049c1e479e62194c757cdd26973caa4125f21dd3461b00fff",
+          "prior_sha256": "910521d76a5ab3d049c1e479e62194c757cdd26973caa4125f21dd3461b00fff",
+          "equal": true
+        },
+        {
+          "window": "w0",
+          "cache": "f16",
+          "phase": "batched",
+          "current_sha256": "1acc5849636d15190b05181738879bd4dbae333423f967b2650e81c8f5c44f92",
+          "prior_sha256": "1acc5849636d15190b05181738879bd4dbae333423f967b2650e81c8f5c44f92",
+          "equal": true
+        },
+        {
+          "window": "w0",
+          "cache": "f16",
+          "phase": "decode",
+          "current_sha256": "1a62bca2ba0c39996243a137a35679fc5903677c5bb41fd42b905767dcf4a6db",
+          "prior_sha256": "1a62bca2ba0c39996243a137a35679fc5903677c5bb41fd42b905767dcf4a6db",
+          "equal": true
+        },
+        {
+          "window": "w0",
+          "cache": "f16",
+          "phase": "greedy",
+          "current_sha256": "b142d8b115fd4aed86f9bc2813e9d7d19a94851d924060673f7cea842ee28a90",
+          "prior_sha256": "b142d8b115fd4aed86f9bc2813e9d7d19a94851d924060673f7cea842ee28a90",
+          "equal": true
+        },
+        {
+          "window": "w512",
+          "cache": "f32",
+          "phase": "batched",
+          "current_sha256": "a8bc60039431077c7f6d0af3e5ec7d427280dd47e5dbb03a4b46ca4794f2cd1f",
+          "prior_sha256": "a8bc60039431077c7f6d0af3e5ec7d427280dd47e5dbb03a4b46ca4794f2cd1f",
+          "equal": true
+        },
+        {
+          "window": "w512",
+          "cache": "f32",
+          "phase": "decode",
+          "current_sha256": "f2aeee37150f5ebac8a78aa302ca5b41dd20024aefae20f0cf75dc54b6a919dd",
+          "prior_sha256": "f2aeee37150f5ebac8a78aa302ca5b41dd20024aefae20f0cf75dc54b6a919dd",
+          "equal": true
+        },
+        {
+          "window": "w512",
+          "cache": "f32",
+          "phase": "greedy",
+          "current_sha256": "9c22eeebf03b779a963c921889ad7bf01c0f36429e4a6a79c68b7eaf78583d53",
+          "prior_sha256": "9c22eeebf03b779a963c921889ad7bf01c0f36429e4a6a79c68b7eaf78583d53",
+          "equal": true
+        },
+        {
+          "window": "w512",
+          "cache": "f16",
+          "phase": "batched",
+          "current_sha256": "9f2fceb527322352df65ca23b510acd449c5dd3c35992733ecc20521497200a1",
+          "prior_sha256": "9f2fceb527322352df65ca23b510acd449c5dd3c35992733ecc20521497200a1",
+          "equal": true
+        },
+        {
+          "window": "w512",
+          "cache": "f16",
+          "phase": "decode",
+          "current_sha256": "b121eb1f4503ba754d9964ff6a95fe105d1a8a3c9b06945cc82b233f9f305cef",
+          "prior_sha256": "b121eb1f4503ba754d9964ff6a95fe105d1a8a3c9b06945cc82b233f9f305cef",
+          "equal": true
+        },
+        {
+          "window": "w512",
+          "cache": "f16",
+          "phase": "greedy",
+          "current_sha256": "4578169965748ccf0356dc3e24ed44817fedc71067919d48bf2508029c7bd8cb",
+          "prior_sha256": "4578169965748ccf0356dc3e24ed44817fedc71067919d48bf2508029c7bd8cb",
+          "equal": true
+        },
+        {
+          "window": "w2048",
+          "cache": "f32",
+          "phase": "batched",
+          "current_sha256": "b02d444f1ab9c584788b2218c50c598019f567e4224ba26d84a0b366d2959c0f",
+          "prior_sha256": "b02d444f1ab9c584788b2218c50c598019f567e4224ba26d84a0b366d2959c0f",
+          "equal": true
+        },
+        {
+          "window": "w2048",
+          "cache": "f32",
+          "phase": "decode",
+          "current_sha256": "1b0775974dbf4e3409ebbc042fb457a2a5452522921d4a064b9fda2f4c58fa65",
+          "prior_sha256": "1b0775974dbf4e3409ebbc042fb457a2a5452522921d4a064b9fda2f4c58fa65",
+          "equal": true
+        },
+        {
+          "window": "w2048",
+          "cache": "f32",
+          "phase": "greedy",
+          "current_sha256": "2a69e63c66cacaf79b1914b3409efad1092d1dda4e057bb120a380d4b0ff0f10",
+          "prior_sha256": "2a69e63c66cacaf79b1914b3409efad1092d1dda4e057bb120a380d4b0ff0f10",
+          "equal": true
+        },
+        {
+          "window": "w2048",
+          "cache": "f16",
+          "phase": "batched",
+          "current_sha256": "996850984613ba9702fa9f8119223bec7a9bde7fe9dd4ce23a2c920710d76e62",
+          "prior_sha256": "996850984613ba9702fa9f8119223bec7a9bde7fe9dd4ce23a2c920710d76e62",
+          "equal": true
+        },
+        {
+          "window": "w2048",
+          "cache": "f16",
+          "phase": "decode",
+          "current_sha256": "3147813567be1afdf86f533f79fe7adc89196df21367623e3852e2634c28dc42",
+          "prior_sha256": "3147813567be1afdf86f533f79fe7adc89196df21367623e3852e2634c28dc42",
+          "equal": true
+        },
+        {
+          "window": "w2048",
+          "cache": "f16",
+          "phase": "greedy",
+          "current_sha256": "007994e3dc6f2064b9bd28faf2152785259413109df9b1d34b25dec67d4c27d9",
+          "prior_sha256": "007994e3dc6f2064b9bd28faf2152785259413109df9b1d34b25dec67d4c27d9",
+          "equal": true
+        }
+      ],
+      "raw_identity_passed": true,
+      "hf_metrics_reusable": true,
+      "correctness_merge_ready": false
+    }
+  },
+  "gate_scope_correction": {
+    "authority": "docs/STATUS.md, Quantization coverage, branches 2 and 3, and tests/common.py::check_device_rows docstring",
+    "cpu_gate": "Tiny dense/MoE HF models and the writer 0.6B against FP32 and file-exact HF; 8B HF also passed on f55f025a.",
+    "gpu_gate": "Large-model CPU/device comparison is specified for the Vulkan branch and remains unresolved there.",
+    "additional_diagnostic": "Real CPU/HF MoE ranking 4/12 is supplementary evidence using the CPU/device helper, not a newly adopted HF acceptance criterion. All mean NLL differences are below 0.01. No criterion is relaxed or replaced.",
+    "correction": "Earlier CPU-merge-blocking language based solely on this additional diagnostic overstated the approved CPU gate."
+  },
+  "remaining": [
+    "Finish the approved full existing-model identity scope against current main; four small mixtures are a subset.",
+    "Applicable platform/device, split and real-model server consistency evidence.",
+    "Remaining required CPU timing cells and assessment; first-support allowance does not close speed gaps.",
+    "Required HF and final hosted gate on the reconciled source before public merge."
+  ]
+}

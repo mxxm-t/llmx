@@ -1,6 +1,6 @@
 # llmx - Development Status
 
-## Qwen 3.5, 3.6 and 3.8 everywhere (2026-09-30, branch feat/qwen35-serve)
+## Qwen 3.5, 3.6 and 3.8 everywhere (2026-09-30, 8b merged at `56abfd9a`)
 
 - **Goal:** the qwen35 architecture fully working (user, 2026-09-30): every command on the CPU, the MI50 and the Radeon VII, on one card and on a layer split, dense qwen35 and qwen35moe, at every quant the gate files use; serving first, so Qwen3.6-27B and Qwen3.8-27B Q8_0 reach an OpenAI-compatible client through `llmx serve`. MTP and state checkpoints wait for the speculative decoding design discussion.
 - **Checklist** (the plan's steps are in "Qwen 3.5, 3.6 and 3.8", below; a cell is done when its gate passed):
@@ -8,7 +8,7 @@
   | | CPU | one MI50 | Radeon VII | layer split |
   |---|---|---|---|---|
   | dense: `generate`, `chat`, `logits`, `perplexity`, `bench` | done (step 4) | done (step 5) | done (step 5) | done: MI50s bit-identical to one, CPU splits in the suite (step 5) |
-  | dense: `serve` | this branch (8b) | this branch (8b) | this branch (8b) | 8d |
+  | dense: `serve` | done (8b) | done (8b) | done (8b) | 8d |
   | dense: KV fitted and backed at load | 8a | 8a | 8a | 8a |
   | dense: long prompts in the chunked form | not needed | step 6 | step 6 | step 6 |
   | `qwen35moe` (Qwen3.6-35B-A3B): every command and `serve` | step 7 | step 7 | step 7, experts on the CPU | step 7 |
@@ -20,7 +20,13 @@
   - `serve` no longer refuses the model; `park` keeps no donor of a model that keeps a state; `Model::state_slots` and the scheduler's refusal above.
   - Tests: the suite's `qwen35` component serves the tiny Hv = 3 Hk model (greedy ids alone, four at once and from `generate`, and four uncapped requests paused and resumed with no donor); `server-resume` and `server-passes-cpu` run a hybrid qwen35 model with Q8_0 matrices through their pause, cancellation, failure, stop and split cases; `server-passes` serves a model keeping a state in one schedule of four, with the slot ledger held in every schedule.
   - On the change's first head (`d97f7da9`, before the native tests), `tools/server_mix_check.py` on one MI50 at default clocks gave every request its ids alone, together, skewed and through `generate`: Qwen3.5-0.8B Q8_0 (16 requests, and 12 uncapped with 23 pauses and 26970 tokens recomputed), Qwen3.5-9B Q4_K_M, Qwen3.6-27B Q8_0 and Qwen3.8-27B Q8_0 (8 requests each).
-- **Left:** CTest and the CPU suite on the rig at this head; the device tier (Qwen3 byte identity on the CPU and one MI50 against main, the suite on the device, the Radeon VII); `tools/long_context_check.py` through `serve` on the 9B; the hosted run; then 8a on its own branch, then 7, 6 and 8d.
+- **Merged** 8b at `56abfd9a` (2026-09-30) by fast-forward from `07fd9051` on Gitea and GitHub after hosted run 36687273051 passed on it, every job (UBSan 5, TSan 8, Linux 5, macOS 11, Windows 10, Vulkan build 8 and HF reference 38 minutes).
+  - On the rig at `56abfd9a` (the change rebased onto main, no conflict in code): CTest 35 of 35 on the CPU build and 39 of 39 on an MI50, and the CPU suite with `--require-tools` passed every component.
+  - At `e821202b`, the head before that rebase: the suite on one MI50 with `--require-tools` passed every component but `perf`, whose synthetic prefill fell below its floor at a one-minute load average of 30 to 35; rerun on one MI50 in the order main, change, change, main at a load of 27 to 32, main `07fd9051` failed its first run the same way and passed its second, and the change passed both, so the floor followed the machine's load. Qwen3-0.6B and Qwen3.5-0.8B Q8_0 gave main's bytes in all 14 identity cells on the CPU and on the MI50.
+  - At `99f42085`: the CPU suite passed every component, and on the Radeon VII under Windows CTest 40 of 40, the `qwen35` and `server` components on the device and `tools/server_mix_check.py` on Qwen3.5-0.8B Q8_0, capped (16 requests alone, together and skewed, 4 through the CLI) and uncapped (12 requests, 24 pauses, 27667 tokens recomputed), every request its reply alone.
+  - `tools/long_context_check.py` through `serve` on Qwen3.5-9B Q4_K_M on one MI50: two fresh servers gave the same 512 tokens after the 16384-token prompt, and the CPU, reading them in 6758 s on four shared cores, took the device's token as its top choice at 508 of 512 positions, the largest gap 0.057 logits, none beyond the 0.5 margin.
+- **Left:** 8a (`fix/serve-kv-fit`), then step 6; step 7 is being built on `feat/qwen35moe` and 8d waits for serving.
+  Step 6 can gain at most the recurrence's share of prompt time: on one MI50 (`bench --profile`, main `8ff34685`) `delta_rule` is 16.6 and 13.2 percent of the device time of pp512 and pp4096 on Qwen3.5-0.8B Q8_0 (1.2 us a token a layer at pp512), and 2.7 and 2.6 percent on Qwen3.5-9B Q4_K_M.
 - **Gotchas:** a hybrid model's resume recomputes from 0, so a long conversation's follow-up turns pay their whole history each time until checkpoints (step 8c); the KV budget still defaults to the model context (262144 tokens on these files) and grows on demand, so on one card give `--ctx-size` until 8a fits it at load.
 
 ## README support overview (2026-09-30, branch docs/readme-support, merged at `d74f0015`)

@@ -16,9 +16,10 @@ backends its caller made. It reads the plan
   fitted to the devices), and the placed model with its split's description.
 - `settle(budgets, backends, names, settled)`: a fit the devices' free
   memory falls short of, a split's placement or a server's KV budget, tried
-  again every `kSettleWait` (250 ms), up to `kSettleReads` (20) reads, each
-  time that memory rises, until two reads find it no higher, since a device
-  reclaims the memory of a process that has just ended over a few seconds.
+  again every `kSettleWait` (250 ms), up to `kSettleReads` (120) reads, each
+  time that memory rises, until `kSettleQuiet` (20) reads in a row, five
+  seconds, find it no higher, since a device gives an ended process's memory
+  back in steps over a few seconds, holding it level for seconds between them.
 - `fitted_kv(weights, plan, backends, request, options)`: the options with
   the KV budget fitted, which `place_model` takes when `request.fit_kv` is
   set, as `serve` sets it: the options' budget where the fit of

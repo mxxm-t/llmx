@@ -1,6 +1,15 @@
 # llmx - Development Status
 
-## qwen35 served over a layer split (2026-09-30, step 8d of the qwen35 plan, lands as `feat/qwen35-serve-split`)
+## A restarted server waits for the card to give back its predecessor's memory (2026-10-01, lands as `fix/fit-settle`)
+
+- **Goal:** a server restarted on the cards an ended server held loads once the cards have given that memory back, instead of being refused as a model that does not fit; a model that truly does not fit is still refused, by its own text.
+- **Found:** in production a Qwen3.8-27B Q8_0 server restarted on the card of an old 27B server was refused twice before an automatic restart about 13 s later loaded. Sampled every 0.1 s, an MI50 gave back an ended 27B server's 32 GB in steps over about three seconds, holding it level for more than two seconds between steps, while the fit gave up after two quiet reads (0.5 s).
+- **Done:** `settle` waits five quiet seconds (`kSettleQuiet`, 20 reads of 250 ms), up to thirty in all, before a fit short of what it asked for stands; `3e53ebfe`, a device whose free memory stays level for four seconds before rising, fails without it.
+  - Restarting a Qwen3.6-27B Q8_0 server with SIGTERM and starting a Qwen3.8-27B Q8_0 server on the same MI50 at once, in one container: five of five loaded with the change, one of three with the two-quiet-read settle of 8d, one of three before it.
+  - CTest 35 of 35 on the CPU build and 39 of 39 on an MI50 (`placement` given 120 s, since its refusals and cut budgets each wait the five quiet seconds), and the CPU suite with `--require-tools` passing every component.
+- **Gotchas:** a start whose budget the cards cannot hold now takes five seconds more, the price of telling a card still giving memory back from one that will not.
+
+## qwen35 served over a layer split (2026-09-30, step 8d of the qwen35 plan, merged at `87051ea3`)
 
 - **Goal:** `serve` runs a qwen35 file over a layer split with passes in flight, each stage holding its layers' recurrent states and KV, with the budget fitted at load (8a) over every device: Qwen3.6-27B Q8_0 and Qwen3.8-27B Q8_0 over two MI50s at the full 262144-token context, for production (user, 2026-09-30).
 - **Done:**
@@ -22,7 +31,14 @@
     | 64 | 12.5, 12.5; 160 / 315 s, 160 / 315 s; 226 / 2264 ms, 228 / 2262 ms | 24.5, 24.4; 81.6 / 160 s, 82.1 / 160 s; 119 / 2214 ms, 121 / 2222 ms |
 
     One card fits 14720 KV tokens beside its 16 states, so a request holds at most 14720 tokens; the split fits the whole 262144, which is then also one request's limit. The split doubles throughput and halves TTFT and ITL from 16 users, the two stages each running a pass; one user's ITL is 6 to 10 percent longer across the handoff, and one user's TTFT a quarter shorter, the prompt pipelined over the stages.
-- **Left:** the hosted run; the reference server over the same two cards is measured beside it and recorded with the settle's branch.
+- **Merged** at `87051ea3` (2026-10-01) after hosted run 36745168019 passed on it, every job.
+- **Against the reference server** over the same two MI50s (layer split with its pipeline parallelism enabled, 16 slots, the 262144-token context), the same load, arms reference, llmx, llmx, reference, two rounds, every value per arm (another process at a full CPU in most of the 732 monitor samples, an unrelated job and builds, no run dropped):
+
+  | users | reference: output tok/s; TTFT p50; ITL p50 / p99 | llmx: output tok/s; TTFT p50; ITL p50 / p99 |
+  |---:|---|---|
+  | 1 | 6.7 to 6.9; 4.9 to 5.0 s; 68 to 71 / 77 to 84 ms | 10.0 to 10.1; 3.0 s; 53 to 54 / 55 to 58 ms |
+  | 16 | 10.3 to 10.6; 51 to 53 s; 483 to 494 / 8534 to 8617 ms | 24.8 to 25.0; 19.1 to 19.4 s; 111 to 112 / 2139 to 2172 ms |
+  | 64 | 9.1 to 9.9; 201 to 217 s; 481 to 497 / 8629 to 10023 ms | 24.7 to 25.1; 80 to 81 s; 112 to 115 / 2149 to 2196 ms |
 - **Gotchas:** a restart right after another server on the same cards can still be refused, since a card can hold an ended process's memory for more than two seconds between frees; the settle's own branch follows.
 
 ## Reasoning apart from the answer, and chat_template_kwargs (2026-09-30, branch feat/server-reasoning, lands by fast-forward)

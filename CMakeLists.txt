@@ -314,7 +314,7 @@ if(BUILD_TESTING)
     target_include_directories(llmx-placement-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-placement-test)
     add_test(NAME placement COMMAND llmx-placement-test)
-    set_tests_properties(placement PROPERTIES TIMEOUT 30)
+    set_tests_properties(placement PROPERTIES TIMEOUT 120)
 
     add_executable(llmx-http-test tests/http.cpp)
     target_include_directories(llmx-http-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

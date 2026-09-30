@@ -127,15 +127,17 @@ inline bool ffn_on_host(const PlacementRequest& request, const std::vector<Layer
     return request.cpu_moe < 0 || before < (size_t)request.cpu_moe;
 }
 
-// The reads a fit the devices' free memory falls short of waits for that memory to stop rising, and the wait between them: about as long as a device takes to reclaim a large model's memory from a process that has ended.
-inline constexpr int kSettleReads = 20;
+// How long a fit the devices' free memory falls short of waits for that memory to settle: a read every kSettleWait, until kSettleQuiet reads in a row find it no higher or kSettleReads reads have passed.
+// An MI50 gave back an ended 27B server's memory over three seconds in steps, holding it level for more than two seconds between them, so the quiet reads span five seconds and the bound thirty.
 inline constexpr std::chrono::milliseconds kSettleWait{250};
+inline constexpr int kSettleQuiet = 20;
+inline constexpr int kSettleReads = 120;
 
-// A process that has just ended gives a device its memory back over a few seconds, so a fit that `settled` says falls short is tried again each time the free memory the devices report rises, until two reads find it no higher or kSettleReads reads have passed; `budgets` holds the last read.
+// A process that has just ended gives a device its memory back over a few seconds, so a fit that `settled` says falls short is tried again each time the free memory the devices report rises, until kSettleQuiet reads in a row find it no higher or kSettleReads reads have passed; `budgets` holds the last read.
 template <class Settled>
 inline void settle(std::vector<DeviceBudget>& budgets, const std::vector<backend::BackendPtr>& backends, const std::vector<std::string>& names, Settled settled) {
     if (settled()) return;
-    for (int read = 0, steady = 0; read < kSettleReads && steady < 2; ++read) {
+    for (int read = 0, steady = 0; read < kSettleReads && steady < kSettleQuiet; ++read) {
         std::this_thread::sleep_for(kSettleWait);
         std::vector<DeviceBudget> again = budgets_for(backends, names);
         bool rose = false;
@@ -192,7 +194,8 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     size_t tokens = 0;
     settle(budgets, backends, request.names, [&] { return (tokens = most()) >= want; });
     if (!tokens) {
-        if (!fits(1)) throw std::runtime_error("placement: the model does not fit the devices' free memory even without its KV (" + why + ")");
+        if (!fits(1))
+            throw std::runtime_error("placement: the model does not fit the devices' free memory even without its KV, which stayed level for five seconds (" + why + ")");
         fits(block);
         throw std::runtime_error("placement: no room for one KV block of " + std::to_string(block) +
                                  " tokens beside the weights, the activations and the recurrent states (" + why + ")");

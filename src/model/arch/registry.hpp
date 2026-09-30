@@ -24,6 +24,7 @@ inline const ArchEntry kArchitectures[] = {
     {"qwen3", qwen3::open_dense},
     {"qwen3moe", qwen3::open_routed},
     {"qwen35", qwen35::open_dense},
+    {"qwen35moe", qwen35::open_routed},
 };
 
 // The entry a file's general.architecture names; a file without the key is read as qwen3, since the tests' fixtures write none.

@@ -798,9 +798,11 @@ The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_
 
 From the 9B up, a qwen35 model's float32 forward does not fit the Linux host's free memory whole, so `tools/gen_layered_reference.py` runs HF's own modules one decoder layer at a time (STATUS, Qwen 3.5, 3.6 and 3.8, Decided 2).
 It makes the calls of transformers' `Qwen3_5TextModel.forward` in its order: the embedding, the model's own rotary embedding and masks (`create_causal_mask`, `create_recurrent_attention_mask`), each decoder layer, the final norm and the head.
-It builds `Qwen3_5ForCausalLM` on the meta device and gives each module its weights just before it runs, read from the checkpoint's safetensors and widened from bf16 to float32 as `from_pretrained` does, then drops them once the module has run every input.
+It builds `Qwen3_5ForCausalLM`, or `Qwen3_5MoeForCausalLM` when the checkpoint's config names the routed text model, on the meta device and gives each module its weights just before it runs, read from the checkpoint's safetensors and widened from bf16 to float32 as `from_pretrained` does, then drops them once the module has run every input.
 The checkpoint's keys are renamed by transformers' own loading rules for the model, and the tool refuses a rule that would reshape a tensor, any key the model neither takes nor ignores (it ignores `mtp.*` and `model.visual.*`, the keys every qwen35 reference may leave unused), and any parameter no key gives other than a tied head.
+The Qwen3.6-35B-A3B checkpoint stores each layer's experts already stacked, as `mlp.experts.gate_up_proj` and `mlp.experts.down_proj` in the model's own shapes, so none of its keys is converted on load.
 Every input runs alone, a batch of one, with eager attention and the torch fallbacks of the linear-attention layers, as HF's full forward runs it.
+A routed model's experts run HF's default experts implementation, `grouped_mm`, which on this torch is transformers' own per-expert fallback, and the goldens and the equality record name it; the model `from_pretrained` builds runs the same one.
 It runs offline from the HF cache in the qwen35 venv of the tokenizer reference above, through the environment check every qwen35 reference passes (`qwen35_environment` in `tools/gen_baseline.py`), so it refuses any torch other than 2.5.1+cpu, transformers other than 5.17.0 and tokenizers other than 0.23.2.
 It also refuses an installed `kernels`, `fla` or `causal_conv1d` package, since transformers 5.17.0 runs hub kernels, then those two packages, before its torch code for the conv and the gated delta rule; the venv has none of them.
 
@@ -809,21 +811,26 @@ It also refuses an installed `kernels`, `fla` or `causal_conv1d` package, since 
 All 15 rows' logits at every position are equal bit for bit, as are all 321 parameters and the rotary inverse frequencies, and the record keeps the SHA-256 of each row's logits both ways.
 Five runs on the Linux host's CPU, in a container of six CPUs, gave the same record, the fifth with the tool refusing `fla` and `causal_conv1d` too.
 The layered forward took 165, 161, 477, 80 and 49 s and the full forward 229, 286, 258, 75 and 46 s, at load averages of 35 to 84 on the host's 16 threads from other work, and the process peaked at 7.4 GiB with both models in it.
+The routed model's float32 forward does not fit the host whole either, so `python tools/gen_layered_reference.py equality --repo Qwen/Qwen3.6-35B-A3B --revision 995ad96eacd98c81ed38be0c5b274b04031597b0 --layers 4 --output tests/data/layered_equality_qwen3.6-35b-a3b.json` cuts both forwards to the checkpoint's first four decoder layers, three linear-attention and one full-attention layer, each with its 256 experts, router and gated shared expert, and runs the same 15 rows through the embedding, those layers, the final norm and the head.
+All 15 rows' logits are equal bit for bit, as are all 72 parameters and the rotary inverse frequencies, with both models running the `grouped_mm` experts implementation; `from_pretrained` left the other 36 layers' keys unused, as the layered plan did.
+It ran once, on 6 threads in a container pinned to four CPUs, the layered forward in 89 s and the full forward in 65 s, peaking at 33.9 GiB with both models in it.
 
 **Goldens.**
-`tests/data/qwen3.5-9b` and `tests/data/qwen3.6-27b` hold the three goldens of `tests/data/qwen3-8b`, with the same texts and windows, written by `tools/gen_baseline.py`'s writers from the layered forward.
+`tests/data/qwen3.5-9b`, `tests/data/qwen3.6-27b` and `tests/data/qwen3.6-35b-a3b` hold the three goldens of `tests/data/qwen3-8b`, with the same texts and windows, written by `tools/gen_baseline.py`'s writers from the layered forward.
 Like the 8B's, they run the checkpoint's own weights, bf16 widened to float32, not the GGUF's dequantized ones; the GGUF labels them.
 Each records the checkpoint's repository, commit and safetensors SHA-256, the GGUF's name, source, SHA-256 and size, and a comparison of every F32 tensor of the GGUF with the checkpoint's under the converter's conventions ([QWEN35](QWEN35.md), What the converter folds): every norm but `ssm_norm` as 1 + w summed in float32, `ssm_a` as -exp(`A_log`), `ssm_conv1d` without its middle axis, and the V side in tiled order.
 A tensor that differs records how many of its values differ and by how many float32 steps at most, since `ssm_a` is compared with -exp(`A_log`) as torch computes it on the host, and an exp that rounds another way moves a value one step.
-An F32 tensor the decoder layers give nothing to compare with, such as an MTP block's norm, is named in the record; neither file here has one.
+An F32 tensor the decoder layers give nothing to compare with, such as an MTP block's norm, is named in the record; no file here has one.
+On a routed model the router and the shared expert's gate are compared as stored, the gate's [1, 2048] as the file's vector, where the file keeps them in F32.
 transformers' tokenizer gives the same ids as the checkpoint's `tokenizer.json` on every golden text, which the tool checks.
 
 | Goldens | Checkpoint | Safetensors | GGUF | GGUF source | GGUF SHA-256 | Bytes |
 |---|---|---|---|---|---|---:|
 | `qwen3.5-9b` | `Qwen/Qwen3.5-9B` at `c202236235762e1c871ad0ccb60c8ee5ba337b9a` | 4 files, 19,306,310,880 bytes | `Qwen3.5-9B-Q4_K_M.gguf` | `lmstudio-community/Qwen3.5-9B-GGUF` at `1379f25c6b505a3fc737bd7818cb09389cf807c1`, unchanged since it was added at `d9006465` | `cd76ec205963b3b33350093e6904d9de16c4e666fd104e1f632d25c7f15f2a13` | 5,627,044,256 |
 | `qwen3.6-27b` | `Qwen/Qwen3.6-27B` at `6a9e13bd6fc8f0983b9b99948120bc37f49c13e9` | 15 files, 55,563,006,400 bytes | `Qwen3.6-27B-Q4_K_M.gguf` | none known: an imatrix file whose metadata names Unsloth, matching no revision of `unsloth/Qwen3.6-27B-GGUF` (16,817,244,064 and 16,817,244,384 bytes) nor `lmstudio-community/Qwen3.6-27B-GGUF` (16,547,398,784 bytes) | `876d304664f4615db8924b421a9a88df51f29be9ce413f0bfd059e0480e8f7fe` | 16,547,399,904 |
+| `qwen3.6-35b-a3b` | `Qwen/Qwen3.6-35B-A3B` at `995ad96eacd98c81ed38be0c5b274b04031597b0` | 26 files, 71,903,776,776 bytes | `Qwen3.6-35B-A3B-Q4_K_M.gguf` | none known: an imatrix file whose metadata names Unsloth and its imatrix, matching no revision of `unsloth/Qwen3.6-35B-A3B-GGUF` (whose Q4_K_M is the UD-Q4_K_M of 22,134,528,992 bytes), `lmstudio-community/Qwen3.6-35B-A3B-GGUF` or `bartowski/Qwen_Qwen3.6-35B-A3B-GGUF` | `a8adba03e892f519579290e30f21abb1a9dbb5bfd092afecccd12a4ee670f0de` | 21,166,758,880 |
 
-Neither checkpoint's safetensors changed after its first upload, so a GGUF converted from either repository at any commit was converted from these weights.
+No checkpoint's safetensors changed after its first upload, so a GGUF converted from any of these repositories at any commit was converted from these weights; the 35B-A3B's 26 files also match the SHA-256 the Hub lists for each.
 The 9B file's 177 F32 tensors, every norm, `ssm_a`, `ssm_dt.bias`, `ssm_conv1d` and `ssm_norm`, equal the checkpoint's, and its `ssm_dt.bias` matches HF's grouped V-head order in none of its 24 linear-attention layers, so it stores the tiled order.
 The 27B checkpoint stores `A_log` in bf16, where the 9B's is float32.
 331 of the 27B file's 353 F32 tensors equal the checkpoint's, every norm, `ssm_dt.bias`, `ssm_conv1d` and `ssm_norm` among them, and its `ssm_dt.bias` matches the grouped order in none of its 48 linear-attention layers, so it too stores the tiled order.
@@ -831,7 +838,10 @@ The other 22 are `ssm_a`, which differ from -exp(`A_log`) as torch computes it i
 The Linux host's Qwen3.6-27B Q8_0, Q5_1 and the two MTP files hold the Q4_K_M's `ssm_a` bytes in all 48 layers, so they share its conversion, while the host's own conversions of the same commit, `Qwen3.6-27B-6a9e13bd-BF16.gguf` and `Qwen3.6-27B-6a9e13bd-Q4_K-pure.gguf`, equal torch's exp in all 48.
 Neither set is float64's exp rounded to float32, which differs from the Q4_K_M in 19 values and from the host's conversions in 9, so the 28 are one exp's rounding against another's, not other weights.
 A goldens run of the tool on Qwen3.5-0.8B, whose checkpoint stores `A_log` in float32, against the pinned `unsloth/Qwen3.5-0.8B-GGUF` Q4_K_M found the same: 126 of its 133 F32 tensors equal, and 7 `ssm_a` tensors one float32 step off in one value each.
+289 of the 35B-A3B file's 301 F32 tensors equal the checkpoint's, every norm, `ssm_dt.bias`, `ssm_conv1d`, `ssm_norm`, and all 40 routers and shared-expert gates among them, and its `ssm_dt.bias` matches the grouped order in none of its 30 linear-attention layers, so it stores the tiled order of 32 V heads over 16 K heads.
+The other 12 are `ssm_a`, which differ from -exp(`A_log`) as torch computes it in 22 of their 384 values, each by one float32 step, as the 27B's do.
 The 27B goldens are for the Qwen3.6-27B Q4_K_M; the Linux host's Qwen3.6-27B Q8_0 and Qwen3.8-27B Q8_0 have none.
+The 35B-A3B goldens are for the Qwen3.6-35B-A3B Q4_K_M; the host's Q8_0 of that model is `unsloth/Qwen3.6-35B-A3B-GGUF`'s at `cc399b8001019928aceb718c37c24ab0c5afaa70` (SHA-256 `d1a395809f65a43a13ad119eb4e7acdef1ac6d68120f39902c8ab96e72794a59`), and it, the Q5_K_M and the Q6_K have none.
 
 The runs, on the Linux host's CPU in a container of six CPUs, one at a time, each started with at least 20 GiB of memory available:
 
@@ -839,20 +849,36 @@ The runs, on the Linux host's CPU in a container of six CPUs, one at a time, eac
 |---|---|---:|---:|---|
 | `qwen3.5-9b` | 13 of 15 (779) | 1,137 s | 6.26 GiB | 43 to 60 |
 | `qwen3.6-27b` | 13 of 15 (779) | 2,245 s | 7.74 GiB | 43 to 67 |
+| `qwen3.6-35b-a3b` | 13 of 15 (779) | 417 s | 5.30 GiB | 17 to 25, on 6 threads in a container pinned to four CPUs |
 
 Hashing the checkpoint and GGUF took 30 s for the 9B and 77 s for the 27B, and available memory stayed at 11 GiB or more through both 27B runs.
 A first 27B run, before the comparison counted steps, gave the same goldens but for that record, in 1,420 s at load averages of 29 to 59.
 A second 9B run, with the tool as committed, wrote the same three files byte for byte, its forward taking 444 s at load averages of 39 to 45.
+A first 35B-A3B run on 4 threads, in 2,070 s at load averages near 35, gave logits within 1e-4 and mean NLLs within 2e-7 of the 6-thread run in the table, float32 sums taken in another order; the committed goldens are the 6-thread run's, like the others.
 The 9B's goldens put its smallest top-1 margin, 0.342 logits, on the Paris and Rome prompt, and the 5th and 6th tokens of `The capital of France is` 0.013 apart.
 The 27B's put theirs, 0.137, on the same prompt, and the same two tokens 0.018 apart, with the 5th and 6th of the 1969 prompt 0.030 apart.
+The 35B-A3B's put its smallest top-1 margin, 0.0058 logits, on `The three primary colors are red,`, between ids 13358 and 6105, whose 5th and 6th are 0.029 apart, and the 5th and 6th of `The capital of France is` 0.041 apart.
 
 ```
 python -X utf8 tools/gen_layered_reference.py goldens --repo Qwen/Qwen3.5-9B --revision c202236235762e1c871ad0ccb60c8ee5ba337b9a --gguf Qwen3.5-9B-Q4_K_M.gguf --gguf-repo lmstudio-community/Qwen3.5-9B-GGUF --gguf-revision 1379f25c6b505a3fc737bd7818cb09389cf807c1 --output-dir tests/data/qwen3.5-9b
 python -X utf8 tools/gen_layered_reference.py goldens --repo Qwen/Qwen3.6-27B --revision 6a9e13bd6fc8f0983b9b99948120bc37f49c13e9 --gguf Qwen3.6-27B-Q4_K_M.gguf --output-dir tests/data/qwen3.6-27b
+python -X utf8 tools/gen_layered_reference.py goldens --repo Qwen/Qwen3.6-35B-A3B --revision 995ad96eacd98c81ed38be0c5b274b04031597b0 --gguf Qwen3.6-35B-A3B-Q4_K_M.gguf --output-dir tests/data/qwen3.6-35b-a3b
+```
+
+**File-exact goldens.**
+`tools/gen_layered_reference.py goldens --file-exact` runs the same layered forward on the GGUF's own weights: each module's tensors are decoded by `tests/spec_decode.py`'s numpy form just before it runs, with the converter's changes undone as `tools/gen_baseline.py file-exact` undoes them (`qwen35_tensors`, which also joins a routed layer's gate and up stacks into HF's `gate_up_proj` and takes the shared expert's gate vector as its [1, H] row), so a model too large for `tools/gen_baseline.py file-exact` gets the same goldens a layer at a time.
+It writes the logit and perplexity goldens, each recording the file, its SHA-256 and the tensor types it decoded, and no tokenizer golden, since the tokenizer is the model's.
+`tests/data/qwen3.6-35b-a3b-file-exact` holds them for the Qwen3.6-35B-A3B Q4_K_M, from 693 tensors (301 F32, 331 Q4_K and 61 Q6_K, the 40 gate and up pairs counted once), in 1,173 s on 6 threads in a container pinned to four CPUs, peaking at 5.75 GiB.
+Decoded that way, layer 0 and layer 3 of the file give the checkpoint's norms, `A_log`, `dt_bias`, conv, router and shared-expert gate bit for bit, and its Q4_K and Q6_K matrices within 7.8% and 2.1% of the checkpoint's by relative norm.
+HF on the file's weights reproduces the turned-over ranking: it puts id 6105 first after `The three primary colors are red,`, at 20.545 against 20.269 for 13358, where the checkpoint's own weights put 13358 first by 0.0058.
+
+```
+python -X utf8 tools/gen_layered_reference.py goldens --file-exact --repo Qwen/Qwen3.6-35B-A3B --revision 995ad96eacd98c81ed38be0c5b274b04031597b0 --gguf Qwen3.6-35B-A3B-Q4_K_M.gguf --output-dir tests/data/qwen3.6-35b-a3b-file-exact
 ```
 
 **The consumer.**
 `tests/baseline_layered.py` chooses the goldens by the model's SHA-256 and runs the 8B consumer's checks with them (`tests/baseline_8b.py`, one runner for both): 20 tokenizer cases, six rankings and four NLL cases, each batched and per token, 41 checks with a report.
+A file with file-exact goldens is held to them first, the six rankings and four NLL cases again, 21 checks labelled `file-exact-`, at the qwen35 family's file-exact bounds (`tests/baseline_qwen35.py`, the Qwen3.5-0.8B Q8_0's: top-1 exact, top-5 overlap 5 of 5, NLL within 0.02 continuous and windowed), and to its model's goldens only if they pass, 62 checks in all, or 63 with a quality bound's count of top-1 matches.
 Where llmx does not run the qwen35 architecture it prints one line and exits 0, after the tokenizer cases: on a device whose backend lacks the linear attention's ops, `... HF check SKIP: llmx does not run this model yet (error: inference: layer 0's mixer needs causal_conv_silu, which the backend of its device does not implement)`.
 A check failed before the refusal, any other error, and a model with no goldens fail it.
 
@@ -871,6 +897,42 @@ With the branch that runs qwen35 (`feat/qwen35-model`), on the same CPU in conta
 | 27B Q4_K_M | 6 of 6 | 5 | 0.0107 | 0.0140 | 41 pass | 6,161 s |
 
 The 27B decoded as slowly as 0.1 token a second at those loads, so a per-token case of its 243 tokens took up to 39 minutes, past the consumer's 900 s a command, which stopped a first run at its second per-token case; the run in the table gave each command an hour and started with 26 GiB of memory available, and the two runs agree on every result both have.
+
+The Qwen3.6-35B-A3B Q4_K_M, held to the same bounds, declared before its first llmx comparison, with the qwen35moe branch (`feat/qwen35moe` at `725bf903`), on the Linux host in containers pinned to four CPUs at load averages of 16 to 26:
+
+| device | top-1 | top-5 overlap, lowest | NLL delta whole, largest | NLL delta in windows, largest | checks | time |
+|---|---:|---:|---:|---:|---|---:|
+| CPU | 5 of 6 | 5 | 0.0298 | 0.0856 | 40 pass, 1 fail | 511 s |
+| one MI50 | 5 of 6 | 5 | 0.0406 | 0.0958 | 40 pass, 1 fail | 159 s |
+
+The failing check is `The three primary colors are red,`, whose reference top two, ids 13358 and 6105, are 0.0058 logits apart: the CPU puts 6105 first by 0.355 and the MI50 by 0.186, with both tokens and the other three of HF's top five in their top five.
+The quantized weights, not the runtime, turn it over: HF on the file's own weights puts 6105 first too, by 0.276, and on the CPU the host's Qwen3.6-35B-A3B Q8_0 keeps HF's order, 13358 at 20.537 and 6105 at 20.508 against HF's 20.554 and 20.548, while its Q6_K, Q5_K_M and Q4_K_M all put 6105 first, by 0.203, 0.143 and 0.355.
+Top-1 exact against the checkpoint's goldens, this file failed; that result stands, and the runs above keep it.
+Every NLL case holds with more than 60% of its bound to spare: the largest whole-text delta is 0.0406 of 0.13 and the largest windowed one 0.0958 of 0.25, both on the MI50 in batched passes.
+
+Against its file-exact goldens, in the same runs as the model's goldens above (checks 21 to 41 of 62):
+
+| device | top-1 | top-5 overlap, lowest | NLL delta whole, largest | NLL delta in windows, largest | checks | time of the whole run |
+|---|---:|---:|---:|---:|---|---:|
+| CPU | 6 of 6 | 5 | 0.0102 | 0.0162 | 21 pass | 1,124 s |
+| one MI50 | 6 of 6 | 5 | 0.0063 | 0.0180 | 21 pass | 309 s |
+
+The largest deltas are 0.0102 of 0.02 whole and 0.0180 of 0.02 in windows, the latter per token on the MI50, which leaves it a tenth of its bound; the CPU's llmx gives 20.607 and 20.252 for the two tokens of the turned-over ranking and the MI50's 20.462 and 20.276, against the file-exact reference's 20.545 and 20.269.
+The runs were at load averages of 7 to 38 on the host.
+Both devices were run again with a build of this branch's head rebased onto `feat/qwen35moe` at `b8411aca`, in 324 s on the MI50 and 793 s on the CPU, and every command of the 62 printed the same bytes as the runs above.
+
+**The Qwen3.6-35B-A3B Q4_K_M's quality bound.**
+Agreed between the two developers on 2026-09-30, in the devlog thread on the qwen35moe HF gate, under the delegation recorded there at 14:26, with the agreement at 14:30: once the file has passed every check of its file-exact goldens, unchanged, it is held against the checkpoint's goldens to the top-1 of five rankings of six, every other bound unchanged (`QWEN36_35B_A3B_Q4_K_M_QUALITY` in `tests/baseline_layered.py`).
+It is this file's SHA-256 alone, as the Qwen3.5-0.8B Q4_K_M's is that file's: no other file inherits it, every other file keeps every top-1, and it waives none of the model's other gates.
+The reason is the file-exact result above: HF on the file's own weights turns the ranking over as llmx does, where the checkpoint's top two are 0.0058 logits apart, so the one ranking the file loses is its quantization's cost and not llmx's arithmetic.
+The checkpoint-goldens run then counts the matches in one more check, 63 in all:
+
+| device | file-exact checks | top-1 against the checkpoint | NLL delta whole, largest (0.13) | NLL delta in windows, largest (0.25) | checks | time |
+|---|---|---:|---:|---:|---|---:|
+| CPU | 21 pass | 5 of 6 | 0.0298 | 0.0856 | 63 pass | 518 s |
+| one MI50 | 21 pass | 5 of 6 | 0.0406 | 0.0958 | 63 pass | 256 s |
+
+Both runs, with the build at this branch's `d47213e1`, printed the same bytes for every command as the runs before the bound, at load averages of 11 to 28.
 
 ### Fixed-excerpt HF perplexity gate
 

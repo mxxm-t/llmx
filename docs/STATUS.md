@@ -17,7 +17,7 @@
   | dense: `serve` | done (8b) | done (8b) | done (8b) | 8d |
   | dense: KV fitted and backed at load | done (8a) | done (8a) | done (8a) | with 8d |
   | dense: long prompts in the chunked form | not needed | step 6 | step 6 | step 6 |
-  | `qwen35moe` (Qwen3.6-35B-A3B): every command and `serve` | step 7 | step 7 | step 7, experts on the CPU | step 7 |
+  | `qwen35moe` (Qwen3.6-35B-A3B): every command and `serve` | done (step 7) | done (step 7) | done (step 7, tiny fixtures; the 35B does not fit its 16 GB) | 8d |
   | MTP and state checkpoints | after the design discussion | | | |
 
   Quants: Q8_0, Q4_K_M (Q4_K, Q5_K, Q6_K) and Q4_1 files run today; BF16, F16, MXFP4 and IQ4_NL files wait for the quantization plan and step 10; Q5_1 and the type-53 files stay refused.
@@ -68,6 +68,32 @@
   The scan does about the per-token kernel's arithmetic, so tuned it could at best reach the per-token kernel's issue rate without its chain, perhaps twice as fast, worth about 8 percent of pp512 on the 0.8B and 1.4 percent on the 9B, before the 64-row grid through the CLI, the split and the server.
 - **Left:** step 6 is not kept at that gain for now; the prototype stays on its branch, and 8d (the server on a layer split) goes first.
 - **Gotchas:** the chunked form rounds differently from the recurrence, so it must run for a row class, never by the batch, and every slice of a prompt must end on the grid for a prompt to give the same bits however it is cut.
+
+## qwen35moe (2026-09-30, branch land/qwen35moe, qwen35 step 7, lands by fast-forward)
+
+- **Goal:** Qwen3.6-35B-A3B and Qwen3.5-122B-A10B, the qwen35 layers with a mixture-of-experts block and a gated shared expert (docs/QWEN35.md, The MoE FFN), on every command the dense qwen35 runs, on the CPU and a Vulkan device, with experts on the CPU beside a device.
+- **Done:**
+  - The module reads qwen35moe through `qwen35::open_routed`.
+  - The routed experts move into `blocks::routed_experts`, which qwen3moe and qwen35moe share.
+  - `swiglu` takes a row gate for the shared expert, and one metadata reader holds the routing keys and refusals.
+  - Qwen3-30B-A3B Q4_K_M gives main's bytes on the CPU and an MI50, for logits, per-token logits and greedy text.
+  - The tiny qwen35moe fixture matches HF `Qwen3_5MoeForCausalLM` within 8.1e-7 on the CPU and 8.6e-7 on an MI50, the older fixtures' goldens unchanged.
+  - `arch-qwen35` checks qwen35moe's refusals, plan and splits.
+  - Qwen3.6-35B-A3B Q4_K_M answers greedy prompts with the same text on the CPU and an MI50.
+  - The layered HF reference runs `Qwen3_5MoeForCausalLM` (branch test/qwen35moe-layered): cut to the checkpoint's first four layers it equals HF's full forward bit for bit, and it wrote the Qwen3.6-35B-A3B Q4_K_M's goldens (docs/ASSETS.md, The layered qwen35 reference).
+  - Against them the Q4_K_M passes 40 of 41 checks on the CPU and an MI50, every NLL case with more than 60% of its bound to spare (largest 0.0406 of 0.13 whole, 0.0958 of 0.25 in windows).
+  - File-exact layered goldens, HF on the Q4_K_M's own weights a layer at a time (`goldens --file-exact`): the file passes all 21 of their checks on the CPU and an MI50 at the family's file-exact bounds, top-1 6 of 6, NLL deltas at most 0.0102 of 0.02 whole and 0.0180 of 0.02 in windows, and HF on those weights turns the disputed ranking over as llmx does.
+  - Against the checkpoint's goldens the file's one miss is `The three primary colors are red,`, whose reference top two are 0.0058 logits apart; the Q4_K_M, Q5_K_M and Q6_K turn it over on the CPU while the Q8_0 keeps HF's order, and HF on the file's own weights turns it over too, so it is the quantization's. The top-1-exact failure stays recorded.
+  - The file's quality bound, agreed in the devlog on 2026-09-30 (delegation 14:26, agreement 14:30): after every file-exact check passes, the checkpoint's top-1 on five rankings of six for SHA-256 `a8adba03` alone, every other bound unchanged; with it the file passes the whole run, file-exact first, on the CPU and an MI50 (docs/ASSETS.md, The layered qwen35 reference).
+- **Speed**, one MI50 at default clocks, all arms on the card, tok/s:
+  - Qwen3.6-35B-A3B Q4_K_M, llmx against the reference, two arms each: pp64 427/428 against 315/353, pp512 1066/1067 against 1010/1009, pp4096 982/982 against 959/957, tg32 109/115 against 79/79, tg128 105/114 against 80/82, tg256 after 16384 tokens 88/92 against 74/75; faster on every cell, with the host's load at 24 to 35 from other work, recorded.
+  - Qwen3-30B-A3B Q4_K_M, whose routing code moved, against main on the same base, four samples a cell: every cell within -0.9 to +1.2 percent.
+- **Expert offload** on the real file, greedy text the same in every placement: all on the MI50 100 tok/s decode, `--n-cpu-moe 10` 14, `--cpu-moe` 6, `--cpu-moe --moe-stream-from 32` 7.
+- **Serving:** `llmx serve` answers four parallel completions and a chat completion on Qwen3.6-35B-A3B on one MI50.
+- **Gates:** CTest 39 of 39 on an MI50 and 40 of 40 on the Radeon VII; the device suite with `--require-tools` on an MI50, every component but the MXFP4 one, which Vulkan does not run yet; on the Radeon VII the `qwen35`, `moe` and `arch-boundary` components; docs, dead-code, reference-generator and reference-consumer on the landing tree.
+- **Gotchas:**
+  - The shared expert's gate is a GGUF vector of E weights, checked as an F32 row and run as a one-column matmul.
+  - HF's fused `gate_up_proj` splits into the gate and up stacks, each expert's first half of rows being the gate.
 
 ## README support overview (2026-09-30, branch docs/readme-support, merged at `d74f0015`)
 

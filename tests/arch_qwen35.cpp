@@ -1,5 +1,6 @@
 // The qwen35 module (model/arch/qwen35.hpp) on tiny models built in memory: every refused key and tensor with its text, the plan of each layer kind, the footprint, and the runtime's rules for a model whose layers keep a recurrent state.
 // The math is held to HF by the suite's qwen35 component; here a split and slices are held to one CPU bit for bit, which the per-token recurrence gives.
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -169,6 +170,49 @@ void booleans(gguf::GGUFModel& m, const std::string& key, const std::vector<bool
 void rename(gguf::GGUFModel& m, const std::string& name, const std::string& to) {
     for (auto& t : m.tensors)
         if (t.name == name) t.name = to;
+}
+
+// The tiny model as a qwen35moe file: every key under the qwen35moe prefix, no dense width, and each layer's dense block replaced by X = 4 experts of FE, K = 2 a token, and a shared expert of FS with its gate.
+constexpr uint64_t X = 4, K = 2, FE = 5, FS = 7;
+gguf::GGUFModel routed(gguf::GGUFModel m) {
+    for (auto& kv : m.kv) {
+        if (kv.first.rfind("qwen35.", 0) == 0) kv.first = "qwen35moe." + kv.first.substr(7);
+        if (kv.first == "general.architecture") kv.second.s = "qwen35moe";
+    }
+    for (size_t i = 0; i < m.kv.size(); ++i)
+        if (m.kv[i].first == "qwen35moe.feed_forward_length") m.kv.erase(m.kv.begin() + (long)i);
+    for (const auto& kv : std::vector<std::pair<std::string, uint64_t>>{
+             {"expert_count", X}, {"expert_used_count", K}, {"expert_feed_forward_length", FE}, {"expert_shared_feed_forward_length", FS}}) {
+        gguf::MetaValue v;
+        v.vtype = gguf::V_UINT32;
+        v.u = kv.second;
+        m.kv.push_back({"qwen35moe." + kv.first, v});
+    }
+    auto add = [&](const std::string& name, std::vector<uint64_t> shape, float scale) {
+        size_t count = 1;
+        for (uint64_t d : shape) count *= size_t(d);
+        const size_t at = m.blob.size();
+        m.blob.resize(at + count * sizeof(float));
+        for (size_t i = 0; i < count; ++i) {
+            const float v = scale * float(int((i * 13 + m.tensors.size() * 5) % 23) - 11) / 64.0f;
+            std::memcpy(m.blob.data() + at + i * sizeof(float), &v, sizeof(v));
+        }
+        m.tensors.push_back({name, std::move(shape), quant::GGML_TYPE_F32, 0});
+        m.offsets.push_back(at);
+    };
+    for (int l = 0; l < 4; ++l) {
+        const std::string pre = "blk." + std::to_string(l) + ".";
+        for (const char* dense : {"ffn_gate.weight", "ffn_up.weight", "ffn_down.weight"}) rename(m, pre + dense, "unused." + pre + dense);
+        add(pre + "ffn_gate_inp.weight", {E, X}, 4.0f);
+        add(pre + "ffn_gate_exps.weight", {E, FE, X}, 1.0f);
+        add(pre + "ffn_up_exps.weight", {E, FE, X}, 1.0f);
+        add(pre + "ffn_down_exps.weight", {FE, E, X}, 1.0f);
+        add(pre + "ffn_gate_inp_shexp.weight", {E}, 2.0f);
+        add(pre + "ffn_gate_shexp.weight", {E, FS}, 1.0f);
+        add(pre + "ffn_up_shexp.weight", {E, FS}, 1.0f);
+        add(pre + "ffn_down_shexp.weight", {FS, E}, 1.0f);
+    }
+    return m;
 }
 
 bool same(const std::vector<float>& a, const std::vector<float>& b) {
@@ -456,8 +500,7 @@ void failed_admission_takes_no_slot() {
 }
 
 // A prompt in slices of 1, 3 and 16, and its decode, give the bytes of the prompt in one pass; two sequences in one pass give each one's bytes alone.
-void slices() {
-    const gguf::GGUFModel m = tiny();
+void slices(const gguf::GGUFModel& m) {
     const infer::ModelWeights w = infer::gguf_weights(m);
     const std::vector<uint32_t> ids = {7, 3, 11, 30, 2, 19, 5, 8, 13, 21, 1, 17, 4};
     std::vector<std::vector<float>> runs;
@@ -492,8 +535,8 @@ void slices() {
 }
 
 // Two CPU backends, the first stage holding only a linear-attention layer, which keeps a state and no KV, give one CPU's bytes: a prompt, decode steps and two sequences in one pass.
-void split_with_a_stage_of_states() {
-    const gguf::GGUFModel m = tiny();
+// With `ffn_apart` every layer's feed-forward part runs on the second backend and its mixer on the first, as experts on the CPU beside a device run.
+void split_with_a_stage_of_states(const gguf::GGUFModel& m, bool ffn_apart = false) {
     const infer::ModelWeights w = infer::gguf_weights(m);
     infer::ModelOptions options;
     options.state_slots = 2;
@@ -501,10 +544,14 @@ void split_with_a_stage_of_states() {
     infer::Model one(w, backend::make_cpu_backend(), options);
     infer::Placement place;
     place.mixer_device = place.ffn_device = {0, 1, 1, 1};
+    if (ffn_apart) {
+        place.mixer_device = {0, 0, 0, 0};
+        place.ffn_device = {1, 1, 1, 1};
+    }
     place.embed_device = 0;
     place.output_device = 1;
     infer::Model two(w, {backend::make_cpu_backend(), backend::make_cpu_backend()}, place, options);
-    require(two.kv_pools() == 1 && one.kv_pools() == 1 && two.stage_count() == 2, "a stage of states given a KV storage");
+    require(two.kv_pools() == 1 && one.kv_pools() == 1 && (ffn_apart || two.stage_count() == 2), "a stage of states given a KV storage");
     for (int ubatch : {1, 3, 16}) {
         one.set_ubatch(ubatch);
         two.set_ubatch(ubatch);
@@ -534,6 +581,52 @@ void split_with_a_stage_of_states() {
     two.reset(d);
 }
 
+// qwen35moe: its refused keys, a routed layer's plan, and a prompt, its slices, two sequences and splits giving one pass's and one backend's bytes.
+void experts() {
+    auto read = [](const gguf::GGUFModel& m) { infer::gguf_weights(m); };
+    auto moe_set = [](gguf::GGUFModel& m, const std::string& key, uint64_t value) {
+        for (auto& kv : m.kv)
+            if (kv.first == "qwen35moe." + key) kv.second.u = value;
+    };
+    refuses("no shared expert width", "missing metadata qwen35moe.expert_shared_feed_forward_length", [&] {
+        gguf::GGUFModel m = routed(tiny());
+        for (size_t i = 0; i < m.kv.size(); ++i)
+            if (m.kv[i].first == "qwen35moe.expert_shared_feed_forward_length") m.kv.erase(m.kv.begin() + (long)i);
+        read(m);
+    });
+    refuses("more experts a token than a layer has", "more experts per token than the layer has", [&] {
+        gguf::GGUFModel m = routed(tiny());
+        moe_set(m, "expert_used_count", X + 1);
+        read(m);
+    });
+    refuses("another gating function", "unsupported expert gating function", [&] {
+        gguf::GGUFModel m = routed(tiny());
+        gguf::MetaValue v;
+        v.vtype = gguf::V_UINT32;
+        v.u = 2;
+        m.kv.push_back({"qwen35moe.expert_gating_func", v});
+        read(m);
+    });
+
+    const gguf::GGUFModel m = routed(tiny());
+    const infer::ModelPlan p = infer::plan_model(infer::gguf_weights(m));
+    for (size_t l = 0; l < 4; ++l) {
+        const infer::LayerPlan& layer = p.layers[l];
+        const bool full = l % 2;
+        require(layer.routed && layer.roles.size() == (full ? 16u : 19u), "routed layer " + std::to_string(l) + "'s roles");
+        require(layer.ops.back().part == infer::Part::ffn && layer.ops.back().op == backend::Op::sigmoid_mul, "the shared expert's gate op");
+        for (const infer::Role& role : layer.roles) {
+            if (role.part != infer::Part::ffn) continue;
+            const bool stack = role.kind == infer::RoleKind::experts;
+            require(role.stream == (stack ? infer::Stream::window : infer::Stream::copy), "role " + role.name + "'s stream");
+        }
+    }
+    require(p.slots.size() == 14 && p.slots[9] == std::max(K * FE, FS) && p.slots[10] == X && p.slots[11] == K && p.slots[13] == 1, "a routed model's slots");
+    slices(m);
+    split_with_a_stage_of_states(m);
+    split_with_a_stage_of_states(m, true);
+}
+
 } // namespace
 
 int main() {
@@ -544,8 +637,9 @@ int main() {
         state_rules();
         refused_passes_take_no_slot();
         failed_admission_takes_no_slot();
-        slices();
-        split_with_a_stage_of_states();
+        slices(tiny());
+        split_with_a_stage_of_states(tiny());
+        experts();
     } catch (const std::exception& e) {
         std::cerr << "arch-qwen35: FAIL: " << e.what() << "\n";
         return 1;

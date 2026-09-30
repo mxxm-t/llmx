@@ -250,10 +250,10 @@ def load_reference(args):
 
 def qwen35_names():
     """The HF Qwen3.5 text parameter each qwen35 GGUF tensor holds, and what the converter did to it, from the one map tests/qwen35.py writes the tiny models with (docs/QWEN35.md, GGUF conventions).
-    Returns {GGUF name: (HF name, transform)} for the tensors outside the layers and {GGUF name within a block: (HF name within a layer, transform)}."""
+    Returns {GGUF name: (HF name, transform)} for the tensors outside the layers and {GGUF name within a block: (HF name within a layer, transform)}, where each of the halves a routed layer's gate_up_proj is stored as names that parameter."""
     from qwen35 import BLOCK_TENSORS, OTHER_TENSORS
     return ({gguf: (hf, kind) for hf, (gguf, kind) in OTHER_TENSORS.items() if not gguf.startswith("blk.")},
-            {gguf: (hf, kind) for hf, (gguf, kind) in BLOCK_TENSORS.items()})
+            {part: (hf, kind) for hf, (gguf, kind) in BLOCK_TENSORS.items() for part in (gguf if isinstance(gguf, tuple) else (gguf,))})
 
 
 def take_rows(values, cols, order, numpy):
@@ -270,16 +270,19 @@ def take_columns(values, cols, order, numpy):
     return [values[r * cols + c] for r in range(len(values) // cols) for c in order]
 
 
-def qwen35_tensors(model, numpy):
-    """The tensors of the qwen35 GGUF `model` as HF holds them, with the converter's changes undone: (HF name, HF shape, flat values, type name).
+def qwen35_tensors(model, numpy, tensors=None):
+    """The tensors of the qwen35 or qwen35moe GGUF `model` as HF holds them, with the converter's changes undone: (HF name, HF shape, flat values, type name).
+    Only `tensors`, a list of the file's tensors, are decoded when it is given; a routed layer's gate and up stacks give one gate_up_proj, where its gate stack is listed.
     The MTP block, which HF has no module for, is left out."""
     import spec_decode
-    from qwen35 import tiled_order
+    from qwen35 import BLOCK_TENSORS, tiled_order
     np = __import__("numpy") if numpy else None
     names, block_names = qwen35_names()
-    hk, hv, dk = (model.value("qwen35.ssm." + k) for k in ("group_count", "time_step_rank", "state_size"))
-    dv = model.value("qwen35.ssm.inner_size") // hv
-    layers = model.value("qwen35.block_count") - model.value("qwen35.nextn_predict_layers", 0)
+    arch = model.value("general.architecture")
+    hk, hv, dk = (model.value(arch + ".ssm." + k) for k in ("group_count", "time_step_rank", "state_size"))
+    dv = model.value(arch + ".ssm.inner_size") // hv
+    layers = model.value(arch + ".block_count") - model.value(arch + ".nextn_predict_layers", 0)
+    by_name = {t.name: t for t in model.tensors}
     if hv % hk:
         raise SystemExit("%s has %d V heads over %d K heads" % (model.path, hv, hk))
     # The file's head j holds HF's head tiled_order[j], so HF's head i is the file's head heads[i].
@@ -289,18 +292,32 @@ def qwen35_tensors(model, numpy):
     def v_rows(block, offset=0):
         return list(range(offset)) + [offset + heads[i] * block + j for i in range(hv) for j in range(block)]
 
-    for t in model.tensors:
+    for t in model.tensors if tensors is None else tensors:
         match = re.fullmatch(r"blk\.(\d+)\.(.+)", t.name)
         if match and int(match[1]) >= layers:
             continue
         hf, kind = block_names.get(match[2], (None, None)) if match else names.get(t.name, (None, None))
         if hf is None:
             raise SystemExit("GGUF tensor %s has no HF Qwen3.5 parameter" % t.name)
+        if kind == "halves":
+            # HF's gate_up_proj is [E, 2I, H], each expert's gate rows then its up rows, and the file stacks the two halves apart.
+            parts = [by_name["blk.%s.%s" % (match[1], part)] for part in BLOCK_TENSORS[hf][0]]
+            if t is not parts[0]:
+                continue
+            experts, rows, width = reversed(parts[0].shape)
+            halves = [model.decode(part, numpy=numpy) for part in parts]
+            size = rows * width
+            values = (np.concatenate([h.reshape(experts, rows, width) for h in halves], axis=1).reshape(-1) if numpy else
+                      [v for e in range(experts) for h in halves for v in h[e * size:(e + 1) * size]])
+            yield "model.layers.%s.%s" % (match[1], hf), [experts, 2 * rows, width], values, spec_decode.type_name(t.type)
+            continue
         hf = "model.layers.%s.%s" % (match[1], hf) if match else hf
         shape = list(reversed(t.shape))
         values = model.decode(t, numpy=numpy)
         cols = shape[1] if len(shape) == 2 else 1
-        if kind == "norm":
+        if kind == "vector":
+            shape = [1, shape[0]]
+        elif kind == "norm":
             values = values - np.float32(1) if numpy else [v - 1.0 for v in values]
         elif kind == "a":
             values = take_rows(values, 1, heads, numpy)
@@ -316,16 +333,16 @@ def qwen35_tensors(model, numpy):
 
 
 def gguf_tensors(path, numpy=True):
-    """A qwen3 or qwen35 GGUF file's tensors as the HF parameters they hold, each decoded to f32 by tests/spec_decode.py, in file order: (HF name, HF shape, flat values, type name).
+    """A qwen3, qwen35 or qwen35moe GGUF file's tensors as the HF parameters they hold, each decoded to f32 by tests/spec_decode.py, in file order: (HF name, HF shape, flat values, type name).
     GGUF lists a matrix's dimensions fastest first, so the HF shape is the reverse; qwen3 files store the projections unpermuted, and qwen35 ones come back with the converter's changes undone."""
     import spec_decode
     model = spec_decode.GGUF(path)
     architecture = model.value("general.architecture")
-    if architecture == "qwen35":
+    if architecture in ("qwen35", "qwen35moe"):
         yield from qwen35_tensors(model, numpy)
         return
     if architecture != "qwen3":
-        raise SystemExit("%s holds a %s model; file-exact references map qwen3 and qwen35 tensors only" % (path, architecture))
+        raise SystemExit("%s holds a %s model; file-exact references map qwen3, qwen35 and qwen35moe tensors only" % (path, architecture))
     from f32 import hf_name
     for t in model.tensors:
         yield hf_name(t.name), list(reversed(t.shape)), model.decode(t, numpy=numpy), spec_decode.type_name(t.type)
@@ -942,10 +959,13 @@ QWEN35_GREEDY_GAP = 1e-4
 
 
 def qwen35_hf_config(fixture):
-    """The HF text config of a tiny qwen35 fixture, from the metadata tests/qwen35.py writes to its GGUF."""
+    """The HF text config of a tiny qwen35 or qwen35moe fixture, from the metadata tests/qwen35.py writes to its GGUF."""
     from f32 import VOCAB
-    from qwen35 import CONFIG, LAYERS, V_HEAD, full_attention
+    from qwen35 import CONFIG, LAYERS, MOE, V_HEAD, full_attention
     head = CONFIG["attention.key_length"]
+    moe = {"architectures": ["Qwen3_5MoeForCausalLM"], "model_type": "qwen3_5_moe_text", "num_experts": MOE["expert_count"],
+           "num_experts_per_tok": MOE["expert_used_count"], "moe_intermediate_size": MOE["expert_feed_forward_length"],
+           "shared_expert_intermediate_size": MOE["expert_shared_feed_forward_length"]} if fixture.get("moe") else {}
     return {"architectures": ["Qwen3_5ForCausalLM"], "model_type": "qwen3_5_text", "dtype": "float32",
             "vocab_size": VOCAB, "hidden_size": CONFIG["embedding_length"], "intermediate_size": CONFIG["feed_forward_length"],
             "num_hidden_layers": LAYERS, "num_attention_heads": CONFIG["attention.head_count"],
@@ -958,14 +978,15 @@ def qwen35_hf_config(fixture):
             "layer_types": ["full_attention" if full_attention(layer) else "linear_attention" for layer in range(LAYERS)],
             "rope_parameters": {"rope_type": "default", "rope_theta": CONFIG["rope.freq_base"],
                                 "partial_rotary_factor": CONFIG["rope.dimension_count"] / head,
-                                "mrope_section": CONFIG["rope.dimension_sections"][:3], "mrope_interleaved": True}}
+                                "mrope_section": CONFIG["rope.dimension_sections"][:3], "mrope_interleaved": True}, **moe}
 
 
-def load_qwen35_tiny(directory, keys, torch, transformers):
-    """The Qwen3_5ForCausalLM checkpoint in `directory`, whose parameters are named `keys`, loaded from local files in float32 with eager attention.
+def load_qwen35_tiny(directory, keys, torch, transformers, moe=False):
+    """The Qwen3_5ForCausalLM checkpoint in `directory`, or with `moe` the Qwen3_5MoeForCausalLM one, whose parameters are named `keys`, loaded from local files in float32 with eager attention.
     It may leave only mtp.* and model.visual.* keys unused and may miss no key; returns the model and the keys it left unused."""
-    model, info = transformers.Qwen3_5ForCausalLM.from_pretrained(directory, dtype=torch.float32, attn_implementation="eager",
-                                                                  local_files_only=True, output_loading_info=True)
+    causal = transformers.Qwen3_5MoeForCausalLM if moe else transformers.Qwen3_5ForCausalLM
+    model, info = causal.from_pretrained(directory, dtype=torch.float32, attn_implementation="eager",
+                                         local_files_only=True, output_loading_info=True)
     # HF leaves out of its report the keys it is told to drop, so the unused keys are the checkpoint's less the model's own.
     unused = sorted(set(keys) - set(model.state_dict()))
     stray = sorted(set(info["unexpected_keys"]) | {key for key in unused if not QWEN35_UNUSED.match(key)})
@@ -981,25 +1002,50 @@ def load_qwen35_tiny(directory, keys, torch, transformers):
 
 
 @contextlib.contextmanager
-def counted_delta_rules(modeling):
-    """HF's two delta-rule functions, the per-token recurrence and the chunked form, wrapped to count their calls, with the lowest log-decay the recurrence reads."""
+def counted_delta_rules(*modelings):
+    """HF's two delta-rule functions in each modeling module, the per-token recurrence and the chunked form, wrapped to count their calls in one count, with the lowest log-decay the recurrence reads."""
     calls = {"recurrent": 0, "chunk": 0, "log_decay": 0.0}
-    recurrent, chunk = modeling.torch_recurrent_gated_delta_rule, modeling.torch_chunk_gated_delta_rule
+    originals = [(m, m.torch_recurrent_gated_delta_rule, m.torch_chunk_gated_delta_rule) for m in modelings]
 
-    def count_recurrent(*args, **kwargs):
-        calls["recurrent"] += 1
-        calls["log_decay"] = min(calls["log_decay"], kwargs["g"].min().item())
-        return recurrent(*args, **kwargs)
+    def counted(recurrent, chunk):
+        def count_recurrent(*args, **kwargs):
+            calls["recurrent"] += 1
+            calls["log_decay"] = min(calls["log_decay"], kwargs["g"].min().item())
+            return recurrent(*args, **kwargs)
 
-    def count_chunk(*args, **kwargs):
-        calls["chunk"] += 1
-        return chunk(*args, **kwargs)
+        def count_chunk(*args, **kwargs):
+            calls["chunk"] += 1
+            return chunk(*args, **kwargs)
+        return count_recurrent, count_chunk
 
-    modeling.torch_recurrent_gated_delta_rule, modeling.torch_chunk_gated_delta_rule = count_recurrent, count_chunk
+    for m, recurrent, chunk in originals:
+        m.torch_recurrent_gated_delta_rule, m.torch_chunk_gated_delta_rule = counted(recurrent, chunk)
     try:
         yield calls
     finally:
-        modeling.torch_recurrent_gated_delta_rule, modeling.torch_chunk_gated_delta_rule = recurrent, chunk
+        for m, recurrent, chunk in originals:
+            m.torch_recurrent_gated_delta_rule, m.torch_chunk_gated_delta_rule = recurrent, chunk
+
+
+# The smallest gap allowed between a token's k-th and (k+1)-th router logit in the tiny qwen35moe fixture, so that no expert choice can turn over under other rounding.
+QWEN35_ROUTER_GAP = 1e-3
+
+
+@contextlib.contextmanager
+def router_gaps(model, torch):
+    """Every router of `model` hooked to record, over the tokens it routes, the smallest gap between the k-th and (k+1)-th logit, which order the probabilities."""
+    gaps = []
+
+    def hook(module, inputs, output):
+        top = torch.topk(output[0].double(), module.top_k + 1, dim=-1).values
+        gaps.append((top[:, -2] - top[:, -1]).min().item())
+
+    handles = [m.register_forward_hook(hook) for m in model.modules() if type(m).__name__ == "Qwen3_5MoeTopKRouter"]
+    try:
+        yield gaps
+    finally:
+        for h in handles:
+            h.remove()
 
 
 def qwen35_cache(model, torch, transformers):
@@ -1090,7 +1136,8 @@ def gen_qwen35_tiny(output_dir=OUT_DIR):
 
     torch.set_num_threads(1)
     fixtures, forwards = [], {}
-    with counted_delta_rules(modeling) as calls, torch.no_grad():
+    moe_modeling = importlib.import_module("transformers.models.qwen3_5_moe.modeling_qwen3_5_moe")
+    with counted_delta_rules(modeling, moe_modeling) as calls, torch.no_grad():
         for spec in qwen35.FIXTURES:
             raw = qwen35.raw_weights(spec)
             record = dict(spec, weights_sha256=weight_hash(qwen35.hashed(raw)))
@@ -1099,7 +1146,7 @@ def gen_qwen35_tiny(output_dir=OUT_DIR):
                     json.dump(qwen35_hf_config(spec), f)
                 tensors = {name: torch.tensor(values, dtype=torch.float32).reshape(shape) for name, shape, values in raw}
                 save_file(tensors, os.path.join(directory, "model.safetensors"), metadata={"format": "pt"})
-                model, record["unused_keys"] = load_qwen35_tiny(directory, list(tensors), torch, transformers)
+                model, record["unused_keys"] = load_qwen35_tiny(directory, list(tensors), torch, transformers, bool(spec.get("moe")))
                 state = model.state_dict()
                 if any(not torch.equal(state[name], tensor) for name, tensor in tensors.items() if name in state) or \
                         (spec["tied"] and not torch.equal(state["lm_head.weight"], state["model.embed_tokens.weight"])):
@@ -1117,7 +1164,12 @@ def gen_qwen35_tiny(output_dir=OUT_DIR):
                         raise SystemExit("qwen35: %s gives other logits than %s" % (spec["name"], base["name"]))
                     record["base"] = base["name"]
                 else:
-                    goldens, longest, full = qwen35_goldens(model, torch, transformers, calls)
+                    with router_gaps(model, torch) as gaps:
+                        goldens, longest, full = qwen35_goldens(model, torch, transformers, calls)
+                    if spec.get("moe"):
+                        record["min_router_gap"] = min(gaps)
+                        if record["min_router_gap"] < QWEN35_ROUTER_GAP:
+                            raise SystemExit("qwen35: %s routes a token whose k-th and next expert are within %.2e; change the weights" % (spec["name"], min(gaps)))
                     forwards[spec["name"]] = longest, full
                     # The goldens hold the recurrence's arithmetic only if the chunked form, which the full forward runs, gives other bits.
                     record["full_forward_distance"] = (full - longest).abs().max().item()
@@ -1131,7 +1183,7 @@ def gen_qwen35_tiny(output_dir=OUT_DIR):
                   ", full forward within %.3g" % record["full_forward_distance"] if "full_forward_distance" in record else ""))
     path = os.path.join(output_dir, "baseline_qwen35.json")
     _write(path, {
-        "_comment": "Generated by tools/gen_baseline.py qwen35-tiny using HF Qwen3_5ForCausalLM with deterministic synthetic weights.",
+        "_comment": "Generated by tools/gen_baseline.py qwen35-tiny using HF Qwen3_5ForCausalLM, and Qwen3_5MoeForCausalLM for the qwen35moe fixture, with deterministic synthetic weights.",
         "torch_version": torch.__version__, "transformers_version": transformers.__version__,
         "dtype": "float32", "attention": "eager",
         "goldens": "HF's token-by-token cached forward from a cache holding a zero state, every step through its recurrent delta rule",

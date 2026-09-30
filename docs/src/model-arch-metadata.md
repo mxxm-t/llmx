@@ -25,6 +25,13 @@ their defaults and its other refusals are its reader's
   the reader's own text, as Qwen3's gating function is.
 - `boolean(file, key, fallback)`: a boolean; an absent key takes
   `fallback`, and another type is refused ("invalid boolean type").
+- `Experts`, `experts(file, prefix)`: a mixture-of-experts file's routing
+  keys, `expert_count`, `expert_used_count`,
+  `expert_feed_forward_length` and `expert_weights_norm` (default true).
+  Routing is a softmax over the scores, so an `expert_gating_func` other
+  than 1 ("unsupported expert gating function") and an
+  `expert_weights_scale` other than 1 ("scaled expert weights are
+  unsupported") are refused. qwen3moe and qwen35moe read them here.
 - `count(file, key, fallback)`: a count, which may be zero, from any of the
   four integer types up to `INT_MAX`; an absent key takes `fallback`, a
   negative value or one past `INT_MAX` is refused ("integer outside

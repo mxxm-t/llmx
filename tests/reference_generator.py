@@ -22,6 +22,36 @@ generator = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(generator)
 
 
+def write_routed_layer(path):
+    """A qwen35moe GGUF at `path` holding one routed layer, written as the converter writes one: HF's gate_up_proj of [E, 2I, H] as the gate and up stacks apart, and the shared expert's gate of [1, H] as a vector.
+    Returns the HF parameters it holds, {name: (shape, values)}."""
+    import spec_decode
+    experts, rows, width, shared = 3, 2, 4, 5
+    written, state = [], {}
+
+    def add(gguf, hf, shape, values, stored=None):
+        written.append((gguf, stored or list(reversed(shape)), spec_decode.F32, struct.pack("<%df" % len(values), *values)))
+        state[hf] = (shape, values)
+
+    layer = "model.layers.0.mlp."
+    gate = [1000.0 + i for i in range(experts * rows * width)]
+    up = [2000.0 + i for i in range(experts * rows * width)]
+    size = rows * width
+    written += [(name, [width, rows, experts], spec_decode.F32, struct.pack("<%df" % len(half), *half))
+                for name, half in (("blk.0.ffn_gate_exps.weight", gate), ("blk.0.ffn_up_exps.weight", up))]
+    state[layer + "experts.gate_up_proj"] = ([experts, 2 * rows, width], [v for e in range(experts) for half in (gate, up) for v in half[e * size:(e + 1) * size]])
+    add("blk.0.ffn_down_exps.weight", layer + "experts.down_proj", [experts, width, rows], [3000.0 + i for i in range(experts * width * rows)])
+    add("blk.0.ffn_gate_inp.weight", layer + "gate.weight", [experts, width], [4000.0 + i for i in range(experts * width)])
+    add("blk.0.ffn_gate_shexp.weight", layer + "shared_expert.gate_proj.weight", [shared, width], [5000.0 + i for i in range(shared * width)])
+    add("blk.0.ffn_up_shexp.weight", layer + "shared_expert.up_proj.weight", [shared, width], [6000.0 + i for i in range(shared * width)])
+    add("blk.0.ffn_down_shexp.weight", layer + "shared_expert.down_proj.weight", [width, shared], [7000.0 + i for i in range(shared * width)])
+    add("blk.0.ffn_gate_inp_shexp.weight", layer + "shared_expert_gate.weight", [1, width], [8000.0 + i for i in range(width)], [width])
+    metadata = {"general.architecture": (8, "qwen35moe"), "qwen35moe.block_count": (4, 1), "qwen35moe.ssm.group_count": (4, 2),
+                "qwen35moe.ssm.time_step_rank": (4, 2), "qwen35moe.ssm.state_size": (4, 2), "qwen35moe.ssm.inner_size": (4, 4)}
+    spec_decode.write_gguf(path, metadata, written)
+    return state
+
+
 class ReferenceGenerator(unittest.TestCase):
     def test_defaults_and_invalid_selection(self):
         default = generator.parse_args([])
@@ -262,6 +292,25 @@ class ReferenceGenerator(unittest.TestCase):
             spec_decode.write_gguf(path, metadata, written + [("blk.0.ssm_extra", [hv], spec_decode.F32, struct.pack("<%df" % hv, *[0.0] * hv))])
             with self.assertRaisesRegex(SystemExit, "blk.0.ssm_extra"):
                 generator.gguf_state(path, numpy=False)
+
+    def test_qwen35moe_tensors_join_the_expert_halves(self):
+        import spec_decode
+        with tempfile.TemporaryDirectory(prefix="llmx_reference_qwen35moe_state_") as directory:
+            path = os.path.join(directory, "tiny.gguf")
+            state = write_routed_layer(path)
+            layer = "model.layers.0.mlp."
+            (experts, rows, width), joined = state[layer + "experts.gate_up_proj"]
+            rows //= 2
+            got, types = generator.gguf_state(path, numpy=False)
+            self.assertEqual((got, types), (state, {"F32": len(state)}))
+            model = spec_decode.GGUF(path)
+            # The layered reference decodes one layer's tensors at a time; the up stack alone gives nothing, and the gate stack gives the whole gate_up_proj.
+            by_name = {t.name: t for t in model.tensors}
+            self.assertEqual(list(generator.qwen35_tensors(model, False, [by_name["blk.0.ffn_up_exps.weight"]])), [])
+            self.assertEqual([(name, shape, values) for name, shape, values, _ in generator.qwen35_tensors(model, False, [by_name["blk.0.ffn_gate_exps.weight"]])],
+                             [(layer + "experts.gate_up_proj", [experts, 2 * rows, width], joined)])
+            if importlib.util.find_spec("numpy"):
+                self.assertEqual({key: (shape, list(values)) for key, (shape, values) in generator.gguf_state(path)[0].items()}, state)
 
     def test_qwen35_reference_loads_as_pinned(self):
         # load_qwen35 against doubles: the versions, float32 and eager attention, transformers' torch forms, and the keys a load may leave out.
@@ -586,14 +635,23 @@ class LayeredReference(unittest.TestCase):
             out = os.path.join(directory, "goldens")
             good = ["goldens", "--repo", "Qwen/Qwen3.5-9B", "--revision", "a" * 40, "--gguf", gguf, "--output-dir", out]
             args = layered.parse_args(good + ["--gguf-repo", "a/b-GGUF", "--gguf-revision", "b" * 40])
-            self.assertEqual((args.threads, args.gguf_repo, args.gguf_revision), (6, "a/b-GGUF", "b" * 40))
+            self.assertEqual((args.threads, args.gguf_repo, args.gguf_revision, args.file_exact), (6, "a/b-GGUF", "b" * 40, False))
+            # A file-exact run's writers take the GGUF's weights and label the goldens with the record of them.
+            exact = layered.parse_args(good + ["--file-exact"])
+            self.assertTrue(exact.file_exact)
+            self.assertEqual((lambda w: (w.weights_gguf, w.weights))(layered.writer_args(exact, {"file": "model.gguf"})), (gguf, {"file": "model.gguf"}))
+            self.assertEqual((lambda w: (w.weights_gguf, w.weights))(layered.writer_args(exact)), (None, None))
             self.assertTrue(Path(args.output_dir).is_absolute())
-            self.assertEqual(layered.parse_args(["equality", "--output", out, "--threads", "2"]).threads, 2)
+            check = layered.parse_args(["equality", "--output", out, "--threads", "2"])
+            self.assertEqual((check.threads, check.repo, check.revision, check.layers), (2, layered.EQUALITY_REPO, layered.EQUALITY_REVISION, None))
+            cut = ["equality", "--output", out, "--repo", "Qwen/Qwen3.6-35B-A3B", "--revision", "c" * 40, "--layers", "4"]
+            self.assertEqual((lambda a: (a.repo, a.revision, a.layers))(layered.parse_args(cut)), ("Qwen/Qwen3.6-35B-A3B", "c" * 40, 4))
             invalid = [["typo"], ["goldens"], ["equality"], good[:-2], good + ["--threads", "0"],
                        good[:4] + ["main"] + good[5:], good[:4] + ["A" * 40] + good[5:],
                        good[:2] + [directory] + good[3:], good[:6] + [gguf + ".missing"] + good[7:],
                        good + ["--gguf-revision", "b" * 40], good + ["--gguf-repo", "a/b", "--gguf-revision", "b" * 39],
-                       good[:-1] + [generator.OUT_DIR]]
+                       good[:-1] + [generator.OUT_DIR], good + ["--layers", "4"],
+                       cut[:-1] + ["0"], cut[:6] + ["main"] + cut[7:], cut[:4] + [directory] + cut[5:]]
             with contextlib.redirect_stderr(io.StringIO()):
                 for argv in invalid:
                     with self.subTest(argv=argv), self.assertRaises(SystemExit) as error:
@@ -667,10 +725,10 @@ class LayeredReference(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="llmx_layered_plan_") as directory, \
              patch.dict(sys.modules, {"transformers": types.ModuleType("transformers"), "transformers.core_model_loading": core,
                                       "transformers.conversion_mapping": conversion, "safetensors": safetensors}):
-            def plan(weight_map, tied=False):
+            def plan(weight_map, tied=False, cut=None):
                 with open(os.path.join(directory, "model.safetensors.index.json"), "w", encoding="utf-8") as f:
                     json.dump({"weight_map": weight_map}, f)
-                return layered.checkpoint_plan(directory, model(tied))
+                return layered.checkpoint_plan(directory, model(tied), cut)
 
             found, unexpected = plan(stored)
             self.assertEqual(found, {name: (stored[key], key) for name, key in (
@@ -680,9 +738,15 @@ class LayeredReference(unittest.TestCase):
             self.assertEqual(unexpected, ["model.visual.blocks.0.weight", "mtp.fc.weight"])
             untied = {key: file for key, file in stored.items() if key != "lm_head.weight"}
             self.assertNotIn("lm_head.weight", plan(untied, tied=True)[0])
+            # A model cut to its first layer leaves the later layers' keys unused, and only such a model does.
+            deeper = dict(stored, **{"model.language_model.layers.1.mlp.weight": "b.safetensors"})
+            self.assertEqual(plan(deeper, cut=1)[1], ["model.language_model.layers.1.mlp.weight", "model.visual.blocks.0.weight", "mtp.fc.weight"])
+            self.assertEqual((layered.past_cut("model.layers.3.mlp.weight", 3), layered.past_cut("model.layers.2.mlp.weight", 3),
+                              layered.past_cut("mtp.layers.3.mlp.weight", 3), layered.past_cut("model.layers.3.mlp.weight", None)), (True, False, False, False))
             converted = dict(untied, **{"model.language_model.layers.0.mlp_fused.weight": "b.safetensors"})
             del converted["model.language_model.layers.0.mlp.weight"]
             for weight_map, tied, error in ((untied, False, "no checkpoint key gives lm_head.weight"),
+                                            (deeper, False, "neither takes nor ignores, such as model.language_model.layers.1.mlp.weight"),
                                             (dict(stored, **{"model.language_model.layers.0.extra": "a.safetensors"}), False, "neither takes nor ignores"),
                                             ({key: file for key, file in stored.items() if "norm" not in key}, False, "no checkpoint key gives model.norm.weight"),
                                             (converted, True, "converts model.language_model.layers.0.mlp_fused.weight on load"),
@@ -690,6 +754,43 @@ class LayeredReference(unittest.TestCase):
                 with self.subTest(error=error), self.assertRaises(SystemExit) as refused:
                     plan(weight_map, tied)
                 self.assertIn(error, str(refused.exception))
+
+    def test_config_chooses_the_model_and_cuts_its_layers(self):
+        def config_class(kind):
+            return SimpleNamespace(from_pretrained=lambda directory: SimpleNamespace(kind=kind, num_hidden_layers=4, layer_types=["linear_attention"] * 3 + ["full_attention"]))
+        transformers = SimpleNamespace(Qwen3_5TextConfig=config_class("dense"), Qwen3_5ForCausalLM="dense model",
+                                       Qwen3_5MoeTextConfig=config_class("moe"), Qwen3_5MoeForCausalLM="moe model")
+        with tempfile.TemporaryDirectory(prefix="llmx_layered_config_") as directory:
+            def chosen(raw, layers=None):
+                with open(os.path.join(directory, "config.json"), "w", encoding="utf-8") as f:
+                    json.dump(raw, f)
+                causal, config = layered.text_model(transformers, directory, layers)
+                return causal, config.kind, config._attn_implementation, config.num_hidden_layers, config.layer_types
+
+            moe = {"model_type": "qwen3_5_moe", "text_config": {"model_type": "qwen3_5_moe_text"}}
+            self.assertEqual(chosen(moe), ("moe model", "moe", "eager", 4, ["linear_attention"] * 3 + ["full_attention"]))
+            self.assertEqual(chosen(moe, 3), ("moe model", "moe", "eager", 3, ["linear_attention"] * 3))
+            self.assertEqual(chosen({"model_type": "qwen3_5_text"})[:2], ("dense model", "dense"))
+            for raw, layers, error in ((moe, 5, "has 4 decoder layers, not 5"), (moe, 0, "has 4 decoder layers, not 0"),
+                                       ({"model_type": "qwen3_next"}, None, "holds a qwen3_next model")):
+                with self.subTest(error=error), self.assertRaises(SystemExit) as refused:
+                    chosen(raw, layers)
+                self.assertIn(error, str(refused.exception))
+
+    @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy, which the file-exact reference decodes with")
+    def test_file_weights_give_one_layer_of_the_file(self):
+        # A file-exact run reads one module's parameters at a time from the GGUF, as HF names them.
+        torch = SimpleNamespace(from_numpy=lambda values: values)
+        with tempfile.TemporaryDirectory(prefix="llmx_layered_file_") as directory:
+            path = os.path.join(directory, "tiny.gguf")
+            state = write_routed_layer(path)
+            weights = layered.FileWeights(path)
+            got = weights.read(torch, sorted(state))
+            self.assertEqual({name: (list(value.shape), value.reshape(-1).tolist()) for name, value in got.items()}, state)
+            self.assertEqual(weights.types, {"F32": len(state)})
+            for names in (sorted(state)[1:], sorted(state) + ["model.layers.0.mlp.extra.weight"]):
+                with self.subTest(names=len(names)), self.assertRaisesRegex(SystemExit, "the GGUF gives"):
+                    weights.read(torch, names)
 
     def test_provenance_names_the_f32_tensors_it_had_nothing_to_compare_with(self):
         provenance = layered.Provenance.__new__(layered.Provenance)
@@ -744,19 +845,29 @@ class LayeredReference(unittest.TestCase):
                     self.assertEqual((len(spans), sum(end - start for start, end in spans), sum(end - start - 1 for start, end in spans)),
                                      (case["chunks"], case["used_tokens"], case["n_scored"]))
 
-    def test_committed_equality_record_shows_the_layered_forward_equal(self):
-        doc = json.loads((Path(generator.OUT_DIR) / "layered_equality.json").read_text(encoding="utf-8"))
-        self.assertEqual((doc["reference_repo"], doc["reference_revision"]), (layered.EQUALITY_REPO, layered.EQUALITY_REVISION))
-        self.assertEqual((doc["transformers_version"], doc["torch_version"], doc["reference_dtype"], doc["attention"]),
-                         (generator.QWEN35_ENV["transformers"], generator.QWEN35_ENV["torch"], "float32", "eager"))
-        self.assertTrue(doc["parameters"] > 0 and doc["parameters_equal"] == doc["parameters"] and doc["inv_freq_equal"])
-        # Every input the goldens take, each prompt and the text whole and in every window, with the full forward's logits bit for bit.
-        tokens = next(case["tokens"] for case in doc["cases"] if case["label"] == "perplexity")
-        self.assertEqual([case["label"] for case in doc["cases"]], layered.row_labels(len(generator.LOGIT_PROMPTS), tokens))
-        for case in doc["cases"]:
-            with self.subTest(case=case["label"]):
-                self.assertRegex(case["full_sha256"], r"^[0-9a-f]{64}$")
-                self.assertEqual((case["layered_sha256"], case["max_abs_difference"]), (case["full_sha256"], 0.0))
+    def test_committed_equality_records_show_the_layered_forward_equal(self):
+        import baseline_layered
+        # The dense record runs Qwen3.5-0.8B whole, and the routed one the checkpoint of the Qwen3.6-35B-A3B goldens cut to its first four layers, three linear and one full attention.
+        routed = next(json.loads((golden["data"] / "baseline_logits.json").read_text(encoding="utf-8"))
+                      for golden in baseline_layered.GOLDENS.values() if golden["name"].startswith("Qwen3.6-35B-A3B"))
+        records = {"layered_equality.json": (layered.EQUALITY_REPO, layered.EQUALITY_REVISION, None, None),
+                   "layered_equality_qwen3.6-35b-a3b.json": (routed["reference_repo"], routed["reference_revision"],
+                                                             "the first 4, of which 1 full attention", routed["layered"]["experts_implementation"])}
+        for name, (repo, revision, layers, experts) in records.items():
+            with self.subTest(record=name):
+                doc = json.loads((Path(generator.OUT_DIR) / name).read_text(encoding="utf-8"))
+                self.assertEqual((doc["reference_repo"], doc["reference_revision"], doc.get("decoder_layers"), doc.get("experts_implementation")),
+                                 (repo, revision, layers, experts))
+                self.assertEqual((doc["transformers_version"], doc["torch_version"], doc["reference_dtype"], doc["attention"]),
+                                 (generator.QWEN35_ENV["transformers"], generator.QWEN35_ENV["torch"], "float32", "eager"))
+                self.assertTrue(doc["parameters"] > 0 and doc["parameters_equal"] == doc["parameters"] and doc["inv_freq_equal"])
+                # Every input the goldens take, each prompt and the text whole and in every window, with the full forward's logits bit for bit.
+                tokens = next(case["tokens"] for case in doc["cases"] if case["label"] == "perplexity")
+                self.assertEqual([case["label"] for case in doc["cases"]], layered.row_labels(len(generator.LOGIT_PROMPTS), tokens))
+                for case in doc["cases"]:
+                    with self.subTest(case=case["label"]):
+                        self.assertRegex(case["full_sha256"], r"^[0-9a-f]{64}$")
+                        self.assertEqual((case["layered_sha256"], case["max_abs_difference"]), (case["full_sha256"], 0.0))
 
     def test_committed_layered_goldens_are_the_generators(self):
         import baseline_layered
@@ -772,6 +883,8 @@ class LayeredReference(unittest.TestCase):
                                      (generator.QWEN35_ENV["transformers"], generator.QWEN35_ENV["torch"], "float32", "eager", 6))
                     self.assertRegex(doc["reference_revision"], r"^[0-9a-f]{40}$")
                     self.assertTrue(doc["layered"]["safetensors_sha256"])
+                    # A routed model's goldens name the experts implementation HF's default ran.
+                    self.assertEqual(doc["layered"].get("experts_implementation"), "grouped_mm" if golden["name"].startswith("Qwen3.6-35B-A3B") else None)
 
 
 def run():

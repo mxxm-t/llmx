@@ -15,7 +15,7 @@
 #include "model/arch/metadata.hpp"
 #include "model/arch/blocks.hpp"
 
-// Qwen 3.5, 3.6 and 3.8, the qwen35 architecture (docs/QWEN35.md), which the registry (model/arch/registry.hpp) reaches through open_dense: linear-attention layers, a gated delta net carrying a recurrent state, with a gated full-attention layer at every interval, each followed by Qwen3's dense feed-forward block.
+// Qwen 3.5, 3.6 and 3.8, the qwen35 and qwen35moe architectures (docs/QWEN35.md), which the registry (model/arch/registry.hpp) reaches through open_dense and open_routed: linear-attention layers, a gated delta net carrying a recurrent state, with a gated full-attention layer at every interval, each followed by Qwen3's dense feed-forward block, or on qwen35moe by routed experts beside a gated shared expert.
 // Weights are read as the converter stores them (docs/QWEN35.md, GGUF conventions): the norms but ssm_norm hold 1 + w, ssm_a holds -exp(A_log), attn_q holds each head's q and gate side by side, and V head j reads K head j mod Hk.
 
 namespace infer::qwen35 {
@@ -31,6 +31,9 @@ struct Config {
     float rms_eps = 1e-6f;
     int k_heads = 0, v_heads = 0, k_dim = 0, v_dim = 0;   // the linear attention's heads and widths
     std::vector<uint8_t> full;    // per decoder layer, whether it is a full-attention layer
+    // qwen35moe: experts per layer, experts each token takes, a routed expert's and the shared expert's hidden widths, and whether the chosen probabilities are renormalized to sum to one.
+    int n_expert = 0, n_expert_used = 0, n_ff_exp = 0, n_ff_shexp = 0;
+    bool expert_norm = true;
 };
 
 // The rules a configuration keeps whichever file it came from: whole query heads per KV head and V heads per K head, a rotary width that is even and inside a head, and projections and a cache that fit an allocation.
@@ -40,6 +43,8 @@ inline void check_config(const Config& c) {
     if (c.v_heads % c.k_heads) throw std::runtime_error("inference: linear-attention V heads must be a multiple of its K heads");
     if (c.rope_dim <= 0 || c.rope_dim % 2 || c.rope_dim > c.head_dim)
         throw std::runtime_error("inference: invalid rotary width, which must be even and at most the head width");
+    if (c.n_expert_used > c.n_expert || c.n_expert_used > 256)
+        throw std::runtime_error("inference: more experts per token than the layer has, or above 256");
     const uint64_t q = uint64_t(c.n_head) * 2 * uint64_t(c.head_dim), channels = 2 * uint64_t(c.k_heads) * uint64_t(c.k_dim);
     const uint64_t v = uint64_t(c.v_heads) * uint64_t(c.v_dim);
     if (q > uint64_t(std::numeric_limits<int>::max()) || channels + v > uint64_t(std::numeric_limits<int>::max()) ||
@@ -51,8 +56,8 @@ inline void check_config(const Config& c) {
         throw std::runtime_error("inference: context storage exceeds allocation limit");
 }
 
-// A qwen35 file's configuration, its keys read under `p`, the prefix the registry names.
-inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
+// A qwen35 file's configuration, its keys read under `p`, the prefix the registry names; with `moe`, a qwen35moe file's, which adds the experts' keys and has no dense width.
+inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool moe) {
     using metadata::integer;
     using metadata::real;
     Config c;
@@ -67,7 +72,13 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
     if (c.n_nextn > 1 || c.n_nextn >= blocks) throw std::runtime_error("inference: unsupported metadata " + p + "nextn_predict_layers");
     c.n_layer = blocks - c.n_nextn;
     c.n_embd = integer(m, p + "embedding_length");
-    c.n_ff = integer(m, p + "feed_forward_length");
+    if (moe) {
+        const metadata::Experts e = metadata::experts(m, p);
+        c.n_expert = e.count, c.n_expert_used = e.used, c.n_ff_exp = e.ff, c.expert_norm = e.norm;
+        c.n_ff_shexp = integer(m, p + "expert_shared_feed_forward_length");
+    } else {
+        c.n_ff = integer(m, p + "feed_forward_length");
+    }
     c.n_head = integer(m, p + "attention.head_count");
     c.n_head_kv = integer(m, p + "attention.head_count_kv", c.n_head);
     c.head_dim = integer(m, p + "attention.key_length");
@@ -117,31 +128,37 @@ enum Role : uint16_t {
     attn_q, attn_k, attn_v, attn_q_norm, attn_k_norm, attn_output,
     attn_qkv, attn_gate, ssm_alpha, ssm_beta, ssm_conv1d, ssm_a, ssm_dt, ssm_norm, ssm_out,
     ffn_gate, ffn_up, ffn_down,
+    ffn_gate_inp, ffn_gate_exps, ffn_up_exps, ffn_down_exps, ffn_gate_inp_shexp, ffn_gate_shexp, ffn_up_shexp, ffn_down_shexp,
 };
 enum Kind : uint8_t { linear, full };
 
 // The floats one row of a pass takes in each arena slot, the widest use either layer kind makes of it, since a layer uses only its own.
-// Slots: 0 x, 1 h, 2 attn_q's rows or the raw qkv rows, 3 k or the conv's output, 4 v or z, 5 the normed and rotated q or alpha then beta, 6 the attention's or the recurrence's output, gated, 7 gate, 8 up, 9 ffn.
+// Slots: 0 x, 1 h, 2 attn_q's rows or the raw qkv rows, 3 k or the conv's output, 4 v or z, 5 the normed and rotated q or alpha then beta, 6 the attention's or the recurrence's output, gated, 7 gate, 8 up, 9 ffn; on qwen35moe also 10 router scores, 11 expert ids, 12 expert weights, 13 the shared expert's gate.
+// On qwen35moe the feed-forward slots hold a token's k routed expert rows or the shared expert's row, whichever is wider.
 inline std::vector<size_t> slot_widths(const Config& c) {
-    const size_t e = (size_t)c.n_embd, d = (size_t)c.head_dim, ff = (size_t)c.n_ff;
+    const size_t e = (size_t)c.n_embd, d = (size_t)c.head_dim;
     const size_t q = (size_t)c.n_head * d, kv = (size_t)c.n_head_kv * d;
     const size_t v = (size_t)c.v_heads * (size_t)c.v_dim, channels = 2 * (size_t)c.k_heads * (size_t)c.k_dim + v;
-    return {e, e, std::max(2 * q, channels), std::max(kv, channels), std::max(kv, v), std::max(q, 2 * (size_t)c.v_heads), std::max(q, v), ff, ff, ff};
+    const size_t k = (size_t)c.n_expert_used, ff = std::max({(size_t)c.n_ff, k * (size_t)c.n_ff_exp, (size_t)c.n_ff_shexp});
+    std::vector<size_t> w = {e, e, std::max(2 * q, channels), std::max(kv, channels), std::max(kv, v), std::max(q, 2 * (size_t)c.v_heads), std::max(q, v), ff, ff, ff};
+    if (c.n_expert) w.insert(w.end(), {(size_t)c.n_expert, k, k, 1});
+    return w;
 }
 
 class Qwen35 final : public Architecture {
 public:
     explicit Qwen35(const Config& cfg) : cfg_(cfg) {}
 
-    // The embedding gives the vocabulary. A layer's roles are its norm, then its mixer's by its kind, then the feed-forward norm and the dense block; a full-attention layer keeps KV and a linear-attention layer a state.
-    // A layer holding the other kind's tensors, or a router, is refused, and blocks past the decoder layers are not read.
+    // The embedding gives the vocabulary. A layer's roles are its norm, then its mixer's by its kind, then the feed-forward norm and the dense block, or on qwen35moe the router, the expert stacks and the shared expert with its gate; a full-attention layer keeps KV and a linear-attention layer a state.
+    // A layer holding the other kind's tensors, or a router in a dense architecture, is refused, and blocks past the decoder layers are not read.
+    // A routed layer run beside its mixer copies its norm, router and shared expert there and writes its stacks into a window.
     ModelPlan plan(const TensorIndex& tensors) const override {
         const Config& c = cfg_;
         const TensorView& embedding = tensors.view(tensors.at("token_embd.weight"));
         if (embedding.shape.size() < 2 || !embedding.shape[1] || embedding.shape[1] > uint64_t(std::numeric_limits<int>::max()))
             throw std::runtime_error("inference: invalid vocabulary dimension");
         ModelPlan p;
-        p.role_ids = ffn_down + 1;
+        p.role_ids = ffn_down_shexp + 1;
         p.vocab = embedding.shape[1];
         const uint64_t E = (uint64_t)c.n_embd, D = (uint64_t)c.head_dim, F = (uint64_t)c.n_ff;
         const uint64_t Q = (uint64_t)c.n_head * D, KV = (uint64_t)c.n_head_kv * D;
@@ -153,7 +170,7 @@ public:
         for (int l = 0; l < c.n_layer; ++l) {
             const std::string pre = "blk." + std::to_string(l) + ".";
             LayerPlan& layer = p.layers[(size_t)l];
-            if (tensors.find(pre + "ffn_gate_inp.weight")) throw std::runtime_error("inference: expert tensors in a dense architecture " + pre);
+            if (!c.n_expert && tensors.find(pre + "ffn_gate_inp.weight")) throw std::runtime_error("inference: expert tensors in a dense architecture " + pre);
             layer.roles = {{attn_norm, Part::mixer, RoleKind::norm, pre + "attn_norm.weight", "", E}};
             if (c.full[(size_t)l]) {
                 if (tensors.find(pre + "attn_qkv.weight"))
@@ -184,10 +201,26 @@ public:
                 layer.ops = {{Part::mixer, backend::Op::causal_conv_silu}, {Part::mixer, backend::Op::gated_delta_rule},
                              {Part::mixer, backend::Op::gated_rms_norm}};
             }
-            layer.roles.insert(layer.roles.end(), {{post_attention_norm, Part::ffn, RoleKind::norm, pre + "post_attention_norm.weight", "", E},
-                                                   {ffn_gate, Part::ffn, RoleKind::matrix, pre + "ffn_gate.weight", "", E, F},
-                                                   {ffn_up, Part::ffn, RoleKind::matrix, pre + "ffn_up.weight", "", E, F},
-                                                   {ffn_down, Part::ffn, RoleKind::matrix, pre + "ffn_down.weight", "", F, E}});
+            if (c.n_expert) {
+                const uint64_t X = (uint64_t)c.n_expert, Fe = (uint64_t)c.n_ff_exp, Fs = (uint64_t)c.n_ff_shexp;
+                layer.routed = true;
+                // The shared expert's gate is a vector of E weights, one dot product a row, checked as an F32 row.
+                layer.roles.insert(layer.roles.end(), {{post_attention_norm, Part::ffn, RoleKind::norm, pre + "post_attention_norm.weight", "", E, 1, 0, Stream::copy},
+                                                       {ffn_gate_inp, Part::ffn, RoleKind::matrix, pre + "ffn_gate_inp.weight", "", E, X, 0, Stream::copy},
+                                                       {ffn_gate_exps, Part::ffn, RoleKind::experts, pre + "ffn_gate_exps.weight", "", E, Fe, X, Stream::window},
+                                                       {ffn_up_exps, Part::ffn, RoleKind::experts, pre + "ffn_up_exps.weight", "", E, Fe, X, Stream::window},
+                                                       {ffn_down_exps, Part::ffn, RoleKind::experts, pre + "ffn_down_exps.weight", "", Fe, E, X, Stream::window},
+                                                       {ffn_gate_inp_shexp, Part::ffn, RoleKind::norm, pre + "ffn_gate_inp_shexp.weight", "", E, 1, 0, Stream::copy},
+                                                       {ffn_gate_shexp, Part::ffn, RoleKind::matrix, pre + "ffn_gate_shexp.weight", "", E, Fs, 0, Stream::copy},
+                                                       {ffn_up_shexp, Part::ffn, RoleKind::matrix, pre + "ffn_up_shexp.weight", "", E, Fs, 0, Stream::copy},
+                                                       {ffn_down_shexp, Part::ffn, RoleKind::matrix, pre + "ffn_down_shexp.weight", "", Fs, E, 0, Stream::copy}});
+                layer.ops.push_back({Part::ffn, backend::Op::sigmoid_mul});
+            } else {
+                layer.roles.insert(layer.roles.end(), {{post_attention_norm, Part::ffn, RoleKind::norm, pre + "post_attention_norm.weight", "", E},
+                                                       {ffn_gate, Part::ffn, RoleKind::matrix, pre + "ffn_gate.weight", "", E, F},
+                                                       {ffn_up, Part::ffn, RoleKind::matrix, pre + "ffn_up.weight", "", E, F},
+                                                       {ffn_down, Part::ffn, RoleKind::matrix, pre + "ffn_down.weight", "", F, E}});
+            }
         }
         p.context_length = (size_t)c.context_length;
         p.slots = slot_widths(c);
@@ -227,11 +260,23 @@ public:
         }
     }
 
+    // The MoE FFN (docs/QWEN35.md): the routed sum joins the residual, then the shared expert's down projection reads its SwiGLU scaled by sigmoid(gate . h), one value a row, and joins it too.
     void ffn(const Step& s) const override {
+        backend::Backend& b = s.b;
+        const Weight* w = s.w;
         const size_t E = (size_t)cfg_.n_embd;
-        const backend::Slice h = s.slot(1);
-        s.b.rms_norm_rows(h, s.x, s.w[post_attention_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
-        blocks::swiglu(s, s.w[ffn_gate], s.w[ffn_up], s.w[ffn_down], h, s.slot(7), s.slot(8), s.slot(9));
+        const backend::Slice h = s.slot(1), g = s.slot(7), u = s.slot(8), act = s.slot(9);
+        b.rms_norm_rows(h, s.x, w[post_attention_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
+        if (!cfg_.n_expert) {
+            blocks::swiglu(s, w[ffn_gate], w[ffn_up], w[ffn_down], h, g, u, act);
+            return;
+        }
+        blocks::routed_experts(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], (size_t)cfg_.n_expert_used, cfg_.expert_norm,
+                               h, g, u, act, s.slot(10), s.slot(11), s.slot(12));
+        const backend::Slice sg = s.slot(13);
+        const Weight& gate = w[ffn_gate_inp_shexp];
+        b.matmul(gate.type, gate.slice(), h, sg, E, 1, s.rows, s.runs);
+        blocks::swiglu(s, w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], h, g, u, act, &sg);
     }
 
     void head(const HeadStep& s) const override { blocks::head(s, s.w[output_norm], s.w[output], cfg_.rms_eps, s.slot(1)); }
@@ -273,9 +318,12 @@ private:
     }
 };
 
-// The registry's reader of a qwen35 file.
+// The registry's readers: a qwen35 file's architecture, and a qwen35moe file's.
 inline std::shared_ptr<const Architecture> open_dense(const gguf::GGUFModel& m, const std::string& prefix) {
-    return std::make_shared<const Qwen35>(read_config(m, prefix));
+    return std::make_shared<const Qwen35>(read_config(m, prefix, false));
+}
+inline std::shared_ptr<const Architecture> open_routed(const gguf::GGUFModel& m, const std::string& prefix) {
+    return std::make_shared<const Qwen35>(read_config(m, prefix, true));
 }
 
 } // namespace infer::qwen35

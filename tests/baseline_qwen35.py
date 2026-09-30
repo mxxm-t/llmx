@@ -139,21 +139,6 @@ def model_goldens(model, file_exact=None):
     return file_exact_goldens(spec, file_exact), BOUNDS.get(FILE_EXACT_BOUNDS)
 
 
-def check_top1(matched, total, needed):
-    """A file whose bounds name the top-1 matches it keeps: `matched` of the `total` rankings must be HF's, at least `needed`."""
-    require(matched >= needed, "top-1 matches HF on %d of %d rankings, below the %d this file keeps" % (matched, total, needed))
-    return {"top1_matches": matched, "rankings": total}
-
-
-def first_id(output):
-    """The top token id of `llmx logits` output, None where it has none."""
-    lines = output.strip().splitlines()
-    try:
-        return int(lines[1].split()[0])
-    except (IndexError, ValueError):
-        return None
-
-
 def check_file(model, context, run, check, write, docs, bounds):
     """Every check of the pinned qwen35 file `model` against the goldens `docs` at `bounds`, with perplexity windows of `context` tokens.
     `run(label, arguments)` runs llmx and gives (exit code, output), `check(label, validator, *arguments)` records one check, and `write(name, data)` keeps a file beside the results and gives its path.
@@ -194,9 +179,9 @@ def check_file(model, context, run, check, write, docs, bounds):
             return "skip"
         require(rc == 0, "%s failed (exit %d): %s" % (label, rc, out.strip()[-200:]))
         check(label, common.check_logits, out, case, VOCAB_SIZE, limits, top1_needed is None)
-        matched += first_id(out) == case["top_ids"][0]
+        matched += common.first_id(out) == case["top_ids"][0]
     if top1_needed is not None:
-        check("top1", check_top1, matched, len(prompts), top1_needed)
+        check("top1", common.check_top1, matched, len(prompts), top1_needed)
     excerpt = write("excerpt.txt", text.encode("utf-8"))
     for index, case in enumerate(common.ppl_cases(doc)):
         for mode in common.PPL_MODES:

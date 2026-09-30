@@ -402,6 +402,21 @@ def check_logits(output, case, vocab, bounds, require_top1=True):
     return {"top1": ids[0], "top5_overlap": overlap, "top_ids": ids, "top_logits": values}
 
 
+def check_top1(matched, total, needed):
+    """A file whose bounds name the top-1 matches it keeps: `matched` of the `total` rankings must be HF's, at least `needed`."""
+    require(matched >= needed, "top-1 matches HF on %d of %d rankings, below the %d this file keeps" % (matched, total, needed))
+    return {"top1_matches": matched, "rankings": total}
+
+
+def first_id(output):
+    """The top token id of `llmx logits` output, None where it has none."""
+    lines = output.strip().splitlines()
+    try:
+        return int(lines[1].split()[0])
+    except (IndexError, ValueError):
+        return None
+
+
 def check_ppl(output, case, total_tokens, context, bounds):
     """`llmx perplexity` for a reference case of a `total_tokens` text: exactly its fields, every count exact (the context size is `context` for the continuous case), and a finite mean NLL within `bounds["continuous_nll"]` of HF's, or `bounds["window_nll"]` in windows."""
     fields = perplexity_fields(output)

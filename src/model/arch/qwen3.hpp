@@ -91,16 +91,11 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool m
     c.rope_theta = float(real(m, p + "rope.freq_base", c.rope_theta));
     c.rms_eps = float(real(m, p + "attention.layer_norm_rms_epsilon", c.rms_eps));
     if (moe) {
-        c.n_expert = integer(m, p + "expert_count");
-        c.n_expert_used = integer(m, p + "expert_used_count");
-        c.n_ff_exp = integer(m, p + "expert_feed_forward_length");
-        c.expert_norm = metadata::boolean(m, p + "expert_weights_norm", c.expert_norm);
-        // Routing is a softmax over the scores, gating function 1; a sigmoid gate, a shared expert or a scaled mixture is another architecture's.
-        metadata::choice(m, p + "expert_gating_func", 1, "inference: unsupported expert gating function");
+        const metadata::Experts e = metadata::experts(m, p);
+        c.n_expert = e.count, c.n_expert_used = e.used, c.n_ff_exp = e.ff, c.expert_norm = e.norm;
+        // A shared expert is another architecture's.
         if (m.find(p + "expert_shared_count") || m.find(p + "expert_shared_feed_forward_length"))
             throw std::runtime_error("inference: shared experts are unsupported");
-        if (real(m, p + "expert_weights_scale", 1) != 1)
-            throw std::runtime_error("inference: scaled expert weights are unsupported");
     }
     check_config(c);
     return c;
@@ -239,21 +234,8 @@ public:
         b.rms_norm_rows(h, x, w[ffn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
 
         if (s.kind == routed) {
-            const backend::Slice scores = s.slot(9), ids = s.slot(10), weights = s.slot(11);
-            const size_t k = (size_t)cfg_.n_expert_used, n_expert = (size_t)cfg_.n_expert, ff = (size_t)cfg_.n_ff_exp;
-            const Weight& router = w[ffn_gate_inp];
-            b.matmul(router.type, router.slice(), h, scores, E, n_expert, s.rows, s.runs);
-            b.route_experts(scores, s.rows, n_expert, k, cfg_.expert_norm, ids, weights);
-            const backend::Backend::Routing routing{ids, weights, k, n_expert};
-            b.matmul_experts({blocks::projection(w[ffn_gate_exps], gate),
-                              blocks::projection(w[ffn_up_exps], up)}, h, E, s.rows, routing, s.runs);
-            // The routed down projection reads the SiLU's output as k entries a token row, each of its token's prompt.
-            std::vector<backend::RowRun>& entry_runs = *s.scratch;
-            entry_runs.clear();
-            for (size_t i = 0; i < s.runs.n; ++i) entry_runs.push_back(backend::RowRun{s.runs.runs[i].end * k, s.runs.runs[i].extent});
-            b.silu_mul(ffn, gate, up, s.rows * k * ff, {entry_runs.data(), entry_runs.size()});
-            b.matmul_experts_add(w[ffn_down_exps].type, w[ffn_down_exps].slice(), ffn, x,
-                                 ff, E, s.rows, routing, s.runs);
+            blocks::routed_experts(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], (size_t)cfg_.n_expert_used, cfg_.expert_norm,
+                                   h, gate, up, ffn, s.slot(9), s.slot(10), s.slot(11));
             return;
         }
         blocks::swiglu(s, w[ffn_gate], w[ffn_up], w[ffn_down], h, gate, up, ffn);

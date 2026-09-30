@@ -10,13 +10,12 @@ names it.
 - Mixture of experts: a `qwen3moe` file has every key read under the
   `qwen3moe.` prefix, plus `expert_count`, `expert_used_count`,
   `expert_feed_forward_length` and an optional `expert_weights_norm`
-  (default true); a sigmoid gate, shared experts or scaled expert weights
-  are refused. A layer is routed when `blk.N.ffn_gate_inp.weight` is
+  (default true), read with their refusals by `metadata::experts`
+  ([metadata](model-arch-metadata.md)); shared experts are refused. A
+  layer is routed when `blk.N.ffn_gate_inp.weight` is
   present, its experts the stacked `ffn_{gate,up,down}_exps` tensors, so
-  dense and routed layers can mix. A routed feed-forward block is the
-  router matmul, `route_experts`, `matmul_experts` for gate and up,
-  `silu_mul` over every slot and `matmul_experts_add` into the residual;
-  the arena gains the router scores, expert ids and weights as slots 9 to
+  dense and routed layers can mix. A routed feed-forward block is
+  `blocks::routed_experts` ([blocks](model-arch-blocks.md)); the arena gains the router scores, expert ids and weights as slots 9 to
   11, and the feed-forward slots are as wide as a dense layer or k
   experts, whichever is wider.
 
@@ -78,10 +77,6 @@ names it.
       `matmul_add`, which folds the residual add into the output
       projections). Each row keeps the same arithmetic, and each op finishes
       before the matrix operations or cache writes that depend on it begin.
-    - The routed SiLU reads the expert products as k entries a token row,
-      so the part rebuilds the runs for it (`end * k`) in the step's run
-      list (`Step::scratch`), which the runtime has reserved; the down
-      projection (`matmul_experts_add`) takes the step's runs unchanged.
 - `slot_widths(config, dense)`: the floats one row takes in each of Qwen3's twelve arena slots, which its plan holds, `ensure` allocates and `footprint` counts.
 - `open_dense(file, prefix)`, `open_routed(file, prefix)`: the registry's
   readers of a qwen3 file and a qwen3moe file, each the architecture over

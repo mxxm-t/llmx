@@ -11,7 +11,8 @@ which variant it reads and under which prefix.
   runs and the reader of its files, which reads the configuration under the
   name's prefix: `qwen3` (`qwen3::open_dense`) and `qwen3moe`
   (`qwen3::open_routed`), [qwen3](model-arch-qwen3.md), and `qwen35`
-  (`qwen35::open_dense`), [qwen35](model-arch-qwen35.md).
+  (`qwen35::open_dense`) and `qwen35moe` (`qwen35::open_routed`),
+  [qwen35](model-arch-qwen35.md).
 - `architecture_of(file)`: the entry a file names. A file without
   `general.architecture` is read as qwen3, since the tests' fixtures write
   none; an unknown name, or one that is not a string, is refused

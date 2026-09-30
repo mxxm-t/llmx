@@ -120,4 +120,21 @@ inline std::vector<bool> booleans(const gguf::GGUFModel& m, const std::string& k
     return out;
 }
 
+// A mixture-of-experts file's routing keys under `p`: experts per layer, experts each token takes, an expert's hidden width, and whether the chosen probabilities are renormalized to sum to one.
+// Routing is a softmax over the scores, gating function 1, unscaled; any other gating or a scale is refused.
+struct Experts {
+    int count = 0, used = 0, ff = 0;
+    bool norm = true;
+};
+inline Experts experts(const gguf::GGUFModel& m, const std::string& p) {
+    Experts e;
+    e.count = integer(m, p + "expert_count");
+    e.used = integer(m, p + "expert_used_count");
+    e.ff = integer(m, p + "expert_feed_forward_length");
+    e.norm = boolean(m, p + "expert_weights_norm", e.norm);
+    choice(m, p + "expert_gating_func", 1, "inference: unsupported expert gating function");
+    if (real(m, p + "expert_weights_scale", 1) != 1) throw std::runtime_error("inference: scaled expert weights are unsupported");
+    return e;
+}
+
 } // namespace infer::metadata

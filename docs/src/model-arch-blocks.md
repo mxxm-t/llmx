@@ -14,10 +14,23 @@ run them.
   building one copies no shared pointer on the per-token path.
 - `embed(step, table, ids)`: the table's rows the ids name, into the
   residual.
-- `swiglu(step, gate, up, down, h, g, u, act)`: the SwiGLU feed-forward
-  block over the normed rows `h`: gate and up grouped through
+- `swiglu(step, gate, up, down, h, g, u, act, row_gate)`: the SwiGLU
+  feed-forward block over the normed rows `h`: gate and up grouped through
   `matmul_group`, `silu_mul`, and the down projection added into the
-  residual through `matmul_add`, with the step's runs throughout.
+  residual through `matmul_add`, with the step's runs throughout. With
+  `row_gate`, one value a row, `sigmoid_mul` scales each row the down
+  projection reads by sigmoid of that value, as qwen35moe's shared expert
+  is gated.
+- `routed_experts(step, router, gate, up, down, k, norm, h, g, u, act,
+  scores, ids, weights)`: routed experts over the normed rows `h`: the
+  router's matmul into `scores`, `route_experts` choosing each row's k
+  experts into `ids` and `weights` (renormalized when `norm`),
+  `matmul_experts` for gate and up, `silu_mul`, and `matmul_experts_add`
+  into the residual. The routed SiLU reads the expert products as k
+  entries a token row, so it rebuilds the runs for them (`end * k`) in
+  the step's run list (`Step::scratch`), which the runtime has reserved;
+  the down projection takes the step's runs unchanged. qwen3moe and
+  qwen35moe run it.
 - `head(step, norm, out, eps, rows)`: the rows that want logits gathered
   into the slot `rows`, since they are not contiguous once entries mix,
   normed, and projected once through `matmul_logits`.

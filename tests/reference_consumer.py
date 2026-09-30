@@ -619,12 +619,71 @@ class LayeredConsumer(unittest.TestCase):
 
     def test_passing_run_for_each_model(self):
         for digest, golden in layered.GOLDENS.items():
+            if "file_exact" in golden:
+                continue
             with self.subTest(golden=golden["name"]):
                 docs = consumer.load_goldens(golden["data"], golden["fixture_sha256"])
                 code, report, printed, _ = self.consume(digest, simulated_llmx(docs, docs["baseline_perplexity.json"]["n_tokens"], layered.MODEL_CONTEXT))
                 self.assertEqual((code, report["status"], report["golden"]), (0, "pass", golden["name"]))
                 self.assertEqual(len(report["checks"]), 41)
                 self.assertIn(golden["name"] + " HF check PASS", printed)
+
+    def test_file_exact_goldens_run_first(self):
+        # A file with file-exact goldens is held to them at the file-exact bounds first, and to its model's goldens only if they pass.
+        for digest, golden in ((d, g) for d, g in layered.GOLDENS.items() if "file_exact" in g):
+            with self.subTest(golden=golden["name"]):
+                docs = consumer.load_goldens(golden["data"], golden["fixture_sha256"])
+                exact = consumer.load_goldens(golden["file_exact"]["data"], golden["file_exact"]["fixture_sha256"])
+                self.assertEqual({doc["weights"]["sha256"] for doc in exact.values()}, {digest})
+                self.assertEqual(golden["file_exact"]["bounds"], dict(top5_overlap=5, continuous_nll=0.02, window_nll=0.02, max_abs_logit=100.0))
+                tokens = docs["baseline_perplexity.json"]["n_tokens"]
+                # An llmx giving HF's answers on the file's own weights passes the 21 file-exact checks, and then the model's goldens, where the file's quantization turns one top-1 over and its quality bound keeps five of six.
+                self.assertEqual(golden["bounds"], dict(layered.BOUNDS, top1_matches=5))
+                code, report, printed, _ = self.consume(digest, simulated_llmx(dict(docs, **exact), tokens, layered.MODEL_CONTEXT))
+                exact_checks = [item for item in report["checks"] if item["label"].startswith("file-exact-")]
+                self.assertEqual((len(exact_checks), len(report["checks"])), (21, 63))
+                self.assertEqual((code, report["status"], report["file_exact_bounds"]), (0, "pass", golden["file_exact"]["bounds"]))
+                self.assertTrue(all(item["status"] == "pass" for item in report["checks"]))
+                self.assertEqual(next(item for item in report["checks"] if item["label"] == "top1")["top1_matches"], 5)
+                self.assertIn(golden["name"] + " HF check PASS", printed)
+                # Where one more of the model's top-1 differs from those answers, four of six fall short of the bound.
+                load = consumer.load_goldens
+
+                def moved(data, sha):
+                    loaded = load(data, sha)
+                    if data == golden["data"]:
+                        case = dict(loaded["baseline_logits.json"]["cases"][0])
+                        case["top_ids"] = case["top_ids"][1::-1] + case["top_ids"][2:]
+                        loaded["baseline_logits.json"] = dict(loaded["baseline_logits.json"], cases=[case] + loaded["baseline_logits.json"]["cases"][1:])
+                    return loaded
+
+                with patch.object(consumer, "load_goldens", side_effect=moved):
+                    code, report, _, _ = self.consume(digest, simulated_llmx(dict(docs, **exact), tokens, layered.MODEL_CONTEXT))
+                self.assertEqual((code, report["status"], [item["label"] for item in report["checks"] if item["status"] == "fail"]), (1, "fail", ["top1"]))
+                self.assertIn("top-1 matches HF on 4 of 6 rankings, below the 5 this file keeps", next(item for item in report["checks"] if item["label"] == "top1")["error"])
+                # An llmx giving the model's answers fails the file-exact goldens, and the model's rankings never run.
+                code, report, _, _ = self.consume(digest, simulated_llmx(docs, tokens, layered.MODEL_CONTEXT))
+                self.assertEqual((code, report["status"], len(report["checks"])), (1, "fail", 41))
+                self.assertIn("failed file-exact checks: file-exact-logits-03", report["error"])
+                # File-exact goldens made from another file are refused before they are run.
+                other = lambda data, sha: {name: dict(doc, weights={"sha256": "0" * 64}) if "weights" in doc else doc for name, doc in load(data, sha).items()}
+                with patch.object(consumer, "load_goldens", side_effect=other):
+                    code, report, _, _ = self.consume(digest, simulated_llmx(dict(docs, **exact), tokens, layered.MODEL_CONTEXT))
+                self.assertEqual((code, report["status"], len(report["checks"])), (1, "fail", 20))
+                self.assertIn("were not made from this file", report["error"])
+
+    def test_the_quality_bound_is_one_files_alone(self):
+        # Only the Qwen3.6-35B-A3B Q4_K_M keeps fewer than every top-1; every other file fails on one ranking turned over.
+        kept = {digest for digest, golden in layered.GOLDENS.items() if "top1_matches" in golden["bounds"]}
+        self.assertEqual(kept, {"a8adba03e892f519579290e30f21abb1a9dbb5bfd092afecccd12a4ee670f0de"})
+        for digest, golden in ((d, g) for d, g in layered.GOLDENS.items() if d not in kept):
+            with self.subTest(golden=golden["name"]):
+                docs = consumer.load_goldens(golden["data"], golden["fixture_sha256"])
+                case = dict(docs["baseline_logits.json"]["cases"][0])
+                case["top_ids"] = case["top_ids"][1::-1] + case["top_ids"][2:]
+                turned = dict(docs, **{"baseline_logits.json": dict(docs["baseline_logits.json"], cases=[case] + docs["baseline_logits.json"]["cases"][1:])})
+                code, report, _, _ = self.consume(digest, simulated_llmx(turned, docs["baseline_perplexity.json"]["n_tokens"], layered.MODEL_CONTEXT))
+                self.assertEqual((code, report["status"], [item["label"] for item in report["checks"] if item["status"] == "fail"]), (1, "fail", ["logits-00"]))
 
     def test_refusal_of_the_architecture_is_one_skip_line(self):
         refusal = ARCHITECTURE_REFUSAL

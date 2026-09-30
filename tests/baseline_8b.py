@@ -71,6 +71,7 @@ def main(argv=None):
 def consume(argv, description, select, refusals=()):
     """Hold llmx on a model to the HF goldens that `select` gives for its SHA-256, and write report.json and each command's output into a new directory.
     A model `select` gives no goldens for fails, as do a golden whose text changed, a failed command and a check out of bounds.
+    Goldens that name file-exact goldens (`file_exact`: their data, SHA-256 and bounds) run those first, their labels starting with "file-exact-", and the model's goldens only if they pass.
     A command that fails with one of the texts of `refusals` in its error ends the run as a skip, exit 0, unless a check had already failed."""
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--exe", required=True, type=Path)
@@ -147,31 +148,52 @@ def consume(argv, description, select, refusals=()):
         report.update(golden=name, bounds=dict(golden["bounds"]), fixture_sha256_lf=golden["fixture_sha256"],
                       scope=golden["scope"], provenance_limit=golden["provenance_limit"])
         docs = load_goldens(golden["data"], golden["fixture_sha256"])
-        check_model_logits = functools.partial(common.check_logits, vocab=golden["vocab"], bounds=golden["bounds"])
-        check_model_ppl = functools.partial(common.check_ppl, context=golden["context"], bounds=golden["bounds"])
         report["version"] = run("version", ["--version"]).strip()
         for index, case in enumerate(docs["baseline_tokenizer.json"]["cases"]):
             label = "tokenizer-%02d" % index
             check(label, check_ids, run(label, ["tokenize", str(model), case["text"]]), case["ids"])
-        for index, case in enumerate(docs["baseline_logits.json"]["cases"]):
-            label = "logits-%02d" % index
-            check(label + "-ids", check_ids, run(label + "-ids", ["tokenize", str(model), case["text"]]), case["token_ids"])
-            check(label, check_model_logits, run(label, ["logits", str(model), case["text"],
-                  "--top", "10", "--threads", "6", "--ubatch", "128"]), case)
-        doc = docs["baseline_perplexity.json"]
-        excerpt = out / "excerpt.txt"
-        excerpt.write_bytes(doc["text"].encode("utf-8"))
-        require(file_sha256(excerpt) == doc["text_sha256"], "PPL text hash differs")
-        check("ppl-ids", check_ids, run("ppl-ids", ["tokenize", str(model), doc["text"]]), doc["token_ids"])
-        for index, case in enumerate(common.ppl_cases(doc)):
-            for mode in common.PPL_MODES:
-                label = "ppl-%02d" % index + ("-per-token" if mode == "per-token" else "")
-                command = common.ppl_command(str(model), str(excerpt), case, mode, ubatch=128)
-                check(label, check_model_ppl, run(label, command), case, doc["n_tokens"])
+
+        def rankings_and_nll(docs, bounds, prefix=""):
+            """The six rankings and four NLL cases of `docs` at `bounds`, each check's label starting with `prefix`.
+            Every top-1 must be HF's, unless `bounds` names how many the file keeps (`top1_matches`), which one more check counts over them all."""
+            needed = bounds.get("top1_matches")
+            check_model_logits = functools.partial(common.check_logits, vocab=golden["vocab"], bounds=bounds, require_top1=needed is None)
+            check_model_ppl = functools.partial(common.check_ppl, context=golden["context"], bounds=bounds)
+            cases = docs["baseline_logits.json"]["cases"]
+            matched = 0
+            for index, case in enumerate(cases):
+                label = prefix + "logits-%02d" % index
+                check(label + "-ids", check_ids, run(label + "-ids", ["tokenize", str(model), case["text"]]), case["token_ids"])
+                printed = run(label, ["logits", str(model), case["text"], "--top", "10", "--threads", "6", "--ubatch", "128"])
+                check(label, check_model_logits, printed, case)
+                matched += common.first_id(printed) == case["top_ids"][0]
+            if needed is not None:
+                check(prefix + "top1", common.check_top1, matched, len(cases), needed)
+            doc = docs["baseline_perplexity.json"]
+            excerpt = out / "excerpt.txt"
+            excerpt.write_bytes(doc["text"].encode("utf-8"))
+            require(file_sha256(excerpt) == doc["text_sha256"], "PPL text hash differs")
+            check(prefix + "ppl-ids", check_ids, run(prefix + "ppl-ids", ["tokenize", str(model), doc["text"]]), doc["token_ids"])
+            for index, case in enumerate(common.ppl_cases(doc)):
+                for mode in common.PPL_MODES:
+                    label = prefix + "ppl-%02d" % index + ("-per-token" if mode == "per-token" else "")
+                    command = common.ppl_command(str(model), str(excerpt), case, mode, ubatch=128)
+                    check(label, check_model_ppl, run(label, command), case, doc["n_tokens"])
+
+        # A file with file-exact goldens is held first to them, HF run on its own weights, at their bounds; only if those pass is it held to its model's goldens.
+        exact = golden.get("file_exact")
+        if exact:
+            report["file_exact_bounds"] = dict(exact["bounds"])
+            exact_docs = load_goldens(exact["data"], exact["fixture_sha256"])
+            require(all(doc["weights"]["sha256"] == report["model_sha256"] for doc in exact_docs.values()),
+                    "the file-exact goldens in %s were not made from this file" % exact["data"])
+            rankings_and_nll(exact_docs, exact["bounds"], "file-exact-")
+            require(not failures(), "failed file-exact checks: " + ", ".join(failures()))
+        rankings_and_nll(docs, golden["bounds"])
         require(not failures(), "failed checks: " + ", ".join(failures()))
         report["status"] = "pass"
-        print("%s PASS: %d checks, 20 tokenizer cases, six rankings, four NLL cases batched and per token"
-              % (title(), len(report["checks"])), flush=True)
+        print("%s PASS: %d checks, 20 tokenizer cases, %ssix rankings and four NLL cases batched and per token"
+              % (title(), len(report["checks"]), "the file-exact goldens' and the model's " if exact else ""), flush=True)
     except Refused as refused:
         if failures():
             report.update(status="fail", error="failed checks: %s, then llmx refused the model: %s" % (", ".join(failures()), refused))

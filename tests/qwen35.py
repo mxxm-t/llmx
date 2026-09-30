@@ -23,11 +23,14 @@ CONFIG = {"embedding_length": 37, "feed_forward_length": 19, "context_length": 1
           "ssm.conv_kernel": 4, "ssm.state_size": 12, "ssm.group_count": 2, "full_attention_interval": 2}
 LAYERS = 4
 V_HEAD = 10
-# Hv = Hk with a tied head, and Hv = 3 Hk with its own head, alone and with one MTP block, whose file must give the logits of the file without it.
+# qwen35moe's feed-forward block in place of the dense one: 4 experts of 5, 2 a token, and a shared expert of 7.
+MOE = {"expert_count": 4, "expert_used_count": 2, "expert_feed_forward_length": 5, "expert_shared_feed_forward_length": 7}
+# Hv = Hk with a tied head, and Hv = 3 Hk with its own head, alone and with one MTP block, whose file must give the logits of the file without it, and a qwen35moe model of Hv = 3 Hk.
 FIXTURES = [
     {"name": "hv1", "v_heads": 2, "tied": True, "mtp": False},
     {"name": "hv3", "v_heads": 6, "tied": False, "mtp": False},
     {"name": "hv3-mtp", "v_heads": 6, "tied": False, "mtp": True},
+    {"name": "moe", "v_heads": 6, "tied": False, "mtp": False, "moe": True},
 ]
 # The end-of-text token, which the greedy goldens and the CLI both leave out of every draw.
 EOS = VOCAB - 1
@@ -49,8 +52,11 @@ def full_attention(layer):
 
 
 def gguf_config(fixture):
-    """The qwen35 metadata the converter writes for `fixture`, whose MTP block, when it has one, is one more block."""
+    """The qwen35 or qwen35moe metadata the converter writes for `fixture`, whose MTP block, when it has one, is one more block."""
     config = dict(CONFIG)
+    if fixture.get("moe"):
+        del config["feed_forward_length"]
+        config.update(MOE)
     config["block_count"] = LAYERS + fixture["mtp"]
     config["ssm.time_step_rank"] = fixture["v_heads"]
     config["ssm.inner_size"] = fixture["v_heads"] * V_HEAD
@@ -101,6 +107,17 @@ def raw_weights(fixture):
             add(prefix + "linear_attn.norm.weight", [V_HEAD], offset=1.0)
             add(prefix + "linear_attn.out_proj.weight", [width, v_heads * V_HEAD])
         add(prefix + "post_attention_layernorm.weight", [width])
+        if fixture.get("moe"):
+            # The router is scaled up so every token's top two experts stand clear of the third, which tools/gen_baseline.py checks.
+            experts, fe, fs = MOE["expert_count"], MOE["expert_feed_forward_length"], MOE["expert_shared_feed_forward_length"]
+            add(prefix + "mlp.gate.weight", [experts, width], scale=32.0)
+            add(prefix + "mlp.experts.gate_up_proj", [experts, 2 * fe, width])
+            add(prefix + "mlp.experts.down_proj", [experts, width, fe])
+            add(prefix + "mlp.shared_expert.gate_proj.weight", [fs, width])
+            add(prefix + "mlp.shared_expert.up_proj.weight", [fs, width])
+            add(prefix + "mlp.shared_expert.down_proj.weight", [width, fs])
+            add(prefix + "mlp.shared_expert_gate.weight", [1, width], scale=16.0)
+            return
         add(prefix + "mlp.gate_proj.weight", [ff, width])
         add(prefix + "mlp.up_proj.weight", [ff, width])
         add(prefix + "mlp.down_proj.weight", [width, ff])
@@ -159,6 +176,13 @@ BLOCK_TENSORS = {
     "mlp.gate_proj.weight": ("ffn_gate.weight", None),
     "mlp.up_proj.weight": ("ffn_up.weight", None),
     "mlp.down_proj.weight": ("ffn_down.weight", None),
+    "mlp.gate.weight": ("ffn_gate_inp.weight", None),
+    "mlp.experts.gate_up_proj": (("ffn_gate_exps.weight", "ffn_up_exps.weight"), "halves"),
+    "mlp.experts.down_proj": ("ffn_down_exps.weight", None),
+    "mlp.shared_expert.gate_proj.weight": ("ffn_gate_shexp.weight", None),
+    "mlp.shared_expert.up_proj.weight": ("ffn_up_shexp.weight", None),
+    "mlp.shared_expert.down_proj.weight": ("ffn_down_shexp.weight", None),
+    "mlp.shared_expert_gate.weight": ("ffn_gate_inp_shexp.weight", "vector"),
 }
 # The parameters outside the layers; the MTP block's own ones are stored under its block, the one after the decoder layers.
 OTHER_TENSORS = {
@@ -174,7 +198,8 @@ OTHER_TENSORS = {
 
 def gguf_tensors(fixture, raw):
     """The GGUF tensors the converter writes from `raw`, as tests/f32.py's writer takes them: (GGUF name, HF name, GGUF shape, values).
-    A GGUF shape lists HF's dimensions fastest first, and the conv kernel drops HF's middle axis, so tap 3 is the one that multiplies the current token."""
+    A GGUF shape lists HF's dimensions fastest first, and the conv kernel drops HF's middle axis, so tap 3 is the one that multiplies the current token.
+    HF's fused experts' gate_up_proj splits into the gate and up stacks, each expert's first half of rows the gate, and the shared expert's gate of [1, E] is written as a vector of E."""
     k_heads, v_heads = CONFIG["ssm.group_count"], fixture["v_heads"]
     qk = 2 * k_heads * CONFIG["ssm.state_size"]
     out = []
@@ -182,9 +207,20 @@ def gguf_tensors(fixture, raw):
         match = re.fullmatch(r"(?:model\.layers\.(\d+)|mtp\.layers\.0)\.(.+)", name)
         if match:
             target, transform = BLOCK_TENSORS[match[2]]
-            target = "blk.%d.%s" % (int(match[1]) if match[1] is not None else LAYERS, target)
+            block = "blk.%d." % (int(match[1]) if match[1] is not None else LAYERS)
+            target = tuple(block + t for t in target) if transform == "halves" else block + target
         else:
             target, transform = OTHER_TENSORS[name]
+        if transform == "halves":
+            experts, rows, width = shape
+            half = rows // 2 * width
+            for part, t in enumerate(target):
+                stack = [v for e in range(experts) for v in values[e * rows * width + part * half:e * rows * width + (part + 1) * half]]
+                out.append((t, name, [width, rows // 2, experts], stack))
+            continue
+        if transform == "vector":
+            out.append((target, name, [shape[1]], values))
+            continue
         if transform == "norm":
             values = [1.0 + w for w in values]
         elif transform == "a":
@@ -211,7 +247,8 @@ def golden():
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_qwen35.json"), encoding="utf-8") as f:
         doc = json.load(f)
     assert doc["config"] == CONFIG and doc["layers"] == LAYERS and doc["v_head_width"] == V_HEAD, "qwen35 fixture config changed"
-    assert [{key: fixture[key] for key in FIXTURES[0]} for fixture in doc["fixtures"]] == FIXTURES, "qwen35 fixtures changed"
+    assert len(doc["fixtures"]) == len(FIXTURES) and \
+        all({key: fixture.get(key) for key in spec} == spec for fixture, spec in zip(doc["fixtures"], FIXTURES)), "qwen35 fixtures changed"
     for fixture, spec in zip(doc["fixtures"], FIXTURES):
         assert weight_hash(hashed(raw_weights(spec))) == fixture["weights_sha256"], "qwen35 %s weights changed" % spec["name"]
     return doc
@@ -219,7 +256,8 @@ def golden():
 
 def write_fixture(directory, fixture):
     path = os.path.join(directory, "tiny-qwen35-%s.gguf" % fixture["name"])
-    return write_model(path, gguf_tensors(fixture, raw_weights(fixture)), eos_id=EOS, config=gguf_config(fixture), arch="qwen35")
+    return write_model(path, gguf_tensors(fixture, raw_weights(fixture)), eos_id=EOS, config=gguf_config(fixture),
+                       arch="qwen35moe" if fixture.get("moe") else "qwen35")
 
 
 def check_serve(directory):
@@ -319,7 +357,7 @@ def run():
                 for text in TEXTS:
                     printed = [cli(["logits", models[which], text, "--top", str(VOCAB)]) for which in (fixture["base"], spec["name"])]
                     assert printed[0] == printed[1], "%s logits differ from %s's on %r" % (name, fixture["base"], text)
-    print("qwen35: all 257 logits vs HF's token-by-token goldens, Hv = Hk tied and Hv = 3 Hk untied, ubatches, threads, --last rows, "
+    print("qwen35: all 257 logits vs HF's token-by-token goldens, Hv = Hk tied, Hv = 3 Hk untied and qwen35moe, ubatches, threads, --last rows, "
           "NLL batched and per token, greedy decode after a prefill, an MTP block that leaves the logits as they were, serve alone, together, from the CLI and through pauses, and bench --seqs 3; max error %.8f  [ok]" % worst)
     return True
 

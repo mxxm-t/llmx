@@ -644,6 +644,22 @@ void kv_fitted() {
             "the cut budget is not the most whole blocks that fit");
     // Free memory that rises while the fit reads it, as a device reclaims an ended process's memory, is read again until it settles, so the load takes what the device holds once it has.
     require(place(8 << 20, size_t(1) << 20, true, weights, 0, false, 2)->kv_tokens_total() == cut, "a fit did not wait for a device's free memory to settle");
+    // A split's placement, which every command fits, waits for it the same way: two devices reporting a byte free for two reads each are placed once their memory has come back.
+    {
+        std::vector<backend::BackendPtr> two;
+        for (int d = 0; d < 2; ++d) {
+            auto device = std::make_shared<SizedDevice>();
+            device->room = 8 << 20;
+            device->rise_after = 2;
+            device->set_threads(1);
+            two.push_back(device);
+        }
+        infer::PlacementRequest request;
+        request.names = {"device 0", "device 1"};
+        request.shares = {1, 1};
+        require(infer::place_model(infer::gguf_weights(weights), two, request, infer::ModelOptions{}).model->stage_count() == 2,
+                "a split did not wait for its devices' free memory to settle");
+    }
     const auto refusal_of = [&](size_t room) {
         try {
             place(room, 0, true, weights);

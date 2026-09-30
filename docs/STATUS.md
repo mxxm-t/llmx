@@ -9,7 +9,7 @@
   |---|---|---|---|---|
   | dense: `generate`, `chat`, `logits`, `perplexity`, `bench` | done (step 4) | done (step 5) | done (step 5) | done: MI50s bit-identical to one, CPU splits in the suite (step 5) |
   | dense: `serve` | done (8b) | done (8b) | done (8b) | 8d |
-  | dense: KV fitted and backed at load | 8a, `fix/serve-kv-fit` | 8a, `fix/serve-kv-fit` | 8a, `fix/serve-kv-fit` | 8a, with 8d |
+  | dense: KV fitted and backed at load | done (8a) | done (8a) | done (8a) | with 8d |
   | dense: long prompts in the chunked form | not needed | step 6 | step 6 | step 6 |
   | `qwen35moe` (Qwen3.6-35B-A3B): every command and `serve` | step 7 | step 7 | step 7, experts on the CPU | step 7 |
   | MTP and state checkpoints | after the design discussion | | | |
@@ -25,11 +25,11 @@
   - At `e821202b`, the head before that rebase: the suite on one MI50 with `--require-tools` passed every component but `perf`, whose synthetic prefill fell below its floor at a one-minute load average of 30 to 35; rerun on one MI50 in the order main, change, change, main at a load of 27 to 32, main `07fd9051` failed its first run the same way and passed its second, and the change passed both, so the floor followed the machine's load. Qwen3-0.6B and Qwen3.5-0.8B Q8_0 gave main's bytes in all 14 identity cells on the CPU and on the MI50.
   - At `99f42085`: the CPU suite passed every component, and on the Radeon VII under Windows CTest 40 of 40, the `qwen35` and `server` components on the device and `tools/server_mix_check.py` on Qwen3.5-0.8B Q8_0, capped (16 requests alone, together and skewed, 4 through the CLI) and uncapped (12 requests, 24 pauses, 27667 tokens recomputed), every request its reply alone.
   - `tools/long_context_check.py` through `serve` on Qwen3.5-9B Q4_K_M on one MI50: two fresh servers gave the same 512 tokens after the 16384-token prompt, and the CPU, reading them in 6758 s on four shared cores, took the device's token as its top choice at 508 of 512 positions, the largest gap 0.057 logits, none beyond the 0.5 margin.
-- **Left:** 8a (`fix/serve-kv-fit`), then step 6; step 7 is being built on `feat/qwen35moe` and 8d waits for serving.
+- **Left:** 8d, the server on a layer split; step 7 is being built on `feat/qwen35moe`, and step 6 waits (its own block).
   Step 6 can gain at most the recurrence's share of prompt time: on one MI50 (`bench --profile`, main `8ff34685`) `delta_rule` is 16.6 and 13.2 percent of the device time of pp512 and pp4096 on Qwen3.5-0.8B Q8_0 (1.2 us a token a layer at pp512), and 2.7 and 2.6 percent on Qwen3.5-9B Q4_K_M.
 - **Gotchas:** a hybrid model's resume recomputes from 0, so a long conversation's follow-up turns pay their whole history each time until checkpoints (step 8c); the KV budget is the one the server fits at load (8a).
 
-## The server's KV budget fitted and backed at load (2026-09-30, branch fix/serve-kv-fit, step 8a of the qwen35 plan)
+## The server's KV budget fitted and backed at load (2026-09-30, step 8a of the qwen35 plan, merged at `36947384`)
 
 - **Goal:** `serve` takes as its KV budget the most the devices hold beside the weights, the activations, the recurrent state slots and the passes' buffers, at most `--ctx-size` or the model context, and backs it whole at load, so no pass grows the cache and a request's room is known when it is admitted; a load where not one block fits is refused. Question 4 of the qwen35 plan, taken with its recommendation by the user's order to serve qwen35 on one card (2026-09-30).
 - **Why:** the qwen35 files carry a context of 262144 tokens, which `serve` took as its budget and grew on demand: on one MI50 the 27B Q8_0 leaves about 4.7 GiB, so requests admitted against that budget failed mid-pass when growth ran out of memory, and a doubling growth holds the old and new buffers together, so only half to two thirds of the room was reachable.
@@ -42,7 +42,8 @@
   - That round found the change's second Qwen3-30B-A3B Q4_K_M server refused and its consistency check's server too, each started as the one before it ended: the MI50 gave back the ended server's 25.9 GB over about three seconds (`rocm-smi`, sampled every 0.2 s), and the fit had read the free memory once. The first 8B server of the change had fitted 67776 tokens for the same reason. The fit now reads the devices again every 250 ms while a short budget's free memory rises, until two reads find it no higher, and a model that does not fit even without its KV is refused as such (`1fbda01d`, the test, fails without it).
   - The round again with the settle (`51443380` against main `56abfd9a`, same order, one-minute load 14 to 42, 230 monitor samples: another process at a full CPU or more in 54, mostly other builds, another card busy in 190, no run dropped): every server of either arm took the whole 73728 tokens asked for. Qwen3-8B Q8_0 gave 28.3, 27.6, 28.7 and 27.8 tok/s at 1 user, 39.2, 39.6, 39.6 and 39.5 at 16 and 39.6, 39.7, 39.8 and 39.8 at 64; Qwen3-30B-A3B Q4_K_M 42.2, 42.3, 41.8 and 42.3 at 1 user, 53.5, 54.2, 54.5 and 54.4 at 16 and 54.6, 54.9, 55.0 and 54.8 at 64: level, the backed budget a percent ahead at 16 users on the 30B-A3B; `tools/server_mix_check.py` matched every request on both models.
   - At `51443380`: CTest 35 of 35 on the CPU build and 39 of 39 on an MI50.
-- **Left:** the CPU suite at this head and the hosted run.
+  - At `51443380`, the code that landed: the CPU suite with `--require-tools` passed every component. On one MI50 with the defaults (16 sequences), Qwen3.6-27B Q8_0 and Qwen3.8-27B Q8_0 each fitted 14720 KV tokens beside their 16 recurrent states, answered a chat completion and four uncapped-to-512 completions at once at 61 tok/s together; fewer `--max-seqs` leave more of the card to KV.
+- **Merged** at `36947384` (2026-09-30) by fast-forward from `aeacb28d` on Gitea and GitHub after hosted run 36706835441 passed on it, every job (UBSan 8, TSan 8, Linux 4, macOS 9, Windows 8, Vulkan build 9 and HF reference 45 minutes).
 - **Gotchas:** the budget follows the free memory at load, so a start beside another process's memory takes less; the fit waits up to five seconds only while that memory is coming back.
 
 ## README support overview (2026-09-30, branch docs/readme-support, merged at `d74f0015`)

@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Explicit shares in raw-logit captures (2026-09-30, in progress)
+
+- **Goal:** let the existing `llmx-model-logits` tool pin layer proportions for the quantization plan's two-device 1:1 identity gate.
+- **Done:** located the existing argument parser and placement request. The capture currently accepts device lists but cannot specify shares.
+- **Left:** add an optional final shares argument, test explicit single-device equivalence and malformed/refused shares in `device-reference`, build and run the affected checks. The CPU MXFP4 gate needs this tool capability before its equal-split captures; runtime placement remains owned by the loader.
+- **Gotchas:** independent branch `test/model-logits-shares` starts at main `c1398b1b`; it contains no MXFP4 implementation. Older invocations must keep automatic placement and unchanged captures. This is a test-tool change, not a new runtime placement policy.
+
+
 Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.

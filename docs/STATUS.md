@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## macOS hosted job budget (2026-09-30, in progress)
+
+- **Goal:** let the existing macOS checks finish when hosted compilation varies, while keeping a finite job limit and every test unchanged.
+- **Evidence:** exact Windows-fix head c6b964c6 in hosted run 36670343011 built successfully on macOS in 9m39s and passed native tests in 1m55s, then its Python suite was cancelled by the 15-minute job limit. The check annotation explicitly reports that timeout. Nearby successful macOS jobs built in 3m25s, 3m44s and 6m36s, with the full Python suite taking 4m32s to 5m10s. A full successful run already took 14m03s on main d81ed428.
+- **Done:** the CPU matrix gives macOS 25 minutes; Linux and Windows retain 15. No test timeout, correctness bound or command changes. This separate CI branch starts on main d81ed428 and has no Windows-manifest dependency.
+- **Left:** hosted validation at the final integrated head before landing. The cancelled run remains evidence, not a pass; it is retained beside the subsequent run.
+- **Docs:** all project Markdown checked against this configuration-only delta; no page claims the old job budget, and only this STATUS record needs changing. docs/dead-code checks cover the edited tree.
+- **Gotchas:** this provides completion headroom; it is not evidence of a runtime speed regression or a fix for a failed test.
+
+
 ## Windows long paths (2026-09-30, in progress)
 
 - **Goal:** let Windows builds use the system's enabled long-path support for model and cache paths, with one shared application manifest in both build routes.
@@ -10,8 +20,8 @@
 - **Docs:** checked the build/test descriptions and all Markdown mentions of path limits against the manifest and both passing build routes; AGENTS and BUILD now describe the opt-in and the existing policy prerequisite. All project Markdown is reconciled against the recorded main review: unchanged pages retain that review; the build/test descriptions, STATUS, and introduced CPU merge record were checked against the actual build and test results.
 - **Full gate:** committed 6d382c44 passes native 35/35 and all 24 CPU suite components with required tools and every pinned HF fixture, including Qwen3.5 Q8 59/59 and Q4 114/114. Four Qwen3-0.6B mixtures with both cache types give 24/24 identical raw batched/decode/greedy capture pairs against the main-equivalent CPU reference c1398b1b; the only runtime change from that reference to main4141ec56 is the Vulkan shader.
 - **Integration:** clean969cc034 builds pass Windows Vulkan native40/40 and Linux Vulkan native39/39, plus five focused components on each. The plain Windows build and long-path regression also pass. Later commits only record evidence and correct CPU merge-status prose; runtime/build/test sources stay at the tested integration. [Evidence](benchmarks/windows-long-paths-20260930.json) records both integration gates, prior full suite and identity, and the verified 90-payload Windows archive.
-- **Left:** exact-head hosted gate before main merge.
-- **Gotchas:** separate branch `fix/windows-long-paths` started at main `4141ec56` and now integrates landed CPU main `d81ed428` without code conflicts. It also includes the separate pending CPU merge-record commits `a0016dda` and `e1f6d28c` so its hosted gate covers the final STATUS state once, without conflating the feature commits. This change does not enable the Windows system policy or promise that every Windows API accepts long paths.
+- **Left:** exact-head hosted gate before main merge. Run 36670343011 hit the macOS job budget; its successful build/native checks are retained, and the separate CI budget correction is integrated for the next run.
+- **Gotchas:** separate branch `fix/windows-long-paths` started at main `4141ec56` and now integrates landed CPU main `d81ed428` without code conflicts. The separate CI-only branch fix/macos-ci-budget is integrated because its macOS budget is needed to complete the hosted gate. It also includes the separate pending CPU merge-record commits `a0016dda` and `e1f6d28c` so its hosted gate covers the final STATUS state once, without conflating the feature commits. This change does not enable the Windows system policy or promise that every Windows API accepts long paths.
 
 ## CPU MXFP4 and capture shares merged (2026-09-30)
 

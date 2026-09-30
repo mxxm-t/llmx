@@ -2764,6 +2764,7 @@
   },
   "documentation_review": {
     "scope": "All tracked Markdown reconciled to the last recorded CPU checkpoint e4690cee; only STATUS and VULKAN changed on integration. VULKAN accumulator description checked against dot_pairs and retained peer evidence; all other pages byte-identical to their prior review. This checkpoint replaces completed active blocks with this merge record and updates the quantization progress row.",
-    "pages": 78
+    "pages": 78,
+    "published_state_correction": "The quant-mxfp4 owner page still said CPU support was in progress after the merge; corrected to merged with speed work open. This is a status correction, no runtime or numerical change."
   }
 }

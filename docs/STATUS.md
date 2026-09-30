@@ -80,7 +80,42 @@
   If the scan ran three times faster than the per-token kernel, pp512 would gain about 11 percent on the 0.8B and 2 percent on the 9B, less on the 27B, beside the prompt cut on the 64-row grid through the CLI, the split and the server's budget slices.
 - **The chunked form, a first build** (`wip/qwen35-chunked-proto` at `842b042a`, not for merge): a preparation kernel and a scan kernel as above, taken for every view of 64 rows or more, chunks counted from the view's first row rather than on the grid. On one MI50 it holds Qwen3.5-0.8B Q8_0 to its HF goldens (`tests/baseline_qwen35.py` at 512-token windows, 59 of 59 checks, prompts and windows taking the chunked form), so the algebra and the flush count are right; but untuned it takes 71.7 ms in preparation and 69.2 ms in the scan at pp512 on the 0.8B against the per-token kernel's 11.4 ms (pp512 2558 tok/s against 7449), and 159.5 and 138.8 ms against 18.8 ms on the 9B Q4_K_M.
   The scan does about the per-token kernel's arithmetic, so tuned it could at best reach the per-token kernel's issue rate without its chain, perhaps twice as fast, worth about 8 percent of pp512 on the 0.8B and 1.4 percent on the 9B, before the 64-row grid through the CLI, the split and the server.
-- **Left:** step 6 is not kept at that gain for now; the prototype stays on its branch, and 8d (the server on a layer split) goes first.
+- **Where it matters, measured on every qwen35 file** (one MI50 at default clocks, `bench --profile` with the query pool raised so a 16k prompt is timed whole, main `c4d87f0f` and the 35B-A3B from `land/qwen35moe` `db0c4e9e`; the reference is the HIP build of the reference runtime, b10951 `eefc4e732`, `-fa 1`, on the same card).
+  `delta_rule`'s share of prompt device time, which is all step 6 can take, then pp tok/s of llmx and of the reference:
+
+  | file | pp512 | pp4096 | pp16384 | llmx / reference pp512, pp4096, pp16384 |
+  |---|---:|---:|---:|---|
+  | Qwen3.5-0.8B Q8_0 | 16.8% | 13.3% | 7.6% | 7085 / 6341, 5791 / 6503, 3268 / 5404 |
+  | Qwen3.5-9B Q4_K_M | 2.8% | 2.6% | 2.2% | 767 / 768, 725 / 759, 595 / 709 |
+  | Qwen3.6-27B Q8_0 | 3.0% | 2.8% | 2.3% | 254 / 329, 240 / 368, 200 / 332 |
+  | Qwen3.8-27B Q8_0 | 3.0% | 2.8% | 2.3% | 253 / 378, 240 / 369, 200 / 332 |
+  | Qwen3.6-35B-A3B Q4_K_M | 5.2% | 4.7% | 3.4% | 1114 / 1084, 1022 / 1066, 743 / 904 |
+
+  Main `4f4c1059`, with qwen35moe merged, gives the 35B-A3B 5.0, 4.6 and 3.3 percent on another MI50.
+  The recurrence costs a constant time a token, so its share falls as attention grows with the prompt.
+  Of 496 monitor samples, another card was busy in 495, another process at a full CPU or more in 121 and iowait above 5 percent in 4; a share of device time does not move with host activity.
+- **The references' recurrence:** the HIP reference's prompt kernel runs the per-token recurrence too, looped over 64-token chunks with the state in registers, one 64-lane subgroup on two rows of each of two columns, so 1024 subgroups on the 0.8B; it takes 876 to 915 us a layer for a 512-token pass on the 0.8B, 1450 on the 9B, 1970 on the 27B files and 1460 to 1490 on the 35B-A3B, against llmx's 649, 781, 1240 and 754.
+  The Vulkan reference (`7ab4ee7ba`) keeps a per-token kernel with eight lanes a column and eight columns a 64-lane workgroup, q and k normed before it: 553 to 563 us a layer on the 0.8B and 646 on the 9B, 14 and 17 percent under llmx's kernel, at pp512 5308 and 704 tok/s.
+  Neither runs the WY form; the vLLM path uses the Triton kernels of flash-linear-attention, whose chunked form (the local cumsum, K K^T, the block-inverted triangular solve, W and U, a scan over chunks storing each chunk's state, then the outputs in parallel over chunks) leans on matrix units that the MI50 lacks.
+- **Why the prototype was slow:** its inner loops read their operands from the scratch in global memory one value at a time (q in the preparation's P, P in the scan's outputs), recomputed an exp in every term of W, solved T a row at a time behind two barriers per row, and both kernels held about 50 KiB of shared memory, so one workgroup ran a unit with one subgroup a SIMD and nothing hid a latency.
+- **Tuned** (`research/qwen35-chunked-tuned` at `dd7ccc91`, on the prototype, not for merge): A, P, W and U as register tiles over shared memory, T inverted in 16-row blocks by all four subgroups, and the scan staging W, q and K 32 rows at a time with each lane's 16 values contiguous, so it holds 29 KiB and two workgroups fit a unit.
+  On one MI50, base the prototype's parent `cf149811`, in the order base, candidate, candidate, base, the kernels' device time (preparation + scan against `delta_rule`) and pp tok/s:
+
+  | file, prompt | prototype | tuned | recurrence | pp tok/s tuned / recurrence |
+  |---|---:|---:|---:|---|
+  | 0.8B Q8_0, pp512 | 71.7 + 69.2 ms | 6.1 + 7.4 ms | 11.7 ms | 6855, 6917 / 7087, 7066 |
+  | 0.8B Q8_0, pp4096 | | 49.8 + 60.3 ms | 93.6 ms | 5642, 5629 / 5788, 5764 |
+  | 9B Q4_K_M, pp512 | 159.5 + 138.8 ms | 13.6 + 15.5 ms | 18.7 ms | 755, 755 / 769, 766 |
+  | 9B Q4_K_M, pp4096 | | 109.1 + 125.0 ms | 150.5 ms | 713, 713 / 725, 723 |
+
+  It is right: the 0.8B's 8-window perplexity 24.2316 against 24.2318, its HF check 59 of 59 at 512-token windows, and the 9B's two raw 16k sequences against HF on the file's own weights 512 of 512 top-1 each, no position more than 0.5 below HF's top, error on HF's top five mean 0.002, p99 0.023, max 0.148.
+  Leaving out one section at a time (0.8B, pp512) spreads the time: in the preparation A 0.8, T 1.4, W 0.8, P 1.6 and U 0.7 ms; in the scan q . S with the outputs 3.5 and the state update 1.5 ms, v' and the staging the rest.
+- **Why it does not win here:** a chunk and head costs the chunked form about 4.4 M multiply-adds against the recurrence's 4.2 M, and the MI50 has no matrix units, so its only gain is parallelism; the per-token kernel already issues at about 20 percent of the FP32 rate on the 9B and the 27B files, whose 128 and 192 workgroups fill the device, against 12.6 percent on the 0.8B's 64.
+  The tuned pair costs 38 us a head and layer for a 512-token pass on the 9B against the recurrence's 24.
+  Reaching half the ceiling would take the pair two to three times faster again, and it would give about 8 percent of pp512 on the 0.8B, 1 to 1.5 percent on the 9B and the 27B files and about 2.5 percent on the 35B-A3B, for two kernels, a scratch of 147 KiB a chunk and head, and the 64-row grid through the CLI, the split and the server.
+- **Left:** parked with this evidence; the recommendation is not to build step 6 as a branch.
+  Two cheaper levers were measured beside it: the Vulkan reference's per-token layout, 14 to 17 percent under llmx's kernel, would give about 2.5 percent of pp512 on the 0.8B and 0.5 on the 9B, with decode too and one kernel for every row, so batch invariance holds; and the prompt gaps to the reference on the files people run are outside the recurrence, the 27B Q8_0 files at 65 percent of the reference at pp4096 and the 0.8B at 60 percent at pp16384, where the Q8_0 prompt tile and long-context attention take the time.
+  The Radeon VII, the same gfx906 with 60 units, was not measured.
 - **Gotchas:** the chunked form rounds differently from the recurrence, so it must run for a row class, never by the batch, and every slice of a prompt must end on the grid for a prompt to give the same bits however it is cut.
 
 ## qwen35moe (2026-09-30, branch land/qwen35moe, qwen35 step 7, lands by fast-forward)

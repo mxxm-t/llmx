@@ -1,8 +1,9 @@
 # Precision (planned)
 
 This is the plan for one precision system across every backend and weight type: how a run's activation dtype is chosen, how each device carries it out, how the tests hold each path to its own tolerance, and the order the work lands in.
-This design is not approved or merged. Parked prototypes and calibration measurements are prior research, not completed plan steps.
-Implementation and further dtype builds wait for the user's approval. Quantization merges remain held until this approved system is complete; any earlier staged release needs an explicit user decision.
+The user approved this plan on 2026-09-30, as agreed at 630644c0, with its seven questions decided as recommended (section 7); its steps are not yet built, and its headings stay a plan until they are.
+Parked prototypes and calibration measurements are prior research, not completed plan steps.
+Quantization merges remain held until this approved system is complete; any earlier staged release needs an explicit user decision.
 
 ## The rule (signed 2026-09-30, planned)
 
@@ -107,7 +108,7 @@ A path whose numerics change reports its HF error and headroom; a path that does
 `--dtype auto|f16|bf16|f32` on every model command and `serve`, `auto` by default, after auto lands.
 - A misspelt value is a usage error (status 2); a valid value is never refused.
 - Where a device lacks the value natively, it takes a fast exact emulation where one exists (BF16 or F16 activations rounded to that type and widened to F32 in the kernel), else F32, and the CLI writes one warning line and the record marks the device `fallback` or `emulated`.
-- `f32` means F32 activations on every path, which on Vulkan needs F32-activation row kernels for quantized weights, since today's rows read only the integer twins (open question 2).
+- `f32` means F32 activations on every path, which on Vulkan needs F32-activation row kernels for quantized weights, since today's rows read only the integer twins (decision 2).
 
 ## 6. Order of work (planned)
 
@@ -126,12 +127,14 @@ What waits:
 - Steps may be developed in separate dependent branches. Their landing order must leave main truthful about the arithmetic it runs. Any earlier staged quant merge requires an explicit user-approved amendment to this hold.
 - Re-run each pending branch's applicable gate against the completed policy and current main; an earlier green run does not approve a later numerical policy.
 
-## 7. Open questions (planned)
+## 7. Decisions (approved 2026-09-30, planned)
 
-1. **MI50 rows at 16 bits.** Moving the MI50's block-int8 rows to block-int16 is what F16 requires; the 16-bit prompt fix cost decode little on these types, but it is to be measured per type. Recommendation: move them in step 4 and record any decode cost as the fix's.
-2. **`--dtype f32` on Vulkan.** Quantized rows have no F32-activation kernel. Recommendation: write them in step 6, since a fallback that cannot run F32 would break rule 2.
-3. **BF16 emulation.** A device without BF16 emulates it by rounding activations to BF16 and computing in F32 on the float tile. Recommendation: accept that as exact emulation, with its speed recorded.
-4. **Existing F32 CPU prompt paths.** Keep a documented F32 implementation where it passes and is faster. Wide K-quant prompts are a separate existing integer path and must also conform; no speed claim for a proposed conversion is made before measurement.
-5. **The budget's margin.** Twice the largest error over five weight sets per fixture. Recommendation: keep twice, and recalibrate only with the user's approval, never to admit a failing path.
-6. **The record on every run.** One stderr line for every model command. Recommendation: always, since the rule makes precision visible and the tests read it.
-7. **GGUF dtype metadata.** A GGUF file carries a quantization type but no source dtype. Recommendation: the architecture's documented default, overridable by the flag; a safetensors path reads `torch_dtype`.
+The user took each question as recommended.
+
+1. **MI50 rows at 16 bits.** Moving the MI50's block-int8 rows to block-int16 is what F16 requires; the 16-bit prompt fix cost decode little on these types, but it is to be measured per type. Decision: move them in step 4 and record any decode cost as the fix's.
+2. **`--dtype f32` on Vulkan.** Quantized rows have no F32-activation kernel. Decision: write them in step 6, since a fallback that cannot run F32 would break rule 2.
+3. **BF16 emulation.** A device without BF16 emulates it by rounding activations to BF16 and computing in F32 on the float tile. Decision: accept that as exact emulation, with its speed recorded.
+4. **Existing F32 CPU prompt paths.** Decision: keep a documented F32 implementation where it passes and is faster. Wide K-quant prompts are a separate existing integer path and must also conform; no speed claim for a proposed conversion is made before measurement.
+5. **The budget's margin.** Twice the largest error over five weight sets per fixture. Decision: keep twice, and recalibrate only with the user's approval, never to admit a failing path.
+6. **The record on every run.** One stderr line for every model command. Decision: always, since the rule makes precision visible and the tests read it.
+7. **GGUF dtype metadata.** A GGUF file carries a quantization type but no source dtype. Decision: the architecture's documented default, overridable by the flag; a safetensors path reads `torch_dtype`.

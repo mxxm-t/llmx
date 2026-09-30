@@ -2,9 +2,8 @@
 
 Design for the first vendor backend, ROADMAP #4b, and step 5 of
 [EXECUTION](EXECUTION.md). It implements the `Backend` interface over
-a Vulkan device, except the five ops of the qwen35 layers, which
-`Backend::implements` reports absent, so a device refuses such a model as it
-loads; and nothing else: the model layer holds no address,
+a Vulkan device, the qwen35 layers' ops included, and nothing else:
+the model layer holds no address,
 computes no offset into KV storage, and submits stages through tickets.
 A scheduler can keep several passes in flight over the stages; a backend
 supplies an allocator, an ordered queue, and kernels.
@@ -498,7 +497,7 @@ HF gate measures the cost of it.
 
   A row of the copy held its batch's columns padded to an odd number of 128-byte runs. Unpadded, 512 columns put rows 16 KB apart and every writer of the copy took twice as long: the pass read 8.3 ms of an 8B Q8_0 prompt of 512 rows against 4.0 at 500 columns, and 4.05 padded to 516, where padding by 1, 8, 16, 32 and 64 blocks gave 4.50, 4.21, 4.19, 4.25 and 4.51. The RMS norm, which reads its whole row once per workgroup, splits a row only until the pass has four workgroups a compute unit, one a row at 512 rows where it took sixteen.
 
-  **The 16-bit twin in the tile** (2026-09-29). Against HF run on a file's own weights, the 8-bit activations parted from HF by up to 8.2 logits at 16k tokens on Qwen3.5-9B Q4_K_M and missed the Qwen3.5-0.8B Q8_0's top-5 bound on one prompt, where float activations met HF within 0.08. So the tile reads the row kernels' 16-bit twin: each staged word of four quants is widened to two pairs of signed 16-bit values and multiplied by two two-wide 16-bit dots, whose sum per block of 32, at most 32 * 128 * 32767 in magnitude, is the exact integer, and the scaling after it is the 8-bit tile's. Where one tile call reads a whole batch next (`tile_reads`), the norm, the SiLU and the wide attention write the twin four values a lane (`xquant_word`), the same bits as the lane-per-value writer, without the 8-bit twin; otherwise `quantize_xw.comp` writes it before the call. The 8-bit copy, its pass and its padding are gone. The dots double, and the tile is bound by them: on one MI50 with its clocks held high, a round a default-clock round replaces, prompt processing at 512 rows fell from 1291 to 721 tok/s on Qwen3-8B Q8_0 and from 1583 to 814 on Qwen3-30B-A3B Q4_K_M, below the reference's 859 and 1111, a speed gate left open for the branch that follows (docs/STATUS.md, MI50 prompt activations at 16 bits). Splitting each 16-bit value into two bytes for the four-wide dot gave the same bits and no speed.
+  **The 16-bit twin in the tile** (2026-09-29). Against HF run on a file's own weights, the 8-bit activations parted from HF by up to 8.2 logits at 16k tokens on Qwen3.5-9B Q4_K_M and missed the Qwen3.5-0.8B Q8_0's top-5 bound on one prompt, where float activations met HF within 0.08. So the tile reads the row kernels' 16-bit twin: each staged word of four quants is widened to two pairs of signed 16-bit values and multiplied by two two-wide 16-bit dots, whose sum per block of 32, at most 32 * 128 * 32767 in magnitude, is the exact integer, and the scaling after it is the 8-bit tile's. Where one tile call reads a whole batch next (`tile_reads`), the norm, the SiLU and the wide attention write the twin four values a lane (`xquant_word`), the same bits as the lane-per-value writer, without the 8-bit twin; otherwise `quantize_xw.comp` writes it before the call. The 8-bit copy, its pass and its padding are gone. The dots double, and the tile is bound by them: on one MI50 at default clocks prompt processing at 512 rows fell from 1301 to 726 tok/s on Qwen3-8B Q8_0 and from 1605 to 820 on Qwen3-30B-A3B Q4_K_M, below the reference's 810 and 1067, a speed gate left open for the branch that follows (docs/STATUS.md, MI50 prompt activations at 16 bits). Splitting each 16-bit value into two bytes for the four-wide dot gave the same bits and no speed.
 
   One MI50, a prompt of 512 rows, device time of a pass (`bench --profile`) and prompt processing in tok/s, the mean of three interleaved rounds (docs/STATUS.md, Prefill kernels on the MI50):
 
@@ -595,7 +594,10 @@ HF gate measures the cost of it.
   through the block table, a small buffer uploaded per call. GQA maps
   `n_head / n_head_kv` query heads to one KV head. Each attention kernel
   processes its selected views through a view table. Head widths up to
-  256.
+  256: heads 128 and 256 wide take the vector and tiled kernels below on
+  any device, and a head of another width takes this kernel, whose lanes
+  read four of its values each, so on a 32-lane device it is at most 128
+  wide (`attention_head_fits`).
   Once the dispatch's longest row fills every split (2048 tokens at the
   defaults), a workgroup takes up to four query heads of one KV head and
   loads each token's key and value once for them, in the `_g4` builds;
@@ -630,12 +632,19 @@ HF gate measures the cost of it.
   history: Qwen3-8B Q8_0 30.0 to 42.8 tok/s (the reference 44.5), 0.6B
   86.1 to 129.4, 30B-A3B 31.7 to 59.1; from an empty history level or
   better (0.6B 352 to 363).
+  qwen35's heads, 256 wide, take its `_d256` builds, which read a token's
+  row with 32 lanes, 8 streams a workgroup, with the arithmetic of each
+  lane unchanged.
 - **attention_tile**, for a wide pass of 128-wide heads: a workgroup
   per 32 query rows and head, the head's K and V streamed through shared
   memory in 16-token tiles so a tile is read once per 32 rows rather
   than once per row. It took a 16384-token prompt on Qwen3-0.6B from
-  155 to 513 tok/s, level with the reference's 514. Other head widths
-  and narrow passes take the per-row kernel.
+  155 to 513 tok/s, level with the reference's 514. Its `_d256` builds
+  take qwen35's 256-wide heads with 8-key tiles, which keep K and V at
+  16 KiB of shared memory, inside the 32 KiB some drivers give a
+  workgroup; the tile's key count sets where the online softmax rescales,
+  so it is a constant of the head width. Other head widths and narrow
+  passes take the per-row kernel.
 
   Eight lanes share a query row. Lane l owns dimensions 32k + 4l to 32k + 4l + 3, so a row's lanes read a staged token as one contiguous 128-byte run per k, and K and V are staged eight values per load.
 
@@ -666,19 +675,35 @@ HF gate measures the cost of it.
   requests.
 - **kv_write**: a scatter of `[rows, n_head_kv, head_dim]` into blocks,
   one lane per float.
-- **norm_rope_rows**: one workgroup per (row, head): the head's sum of
-  squares in a shared-memory tree over the workgroup, then the rotation reading the table at
-  the row's position.
+- **norm_rope_partial**: one workgroup per (row, head): the head's sum of
+  squares in a tree through shared memory, then the rotation of its first
+  `rope_dim` values reading the table at the row's position, the heads read
+  at their strides and written contiguously. It is the partial rope of the
+  qwen35 layers; Qwen3's rope, the op at the full width in place, runs in
+  the fused kernel below.
 - **norm_rope_kv**: the layer's attention inputs in one dispatch, a
   workgroup per (row, head) over the q heads, the k heads and the v
-  heads: q normed and rotated in place with norm_rope_rows' arithmetic,
+  heads: q normed and rotated in place with norm_rope_partial's arithmetic at the full width,
   k normed and rotated straight into its KV block, v copied into its
   block.
-  The model asks for the three together (`Backend::norm_rope_kv`, whose default is the three ops and is what the CPU runs), and every view of a batch goes through the view table in that one dispatch.
+  The model asks for the three together (`Backend::norm_rope_kv`, whose default is `norm_rope_partial` on q and on k, then `kv_write`, and is what the CPU runs), and every view of a batch goes through the view table in that one dispatch.
   Three dispatches fewer per layer, 0.6B Q8_0 decode 202 to 221 tok/s under the matched protocol.
 - **silu_mul, add, gather_rows**: elementwise or gather kernels, one invocation per output float, or four a lane where the integer-dot tile reads `silu_mul`'s output next.
 - **rms_norm_rows**: a row over one or more workgroups, each summing the whole row's squares in a tree and writing its own chunks.
 - **embed**: a workgroup per gathered row, dequantizing it on the way.
+- **The qwen35 layers** (docs/QWEN35.md): `sigmoid_mul` and `gated_rms_norm`,
+  which write the copy of their output the next matmul reads as `silu_mul`
+  and `rms_norm_rows` do; `causal_conv_silu`, one dispatch of an invocation
+  per (chunk of 16 rows, channel), whose view's first chunk alone reads and
+  leaves the carried rows; and the gated delta rule, one dispatch, a
+  workgroup per (view, V head, 32 V columns) that stages each block of 16
+  tokens' normed q and k, gates and v in shared memory and then runs the
+  per-token recurrence, eight lanes a column with 16 of its rows each in
+  registers, summed in row order within a lane and through one butterfly
+  across the eight, so a sequence gives the same bits however its rows are
+  batched or cut into passes. The state is read from slot `src` and written
+  to slot `dst` through a view table like the KV cache's. How these kernels
+  measure is in STATUS, the qwen35 plan's step 5.
 
 ### KV layout on the device
 

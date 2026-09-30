@@ -12,8 +12,8 @@ Single place for compile-time build knobs.
   are implemented.
 - **Model architectures** are *not* here: the registry
   (`model/arch/registry.hpp`) reads `general.architecture` at run time;
-  dense Qwen3 and `qwen3moe` are implemented, and dense `qwen35`
-  (Qwen 3.5, 3.6 and 3.8) on the CPU.
+  dense Qwen3, `qwen3moe` and dense `qwen35` (Qwen 3.5, 3.6 and 3.8)
+  are implemented.
 - **Split mode / node count** are *not* here: layer splitting is selected at
   runtime through `--device` and `--layer-shares`; tensor groups and node
   execution remain planned.

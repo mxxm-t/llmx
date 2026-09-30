@@ -188,9 +188,9 @@ def cli_stdout(raw):
 
 def generate_text(stdout):
     """The bytes `llmx generate` wrote between its `pp:` and `tg:` lines, from its raw stdout, without the line feed that ends the text.
-    The lines `--verbose` adds, the prompt token count before them and the cache line after, may frame them; any other output raises ValueError."""
+    The lines `--verbose` adds, the prompt token count before them and the cache line and the generated ids after, may frame them; any other output raises ValueError."""
     out = cli_stdout(stdout)
-    frame = re.fullmatch(rb"(?:prompt tokens: \d+\n)?pp: [^\n]*\n(.*)\ntg: [^\n]*\n(?:kv: [^\n]*\n)?", out, re.S)
+    frame = re.fullmatch(rb"(?:prompt tokens: \d+\n)?pp: [^\n]*\n(.*)\ntg: [^\n]*\n(?:kv: [^\n]*\nids:[^\n]*\n)?", out, re.S)
     if not frame:
         raise ValueError("generate output outside the pp and tg frame: %r" % out)
     return frame[1]

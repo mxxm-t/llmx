@@ -1,0 +1,148 @@
+#version 450
+// The gated delta rule (backend.hpp, gated_delta_rule; docs/QWEN35.md, Linear attention): the L2 norms of q and k, the gates, and the per-token recurrence.
+// One workgroup per (view, V head j, block of 32 V columns): eight consecutive lanes hold one column, each of them rows part, part + 8, ... of the head's k_dim x v_dim matrix in registers, read from slot src (zero at length 0) and written to slot dst.
+// The view's tokens go in blocks of TB: the whole workgroup reads a block's q and k rows of K head j mod k_heads, norms them, and makes each token's beta and decay and stages its v values into shared memory, then every column runs the block's tokens.
+// Per token, in HF's order: the matrix decayed, m from the decayed matrix, d = beta (v - m), the rank-1 write, then o from the updated matrix; o of a token and m of the next are both sums over the matrix after the token, so their butterflies run together, each the sum it would be alone.
+// Every sum is a lane's fused multiply-adds in row order, then one butterfly over eight lanes, the same arithmetic for every row whatever else is in the call, so a sequence gives the same bits alone, batched or cut into passes; the decay is 0 below 2^-126, so no driver's denormal handling decides it.
+// The view table (vulkan_backend.cpp, state_table) holds the view count, then per view its first batch row, rows, history length, source slot and destination slot.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_EXT_control_flow_attributes : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint C; uint k_heads; uint v_heads; uint k_dim; uint v_dim; uint slot; uint blocks; float scale; float eps; } p;
+layout(set = 0, binding = 0) writeonly buffer O { float o[]; };
+layout(set = 0, binding = 1) readonly buffer U { float u[]; };
+layout(set = 0, binding = 2) readonly buffer AL { float alpha[]; };
+layout(set = 0, binding = 3) readonly buffer B { float bb[]; };
+layout(set = 0, binding = 4) readonly buffer A { float a[]; };
+layout(set = 0, binding = 5) readonly buffer DT { float dt_bias[]; };
+layout(set = 0, binding = 6) buffer S { float st[]; };
+layout(set = 0, binding = 7) readonly buffer T { uint tab[]; };
+uint view_row0(uint v) { return tab[1u + 5u * v]; }
+uint view_nq(uint v) { return tab[2u + 5u * v]; }
+uint view_len(uint v) { return tab[3u + 5u * v]; }
+uint view_src(uint v) { return tab[4u + 5u * v]; }
+uint view_dst(uint v) { return tab[5u + 5u * v]; }
+// Rows of the matrix a lane holds: k_dim at most 8 of these (the backend refuses a wider K head); rows past k_dim hold zeros.
+#define ROWS 16u
+// Tokens a block stages: its normed q and k take 2 TB 128 floats of shared memory, and its v values TB 32.
+#define TB 16u
+shared float kn[TB][128];
+shared float qn[TB][128];
+shared float vs[TB][32];
+shared float betas[TB];
+shared float decays[TB];
+// The sum over the eight lanes of a column or of a row; every lane gets the same bits, since each step adds the same two partials.
+float lanes8(float x) {
+    precise float a = x + subgroupShuffleXor(x, 1u);
+    precise float b = a + subgroupShuffleXor(a, 2u);
+    precise float c = b + subgroupShuffleXor(b, 4u);
+    return c;
+}
+// log(1 + y) without the cancellation of 1 + y for a small y.
+float log1p_of(float y) {
+    precise float up = 1.0 + y;
+    precise float down = up - 1.0;
+    return up == 1.0 ? y : log(up) * (y / down);
+}
+void main() {
+    uint wg = gl_WorkGroupID.x, per_view = p.v_heads * p.blocks;
+    uint v = wg / per_view, rest = wg - v * per_view;
+    uint j = rest / p.blocks, blk = rest - j * p.blocks;
+    uint lid = gl_LocalInvocationID.x, part = lid & 7u, c = blk * 32u + (lid >> 3u);
+    // A column past the head is a whole group of eight lanes: it stages its share of a block and computes nothing.
+    bool col = c < p.v_dim;
+    uint qk = p.k_heads * p.k_dim, kh = j % p.k_heads;
+    uint row0 = view_row0(v), nq = view_nq(v);
+    uint matrix = j * p.k_dim * p.v_dim + c;
+    uint src = view_src(v) * p.slot + matrix, dst = view_dst(v) * p.slot + matrix;
+    bool fresh = view_len(v) == 0u;
+    precise float s[ROWS];
+    [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+        uint i = part + 8u * ii;
+        s[ii] = col && i < p.k_dim && !fresh ? st[src + i * p.v_dim] : 0.0;
+    }
+    // A staging lane: group g of eight lanes norms one row of the block, q of token g / 2 for g even and k for g odd, lane `part` taking values part, part + 8, ...
+    uint g = lid >> 3u, tok = g >> 1u;
+    bool is_k = (g & 1u) != 0u;
+    precise float m = 0.0;
+    bool have_m = false;
+    for (uint t0 = 0u; t0 < nq; t0 += TB) {
+        uint n = min(TB, nq - t0);
+        if (tok < n) {
+            uint in0 = (row0 + t0 + tok) * p.C + (is_k ? qk : 0u) + kh * p.k_dim;
+            float x[ROWS];
+            precise float ss = 0.0;
+            [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+                uint i = part + 8u * ii;
+                x[ii] = i < p.k_dim ? u[in0 + i] : 0.0;
+                ss = fma(x[ii], x[ii], ss);
+            }
+            precise float inv = 1.0 / sqrt(lanes8(ss) + p.eps);
+            // Rows past k_dim stage as zeros, so the recurrence runs every row a lane holds without a test and they add nothing to its sums.
+            [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+                precise float nv = x[ii] * inv;
+                if (is_k) kn[tok][part + 8u * ii] = nv;
+                else qn[tok][part + 8u * ii] = nv * p.scale;
+            }
+        }
+        // Lanes make the block's gates, one token a lane, and stage its v values of the workgroup's columns.
+        if (lid < n) {
+            uint r = row0 + t0 + lid;
+            float bj = bb[r * p.v_heads + j];
+            precise float beta = 1.0 / (1.0 + exp(-bj));
+            precise float xg = alpha[r * p.v_heads + j] + dt_bias[j];
+            precise float sp = xg > 20.0 ? xg : log1p_of(exp(xg));
+            precise float decay = exp(a[j] * sp);
+            betas[lid] = beta;
+            decays[lid] = decay < 1.17549435e-38 ? 0.0 : decay;
+        }
+        for (uint idx = lid; idx < n * 32u; idx += 256u) {
+            uint t = idx >> 5u, cc = blk * 32u + (idx & 31u);
+            vs[t][idx & 31u] = cc < p.v_dim ? u[(row0 + t0 + t) * p.C + 2u * qk + j * p.v_dim + cc] : 0.0;
+        }
+        barrier();
+        if (col) {
+            // The block's first token's decay and m, from the matrix the last block left, or the source slot's.
+            if (!have_m) {
+                precise float mp = 0.0;
+                float decay = decays[0];
+                [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+                    s[ii] = s[ii] * decay;
+                    mp = fma(s[ii], kn[0][part + 8u * ii], mp);
+                }
+                m = lanes8(mp);
+                have_m = true;
+            }
+            for (uint t = 0u; t < n; ++t) {
+                uint r = row0 + t0 + t;
+                precise float d = betas[t] * (vs[t][lid >> 3u] - m);
+                precise float op = 0.0;
+                [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+                    s[ii] = fma(kn[t][part + 8u * ii], d, s[ii]);
+                    op = fma(s[ii], qn[t][part + 8u * ii], op);
+                }
+                // The next token's decay and m, when it is in this block; the first token of the next block takes them after its staging.
+                precise float np = 0.0;
+                bool next = t + 1u < n;
+                if (next) {
+                    float decay = decays[t + 1u];
+                    [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+                        s[ii] = s[ii] * decay;
+                        np = fma(s[ii], kn[t + 1u][part + 8u * ii], np);
+                    }
+                }
+                float res = lanes8(op);
+                if (next) m = lanes8(np);
+                if (part == 0u) o[r * p.v_heads * p.v_dim + j * p.v_dim + c] = res;
+            }
+            have_m = false;
+        }
+        barrier();
+    }
+    if (col)
+        [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+            uint i = part + 8u * ii;
+            if (i < p.k_dim) st[dst + i * p.v_dim] = s[ii];
+        }
+}

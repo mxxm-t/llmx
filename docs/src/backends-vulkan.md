@@ -12,9 +12,8 @@ The lifetime and packed-quantization tests include the implementation and use te
 - `supports_type(type)` accepts F32 and the block types of `decoded_blocks`;
   the model's pre-adoption check and the backend's matrix checks use this
   same query, so they cannot disagree about a weight type.
-  `implements` keeps `Backend`'s answer, false for every `Op`, so the model
-  refuses a qwen35 file on this backend as it loads, naming the layer, its
-  part and the op.
+  `implements` answers true for every `Op`, so the model's check at load
+  refuses no qwen35 file on this backend.
 
 - `make_vulkan_backend(index, diagnostics)`, `vulkan_device_name`: open
   the loader, pick the device, require what the kernels need (Vulkan 1.2,
@@ -24,7 +23,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   the test skips on and the CLI reports, as does a loader with no driver
   behind it.
   `missing_device_need` holds the features and subgroup properties of that list in one place and names the first one missing.
-  `attention_head_fits` takes a head of at most four elements per subgroup lane and 256 in all, what the attention kernels read, which `kv_alloc` and `attention` check, so a 32-lane device refuses a head wider than 128. The device's `DeviceCaps` choose its `DeviceProfile`
+  `attention_head_fits` takes a head 128 or 256 wide, which the tiled and vector kernels read on any subgroup the device check accepts, and a head of another width up to four elements per subgroup lane and 256 in all (`attention_row_width`), which the per-row kernel reads; `kv_alloc` and `attention` check it, so a 32-lane device refuses a head of another width above 128. The device's `DeviceCaps` choose its `DeviceProfile`
   (`backends/device_profile.hpp`), which `vulkan_device_profile` returns so
   the test predicts the kernel the backend picks.
 - `vulkan_kernel_statistics` returns the driver's per-kernel registers,
@@ -162,13 +161,25 @@ The lifetime and packed-quantization tests include the implementation and use te
   projection's slots land in scratch and `shaders/moe_combine.comp` adds
   their weighted sum to the residual; it reuses the grouping made for gate and up and reads the twin the SiLU writes for its input, while the router and gate and up share their input's twin.
 - The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16, written and read through view tables, so every view of a batch goes through one dispatch of each cache kernel.
-  It derives from `BlockKVStorage` (`backends-kv_storage.md`), which grows it, keeps its accounting and checks each view as the table is built; its `retire` hands the buffers a growth copied from to `keep_until_retired`, and `kv_alloc` refuses heads wider than 256.
+  It derives from `BlockKVStorage` (`backends-kv_storage.md`), which grows it, keeps its accounting and checks each view as the table is built; its `retire` hands the buffers a growth copied from to `keep_until_retired`, and `kv_alloc` refuses a head `attention_head_fits` does not take.
   Attention can dispatch tiled and row kernels plus a history-split merge in one layer.
-  It gives views of 128-wide heads whose prompt reaches the profile's `attention_tile_rows` to the tiled kernel (`shaders/attention_tile.comp`, 32 query rows a tile as the shader fixes them) and the rest to the per-row kernel, which splits a row's history into parts from the row's own length and merges them (`shaders/attention_merge.comp`); once the longest row fills every split, a workgroup takes up to four query heads of one KV head (the `_g4` builds), loading the history once for them with each head's arithmetic unchanged.
-  Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one 16-byte load a lane for an f16 side and two for f32, and several tokens a subgroup; other widths keep `attention.comp`.
+  It gives views of 128- or 256-wide heads whose prompt reaches the profile's `attention_tile_rows` to the tiled kernel (`shaders/attention_tile.comp`, 32 query rows a tile as the shader fixes them, its `_d256` builds staging 8 keys a tile where the 128-wide ones stage 16) and the rest to the per-row kernel, which splits a row's history into parts from the row's own length and merges them (`shaders/attention_merge.comp`); once the longest row fills every split, a workgroup takes up to four query heads of one KV head (the `_g4` builds), loading the history once for them with each head's arithmetic unchanged.
+  Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one 16-byte load a lane for an f16 side and two for f32, and several tokens a subgroup, and heads 256 wide its `_d256` builds, 32 lanes a token; other widths keep `attention.comp`.
 - `kv_variant` picks the shader module for a storage's K and V types.
-- The qwen35 layers' ops (`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`, `norm_rope_partial` and `sigmoid_mul`) have no kernels yet, so `implements` is false for each, the model refuses a qwen35 file at load (`model-runtime.md`), and `Backend`'s throwing forms stay until the qwen35 plan's step 5 adds them.
-  `state_alloc` and `state_copy` are `Backend`'s own, built on this backend's `alloc` and `copy`; `backend-vulkan` checks the underlying buffer operations, while `qwen35-ops` runs `state_alloc` and `state_copy` on the CPU. No device test directly exercises the state wrappers.
+- `norm_rope_partial`: one workgroup per (row, head) (`shaders/norm_rope_partial.comp`), the head's sum of squares a tree through shared memory, reading the heads at their strides and writing them contiguously; Qwen3 does not reach it on this backend, whose fused `norm_rope_kv` has the same arithmetic per head at the full width.
+- The qwen35 layers' ops (docs/QWEN35.md), each checked against the CPU and for its own bit-for-bit rules by `backend-vulkan`:
+  - `sigmoid_mul` (`shaders/sigmoid_mul.comp`) and `gated_rms_norm` (`shaders/gated_rms_norm.comp`, one workgroup per (row, head)) write the copy of their output that the matmul reading it next takes, by its row runs, as `silu_mul` and `rms_norm_rows` do: the 16-bit twin, four values a lane without the 8-bit twin where `tile_reads` says one tile call reads the batch.
+    So the output gate replaces the copy attention wrote of the ungated output, which its dispatch dropped the tag of.
+  - `causal_conv_silu` (`shaders/causal_conv_silu.comp`): one dispatch, an invocation per (chunk of `kConvChunk` rows of a view, channel) walking its rows through a window of the last three raw values; a view's first chunk alone reads the rows it carries in and writes the rows it leaves, after reading them, so no other invocation touches them.
+    Each output is the CPU's multiply-add chain in tap order, so it is the same however the view is cut into chunks.
+  - `gated_delta_rule` (`shaders/delta_rule.comp`): one dispatch, a workgroup per (view, V head, 32 V columns), eight lanes a column, each holding 16 of its rows in registers.
+    For each block of 16 of its view's tokens the workgroup stages the L2-normed q and k of the V head's K head, each V head's beta and decay, 0 below 2^-126, and its columns' v into shared memory, then every column runs the block's tokens.
+    Every sum is a lane's multiply-adds in row order, then one butterfly over eight lanes, the same for every token whatever else is in the call, so a sequence gives the same bits alone, beside others and cut into passes; o of a token and m of the next share their butterfly.
+    Rows past the K head's width stage as zeros, so the recurrence tests no row.
+    It refuses K heads wider than 128.
+  - `state_table` lays a call's state views out for the kernels, the conv appending its chunks, and refuses views of two storages in one call; the slots' floats must be addressable in 32 bits.
+  - `state_alloc` and `state_copy` are `Backend`'s own, built on this backend's `alloc` and `copy`; `backend-vulkan` checks their zeroed slots and copies.
+  - `implements` answers true for every op.
 - `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`), both reading the shape from one rule, `pads_f32`; routed stacks and gathered tables are bound as they are. `host_resident()`: the upload staging buffer and the ring of host-visible arenas, which live in host memory. `scratch_reserve(free)`: 256 MiB plus a twentieth of what is free, for tile split partials and attention merge state.
 
 ## Finite activation range repair

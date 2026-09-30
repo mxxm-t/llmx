@@ -482,9 +482,11 @@ int device_need_checks() {
     f12.shaderInt8 = VK_FALSE; expect("no 8-bit integers", "8-bit integer arithmetic"); f12.shaderInt8 = VK_TRUE;
     f11.storageBuffer16BitAccess = VK_FALSE; expect("no 16-bit storage", "16-bit storage"); f11.storageBuffer16BitAccess = VK_TRUE;
     f12.storageBuffer8BitAccess = VK_FALSE; expect("no 8-bit storage", "8-bit storage"); f12.storageBuffer8BitAccess = VK_TRUE;
-    // The attention kernel reads four elements of a head per lane of a subgroup, so a head wider than four subgroups does not fit.
-    const bool widths = backend::attention_head_fits(128, 32) && !backend::attention_head_fits(256, 32) && backend::attention_head_fits(256, 64) &&
-                        !backend::attention_head_fits(260, 64) && backend::attention_head_fits(64, 64);
+    // Heads 128 and 256 wide take kernels whose lane groups fit any subgroup the device check accepts, 256 on a 32-lane device included.
+    // Other widths take the per-row kernel, which reads four elements of a head per lane of a subgroup, so such a head wider than four subgroups does not fit.
+    const bool widths = backend::attention_head_fits(128, 32) && backend::attention_head_fits(256, 32) && !backend::attention_head_fits(192, 32) &&
+                        backend::attention_head_fits(192, 64) && backend::attention_head_fits(256, 64) && !backend::attention_head_fits(260, 64) &&
+                        !backend::attention_head_fits(512, 64) && backend::attention_head_fits(64, 64) && backend::attention_head_fits(80, 32);
     std::cout << "attention head widths against 32- and 64-lane subgroups" << (widths ? " PASS\n" : " FAIL\n");
     return failures + !widths;
 }

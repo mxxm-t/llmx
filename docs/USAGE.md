@@ -187,12 +187,13 @@ comma-separated list on one line.
 
 Decode a comma- or whitespace-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> ("<text>" | --file <path>) [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
+## `llmx logits <in.gguf> ("<text>" | --file <path>) [--chat] [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
 
 Print the top-N next-token logits for `text`, one `id value` pair per line after a `tokens:` header.
 The list is most likely first, a tie going to the lower id.
 `--top` defaults to 10.
 `--file <path>` (`-f`) in place of the text reads it from a UTF-8 file, as `perplexity` does, for a text longer than a command line holds.
+`--chat` reads the text as `generate --chat` reads its prompt, one user message through the model's chat template.
 `--then-ids F` appends the token ids in `F`, separated by commas or whitespace, after the text's tokens, so a generated reply is read as the tokens it was.
 `--last N` prints each of the last `N` positions instead, one line of its position followed by its top-N `id value` pairs, from the batched passes a prompt takes; `tools/long_context_check.py` reads a device's reply this way.
 `--per-token` reads every token one at a time through decode steps, the path a generated token takes, instead of the batched passes a prompt takes, as `perplexity --per-token` does; on a device the two paths run different kernels, so a reply's `--then-ids` read this way gives the logits its decode steps gave.
@@ -302,8 +303,8 @@ device `N`, counted as the loader lists them, in a build configured with
 `-DLLMX_HAS_BACKEND_VULKAN=ON` (`docs/VULKAN.md`); a build without it says
 so rather than falling back. `generate`, `chat`, `logits`, `perplexity`,
 `serve` and `bench` take the flag. A model whose layers need an op the
-device's backend lacks is refused as it loads, naming the op: a `qwen35`
-file runs on the CPU only for now. On a device `--threads` and `--threads-batch` do
+device's backend lacks is refused as it loads, naming the op; every op the
+`qwen3` and `qwen35` files need runs on a Vulkan device. On a device `--threads` and `--threads-batch` do
 nothing and `--verbose` reports 0 threads, unless experts run on the CPU
 beside it (below); `--ubatch` keeps its meaning.
 
@@ -440,10 +441,12 @@ so a pass can hold up to `--ubatch` plus `--max-seqs` rows (`docs/SERVER.md`).
 For a CLI prompt, scratch grows to the smaller of `--ubatch` and that prompt.
 The server reserves its pass capacity at startup, including decode rows.
 
-## `llmx generate <in.gguf> "<prompt>" [flags...]`
+## `llmx generate <in.gguf> ("<prompt>" | --file <path>) [flags...]`
 
 Prompt-process `prompt`, then autoregressively generate tokens until eos or
 `--max-tokens`. Streams generated text as tokens arrive, reasoning included.
+`--file <path>` (`-f`) in place of the prompt reads it from a UTF-8 file, as `logits` and `perplexity` read their text, for a prompt longer than a command line holds.
+The prompt is raw text unless `--chat` is given, which sends it as one user message through the model's `tokenizer.chat_template` with the assistant's header after it and no system message, as `/v1/chat` renders a conversation of that one message; a template the renderer refuses stops the command, as it stops `chat`.
 Stop matching retains the matching token in output, including any suffix
 within that token, as before.
 
@@ -482,7 +485,9 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--ignore-eos`          | never end at the model's end-of-text token           | off     |
-| `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status | off   |
+| `-f`, `--file <path>`   | read the prompt from a UTF-8 file, right after the model | (none) |
+| `--chat`                | send the prompt as one user message through the model's chat template | off (raw text) |
+| `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status, and after `tg:` the generated token ids as `ids: a,b,...`, which `logits --then-ids` reads back | off   |
 
 `--seed` is a decimal whole number up to 2^64 - 1, so a leading zero does not make it octal and a `0x` prefix is refused.
 `--temp` and `--topk` are at least 0, `--topp` is 0 to 1 and `--penalty` is at least 1, the ranges the server takes for the same settings.
@@ -497,7 +502,7 @@ Interactive chat loop reading lines from stdin.
 Uses the model's `tokenizer.chat_template` to format the conversation, rendered byte for byte as the Jinja template language defines it (`docs/src/inference-chat.md` lists what the renderer takes).
 Supports the same sampling flags as `generate`, plus `--system` to set the system message (default: `You are a helpful assistant.`).
 Messages come only from stdin, so a positional argument after the model is refused.
-A template that uses a part of the template language the renderer does not take is refused, with the reason, before the first turn; `generate` still runs on that file.
+A template that uses a part of the template language the renderer does not take is refused, with the reason, before the first turn; `generate` without `--chat` still runs on that file.
 A template can also refuse a conversation itself, and that ends the command with the template's message.
 Each reply is kept in the history as the model wrote it, except under a template that reads `reasoning_content` and does not split a reply at `</think>` itself, such as the Qwen 3.8 ones: there the reply after its `</think>` is kept as the content and the reasoning before it as `reasoning_content`, which is the only way those templates show earlier reasoning.
 
@@ -568,7 +573,7 @@ to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request
 `--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage by default, so every device works on some pass while the host samples another; one elsewhere, where a number above 1 is refused as the server starts.
 The server prints the number it keeps, and passes whose buffers the memory cannot hold are dropped at start with a line on stderr.
 `--timing` times the rounds and each device's work for `/v1/health`, its dispatches between timestamps, which slows serving: throughput is read from a server without it.
-A model whose layers keep a recurrent state, a `qwen35` file such as Qwen3.5 or Qwen3.6-27B, is refused before the server listens until the scheduler holds states; the other commands run it on the CPU.
+A model whose layers keep a recurrent state, a `qwen35` file such as Qwen3.5 or Qwen3.6-27B, is refused before the server listens until the scheduler holds states; the other commands run it on the CPU and on a Vulkan device.
 The server draws a pass's tokens on its scheduler thread and up to four sampling threads beside it, one fewer sampling thread than the CPUs the process may use where that is fewer, whatever `--threads` says, which counts the CPU backend's workers; it prints the number of sampling threads as it starts.
 
 | Route | Body | Reply |

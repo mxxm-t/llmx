@@ -96,6 +96,8 @@ def check_usage_errors():
                        (["generate", model, "a", "--stop", "x", "--stop", "y"], "generate"),
                        (["generate", model, "a", "--system", "x"], "generate"),
                        (["logits", model, "text", "--file"], "logits"), (["logits", model, "-f", "a.txt", "--file", "b.txt"], "logits"),
+                       (["generate", model, "text", "-f", "a.txt"], "generate"), (["generate", model, "-f", "a.txt", "b"], "generate"),
+                       (["generate", model, "--file"], "generate"),
                        (["perplexity", model, "text", "-f", "a.txt"], "perplexity"),
                        (["bench", "--threads", "2", "--r", "2"], "bench"), (["bench", "--cpu-moe"], "bench"),
                        (["bench", "--model", model, "--size", "64"], "bench"), (["bench", "--model", model, "--iters", "2"], "bench"),
@@ -214,7 +216,7 @@ def check_help():
         if command == "bench" and flag == "--model":
             return ["bench"] + args
         # A text file stands in place of the text, right after the model.
-        if command in ("logits", "perplexity") and flag in ("--file", "-f"):
+        if command in ("generate", "logits", "perplexity") and flag in ("--file", "-f"):
             return bases[command][:2] + args
         return bases[command] + args + company.get(flag, [])
 

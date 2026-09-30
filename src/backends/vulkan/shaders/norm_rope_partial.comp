@@ -1,0 +1,38 @@
+#version 450
+// One workgroup per (row, head): the head's RMS norm over head_dim values, then the rotation of its first 2 * half values at the row's own position, the rest passing normed.
+// Source head h of row r starts at r * src_stride + h * src_head_stride and the heads are written contiguously, head_dim values each; element i of the first half pairs with i + half.
+// dst may be src with contiguous heads: every value is read for the sum before the barrier, and after it each lane reads and writes only its own pairs and values.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint src_stride; uint src_head_stride; uint heads; uint head_dim; uint half_dim; float eps; } p;
+layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer X { float src[]; };
+layout(set = 0, binding = 2) readonly buffer W { float w[]; };
+layout(set = 0, binding = 3) readonly buffer C { float cs[]; };
+layout(set = 0, binding = 4) readonly buffer S { float sn[]; };
+layout(set = 0, binding = 5) readonly buffer I { uint pos[]; };
+shared float red[256];
+void main() {
+    uint row = gl_WorkGroupID.x / p.heads;
+    uint head = gl_WorkGroupID.x - row * p.heads;
+    uint lid = gl_LocalInvocationID.x;
+    uint base = row * p.src_stride + head * p.src_head_stride;
+    uint out_base = (row * p.heads + head) * p.head_dim;
+    float s = 0.0;
+    for (uint i = lid; i < p.head_dim; i += 256u) { float v = src[base + i]; s += v * v; }
+    red[lid] = s;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) red[lid] += red[lid + k];
+        barrier();
+    }
+    float r = 1.0 / sqrt(red[0] / float(p.head_dim) + p.eps);
+    uint t = pos[row] * p.half_dim;
+    for (uint i = lid; i < p.half_dim; i += 256u) {
+        float a = src[base + i] * r * w[i];
+        float b = src[base + i + p.half_dim] * r * w[i + p.half_dim];
+        float c = cs[t + i], sv = sn[t + i];
+        dst[out_base + i] = a * c - b * sv;
+        dst[out_base + i + p.half_dim] = a * sv + b * c;
+    }
+    for (uint i = 2u * p.half_dim + lid; i < p.head_dim; i += 256u) dst[out_base + i] = src[base + i] * r * w[i];
+}

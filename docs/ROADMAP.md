@@ -43,12 +43,12 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. Th
   Each new type joins it from raw blocks, since the planned types stay read-only, with no quantizer.
 
 ## 2. More model architectures
-The `infer::Model` layer covers Qwen3 and its mixture-of-experts form today, and the dense Qwen 3.5, 3.6 and 3.8 on the CPU.
+The `infer::Model` layer covers Qwen3 and its mixture-of-experts form today, and the dense Qwen 3.5, 3.6 and 3.8 on the CPU and on a Vulkan device.
 Generalize to an architecture registry keyed by `general.architecture` (done: `model/arch/registry.hpp` picks the module that runs a file):
 - Done: `qwen3moe` (Qwen3-30B-A3B), routed layers on the CPU and Vulkan
   backends with experts optionally on the CPU beside a device; the gate is a
   tiny random-weight model through HF `Qwen3MoeForCausalLM` (`docs/STATUS.md`)
-- In progress: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS.md`; the dense `qwen35` runs on the CPU against HF, and the device, MoE, serving and MTP steps follow.
+- In progress: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS.md`; the dense `qwen35` runs on the CPU and on a Vulkan device against HF, and the chunked prompt form, MoE, serving and MTP steps follow.
   Three layers in four are gated delta-net linear attention, with a fixed-size recurrent state per sequence, and every fourth layer is gated full attention at head width 256 with partial rotary.
   The MoE form adds a shared expert with its own gate, and some files carry a multi-token-prediction block, which becomes one proposer of a single speculative decoding system for every kind of drafter.
   A recurrent state exists only at the end of what it has read, so reuse and pause work from checkpoints of it, and every reused state is one the CLI would have computed the same way.
@@ -221,10 +221,11 @@ and implemented HF coverage are recorded in STATUS.
 - Path-controlled perplexity on real text as the lossless gate (see
   `correctness-gate` skill)
 - A long-context check of KV cache and RoPE correctness at depth
-  (`tools/long_context_check.py`): a 16k-token prompt's greedy reply
-  repeats on the same device from two fresh servers, and each generated
-  token is within a margin of the CPU's top choice over the same tokens. A
-  hash across backends is not the gate, since a near-tie can part them.
+  (`tools/long_context_check.py`): the greedy reply to a 16k-token request
+  sent through the chat template repeats on the same device from two fresh
+  servers, and each generated token is within a margin of the CPU's top
+  choice over the same tokens. A hash across backends is not the gate,
+  since a near-tie can part them.
 - Every GPU kernel claim gated by a CPU-vs-GPU A/B on identical inputs; the CPU
   backend is the reference implementation (see #4a)
 - Micro-benchmarks per backend/quant, stored for regression comparison

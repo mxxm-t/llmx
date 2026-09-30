@@ -3,6 +3,7 @@
 // Exits 77, which CTest reports as skipped, when there is no loader or no device.
 #include <algorithm>
 #include <cctype>
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <functional>
@@ -240,31 +241,40 @@ size_t check_kernels(backend::Backend& vk) {
         auto q = p.results(one);
         values += close(q.first, q.second, 1e-5, "rms_norm in place differs beyond 1e-5");
     }
-    // norm_rope_rows: positions per row out of order, a padded stride.
+    // norm_rope_partial: positions per row out of order; the whole head rotated in place over contiguous heads, as Qwen3 calls it; q read between its gates at a padded stride with a quarter of each 256-wide head rotated, and k in place so, as qwen35 calls it.
     {
-        const size_t rows = 5, heads = 3, half = 64, dim = 2 * half, stride = heads * dim + 8, table = 12;
-        const auto x = uniform(rows * stride, 8), w = uniform(dim, 9, 0.5f, 1.5f);
-        std::vector<float> cs(table * half), sn(table * half);
-        for (size_t t = 0; t < table; ++t)
-            for (size_t i = 0; i < half; ++i) {
-                const double f = std::pow(10000.0, -2.0 * double(i) / double(dim));
-                cs[t * half + i] = float(std::cos(double(t) * f));
-                sn[t * half + i] = float(std::sin(double(t) * f));
-            }
+        const size_t rows = 5, table = 12;
         const uint32_t pos[rows] = {5, 2, 9, 0, 11};
-        Pair::In wi = p.in(w), ci = p.in(cs), si = p.in(sn);
-        Pair::Out d = p.out(rows * stride);
-        p.cpu.write(*d.c, 0, x.data(), x.size() * sizeof(float));
-        p.vk.write(*d.v, 0, x.data(), x.size() * sizeof(float));
-        p.cpu.norm_rope_rows(d.cs(), rows, stride, heads, wi.cs(), 1e-6f, ci.cs(), si.cs(), half, pos);
-        p.vk.norm_rope_rows(d.vs(), rows, stride, heads, wi.vs(), 1e-6f, ci.vs(), si.vs(), half, pos);
-        auto r = p.results(d);
-        values += close(r.first, r.second, 1e-5, "norm_rope_rows differs beyond 1e-5");
-        const uint32_t beyond[1] = {12};
-        bool rejected = false;
-        try { p.vk.norm_rope_rows(d.vs(), 1, stride, heads, wi.vs(), 1e-6f, ci.vs(), si.vs(), half, beyond); }
-        catch (const std::runtime_error&) { rejected = true; }
-        require(rejected, "position beyond the table accepted");
+        struct Case { size_t heads, dim, rope, src_stride, head_stride; bool in_place; };
+        const Case cases[] = {{3, 128, 128, 3 * 128, 128, true}, {3, 256, 64, 3 * 512 + 8, 512, false}, {2, 256, 64, 2 * 256, 256, true},
+                              {4, 40, 8, 4 * 80, 80, false}};
+        for (const Case& c : cases) {
+            const size_t half = c.rope / 2, width = c.heads * c.dim, src_floats = (rows - 1) * c.src_stride + (c.heads - 1) * c.head_stride + c.dim;
+            const auto x = uniform(src_floats, 8, -2.0f, 2.0f), w = uniform(c.dim, 9, 0.5f, 1.5f);
+            std::vector<float> cs(table * half), sn(table * half);
+            for (size_t t = 0; t < table; ++t)
+                for (size_t i = 0; i < half; ++i) {
+                    const double f = std::pow(10000.0, -2.0 * double(i) / double(c.rope));
+                    cs[t * half + i] = float(std::cos(double(t) * f));
+                    sn[t * half + i] = float(std::sin(double(t) * f));
+                }
+            Pair::In xi = p.in(x), wi = p.in(w), ci = p.in(cs), si = p.in(sn);
+            Pair::Out d = p.out(c.in_place ? src_floats : rows * width);
+            if (c.in_place) {
+                p.cpu.write(*d.c, 0, x.data(), x.size() * sizeof(float));
+                p.vk.write(*d.v, 0, x.data(), x.size() * sizeof(float));
+            }
+            const backend::CSlice cs_src = c.in_place ? backend::CSlice(d.cs()) : xi.cs(), vs_src = c.in_place ? backend::CSlice(d.vs()) : xi.vs();
+            p.cpu.norm_rope_partial(d.cs(), cs_src, rows, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.cs(), 1e-6f, ci.cs(), si.cs(), pos);
+            p.vk.norm_rope_partial(d.vs(), vs_src, rows, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.vs(), 1e-6f, ci.vs(), si.vs(), pos);
+            auto r = p.results(d);
+            values += close(r.first, r.second, 1e-5, "norm_rope_partial differs beyond 1e-5");
+            const uint32_t beyond[1] = {12};
+            bool rejected = false;
+            try { p.vk.norm_rope_partial(d.vs(), vs_src, 1, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.vs(), 1e-6f, ci.vs(), si.vs(), beyond); }
+            catch (const std::runtime_error&) { rejected = true; }
+            require(rejected, "position beyond the table accepted");
+        }
     }
     // embed: F32 rows are copies and Q8_0 rows are a half scale times a small integer, exact in float, so both are exact.
     {
@@ -589,12 +599,13 @@ size_t check_kernels(backend::Backend& vk) {
             values += close(qc, qv, 1e-5, "norm_rope_kv q differs beyond 1e-5");
             values += close(ac, av, 1e-4, "norm_rope_kv attention differs beyond 1e-4");
         }
-        // attention over a wide pass of 128-wide heads takes the tiled kernel: 32, 45 and 100 query rows (one full tile, then partial ones whose last rows mask part of a K/V tile) after histories of 0, 70 and 600 tokens, against the CPU at 1e-4.
+        // attention over a wide pass of 128-wide heads, and of 256-wide heads six to a KV head as qwen35's 27B has them, takes the tiled kernel: 32, 45 and 100 query rows (one full tile, then partial ones whose last rows mask part of a K/V tile) after histories of 0, 70 and 600 tokens, against the CPU at 1e-4.
         // The queries are scaled so a row's scores spread over about ten, peaked as a trained model's are rather than the near-uniform softmax of unit random values, and the cache is taken both as f32 and as f16.
+        for (int head_dim : {128, 256})
         for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16})
         for (size_t hist : {size_t(0), size_t(70), size_t(600)}) {
             for (size_t nq : {size_t(32), size_t(45), size_t(100)}) {
-                const int n_head = 4, n_head_kv = 2, head_dim = 128;
+                const int n_head = head_dim == 128 ? 4 : 12, n_head_kv = 2;
                 const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
                 const auto hk = uniform((hist + nq) * kvw, 50 + (uint32_t)nq), hv = uniform((hist + nq) * kvw, 51 + (uint32_t)nq);
                 const auto qq = uniform(nq * qw, 52 + (uint32_t)hist, -6.0f, 6.0f);
@@ -626,7 +637,7 @@ size_t check_kernels(backend::Backend& vk) {
                 try {
                     values += close(ac, av, 1e-4, "tiled attention differs beyond 1e-4");
                 } catch (const std::runtime_error&) {
-                    std::fprintf(stderr, "  tiled attention hist %zu rows %zu cache %s\n", hist, nq, backend::kv_type_name(kt));
+                    std::fprintf(stderr, "  tiled attention width %d hist %zu rows %zu cache %s\n", head_dim, hist, nq, backend::kv_type_name(kt));
                     throw;
                 }
             }
@@ -1413,8 +1424,8 @@ size_t check_kernels(backend::Backend& vk) {
         const auto hw = uniform(128, 22, 0.5f, 1.5f);
         const auto hwb = vk.adopt(hw.data(), hw.size() * sizeof(float));
         const uint32_t pos0 = 7;
-        time("norm_rope_rows 1 row 16 heads", [&] {
-            vk.norm_rope_rows({xb.get(), 0}, 1, 0, 16, {hwb.get(), 0}, 1e-6f, {cb.get(), 0}, {sb.get(), 0}, 64, &pos0);
+        time("norm_rope_partial 1 row 16 heads", [&] {
+            vk.norm_rope_partial({xb.get(), 0}, {xb.get(), 0}, 1, 16 * 128, 128, 16, 128, 128, {hwb.get(), 0}, 1e-6f, {cb.get(), 0}, {sb.get(), 0}, &pos0);
         });
         time("silu_mul 3072", [&] { vk.silu_mul({xb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, 3072); });
         time("kv_write 1 row", [&] { vk.kv_write(0, &view, 1, {Kb.get(), 0}, {Vb.get(), 0}); });
@@ -2092,6 +2103,402 @@ size_t check_refusals(backend::Backend& vk) {
     });
     return checks;
 }
+
+// The qwen35 layers' ops (docs/QWEN35.md) against the CPU backend, and the device's own bit-for-bit rules for them.
+// The recurrence sums a column in another order than the CPU, so its rows and states meet the CPU's within a bound; on the device a sequence gives the same bits alone, beside others, in any view order and cut into passes of any length.
+namespace q35 {
+using backend::BufferPtr;
+using backend::StateShape;
+using backend::StateView;
+
+struct Seq {
+    size_t length, src, dst, nq;
+};
+struct Inputs {
+    std::vector<float> x, w, alpha, b, a, dt_bias;
+};
+struct Run {
+    std::vector<float> conv, delta;
+    std::vector<std::vector<float>> slots;
+};
+
+Inputs inputs(uint32_t seed, const StateShape& sh, size_t rows) {
+    Inputs in;
+    in.x = uniform(rows * sh.channels(), seed, -1.0f, 1.0f);
+    in.w = uniform(sh.channels() * backend::kConvTaps, seed + 1, -0.8f, 0.8f);
+    in.alpha = uniform(rows * sh.v_heads, seed + 2, -3.0f, 3.0f);
+    in.b = uniform(rows * sh.v_heads, seed + 3, -4.0f, 4.0f);
+    in.a = uniform(sh.v_heads, seed + 4, -2.0f, -0.05f);
+    in.dt_bias = uniform(sh.v_heads, seed + 5, -2.0f, 2.0f);
+    return in;
+}
+
+std::vector<float> read_floats(backend::Backend& b, const backend::Buffer& buf, size_t n, size_t offset = 0) {
+    std::vector<float> v(n);
+    if (n) b.read(buf, offset * sizeof(float), v.data(), n * sizeof(float));
+    return v;
+}
+
+BufferPtr floats_on(backend::Backend& b, const std::vector<float>& v) {
+    BufferPtr buf = b.alloc(std::max<size_t>(v.size(), 1) * sizeof(float), backend::Memory::device);
+    if (!v.empty()) b.write(*buf, 0, v.data(), v.size() * sizeof(float));
+    return buf;
+}
+
+// One conv and one delta rule call over the views, on layer 1 of a two-layer storage whose slots start as `start`.
+Run run(backend::Backend& b, const StateShape& sh, const std::vector<Seq>& seqs, const Inputs& in,
+        const std::vector<std::vector<float>>& start) {
+    const size_t layer = 1, n = sh.slot_floats();
+    auto storage = b.state_alloc(2, start.size(), sh);
+    for (size_t s = 0; s < start.size(); ++s) b.write(storage->layer(layer), s * n * sizeof(float), start[s].data(), n * sizeof(float));
+    std::vector<StateView> views;
+    size_t rows = 0;
+    for (const Seq& q : seqs) {
+        views.push_back({storage.get(), q.src, q.dst, q.length, q.nq});
+        rows += q.nq;
+    }
+    const size_t C = sh.channels(), Hv = sh.v_heads;
+    BufferPtr x = floats_on(b, in.x), w = floats_on(b, in.w), alpha = floats_on(b, in.alpha), bb = floats_on(b, in.b);
+    BufferPtr a = floats_on(b, in.a), dt = floats_on(b, in.dt_bias);
+    BufferPtr u = b.alloc(rows * C * sizeof(float), backend::Memory::device);
+    BufferPtr o = b.alloc(rows * Hv * sh.v_dim * sizeof(float), backend::Memory::device);
+    b.causal_conv_silu({u.get(), 0}, {x.get(), 0}, {w.get(), 0}, layer, views.data(), views.size());
+    b.gated_delta_rule({o.get(), 0}, {u.get(), 0}, {alpha.get(), 0}, {bb.get(), 0}, {a.get(), 0}, {dt.get(), 0}, layer, views.data(), views.size());
+    Run r;
+    r.conv = read_floats(b, *u, rows * C);
+    r.delta = read_floats(b, *o, rows * Hv * sh.v_dim);
+    for (size_t s = 0; s < start.size(); ++s) r.slots.push_back(read_floats(b, storage->layer(layer), n, s * n));
+    for (size_t s = 0; s < start.size(); ++s) {
+        const auto other = read_floats(b, storage->layer(0), n, s * n);
+        require(std::all_of(other.begin(), other.end(), [](float f) { return f == 0.0f; }), "a state op wrote another layer");
+    }
+    return r;
+}
+
+bool same_bits(const std::vector<float>& a, const std::vector<float>& b) {
+    return a.size() == b.size() && (a.empty() || std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0);
+}
+
+// A slot's matrices within the bound, and its carried rows, which are raw rows, bit for bit.
+size_t close_slot(const StateShape& sh, const std::vector<float>& cpu, const std::vector<float>& dev, const char* what) {
+    const size_t m = sh.v_heads * sh.matrix_floats();
+    const std::vector<float> a(cpu.begin(), cpu.begin() + m), b(dev.begin(), dev.begin() + m);
+    size_t values = close(a, b, 1e-4, what);
+    require(std::memcmp(cpu.data() + m, dev.data() + m, (cpu.size() - m) * sizeof(float)) == 0, "carried conv rows differ from the CPU's");
+    return values + cpu.size() - m;
+}
+
+// Sequences of every kind beside each other against the CPU: fresh ones on slots of NaN, histories of 1, 2 and 7 tokens whose carried rows before the sequence's start hold NaN, one-token entries and a verify reading one slot and writing another.
+size_t check_mix(backend::Backend& vk, backend::CpuBackend& cpu, const StateShape& sh, uint32_t seed) {
+    const std::vector<Seq> seqs = {{0, 0, 0, 5}, {1, 1, 1, 3}, {2, 2, 2, 1}, {7, 3, 3, 6}, {0, 4, 4, 1}, {9, 5, 6, 4}, {3, 7, 7, 2}};
+    size_t rows = 0;
+    for (const Seq& q : seqs) rows += q.nq;
+    const Inputs in = inputs(seed, sh, rows);
+    std::vector<std::vector<float>> start;
+    for (uint32_t s = 0; s < 8; ++s) start.push_back(uniform(sh.slot_floats(), seed + 10 + s, -0.5f, 0.5f));
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const size_t C = sh.channels(), first = sh.v_heads * sh.matrix_floats();
+    std::vector<std::vector<float>> clean = start;
+    clean[0].assign(sh.slot_floats(), 0.0f);
+    clean[4].assign(sh.slot_floats(), 0.0f);
+    start[0].assign(sh.slot_floats(), nan);
+    start[4].assign(sh.slot_floats(), nan);
+    for (size_t c = 0; c < C; ++c) {
+        start[1][first + c] = start[1][first + C + c] = nan;
+        start[2][first + c] = nan;
+        clean[1][first + c] = clean[1][first + C + c] = 0.0f;
+        clean[2][first + c] = 0.0f;
+    }
+    const Run d = run(vk, sh, seqs, in, start), z = run(vk, sh, seqs, in, clean), c = run(cpu, sh, seqs, in, clean);
+    for (float f : d.conv) require(std::isfinite(f), "a device conv row read a fresh slot or a carried row before the sequence's start");
+    for (float f : d.delta) require(std::isfinite(f), "the device delta rule read the slot of a fresh sequence");
+    require(same_bits(d.conv, z.conv) && same_bits(d.delta, z.delta), "a fresh slot's contents changed a device result");
+    size_t values = close(c.conv, d.conv, 1e-5, "conv differs from the CPU beyond 1e-5");
+    values += close(c.delta, d.delta, 1e-4, "delta rule rows differ from the CPU beyond 1e-4");
+    for (const Seq& q : seqs) values += close_slot(sh, c.slots[q.dst], d.slots[q.dst], "a delta rule state differs from the CPU beyond 1e-4");
+    // A slot only read keeps its bits.
+    require(same_bits(d.slots[5], start[5]), "a verify changed its source slot on the device");
+    return values;
+}
+
+// On the device a sequence's rows and state are the same bits alone, beside others, in reverse view order and cut into passes of 1, 2 and 3 rows that carry the state in their slot (docs/QWEN35.md, Row classes).
+size_t check_invariance(backend::Backend& vk, const StateShape& sh, uint32_t seed) {
+    const std::vector<Seq> seqs = {{0, 0, 0, 9}, {4, 1, 1, 7}, {2, 2, 3, 5}, {6, 4, 4, 40}};
+    size_t rows = 0;
+    for (const Seq& q : seqs) rows += q.nq;
+    const Inputs in = inputs(seed, sh, rows);
+    std::vector<std::vector<float>> start;
+    for (uint32_t s = 0; s < 5; ++s) start.push_back(uniform(sh.slot_floats(), seed + 20 + s, -0.5f, 0.5f));
+    const size_t C = sh.channels(), Hv = sh.v_heads, Dv = sh.v_dim;
+    const Run one = run(vk, sh, seqs, in, start);
+    std::vector<size_t> first(seqs.size(), 0);
+    for (size_t i = 1; i < seqs.size(); ++i) first[i] = first[i - 1] + seqs[i - 1].nq;
+    auto slice = [](const std::vector<float>& v, size_t width, size_t r0, size_t n) {
+        return std::vector<float>(v.begin() + r0 * width, v.begin() + (r0 + n) * width);
+    };
+    auto rows_of = [&](size_t vi, size_t r0, size_t n) {
+        Inputs part = in;
+        part.x = slice(in.x, C, first[vi] + r0, n);
+        part.alpha = slice(in.alpha, Hv, first[vi] + r0, n);
+        part.b = slice(in.b, Hv, first[vi] + r0, n);
+        return part;
+    };
+    size_t runs = 1;
+    {
+        std::vector<Seq> rev(seqs.rbegin(), seqs.rend());
+        Inputs part = in;
+        part.x.clear();
+        part.alpha.clear();
+        part.b.clear();
+        for (size_t k = seqs.size(); k-- > 0;) {
+            const Inputs q = rows_of(k, 0, seqs[k].nq);
+            part.x.insert(part.x.end(), q.x.begin(), q.x.end());
+            part.alpha.insert(part.alpha.end(), q.alpha.begin(), q.alpha.end());
+            part.b.insert(part.b.end(), q.b.begin(), q.b.end());
+        }
+        const Run r = run(vk, sh, rev, part, start);
+        size_t at = 0;
+        for (size_t k = seqs.size(); k-- > 0;) {
+            require(same_bits(slice(r.conv, C, at, seqs[k].nq), slice(one.conv, C, first[k], seqs[k].nq)) &&
+                        same_bits(slice(r.delta, Hv * Dv, at, seqs[k].nq), slice(one.delta, Hv * Dv, first[k], seqs[k].nq)),
+                    "the view order changed a device result");
+            at += seqs[k].nq;
+        }
+        for (size_t s = 0; s < start.size(); ++s) require(same_bits(r.slots[s], one.slots[s]), "the view order changed a device state");
+        ++runs;
+    }
+    for (size_t vi = 0; vi < seqs.size(); ++vi)
+        for (size_t pass : {size_t(0), size_t(1), size_t(2), size_t(3)}) {
+            const Seq& q = seqs[vi];
+            std::vector<std::vector<float>> slots = start;
+            std::vector<float> conv, delta;
+            size_t done = 0;
+            while (done < q.nq) {
+                const size_t n = pass ? std::min(pass, q.nq - done) : q.nq;
+                const Seq step = {q.length + done, done ? q.dst : q.src, q.dst, n};
+                const Run r = run(vk, sh, {step}, rows_of(vi, done, n), slots);
+                conv.insert(conv.end(), r.conv.begin(), r.conv.end());
+                delta.insert(delta.end(), r.delta.begin(), r.delta.end());
+                slots = r.slots;
+                done += n;
+                ++runs;
+            }
+            require(same_bits(conv, slice(one.conv, C, first[vi], q.nq)) && same_bits(delta, slice(one.delta, Hv * Dv, first[vi], q.nq)),
+                    "cutting a sequence into device passes changed its rows");
+            require(same_bits(slots[q.dst], one.slots[q.dst]), "cutting a sequence into device passes changed its state");
+        }
+    return runs;
+}
+
+// A decay below 2^-126 is 0 and one just above it is kept, on a state whose decayed values stay normal, so the check holds under any denormal handling: with beta 0 the token writes nothing and the state left is the decayed one.
+void check_decay_flush(backend::Backend& vk) {
+    const StateShape sh = {1, 1, 8, 8};
+    const std::vector<Seq> seq = {{5, 0, 0, 1}};
+    for (float bias : {88.0f, 87.0f}) {
+        Inputs in = inputs(61, sh, 1);
+        in.a = {-1.0f};
+        in.alpha = {0.0f};
+        in.dt_bias = {bias};
+        in.b = {-200.0f};
+        std::vector<std::vector<float>> start = {uniform(sh.slot_floats(), 62, -0.5f, 0.5f)};
+        const auto magnitude = uniform(sh.matrix_floats(), 63, 1.0f, 2.0f);
+        for (size_t i = 0; i < sh.matrix_floats(); ++i) start[0][i] = i % 2 ? -magnitude[i] : magnitude[i];
+        const Run r = run(vk, sh, seq, in, start);
+        const float kept = std::exp(-bias);
+        for (size_t i = 0; i < sh.matrix_floats(); ++i) {
+            if (bias == 88.0f) {
+                require(r.slots[0][i] == 0.0f, "a decay of exp(-88) was not flushed to 0 on the device");
+                continue;
+            }
+            const float want = start[0][i] * kept;
+            require(std::fpclassify(r.slots[0][i]) == FP_NORMAL, "a decayed state value below the normal range on the device");
+            // The device's exp is exp2 of g log2(e), whose rounded exponent puts about |g| units of 2^-24 into the result.
+            require(std::fabs((double)r.slots[0][i] - want) <= 1e-5 * std::fabs((double)want), "a decay of exp(-87) was not kept on the device");
+        }
+    }
+}
+
+// state_alloc zero-fills every slot of every layer on the device, and state_copy copies one slot in every layer and leaves the others.
+size_t check_storage(backend::Backend& vk) {
+    const StateShape sh = {2, 6, 12, 10};
+    const size_t layers = 3, slots = 4, n = sh.slot_floats();
+    auto s = vk.state_alloc(layers, slots, sh);
+    require(s->layers() == layers && s->slots() == slots, "device state storage counts");
+    std::vector<std::vector<std::vector<float>>> held(layers);
+    for (size_t l = 0; l < layers; ++l) {
+        require(s->layer(l).size() >= slots * n * sizeof(float), "a device state layer's size");
+        const auto all = read_floats(vk, s->layer(l), slots * n);
+        require(std::all_of(all.begin(), all.end(), [](float f) { return f == 0.0f; }), "state_alloc left a device slot unzeroed");
+        for (size_t k = 0; k < slots; ++k) {
+            held[l].push_back(uniform(n, 70 + (uint32_t)(l * slots + k)));
+            vk.write(s->layer(l), k * n * sizeof(float), held[l][k].data(), n * sizeof(float));
+        }
+    }
+    vk.state_copy(*s, 3, 1);
+    vk.state_copy(*s, 2, 2);
+    for (size_t l = 0; l < layers; ++l)
+        for (size_t k = 0; k < slots; ++k)
+            require(same_bits(read_floats(vk, s->layer(l), n, k * n), held[l][k == 3 ? 1 : k]), "state_copy moved the wrong slot on the device");
+    bool refused = false;
+    try { vk.state_copy(*s, slots, 0); } catch (const std::runtime_error&) { refused = true; }
+    require(refused, "state_copy took a slot outside the device storage");
+    return layers * slots;
+}
+
+// The gated norm against the CPU, in place too, heads near 1e-4 holding eps.
+size_t check_gated_norm(Pair& p, size_t heads, size_t dim) {
+    const size_t rows = 23, n = rows * heads * dim;
+    auto x = uniform(n, 80, -2.0f, 2.0f);
+    const auto z = uniform(n, 81, -6.0f, 6.0f), w = uniform(dim, 82, 0.5f, 1.5f);
+    for (size_t i = 0; i < dim; ++i) x[(5 * heads + 1) * dim + i] *= 1e-4f;
+    Pair::In xi = p.in(x), zi = p.in(z), wi = p.in(w);
+    Pair::Out d = p.out(n);
+    p.cpu.gated_rms_norm(d.cs(), xi.cs(), zi.cs(), wi.cs(), rows, heads, dim, 1e-6f);
+    p.vk.gated_rms_norm(d.vs(), xi.vs(), zi.vs(), wi.vs(), rows, heads, dim, 1e-6f);
+    auto r = p.results(d);
+    size_t values = close(r.first, r.second, 1e-5, "gated_rms_norm differs beyond 1e-5");
+    Pair::Out ip = p.out(n);
+    p.vk.write(*ip.v, 0, x.data(), n * sizeof(float));
+    p.vk.gated_rms_norm(ip.vs(), ip.vs(), zi.vs(), wi.vs(), rows, heads, dim, 1e-6f);
+    std::vector<float> in_place(n);
+    p.vk.read(*ip.v, 0, in_place.data(), n * sizeof(float));
+    require(same_bits(in_place, r.second), "gated_rms_norm in place differs on the device");
+    return values;
+}
+
+// sigmoid_mul as the output gate, each head's gate read between its q rows, and as a scale of one value per row, against the CPU; in place too.
+size_t check_sigmoid_mul(Pair& p, size_t heads, size_t dim) {
+    const size_t rows = 21;
+    const auto q = uniform(rows * heads * 2 * dim, 83, -8.0f, 8.0f), x = uniform(rows * heads * dim, 84, -3.0f, 3.0f);
+    const auto per_row = uniform(rows, 85, -8.0f, 8.0f);
+    Pair::In qi = p.in(q), xi = p.in(x), pi = p.in(per_row);
+    size_t values = 0;
+    for (int mode = 0; mode < 2; ++mode) {
+        const size_t h = mode ? heads * dim : heads, dd = mode ? 1 : dim, gs = mode ? 1 : heads * 2 * dim, ghs = mode ? 0 : 2 * dim;
+        const backend::CSlice gc = mode ? pi.cs() : backend::CSlice{qi.c.get(), dim}, gv = mode ? pi.vs() : backend::CSlice{qi.v.get(), dim};
+        Pair::Out d = p.out(x.size());
+        p.cpu.sigmoid_mul(d.cs(), xi.cs(), gc, rows, h, dd, gs, ghs);
+        p.vk.sigmoid_mul(d.vs(), xi.vs(), gv, rows, h, dd, gs, ghs);
+        auto r = p.results(d);
+        values += close(r.first, r.second, 1e-6, "sigmoid_mul differs beyond 1e-6");
+        Pair::Out ip = p.out(x.size());
+        p.vk.write(*ip.v, 0, x.data(), x.size() * sizeof(float));
+        p.vk.sigmoid_mul(ip.vs(), ip.vs(), gv, rows, h, dd, gs, ghs);
+        std::vector<float> in_place(x.size());
+        p.vk.read(*ip.v, 0, in_place.data(), x.size() * sizeof(float));
+        require(same_bits(in_place, r.second), "sigmoid_mul in place differs on the device");
+    }
+    return values;
+}
+
+// Gated attention's tail as the layer runs it at head width 256: attention over a history, the output gated in place by sigmoid_mul, then the output projection added to a residual.
+// The attention writes its output's copy for a matmul, which the gate must replace with the gated output's; the projection runs on the row kernel for decode rows and on the tile for a prompt's, and the reference is fed the activations each kernel reads.
+size_t check_gated_attention(Pair& p, bool twin8, double twin_tol) {
+    const backend::DeviceProfile prof = backend::vulkan_device_profile(p.vk);
+    const int n_head = 12, n_head_kv = 2, head_dim = 256;
+    const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim, hist = 90, nout = 72;
+    size_t values = 0;
+    for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K}) {
+        const bool eight = type == quant::GGML_TYPE_Q8_0;
+        const size_t from = backend::tile_from_for(prof, eight, qw);
+        // Three decode rows, then a prompt's rows past the tile threshold.
+        for (size_t rows : {size_t(3), std::max<size_t>(from, 40)}) {
+            const bool tile = rows >= from;
+            const std::vector<backend::RowRun> runs = tile ? std::vector<backend::RowRun>{{rows, 512}}
+                                                           : std::vector<backend::RowRun>{{1, 1}, {2, 1}, {3, 1}};
+            const auto hk = uniform((hist + rows) * kvw, 90), hv = uniform((hist + rows) * kvw, 91);
+            const auto qq = uniform(rows * qw, 92, -3.0f, 3.0f), r = uniform(rows * 2 * qw, 93, -4.0f, 4.0f);
+            const auto y0 = uniform(rows * nout, 94);
+            std::vector<uint8_t> wq;
+            const auto wf = uniform(qw * nout, 95);
+            if (eight) {
+                wq.resize(nout * (qw / quant::Q8_0_BLOCK) * quant::Q8_0_TYPESIZE);
+                for (size_t o = 0; o < nout; ++o)
+                    quant::quantize_row_q8_0(wf.data() + o * qw, wq.data() + o * (qw / 32) * quant::Q8_0_TYPESIZE, qw / 32);
+            } else {
+                wq.resize(nout * (qw / 256) * quant::Q4_K_TYPESIZE);
+                for (size_t i = 0; i < wq.size(); ++i) wq[i] = uint8_t(i * 61 + 3);
+                for (size_t blk = 0; blk < nout * (qw / 256); ++blk) {
+                    uint8_t* bb = wq.data() + blk * quant::Q4_K_TYPESIZE;
+                    bb[0] = 0x00; bb[1] = 0x14; bb[2] = 0x00; bb[3] = 0x10;
+                }
+            }
+            // The gated output of one backend, and its projection added to y0; `fed` maps the gated output to what the reference's matmul reads.
+            auto tail = [&](backend::Backend& b, bool reference, std::vector<float>& gated, std::vector<float>& y) {
+                const size_t bt = b.kv_layout().block_tokens;
+                auto st = b.kv_alloc(1, n_head_kv, head_dim, 1024);
+                infer::BlockPool pool(st->max_blocks());
+                infer::KVSequence seq(&pool, bt);
+                const auto Kb = b.adopt(hk.data(), hk.size() * sizeof(float));
+                const auto Vb = b.adopt(hv.data(), hv.size() * sizeof(float));
+                seq.prepare(hist);
+                const backend::KVView h = seq.view(st.get());
+                b.kv_write(0, &h, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                seq.commit();
+                seq.prepare(rows);
+                backend::KVView view = seq.view(st.get());
+                view.extent = tile ? 512 : 1;
+                b.kv_write(0, &view, 1, {Kb.get(), hist * kvw}, {Vb.get(), hist * kvw});
+                const auto Qb = b.adopt(qq.data(), qq.size() * sizeof(float));
+                const auto Rb = b.adopt(r.data(), r.size() * sizeof(float));
+                const auto ob = b.alloc(rows * qw * sizeof(float), backend::Memory::device);
+                b.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+                const backend::RowRuns rr{runs.data(), runs.size()};
+                b.sigmoid_mul({ob.get(), 0}, {ob.get(), 0}, {Rb.get(), (size_t)head_dim}, rows, (size_t)n_head, (size_t)head_dim, 2 * qw, 2 * (size_t)head_dim, rr);
+                gated = read_floats(b, *ob, rows * qw);
+                const auto Wb = b.adopt(wq.data(), wq.size());
+                const auto Yb = floats_on(b, y0);
+                if (reference) {
+                    const std::vector<float> xf = fed(gated, type, twin8, tile);
+                    const auto Xb = floats_on(b, xf);
+                    b.matmul_add(type, {Wb.get(), 0}, {Xb.get(), 0}, {Yb.get(), 0}, qw, nout, rows, rr);
+                } else {
+                    b.matmul_add(type, {Wb.get(), 0}, {ob.get(), 0}, {Yb.get(), 0}, qw, nout, rows, rr);
+                }
+                y = read_floats(b, *Yb, rows * nout);
+            };
+            std::vector<float> gc, yc, gv, yv;
+            tail(p.cpu, true, gc, yc);
+            tail(p.vk, false, gv, yv);
+            try {
+                values += close(gc, gv, 1e-4, "gated attention at head width 256 differs beyond 1e-4");
+                values += close(yc, yv, reads8(type, twin8, tile) ? twin_tol : tile && twin8 && type != quant::GGML_TYPE_F32 ? 1e-3 : 1e-4, "the output projection of the gated attention differs beyond its bound");
+            } catch (const std::runtime_error&) {
+                std::fprintf(stderr, "  gated attention type %u rows %zu %s\n", type, rows, tile ? "tile" : "row kernel");
+                throw;
+            }
+        }
+    }
+    return values;
+}
+}  // namespace q35
+
+size_t check_qwen35(backend::Backend& vk) {
+    Pair p(vk);
+    const bool twin8 = backend::vulkan_device_profile(p.vk).prefer_integer_dot;
+    const double twin_tol = twin8 ? 1e-2 : 1e-4;
+    size_t values = q35::check_storage(vk);
+    // Hv = Hk and Hv = 3 Hk at the tiny fixtures' widths, a shape past one column block, the files' 128 by 128 matrices, and the 0.8B's and the 27B's heads, whose slots are too large to cut into passes of a row here.
+    const std::vector<backend::StateShape> shapes = {{2, 2, 12, 10}, {2, 6, 12, 10}, {2, 4, 64, 40}, {2, 4, 128, 128}, {16, 16, 128, 128}, {16, 48, 128, 128}};
+    size_t runs = 0;
+    uint32_t seed = 100;
+    for (const backend::StateShape& sh : shapes) {
+        try {
+            values += q35::check_mix(vk, p.cpu, sh, seed);
+            if (sh.k_heads == 2) runs += q35::check_invariance(vk, sh, seed + 1);
+        } catch (const std::runtime_error&) {
+            std::fprintf(stderr, "  linear attention K heads %zu V heads %zu, %zu by %zu\n", sh.k_heads, sh.v_heads, sh.k_dim, sh.v_dim);
+            throw;
+        }
+        seed += 50;
+    }
+    q35::check_decay_flush(vk);
+    values += q35::check_gated_norm(p, 2, 10) + q35::check_gated_norm(p, 16, 128);
+    values += q35::check_sigmoid_mul(p, 4, 40) + q35::check_sigmoid_mul(p, 3, 256);
+    values += q35::check_gated_attention(p, twin8, twin_tol);
+    std::cout << "backend-vulkan: qwen35 ops: " << runs << " device runs bit for bit across views, orders and passes; decay flush, state storage\n";
+    return values;
+}
 }
 
 // `--isa DIR` opens the backend for diagnostics and writes the driver's representation of every kernel it compiled, one file per kernel, after the checks, then checks each row kernel build's float multiplies and adds against its one-column build's (check_contraction).
@@ -2259,7 +2666,7 @@ int main(int argc, char** argv) {
 
         checks += check_refusals(*b);
 
-        const size_t values = check_kernels(*b);
+        const size_t values = check_kernels(*b) + check_qwen35(*b);
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";
         const size_t columns = check_decode_columns(*b);

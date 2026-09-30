@@ -112,9 +112,9 @@ placement boundary (below). It is enqueued like every op and consumes
 ### 3. Rows carry positions
 
 ```cpp
-virtual void norm_rope_rows(Slice x, size_t rows, size_t stride, size_t heads,
-                            CSlice w, float eps, CSlice cos, CSlice sin,
-                            size_t half, const uint32_t* pos) = 0;
+virtual void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
+                               size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
+                               CSlice cos, CSlice sin, const uint32_t* pos) = 0;
 ```
 
 Today row `r` is at position `pos0 + r`, which is true only while every row
@@ -122,8 +122,9 @@ belongs to one sequence. With sequences mixed in a batch the position is
 per row, so the op takes an array of `rows` positions, like `embed` takes
 its ids. The cos/sin table becomes a buffer the model adopts from its host
 table, which is what lets a device read it. `Backend::rope`, whose only
-caller is `bench`, is deleted; `bench` measures `norm_rope_rows`, the op
-the runtime runs.
+caller is `bench`, is deleted; `bench` measures the batched op the runtime
+runs, `norm_rope_rows` then, `norm_rope_partial` since qwen35's partial rope
+took its place.
 
 ### 4. Batched views
 

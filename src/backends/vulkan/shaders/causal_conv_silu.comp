@@ -1,0 +1,56 @@
+#version 450
+// The linear attention's causal conv of four taps, then SiLU, over every view of a batch (backend.hpp, causal_conv_silu), in one dispatch.
+// An invocation takes one channel of a chunk of up to `chunk` rows of one view, the workgroups' second index naming the chunk, and walks the rows through a window of the last three raw values: out[row][c] = silu(sum over tap j of w[c][j] raw[t - 3 + j][c]).
+// A view's first chunk reads the rows before it from slot src's carried rows, rows before the sequence's start being zero, and leaves the view's last three raw rows in slot dst once it has read them, so no other invocation touches a view's carried rows.
+// The sum is one fused multiply-add chain in tap order, the CPU's, so a row computes the same however its view is cut into chunks and whatever else is in the call.
+// The table (vulkan_backend.cpp, state_table) holds the view count, then per view its first batch row, rows, history length, source slot and destination slot, then per chunk its view and first row within it.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint C; uint slot; uint carried; uint chunk; } p;
+layout(set = 0, binding = 0) writeonly buffer O { float o[]; };
+layout(set = 0, binding = 1) readonly buffer X { float x[]; };
+layout(set = 0, binding = 2) readonly buffer W { float w[]; };
+layout(set = 0, binding = 3) buffer S { float st[]; };
+layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
+uint view_row0(uint v) { return tab[1u + 5u * v]; }
+uint view_nq(uint v) { return tab[2u + 5u * v]; }
+uint view_len(uint v) { return tab[3u + 5u * v]; }
+uint view_src(uint v) { return tab[4u + 5u * v]; }
+uint view_dst(uint v) { return tab[5u + 5u * v]; }
+// Raw value `t` of channel c of view v, counting the three carried rows first: 0 before the sequence's start.
+float raw(uint v, uint t, uint c) {
+    if (t < 3u) return view_len(v) + t >= 3u ? st[view_src(v) * p.slot + p.carried + t * p.C + c] : 0.0;
+    return x[(view_row0(v) + t - 3u) * p.C + c];
+}
+void main() {
+    uint c = gl_GlobalInvocationID.x;
+    if (c >= p.C) return;
+    uint k = 1u + 5u * tab[0] + 2u * gl_WorkGroupID.y;
+    uint v = tab[k], b0 = tab[k + 1u];
+    uint nq = view_nq(v), end = min(nq, b0 + p.chunk), row0 = view_row0(v);
+    float w0 = w[c * 4u], w1 = w[c * 4u + 1u], w2 = w[c * 4u + 2u], w3 = w[c * 4u + 3u];
+    float win0 = raw(v, b0, c), win1 = raw(v, b0 + 1u, c), win2 = raw(v, b0 + 2u, c);
+    // A view's carried rows, read before they are written: the raw rows past its last, which for a view of fewer than three rows include the rows it carried in.
+    float keep0 = 0.0, keep1 = 0.0, keep2 = 0.0;
+    if (b0 == 0u) {
+        keep0 = raw(v, nq, c);
+        keep1 = raw(v, nq + 1u, c);
+        keep2 = raw(v, nq + 2u, c);
+    }
+    for (uint b = b0; b < end; ++b) {
+        float now = x[(row0 + b) * p.C + c];
+        precise float acc = w0 * win0;
+        acc = fma(w1, win1, acc);
+        acc = fma(w2, win2, acc);
+        acc = fma(w3, now, acc);
+        o[(row0 + b) * p.C + c] = acc / (1.0 + exp(-acc));
+        win0 = win1;
+        win1 = win2;
+        win2 = now;
+    }
+    if (b0 == 0u) {
+        uint base = view_dst(v) * p.slot + p.carried + c;
+        st[base] = keep0;
+        st[base + p.C] = keep1;
+        st[base + 2u * p.C] = keep2;
+    }
+}

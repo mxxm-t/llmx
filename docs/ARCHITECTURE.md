@@ -143,7 +143,7 @@ belongs to `format/`, so locally supplied and downloaded shards load identically
   backend, the only optional backend today; ROCm, CUDA and SYCL are planned and
   each gets its option with its implementation.
 - **Model architectures** are compiled in and selected from metadata by
-  `model/arch/registry.hpp`; today qwen3 and qwen3moe, and qwen35 on the CPU.
+  `model/arch/registry.hpp`; today qwen3, qwen3moe and qwen35.
 - **Split mode** is a runtime parameter: `--device` with several devices
   splits the model by layers over them (`MULTI-DEVICE.md`); tensor groups
   and node count are planned. See `ROADMAP.md`.

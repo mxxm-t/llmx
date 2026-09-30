@@ -853,13 +853,6 @@ public:
         });
     }
 
-    void norm_rope_rows(Slice x_s, size_t rows, size_t stride, size_t heads,
-                        CSlice w_s, float eps, CSlice cos_s, CSlice sin_s,
-                        size_t half, const uint32_t* pos) override {
-        float* x = at(x_s);
-        norm_rope_raw(x, stride, x, stride, 2 * half, rows, heads, 2 * half, half, at(w_s), eps, at(cos_s), at(sin_s), pos);
-    }
-
     void norm_rope_partial(Slice dst_s, CSlice src_s, size_t rows, size_t src_stride, size_t src_head_stride,
                            size_t heads, size_t head_dim, size_t rope_dim, CSlice w_s, float eps,
                            CSlice cos_s, CSlice sin_s, const uint32_t* pos) override {

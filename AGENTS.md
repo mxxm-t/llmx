@@ -6,8 +6,8 @@ making changes.
 ## What this is
 
 **llmx** - a ground-up, dependency-free LLM inference runtime. It reads/writes
-GGUF v3, runs quantized or F32 Qwen3 and Qwen3-MoE transformers on x86 CPU with AVX2/FMA/F16C
-or on a Vulkan device, and the dense Qwen 3.5 hybrid (qwen35) on the CPU, and is structured so formats, quantizations, backends, and multi-device / cluster
+GGUF v3, runs quantized or F32 Qwen3, Qwen3-MoE and dense Qwen 3.5 hybrid (qwen35) transformers on x86 CPU with AVX2/FMA/F16C
+or on a Vulkan device, and is structured so formats, quantizations, backends, and multi-device / cluster
 serving can be added later without touching the core.
 
 ## Build
@@ -214,7 +214,7 @@ one-hot inputs with exact expected products, and every column of the three-, two
 Q8 products also read a tiny original F32 input beside a zero-weight block peak exactly, through plain, grouped, routed and residual calls, across row classes, widths, signed weights/scales and thread counts.
 The test is built without contraction, so a tail the kernels leave to the compiler fails it.
 It runs with the 8-bit decode dots off, so it pins the float paths, and a grouped call there is the base's call of each projection in turn; the CPU backend's own grouped dispatch is checked by `q8-dots`.
-It also sweeps activations from 1e-30 to 1e36 over every type it reads, where a row whose exact result fits must come out finite and within the double oracle's bound, checks `norm_rope_rows` at out-of-order positions and `gather_rows` in pick order, and refuses a row beyond the source, an unknown type and a projection without storage.
+It also sweeps activations from 1e-30 to 1e36 over every type it reads, where a row whose exact result fits must come out finite and within the double oracle's bound, checks `norm_rope_partial` at out-of-order positions and `gather_rows` in pick order, and refuses a row beyond the source, an unknown type and a projection without storage.
 The independent HF fixtures below remain the external correctness gate.
 
 `fused-dot-overflow` pins the two kernel families apart. `dot_row_impl` folds
@@ -247,9 +247,9 @@ It covers the causal conv and the raw rows it carries, which must be the inputs 
 Each V column of the recurrence must give the same bits in a 32-column block, in an 8-column block and alone, and q and k heads near 1e-4 hold the L2 norms' epsilon and its place inside the root.
 A decay factor below 2^-126 must be flushed to 0 and one just above it kept, on a state whose decayed values stay normal, so the check holds under any denormal handling.
 It also checks the gated norm, the partial rope, reading q between its gates and k in place, and `sigmoid_mul` as the output gate and as a scale of one value per row; the norms each with a head near 1e-4 that holds their epsilon.
-The partial rope's reference rotates every pair at the token's position, as the rope sections give it for text, so it holds nothing of the sections themselves; the op must equal `norm_rope_rows` at the full rotary width and rotate a pair in its scalar tail with the bits of the same pair in its vector body, and an RMSNorm row 12 wide must scale each element of its scalar tail with the bits of the same element in its vector body.
+The partial rope's reference rotates every pair at the token's position, as the rope sections give it for text, so it holds nothing of the sections themselves, and at the full width over contiguous heads, as Qwen3 calls it, the op must meet the same reference; it must rotate a pair in its scalar tail with the bits of the same pair in its vector body, and an RMSNorm row 12 wide must scale each element of its scalar tail with the bits of the same element in its vector body.
 Every result must be the same bit for bit at 1, 2, 3, 5, 8 and 16 threads, for a row alone and beside others, with the views in another order, and with a sequence cut into passes of 1, 2 and 3 rows that carry its state in its slot, so k one-row calls equal one call of k rows.
-`state_alloc` must zero-fill its slots, `state_copy` copy one slot in every layer and a storage whose buffers cannot hold its slots be refused; malformed views, among them each of the three ways one view's slots can meet another's, must be refused before anything is written, and `Backend`'s own form of each op, which the Vulkan backend runs, must refuse it by name.
+`state_alloc` must zero-fill its slots, `state_copy` copy one slot in every layer and a storage whose buffers cannot hold its slots be refused; malformed views, among them each of the three ways one view's slots can meet another's, must be refused before anything is written.
 
 `arch-qwen35` checks the qwen35 module (`model/arch/qwen35.hpp`) on tiny models it builds in memory, four layers of linear then full attention twice.
 Every key the reader refuses must be refused with its text: two MTP blocks or one for every block, a value width apart from the key width, an odd rotary width or one past the head, rope sections that do not cover the rotary width, a conv of other than four taps, V heads that are no multiple of the K heads, an inner size of part of a V head, KV heads that do not divide the query heads, no layer kinds, a recurrent-layers array of another length or with a recurrent MTP block, and scaled rope.
@@ -357,6 +357,7 @@ With `--isa` every row kernel build must then hold its one-column build's counts
 The Q8_0 decode builds are held to those counts only where the one-column build reduces over both shuffled and plain adds, and elsewhere to its kinds of operation alone; their multiplies also count the one-column build's multiplies beyond its products, and the transposed reduction is accepted only where the one-column build's reduction takes six levels.
 The counts are a screen on how the driver contracts and reduces a column's sums; a reassociation that keeps them shows only in the decode-column comparison below, which is what holds batch invariance.
 CTest runs `backend-vulkan` without `--isa`, and no hosted runner has a GPU, so `llmx-backend-vulkan-test --isa DIR` is run by hand on an MI50 under RADV and on the Radeon VII under the AMD proprietary driver at every change to a row kernel, its builds or how a pass is chunked.
+Tiled attention covers heads 128 wide, and 256 wide six to a KV head as qwen35's 27B has them, over 32, 45 and 100 query rows after histories of 0, 70 and 600 tokens in f32 and f16 caches.
 Attention additionally covers 80 combinations of head widths 32/40/64/128/256,
 query/KV head ratios 1/2/4/8 and all four F32/F16 cache-side pairs, with nonzero
 inputs at long histories. Both rows of a mixed short/long pass must equal the
@@ -372,6 +373,9 @@ Every kind of refusal of `matmul`, `matmul_add`, `matmul_group`, the routed prod
 The second pass writes into an output that must keep what it held.
 What a paused request's resume relies on is checked the same way: 40 generated rows of one sequence in one run of extent 1 beside a prompt's rows must equal, at rows 0, 1, 7, 8, 15, 31 and 39, the row in a matmul of its own, and their attention after a 500-token history in one view of extent 1 beside a 60-row prompt's view must equal every row decoded one call at a time.
 The integer-dot tile of every quantized type and the Q8_0 row kernel must hold the precision of 16-bit activations: against a double product of the unquantized inputs, whose every block holds one value 30 times the others, each output within half a 16-bit step of each block's peak times that block's weights, where 8-bit activations miss by the 8-bit step.
+The qwen35 layers' ops meet the CPU: `norm_rope_partial` at the full width in place and reading q between its gates with a quarter of a 256-wide head rotated, at 1e-5; `gated_rms_norm` and `sigmoid_mul`, in place too, at 1e-5 and 1e-6; and the conv and the gated delta rule at 1e-5 and 1e-4 over the mixed sequences of `qwen35-ops` (fresh ones on slots of NaN, short histories, one-token entries and a verify), at the tiny fixtures' shapes, a 64 by 40 matrix, 128 by 128 and the 0.8B's and the 27B's heads, their carried conv rows bit for bit.
+On the device a sequence's conv and recurrence rows and state must be the same bits alone, beside others, in reverse view order and cut into passes of 1, 2 and 3 rows, a fresh slot's contents must change no bit, a decay below 2^-126 must be flushed and one just above it kept on a state whose decayed values stay normal, and `state_alloc` must zero every slot and `state_copy` copy one slot in every layer.
+Gated attention's tail at head width 256 runs as the layer does, attention after a 90-token history, the output gated in place by `sigmoid_mul`, then a Q8_0 and a Q4_K output projection added to a residual, on the row kernel for three decode rows and on the tile for a prompt's rows, against the CPU fed the activations each kernel reads, so the copy the gate writes, not attention's of the ungated output, is what the projection reads.
 It exits 77, which CTest reports as skipped, when there is no loader, the loader has no driver or is older than Vulkan 1.2, or device 0 is missing or lacks a feature the backend requires.
 
 `vulkan-quantization` reads the packed activation buffers before consumer arithmetic.
@@ -387,7 +391,7 @@ It needs a Vulkan device; without one it exits 77. These producer and Q8 consume
 On a device reporting both float-preservation properties, the same test compares the preserved Q8 consumers against the ordinary modules on normal inputs, bit for bit: 50676 outputs across widths 32/64/96/128/2080/2112, 41 output rows and 11 column counts from 1 through 64. Decode row runs keep every case on the row kernels, including odd/even block counts and row/column tails. A mismatch fails the test; this is compatibility with the ordinary modules on that driver, not an independent numerical reference. F32 rows also keep the ordinary module: 1599 outputs over widths 33/128/2048 and columns 1/3/9 must match with preservation available or disabled, covering scalar and vector loads.
 
 `vulkan-buffer` checks constructor cleanup on a fake device that supplies every Vulkan call it makes, so it needs no loader and runs wherever the backend builds.
-On property and feature values alone it checks that every device need the kernels declare is refused by name when missing, among them subgroup shuffles and 8- and 16-bit storage and integers, and that a head wider than four subgroup lanes' elements, 128 on a 32-lane device, or than 256 does not fit the attention kernels.
+On property and feature values alone it checks that every device need the kernels declare is refused by name when missing, among them subgroup shuffles and 8- and 16-bit storage and integers, and that heads 128 and 256 wide fit the attention kernels on 32- and 64-lane devices alike, while a head of another width fits only up to four subgroup lanes' elements, 128 on a 32-lane device, and no head wider than 256 fits.
 `vulkan-lifetime` opens a device, intercepts transfers and injects allocation failures to check queued storage ownership during KV growth, padded-copy creation/replacement/invalidation and argument-arena overflow.
 It checks retry and unchanged KV accounting after failed growth.
 A buffer dropped right after `alloc` or `adopt` must outlive its zero fill or its upload.
@@ -524,7 +528,8 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   Under `--verbose` each window's line must give its scored targets and the oracle's mean NLL for it, in order, with the totals unchanged.
   On the same model `logits` gives the same output for inline text and `--file` or `-f`, appends the ids of the file `--then-ids` names, separated by commas or whitespace, and refuses any other separator and an id past the vocabulary, 2^32 plus a valid id included.
 - **Chat** (`tests/chat.py`): follow-up replies against independent HF goldens, including changed prefixes, stop/EOS and token-limit endings.
-  A template the renderer refuses stops `chat` and `serve` before either takes a turn or listens, while `generate` still runs on the file.
+  A template the renderer refuses stops `chat` and `serve` before either takes a turn or listens, and `generate` and `logits` with `--chat`, while `generate` without it still runs on the file.
+  `generate --chat` and `logits --chat` must give what the same commands give the text the template renders for one user message with the generation prompt and no system message, `--then-ids` and `--last` included.
   CTest also runs `chat-template` on `tests/data/baseline_chat_template.json`: the pinned real Qwen templates (Qwen2.5, the Qwen3 variants, and every Qwen 3.5, 3.6 and 3.8 template found in GGUF files and the official repositories), each held to its SHA-256, over 34 conversations each, tools, tool calls and content given as parts among them, with whether a conversation keeps an assistant turn split under each and a two-turn conversation of seven replies kept that way, and small feature templates, every case byte for byte against transformers' own chat template renderer, a failure where it fails, with its message where the reference raises the template's own error, an undefined value or a type or division error; templates the renderer must refuse; templates past its nesting and value limits, a `map` filter naming `map` 5000 times among them, which must be refused or fail without ending the process; filters and tests given more positional arguments than they read, which must fail as Jinja fails them, `join`'s attribute, which must fail where Jinja would render other text, and the tests Jinja names by operator, which must select as Jinja's do; the texts `chat::assistant_turn` must split as the Qwen templates split them; the two conversations of each qwen35 real-model chat golden (`tests/data/qwen35-0.8b` and `tests/data/qwen35-4b`) under its file's template, against transformers' render; and a conversation ending in an assistant turn under the Qwen3 template of the official repositories, held in the test's source, whose reasoning the old renderer dropped.
   Regenerate both fixtures with `python tools/gen_chat_baseline.py` in the reference environment of `docs/ASSETS.md`; running them needs no external libraries.
   The same tool's `--extract` and `--scan` check every template on a machine by hand, through the same test binary.
@@ -593,18 +598,29 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   The server component runs `tests/server_mix_tool.py` offline, checking shared/fresh lifetimes, cleanup, forwarding, changed replies, reuse and unfinished-work refusals.
 
 - **Long context** (`tools/long_context_check.py`): one 16k-token
-  summarization prompt from `tests/data/wiki.test.raw`, greedy, 512
-  generated tokens by default, sent to `llmx serve` on the device under
-  test twice from fresh servers, which must give the same tokens; then the
-  CPU reads the prompt and those tokens (`llmx logits --last`), and at
-  every generated position the device's token must be the CPU's top choice
-  or within `--margin` (0.5) logits of it. Nothing else here reaches a
+  request, a user message asking for a summary of an extract of
+  `tests/data/wiki.test.raw`, rendered by the model's chat template as
+  `/v1/chat` renders it, greedy, 512 generated tokens by default, sent to
+  `llmx serve` on the device under test twice from fresh servers, which
+  must give the same tokens; then the CPU reads the rendered prompt and
+  those tokens (`llmx logits --chat --last`), and at every generated
+  position the device's token must be the CPU's top choice or within
+  `--margin` (0.5) logits of it. As raw text an instruct model continued
+  the extract and looped, and the check compared near-ties inside the loop.
+  Nothing else here reaches a
   prompt that fills thousands of KV blocks and then decodes from that
   history. A hash across two backends is not the check: their activations
   round differently, and after a long prompt greedy decoding meets
   near-ties where either token is right, so identical text is only
   required of one backend against itself. It needs a real model and is run
   by hand, not by `run_tests.py`.
+  `--cli` sends the message through two fresh `llmx generate --chat --file`
+  runs instead, whose `--verbose` output gives the prompt's token count and
+  the generated ids, for a model the server refuses, such as a `qwen35` file.
+  A position past the margin prints both backends' top candidates there, the
+  device reading the same tokens, so a near-tie is told from a wrong kernel.
+  The device reads them before the baseline does, so its work ends before
+  the baseline's long reading starts.
 - **Decode probe** (`tools/decode_probe.cpp`, target `llmx-decode-probe`, built beside `llmx-split-check`): a reply's decode path on a real model, the prompt read as one prefill and each forced id of a fixture fed as a decode step, as a request alone runs through the server.
   Each step prints its greedy token, the runner-up and the forced id with their logits, and the tool exits 1 where a forced id is not its step's greedy token; after the last forced id it prints the step's five best, ranked by `infer::top_logprobs`, or every id of a smaller vocabulary, and the logits of the fixture's two tokens.
   `tests/data/decode_probe_30b_a3b.json` holds a prompt, the 55 ids Qwen3-30B-A3B Q8_0's greedy replies share on an MI50 in the Q8_0 decode kernel's quarter layout and in its half-block order, and the two tokens where they part, with each order's gap between them (docs/STATUS.md, the half-block order).
@@ -849,7 +865,7 @@ In the code: code that runs but serves nothing, paths for inputs or devices that
   Vulkan is the only optional backend today; ROCm, CUDA and SYCL are planned and each gets its option with its implementation.
 - **Model architectures** are compiled in and selected from metadata by
   `src/model/arch/registry.hpp`, one module per architecture under `src/model/arch/`
-  on a runtime they share; today qwen3 and qwen3moe, and qwen35 on the CPU. A new one follows
+  on a runtime they share; today qwen3, qwen3moe and qwen35. A new one follows
   `docs/ADDING-AN-ARCHITECTURE.md`.
 - **Split mode** is a runtime flag: a `--device` list splits by layers
   (`docs/MULTI-DEVICE.md`); tensor groups and node count are planned. See

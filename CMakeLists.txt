@@ -47,9 +47,10 @@ if(LLMX_HAS_BACKEND_VULKAN)
     endif()
     # Shaders are GLSL in the tree, compiled to SPIR-V at build time and embedded as uint32_t arrays, so the binary carries its kernels.
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
-    set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_rows embed matmul_row
+    set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_partial embed matmul_row
         kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile quantize_x
-        quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group attention_vec)
+        quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group attention_vec
+        sigmoid_mul gated_rms_norm causal_conv_silu delta_rule)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
     set(LLMX_VK_VARIANTS matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
         matmul_row_preserve=matmul_row=LLMX_PRESERVE_F32
@@ -71,6 +72,12 @@ if(LLMX_HAS_BACKEND_VULKAN)
         attention_vec_v16_g4=attention_vec=LLMX_V16+LLMX_G4 attention_vec_kv16_g4=attention_vec=LLMX_K16+LLMX_V16+LLMX_G4
         attention_tile_k16=attention_tile=LLMX_K16 attention_tile_v16=attention_tile=LLMX_V16
         attention_tile_kv16=attention_tile=LLMX_K16+LLMX_V16
+        attention_tile_d256=attention_tile=LLMX_D256 attention_tile_d256_k16=attention_tile=LLMX_D256+LLMX_K16
+        attention_tile_d256_v16=attention_tile=LLMX_D256+LLMX_V16 attention_tile_d256_kv16=attention_tile=LLMX_D256+LLMX_K16+LLMX_V16
+        attention_vec_d256=attention_vec=LLMX_D256 attention_vec_d256_k16=attention_vec=LLMX_D256+LLMX_K16
+        attention_vec_d256_v16=attention_vec=LLMX_D256+LLMX_V16 attention_vec_d256_kv16=attention_vec=LLMX_D256+LLMX_K16+LLMX_V16
+        attention_vec_d256_g4=attention_vec=LLMX_D256+LLMX_G4 attention_vec_d256_k16_g4=attention_vec=LLMX_D256+LLMX_K16+LLMX_G4
+        attention_vec_d256_v16_g4=attention_vec=LLMX_D256+LLMX_V16+LLMX_G4 attention_vec_d256_kv16_g4=attention_vec=LLMX_D256+LLMX_K16+LLMX_V16+LLMX_G4
         norm_rope_kv_k16=norm_rope_kv=LLMX_K16 norm_rope_kv_v16=norm_rope_kv=LLMX_V16
         norm_rope_kv_kv16=norm_rope_kv=LLMX_K16+LLMX_V16
         matmul_tile_q6=matmul_tile_q=LLMX_Q6 matmul_tile_q8=matmul_tile_q=LLMX_Q8)

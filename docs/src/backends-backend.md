@@ -129,15 +129,20 @@ placement contracts in `docs/EXECUTION.md`.
   against a shared weight. `runs`, when given, are the row runs of the matmul
   that reads `dst` next, so a device can also write `dst` in the form that
   matmul's kernel reads.
-- `norm_rope_rows(x, rows, stride, heads, w, eps, cos, sin, half, pos)`:
-  per-head RMS norm followed by RoPE over a batch of rows. `cos`/`sin` are
-  buffers holding the per-position tables; row `r` reads entry `pos[r]` of
-  each, so a batch may carry rows from several sequences. The two are one
-  op because the model never applies one without the other.
+- `norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos)`:
+  per-head RMS norm over `head_dim`, then RoPE on the first `rope_dim` dims
+  only, over a batch of rows, from heads read at a stride of their own into
+  contiguous heads, so qwen35 reads q between its gates in `attn_q`'s rows.
+  `cos`/`sin` are buffers holding the per-position tables of `rope_dim / 2`
+  entries; row `r` reads entry `pos[r]` of each, so a batch may carry rows
+  from several sequences. At the full width over contiguous heads, in place,
+  it is Qwen3's rope; for qwen35's text the rope sections give every
+  frequency the same position, so they reduce to it. The two are one op
+  because the model never applies one without the other.
 - `norm_rope_kv(...)`: a layer's attention inputs in one op, q normed and
   rotated in place, k normed and rotated into its KV block and v copied
-  into its block. The default runs the three ops; the Vulkan backend fuses
-  them.
+  into its block. The default runs `norm_rope_partial` at the full width on
+  q and k in place, then `kv_write`; the Vulkan backend fuses them.
 - `silu_mul(dst, gate, up, n, runs)`: the SwiGLU elementwise stage. `runs`,
   when given, group `dst`'s rows by prompt for the matmul that reads it next,
   as for `rms_norm_rows`; a routed layer passes its entries' runs.
@@ -159,11 +164,11 @@ placement contracts in `docs/EXECUTION.md`.
 - `matmul_experts_add(type, data, X, Y, nin, nout, nrows, routing, runs)`:
   the routed down projection joining the residual, row `r` of `Y` adding
   the weighted sum of its k slots, formed in slot order before the add.
-- The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass.
-  Each of the five compute ops has a form in `Backend` that throws naming the op, which a backend without it runs: the Vulkan backend until the qwen35 plan's step 5 (`docs/STATUS.md`).
-  The CPU implements them all (`backends-cpu.md`).
-  - `Op` names each of these five and `op_name(op)` spells it; `implements(op)` says whether a backend runs it, false unless the backend says otherwise and true for every op on the CPU.
-    A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`), so no pass reaches the refusing forms; a stream destination without one of a routed feed-forward part's ops leaves that layer on its host.
+- The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass, with `norm_rope_partial` above.
+  Every backend implements them: the CPU (`backends-cpu.md`) and the Vulkan backend (`backends-vulkan.md`).
+  - `Op` names each of these five and `op_name(op)` spells it; `implements(op)` says whether a backend runs it, false unless the backend says otherwise and true for every op on the CPU and on the Vulkan backend.
+    A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`); a stream destination without one of a routed feed-forward part's ops leaves that layer on its host.
+    It is the seam an architecture's new op comes through while one backend lacks it (`docs/ADDING-AN-ARCHITECTURE.md`, New backend ops); these five are pure virtual now that both backends run them.
   - `StateShape`: one linear-attention layer's state for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, `slot_floats()` a slot, every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32, and `layer_bytes(slots)` one layer's buffer of that many slots.
     `kConvTaps` is the conv's width, 4 in every qwen35 file, and `kL2NormEps` the L2 norms' epsilon, 1e-6, which no file carries.
   - `state_alloc(layers, slots, shape)`: a `StateStorage` of one buffer per layer holding every slot back to back, allocated through `alloc` and zero-filled when it is made and never grown, so no pass allocates state.
@@ -177,8 +182,6 @@ placement contracts in `docs/EXECUTION.md`.
   - `causal_conv_silu(out, x, w, layer, views, n_views)`: the causal conv of width `kConvTaps` over each view's carried rows and rows, then SiLU, with `w` as `ssm_conv1d` stores it and rows before a sequence's start zero; each view leaves its last raw rows in slot `dst`.
   - `gated_delta_rule(out, qkv, alpha, b, a, dt_bias, layer, views, n_views)`: the L2 norms of q and k, beta and the decay, then the recurrence token by token for every (view, V head), V head `j` reading K head `j mod k_heads`, from slot `src`'s matrices into slot `dst`'s; the decay is 0 below 2^-126.
   - `gated_rms_norm(dst, x, z, w, rows, heads, dim, eps, runs)`: the RMS norm of each head of `x` against `w`, which every head shares, times SiLU of `z`.
-  - `norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos)`: per-head RMS norm over `head_dim`, then RoPE on the first `rope_dim` dims only, from heads read at a stride of their own, so q is read between its gates in `attn_q`'s rows, into contiguous heads.
-    For text the rope sections give every frequency the same position, so they reduce to this.
   - `sigmoid_mul(dst, x, gate, rows, heads, dim, gate_stride, gate_head_stride, runs)`: `x * sigmoid(gate)`, the gate addressed by row, head and element: the output gate reads each query head's gate in place, and a scale of one value per row is `heads` the width, `dim` 1 and `gate_head_stride` 0.
 - `BackendPtr`: the shared handle a backend is held by. The factories live
   with their backends, `make_cpu_backend` in `cpu/cpu_backend.hpp` and

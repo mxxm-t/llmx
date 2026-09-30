@@ -403,14 +403,16 @@ public:
     virtual void rms_norm_rows(Slice dst, CSlice src, CSlice w,
                                size_t rows, size_t n, size_t stride, float eps, RowRuns runs = {}) = 0;
 
-    // Per-head RMS norm followed by RoPE over a batch of rows: row r starts at x + r*stride with `heads` contiguous heads of `2*half` floats, at position pos[r] in the `cos`/`sin` tables.
+    // Per-head RMS norm over `head_dim` floats, then RoPE on the first `rope_dim` of them only, pairs (i, i + rope_dim / 2) at pos[r] in `cos`/`sin` tables of rope_dim / 2 entries a position.
+    // Source head h of row r starts at src + r * src_stride + h * src_head_stride, and the heads are written contiguously, heads * head_dim floats a row of dst.
     // Positions are per row because a batch may carry several sequences; norm and RoPE are one op so a device gets one launch per layer.
-    virtual void norm_rope_rows(Slice x, size_t rows, size_t stride,
-                                size_t heads, CSlice w, float eps,
-                                CSlice cos, CSlice sin, size_t half,
-                                const uint32_t* pos) = 0;
+    // With rope_dim equal to head_dim it is the whole head's rope; for text the qwen35 rope sections give every frequency the same position, so they reduce to this (docs/QWEN35.md, Gated attention).
+    // dst may alias src only if identical and src's heads are contiguous.
+    virtual void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
+                                   size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
+                                   CSlice cos, CSlice sin, const uint32_t* pos) = 0;
 
-    // Normalize and rotate q and k in place, then write k and v into the views' KV blocks using the primitive ops' row layouts.
+    // Normalize and rotate q and k in place over the whole head, then write k and v into the views' KV blocks using the primitive ops' row layouts.
     // A device may fuse these consecutive ops; k must still hold its normalized, rotated rows afterward.
     struct RopeArgs {
         CSlice cos, sin;
@@ -422,8 +424,9 @@ public:
                               Slice k, CSlice v, size_t kv_stride, size_t n_head_kv, CSlice k_w,
                               const RopeArgs& rope, size_t rows, size_t layer,
                               const KVView* views, size_t n_views) {
-        norm_rope_rows(q, rows, q_stride, n_head, q_w, rope.eps, rope.cos, rope.sin, rope.half, rope.pos);
-        norm_rope_rows(k, rows, kv_stride, n_head_kv, k_w, rope.eps, rope.cos, rope.sin, rope.half, rope.pos);
+        const size_t dim = 2 * rope.half;
+        norm_rope_partial(q, q, rows, q_stride, dim, n_head, dim, dim, q_w, rope.eps, rope.cos, rope.sin, rope.pos);
+        norm_rope_partial(k, k, rows, kv_stride, dim, n_head_kv, dim, dim, k_w, rope.eps, rope.cos, rope.sin, rope.pos);
         kv_write(layer, views, n_views, k, v);
     }
 
@@ -461,7 +464,7 @@ public:
     virtual void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout,
                                     size_t nrows, const Routing& routing, RowRuns runs = {}) = 0;
 
-    // The ops of the qwen35 layers (docs/QWEN35.md, The forward pass), which a backend without them refuses by name.
+    // The ops of the qwen35 layers (docs/QWEN35.md, The forward pass), with norm_rope_partial above.
 
     // The recurrent state of `layers` linear-attention layers with `slots` slots each, allocated now and zero-filled, so no pass allocates state.
     std::unique_ptr<StateStorage> state_alloc(size_t layers, size_t slots, const StateShape& shape) {
@@ -483,52 +486,24 @@ public:
 
     // The linear-attention layers' causal conv, then SiLU: out[t][c] = silu(sum over tap i of w[c * kConvTaps + i] * x[t - kConvTaps + 1 + i][c]), w being `ssm_conv1d` as stored, so tap kConvTaps - 1 multiplies row t.
     // x and out are the views' rows of the storage's channels(), in view order; a view reads the rows before its first from slot src, rows before its sequence's start being zero, and leaves its last kConvTaps - 1 raw rows in slot dst.
-    virtual void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) {
-        (void)out; (void)x; (void)w; (void)layer; (void)views; (void)n_views;
-        lacks("causal_conv_silu");
-    }
+    virtual void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) = 0;
 
     // The gated delta rule of the linear-attention layers (docs/QWEN35.md, Linear attention, steps 3 to 5), token by token for every (view, V head) from slot src's matrices into slot dst's.
     // qkv holds the conv's output rows [q | k | v] of channels(); alpha and b are the rows of `ssm_alpha` and `ssm_beta`, and a and dt_bias `ssm_a` and `ssm_dt.bias`, v_heads floats each; out is v_heads * v_dim floats a row.
     // q and k are L2-normed with kL2NormEps and q scaled by 1 / sqrt(k_dim), beta is sigmoid(b), and the decay exp(a * softplus(alpha + dt_bias)) is 0 below 2^-126.
     virtual void gated_delta_rule(Slice out, CSlice qkv, CSlice alpha, CSlice b, CSlice a, CSlice dt_bias,
-                                  size_t layer, const StateView* views, size_t n_views) {
-        (void)out; (void)qkv; (void)alpha; (void)b; (void)a; (void)dt_bias; (void)layer; (void)views; (void)n_views;
-        lacks("gated_delta_rule");
-    }
+                                  size_t layer, const StateView* views, size_t n_views) = 0;
 
     // dst = RMSNorm(x; w) * silu(z) over each of `heads` heads of `dim` floats in each of `rows` rows, w being one dim-wide weight every head shares.
     // dst may alias x only if identical, and never z; `runs` as for rms_norm_rows.
     virtual void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps,
-                                RowRuns runs = {}) {
-        (void)dst; (void)x; (void)z; (void)w; (void)rows; (void)heads; (void)dim; (void)eps; (void)runs;
-        lacks("gated_rms_norm");
-    }
-
-    // Per-head RMS norm over `head_dim` floats, then RoPE on the first `rope_dim` of them only, pairs (i, i + rope_dim / 2) at pos[r] in `cos`/`sin` tables of rope_dim / 2 entries a position.
-    // Source head h of row r starts at src + r * src_stride + h * src_head_stride, and the heads are written contiguously, heads * head_dim floats a row of dst.
-    // For text the rope sections give every frequency the same position, so they reduce to this (docs/QWEN35.md, Gated attention); dst may alias src only if identical and src's heads are contiguous.
-    virtual void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
-                                   size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
-                                   CSlice cos, CSlice sin, const uint32_t* pos) {
-        (void)dst; (void)src; (void)rows; (void)src_stride; (void)src_head_stride; (void)heads; (void)head_dim;
-        (void)rope_dim; (void)w; (void)eps; (void)cos; (void)sin; (void)pos;
-        lacks("norm_rope_partial");
-    }
+                                RowRuns runs = {}) = 0;
 
     // dst[r][h][d] = x[r][h][d] * sigmoid(gate[r * gate_stride + h * gate_head_stride + d]), x and dst being `rows` rows of heads * dim floats.
     // The output gate reads each query head's gate in place from `attn_q`'s rows; a scale of one value per row is heads = the row's width, dim = 1 and gate_head_stride = 0.
     // dst may alias x only if identical; `runs` as for silu_mul.
     virtual void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim,
-                             size_t gate_stride, size_t gate_head_stride, RowRuns runs = {}) {
-        (void)dst; (void)x; (void)gate; (void)rows; (void)heads; (void)dim; (void)gate_stride; (void)gate_head_stride; (void)runs;
-        lacks("sigmoid_mul");
-    }
-
-private:
-    [[noreturn]] static void lacks(const char* op) {
-        throw std::runtime_error(std::string("backend: ") + op + " is not implemented on this backend");
-    }
+                             size_t gate_stride, size_t gate_head_stride, RowRuns runs = {}) = 0;
 };
 
 using BackendPtr = std::shared_ptr<Backend>;

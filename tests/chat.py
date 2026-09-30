@@ -75,6 +75,25 @@ def run():
         p = common.run_process(["generate", str(model), "a", "-n", "2", "--temp", "0"], timeout=30)
         assert p.returncode == 0, (p.returncode, p.stderr)
         common.generate_text(p.stdout)
+        for cmd in (["generate", str(model), "a", "--chat", "-n", "2"], ["logits", str(model), "a", "--chat"]):
+            p = common.run_process(cmd, timeout=30)
+            assert p.returncode == 1 and refusal in p.stderr and not p.stdout, (cmd, p.returncode, p.stderr, p.stdout)
+        # --chat reads the text as one user message rendered with the generation prompt and no system message, as the chat routes render it: "d" is "adb" here.
+        f32.write_model(model, weights, "{% for message in messages %}{% if message['role'] == 'user' %}a{% else %}c{% endif %}"
+                                        "{{ message['content'] }}{% endfor %}{% if add_generation_prompt %}b{% endif %}")
+        with tempfile.TemporaryDirectory(prefix="llmx_chat_ids_") as ids_dir:
+            then = Path(ids_dir) / "then.ids"
+            then.write_text("3 1 4")
+            pairs = [(["generate", str(model), "d", "--chat"], ["generate", str(model), "adb"], ["-n", "3", "--temp", "0"]),
+                     (["logits", str(model), "d", "--chat"], ["logits", str(model), "adb"], ["--top", "5"]),
+                     (["logits", str(model), "d", "--chat"], ["logits", str(model), "adb"], ["--then-ids", str(then), "--last", "4", "--top", "3"])]
+            for chat_args, raw_args, rest in pairs:
+                got, want = (common.run_process(a + rest, timeout=30) for a in (chat_args, raw_args))
+                assert got.returncode == 0 and want.returncode == 0, (chat_args, got.stderr, want.stderr)
+                if chat_args[0] == "generate":
+                    assert common.generate_text(got.stdout) == common.generate_text(want.stdout), (got.stdout, want.stdout)
+                else:
+                    assert got.stdout == want.stdout and got.stdout.startswith(b"tokens: "), (rest, got.stdout, want.stdout)
         case = fixture["cases"][0]
         spec = case["spec"]
         f32.write_model(model, weights, spec["template"])
@@ -100,7 +119,8 @@ def run():
         for bad in (["--device", "bogus"], ["--device", "vulkan:999999"]):
             p = common.run_process(args + ["--verbose"] + bad, input=b"a\n", timeout=30)
             assert p.returncode == 1 and b"Reading model metadata" not in p.stderr, (bad, p.returncode, p.stderr)
-    print("chat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit; a refused template stops chat and serve, not generate  [ok]")
+    print("chat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit; a refused template stops chat, serve and --chat, not generate  [ok]")
+    print("chat --chat: generate and logits read one user message as the template renders it  [ok]")
     print("chat progress: completed loading percentages and per-turn phases stay on stderr  [ok]")
     print("chat flags: a device that cannot be made fails before the file is read  [ok]")
     return True

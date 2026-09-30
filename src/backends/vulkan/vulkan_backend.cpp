@@ -109,8 +109,8 @@ const uint32_t kSpvGatherRows[] = {
 const uint32_t kSpvRmsNormRows[] = {
 #include "vulkan/rms_norm_rows.inc"
 };
-const uint32_t kSpvNormRopeRows[] = {
-#include "vulkan/norm_rope_rows.inc"
+const uint32_t kSpvNormRopePartial[] = {
+#include "vulkan/norm_rope_partial.inc"
 };
 const uint32_t kSpvEmbed[] = {
 #include "vulkan/embed.inc"
@@ -283,8 +283,58 @@ const uint32_t kSpvMoeCombine[] = {
 const uint32_t kSpvMoeGroup[] = {
 #include "vulkan/moe_group.inc"
 };
+// The attention kernels at head width 256, qwen35's, in the same cache-type order.
+const uint32_t kSpvAttentionTileD256[] = {
+#include "vulkan/attention_tile_d256.inc"
+};
+const uint32_t kSpvAttentionTileD256K16[] = {
+#include "vulkan/attention_tile_d256_k16.inc"
+};
+const uint32_t kSpvAttentionTileD256V16[] = {
+#include "vulkan/attention_tile_d256_v16.inc"
+};
+const uint32_t kSpvAttentionTileD256KV16[] = {
+#include "vulkan/attention_tile_d256_kv16.inc"
+};
+const uint32_t kSpvAttentionVecD256[] = {
+#include "vulkan/attention_vec_d256.inc"
+};
+const uint32_t kSpvAttentionVecD256K16[] = {
+#include "vulkan/attention_vec_d256_k16.inc"
+};
+const uint32_t kSpvAttentionVecD256V16[] = {
+#include "vulkan/attention_vec_d256_v16.inc"
+};
+const uint32_t kSpvAttentionVecD256KV16[] = {
+#include "vulkan/attention_vec_d256_kv16.inc"
+};
+const uint32_t kSpvAttentionVecD256G4[] = {
+#include "vulkan/attention_vec_d256_g4.inc"
+};
+const uint32_t kSpvAttentionVecD256K16G4[] = {
+#include "vulkan/attention_vec_d256_k16_g4.inc"
+};
+const uint32_t kSpvAttentionVecD256V16G4[] = {
+#include "vulkan/attention_vec_d256_v16_g4.inc"
+};
+const uint32_t kSpvAttentionVecD256KV16G4[] = {
+#include "vulkan/attention_vec_d256_kv16_g4.inc"
+};
+// The qwen35 layers' ops (docs/QWEN35.md).
+const uint32_t kSpvSigmoidMul[] = {
+#include "vulkan/sigmoid_mul.inc"
+};
+const uint32_t kSpvGatedRmsNorm[] = {
+#include "vulkan/gated_rms_norm.inc"
+};
+const uint32_t kSpvCausalConvSilu[] = {
+#include "vulkan/causal_conv_silu.inc"
+};
+const uint32_t kSpvDeltaRule[] = {
+#include "vulkan/delta_rule.inc"
+};
 
-enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_ROWS, K_EMBED,
+enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_PARTIAL, K_EMBED,
                 K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
                 K_MATMUL_ROW_K4, K_MATMUL_ROW_K5, K_MATMUL_ROW_K, K_NORM_ROPE_KV, K_ATTENTION_TILE,
                 K_KV_WRITE_K16, K_KV_WRITE_V16, K_KV_WRITE_KV16,
@@ -298,7 +348,11 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_R
                 K_MATMUL_TILE_Q8, K_MATMUL_TILE_Q8_TALL,
                 K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_MATMUL_ROW_Q4_DOT8,
                 K_ATTENTION_G4, K_ATTENTION_K16_G4, K_ATTENTION_V16_G4, K_ATTENTION_KV16_G4,
-                K_ATTENTION_VEC, K_ATTENTION_VEC_K16, K_ATTENTION_VEC_V16, K_ATTENTION_VEC_KV16, K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, K_ATTENTION_VEC_V16_G4, K_ATTENTION_VEC_KV16_G4, K_MATMUL_ROW_F32, K_COUNT };
+                K_ATTENTION_VEC, K_ATTENTION_VEC_K16, K_ATTENTION_VEC_V16, K_ATTENTION_VEC_KV16, K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, K_ATTENTION_VEC_V16_G4, K_ATTENTION_VEC_KV16_G4, K_MATMUL_ROW_F32,
+                K_SIGMOID_MUL, K_GATED_RMS_NORM, K_CAUSAL_CONV_SILU, K_DELTA_RULE,
+                K_ATTENTION_TILE_D256, K_ATTENTION_TILE_D256_K16, K_ATTENTION_TILE_D256_V16, K_ATTENTION_TILE_D256_KV16,
+                K_ATTENTION_VEC_D256, K_ATTENTION_VEC_D256_K16, K_ATTENTION_VEC_D256_V16, K_ATTENTION_VEC_D256_KV16,
+                K_ATTENTION_VEC_D256_G4, K_ATTENTION_VEC_D256_K16_G4, K_ATTENTION_VEC_D256_V16_G4, K_ATTENTION_VEC_D256_KV16_G4, K_COUNT };
 
 // The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
 // F32 rows have no dot form, and Q8_0 rows take matmul_vec_q8.comp where the dot is preferred.
@@ -423,8 +477,10 @@ inline std::string missing_device_need(const VkPhysicalDeviceSubgroupProperties&
     return {};
 }
 
-// The attention kernels read at most four elements of a head per lane of a subgroup (shaders/attention.comp), and no head wider than 256.
-inline bool attention_head_fits(size_t head_dim, uint32_t subgroup_size) { return head_dim <= 256 && head_dim <= 4 * (size_t)subgroup_size; }
+// Heads 128 and 256 wide take the tiled and vector kernels, whose lane groups fit every subgroup the device check accepts (shaders/attention_tile.comp, shaders/attention_vec.comp).
+// Other widths take the per-row kernel, which reads at most four elements of a head per lane of a subgroup (shaders/attention.comp); no head is wider than 256.
+inline size_t attention_row_width(uint32_t subgroup_size) { return std::min<size_t>(256, 4 * (size_t)subgroup_size); }
+inline bool attention_head_fits(size_t head_dim, uint32_t subgroup_size) { return head_dim == 128 || head_dim == 256 || head_dim <= attention_row_width(subgroup_size); }
 
 // The tile kernel's row count, specialization constant 0: the shorter heights fill a device a taller tile would leave idle, the taller reads less shared memory per product.
 const uint32_t kTileRowsSmall = 32, kTileRowsShort = 64, kTileRowsTall = 128;   // the small height is variant 1 of the short kernels
@@ -450,7 +506,7 @@ const uint32_t kMatmulTileQCounts[5] = {3, 3, 1, 1, 1};
 const uint32_t kMatmulReduceCounts[2] = {3, 1};
 
 const char* const kKernelNames[K_COUNT] = {
-    "add", "silu_mul", "gather_rows", "rms_norm_rows", "norm_rope_rows", "embed",
+    "add", "silu_mul", "gather_rows", "rms_norm_rows", "norm_rope_partial", "embed",
     "matmul_row", "kv_write", "attention", "attention_merge", "matmul_tile", "matmul_row_q4",
     "matmul_row_k4", "matmul_row_k5", "matmul_row_k", "norm_rope_kv", "attention_tile",
     "kv_write_k16", "kv_write_v16", "kv_write_kv16",
@@ -465,6 +521,10 @@ const char* const kKernelNames[K_COUNT] = {
     "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group", "matmul_row_k_dot8", "matmul_row_q4_dot8",
     "attention_g4", "attention_k16_g4", "attention_v16_g4", "attention_kv16_g4",
     "attention_vec", "attention_vec_k16", "attention_vec_v16", "attention_vec_kv16", "attention_vec_g4", "attention_vec_k16_g4", "attention_vec_v16_g4", "attention_vec_kv16_g4", "matmul_row_f32",
+    "sigmoid_mul", "gated_rms_norm", "causal_conv_silu", "delta_rule",
+    "attention_tile_d256", "attention_tile_d256_k16", "attention_tile_d256_v16", "attention_tile_d256_kv16",
+    "attention_vec_d256", "attention_vec_d256_k16", "attention_vec_d256_v16", "attention_vec_d256_kv16",
+    "attention_vec_d256_g4", "attention_vec_d256_k16_g4", "attention_vec_d256_v16_g4", "attention_vec_d256_kv16_g4",
 };
 
 const KernelSource kKernels[K_COUNT] = {
@@ -472,7 +532,7 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvSiluMul, sizeof(kSpvSiluMul), 4, nullptr},
     {kSpvGatherRows, sizeof(kSpvGatherRows), 3, nullptr},
     {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 4, nullptr},
-    {kSpvNormRopeRows, sizeof(kSpvNormRopeRows), 5, nullptr},
+    {kSpvNormRopePartial, sizeof(kSpvNormRopePartial), 6, nullptr},
     {kSpvEmbed, sizeof(kSpvEmbed), 4, nullptr},
     {kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts, kSpvMatmulRowPreserve, sizeof(kSpvMatmulRowPreserve)},
     {kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr},
@@ -532,6 +592,22 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvAttentionVecKV16G4, sizeof(kSpvAttentionVecKV16G4), 7, nullptr},
     // F32 shares the row source, but not the optional Q8 float-preservation modes.
     {kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts},
+    {kSpvSigmoidMul, sizeof(kSpvSigmoidMul), 4, nullptr},
+    {kSpvGatedRmsNorm, sizeof(kSpvGatedRmsNorm), 5, nullptr},
+    {kSpvCausalConvSilu, sizeof(kSpvCausalConvSilu), 5, nullptr},
+    {kSpvDeltaRule, sizeof(kSpvDeltaRule), 8, nullptr},
+    {kSpvAttentionTileD256, sizeof(kSpvAttentionTileD256), 6, nullptr},
+    {kSpvAttentionTileD256K16, sizeof(kSpvAttentionTileD256K16), 6, nullptr},
+    {kSpvAttentionTileD256V16, sizeof(kSpvAttentionTileD256V16), 6, nullptr},
+    {kSpvAttentionTileD256KV16, sizeof(kSpvAttentionTileD256KV16), 6, nullptr},
+    {kSpvAttentionVecD256, sizeof(kSpvAttentionVecD256), 7, nullptr},
+    {kSpvAttentionVecD256K16, sizeof(kSpvAttentionVecD256K16), 7, nullptr},
+    {kSpvAttentionVecD256V16, sizeof(kSpvAttentionVecD256V16), 7, nullptr},
+    {kSpvAttentionVecD256KV16, sizeof(kSpvAttentionVecD256KV16), 7, nullptr},
+    {kSpvAttentionVecD256G4, sizeof(kSpvAttentionVecD256G4), 7, nullptr},
+    {kSpvAttentionVecD256K16G4, sizeof(kSpvAttentionVecD256K16G4), 7, nullptr},
+    {kSpvAttentionVecD256V16G4, sizeof(kSpvAttentionVecD256V16G4), 7, nullptr},
+    {kSpvAttentionVecD256KV16G4, sizeof(kSpvAttentionVecD256KV16G4), 7, nullptr},
 };
 
 // The variant of a cache kernel for a storage's K and V types.
@@ -1174,6 +1250,9 @@ public:
         return out;
     }
 
+    // Every op of the qwen35 layers has its kernels here.
+    bool implements(Op) const override { return true; }
+
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
     int threads_available() const override { return 0; }
@@ -1449,6 +1528,107 @@ public:
         if (quant) xq_tag_ = XqTag{bind(dst), n, !tile && want_x8_};
     }
 
+    // The output gate, and a scale of one value per row, one invocation per element; like silu_mul it writes the copy the matmul reading dst next takes (shaders/sigmoid_mul.comp).
+    void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim,
+                     size_t gate_stride, size_t gate_head_stride, RowRuns runs = {}) override {
+        if (!heads || !dim) throw std::runtime_error("vulkan: invalid sigmoid gate dimensions");
+        if (!rows) return;
+        const size_t width = size_mul(heads, dim), n = size_mul(rows, width);
+        const size_t last = size_add(size_add(size_mul(rows - 1, gate_stride), size_mul(heads - 1, gate_head_stride)), dim);
+        if (floats_from(dst) < n || floats_from(x) < n || floats_from(gate) < last)
+            throw std::runtime_error("vulkan: sigmoid gate operand outside its allocation");
+        const bool quant = width % 32 == 0;
+        const bool tile = quant && tile_reads(width, rows, runs);
+        struct { uint32_t n, quant, width, dim, gate_stride, gate_head_stride; }
+            pc{u32(n), tile ? 2u : quant ? 1u : 0u, u32(width), u32(dim), u32(gate_stride), u32(gate_head_stride)};
+        dispatch(K_SIGMOID_MUL, {bind(dst), bind(x), bind(gate), quant ? xq_for(n) : bind(dst)},
+                 &pc, sizeof(pc), groups(tile ? n / 4 : n, 256), 1, twin_variant());
+        if (quant) xq_tag_ = XqTag{bind(dst), n, !tile && want_x8_};
+    }
+
+    // One workgroup per (row, head); like rms_norm_rows it writes the copy the matmul reading dst next takes (shaders/gated_rms_norm.comp).
+    void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps,
+                        RowRuns runs = {}) override {
+        if (!heads || !dim) throw std::runtime_error("vulkan: invalid gated norm dimensions");
+        const size_t width = size_mul(heads, dim), n = size_mul(rows, width);
+        if (floats_from(dst) < n || floats_from(x) < n || floats_from(z) < n || floats_from(w) < dim)
+            throw std::runtime_error("vulkan: gated norm operand outside its allocation");
+        if (!rows) return;
+        const bool quant = dim % 32 == 0;
+        const bool tile = quant && tile_reads(width, rows, runs);
+        struct { uint32_t heads, dim; float eps; uint32_t quant, n; }
+            pc{u32(heads), u32(dim), eps, tile ? 2u : quant ? 1u : 0u, u32(n)};
+        dispatch(K_GATED_RMS_NORM, {bind(dst), bind(x), bind(z), bind(w), quant ? xq_for(n) : bind(dst)},
+                 &pc, sizeof(pc), u32(rows * heads), 1, twin_variant());
+        if (quant) xq_tag_ = XqTag{bind(dst), n, !tile && want_x8_};
+    }
+
+    // The storage of a call's state views, which must all be one, and the table the state kernels read: the view count, then per view its first batch row, rows, history length, source slot and destination slot; the conv appends its chunks.
+    // check_state_views has checked the slots against the storage; the slots' floats must be addressable in 32 bits.
+    struct StateTable {
+        StateStorage* storage = nullptr;
+        std::vector<uint32_t> words;
+    };
+    static StateTable state_table(const StateView* views, size_t n_views) {
+        StateTable t;
+        t.words.push_back(u32(n_views));
+        size_t row0 = 0;
+        for (size_t i = 0; i < n_views; ++i) {
+            const StateView& v = views[i];
+            if (t.storage && t.storage != v.storage) throw std::runtime_error("vulkan: state views of two storages in one call");
+            t.storage = v.storage;
+            t.words.insert(t.words.end(), {u32(row0), u32(v.nq), u32(v.length), u32(v.src), u32(v.dst)});
+            row0 += v.nq;
+        }
+        (void)u32(size_mul(t.storage->slots(), t.storage->shape().slot_floats()));
+        return t;
+    }
+
+    // Rows a conv invocation walks, a chunk of a view; at least the three a window holds, so only a view's first chunk reads the rows it carries in (shaders/causal_conv_silu.comp).
+    static constexpr size_t kConvChunk = 16;
+
+    // One dispatch, an invocation per (chunk of a view's rows, channel), whose view's first chunk also leaves its carried rows (shaders/causal_conv_silu.comp).
+    void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) override {
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        StateTable t = state_table(views, n_views);
+        const StateShape& sh = t.storage->shape();
+        const size_t C = sh.channels();
+        if (floats_from(out) < size_mul(rows, C) || floats_from(x) < size_mul(rows, C) || floats_from(w) < size_mul(C, kConvTaps))
+            throw std::runtime_error("vulkan: conv operand outside its allocation");
+        size_t chunks = 0;
+        for (size_t i = 0; i < n_views; ++i)
+            for (size_t b0 = 0; b0 < views[i].nq; b0 += kConvChunk, ++chunks) t.words.insert(t.words.end(), {u32(i), u32(b0)});
+        if (chunks > dev_->props.limits.maxComputeWorkGroupCount[1]) throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
+        const struct { uint32_t C, slot, carried, chunk; }
+            pc{u32(C), u32(sh.slot_floats()), u32(sh.v_heads * sh.matrix_floats()), u32(kConvChunk)};
+        dispatch(K_CAUSAL_CONV_SILU,
+                 {bind(out), bind(x), bind(w), bind(CSlice{&t.storage->layer(layer), 0}), args(t.words.data(), t.words.size() * sizeof(uint32_t))},
+                 &pc, sizeof(pc), groups(C, 256), u32(chunks));
+    }
+
+    // One dispatch, a workgroup per (view, V head, 32 V columns), which norms q and k and makes the gates for each block of its view's tokens before running them (shaders/delta_rule.comp).
+    void gated_delta_rule(Slice out, CSlice qkv, CSlice alpha, CSlice b, CSlice a, CSlice dt_bias,
+                          size_t layer, const StateView* views, size_t n_views) override {
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        const StateTable t = state_table(views, n_views);
+        const StateShape& sh = t.storage->shape();
+        const size_t Hk = sh.k_heads, Hv = sh.v_heads, Dk = sh.k_dim, Dv = sh.v_dim, C = sh.channels();
+        // The recurrence holds a column's rows in registers, 16 in each of eight lanes, and stages 128 of each q and k row.
+        if (Dk > 128) throw std::runtime_error("vulkan: a linear-attention K head wider than 128");
+        if (floats_from(out) < size_mul(rows, Hv * Dv) || floats_from(qkv) < size_mul(rows, C) || floats_from(alpha) < size_mul(rows, Hv) ||
+            floats_from(b) < size_mul(rows, Hv) || floats_from(a) < Hv || floats_from(dt_bias) < Hv)
+            throw std::runtime_error("vulkan: delta rule operand outside its allocation");
+        const size_t blocks = (Dv + 31) / 32;
+        const struct { uint32_t C, k_heads, v_heads, k_dim, v_dim, slot, blocks; float scale, eps; }
+            pc{u32(C), u32(Hk), u32(Hv), u32(Dk), u32(Dv), u32(sh.slot_floats()), u32(blocks), (float)(1.0 / std::sqrt((double)Dk)), kL2NormEps};
+        dispatch(K_DELTA_RULE,
+                 {bind(out), bind(qkv), bind(alpha), bind(b), bind(a), bind(dt_bias), bind(CSlice{&t.storage->layer(layer), 0}),
+                  args(t.words.data(), t.words.size() * sizeof(uint32_t))},
+                 &pc, sizeof(pc), groups(size_mul(n_views * Hv, blocks), 1));
+    }
+
     void gather_rows(Slice dst, CSlice src, size_t width, const uint32_t* rows,
                      size_t count) override {
         if (count && !rows) throw std::runtime_error("vulkan: gather without rows");
@@ -1482,18 +1662,27 @@ public:
         if (quant) xq_tag_ = XqTag{bind(dst), rows * n, !tile && want_x8_};
     }
 
-    void norm_rope_rows(Slice x, size_t rows, size_t stride, size_t heads, CSlice w,
-                        float eps, CSlice cos, CSlice sin, size_t half,
-                        const uint32_t* pos) override {
-        if (!rows || !heads || !half) return;
-        if (!pos) throw std::runtime_error("vulkan: rope without positions");
-        const size_t table = floats_from(cos) / half;
+    // One workgroup per (row, head), reading the heads at their strides and writing them contiguously (shaders/norm_rope_partial.comp).
+    void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
+                           size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
+                           CSlice cos, CSlice sin, const uint32_t* pos) override {
+        if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
+            throw std::runtime_error("vulkan: invalid partial rope dimensions");
+        if (rows && !pos) throw std::runtime_error("vulkan: rope without positions");
+        if (!rows) return;
+        const size_t width = size_mul(heads, head_dim), half = rope_dim / 2;
+        const size_t last = size_add(size_add(size_mul(rows - 1, src_stride), size_mul(heads - 1, src_head_stride)), head_dim);
+        if (floats_from(dst) < size_mul(rows, width) || floats_from(src) < last || floats_from(w) < head_dim)
+            throw std::runtime_error("vulkan: partial rope operand outside its allocation");
+        if (dst.buffer == src.buffer && dst.offset == src.offset && (src_stride != width || src_head_stride != head_dim))
+            throw std::runtime_error("vulkan: partial rope in place over heads that are not contiguous");
+        const size_t table = std::min(floats_from(cos), floats_from(sin)) / half;
         for (size_t r = 0; r < rows; ++r)
             if (pos[r] >= table) throw std::runtime_error("vulkan: position outside the RoPE table");
-        struct { uint32_t stride, heads, half; float eps; }
-            pc{u32(stride), u32(heads), u32(half), eps};
-        dispatch(K_NORM_ROPE_ROWS,
-                 {bind(x), bind(w), bind(cos), bind(sin), args(pos, rows * sizeof(uint32_t))},
+        struct { uint32_t src_stride, src_head_stride, heads, head_dim, half; float eps; }
+            pc{u32(src_stride), u32(src_head_stride), u32(heads), u32(head_dim), u32(half), eps};
+        dispatch(K_NORM_ROPE_PARTIAL,
+                 {bind(dst), bind(src), bind(w), bind(cos), bind(sin), args(pos, rows * sizeof(uint32_t))},
                  &pc, sizeof(pc), u32(rows * heads));
     }
 
@@ -2181,8 +2370,8 @@ public:
         if (!layers || !n_head_kv || !head_dim)
             throw std::runtime_error("vulkan: KV storage without layers, heads or width");
         if (!attention_head_fits(head_dim, dev_->caps.subgroup_size))
-            throw std::runtime_error("vulkan: a head " + std::to_string(head_dim) + " wide is not supported on this device, whose attention takes at most " +
-                                     std::to_string(std::min<size_t>(256, 4 * (size_t)dev_->caps.subgroup_size)));
+            throw std::runtime_error("vulkan: a head " + std::to_string(head_dim) + " wide is not supported on this device, whose attention takes heads 128 or 256 wide or at most " +
+                                     std::to_string(attention_row_width(dev_->caps.subgroup_size)));
         return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type);
     }
 
@@ -2217,12 +2406,12 @@ public:
         const size_t rows = placed.back().row0 + placed.back().view->nq;
         if (floats_from(Q) < rows * qstride || floats_from(out) < rows * qstride)
             throw std::runtime_error("vulkan: attention rows outside their allocation");
-        // Views of 128-wide heads whose prompt reaches the profile's attention_tile_rows take the tiled kernel, the rest the per-row kernel: at most two dispatches per layer.
+        // Views of 128- or 256-wide heads whose prompt reaches the profile's attention_tile_rows take the tiled kernel, the rest the per-row kernel: at most two dispatches per layer.
         // The choice is by the view's extent rather than its row count, so a prompt's rows take the same kernel however they were batched.
         std::vector<Placed> wide, narrow;
         for (const Placed& pv : placed) {
             const size_t extent = pv.view->extent ? pv.view->extent : pv.view->nq;
-            (extent >= dev_->profile.attention_tile_rows && head_dim == 128 ? wide : narrow).push_back(pv);
+            (extent >= dev_->profile.attention_tile_rows && (head_dim == 128 || head_dim == 256) ? wide : narrow).push_back(pv);
         }
         if (!wide.empty()) {
             ViewTable t = view_table(layer, wide, false);
@@ -2236,7 +2425,7 @@ public:
             const bool tile = narrow.empty() && tile_reads(qstride, rows, RowRuns{vruns.data(), vruns.size()});
             struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows; }
                 tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(rows)};
-            dispatch(kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
+            dispatch(head_dim == 256 ? kv_variant(K_ATTENTION_TILE_D256, K_ATTENTION_TILE_D256_K16, s) : kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
                       args(t.words.data(), t.words.size() * sizeof(uint32_t)), tile ? xq_for(rows * qstride) : bind(out)},
                      &tc, sizeof(tc), u32(tiles * (size_t)n_head));
@@ -2272,10 +2461,11 @@ public:
             const VkDescriptorBufferInfo scratch = scratch_
                 ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
             const VkDescriptorBufferInfo table = args(t.words.data(), t.words.size() * sizeof(uint32_t));
-            // Heads 128 wide take the kernel whose 16 lanes read a token's row in one load each, several tokens a subgroup (shaders/attention_vec.comp).
-            const bool vec = head_dim == 128;
-            const KernelId kernel = vec ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s))
-                                        : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));
+            // Heads 128 wide take the kernel whose 16 lanes read a token's row in one load each, several tokens a subgroup, and heads 256 wide its build of 32 lanes a token (shaders/attention_vec.comp).
+            const KernelId kernel = head_dim == 128 ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s))
+                                  : head_dim == 256 ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_D256_G4, K_ATTENTION_VEC_D256_K16_G4, s)
+                                                              : kv_variant(K_ATTENTION_VEC_D256, K_ATTENTION_VEC_D256_K16, s))
+                                  : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));
             dispatch(kernel,
                      {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
                       table, scratch, xq},

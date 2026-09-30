@@ -46,6 +46,15 @@
 - **Merged** at `36947384` (2026-09-30) by fast-forward from `aeacb28d` on Gitea and GitHub after hosted run 36706835441 passed on it, every job (UBSan 8, TSan 8, Linux 4, macOS 9, Windows 8, Vulkan build 9 and HF reference 45 minutes).
 - **Gotchas:** the budget follows the free memory at load, so a start beside another process's memory takes less; the fit waits up to five seconds only while that memory is coming back.
 
+## The linear attention's prompt rows on Vulkan (2026-09-30, branch feat/qwen35-chunked, step 6 of the qwen35 plan)
+
+- **Goal:** qwen35 prefill faster on the MI50 and the Radeon VII through the recurrence of the linear-attention layers, with every result batch-invariant, and no decode cell slower; the chunked form of [QWEN35](QWEN35.md) for the prompt rows of entries whose extent is above 1 is kept only if it measures faster (Decided, 3, in the qwen35 block below).
+- **Ceiling:** on one MI50 at main `8ff34685` (`bench --profile`), `delta_rule` is 16.6 and 13.2 percent of pp512 and pp4096 device time on Qwen3.5-0.8B Q8_0 and 2.7 and 2.6 percent on Qwen3.5-9B Q4_K_M, about 1.2 and 1.5 us a token a layer; a single prompt runs Hv x Dv / 32 workgroups (128 on the 9B), each through every token in turn.
+- **Order:** first the per-token kernel's own layout (fewer V columns a workgroup, so a prompt fills more of the device), which keeps every sum's order and so every bit; then a chunked kernel measured alone against it before the prompt cut on the 64-row grid is plumbed through the CLI, the split and the server.
+- **Done:** nothing yet.
+- **Left:** both measurements, then the gates of step 6 in the plan below for whichever is kept.
+- **Gotchas:** the chunked form rounds differently from the recurrence, so it must run for a row class, never by the batch, and every slice of a prompt must end on the grid for a prompt to give the same bits however it is cut.
+
 ## README support overview (2026-09-30, branch docs/readme-support, merged at `d74f0015`)
 
 - **Goal:** a README that shows a newcomer what llmx supports: architectures and models, quantization types, file formats, backends and devices, multi-device modes and the server, each marked Supported or Planned.

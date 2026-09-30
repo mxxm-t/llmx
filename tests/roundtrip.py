@@ -401,6 +401,35 @@ def check_type_names(d):
     print("roundtrip: type names quantize does not write are refused with status 2  [ok]")
 
 
+def check_windows_long_paths(d):
+    if os.name != "nt":
+        return
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                            r"SYSTEM\CurrentControlSet\Control\FileSystem") as key:
+            enabled, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
+    except OSError:
+        print("roundtrip: SKIP long paths - Windows policy unavailable")
+        return
+    if enabled != 1:
+        print("roundtrip: SKIP long paths - Windows policy disabled")
+        return
+    directory = Path(d).resolve()
+    while len(str(directory)) < 270:
+        directory /= "long-path-" * 6
+    directory.mkdir(parents=True)
+    model, metadata, payload = (str(directory / name) for name in
+                                ("model.gguf", "out.json", "out.bin"))
+    shutil.copyfile(os.path.join(d, "model.gguf"), model)
+    rc, output = cli(["dequantize", model, metadata, payload])
+    assert rc == 0, "long-path dequantize failed: " + output
+    assert Path(payload).read_bytes() == Path(d, "out.bin").read_bytes(), "long-path payload changed"
+    with open(metadata, encoding="utf-8") as stream:
+        assert json.load(stream)["name"] == model, "long model path changed"
+    print("roundtrip: Windows paths beyond 260 characters preserve metadata and payload  [ok]")
+
+
 def run():
     d = tempfile.mkdtemp(prefix="llmx_rt_")
     try:
@@ -438,6 +467,7 @@ def run():
             print("roundtrip: %s, %d elements, max abs err = %.6f, "
                   "subnormal-scale rel err = %.6f  [ok]" % (
                       qtype, len(got), err, tiny_err))
+        check_windows_long_paths(d)
         check_independent_decode(d)
         check_raw_decode(d)
         check_non_ascii_directory(d)

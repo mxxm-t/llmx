@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Windows long paths (2026-09-30, in progress)
+
+- **Goal:** let Windows builds use the system's enabled long-path support for model and cache paths, with one shared application manifest in both build routes.
+- **Done:** the unchanged native hub-pull test passes with a 68-character fixture root and fails with a 173-character root in the nested snapshot path. The Windows policy is already enabled. Adding only `longPathAware` to a copy of the test executable makes that same long-root test pass; no runtime code or system setting changed.
+- **Test first:** the existing round-trip component now reads a GGUF and writes its decoded metadata/payload through paths longer than 260 characters on Windows when the system policy is enabled. It requires the same bytes and model path as the short-path operation. Policy unavailable or disabled is reported as a skip of this case, not as long-path coverage. The unmodified main-runtime executable fails the new long-path read after both short-path quantization round trips pass.
+- **Left:** embed the shared manifest through CMake and build.bat; validate both build routes and the long-root native case, review docs, and run the scoped/hosted merge gates.
+- **Gotchas:** separate branch `fix/windows-long-paths` starts at main `4141ec56`; the CPU MXFP4 gate remains at its unchanged head. This change does not enable the Windows system policy or promise that every Windows API accepts long paths.
+
 Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.

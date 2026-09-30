@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Commit policy (2026-09-30, docs only, lands by fast-forward)
+
+- **Goal:** a leaner history: 375 of main's 1048 commits were docs, 101 of them merge records.
+- **Done:** AGENTS.md now has a branch land as at most two commits (the failing test, then the change with its tests, docs and STATUS entry), a feature's docs in the same commit as its code, and no separate merge-record commit: the landing commit's STATUS entry is the record.
+  Existing history is not rewritten, since STATUS, ASSETS and the evidence cite its hashes.
+
 ## Qwen 3.5, 3.6 and 3.8 everywhere (2026-09-30, 8b merged at `56abfd9a`)
 
 - **Goal:** the qwen35 architecture fully working (user, 2026-09-30): every command on the CPU, the MI50 and the Radeon VII, on one card and on a layer split, dense qwen35 and qwen35moe, at every quant the gate files use; serving first, so Qwen3.6-27B and Qwen3.8-27B Q8_0 reach an OpenAI-compatible client through `llmx serve`. MTP and state checkpoints wait for the speculative decoding design discussion.

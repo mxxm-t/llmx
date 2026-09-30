@@ -788,14 +788,17 @@ When you start (or pick up) a feature:
 - Keep each independent feature on its own branch based on current main.
   Do not base unrelated work on another unmerged feature. If a dependency is
   necessary, name it in STATUS and keep the dependent change separate.
-  Unrelated documentation corrections belong in a separate commit; a feature's
-  own documentation ships with that feature.
+  A feature's own documentation ships in the same commit as the code it
+  describes; a documentation correction unrelated to the feature goes on a
+  branch of its own.
 - Open a new per-feature block in `docs/STATUS.md` (or update the existing one)
   **before** writing code: **Goal / Done / Left / Gotchas**. That block is what
   lets the next agent pick the feature back up with a "continue feature X"
   prompt, so keep it current.
 - A feature lands with a test the hosted workflow runs, or its STATUS block names the hand check that covers it and says why no hosted runner can run it.
 - A bug fix lands its failing test first: a commit that adds the test, failing on the unfixed code, then the fix that makes it pass.
+- A branch lands as at most two commits: the failing test, where it has one, then the change with its tests, its documentation and its STATUS entry.
+  Its working commits, review fixes and checkpoints are squashed into those before it lands, so main's history holds what changed and why, not how the branch got there; a docs-only branch lands as one commit.
 - Don't invent new directions - follow the roadmap. When the feature ships,
   delete its block and mark the row `Done` in the STATUS table.
 
@@ -810,7 +813,8 @@ A branch runs the checks of what it can break, once, when it is complete; betwee
   A change of numerics also records its error against the HF reference and the headroom to its bound.
 - A rebase without a conflict in code reruns the builds, CTest and the hosted run; a fix after review reruns what it touches.
 
-A branch lands when its checks pass at the head that lands (the hosted run green, but for docs only) and main has not moved since: main is fast-forwarded to it, and STATUS records the merge in a commit of its own.
+A branch lands when its checks pass at the head that lands (the hosted run green, but for docs only) and main has not moved since: main is fast-forwarded to it.
+The landing commit's own STATUS entry is the record: it gives what the gates measured and says the change lands by fast-forward, and the merge adds no commit of its own; the commit's hash is in git, and its hosted run is found on GitHub by that commit.
 Comparisons against the reference runtimes belong to the phase's final gate, not to each branch.
 
 ### Traps the gates exist for
@@ -833,6 +837,7 @@ when a feature, a milestone, or a discrete chunk of work is complete. Each
 commit should leave `docs/STATUS.md` accurate: `Done`/`Left` reflect reality,
 the build passes, and tests are green. A fresh agent should be able to read
 STATUS.md and resume exactly where the last commit left off.
+These checkpoints live on the branch; it is squashed as it lands (Starting a feature, above).
 
 At every completed checkpoint, review all project Markdown files against the
 current code, tests, CLI, build configuration and recorded results. Correct stale

@@ -155,7 +155,8 @@ std::vector<uint8_t> packed(uint32_t type, size_t rows, size_t nin, std::mt19937
     for (uint8_t& b : out) b = uint8_t(rng());
     for (size_t b = 0; b < blocks; ++b) {
         uint8_t* p = out.data() + b * qt->type_size;
-        if (type == quant::GGML_TYPE_Q6_K) { p[208] = 0x00; p[209] = 0x14; }
+        if (type == quant::GGML_TYPE_MXFP4) { p[0] = uint8_t(122 + b % 7); }
+        else if (type == quant::GGML_TYPE_Q6_K) { p[208] = 0x00; p[209] = 0x14; }
         else { p[0] = 0x00; p[1] = 0x14; p[2] = 0x00; p[3] = 0x10; }
     }
     return out;
@@ -311,11 +312,12 @@ int main() {
         std::mt19937 rng(7);
         size_t n = 0;
         for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1,
-                              quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K})
+                              quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4})
             for (size_t nin : {size_t(256), size_t(2048), size_t(4096)}) n += check_type(type, nin, rng);
+        for (size_t nin : {size_t(32), size_t(96), size_t(288), size_t(2880)}) n += check_type(quant::GGML_TYPE_MXFP4, nin, rng);
         size_t routed = 0;
         for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1,
-                              quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K})
+                              quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4})
             routed += check_experts(type, rng);
         std::printf("q8 dots: %zu rows against the reference, alone, beside others and grouped; %zu routed entries against their experts\n",
                     n, routed);

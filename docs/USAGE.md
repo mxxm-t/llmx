@@ -735,3 +735,7 @@ For request consistency checks, `python tools/server_mix_check.py --model MODEL.
 The tool's `--cache-type f16|f32` selects both cache sides for every server and CLI call; omit it to test the runtime default.
 `--fresh-phases` starts each capped phase on a fresh server and refuses prefix reuse or pauses, so the pool must hold the requests at once; it cannot be combined with `--uncapped`.
 These are validation-tool options; the runtime itself selects sides with `--cache-type-k` and `--cache-type-v`.
+
+## MXFP4 files
+
+MXFP4 GGUF matrices are read-only and execute on the CPU. Use `--device cpu` with the ordinary model commands. `quantize` still writes only Q8_0 and Q4_0. Vulkan refuses an MXFP4 weight at loading until its separate kernel support lands; format support does not select a GPU fallback silently.

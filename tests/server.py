@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import re
 import socket
@@ -14,6 +15,7 @@ import baseline
 import common
 import f32
 import moe
+import mxfp4
 import server_mix_tool
 from tokenizer import build_byte_vocab
 
@@ -822,6 +824,67 @@ def check_mixed(model, prompts, n, flags):
         srv.close()
 
 
+def check_mxfp4(directory):
+    """MXFP4 server replies against HF at the first token and against runs alone thereafter, without reuse or pauses."""
+    with open(os.path.join(os.path.dirname(__file__), "data", "baseline_mxfp4.json"), encoding="utf-8") as f:
+        goldens = json.load(f)
+    assert [x["name"] for x in goldens["fixtures"]] == [x[0] for x in mxfp4.VARIANTS]
+    worst = 0.0
+    for (name, tied, routed), golden in zip(mxfp4.VARIANTS, goldens["fixtures"]):
+        config, weights, packed = mxfp4.fixture(tied, routed)
+        assert config == golden["config"] and mxfp4.weight_hash(weights) == golden["weights_sha256"]
+        assert mxfp4.packed_hash(packed) == golden["packed_sha256"]
+        model = mxfp4.write_fixture(os.path.join(directory, "server-mxfp4-" + name + ".gguf"), config, weights, packed, routed)
+        if mxfp4.device_skip(model):
+            print("server: SKIP MXFP4 - selected device has no MXFP4 kernel")
+            return
+        srv = Server(model)
+        try:
+            bodies, alone = [], []
+            for case in golden["cases"]:
+                body = dict(prompt=case["text"], max_tokens=3, temperature=0, ignore_eos=True, logprobs=True, top_logprobs=5)
+                reply = post_ok(srv, "/v1/generate", body)
+                scores = case["logits"]
+                top = sorted(range(len(scores)), key=lambda i: (-scores[i], i))
+                assert reply["ids"][0] == top[0], (name, case["text"], reply["ids"], top)
+                observed = [entry["id"] for entry in reply["top_logprobs"][0]]
+                assert common.top5_overlap(observed, top, [scores[i] for i in top], margin=2 * common.MXFP4_HF_LOGIT_BOUND) == 5, (name, observed, top[:5])
+                shift = max(scores)
+                normalizer = math.log(math.fsum(math.exp(x - shift) for x in scores))
+                for entry in reply["top_logprobs"][0]:
+                    error = abs(entry["logprob"] - (scores[entry["id"]] - shift - normalizer))
+                    assert error < 2 * common.MXFP4_HF_LOGIT_BOUND, (name, case["text"], entry, error)
+                    worst = max(worst, error)
+                assert len(reply["top_logprobs"][0]) == 5 and len(reply["ids"]) == 3, reply
+                assert reply["logprobs"][0] == reply["top_logprobs"][0][0]["logprob"], reply
+                bodies.append(body)
+                alone.append(reply)
+            results = {}
+            barrier = threading.Barrier(len(bodies))
+            def worker(i):
+                barrier.wait(timeout=30)
+                results[i] = srv.post("/v1/generate", bodies[i])
+            threads = [threading.Thread(target=worker, args=(i,)) for i in range(len(bodies))]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+            for i, body in enumerate(bodies):
+                status, reply = results[i]
+                assert status == 200, reply
+                for key in ("ids", "logprobs", "top_logprobs"):
+                    assert reply[key] == alone[i][key], (name, i, key, reply, alone[i])
+                events = srv.stream("/v1/generate", dict(body, stream=True))
+                assert [e["id"] for e in events if e and "id" in e] == alone[i]["ids"]
+                assert stream_logprobs("/v1/generate", events) == {k: alone[i][k] for k in ("logprobs", "top_logprobs")}
+                assert events[-1] is None and events[-2].get("done") is True, events[-2:]
+            health = srv.wait(lambda h: h["active"] == 0, "MXFP4 request stayed active")
+            assert health["prefix_hits"] == 0 and health["pauses"] == 0, health
+        finally:
+            srv.close()
+    print("server: MXFP4 dense tied/untied and MoE, first-token HF logprobs (max error %.8f), concurrent and streamed replies exact, no donor hits or pauses  [ok]" % worst)
+
+
 def check_seeded(model):
     """Seeded requests on each of the sampler's four paths, four at a time and the other settings at their defaults, give the text `generate` gives alone with the same settings and seed, as the server writes it: the default top-k with its nucleus, the default top-k without one, a nucleus over the whole vocabulary, and every token kept."""
     cases = [({}, []), ({"top_k": 40, "top_p": 1.0}, ["--topk", "40", "--topp", "1"]),
@@ -1188,6 +1251,7 @@ def run():
             if host:
                 check_stream_reuse(directory)
                 print("server: synthetic MoE model, experts on the host and long prompts streamed, a prompt forking a finished prompt's block giving its values alone  [ok]")
+        check_mxfp4(directory)
         k, n = check_ignore_eos_synthetic(directory)
         print("server: ignore_eos on the synthetic model, a greedy reply that ends at its end token after %d tokens running to %d through the CLI "
               "and the server, greedy and seeded, uncapped to the context, which the CLI given the room also fills, beside requests without it, and refused unless a boolean  [ok]" % (k, n))

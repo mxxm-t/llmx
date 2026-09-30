@@ -1,0 +1,198 @@
+{
+  "date": "2026-09-27",
+  "scope": "CPU regression and approved-bound HF validation; no performance or merge verdict",
+  "execution": {
+    "started": "2026-09-27T13:23:53.995509+00:00",
+    "binary_sha256": "b97d63c288272088b6c2ed86958762d7a790e0cbb4f3811acca56fbea020e5ce",
+    "jobs": [
+      {
+        "name": "suite",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-cpu",
+          "timeout",
+          "--kill-after=10s",
+          "900s",
+          "python3",
+          "-u",
+          "-X",
+          "utf8",
+          "/work/src/tests/run_tests.py",
+          "--exe",
+          "/work/build-cpu/llmx",
+          "--no-perf-floor",
+          "--require-tools"
+        ],
+        "started": "2026-09-27T13:23:54.014804+00:00",
+        "exit": 0,
+        "completed": "2026-09-27T13:24:58.170327+00:00"
+      },
+      {
+        "name": "real-f16",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-cpu",
+          "timeout",
+          "--kill-after=10s",
+          "900s",
+          "python3",
+          "-u",
+          "-X",
+          "utf8",
+          "/work/src/tests/baseline_mxfp4.py",
+          "--exe",
+          "/work/build-cpu/llmx",
+          "--model",
+          "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+          "--device",
+          "cpu",
+          "--cache-type",
+          "f16"
+        ],
+        "started": "2026-09-27T13:24:58.171059+00:00",
+        "exit": 0,
+        "completed": "2026-09-27T13:29:05.810092+00:00"
+      },
+      {
+        "name": "real-f32",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-cpu",
+          "timeout",
+          "--kill-after=10s",
+          "900s",
+          "python3",
+          "-u",
+          "-X",
+          "utf8",
+          "/work/src/tests/baseline_mxfp4.py",
+          "--exe",
+          "/work/build-cpu/llmx",
+          "--model",
+          "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+          "--device",
+          "cpu",
+          "--cache-type",
+          "f32"
+        ],
+        "started": "2026-09-27T13:29:05.810843+00:00",
+        "exit": 0,
+        "completed": "2026-09-27T13:33:39.227373+00:00"
+      }
+    ],
+    "completed": "2026-09-27T13:33:39.227963+00:00",
+    "passed": true
+  },
+  "suite": {
+    "passed_components": 21,
+    "skipped_components": [
+      "qwen35"
+    ],
+    "missing_real_models": "Existing baseline fixtures and real Q8_0 server fixture are absent from this container; those checks skipped",
+    "tiny_mxfp4_max_logit_error": 0.0001265,
+    "tiny_f32_control_max_logit_error": 1.55e-06
+  },
+  "real_model": {
+    "f16": {
+      "file-exact": {
+        "ranking_output": "file-exact-logits[Qwen3-0.6B-MXFP4.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]",
+        "ppl_cases": 8,
+        "max_continuous_nll_printed": 0.000224,
+        "max_window_nll_printed": 0.00031
+      },
+      "mxfp4-fp32": {
+        "ranking_output": "mxfp4-fp32-logits[Qwen3-0.6B-MXFP4.gguf]: top-1 5/6, top-5 set >=2 6/6, exact order 0/6  [ok]",
+        "ppl_cases": 8,
+        "max_continuous_nll_printed": 0.194374,
+        "max_window_nll_printed": 0.32879
+      }
+    },
+    "f32": {
+      "file-exact": {
+        "ranking_output": "file-exact-logits[Qwen3-0.6B-MXFP4.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]",
+        "ppl_cases": 8,
+        "max_continuous_nll_printed": 1.4e-05,
+        "max_window_nll_printed": 8.8e-05
+      },
+      "mxfp4-fp32": {
+        "ranking_output": "mxfp4-fp32-logits[Qwen3-0.6B-MXFP4.gguf]: top-1 5/6, top-5 set >=2 6/6, exact order 0/6  [ok]",
+        "ppl_cases": 8,
+        "max_continuous_nll_printed": 0.194514,
+        "max_window_nll_printed": 0.32894
+      }
+    }
+  },
+  "reference_support_smoke": {
+    "argv": [
+      "docker",
+      "run",
+      "--rm",
+      "--init",
+      "--cidfile",
+      "/opt/claude-work/llmx-p2-x-mxfp4-cpu/reference-smoke-01/container.cid",
+      "--name",
+      "llmx-p2-x-ref-smoke-20260927",
+      "--cpus",
+      "6",
+      "--memory",
+      "24g",
+      "--network",
+      "none",
+      "--ulimit",
+      "core=0",
+      "-v",
+      "/opt/claude-work/llmx-p2-x-mxfp4-cpu/fixtures:/models:ro",
+      "--entrypoint",
+      "/usr/local/bin/llama-bench",
+      "mxxm/mx-llama.cpp@sha256:a83c92cf625046e09959de1a7b1e7b241e723646b5e9c6d6f47e6ce28fdc83e3",
+      "-m",
+      "/models/Qwen3-0.6B-MXFP4.gguf",
+      "-ngl",
+      "0",
+      "-t",
+      "6",
+      "-p",
+      "16",
+      "-n",
+      "2",
+      "-r",
+      "1",
+      "-ctk",
+      "f16",
+      "-ctv",
+      "f16",
+      "-lm",
+      "mmap",
+      "-o",
+      "json"
+    ],
+    "scope": "Reference CPU support smoke only; no performance comparison",
+    "started": "2026-09-27T13:35:55.014897+00:00",
+    "exit": 0,
+    "container_id": "05a92b967eeaa648bb70c4256984d4039b80896dc28eef04300865f7d6261b50",
+    "completed": "2026-09-27T13:36:02.413748+00:00"
+  },
+  "reference_identity": {
+    "image": "sha256:a83c92cf625046e09959de1a7b1e7b241e723646b5e9c6d6f47e6ce28fdc83e3",
+    "build_commit": "eefc4e732",
+    "build_number": 10951,
+    "cpu": "AMD EPYC 7262 8-Core Processor",
+    "threads": 6,
+    "gpu_layers": 0
+  },
+  "test_source_sha256": {
+    "tests/common.py": "e2aa803cf44270d08def6b8e2d4661bf72ecdbec890552d6632243a428f563be",
+    "tests/mxfp4.py": "a1b69f1679f003a3b6e8f3bb4621f30910c47d7b86341768a9d416c446c8ef31",
+    "tests/baseline.py": "ab15200fb6f66fb80f9a0511eeb63a79d405b4f1f3d868f3be7a20b8faf476a1",
+    "tests/baseline_mxfp4.py": "a68df65f6e1e9f99216bf4e59682ef95c2112f85998e5829ab97bcbafb58240e",
+    "tests/reference_consumer.py": "42edfd54f803b6491cd330cc95ee26f3d7c2bff589a0fe4531aa10c854e7d469",
+    "tests/server_mix_tool.py": "55bc708d013418ac98279407acd4ff688ae13c37dadf5c82fc9e74b7d861b425",
+    "tests/server.py": "696780f1be2ffcbbfe6e89748e3065c4f5963f9c7cc99780d798dd303cc70d61"
+  },
+  "raw_archive": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-approved-gates-20260927.tar.gz",
+  "raw_bytes": 7327,
+  "raw_sha256": "5bdc0270c83f35b9a7cf3a92f7f4d5198f6e11c3e1fbb97f2b0a643f71727b74"
+}

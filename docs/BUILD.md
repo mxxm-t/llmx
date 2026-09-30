@@ -264,3 +264,5 @@ python3 tests/run_tests.py --exe build/llmx --no-perf-floor
 - Real-model checks skip when their models are absent; `tools/fetch_test_models.py` downloads the pinned models they use, and `--require-baseline` makes a missing one fail the suite.
 - `raw-blocks` checks the spec decoders' numpy form only where numpy is installed and otherwise skips those checks; `--require-tools`, which CI passes, makes that a failure.
 - In a Vulkan build without a usable device, CTest reports `backend-vulkan`, `vulkan-lifetime` and `vulkan-quantization` as skipped.
+
+The `mxfp4` CTest and Python component cover CPU MXFP4. CMake also builds `llmx-cpu-f32-check`, the independent HF test control; the suite requires it with `--require-tools`. A selected device without MXFP4 kernels is an explicit skip unless `--require-device-types MXFP4` makes support mandatory.

@@ -1,0 +1,157 @@
+{
+  "status": "development checkpoint passed, not merge-ready",
+  "base": "83b943a29adf8338c7c1788353a4e82da735ebb4",
+  "source_review": {
+    "runtime_source": "ef1786998e9370d3d832a99d51d2af2024dc49b8",
+    "runtime_files_equal": [
+      "src/quant/mxfp4.hpp",
+      "src/quant/quant.hpp",
+      "src/quant/types.hpp",
+      "src/backends/cpu/q8_dots.hpp",
+      "src/backends/cpu/cpu_backend.hpp"
+    ],
+    "main_base": "83b943a29adf8338c7c1788353a4e82da735ebb4",
+    "markdown_total": 78,
+    "markdown_unchanged": 65,
+    "markdown_reviewed": [
+      "AGENTS.md",
+      "README.md",
+      "docs/ARCHITECTURE.md",
+      "docs/ASSETS.md",
+      "docs/BUILD.md",
+      "docs/CI.md",
+      "docs/STATUS.md",
+      "docs/USAGE.md",
+      "docs/src/backends-cpu.md",
+      "docs/src/format-gguf.md",
+      "docs/src/quant-quant.md",
+      "docs/src/quant-types.md",
+      "docs/src/quant-mxfp4.md"
+    ]
+  },
+  "identity": {
+    "model": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+    "arms": {
+      "main": {
+        "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-server-mix-cache-20260930\\build\\Release\\llmx.exe",
+        "sha256": "c63637c9cce149b96fabdc2a46b149f773db0ef255c681e4495277d653e2c7c9",
+        "version": "llmx 0.1.0+g893e3c9ab45b.dirty"
+      },
+      "candidate": {
+        "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mxfp4-cpu-main-20260930\\build\\Release\\llmx.exe",
+        "sha256": "189b922f6c755eaa02921ab4953346b3bc1e0a65b1bb972b534eecb095cbd882",
+        "version": "llmx 0.1.0+g83b943a29adf.dirty"
+      }
+    },
+    "cells": [
+      {
+        "cache": "f16",
+        "phase": "prompt",
+        "sha256": "19b5f2382c576155a4bfe86713b4072fa037330e5bf8e53b439c60404f51b809",
+        "bytes": 2568436,
+        "equal": true
+      },
+      {
+        "cache": "f16",
+        "phase": "decode",
+        "sha256": "2ad8c677a3d9a4f61bde760ad94c3a3e54efcc553d8c888fc6f5fddcdb73c542",
+        "bytes": 2568436,
+        "equal": true
+      },
+      {
+        "cache": "f32",
+        "phase": "prompt",
+        "sha256": "aed2b51cfc33b5109e3dede0c154b65482f40c5d7c940f4e835fe714cf72b91c",
+        "bytes": 2568420,
+        "equal": true
+      },
+      {
+        "cache": "f32",
+        "phase": "decode",
+        "sha256": "c13ae5b96251ba3766c6d791429549cc09551219b2ee9231268d440cae40a7a3",
+        "bytes": 2568420,
+        "equal": true
+      }
+    ],
+    "status": "pass"
+  },
+  "vulkan_refusal": {
+    "status": "pass",
+    "checks": [
+      {
+        "args": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mxfp4-cpu-main-20260930\\build-vulkan\\Release\\llmx.exe",
+          "--only",
+          "mxfp4",
+          "--device",
+          "vulkan:0",
+          "--require-tools"
+        ],
+        "returncode": 0,
+        "stdout": "mxfp4: SKIP - selected device has no MXFP4 kernel\n\n  mxfp4      SKIP\n",
+        "stderr": ""
+      },
+      {
+        "args": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mxfp4-cpu-main-20260930\\build-vulkan\\Release\\llmx.exe",
+          "--only",
+          "mxfp4",
+          "--device",
+          "vulkan:0",
+          "--require-tools",
+          "--require-device-types",
+          "MXFP4"
+        ],
+        "returncode": 1,
+        "stdout": "  error: required device type MXFP4 (39) refused: error: inference: embedding needs tensor token_embd.weight of type MXFP4 (39), which the backend of device 0 does not support\n\n  mxfp4      FAIL\n",
+        "stderr": ""
+      },
+      {
+        "direct_exit": 1,
+        "direct_refusal": "error: inference: embedding needs tensor token_embd.weight of type MXFP4 (39), which the backend of device 0 does not support\n"
+      },
+      {
+        "server_subcheck": "server: SKIP MXFP4 - selected device has no MXFP4 kernel\n"
+      }
+    ]
+  },
+  "native": "36/36",
+  "focused_components": "8/8",
+  "server": "pass, tiny MX and existing real Q8",
+  "reference_consumer": "36/36 after shared skip test",
+  "tiny_hf": {
+    "f32_control_max": 1.43e-06,
+    "f32_bound": 2e-05,
+    "production_max": 0.0001265,
+    "production_bound": 0.0002,
+    "server_logprob_max": 8.91e-05,
+    "server_bound": 0.0004
+  },
+  "binary": {
+    "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mxfp4-cpu-main-20260930\\build\\Release\\llmx.exe",
+    "sha256": "189b922f6c755eaa02921ab4953346b3bc1e0a65b1bb972b534eecb095cbd882",
+    "version": "llmx 0.1.0+g83b943a29adf.dirty"
+  },
+  "limitations": [
+    "pre-commit dirty development builds",
+    "Linux, real-model CPU HF, full suite, matched timing, final clean-head and hosted gates remain",
+    "No Vulkan MXFP4 execution added; refusal is tested",
+    "No real GPU MoE ranking waiver",
+    "Main advanced docs-only to6282500 after this branch was created; reconcile before final gates"
+  ],
+  "archive": {
+    "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\mxfp4-cpu-main-checkpoint-20260930.tar.gz",
+    "sha256": "c8843d05f7b0073562b8b5a9d6541ed4628d0066b4faf15c6de2c675a146fd79",
+    "payloads": 18
+  }
+}

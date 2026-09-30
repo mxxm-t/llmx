@@ -118,7 +118,7 @@ A compile without them stops at one `#error` at the top of the header.
   blocks no longer stay in the first-level cache, so a row computes the same alone
   or beside others; without runs a one-column call is decode. The decode dots (`q8_dots.hpp`) quantize a call's activations once
   per block of 32, 8-bit for Q4_K and Q5_K and 16-bit for Q4_0, Q4_1
-  and Q6_K, and meet the packed
+  and Q6_K, plus MXFP4, and meet the packed
   weights in integers (`maddubs` and `madd`), one scale per block; the float
   dots they replaced converted every weight and were bound by arithmetic.
   If a tiny finite block overflows the float reciprocal, an exceptional scalar
@@ -148,7 +148,7 @@ A compile without them stops at one `#error` at the top of the header.
   meets eight groups' scales in one vector multiply-add, so a (row, entry)
   pair accumulates in the same order whatever else is in the block. The
   activations are quantized once per call, split across the pool, and gate
-  and up share them. Where a type has no quantized dots, including Q8_0, or with
+  and up share them. For MXFP4, whose prompt retains original F32 activations, or where a type has no quantized dots, including Q8_0, or with
   `set_decode_activations8(false)`, a prompt's entries take one batched float
   matmul per expert over its gathered rows (`matmul_raw`, the matmul on host
   addresses, reaches an expert's matrix inside the stacked tensor).
@@ -171,3 +171,5 @@ prefill body. See [placement](backends-cpu-placement.md) for topology, fallback
 and restoration rules. Nested scopes and effective thread-count changes inside
 a scope are rejected. Same-count configuration remains a no-op; the guard is
 for synchronous reentrancy and does not make concurrent calls safe.
+
+MXFP4 decode reuses this activation owner with 16-bit packed inputs. Its nibble lookup widens weights directly into integer products; exceptional scale products or nonfinite fast sums use decoded F32 weights and double products over those same activations. The format interpretation and boundary coverage live in [quant-mxfp4](quant-mxfp4.md).

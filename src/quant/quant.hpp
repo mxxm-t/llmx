@@ -10,6 +10,7 @@
 
 #include "core/fp16.hpp"
 #include "quant/k_quants.hpp"
+#include "quant/mxfp4.hpp"
 #include "quant/types.hpp"
 
 // Block quantization: the Q8_0 and Q4_0 quantizers, the Q8_0, Q4_0 and Q4_1 dequantizers, and the registry pairing each type llmx reads (types.hpp) with its block size and kernels (the K-quants' are in k_quants.hpp).
@@ -160,6 +161,8 @@ private:
           { "Q5_K", Q5_K_BLOCK, Q5_K_TYPESIZE, nullptr, dequantize_row_q5_K } },
         { GGML_TYPE_Q6_K,
           { "Q6_K", Q6_K_BLOCK, Q6_K_TYPESIZE, nullptr, dequantize_row_q6_K } },
+        { GGML_TYPE_MXFP4,
+          { "MXFP4", MXFP4_BLOCK, MXFP4_TYPESIZE, nullptr, dequantize_row_mxfp4 } },
         { GGML_TYPE_F32,
           { "F32", 1, 4, nullptr, nullptr } },
     } {}

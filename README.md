@@ -11,7 +11,7 @@ It downloads models from Hugging Face and can split a model by layers across the
 | | Supported |
 |---|---|
 | Models | Qwen3 dense (`qwen3`) and mixture of experts (`qwen3moe`), such as Qwen3-0.6B, 8B, 32B, 30B-A3B and 235B-A22B; Qwen 3.5, 3.6 and 3.8 dense (`qwen35`), such as Qwen3.5-0.8B to 9B and Qwen3.6-27B, on the CPU, not yet on a device or through `serve` |
-| Files | GGUF v3, one file or a shard set, with Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and F32 tensors, such as Q8_0, Q4_0, Q4_K_M and Q5_K_M files |
+| Files | GGUF v3, one file or a shard set, with Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and F32 tensors (including mixed Q4_K_M and Q5_K_M files); also read-only MXFP4 on the CPU |
 | CPU | x86-64 with AVX2, FMA and F16C |
 | GPU | Vulkan 1.2 GPUs, tested on an AMD Radeon VII on Windows and AMD MI50 cards on Linux |
 | Several devices | A model split by layers over the GPUs and CPU of one machine, or a mixture-of-experts model whose experts run on the CPU beside a GPU |

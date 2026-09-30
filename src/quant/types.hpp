@@ -16,6 +16,7 @@ constexpr uint32_t GGML_TYPE_Q8_0 = 8;
 constexpr uint32_t GGML_TYPE_Q4_K = 12;
 constexpr uint32_t GGML_TYPE_Q5_K = 13;
 constexpr uint32_t GGML_TYPE_Q6_K = 14;
+constexpr uint32_t GGML_TYPE_MXFP4 = 39;
 
 constexpr size_t   Q4_0_BLOCK    = 32;   // values per block
 constexpr size_t   Q4_0_TYPESIZE = 18;   // 2-byte f16 scale + 32 nibbles
@@ -29,5 +30,8 @@ constexpr size_t   Q5_K_BLOCK    = 256;  // K-quant super-block
 constexpr size_t   Q5_K_TYPESIZE = 176;  // Q4_K plus 32 bytes of fifth bits
 constexpr size_t   Q6_K_BLOCK    = 256;  // K-quant super-block
 constexpr size_t   Q6_K_TYPESIZE = 210;  // 128 low + 64 high + 16 scales + f16
+
+constexpr size_t   MXFP4_BLOCK = 32;
+constexpr size_t   MXFP4_TYPESIZE = 17;   // E8M0 scale + 32 E2M1 nibbles
 
 } // namespace quant

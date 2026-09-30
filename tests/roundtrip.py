@@ -15,7 +15,7 @@ from common import run as cli, run_process, exe_path, write_bin, read_bin_floats
 import spec_decode as sd
 
 # Regression gate for quant/ + format/: build a random F32 model, quantize it to Q8_0 (and Q4_0) via the CLI, dequantize it back, and check the max error is within each type's quantization bound.
-# The Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K decoders must also match the decoders of tests/spec_decode.py, written from the format descriptions, bit for bit.
+# The Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and MXFP4 decoders must also match the decoders of tests/spec_decode.py, written from the format descriptions, bit for bit.
 
 rng = random.Random(42)
 UNICODE_NAME = "layer.\u00e9.\u4e2d.\U0001f600.\"\\\n.weight"
@@ -239,7 +239,7 @@ def check_output_failures(d):
 
 
 # The types this checks and their GGUF ids, whose values per block and bytes per block are in sd.TYPES.
-TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K}
+TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "mxfp4": sd.MXFP4}
 
 
 # The decoders of tests/spec_decode.py are written from the format descriptions, so the check compares llmx against the spec rather than against itself.
@@ -352,9 +352,15 @@ def q6_k_blocks():
                     for k, (scales, d) in enumerate(blocks))
 
 
+# Every exponent paired with every code at each position; unlike low and high nibbles catch swapped halves.
+def mxfp4_blocks():
+    return b"".join(bytes([e]) + bytes(((j + shift) % 16) | (((15 - j + shift) % 16) << 4) for j in range(16))
+                    for e in range(256) for shift in range(16))
+
+
 # The formats `quantize` does not write, and Q8_0 and Q4_0 under negative scales, which their quantizers never write, get their blocks from the test, written into a one-tensor GGUF with no metadata.
 def check_raw_decode(d):
-    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks())):
+    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("mxfp4", mxfp4_blocks())):
         type_id = TYPES[qtype]
         _, block, typesize = sd.TYPES[type_id]
         count = len(payload) // typesize * block

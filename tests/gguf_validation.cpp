@@ -216,7 +216,7 @@ int main(int argc, char** argv) {
         rejected(path, "Q8 partial row with an overflowing element count", one({maximum, 2}, 8, 0, 0), "whole");
         struct Type { uint32_t id; uint64_t block; size_t bytes; };
         const Type types[] = {{0, 1, 4}, {2, 32, 18}, {3, 32, 20}, {8, 32, 34},
-                              {12, 256, 144}, {13, 256, 176}, {14, 256, 210}};
+                              {12, 256, 144}, {13, 256, 176}, {14, 256, 210}, {39, 32, 17}};
         for (const auto& type : types) {
             const auto name = "type " + std::to_string(type.id);
             accepted(path, name, one({type.block, 2}, type.id, 0, 2 * type.bytes), {Bytes(2 * type.bytes, 23)});

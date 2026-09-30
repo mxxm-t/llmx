@@ -1,5 +1,16 @@
 # llmx - Development Status
 
+## MXFP4 CPU integration (2026-09-30, in progress)
+
+- **Goal:** land the retained CPU MXFP4 implementation separately from Vulkan, as the approved quantization plan allows.
+- **Done:** isolated branch integrate/mxfp4-cpu-main starts at public main83b943a. Five CPU/quant runtime files match retained ef178699 exactly after line-ending normalization. Existing fixtures, spec decoders and HF consumers are reused; GPU and unrelated KV changes are excluded. The one shared MX test helper reports unsupported-device skips through the existing refusal policy, which still fails a required type. Main server-tool cache controls are preserved.
+- **Checks so far:** fresh Windows MSVC CPU build, native36/36 and eight focused format/reference/HF/split components pass. MXFP4 original-F32 control150 cases has max logit error0.00000143/0.00002; production dense tied/untied and MoE max0.00012650/0.0002. Split78/78 and existing Qwen3-0.6B Q8_0 four prompt/decode/cache identity cells pass against main83b943a. These are development checks, not final clean-head merge evidence.
+- **Server/device checks:** complete affected CPU server component passes, including tiny MXFP4 first-token HF max0.00008910/0.0004 and existing real Q8 concurrency/reuse/resume checks. The updated reference consumer passes36/36. A fresh Vulkan build refuses MXFP4 at load by type name; optional component/server skips and required-type failure are exercised on the actual Radeon backend. No MXFP4 GPU kernel is introduced.
+- **Left:** reconcile docs-only main6282500, then Linux/platform and real-model CPU HF checks, complete relevant suite/identity/timing and exact-head hosted gates before merge. No MXFP4 merge or speed-parity claim.
+- **Evidence and review:** [development checkpoint](benchmarks/mxfp4-cpu-main-checkpoint-20260930.json) pins both build logs, binary/version, four identity cells, actual refusal and 18 locally verified archive payloads. All78 Markdown pages reconciled against83b943a:65 unchanged by normalized content retain their prior review,13 affected pages checked against source and results. Docs/dead-code pass with13/8 known findings and16/15 planted faults. No fresh line-by-line review of unchanged history is claimed.
+- **Gotchas:** Vulkan remains separate, with its six real-MoE ranking failures unresolved. CPU-first scope waives no applicable correctness bound. Prompt activations remain original F32, decode activations 16-bit. Main's server-tool cache controls are preserved.
+
+
 Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.

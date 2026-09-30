@@ -7,6 +7,7 @@ import tempfile
 import common
 import f32
 import moe
+import mxfp4
 import qwen35
 
 
@@ -97,6 +98,10 @@ def run(require=False):
                   for name, tied in (("tied", True), ("untied", False))]
         models.append((f32.write_model(os.path.join(directory, "tiny-moe.gguf"), moe.tensors(), config=moe.CONFIG, arch="qwen3moe"),
                        ["cpu,cpu", "cpu,cpu,cpu"]))
+        for name, tied, routed in mxfp4.VARIANTS:
+            config, weights, packed = mxfp4.fixture(tied, routed)
+            model = mxfp4.write_fixture(os.path.join(directory, "tiny-mxfp4-" + name + ".gguf"), config, weights, packed, routed)
+            models.append((model, ["cpu,cpu"]))
         models += [(qwen35.write_fixture(directory, spec), ["cpu,cpu", "cpu,cpu,cpu,cpu"]) for spec in qwen35.FIXTURES if not spec["mtp"]]
         for model, splits in models:
             for split in splits:
@@ -115,7 +120,7 @@ def run(require=False):
                     forked = run_tool(tool, q8, long_text, "cpu,cpu", steps, ubatch, cache, length)
                     assert forked == 2, "split: %d recomputes from a fork on the Q8_0 model's %d-token history, against 2" % (forked, length + steps)
                     runs += 1
-    print("split: %d runs of the tiny F32 (tied, untied), MoE, qwen35 and Q8_0 models over 2, 3 and 4 CPU backends at ubatch %s with %s caches, "
+    print("split: %d runs of the tiny F32 (tied, untied), MoE, MXFP4 (dense tied/untied and MoE), qwen35 and Q8_0 models over 2, 3 and 4 CPU backends at ubatch %s with %s caches, "
           "bit-identical to one, the Q8_0 model's recompute also from a fork at a block  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
     return True
 

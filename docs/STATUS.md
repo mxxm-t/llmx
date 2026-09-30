@@ -3,8 +3,9 @@
 ## Explicit shares in raw-logit captures (2026-09-30, in progress)
 
 - **Goal:** let the existing `llmx-model-logits` tool pin layer proportions for the quantization plan's two-device 1:1 identity gate.
-- **Done:** located the existing argument parser and placement request. The capture currently accepts device lists but cannot specify shares.
-- **Left:** add an optional final shares argument, test explicit single-device equivalence and malformed/refused shares in `device-reference`, build and run the affected checks. The CPU MXFP4 gate needs this tool capability before its equal-split captures; runtime placement remains owned by the loader.
+- **Done:** the test first reproduced refusal of an explicit single-device share on the unmodified tool. The optional final `SHARES` argument now uses the existing integer/list parsing and passes proportions to the loader. The same `device-reference` component checks exact capture equivalence and rejects malformed shares, all-zero shares and a count that differs from the devices.
+- **Left:** final clean-build and hosted validation before landing, then the two-device capture that motivated the tool option. The CPU MXFP4 gate needs this tool capability before its equal-split captures; runtime placement remains owned by the loader.
+- **Validation:** fresh MSVC Release passes CTest 35/35 (39.69 seconds) and all three affected components: device-reference (12 tests), docs and dead-code. The former invocation still runs unchanged; an explicit single share preserves every captured byte and metadata field. The extra argument failed on the unmodified main tool before implementation. No runtime source changed. The 77-page Markdown reconciliation found two inherited qwen35 prose corrections, carried in a separate documentation commit.
 - **Gotchas:** independent branch `test/model-logits-shares` starts at main `c1398b1b`; it contains no MXFP4 implementation. Older invocations must keep automatic placement and unchanged captures. This is a test-tool change, not a new runtime placement policy.
 
 

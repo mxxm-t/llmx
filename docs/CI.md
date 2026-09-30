@@ -280,8 +280,9 @@ There are no unsupported-device skips and no automatic downloads.
 Naming a file as the control is not independent evidence of its prior HF validation; the gate record must retain that evidence too.
 
 The caller uses `llmx-model-logits` beside the CLI, built by CMake with tests.
+Its arguments are `MODEL IDS OUTPUT_PREFIX DEVICE CACHE UBATCH CPU_EXPERTS [SHARES]`; the optional final comma-separated whole-number proportions pin the layer split through the loader, for example `1,1` for two equal shares. Omitting them keeps automatic placement.
 It writes native binary32 rows in token-ID order for the batched excerpt, the per-token excerpt and the greedy continuation, plus metadata on stdout.
 It calls the existing loader and model APIs; it implements no loading, placement or numerical policy.
-The `device-reference` suite component checks the shared criterion with planted numerical faults and malformed rows, then checks the capture against the independent tiny F32 HF fixture, Unicode paths, malformed IDs, cache/ubatch refusals, incomplete captures, a full comparison and a damaged logit outside the top ten.
+The `device-reference` suite component checks the shared criterion with planted numerical faults and malformed rows, then checks the capture against the independent tiny F32 HF fixture, Unicode paths, malformed IDs, cache/ubatch/share refusals, explicit-share capture equivalence, incomplete captures, a full comparison and a damaged logit outside the top ten.
 A missing tool fails with `--require-tools`, and otherwise the component reports SKIP after its criterion tests.
 These tests use the CPU and tiny models; passing them does not establish large-model or GPU correctness.

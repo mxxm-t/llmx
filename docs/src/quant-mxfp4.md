@@ -20,7 +20,7 @@ It also checks every scale against a mathematical power of two and the decode sc
 
 The registry offers this decoder to GGUF reads, raw conversion, embedding and CPU prefill.
 CPU decode uses the packed dots described below; dense and routed prompt rows retain original F32 activations. Vulkan refuses this type until its separate implementation lands.
-The CPU feature remains in progress; its own remaining gates are recorded in STATUS. The separate Vulkan branch has an unresolved real-MoE ranking criterion.
+CPU MXFP4 support is merged; speed work remains open in STATUS. The separate Vulkan branch has an unresolved real-MoE ranking criterion.
 The CPU implementation in `backends/cpu/q8_dots.hpp` uses an AVX2
 nibble lookup and 16-bit activations. Scales whose product is outside the normal
 f32 range, potentially infinite weights, or a nonfinite fast sum use decoded

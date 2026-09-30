@@ -2821,6 +2821,3753 @@
         },
         "prior_attempt": "mxfp4-cpu-q35-spirv-20260930.json searched .spv and correctly refused an empty set; CMake emits numeric .inc modules, decoded here into little-endian SPIR-V words."
       }
+    },
+    "linux_full_cpu_identity": {
+      "report_sha256": "72fe9d92c7d5acbcf47ba235c1ddef3a11f3f352415a3e155d07d06017500cd7",
+      "report": {
+        "status": "pass",
+        "pid": 177233,
+        "tokens": [
+          284,
+          8397,
+          425,
+          10965,
+          465,
+          284,
+          715,
+          8397,
+          425,
+          10965,
+          465,
+          374,
+          458,
+          6364,
+          4531,
+          1154,
+          12425,
+          323,
+          33496,
+          12089,
+          659,
+          1260,
+          1030,
+          264,
+          8640,
+          569,
+          12,
+          31,
+          39400,
+          3476,
+          389,
+          279,
+          12425,
+          4013,
+          576,
+          8596,
+          304,
+          220,
+          17,
+          15,
+          15,
+          15,
+          659,
+          1096,
+          572,
+          8110,
+          553,
+          264,
+          39400,
+          3476,
+          304,
+          279,
+          1486,
+          6252,
+          2382,
+          5326,
+          553,
+          21315,
+          75923,
+          1154,
+          892,
+          572,
+          10660,
+          304,
+          220,
+          17,
+          15,
+          15,
+          16,
+          518,
+          279,
+          16194,
+          7154,
+          26221,
+          659,
+          1260,
+          1030,
+          264,
+          8640,
+          3476,
+          304,
+          279,
+          12425,
+          4013,
+          20207,
+          3757,
+          1581,
+          291,
+          304,
+          220,
+          17,
+          15,
+          15,
+          17,
+          659,
+          758,
+          220,
+          17,
+          15,
+          15,
+          19,
+          425,
+          10965,
+          465,
+          26120,
+          264,
+          3476,
+          438,
+          330,
+          28417,
+          330,
+          304,
+          279,
+          9234,
+          330,
+          70066,
+          364,
+          82,
+          15106,
+          330,
+          315,
+          279,
+          12425,
+          4013,
+          576,
+          5724,
+          37625,
+          2587,
+          566,
+          58235,
+          16263,
+          19571,
+          4389,
+          26099,
+          323,
+          42323,
+          15035,
+          18337,
+          659,
+          1260,
+          572,
+          6311,
+          304,
+          279,
+          220,
+          17,
+          15,
+          15,
+          20,
+          33496,
+          53148,
+          315,
+          279,
+          25179,
+          92301,
+          1486,
+          43562,
+          49840,
+          1154,
+          892,
+          572,
+          10660,
+          518,
+          279,
+          45406,
+          26221,
+          304,
+          70998,
+          323,
+          279,
+          11012,
+          1268,
+          38420,
+          16937,
+          304,
+          7148,
+          659,
+          1260,
+          572,
+          15540,
+          553,
+          3757,
+          67473,
+          323,
+          58235,
+          16263,
+          7355,
+          1232,
+          812,
+          672,
+          1154,
+          49975,
+          1863,
+          12707,
+          1154,
+          13928,
+          17734,
+          1154,
+          55130,
+          23905,
+          416,
+          1154,
+          59310,
+          80664,
+          323,
+          67034,
+          10926,
+          659,
+          715,
+          758,
+          220,
+          17,
+          15,
+          15,
+          21,
+          1154,
+          425,
+          10965,
+          465,
+          58235,
+          16263,
+          1232,
+          812,
+          672,
+          304,
+          279,
+          1486,
+          93736,
+          5326,
+          553,
+          4389,
+          45107,
+          27507,
+          659,
+          1260,
+          9723,
+          389,
+          264,
+          220,
+          17,
+          15,
+          15,
+          21,
+          9234,
+          315,
+          279,
+          12425
+        ],
+        "scope": "Clean main c1398b1b versus CPU MXFP4 integration 9be203b9, complete CPU model list: tiny F32 tied/untied, real 0.6B F32 and four quant mixtures, 8B Q8_0, 30B-A3B Q4_K_M. Full 247-token excerpt and 64 greedy rows, both caches. Tiny models reuse HF-verified weights with context metadata 512 and IDs 1..247. Correctness only, no performance claims.",
+        "runs": [
+          {
+            "arm": "main",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied-f16-main",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177241,
+            "exit": 0,
+            "captures": {
+              "batched": "758a60bb90bb1ad4ff3b6170d423bdbb8e7e03dd260c6e99c78615d6167a397e",
+              "decode": "50f7193df2052dd9fc23391ab73ef3d1460964bf28baa0fe004270e42c049e59",
+              "greedy": "3eaba9d5890b32efba222bf9ba669cd6b3c54307e6fcdcb73c26b123cc91f01d"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied-f16-candidate",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177248,
+            "exit": 0,
+            "captures": {
+              "batched": "758a60bb90bb1ad4ff3b6170d423bdbb8e7e03dd260c6e99c78615d6167a397e",
+              "decode": "50f7193df2052dd9fc23391ab73ef3d1460964bf28baa0fe004270e42c049e59",
+              "greedy": "3eaba9d5890b32efba222bf9ba669cd6b3c54307e6fcdcb73c26b123cc91f01d"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied-f32-main",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177255,
+            "exit": 0,
+            "captures": {
+              "batched": "af3a9f7a5bed1133dae7b15c05f44cf493f498ef82663231df77855eda4b4264",
+              "decode": "cbf53ef399b4bb7c51b437fc703cd865512f519b01890e7502ebeb57290032bd",
+              "greedy": "2ad2a08192859957fbb558b39268b6b1f6db64b429327ed41be49839454aeb3a"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied-f32-candidate",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177262,
+            "exit": 0,
+            "captures": {
+              "batched": "af3a9f7a5bed1133dae7b15c05f44cf493f498ef82663231df77855eda4b4264",
+              "decode": "cbf53ef399b4bb7c51b437fc703cd865512f519b01890e7502ebeb57290032bd",
+              "greedy": "2ad2a08192859957fbb558b39268b6b1f6db64b429327ed41be49839454aeb3a"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied-f16-main",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177269,
+            "exit": 0,
+            "captures": {
+              "batched": "897c602165cb2f28a23e581e37fd8ba4f5bf77ed4de2daca2509fbdca672f74a",
+              "decode": "c145fea8eac0723dfbcc6311a8748d9ec3fc86821c4f5b702a4a050dbff61966",
+              "greedy": "d07518056a0947974593e9c011bd7b34100e0f677aee8805c486700c0ffd1f8e"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied-f16-candidate",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177276,
+            "exit": 0,
+            "captures": {
+              "batched": "897c602165cb2f28a23e581e37fd8ba4f5bf77ed4de2daca2509fbdca672f74a",
+              "decode": "c145fea8eac0723dfbcc6311a8748d9ec3fc86821c4f5b702a4a050dbff61966",
+              "greedy": "d07518056a0947974593e9c011bd7b34100e0f677aee8805c486700c0ffd1f8e"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied-f32-main",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177283,
+            "exit": 0,
+            "captures": {
+              "batched": "dcd73c0814f3979f25e53ee54becacecbae43ff31c85dddbe9c3696e3366e5b0",
+              "decode": "58a10f5d3d56a87a104640cb02b62872a1599b775455370a3259d96a2ffb0ce8",
+              "greedy": "3e26bfbd4c95c36162839f9f7736d13dc35f7a0d44743ed6ee16423e3855e300"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied-f32-candidate",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177290,
+            "exit": 0,
+            "captures": {
+              "batched": "dcd73c0814f3979f25e53ee54becacecbae43ff31c85dddbe9c3696e3366e5b0",
+              "decode": "58a10f5d3d56a87a104640cb02b62872a1599b775455370a3259d96a2ffb0ce8",
+              "greedy": "3e26bfbd4c95c36162839f9f7736d13dc35f7a0d44743ed6ee16423e3855e300"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q8_0-f16-main",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177297,
+            "exit": 0,
+            "captures": {
+              "batched": "79c778e9bec45620dc1183b7640fd682deddb035c71886ada00a463f7aae8b96",
+              "decode": "ce95e28250a8c27600b220e3f913a91da9ba249f3b69ca3d8974dabe2642ef89",
+              "greedy": "1f3d4f24668d88cb72a00604a4e427d20b39f8109d2ec3f3462f75d168fc5335"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q8_0-f16-candidate",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177304,
+            "exit": 0,
+            "captures": {
+              "batched": "79c778e9bec45620dc1183b7640fd682deddb035c71886ada00a463f7aae8b96",
+              "decode": "ce95e28250a8c27600b220e3f913a91da9ba249f3b69ca3d8974dabe2642ef89",
+              "greedy": "1f3d4f24668d88cb72a00604a4e427d20b39f8109d2ec3f3462f75d168fc5335"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q8_0-f32-main",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177311,
+            "exit": 0,
+            "captures": {
+              "batched": "609a050068fddd72e9a400779f92e4d5d959d195297e5f494cdbb8e5c554bff3",
+              "decode": "c3968f4ba875c11effb8836db6b95e325d3e931ceff9225265d23a5c9ed83e0d",
+              "greedy": "60520800bde317e28660f0973681055bf67f006dd35c111d23fd936642e0d433"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q8_0-f32-candidate",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177318,
+            "exit": 0,
+            "captures": {
+              "batched": "609a050068fddd72e9a400779f92e4d5d959d195297e5f494cdbb8e5c554bff3",
+              "decode": "c3968f4ba875c11effb8836db6b95e325d3e931ceff9225265d23a5c9ed83e0d",
+              "greedy": "60520800bde317e28660f0973681055bf67f006dd35c111d23fd936642e0d433"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_0-f16-main",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177325,
+            "exit": 0,
+            "captures": {
+              "batched": "6a43b9bd9e9de43debb16db393bb95be0b4b008277979bebe2b2dac6679df29e",
+              "decode": "428f65d1946ad21cdafe3083c3ecf0632a3504eabb054a8ef4708680803f8994",
+              "greedy": "1b0506180903737ed1a7bdb2025d2c8c09c7b376eec67628a5a1365b0acbc813"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_0-f16-candidate",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177332,
+            "exit": 0,
+            "captures": {
+              "batched": "6a43b9bd9e9de43debb16db393bb95be0b4b008277979bebe2b2dac6679df29e",
+              "decode": "428f65d1946ad21cdafe3083c3ecf0632a3504eabb054a8ef4708680803f8994",
+              "greedy": "1b0506180903737ed1a7bdb2025d2c8c09c7b376eec67628a5a1365b0acbc813"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_0-f32-main",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177339,
+            "exit": 0,
+            "captures": {
+              "batched": "0342ce85d1d844d62b101182ea65492209ff8fe1e15b097499c014ec48a00a13",
+              "decode": "a3a647c193b6416c01ce0f2b72dc3cbcfc957725a8f4b6ab89d80ea349bf991e",
+              "greedy": "c14b1842c0db40ae3ce1abdccef286e3b967a847062d03186921e01f28b2b0e5"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_0-f32-candidate",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177346,
+            "exit": 0,
+            "captures": {
+              "batched": "0342ce85d1d844d62b101182ea65492209ff8fe1e15b097499c014ec48a00a13",
+              "decode": "a3a647c193b6416c01ce0f2b72dc3cbcfc957725a8f4b6ab89d80ea349bf991e",
+              "greedy": "c14b1842c0db40ae3ce1abdccef286e3b967a847062d03186921e01f28b2b0e5"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q5_K_M-f16-main",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177353,
+            "exit": 0,
+            "captures": {
+              "batched": "1ac5f5e920a432d8b612dcc9f134fa2fad68f21da92df7a69fd36fa54dfd6dec",
+              "decode": "c129b9c48507f11303198cb4275bc03048710dc873eba3c42b2f93957cbd2b89",
+              "greedy": "fddd6ddac167fffea8ade1922bf097739004181a16ba0f553f893f314bc2efe3"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q5_K_M-f16-candidate",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177360,
+            "exit": 0,
+            "captures": {
+              "batched": "1ac5f5e920a432d8b612dcc9f134fa2fad68f21da92df7a69fd36fa54dfd6dec",
+              "decode": "c129b9c48507f11303198cb4275bc03048710dc873eba3c42b2f93957cbd2b89",
+              "greedy": "fddd6ddac167fffea8ade1922bf097739004181a16ba0f553f893f314bc2efe3"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q5_K_M-f32-main",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177367,
+            "exit": 0,
+            "captures": {
+              "batched": "d3a404862c3719365e8fa0929f9e1f4185b899dd7f329d99f0c489498aad8cbc",
+              "decode": "7bec10fec246ffa2305377446c3111453501b3945c57223c3bd42c95625d296b",
+              "greedy": "0c21b43bffcc7611ac57ac02c9d9ee5dc69ba58729dadfcbe81b998f7a95ee92"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q5_K_M-f32-candidate",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177374,
+            "exit": 0,
+            "captures": {
+              "batched": "d3a404862c3719365e8fa0929f9e1f4185b899dd7f329d99f0c489498aad8cbc",
+              "decode": "7bec10fec246ffa2305377446c3111453501b3945c57223c3bd42c95625d296b",
+              "greedy": "0c21b43bffcc7611ac57ac02c9d9ee5dc69ba58729dadfcbe81b998f7a95ee92"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_K_M-f16-main",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177381,
+            "exit": 0,
+            "captures": {
+              "batched": "27d5d818fd0be951b2c7b1727ebd305008d814bee99c30181b6afdf76f4cf16b",
+              "decode": "a1692a3cfc1a14caaf60cdb4277f4012410104e4f4d5b92d1fd1e3bff9efcac1",
+              "greedy": "b5e089b9e95fd155f388bafc33673ed76c59868d62cce811e050399d0ead0fa8"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_K_M-f16-candidate",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177388,
+            "exit": 0,
+            "captures": {
+              "batched": "27d5d818fd0be951b2c7b1727ebd305008d814bee99c30181b6afdf76f4cf16b",
+              "decode": "a1692a3cfc1a14caaf60cdb4277f4012410104e4f4d5b92d1fd1e3bff9efcac1",
+              "greedy": "b5e089b9e95fd155f388bafc33673ed76c59868d62cce811e050399d0ead0fa8"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_K_M-f32-main",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177395,
+            "exit": 0,
+            "captures": {
+              "batched": "567ec64481b837002aed973e93827b582783fc339fb1a8a3ffd1f3a926b9e75e",
+              "decode": "7f0ffad912d30e799f59f366ce4a8f18fc60ad7ec9e90b9793e5405790eeb1a6",
+              "greedy": "9050f52d1961be9297344443d631f0ea79d36427fe9ee1eaa75c45feed14b448"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-Q4_K_M-f32-candidate",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177402,
+            "exit": 0,
+            "captures": {
+              "batched": "567ec64481b837002aed973e93827b582783fc339fb1a8a3ffd1f3a926b9e75e",
+              "decode": "7f0ffad912d30e799f59f366ce4a8f18fc60ad7ec9e90b9793e5405790eeb1a6",
+              "greedy": "9050f52d1961be9297344443d631f0ea79d36427fe9ee1eaa75c45feed14b448"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-F32-f16-main",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177409,
+            "exit": 0,
+            "captures": {
+              "batched": "ed733792f29a470b599f1e83b35dbefee07a8efd4ca610e6cee51943b1c2a0bc",
+              "decode": "150118a87cccce5b182b8682ba694d4df563a42ce1d4937f8862cc10456e11c5",
+              "greedy": "3046f4efba660f8bd64b3640df0be7d418940e9981b73a39804b04e17a7c351a"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-F32-f16-candidate",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177416,
+            "exit": 0,
+            "captures": {
+              "batched": "ed733792f29a470b599f1e83b35dbefee07a8efd4ca610e6cee51943b1c2a0bc",
+              "decode": "150118a87cccce5b182b8682ba694d4df563a42ce1d4937f8862cc10456e11c5",
+              "greedy": "3046f4efba660f8bd64b3640df0be7d418940e9981b73a39804b04e17a7c351a"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-F32-f32-main",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177423,
+            "exit": 0,
+            "captures": {
+              "batched": "6607706cdf2978680f2ff5ca090aa8800ae721e1b82ab8fd94b102eec7eb96fb",
+              "decode": "7171f6e1df2cfd7bfda54e5b5e3f3c2ed7eaf53df55721bde4201c75584b8d28",
+              "greedy": "aade930a7ea4e68dad412ff2c91176a007db9e1c4f48c2f24892e3a95e62b69c"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-0.6B-F32-f32-candidate",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177430,
+            "exit": 0,
+            "captures": {
+              "batched": "6607706cdf2978680f2ff5ca090aa8800ae721e1b82ab8fd94b102eec7eb96fb",
+              "decode": "7171f6e1df2cfd7bfda54e5b5e3f3c2ed7eaf53df55721bde4201c75584b8d28",
+              "greedy": "aade930a7ea4e68dad412ff2c91176a007db9e1c4f48c2f24892e3a95e62b69c"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-8B-Q8_0-f16-main",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177437,
+            "exit": 0,
+            "captures": {
+              "batched": "7cea5f15605b598b52d2a6b6d6bea01eaabf4a9ff84b918ecfa2c0d856929a5f",
+              "decode": "daddc73e27a870f6e5d580827116ee6627ef0d2fd7e25da78eaea36f934c4511",
+              "greedy": "4ff3649a7e0e54d41ad658c67a6a5d0b42741c5888e6ea3488b50b44d6a55766"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-8B-Q8_0-f16-candidate",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177477,
+            "exit": 0,
+            "captures": {
+              "batched": "7cea5f15605b598b52d2a6b6d6bea01eaabf4a9ff84b918ecfa2c0d856929a5f",
+              "decode": "daddc73e27a870f6e5d580827116ee6627ef0d2fd7e25da78eaea36f934c4511",
+              "greedy": "4ff3649a7e0e54d41ad658c67a6a5d0b42741c5888e6ea3488b50b44d6a55766"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-8B-Q8_0-f32-main",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177499,
+            "exit": 0,
+            "captures": {
+              "batched": "b04ec6661e84ab2c8a9aad88d7df51aa310c3e7e49d90f566cb786f13d76e1f9",
+              "decode": "2d09b1846cffd989605130a58c3f8cd6a04ace831c87b79fe6795f9e3ba98b22",
+              "greedy": "e9b34cb84769229dd5b9900648ef1563178f9bee06adf353de332ed57389c01c"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-8B-Q8_0-f32-candidate",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177506,
+            "exit": 0,
+            "captures": {
+              "batched": "b04ec6661e84ab2c8a9aad88d7df51aa310c3e7e49d90f566cb786f13d76e1f9",
+              "decode": "2d09b1846cffd989605130a58c3f8cd6a04ace831c87b79fe6795f9e3ba98b22",
+              "greedy": "e9b34cb84769229dd5b9900648ef1563178f9bee06adf353de332ed57389c01c"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f16-main",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177513,
+            "exit": 0,
+            "captures": {
+              "batched": "b4696121634bc1e210f6f4348fa673e5b8b91bc2480067297afa53e416c95acf",
+              "decode": "f76dffaa062659465f7987cd456ad50ac2081d939f9760b64a81f935e07d5d57",
+              "greedy": "80df4aaf5665a8cbc62c019c0473eccd3990d0e1d82b95b09c9f6906b0c4cf8e"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f16",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f16-candidate",
+              "cpu",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177520,
+            "exit": 0,
+            "captures": {
+              "batched": "b4696121634bc1e210f6f4348fa673e5b8b91bc2480067297afa53e416c95acf",
+              "decode": "f76dffaa062659465f7987cd456ad50ac2081d939f9760b64a81f935e07d5d57",
+              "greedy": "80df4aaf5665a8cbc62c019c0473eccd3990d0e1d82b95b09c9f6906b0c4cf8e"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f32-main",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177533,
+            "exit": 0,
+            "captures": {
+              "batched": "c56d23d3c70304a8fdc4d4d3daffb448d7ab81f61341086ddf4b60cc0dff35a9",
+              "decode": "3298b1a6a8ea706902fd566e487cb74dcccec60fe00de8dd8119dcf198f1262b",
+              "greedy": "d7abaf81eb9275f951e4446f3586b20380356d67cbb859e6c1336602c38448bd"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f32",
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-linux-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f32-candidate",
+              "cpu",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177744,
+            "exit": 0,
+            "captures": {
+              "batched": "c56d23d3c70304a8fdc4d4d3daffb448d7ab81f61341086ddf4b60cc0dff35a9",
+              "decode": "3298b1a6a8ea706902fd566e487cb74dcccec60fe00de8dd8119dcf198f1262b",
+              "greedy": "d7abaf81eb9275f951e4446f3586b20380356d67cbb859e6c1336602c38448bd"
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "file": "tiny-f32-untied.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-untied.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          }
+        ],
+        "models": [
+          {
+            "file": "tiny-f32-untied.gguf",
+            "path": "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-untied.gguf",
+            "sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "vocab": 257,
+            "tiny": true,
+            "weights_sha256": "e4480d5d59f953bdb30cfcecac3d0b108295ba09d8ecb989eaa955133ffc12d2"
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "path": "/work/mxfp4-cpu-full-linux-identity-20260930/tiny-f32-tied.gguf",
+            "sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "vocab": 257,
+            "tiny": true,
+            "weights_sha256": "c5a997b4123db2b75ab180bbc0693548f4665f6188af110c7547d79ebc7d2eb3"
+          },
+          {
+            "family": "qwen3",
+            "repo": "Qwen/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
+            "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "size": 639446688,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 5,
+            "continuous_nll": 0.01,
+            "window_nll": 0.02,
+            "path": "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "size": 382156480,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.16,
+            "window_nll": 0.2,
+            "path": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "size": 444415680,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.05,
+            "window_nll": 0.16,
+            "path": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "size": 396705472,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.13,
+            "window_nll": 0.25,
+            "path": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "path": "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+            "sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "path": "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "path": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+            "sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "vocab": 151936
+          }
+        ],
+        "arms": {
+          "main": {
+            "head": "c1398b1b7916bc0753e33ea5742fa2c495b84826",
+            "version": "llmx 0.1.0+gc1398b1b7916",
+            "exe_sha256": "8e907a51ec30f372be6820ad376e24b1afe6de1ac6bf710b2cbac4d6d82808c0"
+          },
+          "candidate": {
+            "head": "9be203b963bcafc2af60289fcffdd295706471fc",
+            "version": "llmx 0.1.0+g9be203b963bc",
+            "exe_sha256": "d2f1b6dae0f4c25d6fdbf7a4b54805aabe56159e7929803e858636c0f342ab23"
+          }
+        }
+      }
+    },
+    "linux_one_mi50_identity": {
+      "report_sha256": "0f19f7a60d79142ce98050e18ab48c9e3387303efddc6b4054969e6d08dae906",
+      "report": {
+        "status": "pass",
+        "pid": 177527,
+        "tokens": [
+          284,
+          8397,
+          425,
+          10965,
+          465,
+          284,
+          715,
+          8397,
+          425,
+          10965,
+          465,
+          374,
+          458,
+          6364,
+          4531,
+          1154,
+          12425,
+          323,
+          33496,
+          12089,
+          659,
+          1260,
+          1030,
+          264,
+          8640,
+          569,
+          12,
+          31,
+          39400,
+          3476,
+          389,
+          279,
+          12425,
+          4013,
+          576,
+          8596,
+          304,
+          220,
+          17,
+          15,
+          15,
+          15,
+          659,
+          1096,
+          572,
+          8110,
+          553,
+          264,
+          39400,
+          3476,
+          304,
+          279,
+          1486,
+          6252,
+          2382,
+          5326,
+          553,
+          21315,
+          75923,
+          1154,
+          892,
+          572,
+          10660,
+          304,
+          220,
+          17,
+          15,
+          15,
+          16,
+          518,
+          279,
+          16194,
+          7154,
+          26221,
+          659,
+          1260,
+          1030,
+          264,
+          8640,
+          3476,
+          304,
+          279,
+          12425,
+          4013,
+          20207,
+          3757,
+          1581,
+          291,
+          304,
+          220,
+          17,
+          15,
+          15,
+          17,
+          659,
+          758,
+          220,
+          17,
+          15,
+          15,
+          19,
+          425,
+          10965,
+          465,
+          26120,
+          264,
+          3476,
+          438,
+          330,
+          28417,
+          330,
+          304,
+          279,
+          9234,
+          330,
+          70066,
+          364,
+          82,
+          15106,
+          330,
+          315,
+          279,
+          12425,
+          4013,
+          576,
+          5724,
+          37625,
+          2587,
+          566,
+          58235,
+          16263,
+          19571,
+          4389,
+          26099,
+          323,
+          42323,
+          15035,
+          18337,
+          659,
+          1260,
+          572,
+          6311,
+          304,
+          279,
+          220,
+          17,
+          15,
+          15,
+          20,
+          33496,
+          53148,
+          315,
+          279,
+          25179,
+          92301,
+          1486,
+          43562,
+          49840,
+          1154,
+          892,
+          572,
+          10660,
+          518,
+          279,
+          45406,
+          26221,
+          304,
+          70998,
+          323,
+          279,
+          11012,
+          1268,
+          38420,
+          16937,
+          304,
+          7148,
+          659,
+          1260,
+          572,
+          15540,
+          553,
+          3757,
+          67473,
+          323,
+          58235,
+          16263,
+          7355,
+          1232,
+          812,
+          672,
+          1154,
+          49975,
+          1863,
+          12707,
+          1154,
+          13928,
+          17734,
+          1154,
+          55130,
+          23905,
+          416,
+          1154,
+          59310,
+          80664,
+          323,
+          67034,
+          10926,
+          659,
+          715,
+          758,
+          220,
+          17,
+          15,
+          15,
+          21,
+          1154,
+          425,
+          10965,
+          465,
+          58235,
+          16263,
+          1232,
+          812,
+          672,
+          304,
+          279,
+          1486,
+          93736,
+          5326,
+          553,
+          4389,
+          45107,
+          27507,
+          659,
+          1260,
+          9723,
+          389,
+          264,
+          220,
+          17,
+          15,
+          15,
+          21,
+          9234,
+          315,
+          279,
+          12425
+        ],
+        "scope": "Clean main c1398b1b versus CPU MXFP4 integration 9be203b9, complete existing-model list on one MI50: tiny F32 tied/untied, real 0.6B F32 and four quant mixtures, 8B Q8_0, 30B-A3B Q4_K_M. Full 247-token excerpt and 64 greedy rows, both caches. Tiny models reuse HF-verified weights with context metadata 512 and IDs 1..247. Correctness only, no performance claims.",
+        "runs": [
+          {
+            "arm": "main",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177537,
+            "exit": 0,
+            "captures": {
+              "batched": "e9d9cf554cd62a9985315254d2abe22bad3e88a392ae10ca0a2cae3f140f5d0f",
+              "decode": "f76dafda27f7cb15a8a02a7fcfee218b33802377225410cfc7c2c79ca041d4fe",
+              "greedy": "d1d3853136f2b8afb8ac903870be6b46d8e9824a3bb12125857af60511de47c6"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177542,
+            "exit": 0,
+            "captures": {
+              "batched": "e9d9cf554cd62a9985315254d2abe22bad3e88a392ae10ca0a2cae3f140f5d0f",
+              "decode": "f76dafda27f7cb15a8a02a7fcfee218b33802377225410cfc7c2c79ca041d4fe",
+              "greedy": "d1d3853136f2b8afb8ac903870be6b46d8e9824a3bb12125857af60511de47c6"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177547,
+            "exit": 0,
+            "captures": {
+              "batched": "5eb3bf32c90c318f100292ccbdffc11ad92c4ab09508b89739c48625ba796dbd",
+              "decode": "9a0072e7b6d0469479fac52395ff352f1e8607976b755e2f5d3cd75180a3028b",
+              "greedy": "b1f7261fbff9a7ddbe2a584af28aa62c758b36d14babe3e5a4c9430eb12a05ea"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177552,
+            "exit": 0,
+            "captures": {
+              "batched": "5eb3bf32c90c318f100292ccbdffc11ad92c4ab09508b89739c48625ba796dbd",
+              "decode": "9a0072e7b6d0469479fac52395ff352f1e8607976b755e2f5d3cd75180a3028b",
+              "greedy": "b1f7261fbff9a7ddbe2a584af28aa62c758b36d14babe3e5a4c9430eb12a05ea"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177557,
+            "exit": 0,
+            "captures": {
+              "batched": "0a9b02f2eb97a28dfac2faa042dfaaa233cfa3859cfac97db22f18ba5a4faf97",
+              "decode": "112712310236aebe9a3570b505f834b282468cb312e8d541406f14c383253cfe",
+              "greedy": "f95de269575aea6a514be2f2fc9fbcfc5183cf69b40e82c551b3d13549c4dce1"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177562,
+            "exit": 0,
+            "captures": {
+              "batched": "0a9b02f2eb97a28dfac2faa042dfaaa233cfa3859cfac97db22f18ba5a4faf97",
+              "decode": "112712310236aebe9a3570b505f834b282468cb312e8d541406f14c383253cfe",
+              "greedy": "f95de269575aea6a514be2f2fc9fbcfc5183cf69b40e82c551b3d13549c4dce1"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177567,
+            "exit": 0,
+            "captures": {
+              "batched": "4418e38b955f9f283daf7d5f7797756ce37cdef5f564db8022865357455eae6d",
+              "decode": "ce1a626fc3c2d56602b0024f4bffc36d335b9326d0bdecaa206ebbf3c4764162",
+              "greedy": "263f2dc1bf8ef923eeeab289620cd01e69c6c16261eb7b5590971b2e7637a569"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177572,
+            "exit": 0,
+            "captures": {
+              "batched": "4418e38b955f9f283daf7d5f7797756ce37cdef5f564db8022865357455eae6d",
+              "decode": "ce1a626fc3c2d56602b0024f4bffc36d335b9326d0bdecaa206ebbf3c4764162",
+              "greedy": "263f2dc1bf8ef923eeeab289620cd01e69c6c16261eb7b5590971b2e7637a569"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q8_0-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177577,
+            "exit": 0,
+            "captures": {
+              "batched": "57f0c53d940dbef70dae36f09ff56ce97df0a0285fcdf9f5d6b28b1f6142b63d",
+              "decode": "c436c0bfb6ef79ea4b8e11d07167fd24aff7fda9492e10e22f0e36363570e2af",
+              "greedy": "1dab7a6c3f187ba5d11ca312f02204b10843fcca91b48c251efbbcf0f558a378"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q8_0-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177583,
+            "exit": 0,
+            "captures": {
+              "batched": "57f0c53d940dbef70dae36f09ff56ce97df0a0285fcdf9f5d6b28b1f6142b63d",
+              "decode": "c436c0bfb6ef79ea4b8e11d07167fd24aff7fda9492e10e22f0e36363570e2af",
+              "greedy": "1dab7a6c3f187ba5d11ca312f02204b10843fcca91b48c251efbbcf0f558a378"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q8_0-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177594,
+            "exit": 0,
+            "captures": {
+              "batched": "1cfe4217d85bd3ff6e3b8549bc92f8a12ef36cfdbf8a27987470c0416cb5a987",
+              "decode": "ab3f624e39769e6b8a545a27fd12f80b45fa5e3a021866ad85bd035a40ed781f",
+              "greedy": "e6d135f16b77809c2c6c5bc05768ffa2aa9c588e670eda4c7dbe9766adbb4e91"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q8_0-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177600,
+            "exit": 0,
+            "captures": {
+              "batched": "1cfe4217d85bd3ff6e3b8549bc92f8a12ef36cfdbf8a27987470c0416cb5a987",
+              "decode": "ab3f624e39769e6b8a545a27fd12f80b45fa5e3a021866ad85bd035a40ed781f",
+              "greedy": "e6d135f16b77809c2c6c5bc05768ffa2aa9c588e670eda4c7dbe9766adbb4e91"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_0-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177606,
+            "exit": 0,
+            "captures": {
+              "batched": "e8673ee76b33a8f90e9a84da6a800b9059bdfc0fdcb738a4e5e5362728d905fc",
+              "decode": "6205af1c2d3e661f6cd69e5517381abd16ae8a853b77c28644afb81b33f144de",
+              "greedy": "c18097d0c03be486a1691621dc3a7c522753a6c9eaf3fa05dd6089e426622240"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_0-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177612,
+            "exit": 0,
+            "captures": {
+              "batched": "e8673ee76b33a8f90e9a84da6a800b9059bdfc0fdcb738a4e5e5362728d905fc",
+              "decode": "6205af1c2d3e661f6cd69e5517381abd16ae8a853b77c28644afb81b33f144de",
+              "greedy": "c18097d0c03be486a1691621dc3a7c522753a6c9eaf3fa05dd6089e426622240"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_0-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177618,
+            "exit": 0,
+            "captures": {
+              "batched": "e62f08bef25198de80ff6e0040c1bd9a0e422f695910e446327579d0fa5ba765",
+              "decode": "1277156437ff8b5881b3b5ac5d96090ce476672d58ceef6e3fb4787c9a821ccb",
+              "greedy": "cbd7163887974ec6c9a82bfd3f9edce4c184880010cd5fdff77eee983b695bd0"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_0-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177624,
+            "exit": 0,
+            "captures": {
+              "batched": "e62f08bef25198de80ff6e0040c1bd9a0e422f695910e446327579d0fa5ba765",
+              "decode": "1277156437ff8b5881b3b5ac5d96090ce476672d58ceef6e3fb4787c9a821ccb",
+              "greedy": "cbd7163887974ec6c9a82bfd3f9edce4c184880010cd5fdff77eee983b695bd0"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177630,
+            "exit": 0,
+            "captures": {
+              "batched": "a8ace2f2259b4e417e00852cb0969c3064e8a7deaac1b7b0e7373a1c88182959",
+              "decode": "59eb0d7280f861a424d93b5fc51f61c217de245f5999fb03e2f550cc5e40bf0d",
+              "greedy": "a87ab6dc1204704db9eb6ba315921e027cecba4d338d041149adab882f6882f7"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177636,
+            "exit": 0,
+            "captures": {
+              "batched": "a8ace2f2259b4e417e00852cb0969c3064e8a7deaac1b7b0e7373a1c88182959",
+              "decode": "59eb0d7280f861a424d93b5fc51f61c217de245f5999fb03e2f550cc5e40bf0d",
+              "greedy": "a87ab6dc1204704db9eb6ba315921e027cecba4d338d041149adab882f6882f7"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177642,
+            "exit": 0,
+            "captures": {
+              "batched": "6a74f3f76752f84aa560844b95cb754485c501aad38ec852422ce8cb02070797",
+              "decode": "97637d18eabd21de15a3eac45430ec598776de01cb24818b19d73283a3ab8538",
+              "greedy": "e4f601cb867b539d946bc41a9a2dbfb92b825be52eb25d541f928e1727a3316c"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177648,
+            "exit": 0,
+            "captures": {
+              "batched": "6a74f3f76752f84aa560844b95cb754485c501aad38ec852422ce8cb02070797",
+              "decode": "97637d18eabd21de15a3eac45430ec598776de01cb24818b19d73283a3ab8538",
+              "greedy": "e4f601cb867b539d946bc41a9a2dbfb92b825be52eb25d541f928e1727a3316c"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177654,
+            "exit": 0,
+            "captures": {
+              "batched": "d67ed9a89a04b03728e68e243c0566e964c65e7b4d9d2f77ed1c654a4ed2a385",
+              "decode": "d62dd8b7cc64912c4d1628cacea180e1d7cb22a7129eb3ca1e969f1ab9f9cb68",
+              "greedy": "5ddd7eb79d0237880c7b37229cc8ccfec782e51f3bef65b86f2e2a3c1420a2e1"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177660,
+            "exit": 0,
+            "captures": {
+              "batched": "d67ed9a89a04b03728e68e243c0566e964c65e7b4d9d2f77ed1c654a4ed2a385",
+              "decode": "d62dd8b7cc64912c4d1628cacea180e1d7cb22a7129eb3ca1e969f1ab9f9cb68",
+              "greedy": "5ddd7eb79d0237880c7b37229cc8ccfec782e51f3bef65b86f2e2a3c1420a2e1"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177666,
+            "exit": 0,
+            "captures": {
+              "batched": "5f164f954ca17b15cf05f2e3d261ad8682914176dca38c8276a4b9944c0a2c08",
+              "decode": "1c2bb80b784f9085a7e34c300624d158ba436265f7787cc3d1d6ecd85e7a79d4",
+              "greedy": "99658f4f999daf6a473adade32694cf24d1625306e641f2aeb9376ab44418753"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177672,
+            "exit": 0,
+            "captures": {
+              "batched": "5f164f954ca17b15cf05f2e3d261ad8682914176dca38c8276a4b9944c0a2c08",
+              "decode": "1c2bb80b784f9085a7e34c300624d158ba436265f7787cc3d1d6ecd85e7a79d4",
+              "greedy": "99658f4f999daf6a473adade32694cf24d1625306e641f2aeb9376ab44418753"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-F32-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177678,
+            "exit": 0,
+            "captures": {
+              "batched": "70b837acca072360c93bb51a8b8b064b1855e94761de468759228d1d408bb8c6",
+              "decode": "a06fafacda71f404bd43678739d4503eacb7855f3a9a35169a3a7393448f17f1",
+              "greedy": "e27ff68c6e45ae3c5a41825b89f7c8c5b0a99f343278da7cb651f91f8647aa7f"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-F32-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177684,
+            "exit": 0,
+            "captures": {
+              "batched": "70b837acca072360c93bb51a8b8b064b1855e94761de468759228d1d408bb8c6",
+              "decode": "a06fafacda71f404bd43678739d4503eacb7855f3a9a35169a3a7393448f17f1",
+              "greedy": "e27ff68c6e45ae3c5a41825b89f7c8c5b0a99f343278da7cb651f91f8647aa7f"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-F32-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177690,
+            "exit": 0,
+            "captures": {
+              "batched": "aa8ae4ee635739a39f8e8094b896c7d32a4068e8e351fd6367fb3d08cf043b13",
+              "decode": "c74140eb1ca6024e7fb5685ac15c295c34816b8c4736fa04d0494e874a63251d",
+              "greedy": "9fe3ded79b6a254ed5e5ca6c8da810da22884cea277b8042e05912e26037d53e"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-0.6B-F32-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177696,
+            "exit": 0,
+            "captures": {
+              "batched": "aa8ae4ee635739a39f8e8094b896c7d32a4068e8e351fd6367fb3d08cf043b13",
+              "decode": "c74140eb1ca6024e7fb5685ac15c295c34816b8c4736fa04d0494e874a63251d",
+              "greedy": "9fe3ded79b6a254ed5e5ca6c8da810da22884cea277b8042e05912e26037d53e"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-8B-Q8_0-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177702,
+            "exit": 0,
+            "captures": {
+              "batched": "bcf2050afc7eb5f0f4a7b9ca9b641c7a064bc802de6d86aa0ee63470da1cc3fd",
+              "decode": "055295c02bb8028c7dcaeeede9c790916dbb3cd54261b0ce18ce7293ccbb8592",
+              "greedy": "9c0b5faede89bdef1a9fe0a339de170ff74db35c9ce2fb2c32ff71cbeb5148a7"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-8B-Q8_0-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177708,
+            "exit": 0,
+            "captures": {
+              "batched": "bcf2050afc7eb5f0f4a7b9ca9b641c7a064bc802de6d86aa0ee63470da1cc3fd",
+              "decode": "055295c02bb8028c7dcaeeede9c790916dbb3cd54261b0ce18ce7293ccbb8592",
+              "greedy": "9c0b5faede89bdef1a9fe0a339de170ff74db35c9ce2fb2c32ff71cbeb5148a7"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-8B-Q8_0-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177714,
+            "exit": 0,
+            "captures": {
+              "batched": "f7694d2f8b85249866bc6fbd4dcb2298aab8c56b429469d799d8e5b3f17e658d",
+              "decode": "6df49a86f6df21ed4c9fd3bba997c2e51b184e3d4e9d922dd4f5b6ef3d45ea44",
+              "greedy": "666502385a1815298cd8cb6d35e082c05f70ccecb5bc8a8828c46a6a6115c565"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-8B-Q8_0-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177720,
+            "exit": 0,
+            "captures": {
+              "batched": "f7694d2f8b85249866bc6fbd4dcb2298aab8c56b429469d799d8e5b3f17e658d",
+              "decode": "6df49a86f6df21ed4c9fd3bba997c2e51b184e3d4e9d922dd4f5b6ef3d45ea44",
+              "greedy": "666502385a1815298cd8cb6d35e082c05f70ccecb5bc8a8828c46a6a6115c565"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177726,
+            "exit": 0,
+            "captures": {
+              "batched": "91c6a567ace0dbb824ff64de2a40b1032443ba4539c4df959ddd53607f0e2f1b",
+              "decode": "79a4f89c4f076ffb88cebeb7c1df0e2a5d155bb61c7d57fe7fcab86c059e9f68",
+              "greedy": "b8b1b6d1f8fd8c35bbb26b993829f0d5825e31741cf95d69879802c9db93987d"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177732,
+            "exit": 0,
+            "captures": {
+              "batched": "91c6a567ace0dbb824ff64de2a40b1032443ba4539c4df959ddd53607f0e2f1b",
+              "decode": "79a4f89c4f076ffb88cebeb7c1df0e2a5d155bb61c7d57fe7fcab86c059e9f68",
+              "greedy": "b8b1b6d1f8fd8c35bbb26b993829f0d5825e31741cf95d69879802c9db93987d"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-base-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "e4d385aa17474abc46eeea2ad59542852cbb7a69160c6b7170d18b5cbe318bab",
+            "pid": 177738,
+            "exit": 0,
+            "captures": {
+              "batched": "7251bf548f520ca5c496d27ca664150755e511a5bba0fd4f70d18ff31e3dc292",
+              "decode": "777086408d0c9267d141b1b966b35e5b751d3ef49bc433545d9acf749aa4f5ed",
+              "greedy": "dff5b6d7b39c83110b8b8e909553c8d6d9c176d0c7683c7ae566ecd9041d7f3d"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/work/mxfp4-cpu-full-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "624c0b0f6fc0e9f1190032a3bed147f8296d089be9760ef716cac849b6725854",
+            "pid": 177746,
+            "exit": 0,
+            "captures": {
+              "batched": "7251bf548f520ca5c496d27ca664150755e511a5bba0fd4f70d18ff31e3dc292",
+              "decode": "777086408d0c9267d141b1b966b35e5b751d3ef49bc433545d9acf749aa4f5ed",
+              "greedy": "dff5b6d7b39c83110b8b8e909553c8d6d9c176d0c7683c7ae566ecd9041d7f3d"
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "file": "tiny-f32-untied.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-untied.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "cache": "f16",
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "cache": "f32",
+            "raw_captures_equal": 3
+          }
+        ],
+        "models": [
+          {
+            "file": "tiny-f32-untied.gguf",
+            "path": "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-untied.gguf",
+            "sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "vocab": 257,
+            "tiny": true,
+            "weights_sha256": "e4480d5d59f953bdb30cfcecac3d0b108295ba09d8ecb989eaa955133ffc12d2"
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "path": "/work/mxfp4-cpu-full-mi50-identity-20260930/tiny-f32-tied.gguf",
+            "sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "vocab": 257,
+            "tiny": true,
+            "weights_sha256": "c5a997b4123db2b75ab180bbc0693548f4665f6188af110c7547d79ebc7d2eb3"
+          },
+          {
+            "family": "qwen3",
+            "repo": "Qwen/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
+            "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "size": 639446688,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 5,
+            "continuous_nll": 0.01,
+            "window_nll": 0.02,
+            "path": "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "size": 382156480,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.16,
+            "window_nll": 0.2,
+            "path": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "size": 444415680,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.05,
+            "window_nll": 0.16,
+            "path": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "size": 396705472,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.13,
+            "window_nll": 0.25,
+            "path": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "path": "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+            "sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "path": "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "path": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+            "sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "vocab": 151936
+          }
+        ],
+        "arms": {
+          "main": {
+            "head": "c1398b1b7916bc0753e33ea5742fa2c495b84826",
+            "version": "llmx 0.1.0+gc1398b1b7916",
+            "exe_sha256": "8e907a51ec30f372be6820ad376e24b1afe6de1ac6bf710b2cbac4d6d82808c0"
+          },
+          "candidate": {
+            "head": "9be203b963bcafc2af60289fcffdd295706471fc",
+            "version": "llmx 0.1.0+g9be203b963bc",
+            "exe_sha256": "d2f1b6dae0f4c25d6fdbf7a4b54805aabe56159e7929803e858636c0f342ab23"
+          }
+        }
+      }
+    },
+    "windows_spirv_identity": {
+      "report_sha256": "ca2b8f5b5cb0b28589b322d7c6ea8c8ebabe7138354367f897d951a3e4963f45",
+      "report": {
+        "main": "c1398b1b",
+        "candidate": "9be203b9",
+        "main_modules": {
+          "add.inc": {
+            "sha256": "7f88070e6db28163c6d3600ce48e742c90f5e394f6d7bff3027cf27253627707",
+            "bytes": 1080
+          },
+          "attention.inc": {
+            "sha256": "0921d06a42fd8978dc46f9de2564dfdb4fa653b8dc81843baac68544ee4f2b77",
+            "bytes": 52860
+          },
+          "attention_g4.inc": {
+            "sha256": "678ce3f72444b634543ddded37bdf3d0a11ed9b37e2e05dec75330f2cc04ea9c",
+            "bytes": 56828
+          },
+          "attention_k16.inc": {
+            "sha256": "add89ec02b7f2fd06884ca7d320415ffb5ce0c83588316e7c906d491e240204f",
+            "bytes": 53140
+          },
+          "attention_k16_g4.inc": {
+            "sha256": "9b7ffdf33d272aaf61c5bf573878e966fb0e9e77ae8191e9cbeacf626a9ed248",
+            "bytes": 57108
+          },
+          "attention_kv16.inc": {
+            "sha256": "5a8f2519cfb4e692e7b46f996b5bad7bbfc40872efd1735626c3e35d97e6ba23",
+            "bytes": 53380
+          },
+          "attention_kv16_g4.inc": {
+            "sha256": "c97aec76d8e3a778d10c9dd4053bb8510d815e180f984db4c833b179a643f86f",
+            "bytes": 57348
+          },
+          "attention_merge.inc": {
+            "sha256": "9a4b0eb1bbea9dba8c088624ddc19f38af9863218e7d9f3c9b3c8fdf9ac98b5b",
+            "bytes": 44636
+          },
+          "attention_tile.inc": {
+            "sha256": "1626fe6b8487df88d67527eb90c83244dba41a095bb2d64bddb3c8ca26c3976b",
+            "bytes": 38480
+          },
+          "attention_tile_d256.inc": {
+            "sha256": "455c1aa7dccb5cb763d22e189fa46f2c7ba35bb555999fbf4371f24cd05c1881",
+            "bytes": 38424
+          },
+          "attention_tile_d256_k16.inc": {
+            "sha256": "7af57ca112f1f57ef13fe91d72779312f19445a207d7352b7312a7271d92954f",
+            "bytes": 38828
+          },
+          "attention_tile_d256_kv16.inc": {
+            "sha256": "649af5c09317d38da046df88e37fb70651dd0948979a6f9f172ee702aa361f97",
+            "bytes": 39124
+          },
+          "attention_tile_d256_v16.inc": {
+            "sha256": "d19c2515adbe6018e7cafc2207b68d2021a0c35c420ee7586b14f32e1cbf56d2",
+            "bytes": 38828
+          },
+          "attention_tile_k16.inc": {
+            "sha256": "d8a1435a1374d7141a6ed7eca6cf3ae4a3cf7fc80d3094f7fea45eb181c127d3",
+            "bytes": 38884
+          },
+          "attention_tile_kv16.inc": {
+            "sha256": "2efbbf5609c4be0d389e859a371dcbcfdecfa5ecb866127fd8b7ffef03a1f2c4",
+            "bytes": 39180
+          },
+          "attention_tile_v16.inc": {
+            "sha256": "154f664e9a616c7914daf7d0a581338bde01ff46bad2ee464c0e95d708729cce",
+            "bytes": 38884
+          },
+          "attention_v16.inc": {
+            "sha256": "9731720a65472d3755b2ccf2da2333091fe69898a6fbbee4fe0ed0a6e2882585",
+            "bytes": 53140
+          },
+          "attention_v16_g4.inc": {
+            "sha256": "98068c9ceb1416fcabef50393a04ab34f4bd71f3d58c48532873a82cbb5a1950",
+            "bytes": 57108
+          },
+          "attention_vec.inc": {
+            "sha256": "e5156c94f59fabec0723d10079e4786bf37503495d6c1c3ca1e6a5be44380116",
+            "bytes": 52912
+          },
+          "attention_vec_d256.inc": {
+            "sha256": "247001dd9df45480359c08ec7c5be3779c543cd0d93eccfd03693eb9d5c5b380",
+            "bytes": 52912
+          },
+          "attention_vec_d256_g4.inc": {
+            "sha256": "e1788b78acdbea319a59e3f295636ee858cfaf17ac3e9a01ea1141de4888974d",
+            "bytes": 61236
+          },
+          "attention_vec_d256_k16.inc": {
+            "sha256": "e90d843bcf9e05d692b9220ea7e5c9c7f3437909428e84b7a3c4c5bf191637c1",
+            "bytes": 53100
+          },
+          "attention_vec_d256_k16_g4.inc": {
+            "sha256": "c71f56eeeb9c45f8b0bd0ffe9f586798a5b77a2ad62a9610f65a0a3afb7d3861",
+            "bytes": 61736
+          },
+          "attention_vec_d256_kv16.inc": {
+            "sha256": "98d21b0f26964f37b844ed16958fc4a4751280dbe6a5860eb8b158f0854b3552",
+            "bytes": 53180
+          },
+          "attention_vec_d256_kv16_g4.inc": {
+            "sha256": "b312f6da003fea31c57dc180771b0d7e05c9592f922ed69870e8184557993c24",
+            "bytes": 62008
+          },
+          "attention_vec_d256_v16.inc": {
+            "sha256": "535688b099b9ed9da89ac0634964f54ee63ed8c935dcf95b41207ef4aa8e13fb",
+            "bytes": 53100
+          },
+          "attention_vec_d256_v16_g4.inc": {
+            "sha256": "c51f2b611bf468e43b9c175de4299c3b4ccd514863cdcd352bc988454b53496b",
+            "bytes": 61736
+          },
+          "attention_vec_g4.inc": {
+            "sha256": "d250411c031ecf519e306c9e56012bc881f9c52ad4dce9b0ca56350c61ce77cf",
+            "bytes": 61236
+          },
+          "attention_vec_k16.inc": {
+            "sha256": "d18382e568fc6359670b3587f8fa28ce9019c037b352fd55919500a6069a5fae",
+            "bytes": 53100
+          },
+          "attention_vec_k16_g4.inc": {
+            "sha256": "601fbf587a502d11c3127e3f3708285f000b6c823f0bfebb90a704964fceadb4",
+            "bytes": 61736
+          },
+          "attention_vec_kv16.inc": {
+            "sha256": "9f9a4738c0bfb843df7155503a54d99b7934b01e8079e63b41b1787a6d170fd2",
+            "bytes": 53180
+          },
+          "attention_vec_kv16_g4.inc": {
+            "sha256": "833b516070deec05b9fd5b26a70509a32222f6f4897e3fc8358dc409b87d871d",
+            "bytes": 62008
+          },
+          "attention_vec_v16.inc": {
+            "sha256": "63d64ee98d5933d0240bec061275af2ba60d0fde329adce84c18ea8f4dba351b",
+            "bytes": 53100
+          },
+          "attention_vec_v16_g4.inc": {
+            "sha256": "17dfa4fc9007af69acee73393cfc3ea4c5b22103a54cb6f928e5d128f870a305",
+            "bytes": 61736
+          },
+          "causal_conv_silu.inc": {
+            "sha256": "e5fb37bff7ebc42e208fd7dd257bdf0bf532d36e5fa7c18b3616f9c2cbe6387d",
+            "bytes": 8176
+          },
+          "delta_rule.inc": {
+            "sha256": "53dcb7eef2c57219969dd7023c8ca88377f4f4c73a6d71af09318fb92dd6174a",
+            "bytes": 31372
+          },
+          "embed.inc": {
+            "sha256": "f0f5486a5b49949a856f910072e833ebaa074632d274226fed7f1836243d0ccd",
+            "bytes": 11168
+          },
+          "gated_rms_norm.inc": {
+            "sha256": "1ca823fdd7622e53267cbb4973d532739ffc2d12e7ff194118bc2d41ab8bfa2f",
+            "bytes": 73576
+          },
+          "gather_rows.inc": {
+            "sha256": "ab24127c7776027fd7c43c1ed70ecc1b246a9b70927f12e756d4498b7c8a749e",
+            "bytes": 1492
+          },
+          "kv_write.inc": {
+            "sha256": "5bf1f137234d9d6133054bf6a49daeac686edb6d02381174c08949abc488e79e",
+            "bytes": 3144
+          },
+          "kv_write_k16.inc": {
+            "sha256": "072e52c1181701913f9af85955e02a062a79ed35673807f660194a9413737e27",
+            "bytes": 5124
+          },
+          "kv_write_kv16.inc": {
+            "sha256": "a6cdbf0f20968d8d24287cca037a1b46faa1896776704cfdfc28b8b2c3380772",
+            "bytes": 6808
+          },
+          "kv_write_v16.inc": {
+            "sha256": "88bf3c5b9fdb9998049714f6a702fb390d1967bb2bd27d9ff08aba9d56370334",
+            "bytes": 5124
+          },
+          "matmul_reduce.inc": {
+            "sha256": "6b97de911594b757ff34b17b548271abbdfba8af826d08407d5ef91bd6ac2fc6",
+            "bytes": 3140
+          },
+          "matmul_row.inc": {
+            "sha256": "214a7918bb04f787d1f7dc30bb3120d7e1d80043bb6104092983bfd5099f983d",
+            "bytes": 20800
+          },
+          "matmul_row_k.inc": {
+            "sha256": "3efdc90a9f963585346a4775c2668b2f2b119769d18429ff09ad83eb90e4f10f",
+            "bytes": 37144
+          },
+          "matmul_row_k4.inc": {
+            "sha256": "11865adfdc702f230060fddc8a038fa08988de7101e3bc78d8b8419b42eb2af4",
+            "bytes": 31052
+          },
+          "matmul_row_k4_dot.inc": {
+            "sha256": "e902d44d1df8d66e42e71c5c0b499907d6d76e86d59d5f861722446a57a1cd00",
+            "bytes": 21956
+          },
+          "matmul_row_k5.inc": {
+            "sha256": "ebef2c844bcfb6c76b3663e971b625f633e3be6e1785201c808543d3c84a863e",
+            "bytes": 32652
+          },
+          "matmul_row_k5_dot.inc": {
+            "sha256": "c19391517b366468ef29a59c957d5eb7c256a06958a91b516e9891d096467872",
+            "bytes": 23716
+          },
+          "matmul_row_k_dot.inc": {
+            "sha256": "c5d35239e6e7560588d7d39782f67983d8663735b6e3abfe4369c59afc9edd0d",
+            "bytes": 30008
+          },
+          "matmul_row_k_dot8.inc": {
+            "sha256": "faf2e49ef3a7b5bf9da272a5bd026681a2024cc4383d012fb331577b576f8799",
+            "bytes": 27208
+          },
+          "matmul_row_preserve.inc": {
+            "sha256": "d6379d3a7577356210d68893f1475fac91244f6cd9c4845135e2035698d23413",
+            "bytes": 21360
+          },
+          "matmul_row_q4.inc": {
+            "sha256": "ad11a650af32282a5b6e6dc2cd2cc251dae0789307d4b76dd9a3cb0496fff441",
+            "bytes": 61368
+          },
+          "matmul_row_q4_dot.inc": {
+            "sha256": "e143bb41433ec61818a4bc32201d9293ea31359a4fc34adae86064c9a75452b5",
+            "bytes": 39624
+          },
+          "matmul_row_q4_dot8.inc": {
+            "sha256": "9eb6c43a97a782471ca013555f29e898654dad9f4a74810e8b7d76dd7791b9be",
+            "bytes": 33424
+          },
+          "matmul_row_q8w.inc": {
+            "sha256": "0cf25f3cc9444228c2b8e2e4863eac5e2f3df7d2f91dc517c6151edabf3e21fe",
+            "bytes": 14548
+          },
+          "matmul_row_q8w_preserve.inc": {
+            "sha256": "c11fbaa278d55a5feaccece2b6484001d323765fea5685b39f6ade6f22042120",
+            "bytes": 14756
+          },
+          "matmul_tile.inc": {
+            "sha256": "3fb5ccc5e95cdb0e90aae4f37951047e01aa8c356e7622eb8b639ae1d1802b11",
+            "bytes": 20668
+          },
+          "matmul_tile_q.inc": {
+            "sha256": "3646e0b5b0d2b1d25201776226724c4161939feead7326ed6b1b07b5eef68ac3",
+            "bytes": 26836
+          },
+          "matmul_tile_q6.inc": {
+            "sha256": "2f9d768daa754bb4ed360b98ecee072e72e1d8cef432b116b298dc5c22ba8fad",
+            "bytes": 22340
+          },
+          "matmul_tile_q8.inc": {
+            "sha256": "ae863d34a6042dda7219786e77a095576c4e459fc7df62d9df5b976dd81d7b5b",
+            "bytes": 17956
+          },
+          "matmul_vec_q8.inc": {
+            "sha256": "106e1f3e78d0d0628f8d1870777343e9c632a2abe2d4e4d86e3428e482175d33",
+            "bytes": 36956
+          },
+          "matmul_vec_q8_preserve.inc": {
+            "sha256": "a2ec17dbbd3cb7e37dfcfd149769d3f15bd23e2800b70e8bcfa70dea0371e81e",
+            "bytes": 37676
+          },
+          "moe_combine.inc": {
+            "sha256": "d2507f58159b6b3c1dfb2c927498ea53d29ec889b3e35d451999f6c09b5047b8",
+            "bytes": 3068
+          },
+          "moe_group.inc": {
+            "sha256": "c532dae7fe317d53ae6d1fd7604d725f43e2a16496f96f3a64e6ae2b438c2830",
+            "bytes": 5916
+          },
+          "moe_route.inc": {
+            "sha256": "c5f144e18080f83ed32d05c8ca0ea3eb245216672a59871c49b97440515bf617",
+            "bytes": 7140
+          },
+          "norm_rope_kv.inc": {
+            "sha256": "d174a0d1a7dcdc4347e36d39e1d127e9fddc4310c996485efc249bfa8f9cd5d0",
+            "bytes": 7588
+          },
+          "norm_rope_kv_k16.inc": {
+            "sha256": "363c9fbd57f8a873b1624d2e0231562148fcda4f2079d06af356b0e7fbec7fb1",
+            "bytes": 11252
+          },
+          "norm_rope_kv_kv16.inc": {
+            "sha256": "237b351aa68343dfbe88c60d377d2f1b7afa1e6985cbf0bce91d6c95e2bd2c0f",
+            "bytes": 12952
+          },
+          "norm_rope_kv_v16.inc": {
+            "sha256": "b32a9eb166d82bc0a258d900908abcbca03b53d1629d8267e97672f1477f3e1c",
+            "bytes": 9584
+          },
+          "norm_rope_partial.inc": {
+            "sha256": "9558abc09240fe416a0a43cddf0b990cc58d4c4cf4c59ccaae306d0ae8818ef9",
+            "bytes": 4376
+          },
+          "quantize_x.inc": {
+            "sha256": "f109b196aadc3c795c2f8eb86dac762c56e824dd3a2a40e0b3166643a387eaff",
+            "bytes": 42020
+          },
+          "quantize_xw.inc": {
+            "sha256": "66ce1ee69191233845adf788aca76c2fae77566b1aae9fc36e1ad006c56ed54a",
+            "bytes": 29396
+          },
+          "rms_norm_rows.inc": {
+            "sha256": "8467c90d349d22edfa381181909337ed49f5c155df4c4038b58dd4fa398f6a8b",
+            "bytes": 74560
+          },
+          "sigmoid_mul.inc": {
+            "sha256": "76ed1014950e2cdb2bdb62c7bb34d4b85b9e7fddcfcfc5127c346e980c889cfb",
+            "bytes": 73128
+          },
+          "silu_mul.inc": {
+            "sha256": "8154e997e29542b7e3d49617b1f2411f1b7d3447efa56928d87405051e5878a3",
+            "bytes": 71472
+          }
+        },
+        "candidate_modules": {
+          "add.inc": {
+            "sha256": "7f88070e6db28163c6d3600ce48e742c90f5e394f6d7bff3027cf27253627707",
+            "bytes": 1080
+          },
+          "attention.inc": {
+            "sha256": "0921d06a42fd8978dc46f9de2564dfdb4fa653b8dc81843baac68544ee4f2b77",
+            "bytes": 52860
+          },
+          "attention_g4.inc": {
+            "sha256": "678ce3f72444b634543ddded37bdf3d0a11ed9b37e2e05dec75330f2cc04ea9c",
+            "bytes": 56828
+          },
+          "attention_k16.inc": {
+            "sha256": "add89ec02b7f2fd06884ca7d320415ffb5ce0c83588316e7c906d491e240204f",
+            "bytes": 53140
+          },
+          "attention_k16_g4.inc": {
+            "sha256": "9b7ffdf33d272aaf61c5bf573878e966fb0e9e77ae8191e9cbeacf626a9ed248",
+            "bytes": 57108
+          },
+          "attention_kv16.inc": {
+            "sha256": "5a8f2519cfb4e692e7b46f996b5bad7bbfc40872efd1735626c3e35d97e6ba23",
+            "bytes": 53380
+          },
+          "attention_kv16_g4.inc": {
+            "sha256": "c97aec76d8e3a778d10c9dd4053bb8510d815e180f984db4c833b179a643f86f",
+            "bytes": 57348
+          },
+          "attention_merge.inc": {
+            "sha256": "9a4b0eb1bbea9dba8c088624ddc19f38af9863218e7d9f3c9b3c8fdf9ac98b5b",
+            "bytes": 44636
+          },
+          "attention_tile.inc": {
+            "sha256": "1626fe6b8487df88d67527eb90c83244dba41a095bb2d64bddb3c8ca26c3976b",
+            "bytes": 38480
+          },
+          "attention_tile_d256.inc": {
+            "sha256": "455c1aa7dccb5cb763d22e189fa46f2c7ba35bb555999fbf4371f24cd05c1881",
+            "bytes": 38424
+          },
+          "attention_tile_d256_k16.inc": {
+            "sha256": "7af57ca112f1f57ef13fe91d72779312f19445a207d7352b7312a7271d92954f",
+            "bytes": 38828
+          },
+          "attention_tile_d256_kv16.inc": {
+            "sha256": "649af5c09317d38da046df88e37fb70651dd0948979a6f9f172ee702aa361f97",
+            "bytes": 39124
+          },
+          "attention_tile_d256_v16.inc": {
+            "sha256": "d19c2515adbe6018e7cafc2207b68d2021a0c35c420ee7586b14f32e1cbf56d2",
+            "bytes": 38828
+          },
+          "attention_tile_k16.inc": {
+            "sha256": "d8a1435a1374d7141a6ed7eca6cf3ae4a3cf7fc80d3094f7fea45eb181c127d3",
+            "bytes": 38884
+          },
+          "attention_tile_kv16.inc": {
+            "sha256": "2efbbf5609c4be0d389e859a371dcbcfdecfa5ecb866127fd8b7ffef03a1f2c4",
+            "bytes": 39180
+          },
+          "attention_tile_v16.inc": {
+            "sha256": "154f664e9a616c7914daf7d0a581338bde01ff46bad2ee464c0e95d708729cce",
+            "bytes": 38884
+          },
+          "attention_v16.inc": {
+            "sha256": "9731720a65472d3755b2ccf2da2333091fe69898a6fbbee4fe0ed0a6e2882585",
+            "bytes": 53140
+          },
+          "attention_v16_g4.inc": {
+            "sha256": "98068c9ceb1416fcabef50393a04ab34f4bd71f3d58c48532873a82cbb5a1950",
+            "bytes": 57108
+          },
+          "attention_vec.inc": {
+            "sha256": "e5156c94f59fabec0723d10079e4786bf37503495d6c1c3ca1e6a5be44380116",
+            "bytes": 52912
+          },
+          "attention_vec_d256.inc": {
+            "sha256": "247001dd9df45480359c08ec7c5be3779c543cd0d93eccfd03693eb9d5c5b380",
+            "bytes": 52912
+          },
+          "attention_vec_d256_g4.inc": {
+            "sha256": "e1788b78acdbea319a59e3f295636ee858cfaf17ac3e9a01ea1141de4888974d",
+            "bytes": 61236
+          },
+          "attention_vec_d256_k16.inc": {
+            "sha256": "e90d843bcf9e05d692b9220ea7e5c9c7f3437909428e84b7a3c4c5bf191637c1",
+            "bytes": 53100
+          },
+          "attention_vec_d256_k16_g4.inc": {
+            "sha256": "c71f56eeeb9c45f8b0bd0ffe9f586798a5b77a2ad62a9610f65a0a3afb7d3861",
+            "bytes": 61736
+          },
+          "attention_vec_d256_kv16.inc": {
+            "sha256": "98d21b0f26964f37b844ed16958fc4a4751280dbe6a5860eb8b158f0854b3552",
+            "bytes": 53180
+          },
+          "attention_vec_d256_kv16_g4.inc": {
+            "sha256": "b312f6da003fea31c57dc180771b0d7e05c9592f922ed69870e8184557993c24",
+            "bytes": 62008
+          },
+          "attention_vec_d256_v16.inc": {
+            "sha256": "535688b099b9ed9da89ac0634964f54ee63ed8c935dcf95b41207ef4aa8e13fb",
+            "bytes": 53100
+          },
+          "attention_vec_d256_v16_g4.inc": {
+            "sha256": "c51f2b611bf468e43b9c175de4299c3b4ccd514863cdcd352bc988454b53496b",
+            "bytes": 61736
+          },
+          "attention_vec_g4.inc": {
+            "sha256": "d250411c031ecf519e306c9e56012bc881f9c52ad4dce9b0ca56350c61ce77cf",
+            "bytes": 61236
+          },
+          "attention_vec_k16.inc": {
+            "sha256": "d18382e568fc6359670b3587f8fa28ce9019c037b352fd55919500a6069a5fae",
+            "bytes": 53100
+          },
+          "attention_vec_k16_g4.inc": {
+            "sha256": "601fbf587a502d11c3127e3f3708285f000b6c823f0bfebb90a704964fceadb4",
+            "bytes": 61736
+          },
+          "attention_vec_kv16.inc": {
+            "sha256": "9f9a4738c0bfb843df7155503a54d99b7934b01e8079e63b41b1787a6d170fd2",
+            "bytes": 53180
+          },
+          "attention_vec_kv16_g4.inc": {
+            "sha256": "833b516070deec05b9fd5b26a70509a32222f6f4897e3fc8358dc409b87d871d",
+            "bytes": 62008
+          },
+          "attention_vec_v16.inc": {
+            "sha256": "63d64ee98d5933d0240bec061275af2ba60d0fde329adce84c18ea8f4dba351b",
+            "bytes": 53100
+          },
+          "attention_vec_v16_g4.inc": {
+            "sha256": "17dfa4fc9007af69acee73393cfc3ea4c5b22103a54cb6f928e5d128f870a305",
+            "bytes": 61736
+          },
+          "causal_conv_silu.inc": {
+            "sha256": "e5fb37bff7ebc42e208fd7dd257bdf0bf532d36e5fa7c18b3616f9c2cbe6387d",
+            "bytes": 8176
+          },
+          "delta_rule.inc": {
+            "sha256": "53dcb7eef2c57219969dd7023c8ca88377f4f4c73a6d71af09318fb92dd6174a",
+            "bytes": 31372
+          },
+          "embed.inc": {
+            "sha256": "f0f5486a5b49949a856f910072e833ebaa074632d274226fed7f1836243d0ccd",
+            "bytes": 11168
+          },
+          "gated_rms_norm.inc": {
+            "sha256": "1ca823fdd7622e53267cbb4973d532739ffc2d12e7ff194118bc2d41ab8bfa2f",
+            "bytes": 73576
+          },
+          "gather_rows.inc": {
+            "sha256": "ab24127c7776027fd7c43c1ed70ecc1b246a9b70927f12e756d4498b7c8a749e",
+            "bytes": 1492
+          },
+          "kv_write.inc": {
+            "sha256": "5bf1f137234d9d6133054bf6a49daeac686edb6d02381174c08949abc488e79e",
+            "bytes": 3144
+          },
+          "kv_write_k16.inc": {
+            "sha256": "072e52c1181701913f9af85955e02a062a79ed35673807f660194a9413737e27",
+            "bytes": 5124
+          },
+          "kv_write_kv16.inc": {
+            "sha256": "a6cdbf0f20968d8d24287cca037a1b46faa1896776704cfdfc28b8b2c3380772",
+            "bytes": 6808
+          },
+          "kv_write_v16.inc": {
+            "sha256": "88bf3c5b9fdb9998049714f6a702fb390d1967bb2bd27d9ff08aba9d56370334",
+            "bytes": 5124
+          },
+          "matmul_reduce.inc": {
+            "sha256": "6b97de911594b757ff34b17b548271abbdfba8af826d08407d5ef91bd6ac2fc6",
+            "bytes": 3140
+          },
+          "matmul_row.inc": {
+            "sha256": "214a7918bb04f787d1f7dc30bb3120d7e1d80043bb6104092983bfd5099f983d",
+            "bytes": 20800
+          },
+          "matmul_row_k.inc": {
+            "sha256": "3efdc90a9f963585346a4775c2668b2f2b119769d18429ff09ad83eb90e4f10f",
+            "bytes": 37144
+          },
+          "matmul_row_k4.inc": {
+            "sha256": "11865adfdc702f230060fddc8a038fa08988de7101e3bc78d8b8419b42eb2af4",
+            "bytes": 31052
+          },
+          "matmul_row_k4_dot.inc": {
+            "sha256": "e902d44d1df8d66e42e71c5c0b499907d6d76e86d59d5f861722446a57a1cd00",
+            "bytes": 21956
+          },
+          "matmul_row_k5.inc": {
+            "sha256": "ebef2c844bcfb6c76b3663e971b625f633e3be6e1785201c808543d3c84a863e",
+            "bytes": 32652
+          },
+          "matmul_row_k5_dot.inc": {
+            "sha256": "c19391517b366468ef29a59c957d5eb7c256a06958a91b516e9891d096467872",
+            "bytes": 23716
+          },
+          "matmul_row_k_dot.inc": {
+            "sha256": "c5d35239e6e7560588d7d39782f67983d8663735b6e3abfe4369c59afc9edd0d",
+            "bytes": 30008
+          },
+          "matmul_row_k_dot8.inc": {
+            "sha256": "faf2e49ef3a7b5bf9da272a5bd026681a2024cc4383d012fb331577b576f8799",
+            "bytes": 27208
+          },
+          "matmul_row_preserve.inc": {
+            "sha256": "d6379d3a7577356210d68893f1475fac91244f6cd9c4845135e2035698d23413",
+            "bytes": 21360
+          },
+          "matmul_row_q4.inc": {
+            "sha256": "ad11a650af32282a5b6e6dc2cd2cc251dae0789307d4b76dd9a3cb0496fff441",
+            "bytes": 61368
+          },
+          "matmul_row_q4_dot.inc": {
+            "sha256": "e143bb41433ec61818a4bc32201d9293ea31359a4fc34adae86064c9a75452b5",
+            "bytes": 39624
+          },
+          "matmul_row_q4_dot8.inc": {
+            "sha256": "9eb6c43a97a782471ca013555f29e898654dad9f4a74810e8b7d76dd7791b9be",
+            "bytes": 33424
+          },
+          "matmul_row_q8w.inc": {
+            "sha256": "0cf25f3cc9444228c2b8e2e4863eac5e2f3df7d2f91dc517c6151edabf3e21fe",
+            "bytes": 14548
+          },
+          "matmul_row_q8w_preserve.inc": {
+            "sha256": "c11fbaa278d55a5feaccece2b6484001d323765fea5685b39f6ade6f22042120",
+            "bytes": 14756
+          },
+          "matmul_tile.inc": {
+            "sha256": "3fb5ccc5e95cdb0e90aae4f37951047e01aa8c356e7622eb8b639ae1d1802b11",
+            "bytes": 20668
+          },
+          "matmul_tile_q.inc": {
+            "sha256": "3646e0b5b0d2b1d25201776226724c4161939feead7326ed6b1b07b5eef68ac3",
+            "bytes": 26836
+          },
+          "matmul_tile_q6.inc": {
+            "sha256": "2f9d768daa754bb4ed360b98ecee072e72e1d8cef432b116b298dc5c22ba8fad",
+            "bytes": 22340
+          },
+          "matmul_tile_q8.inc": {
+            "sha256": "ae863d34a6042dda7219786e77a095576c4e459fc7df62d9df5b976dd81d7b5b",
+            "bytes": 17956
+          },
+          "matmul_vec_q8.inc": {
+            "sha256": "106e1f3e78d0d0628f8d1870777343e9c632a2abe2d4e4d86e3428e482175d33",
+            "bytes": 36956
+          },
+          "matmul_vec_q8_preserve.inc": {
+            "sha256": "a2ec17dbbd3cb7e37dfcfd149769d3f15bd23e2800b70e8bcfa70dea0371e81e",
+            "bytes": 37676
+          },
+          "moe_combine.inc": {
+            "sha256": "d2507f58159b6b3c1dfb2c927498ea53d29ec889b3e35d451999f6c09b5047b8",
+            "bytes": 3068
+          },
+          "moe_group.inc": {
+            "sha256": "c532dae7fe317d53ae6d1fd7604d725f43e2a16496f96f3a64e6ae2b438c2830",
+            "bytes": 5916
+          },
+          "moe_route.inc": {
+            "sha256": "c5f144e18080f83ed32d05c8ca0ea3eb245216672a59871c49b97440515bf617",
+            "bytes": 7140
+          },
+          "norm_rope_kv.inc": {
+            "sha256": "d174a0d1a7dcdc4347e36d39e1d127e9fddc4310c996485efc249bfa8f9cd5d0",
+            "bytes": 7588
+          },
+          "norm_rope_kv_k16.inc": {
+            "sha256": "363c9fbd57f8a873b1624d2e0231562148fcda4f2079d06af356b0e7fbec7fb1",
+            "bytes": 11252
+          },
+          "norm_rope_kv_kv16.inc": {
+            "sha256": "237b351aa68343dfbe88c60d377d2f1b7afa1e6985cbf0bce91d6c95e2bd2c0f",
+            "bytes": 12952
+          },
+          "norm_rope_kv_v16.inc": {
+            "sha256": "b32a9eb166d82bc0a258d900908abcbca03b53d1629d8267e97672f1477f3e1c",
+            "bytes": 9584
+          },
+          "norm_rope_partial.inc": {
+            "sha256": "9558abc09240fe416a0a43cddf0b990cc58d4c4cf4c59ccaae306d0ae8818ef9",
+            "bytes": 4376
+          },
+          "quantize_x.inc": {
+            "sha256": "f109b196aadc3c795c2f8eb86dac762c56e824dd3a2a40e0b3166643a387eaff",
+            "bytes": 42020
+          },
+          "quantize_xw.inc": {
+            "sha256": "66ce1ee69191233845adf788aca76c2fae77566b1aae9fc36e1ad006c56ed54a",
+            "bytes": 29396
+          },
+          "rms_norm_rows.inc": {
+            "sha256": "8467c90d349d22edfa381181909337ed49f5c155df4c4038b58dd4fa398f6a8b",
+            "bytes": 74560
+          },
+          "sigmoid_mul.inc": {
+            "sha256": "76ed1014950e2cdb2bdb62c7bb34d4b85b9e7fddcfcfc5127c346e980c889cfb",
+            "bytes": 73128
+          },
+          "silu_mul.inc": {
+            "sha256": "8154e997e29542b7e3d49617b1f2411f1b7d3447efa56928d87405051e5878a3",
+            "bytes": 71472
+          }
+        },
+        "count": 77,
+        "equal": true
+      }
+    },
+    "windows_vulkan_suite": {
+      "report": {
+        "status": "pass",
+        "pid": 14832,
+        "scope": "Reuse current9be203b9 Vulkan build after native40/40. First suite invocation refused two absent Qwen3.5 fixtures before tests; copy existing rig fixtures, verify pinned hashes, rerun unchanged required-baseline suite.",
+        "copies": [
+          {
+            "file": "Qwen3.5-0.8B-Q8_0.gguf",
+            "source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/fixtures/Qwen3.5-0.8B-Q8_0.gguf",
+            "destination": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3.5-0.8B-GGUF\\snapshots\\6ab461498e2023f6e3c1baea90a8f0fe38ab64d0\\Qwen3.5-0.8B-Q8_0.gguf",
+            "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c"
+          },
+          {
+            "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+            "source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/fixtures/Qwen3.5-0.8B-Q4_K_M.gguf",
+            "destination": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3.5-0.8B-GGUF\\snapshots\\6ab461498e2023f6e3c1baea90a8f0fe38ab64d0\\Qwen3.5-0.8B-Q4_K_M.gguf",
+            "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+          }
+        ],
+        "exe_sha256": "44a97d06865de00f3974b16f789d1f88517762a3725ef10915f00cacf8452a74",
+        "version": "llmx 0.1.0+g9be203b963bc",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build-vulkan\\Release\\llmx.exe",
+          "--require-tools",
+          "--no-perf-floor",
+          "--require-baseline",
+          "--device",
+          "vulkan:0"
+        ],
+        "child_pid": 21124,
+        "exit": 0
+      },
+      "component_summary": "dead-code  PASS\n  docs       PASS\n  arch-boundary PASS\n  version    PASS\n  cli        PASS\n  reference-generator PASS\n  reference-consumer PASS\n  device-reference PASS\n  roundtrip  PASS\n  raw-blocks PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  moe        PASS\n  mxfp4      SKIP\n  qwen35     PASS\n  split      PASS\n  decode-probe PASS\n  shards     PASS\n  server     PASS\n  server-load PASS\n  chat       PASS\n  threads    PASS\n  baseline   PASS",
+      "skips": [
+        "roundtrip: file-size limit injection unavailable on this platform [skip]",
+        "mxfp4: SKIP - selected device has no MXFP4 kernel",
+        "server: SKIP MXFP4 - selected device has no MXFP4 kernel",
+        "  mxfp4      SKIP"
+      ],
+      "logs_sha256": {
+        "suite.stdout": "2e0bfa5ff73384566950db49426a94352cfd68c282c85fb083d350512ef0ac79",
+        "suite.stderr": "a21011593881d84d202b339aa7ecd464e27aca7bb777f2c7656fa4e12338f42b"
+      },
+      "native_and_initial_missing_fixture_attempt": {
+        "status": "failed",
+        "pid": 22732,
+        "arms": {
+          "main": {
+            "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930",
+            "head": "c1398b1b7916bc0753e33ea5742fa2c495b84826",
+            "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930\\build-vulkan\\Release\\llmx.exe",
+            "version": "llmx 0.1.0+gc1398b1b7916",
+            "sha256": "37aef07fcc87849aff87ae0720bbb953464559198125b115bb42edad9a2ff5b9"
+          },
+          "candidate": {
+            "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+            "head": "9be203b963bcafc2af60289fcffdd295706471fc",
+            "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build-vulkan\\Release\\llmx.exe",
+            "version": "llmx 0.1.0+g9be203b963bc",
+            "sha256": "44a97d06865de00f3974b16f789d1f88517762a3725ef10915f00cacf8452a74"
+          }
+        },
+        "commands": [
+          {
+            "label": "main-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930",
+              "-B",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930\\build-vulkan",
+              "-G",
+              "Visual Studio 18 2026",
+              "-A",
+              "x64",
+              "-DLLMX_HAS_BACKEND_VULKAN=ON",
+              "-DBUILD_TESTING=ON"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930",
+            "started": "2026-09-30T02:06:46.318701+00:00",
+            "pid": 26988,
+            "exit": 0
+          },
+          {
+            "label": "main-build",
+            "args": [
+              "cmake",
+              "--build",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930\\build-vulkan",
+              "--config",
+              "Release",
+              "--parallel",
+              "2",
+              "--target",
+              "llmx",
+              "llmx-model-logits"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930",
+            "started": "2026-09-30T02:06:50.371471+00:00",
+            "pid": 34400,
+            "exit": 0
+          },
+          {
+            "label": "candidate-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+              "-B",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build-vulkan",
+              "-G",
+              "Visual Studio 18 2026",
+              "-A",
+              "x64",
+              "-DLLMX_HAS_BACKEND_VULKAN=ON",
+              "-DBUILD_TESTING=ON"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+            "started": "2026-09-30T02:07:41.417659+00:00",
+            "pid": 19708,
+            "exit": 0
+          },
+          {
+            "label": "candidate-build",
+            "args": [
+              "cmake",
+              "--build",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build-vulkan",
+              "--config",
+              "Release",
+              "--parallel",
+              "2"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+            "started": "2026-09-30T02:07:44.716671+00:00",
+            "pid": 20056,
+            "exit": 0
+          },
+          {
+            "label": "native",
+            "args": [
+              "ctest",
+              "--test-dir",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build-vulkan",
+              "-C",
+              "Release",
+              "--output-on-failure"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+            "started": "2026-09-30T02:09:04.385891+00:00",
+            "pid": 34776,
+            "exit": 0
+          },
+          {
+            "label": "suite",
+            "args": [
+              "python",
+              "-X",
+              "utf8",
+              "tests/run_tests.py",
+              "--exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build-vulkan\\Release\\llmx.exe",
+              "--require-tools",
+              "--no-perf-floor",
+              "--require-baseline",
+              "--device",
+              "vulkan:0"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930",
+            "started": "2026-09-30T02:10:23.837941+00:00",
+            "pid": 32392,
+            "exit": 2
+          }
+        ],
+        "scope": "Existing-type Radeon regression validation for CPU-only MXFP4 integration 9be203b9 versus main c1398b1b: matching detached sources and fresh MSVC Vulkan builds, native and complete device suite. New MXFP4 device fixtures must report unsupported-type skips. No timing claims.",
+        "error": "Traceback (most recent call last):\n  File \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q35-windows-vulkan-check-20260930.py\", line 21, in <module>\n    run('suite',['python','-X','utf8','tests/run_tests.py','--exe',str(build/'Release/llmx.exe'),'--require-tools','--no-perf-floor','--require-baseline','--device','vulkan:0'],root)\n  File \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q35-windows-vulkan-check-20260930.py\", line 9, in run\n    save();assert rec['exit']==0,label;print('PASS',label,flush=True)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: suite\n"
+      },
+      "native_stdout_sha256": "283067b77f3225415a35b6d5dc759cf3601ac808c27ae3a95a38b97f4d624fb2"
     }
   },
   "source_and_docs_review": {
@@ -3553,7 +7300,7 @@
     "correction": "Earlier CPU-merge-blocking language based solely on this additional diagnostic overstated the approved CPU gate."
   },
   "remaining": [
-    "Linux full CPU identity and the applicable device identity matrix remain open. Windows full CPU matrix is complete: 18 model/cache cells, 54 raw capture pairs.",
+    "Complete existing-model identities on Windows CPU, Linux CPU and one MI50: 18 model/cache cells and 54 raw pairs each. Two-MI50 equal split and Radeon/hybrid identity coverage remain open.",
     "Applicable platform/device, split and real-model server consistency evidence.",
     "Remaining required CPU timing cells and assessment; first-support allowance does not close speed gaps.",
     "Required HF and final hosted gate on the reconciled source before public merge."

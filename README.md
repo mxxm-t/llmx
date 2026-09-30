@@ -2,9 +2,8 @@
 
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
-llmx is an LLM inference runtime written in C++17 that links no third-party libraries.
-It runs Qwen-family models from GGUF files on CPUs and GPUs, from the command line or as an HTTP server with OpenAI-compatible routes, and can run one model over several devices of one machine.
-The tables below mark each item **Supported** (works today) or **Planned** (on the [ROADMAP](docs/ROADMAP.md), not implemented yet).
+llmx is a dependency-free LLM inference runtime in C++17 for CPUs and GPUs, run from the command line or as an OpenAI-compatible server, and able to run one model over several devices of one machine.
+The tables below list the supported models, file formats, quantization types, backends and multi-device modes, each marked **Supported** (works today) or **Planned** (on the [ROADMAP](docs/ROADMAP.md), not implemented yet).
 
 ## Supported models
 

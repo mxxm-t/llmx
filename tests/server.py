@@ -340,7 +340,7 @@ def check_ignore_eos_real(model):
             reply = post_ok(srv, "/v1/chat", dict({"messages": messages, "max_tokens": n, "temperature": 0}, **body))
             assert reply["text"] == text and reply["finish"] == finish and (finish == "eos") == (reply["tokens"] < n), (body, reply, text)
         reply = post_ok(srv, "/v1/chat/completions", {"messages": messages, "max_tokens": n, "temperature": 0, "ignore_eos": True})
-        assert reply["choices"][0]["message"]["content"] == chat_full and reply["choices"][0]["finish_reason"] == "length", reply
+        assert reply["choices"][0]["message"] == split_reply(chat_full) and reply["choices"][0]["finish_reason"] == "length", (reply, chat_full)
         alone_and_together(srv, [dict(base, temperature=0, ignore_eos=on) for on in (False, True)] +
                            [dict(base, temperature=0.8, seed=11, ignore_eos=True), dict(base, prompt="The capital of France is", temperature=0, ignore_eos=True)])
     finally:
@@ -512,6 +512,20 @@ REASONING_TEMPLATE = ("{% if messages[-1]['role'] != 'user' %}{{ raise_exception
 # The same without the reasoning, as a template that knows none is written.
 PLAIN_TEMPLATE = ("{{ messages|length }}{% for m in messages %}|{{ m.role }}:{{ m.content * 3 }}{% endfor %}"
                   "{% if add_generation_prompt %}|assistant:\n{% endif %}")
+# The same opening the reply inside <think>, as the Qwen 3.5 templates do, so the reply's reasoning is "qr" and its content "o", unless the request sets enable_thinking false, which closes the <think> in the prompt as those templates do.
+OPEN_TEMPLATE = PLAIN_TEMPLATE.replace("|assistant:\n", "|assistant:{% if enable_thinking is defined and not enable_thinking %}<think>\n\n</think>\n\n"
+                                                        "{% else %}<think>\n{% endif %}")
+
+
+def split_reply(text, opened=False):
+    """The message the compatible chat route gives for reply `text`, written from the rule rather than the server's code: a reply inside <think>, opened by the template (`opened`) or by the reply after any newlines, gives the text up to the first </think> as reasoning_content, without the newlines around it, and the rest as content, without the newlines opening it; a cut-off reply is all reasoning; any other reply is all content."""
+    if not opened:
+        body = text.lstrip("\n")
+        if not body.startswith("<think>"):
+            return {"role": "assistant", "content": text}
+        text = body[len("<think>"):]
+    reasoning, closed, rest = text.partition("</think>")
+    return {"role": "assistant", "reasoning_content": reasoning.strip("\n"), "content": rest.lstrip("\n") if closed else ""}
 
 
 def reasoning_tensors():
@@ -569,7 +583,7 @@ def check_reasoning(model):
             status, got = srv.post("/v1/chat", {"messages": messages, "max_tokens": 16, "temperature": 0})
             assert status == 200 and got["text"] == reply and got["prompt_tokens"] == counts[1], (messages, got)
         status, got = srv.post("/v1/chat/completions", {"messages": second, "max_tokens": 16, "temperature": 0})
-        assert status == 200 and got["choices"][0]["message"]["content"] == reply, got
+        assert status == 200 and got["choices"][0]["message"]["content"] == reply and "reasoning_content" not in got["choices"][0]["message"], got
         assert got["usage"]["prompt_tokens"] == counts[1], got
         # /v1/tokenize renders messages as the chat routes do, so it counts the same prompt for each form of the turn.
         for messages in (raw, null, second):
@@ -597,6 +611,35 @@ def check_reasoning(model):
     try:
         status, got = srv.post("/v1/chat", {"messages": whole, "max_tokens": 16, "temperature": 0})
         assert status == 200 and got["text"] == reply and got["prompt_tokens"] == counts[1], got
+    finally:
+        srv.close()
+    # A template that opens the reply inside <think>: the compatible chat route gives the text before </think> as reasoning_content and the rest as content, whole and streamed, while the native route keeps the text whole; the plain template above gave the text whole as content.
+    f32.write_model(model, reasoning_tensors(), OPEN_TEMPLATE, f32.VOCAB - 1, config=REASONING_CONFIG)
+    srv = Server(model)
+    try:
+        body = {"messages": first, "max_tokens": 16, "temperature": 0}
+        status, got = srv.post("/v1/chat/completions", body)
+        message = got["choices"][0]["message"]
+        assert status == 200 and message == split_reply(reply, opened=True) == {"role": "assistant", "reasoning_content": "qr", "content": "o"}, got
+        events = srv.stream("/v1/chat/completions", dict(body, stream=True))
+        deltas = [e["choices"][0]["delta"] for e in events if e and e.get("choices")]
+        assert deltas[0]["role"] == "assistant" and events[-1] is None, events
+        assert "".join(d.get("reasoning_content", "") for d in deltas) == "qr" and "".join(d.get("content", "") for d in deltas) == "o", deltas
+        status, got = srv.post("/v1/chat", body)
+        assert status == 200 and got["text"] == reply, got
+        # chat_template_kwargs reach the template: with enable_thinking false the prompt closes the <think>, so the whole reply is content; the native chat route and /v1/tokenize render the same prompt.
+        off = dict(body, chat_template_kwargs={"enable_thinking": False})
+        status, got = srv.post("/v1/chat/completions", off)
+        assert status == 200 and got["choices"][0]["message"] == split_reply(reply) == {"role": "assistant", "content": reply}, got
+        closed = len(reasoning_render(first).replace("|assistant:\n", "|assistant:<think>\n\n</think>\n\n"))
+        assert got["usage"]["prompt_tokens"] == closed, (got, closed)
+        status, got = srv.post("/v1/tokenize", {"messages": first, "chat_template_kwargs": {"enable_thinking": False}})
+        assert status == 200 and got["count"] == closed, got
+        for bad, text in (({"chat_template_kwargs": [1]}, "chat_template_kwargs must be an object"),
+                          ({"chat_template_kwargs": {"messages": []}}, "chat_template_kwargs cannot set messages"),
+                          ({"chat_template_kwargs": {"x": {"y": 1}}}, "chat_template_kwargs values must be")):
+            status, err = srv.post("/v1/chat/completions", dict(body, **bad))
+            assert status == 400 and text in err["error"]["message"], (bad, err)
     finally:
         srv.close()
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_chat_template.json"), encoding="utf-8") as f:
@@ -700,9 +743,10 @@ def check_logprob_shape(path, reply, ids):
         assert all(set(t) == {"token", "logprob", "bytes"} for t in entry["top_logprobs"]), entry
         check_top(entry, entry["top_logprobs"], (path, i))
         assert entry["top_logprobs"][0]["bytes"] == entry["bytes"], entry
+    # The tokens are the whole reply, its reasoning included, so they give the message it splits into.
     whole = b"".join(bytes(e["bytes"]) for e in content)
     try:
-        assert whole.decode("utf-8") == choice["message"]["content"], (whole, choice["message"]["content"])
+        assert split_reply(whole.decode("utf-8")) == choice["message"], (whole, choice["message"])
     except UnicodeDecodeError:
         pass  # a reply ending inside a character holds bytes its text replaced
 

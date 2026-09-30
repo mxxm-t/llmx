@@ -4,6 +4,9 @@
 #include <iostream>
 #include <iterator>
 #include <map>
+#include <string>
+#include <utility>
+#include <vector>
 #include "core/json.hpp"
 #include "core/sha.hpp"
 #include "inference/chat.hpp"
@@ -154,6 +157,37 @@ void check_output(const std::string& what, const std::string& source, const std:
         if (got != expected) tally.fail(what + ": renders \"" + got + "\" where Jinja renders \"" + expected + "\"");
     } catch (const chat::TemplateError& e) {
         tally.fail(what + ": fails with \"" + e.what() + "\"");
+    }
+}
+
+// A reply split into its reasoning and content, inside a <think> the template opened (`opened`) or the reply opens: the whole text at once and cut at every byte and every pair of bytes, fed piece by piece, give the same parts.
+void check_reply_split(const std::string& what, bool opened, const std::string& text, const std::string& reasoning, const std::string& content, Tally& tally) {
+    auto split = [opened](const std::vector<std::string>& pieces) {
+        chat::ReplySplit splitter(opened);
+        chat::ReplySplit::Parts all;
+        for (const std::string& piece : pieces) {
+            const chat::ReplySplit::Parts p = splitter.feed(piece);
+            all.reasoning += p.reasoning;
+            all.content += p.content;
+        }
+        const chat::ReplySplit::Parts p = splitter.finish();
+        all.reasoning += p.reasoning;
+        all.content += p.content;
+        return all;
+    };
+    std::vector<std::vector<std::string>> cuts = { { text } };
+    for (size_t i = 0; i <= text.size(); ++i) {
+        cuts.push_back({ text.substr(0, i), text.substr(i) });
+        for (size_t j = i; j <= text.size(); ++j) cuts.push_back({ text.substr(0, i), text.substr(i, j - i), text.substr(j) });
+    }
+    std::vector<std::string> bytes;
+    for (char c : text) bytes.push_back(std::string(1, c));
+    cuts.push_back(bytes);
+    for (const auto& pieces : cuts) {
+        ++tally.cases;
+        const chat::ReplySplit::Parts got = split(pieces);
+        if (got.reasoning != reasoning || got.content != content)
+            return tally.fail(what + ": split into reasoning \"" + got.reasoning + "\" and content \"" + got.content + "\" from " + std::to_string(pieces.size()) + " pieces");
     }
 }
 
@@ -373,6 +407,26 @@ int main(int argc, char** argv) {
                      "{{ [1, 2, 1, 3]|select('==', 1)|list }}{{ [1, 2, 3]|reject('<', 2)|list }}{{ [1, 2, 3]|select('>=', 2)|list }}"
                      "{{ [1, 2]|select('!=', 1)|list }}{{ [1, 2, 3]|select('<=', 2)|list }}{{ [1, 2, 3]|select('>', 2)|list }}",
                      "[1, 1][2, 3][2, 3][2][1, 2][3]", tally);
+        // A reply the template opened inside <think>: the reasoning before the first </think> and the reply after it, the newlines around the reasoning and those opening the reply dropped, however the text arrives.
+        check_reply_split("a reasoned reply", true, "Plan it.\n</think>\n\nHello!", "Plan it.", "Hello!", tally);
+        check_reply_split("newlines around the reasoning", true, "\n\nline one\n\nline two\n\n</think>\n\nA\nB\n", "line one\n\nline two", "A\nB\n", tally);
+        check_reply_split("a reply cut off while it reasons", true, "still thinking <\n", "still thinking <", "", tally);
+        check_reply_split("a partial closing tag that is not one", true, "a </thin> b </think>c", "a </thin> b ", "c", tally);
+        check_reply_split("a second </think> in the reply", true, "r</think>x</think>y", "r", "x</think>y", tally);
+        check_reply_split("no reasoning", true, "</think>\n\nonly the reply", "", "only the reply", tally);
+        // A reply that opens its own <think>, as Qwen3's do, splits the same way; one that does not is all content, byte for byte.
+        check_reply_split("a reply that opens <think>", false, "<think>\nPlan it.\n</think>\n\nHello!", "Plan it.", "Hello!", tally);
+        check_reply_split("<think> after newlines", false, "\n<think>x</think>y", "x", "y", tally);
+        check_reply_split("a reply without <think>", false, "\nHello </think> <think>!", "", "\nHello </think> <think>!", tally);
+        check_reply_split("a partial <think> that is not one", false, "<thin", "", "<thin", tally);
+        check_reply_split("<think> not at the start", false, "a<think>b</think>c", "", "a<think>b</think>c", tally);
+        // A prompt leaves the reply inside <think> when its last <think> is not closed.
+        for (const auto& [prompt, open] : std::vector<std::pair<std::string, bool>>{
+                 { "<|im_start|>assistant\n<think>\n", true }, { "<|im_start|>assistant\n<think>\n\n</think>\n\n", false },
+                 { "<|im_start|>assistant\n", false }, { "<think>a</think><|im_start|>assistant\n<think>\n", true } }) {
+            ++tally.cases;
+            if (chat::opens_reasoning(prompt) != open) tally.fail("opens_reasoning of \"" + prompt + "\"");
+        }
         std::cout << templates << " templates and " << features << " feature templates over " << tally.cases << " cases, "
                   << refused << " refusals, " << splits << " splits and " << goldens << " model chat goldens against the HF reference renderer: " << tally.failures << " failed\n";
         if (!templates && !features) throw std::runtime_error("no templates in the fixture");

@@ -3,7 +3,8 @@
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
 llmx is an LLM inference runtime written in C++17 that links no third-party libraries.
-It runs Qwen3 dense and mixture-of-experts models, and dense Qwen 3.5, 3.6 and 3.8 on the CPU, from GGUF files on x86-64 CPUs and on GPUs through Vulkan, from the command line or as an HTTP server with OpenAI-compatible routes.
+It runs Qwen3 dense and mixture-of-experts models from GGUF files on x86-64 CPUs and GPUs through Vulkan, from the command line or as an HTTP server with OpenAI-compatible routes.
+Dense Qwen 3.5, 3.6 and 3.8 models run on the CPU and Vulkan through the command line.
 It downloads models from Hugging Face and can split a model by layers across the GPUs and CPU of one machine.
 
 ## What it runs

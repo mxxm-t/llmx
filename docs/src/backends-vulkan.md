@@ -12,8 +12,8 @@ The lifetime and packed-quantization tests include the implementation and use te
 - `supports_type(type)` accepts F32 and the block types of `decoded_blocks`;
   the model's pre-adoption check and the backend's matrix checks use this
   same query, so they cannot disagree about a weight type.
-  `implements` answers true for every `Op`, so the model's check at load
-  refuses no qwen35 file on this backend.
+  `implements` answers true for every `Op`, so the qwen35 layer ops pass
+  the model's operation-support check at load.
 
 - `make_vulkan_backend(index, diagnostics)`, `vulkan_device_name`: open
   the loader, pick the device, require what the kernels need (Vulkan 1.2,

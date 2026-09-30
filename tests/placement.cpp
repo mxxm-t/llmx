@@ -604,20 +604,23 @@ void histories_fit_the_pool() {
 }
 
 // A device reporting `room` bytes free, which is not the CPU; with `copying` it keeps copies of the weights it adopts, so the fit counts them.
+// With `rise_after`, it reports one byte free for that many reads before `room`, as a device does while it reclaims the memory of a process that has just ended.
 struct SizedDevice : HostMemoryDevice {
     size_t room = 0;
     bool copying = false;
-    std::optional<size_t> memory_available() const override { return room; }
+    mutable int rise_after = 0;
+    std::optional<size_t> memory_available() const override { return rise_after-- > 0 ? 1 : room; }
     bool reads_in_place() const override { return !copying; }
 };
 
 // A server's KV budget (PlacementRequest::fit_kv): the request's budget where it fits, backed whole as the model is made; the most whole blocks that fit where it does not, one more block not fitting; a load refused where not one block fits; and beside experts on the CPU, the device not charged for those layers' feed-forward weights.
 void kv_fitted() {
     const auto weights = fixture();
-    auto place = [&](size_t room, size_t budget, bool fit, const gguf::GGUFModel& m, int cpu_moe = 0, bool copying = false) {
+    auto place = [&](size_t room, size_t budget, bool fit, const gguf::GGUFModel& m, int cpu_moe = 0, bool copying = false, int rise_after = 0) {
         auto device = std::make_shared<SizedDevice>();
         device->room = room;
         device->copying = copying;
+        device->rise_after = rise_after;
         device->set_threads(1);
         infer::PlacementRequest request;
         request.names = {"device"};
@@ -639,13 +642,25 @@ void kv_fitted() {
     require(cut > 0 && cut < (size_t(1) << 20) && cut % 128 == 0, "a budget past the device's memory was not cut to whole blocks");
     require(place(8 << 20, cut, true, weights)->kv_tokens_total() == cut && place(8 << 20, cut + 128, true, weights)->kv_tokens_total() == cut,
             "the cut budget is not the most whole blocks that fit");
-    bool refused = false;
-    try {
-        place(1, 0, true, weights);
-    } catch (const std::runtime_error& e) {
-        refused = std::string(e.what()).find("no room for one KV block") != std::string::npos;
+    // Free memory that rises while the fit reads it, as a device reclaims an ended process's memory, is read again until it settles, so the load takes what the device holds once it has.
+    require(place(8 << 20, size_t(1) << 20, true, weights, 0, false, 2)->kv_tokens_total() == cut, "a fit did not wait for a device's free memory to settle");
+    const auto refusal_of = [&](size_t room) {
+        try {
+            place(room, 0, true, weights);
+        } catch (const std::runtime_error& e) {
+            return std::string(e.what());
+        }
+        return std::string();
+    };
+    require(refusal_of(1).find("does not fit the devices' free memory even without its KV") != std::string::npos,
+            "a device that cannot hold the model was not refused as such");
+    // The least room a load takes, by bisection; a byte less holds the model without a whole block of KV.
+    size_t lo = 1, hi = 8 << 20;
+    while (hi - lo > 1) {
+        const size_t mid = lo + (hi - lo) / 2;
+        (refusal_of(mid).empty() ? hi : lo) = mid;
     }
-    require(refused, "a device with no room for one KV block was not refused");
+    require(refusal_of(lo).find("no room for one KV block") != std::string::npos, "a device with no room for one KV block was not refused as such");
     // Beside experts on the CPU a copying device holds every layer's attention and not the routed feed-forward blocks, which take more than a block, so it fits more KV than it does holding them.
     const auto moe = tiny_qwen_moe(2, 2 * 128, true);
     const size_t with_experts = place(8 << 20, size_t(1) << 20, true, moe, 0, true)->kv_tokens_total();

@@ -20,9 +20,16 @@
 - **Done:** AGENTS.md now has a branch land as at most two commits (the failing test, then the change with its tests, docs and STATUS entry), a feature's docs in the same commit as its code, and no separate merge-record commit: the landing commit's STATUS entry is the record.
   Existing history is not rewritten, since STATUS, ASSETS and the evidence cite its hashes.
 
+## Sequence history, state checkpoints and speculative decoding (planned 2026-09-30, design landed by fast-forward)
+
+- **Goal:** one owner of where a sequence's history can be re-entered (checkpoint, fork, mark, retract) over KV blocks and recurrent state, prefix reuse for the hybrid models on it first (the qwen35 plan's step 8c), then speculative decoding on the same owner for every proposer.
+- **Done:** the design, [SPECULATIVE](SPECULATIVE.md), taking the speculative decoding plan approved on 2026-09-26 as input and saying what changes; its eight decisions were agreed with XDEV and approved by the user on 2026-09-30.
+- **Left:** its steps in order, `fix/server-row-class` and `feat/qwen35-checkpoints` first.
+- **Gotchas:** until step 2 lands, a hybrid model's follow-up turn recomputes its whole history (the qwen35 block below).
+
 ## Qwen 3.5, 3.6 and 3.8 everywhere (2026-09-30, 8b merged at `56abfd9a`)
 
-- **Goal:** the qwen35 architecture fully working (user, 2026-09-30): every command on the CPU, the MI50 and the Radeon VII, on one card and on a layer split, dense qwen35 and qwen35moe, at every quant the gate files use; serving first, so Qwen3.6-27B and Qwen3.8-27B Q8_0 reach an OpenAI-compatible client through `llmx serve`. MTP and state checkpoints wait for the speculative decoding design discussion.
+- **Goal:** the qwen35 architecture fully working (user, 2026-09-30): every command on the CPU, the MI50 and the Radeon VII, on one card and on a layer split, dense qwen35 and qwen35moe, at every quant the gate files use; serving first, so Qwen3.6-27B and Qwen3.8-27B Q8_0 reach an OpenAI-compatible client through `llmx serve`. MTP and state checkpoints follow [SPECULATIVE](SPECULATIVE.md), approved on 2026-09-30.
 - **Checklist** (the plan's steps are in "Qwen 3.5, 3.6 and 3.8", below; a cell is done when its gate passed):
 
   | | CPU | one MI50 | Radeon VII | layer split |
@@ -32,7 +39,7 @@
   | dense: KV fitted and backed at load | done (8a) | done (8a) | done (8a) | with 8d |
   | dense: long prompts in the chunked form | not needed | step 6 | step 6 | step 6 |
   | `qwen35moe` (Qwen3.6-35B-A3B): every command and `serve` | done (step 7) | done (step 7) | done (step 7, tiny fixtures; the 35B does not fit its 16 GB) | 8d |
-  | MTP and state checkpoints | after the design discussion | | | |
+  | MTP and state checkpoints | [SPECULATIVE](SPECULATIVE.md), steps 2 and 4 | | | |
 
   Quants: Q8_0, Q4_K_M (Q4_K, Q5_K, Q6_K) and Q4_1 files run today; BF16, F16, MXFP4 and IQ4_NL files wait for the quantization plan and step 10; Q5_1 and the type-53 files stay refused.
 - **Design (8b, minimal):** the scheduler keeps no donor for a model whose layers keep a recurrent state, since a state exists only at the end of what it has read: a finished or paused request releases its blocks and its state slot, so there are no forks and no prefix reuse, a follow-up turn recomputes its history, and a paused request resumes by the exact replay from 0. Every admitted request holds one of the `--max-seqs` state slots the load reserves, and a scheduler asked for more requests at once than the model's state slots is refused as it is made, so admission never waits on a slot.

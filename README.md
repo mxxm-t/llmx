@@ -4,7 +4,7 @@
 
 llmx is an LLM inference runtime written in C++17 that links no third-party libraries.
 It runs Qwen-family models from GGUF files on CPUs and GPUs, from the command line or as an HTTP server with OpenAI-compatible routes, and can run one model over several devices of one machine.
-The tables below mark each item **Supported** (on main and tested) or **Planned** (in the [ROADMAP](docs/ROADMAP.md), not implemented yet).
+The tables below mark each item **Supported** (works today) or **Planned** (on the [ROADMAP](docs/ROADMAP.md), not implemented yet).
 
 ## Supported models
 
@@ -97,27 +97,13 @@ model=$(./build/llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0)
 ```
 
 `pull` needs curl 8.4 or later and reads `HF_TOKEN` for gated repositories; the server listens on `127.0.0.1:8080`.
+`llmx bench --model "$model"` measures prefill and decode speed on your hardware.
 `llmx <command> --help` shows a command's options, and [USAGE](docs/USAGE.md) covers every command and flag.
-
-## Speed
-
-The target is to be at least as fast as [mx-llama.cpp](https://github.com/mxxm-t/mx-llama.cpp), a llama.cpp fork tuned for gfx906 GPUs, on the same model, quantization and hardware; [STATUS](docs/STATUS.md) records the comparisons.
-`llmx bench --model "$model"` measures prefill and decode, and `tools/server_load.py` a running server.
-
-## Tests
-
-```sh
-ctest --test-dir build -C Release --output-on-failure
-python3 tests/run_tests.py --exe build/llmx --no-perf-floor
-```
-
-[BUILD](docs/BUILD.md#after-building-the-tests) has the commands for each platform and [AGENTS](AGENTS.md#tests) describes each test.
 
 ## Documentation
 
 - [USAGE](docs/USAGE.md): every command and flag.
-- [BUILD](docs/BUILD.md) and [CI](docs/CI.md): building, testing and the hosted jobs.
-- [ARCHITECTURE](docs/ARCHITECTURE.md), [EXECUTION](docs/EXECUTION.md), [DEVICE-EXECUTION](docs/DEVICE-EXECUTION.md) and [KV-CACHE](docs/KV-CACHE.md): how the runtime is built.
-- [SERVER](docs/SERVER.md), [VULKAN](docs/VULKAN.md), [MULTI-DEVICE](docs/MULTI-DEVICE.md) and [QWEN35](docs/QWEN35.md): design of the server, the Vulkan backend, the multi-device modes and the Qwen 3.5 architectures.
-- [ROADMAP](docs/ROADMAP.md), [STATUS](docs/STATUS.md) and [ASSETS](docs/ASSETS.md): the plan, the development log, and the models and fixtures behind the results.
-- [Source notes](docs/src/) and [AGENTS](AGENTS.md): what each source file does, and rules for contributors.
+- [BUILD](docs/BUILD.md): building on each platform, and running the tests.
+- [ROADMAP](docs/ROADMAP.md): what is planned.
+- [ARCHITECTURE](docs/ARCHITECTURE.md), [SERVER](docs/SERVER.md), [VULKAN](docs/VULKAN.md) and [MULTI-DEVICE](docs/MULTI-DEVICE.md): how the runtime, the server, the Vulkan backend and the multi-device modes work.
+- [AGENTS](AGENTS.md): for contributors.

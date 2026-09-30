@@ -545,7 +545,7 @@ HF gate measures the cost of it.
   steps absorb and a wide one's do not (an 8B model's 4096-wide k and v
   at 128 prompt rows took 72.5 ms on the small tile against 51.5 on the
   middle one on the MI50). The 32-row tile gave the 0.6B files 11 to 23
-  percent at 48 to 64 prompt rows there. This is the tile kernel's
+  percent at 48 to 64 prompt rows there. Q6_K stops at 64 rows: its tile sums each block's two halves apart, and at 128 rows those sums took the build to 208 registers and one subgroup a SIMD, where 64 rows keeps two, which gave Qwen3.5-9B Q4_K_M 3 percent, Qwen3.6-27B Q4_K_M 4 and Qwen3-30B-A3B Q4_K_M 6 at 512 prompt rows on the MI50 with the same bits (docs/STATUS.md, MI50 prompt speed at 16 bits). This is the tile kernel's
   equivalent of the row kernel's lanes-per-row: the shape follows the
   device and the call rather than the source.
   The row count where this kernel starts beating the per-row one is

@@ -1,6 +1,8 @@
 #pragma once
 #include <algorithm>
 #include <chrono>
+#include <exception>
+#include <optional>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -125,9 +127,24 @@ inline bool ffn_on_host(const PlacementRequest& request, const std::vector<Layer
     return request.cpu_moe < 0 || before < (size_t)request.cpu_moe;
 }
 
-// The reads a fitted budget short of the options' waits for the devices' free memory to stop rising, and the wait between them: about as long as a device takes to reclaim a large model's memory from a process that has ended.
+// The reads a fit the devices' free memory falls short of waits for that memory to stop rising, and the wait between them: about as long as a device takes to reclaim a large model's memory from a process that has ended.
 inline constexpr int kSettleReads = 20;
 inline constexpr std::chrono::milliseconds kSettleWait{250};
+
+// A process that has just ended gives a device its memory back over a few seconds, so a fit that `settled` says falls short is tried again each time the free memory the devices report rises, until two reads find it no higher or kSettleReads reads have passed; `budgets` holds the last read.
+template <class Settled>
+inline void settle(std::vector<DeviceBudget>& budgets, const std::vector<backend::BackendPtr>& backends, const std::vector<std::string>& names, Settled settled) {
+    if (settled()) return;
+    for (int read = 0, steady = 0; read < kSettleReads && steady < 2; ++read) {
+        std::this_thread::sleep_for(kSettleWait);
+        std::vector<DeviceBudget> again = budgets_for(backends, names);
+        bool rose = false;
+        for (size_t d = 0; d < again.size(); ++d) rose = rose || again[d].bytes.value_or(0) > budgets[d].bytes.value_or(0);
+        budgets = std::move(again);
+        steady = rose ? 0 : steady + 1;
+        if (rose && settled()) return;
+    }
+}
 
 // The options with the KV budget fitted (PlacementRequest::fit_kv): the most whole blocks of the largest block size, at most the options' budget, at which the fit of model/layer_split.hpp places the model on these devices and the host, and backed whole at load.
 // Beside a device with experts on the CPU, the device holds neither those layers' feed-forward blocks nor their experts; a device that cannot tell its free memory takes the options' budget.
@@ -172,17 +189,8 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         }
         return lo * block;
     };
-    // A process that has just ended gives a device its memory back over a few seconds, so a budget short of the options' is fitted again as the free memory the devices report rises, until two reads find it no higher.
-    size_t tokens = most();
-    for (int read = 0, steady = 0; tokens < want && read < kSettleReads && steady < 2; ++read) {
-        std::this_thread::sleep_for(kSettleWait);
-        std::vector<DeviceBudget> again = budgets_for(backends, request.names);
-        bool rose = false;
-        for (size_t d = 0; d < again.size(); ++d) rose = rose || again[d].bytes.value_or(0) > budgets[d].bytes.value_or(0);
-        budgets = std::move(again);
-        steady = rose ? 0 : steady + 1;
-        if (rose) tokens = most();
-    }
+    size_t tokens = 0;
+    settle(budgets, backends, request.names, [&] { return (tokens = most()) >= want; });
     if (!tokens) {
         if (!fits(1)) throw std::runtime_error("placement: the model does not fit the devices' free memory even without its KV (" + why + ")");
         fits(block);
@@ -227,11 +235,23 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)
             throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
-        const std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
+        std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
         const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
-        const LayerSplit split = split_layers(footprint(weights, plan, options), budgets, rows, request.shares, core::host_memory_available(), request.slots,
-                                                   request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
-        placed = {std::make_unique<Model>(weights, plan, std::move(backends), placement_for(split), options, adopt), split.describe(budgets)};
+        const Footprint fp = footprint(weights, plan, options);
+        std::optional<LayerSplit> split;
+        std::exception_ptr refused;
+        settle(budgets, backends, request.names, [&] {
+            try {
+                split = split_layers(fp, budgets, rows, request.shares, core::host_memory_available(), request.slots,
+                                     request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
+                return true;
+            } catch (const std::runtime_error&) {
+                refused = std::current_exception();
+                return false;
+            }
+        });
+        if (!split) std::rethrow_exception(refused);
+        placed = {std::make_unique<Model>(weights, plan, std::move(backends), placement_for(*split), options, adopt), split->describe(budgets)};
     } else if (!adds_host_for_experts(backends, request)) {
         placed.model = std::make_unique<Model>(weights, plan, std::move(backends), Placement{}, options, adopt);
     } else {

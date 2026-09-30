@@ -1,5 +1,30 @@
 # llmx - Development Status
 
+## qwen35 served over a layer split (2026-09-30, step 8d of the qwen35 plan, lands as `feat/qwen35-serve-split`)
+
+- **Goal:** `serve` runs a qwen35 file over a layer split with passes in flight, each stage holding its layers' recurrent states and KV, with the budget fitted at load (8a) over every device: Qwen3.6-27B Q8_0 and Qwen3.8-27B Q8_0 over two MI50s at the full 262144-token context, for production (user, 2026-09-30).
+- **Done:**
+  - The scheduler and the pass API already held states over a split (`server-passes-cpu` and `server-resume` run a hybrid model over CPU splits since 8b), so serving needed no change: over two MI50s with the defaults (16 sequences) each 27B Q8_0 file fits the whole 262144 KV tokens and keeps two passes in flight.
+  - The change is the split's fit, which read the devices' free memory once: `generate` over the split, started as a server on the same cards ended, was refused while the cards were still reclaiming that server's memory. `settle` in `model/place.hpp` now serves both fits, the split's placement and the server's KV budget; `108b2bac`, the test, fails without it.
+  - Gates on two MI50s (GPU[7] and GPU[8]) at the change's code:
+    - `tools/server_mix_check.py` with `--logprobs` and `--ids` at `--ctx-size 16384` on one card and over the split, on Qwen3.5-0.8B Q8_0, Qwen3.5-9B Q4_K_M, Qwen3.6-27B Q8_0 and Qwen3.8-27B Q8_0: every request alone, together, skewed and through `generate` matched, and every phase's ids and log-probabilities over the split were the one card's.
+    - qwen35moe, at the change rebased onto it: Qwen3.6-35B-A3B Q4_K_M on one card and over the split, every phase's ids and log-probabilities the same, and Q8_0, which only the split holds, matching in every phase.
+    - Uncapped over the split: 0.8B Q8_0, 12 requests, 24 pauses, 26974 tokens recomputed, and 27B Q8_0, 12 requests, 18 pauses, 16699 tokens recomputed, every request its reply alone.
+    - `tools/long_context_check.py` through `serve` over the split on Qwen3.6-27B Q8_0 against one card: two fresh servers gave the same 512 tokens after the 16384-token prompt, and one card took the split's token as its top choice at 512 of 512 positions, the largest gap 0.000 logits; on Qwen3.5-9B Q4_K_M against the CPU, 508 of 512, the largest gap 0.057 logits, as through `serve` on one card.
+    - CTest 35 of 35 on the CPU build and 39 of 39 on an MI50 at the change rebased onto main `4f4c1059`, and the CPU suite with `--require-tools` passing every component.
+  - The Radeon VII under Windows, Qwen3.5-0.8B Q8_0 over the Radeon VII and the CPU: `tools/server_mix_check.py` capped (16 requests alone, together, skewed and through `generate`) and uncapped (12 requests, 24 pauses) matched, as on the Radeon VII alone.
+  - Timing at default clocks, Qwen3.6-27B Q8_0 with `--max-seqs 16` and the budget fitted, `tools/server_load.py` with 1024-token prompts and 64-token replies, one round a level, arms in the order one card (main `51443380`), split, split, one card, four CPUs; 260 monitor samples, another process at a full CPU in 4 (a build), another card busy in 82, no run dropped:
+
+    | users | one MI50: output tok/s, TTFT p50 / p99, ITL p50 / p99 | two MI50s: output tok/s, TTFT p50 / p99, ITL p50 / p99 |
+    |---:|---|---|
+    | 1 | 9.1, 9.0; 4.01 / 4.01 s, 4.03 / 4.03 s; 47.0 / 55.5 ms, 49.0 / 55.9 ms | 9.6, 10.1; 3.04 / 3.04 s, 3.02 / 3.02 s; 53.4 / 65.0 ms, 52.4 / 53.3 ms |
+    | 16 | 12.4, 12.3; 35.8 / 77.0 s, 35.8 / 77.0 s; 220 / 2252 ms, 222 / 2260 ms | 24.7, 24.5; 19.3 / 34.7 s, 19.3 / 34.8 s; 115 / 2165 ms, 117 / 2173 ms |
+    | 64 | 12.5, 12.5; 160 / 315 s, 160 / 315 s; 226 / 2264 ms, 228 / 2262 ms | 24.5, 24.4; 81.6 / 160 s, 82.1 / 160 s; 119 / 2214 ms, 121 / 2222 ms |
+
+    One card fits 14720 KV tokens beside its 16 states, so a request holds at most 14720 tokens; the split fits the whole 262144, which is then also one request's limit. The split doubles throughput and halves TTFT and ITL from 16 users, the two stages each running a pass; one user's ITL is 6 to 10 percent longer across the handoff, and one user's TTFT a quarter shorter, the prompt pipelined over the stages.
+- **Left:** the hosted run; the reference server over the same two cards is measured beside it and recorded with the settle's branch.
+- **Gotchas:** a restart right after another server on the same cards can still be refused, since a card can hold an ended process's memory for more than two seconds between frees; the settle's own branch follows.
+
 ## Reasoning apart from the answer, and chat_template_kwargs (2026-09-30, branch feat/server-reasoning, lands by fast-forward)
 
 - **Goal:** a chat client shows a reasoning model's thinking apart from its answer. The Qwen 3.5 templates end the prompt inside an open `<think>`, and Qwen3's replies open one themselves, so `/v1/chat/completions` gave the reasoning, a stray `</think>` and the answer as one content, which Open WebUI printed whole.
@@ -35,10 +60,10 @@
   | | CPU | one MI50 | Radeon VII | layer split |
   |---|---|---|---|---|
   | dense: `generate`, `chat`, `logits`, `perplexity`, `bench` | done (step 4) | done (step 5) | done (step 5) | done: MI50s bit-identical to one, CPU splits in the suite (step 5) |
-  | dense: `serve` | done (8b) | done (8b) | done (8b) | 8d |
-  | dense: KV fitted and backed at load | done (8a) | done (8a) | done (8a) | with 8d |
+  | dense: `serve` | done (8b) | done (8b) | done (8b) | done (8d) |
+  | dense: KV fitted and backed at load | done (8a) | done (8a) | done (8a) | done (8d) |
   | dense: long prompts in the chunked form | not needed | step 6 | step 6 | step 6 |
-  | `qwen35moe` (Qwen3.6-35B-A3B): every command and `serve` | done (step 7) | done (step 7) | done (step 7, tiny fixtures; the 35B does not fit its 16 GB) | 8d |
+  | `qwen35moe` (Qwen3.6-35B-A3B): every command and `serve` | done (step 7) | done (step 7) | done (step 7, tiny fixtures; the 35B does not fit its 16 GB) | done (8d) |
   | MTP and state checkpoints | [SPECULATIVE](SPECULATIVE.md), steps 2 and 4 | | | |
 
   Quants: Q8_0, Q4_K_M (Q4_K, Q5_K, Q6_K) and Q4_1 files run today; BF16, F16, MXFP4 and IQ4_NL files wait for the quantization plan and step 10; Q5_1 and the type-53 files stay refused.

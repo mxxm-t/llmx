@@ -14,16 +14,18 @@ backends its caller made. It reads the plan
   fitted for,
   and the histories the budget must hold, and `fit_kv`, a server's budget
   fitted to the devices), and the placed model with its split's description.
+- `settle(budgets, backends, names, settled)`: a fit the devices' free
+  memory falls short of, a split's placement or a server's KV budget, tried
+  again every `kSettleWait` (250 ms), up to `kSettleReads` (20) reads, each
+  time that memory rises, until two reads find it no higher, since a device
+  reclaims the memory of a process that has just ended over a few seconds.
 - `fitted_kv(weights, plan, backends, request, options)`: the options with
   the KV budget fitted, which `place_model` takes when `request.fit_kv` is
   set, as `serve` sets it: the options' budget where the fit of
   `split_layers` places the model on the backends given, one included, and
   the host; else, by bisection, the most whole blocks of the largest block
   size that fit, one more not fitting. A budget short of the options' is
-  fitted again every `kSettleWait` (250 ms), up to `kSettleReads` (20)
-  reads, while the free memory the devices report rises, until two reads find
-  it no higher, since a device reclaims the memory of a process that has just
-  ended over a few seconds. It refuses a model that does not fit even without
+  fitted again as `settle` reads the devices. It refuses a model that does not fit even without
   its KV, and one that leaves no room for one block, each by its own text.
   Beside experts on the CPU the plan it fits leaves out the feed-forward
   roles of the layers whose block runs on the CPU (`ffn_on_host`, which

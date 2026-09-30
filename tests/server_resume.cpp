@@ -87,6 +87,45 @@ std::vector<uint32_t> ids_of(const Reply& r) {
     return ids;
 }
 
+// A first admission forks only rows computed as it would compute them (Model::row_class): the reply after `setup` must equal the same request on a fresh model with no donor, and `forked` tokens must have been reused.
+void as_on_fresh(const Make& make, const bpe::Tokenizer& tok, const std::vector<Req>& setup, const Req& r, size_t forked, const std::string& what) {
+    auto fresh = make(1024, 0);
+    const Reply alone = serve(*fresh, tok, 3, {{r}})[0];
+    std::vector<std::vector<Req>> waves;
+    for (const Req& s : setup) waves.push_back({s});
+    waves.push_back({r});
+    auto model = make(1024, 0);
+    server::Scheduler::Stats stats;
+    const Reply after = serve(*model, tok, 3, waves, &stats).back();
+    same(alone, after, what);
+    require(stats.prefix_tokens == forked, what + ": " + std::to_string(stats.prefix_tokens) + " tokens reused, against " + std::to_string(forked));
+}
+
+// A follow-up turn repeating an `n`-token prompt and its reply: it forks the prompt's whole blocks, `forked` tokens, and computes the reply's rows, which decode computed, as rows of its own prompt.
+void follow_up_as_cli(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t n, size_t forked, const std::string& what) {
+    const Req first{prompt_of(5, n, vocab), 100};
+    auto model = make(1024, 0);
+    std::vector<uint32_t> again = first.prompt;
+    for (uint32_t id : ids_of(serve(*model, tok, 3, {{first}})[0])) again.push_back(id);
+    const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
+    again.insert(again.end(), more.begin(), more.end());
+    as_on_fresh(make, tok, {first}, Req{again, 64}, forked, what);
+}
+
+// On a device, a 100-token prompt sharing the first block of a 600-token prompt, whose tile split its sums another way: it forks nothing.
+void other_split_as_cli(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const Req donor{prompt_of(9, 600, vocab), 4};
+    std::vector<uint32_t> forked(donor.prompt.begin(), donor.prompt.begin() + 64);
+    const std::vector<uint32_t> own = prompt_of(10, 36, vocab);
+    forked.insert(forked.end(), own.begin(), own.end());
+    as_on_fresh(make, tok, {donor}, Req{forked, 32}, 0, "on a device, a prompt sharing a block of another split's prompt");
+    // A 500-token prompt sharing the first 448 tokens of the 600-token one takes the same split, and forks them.
+    std::vector<uint32_t> longer(donor.prompt.begin(), donor.prompt.begin() + 448);
+    const std::vector<uint32_t> tail = prompt_of(11, 52, vocab);
+    longer.insert(longer.end(), tail.begin(), tail.end());
+    as_on_fresh(make, tok, {donor}, Req{longer, 32}, 448, "on a device, a prompt sharing blocks of a prompt of its own split");
+}
+
 // `victim` given a stop string that ends it with its reply's token `at`, found from its reply alone after the `setup` requests.
 Req stopping(const Make& make, const bpe::Tokenizer& tok, size_t pool, const std::vector<Req>& setup, Req victim, size_t at) {
     std::vector<std::vector<Req>> waves;
@@ -659,6 +698,7 @@ int main(int argc, char** argv) {
             three_uncapped(one, tok, vocab, "three uncapped requests");
             prefilling_victim(one, tok, vocab);
             follow_up(one, tok, vocab);
+            follow_up_as_cli(one, tok, vocab, 200, kBlock, "a follow-up turn against its prompt on a fresh model");
             three_uncapped(on(weights, [] { return cpus(2); }), tok, vocab, "a two-CPU layer split");
             const gguf::GGUFModel deep = served(kSplit);
             for (size_t stages = 2; stages <= 3; ++stages) cancelled_in_flight(deep, tok, vocab, stages);
@@ -688,8 +728,11 @@ int main(int argc, char** argv) {
                 device.reset();
                 const gguf::GGUFModel weights = served(kDevice);
                 const bpe::Tokenizer tok(weights);
-                device_classes(on(weights, [] { return std::vector<backend::BackendPtr>{backend::make_backend("vulkan:0")}; }),
-                               tok, (uint32_t)kDevice.vocab);
+                const Make on_device = on(weights, [] { return std::vector<backend::BackendPtr>{backend::make_backend("vulkan:0")}; });
+                device_classes(on_device, tok, (uint32_t)kDevice.vocab);
+                // 500 and 630 tokens take the same tile split, so the follow-up forks the first prompt's seven whole blocks of 64.
+                follow_up_as_cli(on_device, tok, (uint32_t)kDevice.vocab, 500, 448, "on a device, a follow-up turn against its prompt on a fresh model");
+                other_split_as_cli(on_device, tok, (uint32_t)kDevice.vocab);
                 std::printf("server-resume: device cases pass\n");
             } else {
                 std::printf("server-resume: no Vulkan device, device cases skipped\n");

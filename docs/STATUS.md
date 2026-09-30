@@ -4240,7 +4240,7 @@ This separate merge-record change reviews STATUS against the completed landing e
        - Speed at or above llama.cpp Vulkan on every cell: pp64, pp247, pp512, pp4096, tg32, tg128 and pp16384/tg512.
          The files are the 0.8B Q4_K_M, the 9B Q4_K_M, and the 27B Q4_K_M and Q8_0 on the MI50, and the 0.8B and 9B Q4_K_M on the Radeon VII (question 9).
      - Size: about 1.6 to 2.1.
-     - **In progress on `feat/qwen35-vulkan`** (2026-09-27), rebased on 2026-09-29 onto main, which holds step 4's model since `c348cfb0`.
+     - **Merged** at `8d68d529` (2026-09-30) by fast-forward from `6282500f` on Gitea and GitHub after hosted run 36651171803 passed on it, every job; built on `feat/qwen35-vulkan` from 2026-09-27, rebased onto the MI50 precision fix and the main above it.
        - **Goal:** the dense qwen35 files on the Vulkan backend within the HF bounds on both cards, bit-for-bit slice invariant on the device, and at or above llama.cpp's Vulkan build on every speed cell above.
        - **Done:**
          - `norm_rope_rows` folds into `norm_rope_partial`, as the user decided: `Backend::norm_rope_kv` runs it at the full width in place, which is the CPU's one routine `norm_rope_raw` as before, and the device's kernel, `shaders/norm_rope_partial.comp`, reads the heads at their strides and rotates the first `rope_dim` values; Qwen3 on the device keeps its fused `norm_rope_kv` kernel, whose arithmetic per head is the op's at the full width.
@@ -4388,7 +4388,7 @@ This separate merge-record change reviews STATUS against the completed landing e
          - Speed: the prompt cells the fix puts below the reference are its open speed gate (MI50 prompt activations at 16 bits, above), which `perf/mi50-prompt-speed` takes up next; the qwen35 cells among them are the 0.8B Q4_K_M's pp16384 and the 9B's and the 27B's pp247 to pp16384.
        - **Markdown read at the rebased head:** the 14 pages the branch changes were read in full against the code; every other page, byte-identical to main, whose pages were read against the code for split step 4 and step 4's merges, was searched for each concept this step changes (qwen35 on a device, `implements` and the refusing forms, `norm_rope_rows`, head widths, `generate --file` and `--chat`, `logits --chat`, the 16k check and `serve`'s refusal).
          Every finding was rechecked at the cited code: eight fixed (pages still saying qwen35 runs only on the CPU or that the device refuses its ops, `norm_rope_rows` in live text, and the head-width rule), and `norm_rope_rows` kept in two plan rows that record a finished step; the list, one row a finding, is kept with the gate record.
-       - **Left:** the hosted run at the head and the fast-forward.
+       - **Left:** nothing of this step; the prompt speed gate the precision fix left open is `perf/mi50-prompt-speed`'s.
          The MI50's `chat-00`, which held a top-5 overlap of 4 against its bound of 5 at `e8650d27` (above), passes on the precision fix without a change to any bound, as the user asked (2026-09-29: this step merges only with its gates passing unchanged, which the other developer agreed to).
        - **Not in this step:**
          - The checkpoint row of the recurrence and the conv, which the plan lists here; it has no caller before step 8c's checkpoints, so it arrives with them.
@@ -8380,7 +8380,7 @@ their own measurements; K-quant optimization remains separate work below.
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
 | Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | In progress (block above): the spec decoders, fixtures and MXFP4 writer merged at `e9b13dec`, and MXFP4 is being built on branches of its own |
 | More model architectures (Llama, ...)    | Planned  |
-| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the Vulkan backend, in progress on `feat/qwen35-vulkan` |
+| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the Vulkan backend, merged at `8d68d529` |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (block above); the CPU timing on a quiet host follows |
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | Done |

@@ -36,6 +36,8 @@ The list is tiny F32 tied/untied, real 0.6B F32, the four 0.6B quant mixtures, 8
 
 The current Windows Vulkan build also passes native 40/40 and the complete required-fixture Python suite: 24 components pass and the MXFP4 component skips because this CPU-only branch has no Vulkan MXFP4 kernel. The server component separately records the same MXFP4-device skip; the Windows round-trip check records its unavailable POSIX file-size-limit injection. Both real Qwen3.5 fixtures run, with 59 Q8_0 checks and 114 Q4_K_M checks. The first suite invocation correctly refused those two missing files before testing; their existing rig copies were copied locally and hash-verified, and the unchanged `--require-baseline --require-tools` invocation passed. The original refused invocation and the successful run are both retained. No requirement or numerical bound was weakened.
 
+**Validated peer integration, 2026-09-30:** the CPU branch merges `5bb4596f` after all seven jobs of hosted run 36661292234 pass. The merge has no conflicts; the complete CPU runtime delta against the new base is byte-identical as a Git patch to the delta against `c1398b1b`. The only incoming runtime change is the already validated Vulkan accumulating-dot shader. Fresh integration builds, CTest and exact-head hosted validation remain required under the conflict-free integration rule; the earlier numerical and timing evidence retains its recorded source revisions. The Windows evidence archive has 230 locally verified payloads, SHA-256 `331667ec6515a7c9637ab10928e6217b32b1f56dce3852d1743f7aa6c59cfbda`, with raw float arrays retained beside the manifests. Incoming STATUS and VULKAN documentation was reviewed against the shader diff; the other 76 Markdown files match the prior reconciliation.
+
 **Completed CPU integration checks, 2026-09-30:** private `5444f1a5` adds the independent capture-shares prerequisite to `9be203b9`; every runtime source file remains identical. Fresh matching Windows and Linux Vulkan-enabled builds, CPU CTests and all four affected components pass. The clean baseline is `c9b8a4d4`, whose runtime remains main `c1398b1b`.
 
 | Additional check | Result | Scope |
@@ -72,6 +74,29 @@ All 22 readiness and 88 measured calls are retained. The identical monitor captu
 Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
+
+## MI50 prompt speed at 16 bits (2026-09-30, branch perf/mi50-prompt-speed)
+
+- **Goal:** the speed gate the 16-bit prompt fix left open (MI50 prompt activations at 16 bits, below): every qwen35 prompt cell at or above the reference on one MI50 with the fix's precision kept, and the Qwen3 cells it put below the reference restored.
+- **Done:**
+  - Which projections need 16 bits, measured with a probe that rounds the 16-bit twin to 8-bit precision by projection role (`wip/mi50-bisect`, not for merge): against HF on the 9B Q4_K_M file's own weights over both raw 16k sequences, every role but the feed-forward down projection after a full-attention layer loses top-1 positions at 8 bits, the linear-attention output projection most (492 and 494 of 512, up to 10.9 logits); 8 bits with a scale per 8 values still gives 499 of 512, and a coarser step of the twin passes 512 of 512 at 13 bits and not at 12 (512 and 511). So the speed has to come from the 16-bit tile, not from 8-bit activations on some roles.
+  - The tile's dots take the running sum as their accumulator (`dot_pairs`): the driver had summed each pair apart and added it after, about 500 more adds per 1024 dots in the Q8_0 tall build. The logits are the same bytes (Qwen3-0.6B and 8B Q8_0, Qwen3-30B-A3B Q4_K_M, the last 64 positions of a 3,000-character excerpt), and pp512 on one MI50 at default clocks, in the order before, after, after, before, goes from 734 and 725 to 846 and 839 tok/s on the 8B Q8_0 and from 821 and 821 to 1068 and 1069 on the 30B-A3B.
+  - Timing round on one MI50 at default clocks, main with the fix (`308b8de9`, and step 5 on it, `27c01bd8`, for the qwen35 files) against this change (`ab698887`, and step 5 with it, `8e3df320`) and the reference, in the order main, change, reference, reference, change, main, two rounds, medians in tok/s:
+
+    | model | pp64 | pp247 | pp512 | pp4096 | pp16384 | tg128 | tg512 at 16384 |
+    |---|---:|---:|---:|---:|---:|---:|---:|
+    | Qwen3-0.6B Q8_0 | 5095 / 5257 / 4528 | 7582 / 7974 / 6924 | 8120 / 8534 / 6620 | 4312 / 4446 / 3354 | 1650 / 1668 / 1137 | 380.9 / 368.8 / 293.1 | 131.1 / 131.2 / 159.4 |
+    | Qwen3-8B Q8_0 | 627.6 / 668.0 / 526.5 | 672.5 / 748.7 / 729.5 | 728.1 / 827.9 / 861.4 | 618.8 / 691.1 / 665.2 | 403.4 / 430.4 / 354.0 | 74.3 / 74.5 / 58.2 | 47.2 / 46.8 / 44.4 |
+    | Qwen3-30B-A3B Q4_K_M | 272.2 / 364.3 / 333.0 | 587.8 / 775.2 / 599.4 | 827.5 / 1071 / 1115 | 681.5 / 826.5 / 755.4 | 380.4 / 420.7 / 308.7 | 134.0 / 133.7 / 107.7 | 57.5 / 57.6 / 72.1 |
+    | Qwen3.5-0.8B Q4_K_M | 4007 / 4163 / 2601 | 5911 / 6297 / 4085 | 6597 / 7010 / 5091 | 5342 / 5619 / 4512 | 3079 / 3175 / 3128 | 318.6 / 318.4 / 239.1 | 238.7 / 238.3 / 207.5 |
+    | Qwen3.5-9B Q4_K_M | 562.1 / 606.2 / 258.8 | 553.5 / 704.0 / 593.4 | 546.9 / 747.5 / 709.0 | 521.2 / 705.8 / 683.8 | 450.0 / 581.5 / 587.9 | 88.3 / 88.6 / 74.5 | 77.0 / 76.5 / 67.9 |
+    | Qwen3.6-27B Q4_K_M | 160.9 / 195.7 / 82.1 | 165.1 / 205.5 / 205.6 | 166.0 / 220.5 / 214.4 | 158.4 / 207.2 / 206.3 | 139.7 / 176.2 / 179.1 | 30.0 / 29.5 / 26.2 | 25.4 / 25.3 / 24.5 |
+
+    Prompt processing gains 1 to 37 percent on every model; decode is level (the 0.6B's tg32 and tg128 2.5 and 3.2 percent lower, within that model's decode spread).
+    Serving Qwen3-8B Q8_0 (1024-token prompts, 64-token replies, main, change, change, main): 26.7, 28.7, 28.8 and 26.7 tok/s at 1 user, 35.9, 39.7, 39.7 and 35.8 at 16, 36.0, 39.9, 39.9 and 36.0 at 64; time to first token at 1 user 1442, 1276, 1273 and 1447 ms.
+    Of 2056 monitor samples, flags set beforehand: host idle below 25 percent in 84, iowait above 5 percent in 20, another process at a full CPU or more in 542 (builds, python3 and the other developer's comparison jobs), another card busy in 1972; no run was dropped.
+- **Left:** five prompt cells are still below the reference: Qwen3-8B Q8_0 pp512 (3.9 percent), Qwen3-30B-A3B Q4_K_M pp512 (3.9 percent), Qwen3.5-9B Q4_K_M pp16384 (1.1 percent) and Qwen3.6-27B Q4_K_M pp247 (0.1 percent) and pp16384 (1.6 percent). Next, on a branch of its own, the Q6_K tile, which runs at about half the Q4 tile's rate and takes 17 to 24 percent of the 9B's and 27B's prompt time, then the Q8_0 tile's remaining overhead; every timing at default clocks with all arms on one card.
+- **Gotchas:** the 16-bit tile is bound by its two-wide dots, twice the four-wide 8-bit dots per product, so each instruction around them counts.
 
 ## Server consistency tool controls merged (2026-09-30)
 

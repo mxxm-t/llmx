@@ -18,9 +18,9 @@ uvec2 weight16(uint w) {
     uint q2 = uint(int(w << 8u) >> 24), q3 = uint(int(w) >> 24);
     return uvec2((q0 & 65535u) | (q2 << 16u), (q1 & 65535u) | (q3 << 16u));
 }
-// Four products of 16-bit values through two two-wide dots, exact in 32 bits.
-int dot_pairs(uvec2 w, uvec2 x) {
-    return dotEXT(unpack16(int(w.x)), unpack16(int(x.x))) + dotEXT(unpack16(int(w.y)), unpack16(int(x.y)));
+// Four products of 16-bit values added to acc through two two-wide dots, exact in 32 bits; acc goes in first, so each dot takes the sum so far as its accumulator.
+int dot_pairs(uvec2 w, uvec2 x, int acc) {
+    return acc + dotEXT(unpack16(int(w.x)), unpack16(int(x.x))) + dotEXT(unpack16(int(w.y)), unpack16(int(x.y)));
 }
 #include "q.glsl"
 layout(local_size_x = 256) in;
@@ -337,10 +337,10 @@ void main() {
             uvec2 b2 = xw[s * 8u + w][tc * 4u + 2u], b3 = xw[s * 8u + w][tc * 4u + 3u];
             for (uint i = 0u; i < MROWS; ++i) {
                 uvec2 a = wq[s * 8u + w][tr * MROWS + i];
-                t[i][0] += dot_pairs(a, b0);
-                t[i][1] += dot_pairs(a, b1);
-                t[i][2] += dot_pairs(a, b2);
-                t[i][3] += dot_pairs(a, b3);
+                t[i][0] = dot_pairs(a, b0, t[i][0]);
+                t[i][1] = dot_pairs(a, b1, t[i][1]);
+                t[i][2] = dot_pairs(a, b2, t[i][2]);
+                t[i][3] = dot_pairs(a, b3, t[i][3]);
             }
         }
         for (uint i = 0u; i < MROWS; ++i) {
@@ -376,10 +376,10 @@ void main() {
                 for (uint i = 0u; i < RG6; ++i) {
                     uint r = tr * MROWS + i0 + i;
                     uvec2 a = wq[s * 8u + w][r], e = wq[s * 8u + w + 4u][r];
-                    l[i][0] += dot_pairs(a, l0); h[i][0] += dot_pairs(e, h0);
-                    l[i][1] += dot_pairs(a, l1); h[i][1] += dot_pairs(e, h1);
-                    l[i][2] += dot_pairs(a, l2); h[i][2] += dot_pairs(e, h2);
-                    l[i][3] += dot_pairs(a, l3); h[i][3] += dot_pairs(e, h3);
+                    l[i][0] = dot_pairs(a, l0, l[i][0]); h[i][0] = dot_pairs(e, h0, h[i][0]);
+                    l[i][1] = dot_pairs(a, l1, l[i][1]); h[i][1] = dot_pairs(e, h1, h[i][1]);
+                    l[i][2] = dot_pairs(a, l2, l[i][2]); h[i][2] = dot_pairs(e, h2, h[i][2]);
+                    l[i][3] = dot_pairs(a, l3, l[i][3]); h[i][3] = dot_pairs(e, h3, h[i][3]);
                 }
             }
             for (uint i = 0u; i < RG6; ++i) {

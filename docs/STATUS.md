@@ -51,8 +51,12 @@
 - **Goal:** qwen35 prefill faster on the MI50 and the Radeon VII through the recurrence of the linear-attention layers, with every result batch-invariant, and no decode cell slower; the chunked form of [QWEN35](QWEN35.md) for the prompt rows of entries whose extent is above 1 is kept only if it measures faster (Decided, 3, in the qwen35 block below).
 - **Ceiling:** on one MI50 at main `8ff34685` (`bench --profile`), `delta_rule` is 16.6 and 13.2 percent of pp512 and pp4096 device time on Qwen3.5-0.8B Q8_0 and 2.7 and 2.6 percent on Qwen3.5-9B Q4_K_M, about 1.2 and 1.5 us a token a layer; a single prompt runs Hv x Dv / 32 workgroups (128 on the 9B), each through every token in turn.
 - **Order:** first the per-token kernel's own layout (fewer V columns a workgroup, so a prompt fills more of the device), which keeps every sum's order and so every bit; then a chunked kernel measured alone against it before the prompt cut on the 64-row grid is plumbed through the CLI, the split and the server.
-- **Done:** nothing yet.
-- **Left:** both measurements, then the gates of step 6 in the plan below for whichever is kept.
+- **Done:** three layouts of the per-token kernel, each giving main's bytes in the 14 identity cells of Qwen3.5-0.8B Q8_0 and 9B Q4_K_M on one MI50 and each measured by `bench --profile` against main `56abfd9a` in the order main, change, change, main, `delta_rule`'s device time at pp512 (0.8B, then 9B):
+  - 8 V columns a workgroup of 64 lanes, four times the workgroups: 11.5 and 18.8 ms became 37.0 and 74.1 ms, since each workgroup norms its block's q and k again.
+  - 32 tokens a staging block: 11.4 and 18.6 ms became 18.4 and 37.2 ms, the doubled shared memory leaving fewer workgroups a unit.
+  - the next block's raw q, k, v and gates read while the current block computes: 11.49 and 18.75 ms became 11.53 and 18.36 ms, level, so the kernel waits on its per-token chain of sums rather than on memory.
+  None is kept; the chunked form, which takes that chain off the prompt rows, is next.
+- **Left:** the chunked kernel measured alone against the per-token one, then the gates of step 6 in the plan below if it is kept.
 - **Gotchas:** the chunked form rounds differently from the recurrence, so it must run for a row class, never by the batch, and every slice of a prompt must end on the grid for a prompt to give the same bits however it is cut.
 
 ## README support overview (2026-09-30, branch docs/readme-support, merged at `d74f0015`)

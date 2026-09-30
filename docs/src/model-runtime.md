@@ -25,7 +25,7 @@ delegated to a `backend::Backend`.
   table and the output head. Empty means everything on device 0. Per role
   rather than per layer so expert offload puts a layer's experts on the CPU
   while its mixer stays on the device (`docs/EXECUTION.md`). `stream_from` is the prompt length (`BatchEntry::extent`) from which such
-  a layer whose streamed weight types and feed-forward ops the destination supports runs on its mixer device instead for every row the prompt computes, whatever prefix the history already held, 1 counting as 2 since a one-token prompt never streams; rows a server forks from a donor keep the path they were computed on, the one the donor's prompt took for its prompt rows and the host for its generated tokens (`docs/SERVER.md`, Open gaps). Its `copy` roles (the norm
+  a layer whose streamed weight types and feed-forward ops the destination supports runs on its mixer device instead for every row the prompt computes, whatever prefix the history already held, 1 counting as 2 since a one-token prompt never streams; a server forks a donor's rows only where their class (`row_class`), the streamed path included, is the new prompt's. Its `copy` roles (the norm
   and router) get a copy there at load, its `window` roles (the expert
   stacks) are written into a per-device window, one buffer per window role
   in role order sized to the largest such layer's, once per pass that needs
@@ -196,7 +196,8 @@ delegated to a `backend::Backend`.
     KV blocks; the logical block tables and ticket vectors still allocate. The
     server forks a donor at the blocks a prompt shares with it.
     A model whose layers keep a state is not forked.
-    A forked sequence continues exactly as a fresh one fed the same tokens at the same extents would; rows another extent computed can differ from them by rounding (`docs/SERVER.md`, Open gaps).
+    A forked sequence continues exactly as a fresh one fed the same tokens at the same extents would; rows another extent computed can differ from them by rounding, so a caller forks only rows whose class (`row_class`) is its own.
+  - `row_class(extent)` is the one owner of which rows compute the same bits: each used device's `Backend::row_class` and whether the rows take a streamed layer on the device.
     A sequence in flight is not forked.
   - `set_threads(n)` applies to every backend and `threads_available()` reports the largest count among them, the host's wherever it sits in a placement.
     The thread getter reports the resolved backend count, allowing the CLI to restore automatic decode settings after prefill.

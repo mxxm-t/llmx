@@ -52,7 +52,7 @@ struct Placement {
     std::vector<int> mixer_device, ffn_device;
     int embed_device = 0, output_device = 0;
     // A routed layer with its feed-forward block on a host and its mixer on a device runs a prompt of at least this many tokens on the device, its experts copied there for each pass: past some length a prompt's expert products on the host cost more than moving the experts.
-    // By the prompt's whole length (BatchEntry::extent), so every row a prompt computes takes one path however the prompt is sliced or batched; rows a server forks from a donor keep the path they were computed on, the donor prompt's for its prompt rows and the host for its generated rows (docs/SERVER.md, Open gaps).
+    // By the prompt's whole length (BatchEntry::extent), so every row a prompt computes takes one path however the prompt is sliced or batched; a server forks a donor's rows only where that path is the new prompt's (row_class).
     // Zero keeps every run on the host, and neither a generated token nor a one-token prompt, both of extent 1, streams, so 1 streams what 2 does: one row cannot pay for moving a layer's experts.
     size_t stream_from = 0;
 };
@@ -644,6 +644,16 @@ public:
     // The sequences that may hold a recurrent state at once (ModelOptions::state_slots), zero for a model whose layers keep none.
     size_t state_slots() const { return state_layers_ ? options_.state_slots : 0; }
 
+    // The class of rows of this extent over the placement: each used device's (Backend::row_class) and whether they take a streamed layer on the device.
+    // Rows of two extents of one class give the same bits, so a history may continue from rows computed at another extent only where the classes are equal (docs/SPECULATIVE.md, section 1).
+    std::vector<size_t> row_class(size_t extent) const {
+        std::vector<size_t> c;
+        for (const auto& d : devices_)
+            if (d->used) c.push_back(d->b->row_class(extent));
+        c.push_back(streams(extent) ? 1 : 0);
+        return c;
+    }
+
 private:
     // One backend and what the placement put on it.
     // A pool is not movable, because sequences hold its address, so devices live behind pointers.
@@ -1063,10 +1073,9 @@ private:
         receive(ctx, from, 0, devices_[from]->b->submit(), to, base, rows);
     }
 
-    // Whether entry e of a pass takes a streamed layer on the device (Placement::stream_from): a prompt long enough, two tokens at the least, never a generated token.
-    bool streams(const Pass& p, size_t e) const {
-        return place_.stream_from && p.runs[e].extent >= std::max<size_t>(place_.stream_from, 2);
-    }
+    // Whether rows of this extent take a streamed layer on the device (Placement::stream_from): a prompt long enough, two tokens at the least, never a generated token.
+    bool streams(size_t extent) const { return place_.stream_from && extent >= std::max<size_t>(place_.stream_from, 2); }
+    bool streams(const Pass& p, size_t e) const { return streams(p.runs[e].extent); }
 
     // A streamed layer in a pass with long runs: consecutive entries alike form a group, the long ones run where the residual is on the layer's streamed row, with each window role's bytes written into its window once, and the rest on the host through a crossing each way.
     // The residual ends where it started, on the layer's mixer device.

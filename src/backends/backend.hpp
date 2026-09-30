@@ -287,6 +287,10 @@ public:
     // Whether this backend is the CPU itself, so experts placed on the CPU beside it are already where they run; a device may read in place and still not be the CPU.
     virtual bool is_cpu() const { return false; }
 
+    // The class of rows of this RowRun extent: rows of two extents of one class take the same arithmetic in every op of this backend, so they give the same bits.
+    // A backend claims only what it proves, so by default every extent is a class of its own (docs/SPECULATIVE.md, section 1).
+    virtual size_t row_class(size_t extent) const { return extent; }
+
     // Where a backend made to time its work (make_backend's diagnostics) held its caller since it was made, in milliseconds: waiting on tickets, for a free command slot and for staging, and in uploads (write) apart from those waits.
     // A backend that computes as it records never waits, and one not made to time its work reports nothing.
     struct HostTimes {

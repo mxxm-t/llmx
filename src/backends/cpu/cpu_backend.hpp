@@ -126,6 +126,8 @@ public:
     std::optional<size_t> memory_available() const override { return core::host_memory_available(); }
     bool reads_in_place() const override { return true; }
     bool is_cpu() const override { return true; }
+    // A generated token takes the decode dots and every longer extent the prompt path, whose rows compute the same however they are batched (each_run).
+    size_t row_class(size_t extent) const override { return extent <= 1 ? 1 : 2; }
     bool implements(Op) const override { return true; }
 
     void run_prefill(const std::function<void()>& work) override {

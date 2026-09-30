@@ -50,8 +50,8 @@ void prefilling_victim(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
             std::to_string(s.recomputed) + " rows recomputed, against 0 and at least the two blocks of its prompt it had read");
 }
 
-// A follow-up turn forks the whole blocks of the previous turn's history, its reply rows among them, computed as generated tokens.
-// Paused beside an uncapped request with a short prompt, which then takes its donor, it must recompute those reply rows as generated tokens again, not as rows of its own prompt.
+// A follow-up turn repeating a 20-token prompt and its reply forks none of that history, whose only whole blocks hold the reply's decode rows, and computes it as its own prompt.
+// Paused beside an uncapped request with a short prompt, it must recompute its history as it first computed it.
 void follow_up(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const Req first{prompt_of(5, 20, vocab), 200};
     auto model = make(1024, 0);
@@ -61,13 +61,13 @@ void follow_up(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
     again.insert(again.end(), more.begin(), more.end());
     const auto s = alone_then_together(make, tok, 1024, 0, 3, {first}, {{prompt_of(1, 9, vocab)}, {again}}, "a follow-up turn paused");
-    // It sat out passes at the end of its 512-token reservation and was paused there, so a resume that forked nothing recomputes those 512 rows, the forked reply rows among them.
+    // It sat out passes at the end of its 512-token reservation and was paused there, so a resume that forked nothing recomputes those 512 rows.
     require(s.taken_back == 0 && s.recomputed >= 4 * kBlock, "a follow-up turn paused: " + std::to_string(s.taken_back) + " taken back and " +
             std::to_string(s.recomputed) + " rows recomputed, against 0 and at least 512");
 }
 
-// On a device, a 100-token prompt that forks the first block of a 600-token prompt's history: those rows were computed at the longer prompt's extent, whose tile splits its sums another way than a prompt under 449 tokens.
-// Admitted after an uncapped request with a short prompt, it is paused when that one grows, and its donor then goes too, so it recomputes the forked rows at the extent that first computed them and its own at its own.
+// On a device, a 100-token prompt sharing the first block of a 600-token prompt's history, whose rows the longer prompt's tile split computed: it forks nothing, since the classes differ.
+// Admitted after an uncapped request with a short prompt, it is paused when that one grows, and its donor then goes too, so it recomputes its rows at its own extent.
 void device_classes(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const Req donor{prompt_of(9, 600, vocab), 4};
     std::vector<uint32_t> forked(donor.prompt.begin(), donor.prompt.begin() + 64);
@@ -148,7 +148,7 @@ void take_back(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
             std::to_string(s.recomputed) + " rows recomputed, against 1, 1 and 0");
 }
 
-// A follow-up turn, which forked the first block of the previous turn's history at its first admission, paused with its donor intact as B above is (14 blocks, the previous turn's donor going to its first growth step): it takes back its donor, forked prefix and reply rows included.
+// A follow-up turn, which forks nothing of the previous turn's reply rows at its first admission, paused with its donor intact as B above is (14 blocks, the previous turn's donor going to its first growth step): it takes back its donor whole.
 void take_back_follow_up(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 14 * kBlock;
     const Req first{prompt_of(5, 20, vocab), 200};

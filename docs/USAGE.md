@@ -384,7 +384,7 @@ against 311 on the CPU, while at 247 the CPU is ahead (268 against 223);
 on the Radeon VII the two meet at about 512. `512` suits a machine that
 mostly reads long documents.
 The count is the whole prompt's length, a reused conversation prefix included, so every row a prompt computes takes the same path in every slice, alone or beside other requests, and whether or not a server had part of it cached.
-The rows a server forks from a cached prefix keep the path they were computed on: the earlier request's prompt rows the path its prompt took, and its generated tokens the CPU (`docs/SERVER.md`, Open gaps).
+A server forks a cached prefix only where it took the path the new prompt takes, so the reply equals `generate`'s.
 A short follow-up in a long chat therefore streams too and pays the copy, and `serve` makes that copy inside the pass that carries every other request's next token, so it delays every request sharing that pass, not only the follow-up.
 With `bench --depth` the depth counts toward the length as well.
 Generated tokens never stream, and neither does a one-token prompt, so `1` streams the prompts `2` does.
@@ -630,7 +630,7 @@ A greedy request gives the ids `generate --temp 0` gives for the same prompt, al
 A finished request's cache stays a while as a donor: a new prompt that repeats its tokens shares those KV blocks read-only and prefills only what follows, `reused_tokens` in the reply, whole blocks only and never the last prompt token.
 Donors give their blocks up, oldest first, when a request needs them, except that the donor a request forks is kept and, if the pool is still short, consumed by it: the blocks it shares pass to the request and the rest are freed.
 A follow-up turn or a resumed request, which shares every full block of its donor, consumes that donor before any other gives its blocks up.
-A new prompt that forks rows another prompt's extent computed, or a follow-up turn that forks the previous reply, continues from those rows as they were computed, so its reply can differ from `generate`'s by rounding until first admissions fork only rows of their own class (`docs/SERVER.md`, Open gaps).
+Only rows computed as the new prompt computes them are shared: a follow-up turn shares the previous turn's prompt and computes the previous reply again as rows of its own prompt, so every reply equals `generate`'s for the same prompt.
 
 `/v1/tokenize` gives the ids `llmx tokenize` prints for `text`, the ids a prompt of that text reads: no chat template is applied, and the text of a special token such as `<|im_start|>` reads as that token.
 With `messages` in place of `text`, as `/v1/chat` takes them, the model's chat template renders them first, the assistant's header included and an assistant message's `reasoning_content` read as the chat routes read it, so the ids are the ones a chat request with those messages reads, and a conversation the template raises on is refused with 400 as there.

@@ -181,6 +181,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   - `state_alloc` and `state_copy` are `Backend`'s own, built on this backend's `alloc` and `copy`; `backend-vulkan` checks their zeroed slots and copies.
   - `implements` answers true for every op.
 - `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`), both reading the shape from one rule, `pads_f32`; routed stacks and gathered tables are bound as they are. `host_resident()`: the upload staging buffer and the ring of host-visible arenas, which live in host memory. `scratch_reserve(free)`: 256 MiB plus a twentieth of what is free, for tile split partials and attention merge state.
+- `row_class(extent)`: a generated token is a class of its own; a longer extent's class is which of the profile's crossovers it has reached (the matmul tile of both type families at both row widths, the routed tile of every family and the attention tile) and, once it can take the tile, its split (`split_tiles_of`), so every extent from 449 on is one class.
 
 ## Finite activation range repair
 

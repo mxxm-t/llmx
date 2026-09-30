@@ -25,6 +25,7 @@
 #include "model/kv_cache.hpp"
 #include "quant/quant.hpp"
 #include "quantizers.hpp"
+#include "row_classes.hpp"
 
 namespace {
 void require(bool ok, const char* message) {
@@ -2179,6 +2180,14 @@ bool same_bits(const std::vector<float>& a, const std::vector<float>& b) {
     return a.size() == b.size() && (a.empty() || std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0);
 }
 
+// Every pair of extents of one class gives the same bits through a matmul, the routed products and attention (row_classes::check).
+size_t check_row_classes(backend::Backend& vk) {
+    return row_classes::check(vk,
+                              {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+                               quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K},
+                              [](uint32_t type, size_t nin, size_t rows, uint32_t seed) { return matrix(type, nin, rows, seed); });
+}
+
 // A slot's matrices within the bound, and its carried rows, which are raw rows, bit for bit.
 size_t close_slot(const StateShape& sh, const std::vector<float>& cpu, const std::vector<float>& dev, const char* what) {
     const size_t m = sh.v_heads * sh.matrix_floats();
@@ -2673,6 +2682,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";
         const size_t precise = check_activation_precision(*b);
         std::cout << "backend-vulkan: " << precise << " outputs within the 16-bit activations' precision\n";
+        std::cout << "backend-vulkan: " << q35::check_row_classes(*b) << " pairs of extents of one class with the same bits\n";
         std::cout << backend::vulkan_kernel_statistics(*b);
         if (!isa_dir.empty()) {
             const auto representations = backend::vulkan_kernel_representations(*b);

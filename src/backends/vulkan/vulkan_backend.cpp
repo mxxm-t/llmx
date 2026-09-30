@@ -1280,6 +1280,21 @@ public:
     // The upload staging and each ring slot's argument arena, host-visible memory held for the backend's life.
     size_t host_resident() const override { return kStagingBytes + kRing * kArenaBytes; }
 
+    // A generated token is a class of its own; a longer extent's class is which of the profile's crossovers it has reached, of every type and row width (matmul_runs, expert_runs, attention), and the tile's split once it can take the tile.
+    size_t row_class(size_t extent) const override {
+        if (extent <= 1) return 1;
+        const DeviceProfile& p = dev_->profile;
+        const size_t tile[] = {p.tile_from_8bit, p.tile_from_8bit_narrow, p.tile_from_other, p.tile_from_other_narrow};
+        const size_t other[] = {p.moe_tile_from, p.moe_tile_from_q4, p.moe_tile_from_q4k, p.moe_tile_from_q5k, p.attention_tile_rows};
+        size_t reached = 0, least = SIZE_MAX;
+        for (size_t t : tile) {
+            reached = reached * 2 + (extent >= t);
+            least = std::min(least, t);
+        }
+        for (size_t t : other) reached = reached * 2 + (extent >= t);
+        return 2 + reached * 16 + (extent >= least ? split_tiles_of(extent) : 0);
+    }
+
     HostTimes host_times() const override { return host_; }
 
     // The timestamps' sum over every kernel since the last reading.

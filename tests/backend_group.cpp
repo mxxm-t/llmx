@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include "backends/cpu/cpu_backend.hpp"
 #include "quantizers.hpp"
+#include "row_classes.hpp"
 
 static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
@@ -371,11 +372,23 @@ static size_t check_gather(backend::CpuBackend& cpu) {
     return count;
 }
 
+// Every pair of extents of one class gives the same bits through a matmul, the routed products and attention (row_classes::check), with the decode dots as they run by default.
+static size_t check_row_classes(backend::CpuBackend& cpu) {
+    return row_classes::check(cpu,
+                              {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+                               quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K},
+                              [](uint32_t type, size_t nin, size_t rows, uint32_t) {
+                                  const Matrix m(type, rows, nin, 1);
+                                  return std::vector<uint8_t>(m.data(), m.data() + m.bytes());
+                              });
+}
+
 int main() {
     try {
         backend::CpuBackend cpu;
         cpu.set_threads(1);
         const size_t inputs = check_q8_inputs(cpu);
+        const size_t classes = check_row_classes(cpu);
         // These checks pin the float decode dots exactly; the 8-bit ones have tests/q8_dots.cpp.
         cpu.set_decode_activations8(false);
         const size_t gathered = check_gather(cpu);
@@ -429,6 +442,7 @@ int main() {
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
                   << inputs << " Q8 products on original inputs; "
+                  << classes << " pairs of extents of one class with the same bits; "
                   << scales << " exact finite Q8 scale/weight cases; "
                   << reductions << " ordered prefill reductions; "
                   << magnitudes << " magnitude-sweep outputs; "

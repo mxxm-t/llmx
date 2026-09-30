@@ -37,6 +37,7 @@ is measured against the single-sequence path and the reference.
   placement can differ), which is whole in every storage because a model
   refuses block sizes that do not nest. A live request's growing history
   is never shared.
+  Only rows computed in the classes the request computes them in are shared (`Model::row_class`, [SPECULATIVE](SPECULATIVE.md), section 1): at a first admission its prompt at the prompt's extent, so a follow-up turn shares the previous turn's prompt blocks and computes the previous reply, which decode computed, as rows of its own prompt, and every reply equals the CLI's for the same prompt.
 - **A memory budget that admits, not crashes.** The KV pool holds `--ctx-size` tokens in total, the model context by default, or the most whole blocks the devices hold beside the weights, a pass's activations and the recurrent states where they cannot hold that, fitted and backed whole as the server loads (`fitted_kv`), so no pass grows the cache and an admitted request never meets a device out of memory; a model that leaves no room for one block is refused before the server listens.
   A capped request is admitted when the pool can hold its prompt and its `max_tokens`, an uncapped one (a compatible route without `max_tokens`) when it can hold its prompt and a growth step, reserving more as it generates; otherwise it waits in the queue, and past `--max-queue` queued requests a new one is refused with 503, paused requests not counted.
   A request's donor is chosen before room is made for it, and the other donors are evicted, oldest first, when it needs their blocks.
@@ -311,10 +312,7 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 
 ### Open gaps
 
-- **Forks across row classes.** A first admission forks a donor by tokens alone, so a prompt that forks rows another prompt's extent computed, or a follow-up turn that forks the previous reply's rows, which decode computed, continues from rows a fresh sequence would compute another way.
-  Its reply can then differ from the CLI's by rounding, where the correctness gate below asks for the same ids.
-  With `--moe-stream-from` the same holds for a donor whose prompt took the other side of the stream length.
-  Planned in `docs/STATUS.md` (Exact resume of a paused request): a first admission forks only rows of its own classes, which the row classes the exact resume records already tell apart, and recomputes the rest.
+None: forks across row classes, the last, closed with `Model::row_class` ([SPECULATIVE](SPECULATIVE.md), step 1), so a first admission forks only rows computed as it computes them.
 
 ## Gates
 
@@ -323,7 +321,7 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
   backend, alone and while three other requests decode beside it; the
   kv-cache test already holds a two-entry `forward` to the entries run
   alone. A forked prefix continues exactly as a fresh sequence fed the
-  same history; forks across row classes do not yet (Open gaps, above).
+  same history, since a fork takes only rows of the request's own classes.
   A cancelled request returns its blocks and the others
   finish unchanged. All on the CPU and on the device.
   With log-probabilities, a request's values repeat from run to run, and a request run alone gets the values it gets while three others run beside it.
@@ -355,4 +353,5 @@ Detokenized text gets the U+FFFD repair of generated text, so the ids of a whole
 | 11 | The rounds over the model's pass API with one pass in flight, and the policy core as free functions: the pools' blocks, the growth rule, `make_room`, the round's stages and the logits rows (layer split phase 3, step 2; **merged**) | `server-passes`: the policy core by hand, then the scheduler's round over it in random schedules of a simulated executor over 1 to 4 stages and 1 to 2S pass slots, with arrivals, growth, pauses, cancellations, failures and stops (`docs/STATUS.md`, layer split phase 3); `server-resume`: a request cancelled and a stop from inside a pass's stage on one to three CPU stages; every reply byte-identical to the step before, alone, together and against the CLI (`server`, `server-resume`, `tools/server_mix_check.py`) |
 | 12 | A pass in flight per stage on a pipelined split (`--passes`), the decode share, the host's stages after the devices', a cancelled request in flight not sampled and kept, a failure ending its own pass alone, `--timing` and the health fields, and a 16-slot command ring (layer split phase 3, step 3; **merged**) | `server-passes` over the new round; `server-passes-cpu`: the scheduler on one to three CPUs at P = 1, S, S + 1 and 2S, every reply its reply alone, pauses and a plan waiting on a request in flight, a cancel, a failure and a stop from inside a stage, and the passes replayed through `Model::forward`; `llmx-split-check`'s passes in flight; `tools/server_mix_check.py --passes --logprobs` (`docs/STATUS.md`, layer split phase 3) |
 | 13 | A retiring pass's rows read in place from its mapped logits, a row copied only for log-probabilities (layer split phase 3, step 4) | `server-passes-cpu`: the steady load without log-probabilities, drawn in place, gives every id it gives alone; every reply byte-identical to the step before, greedy and seeded, alone, together and against the CLI (`server`, `server-resume`, `logprobs`, `tools/server_mix_check.py --ids`, with `--sampled` for the seeded replies; `docs/STATUS.md`, layer split phase 3) |
+| 15 | A first admission forks only rows of the classes it computes them in (`Model::row_class`; [SPECULATIVE](SPECULATIVE.md), step 1) | `server-resume`: a follow-up turn, on the CPU and on a device, and a prompt sharing a block of a prompt of another tile split, each equal to the same prompt on a fresh model; `backend-group` and `backend-vulkan`: rows of every pair of extents of one class give the same bits |
 | 14 | A retiring pass's rows drawn on the scheduler's sampling threads beside the scheduler thread (layer split phase 3, step 4) | `sampling-pool`: each index once, the threads side by side, an exception rethrown once every call has returned; TSan over the pool; every reply byte-identical to the step before, as for step 13 (`docs/STATUS.md`, layer split phase 3) |

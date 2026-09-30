@@ -35,7 +35,7 @@ struct SampleParams : infer::Sampling {
     size_t top_logprobs = 0;
 };
 
-// A stretch of a history computed one way: the rows before `end`, from the stretch before it on, took this extent (infer::BatchEntry), which chooses a device's kernels and whether a streamed layer runs on the device, so streamed and host rows are always of different classes.
+// A stretch of a history computed one way: the rows before `end`, from the stretch before it on, took this extent (infer::BatchEntry), whose class (Model::row_class) is what chooses a device's kernels and whether a streamed layer runs on the device.
 // A request's prompt takes its whole length, a generated token extent 1, and a prefix forked at the first admission keeps the stretches its donor recorded.
 struct RowClass {
     size_t end, extent;
@@ -689,11 +689,11 @@ private:
         }
         return out;
     }
-    // How many of the first `n` positions two records computed alike.
-    static size_t alike(const std::vector<RowClass>& a, const std::vector<RowClass>& b, size_t n) {
+    // How many of the first `n` positions two records computed alike, their extents of one class.
+    size_t alike(const std::vector<RowClass>& a, const std::vector<RowClass>& b, size_t n) const {
         size_t at = 0;
         for (size_t i = 0, j = 0; at < n && i < a.size() && j < b.size();) {
-            if (a[i].extent != b[j].extent) break;
+            if (a[i].extent != b[j].extent && model_.row_class(a[i].extent) != model_.row_class(b[j].extent)) break;
             at = std::min({a[i].end, b[j].end, n});
             if (a[i].end <= at) ++i;
             if (b[j].end <= at) ++j;
@@ -842,18 +842,20 @@ private:
         return waiting.erase(it);
     }
 
-    // The donor sharing the longest run of whole blocks with r's history by tokens, and for a request with a record of its rows only over rows computed as its own were; the run's length goes to `tokens`, zero when none shares a block.
+    // The donor sharing the longest run of whole blocks with r's history by tokens, over rows computed as r's were or, at its first admission, as it would compute them: its prompt at the prompt's extent; the run's length goes to `tokens`, zero when none shares a block.
     // The last history token is never shared, since a pass must compute it to give logits.
     size_t best_donor(const Request& r, size_t& tokens) const {
         const size_t bt = model_.kv_block_tokens(), h = history_tokens(r);
         size_t best = donors_.size();
         tokens = 0;
+        const std::vector<RowClass> prompt_only{RowClass{r.prompt_.size(), r.prompt_.size()}};
+        const std::vector<RowClass>& own = r.classes_.empty() ? prompt_only : r.classes_;
         for (size_t d = 0; d < donors_.size(); ++d) {
             const auto& t = donors_[d].tokens;
             size_t n = 0;
             const size_t limit = std::min(t.size(), h - 1);
             while (n < limit && t[n] == *token_ptr(r, n)) ++n;
-            if (!r.classes_.empty()) n = alike(r.classes_, donors_[d].classes, n);
+            n = alike(own, donors_[d].classes, n);
             n = n / bt * bt;
             if (n > tokens) { tokens = n; best = d; }
         }

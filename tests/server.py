@@ -1124,21 +1124,23 @@ def check_paused_prefill(model):
 
 
 def check_conversation(model, text):
-    """A conversation whose history grows past half of a small pool: each follow-up repeats the last turn's prompt and reply and adds half of `text`, forks that turn's history however full the pool is, so its `reused_tokens` is larger than the last turn's and the server's `prefix_tokens` grows on every follow-up, and gives the CLI's greedy text for its whole prompt."""
+    """A conversation whose history grows past half of a small pool: each follow-up repeats the last turn's prompt and reply and adds half of `text`, and forks the last turn's prompt however full the pool is but never its reply, whose rows decode computed, so its `reused_tokens` stays within the last turn's prompt and, once the last turn's prompt passes 512 tokens, where a device's tile takes one split whatever the length, grows with the server's `prefix_tokens` on every follow-up, and it gives the CLI's greedy text for its whole prompt."""
     pool, n, turns = 1024, 16, 6
     srv = Server(model, "--ctx-size", str(pool))
     try:
         words = text.split(" ")
         halves = [" ".join(words[:len(words) // 2]), " ".join(words[len(words) // 2:])]
-        prompt, reused, prefix = halves[0], 0, 0
+        prompt, reused, prefix, last = halves[0], 0, 0, 0
         for turn in range(turns):
             status, reply = srv.post("/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
             assert status == 200, reply
             assert reply["text"] == cli_greedy_text(model, prompt, n), (turn, reply["text"])
             health = srv.get("/v1/health")
             if turn:
+                assert reply["reused_tokens"] <= last, (turn, reply["reused_tokens"], last)
+            if last >= 512:
                 assert reply["reused_tokens"] > reused and health["prefix_tokens"] > prefix, (turn, reply["prompt_tokens"], reply["reused_tokens"], reused, health)
-            reused, prefix = reply["reused_tokens"], health["prefix_tokens"]
+            reused, prefix, last = reply["reused_tokens"], health["prefix_tokens"], reply["prompt_tokens"]
             prompt += reply["text"] + " " + halves[(turn + 1) % 2]
         assert reply["prompt_tokens"] > pool // 2, reply
         return turns
@@ -1148,19 +1150,20 @@ def check_conversation(model, text):
 
 def check_unrelated_donor(model):
     """A follow-up turn beside an unrelated donor, on a pool with room for the follow-up once the turn it repeats is consumed but not beside both donors: the follow-up consumes that turn's history rather than evicting the unrelated donor, so a later prompt repeating the unrelated request's history still reuses it, with the CLI's greedy text."""
-    pool, n = 1024, 16
+    pool, n = 1344, 16
     srv = Server(model, "--ctx-size", str(pool))
     try:
         with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
             text = f.read()
-        # In a pool of 1024 tokens in blocks of 64 or 128, the unrelated request keeps about 200 tokens and the first turn about 280, and the follow-up's prompt and max_tokens, about 590, fit beside one of them but not beside both.
-        unrelated, first = text[4000:4750], text[:1100]
+        # Every prompt passes 449 tokens, so on a device each takes the tile split the others do and a fork may take its rows.
+        # The unrelated request keeps 495 tokens and the first turn 528, and the follow-up's prompt and max_tokens, about 805, of which it shares 512 with the first turn, fit beside one of them but not beside both: 11 blocks of 128 and 21 of 64 against 12 and 22.
+        unrelated, first = text[4000:6000], text[:2000]
         replies = []
         for prompt in (unrelated, first):
             status, reply = srv.post("/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
             assert status == 200 and reply["reused_tokens"] == 0, reply
             replies.append(reply)
-        status, reply = srv.post("/v1/generate", {"prompt": first + replies[1]["text"] + " " + text[1100:2200], "max_tokens": n, "temperature": 0})
+        status, reply = srv.post("/v1/generate", {"prompt": first + replies[1]["text"] + " " + text[2000:3100], "max_tokens": n, "temperature": 0})
         assert status == 200 and reply["reused_tokens"] > 0, reply
         # One donor went to make room for the follow-up, so the pool was short; the first turn's is the one it consumed.
         health = srv.get("/v1/health")

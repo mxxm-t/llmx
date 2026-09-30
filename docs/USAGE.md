@@ -573,7 +573,7 @@ to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request
 `--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage by default, so every device works on some pass while the host samples another; one elsewhere, where a number above 1 is refused as the server starts.
 The server prints the number it keeps, and passes whose buffers the memory cannot hold are dropped at start with a line on stderr.
 `--timing` times the rounds and each device's work for `/v1/health`, its dispatches between timestamps, which slows serving: throughput is read from a server without it.
-A model whose layers keep a recurrent state, a `qwen35` file such as Qwen3.5 or Qwen3.6-27B, is refused before the server listens until the scheduler holds states; the other commands run it on the CPU and on a Vulkan device.
+A model whose layers keep a recurrent state, a `qwen35` file such as Qwen3.5 or Qwen3.6-27B, holds a state for each of the `--max-seqs` requests it runs at once and keeps no finished history: a follow-up turn recomputes its whole prompt, and a paused request resumes by recomputing from its start (docs/SERVER.md).
 The server draws a pass's tokens on its scheduler thread and up to four sampling threads beside it, one fewer sampling thread than the CPUs the process may use where that is fewer, whatever `--threads` says, which counts the CPU backend's workers; it prints the number of sampling threads as it starts.
 
 | Route | Body | Reply |

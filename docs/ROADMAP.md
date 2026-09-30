@@ -48,7 +48,7 @@ Generalize to an architecture registry keyed by `general.architecture` (done: `m
 - Done: `qwen3moe` (Qwen3-30B-A3B), routed layers on the CPU and Vulkan
   backends with experts optionally on the CPU beside a device; the gate is a
   tiny random-weight model through HF `Qwen3MoeForCausalLM` (`docs/STATUS.md`)
-- In progress: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS.md`; the dense `qwen35` runs on the CPU and on a Vulkan device against HF, and the chunked prompt form, MoE, serving and MTP steps follow.
+- In progress: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS.md`; the dense `qwen35` runs on the CPU and on a Vulkan device against HF and is served without prefix reuse, and the chunked prompt form, MoE, serving with state checkpoints and MTP steps follow.
   Three layers in four are gated delta-net linear attention, with a fixed-size recurrent state per sequence, and every fourth layer is gated full attention at head width 256 with partial rotary.
   The MoE form adds a shared expert with its own gate, and some files carry a multi-token-prediction block, which becomes one proposer of a single speculative decoding system for every kind of drafter.
   A recurrent state exists only at the end of what it has read, so reuse and pause work from checkpoints of it, and every reused state is one the CLI would have computed the same way.

@@ -3,16 +3,25 @@
 ## Qwen 3.5, 3.6 and 3.8 everywhere (2026-09-30, branch feat/qwen35-serve)
 
 - **Goal:** the qwen35 architecture fully working (user, 2026-09-30): every command on the CPU, the MI50 and the Radeon VII, on one card and on a layer split, dense qwen35 and qwen35moe, at every quant the gate files use; serving first, so Qwen3.6-27B and Qwen3.8-27B Q8_0 reach an OpenAI-compatible client through `llmx serve`. MTP and state checkpoints wait for the speculative decoding design discussion.
-- **Checklist**, each gap closed by its gate (the plan's steps in "Qwen 3.5, 3.6 and 3.8", below):
-  - [x] dense qwen35: `generate`, `chat`, `logits`, `perplexity`, `bench` on the CPU (step 4) and on Vulkan, one MI50 and the Radeon VII (step 5), Q8_0 and Q4_K_M, HF-gated.
-  - [x] dense qwen35 over a layer split: two MI50s bit-identical to one, and CPU splits in the suite (step 5).
-  - [ ] dense qwen35: `serve` (step 8b, this branch) on the CPU, one MI50 and the Radeon VII, with the fit at load (8a).
-  - [ ] dense qwen35: `serve` over a split (8d).
-  - [ ] qwen35moe (step 7): every command, the CPU and Vulkan, one card and a split, and `serve`.
-  - [ ] chunked prefill for long prompts (step 6).
-  - [ ] MTP and checkpoints: after the design discussion.
-- **Design (8b, minimal):** the scheduler keeps no donor for a model whose layers keep a recurrent state, since a state exists only at the end of what it has read: a finished or paused request releases its blocks and its state slot, so there are no forks and no prefix reuse, a follow-up turn recomputes its history, and a paused request resumes by the exact replay from 0. Every admitted request holds one of the `--max-seqs` state slots the load reserves, so admission never waits on a slot.
-- **Left:** the change and its gates: ids alone against four at once and through a pause on the tiny qwen35 fixtures (suite, hosted), on the 0.8B, 9B and 27B files on one MI50 and the Radeon VII, the server suite components, `tools/server_mix_check.py` on a qwen35 file; then 8a.
+- **Checklist** (the plan's steps are in "Qwen 3.5, 3.6 and 3.8", below; a cell is done when its gate passed):
+
+  | | CPU | one MI50 | Radeon VII | layer split |
+  |---|---|---|---|---|
+  | dense: `generate`, `chat`, `logits`, `perplexity`, `bench` | done (step 4) | done (step 5) | done (step 5) | done: MI50s bit-identical to one, CPU splits in the suite (step 5) |
+  | dense: `serve` | this branch (8b) | this branch (8b) | this branch (8b) | 8d |
+  | dense: KV fitted and backed at load | 8a | 8a | 8a | 8a |
+  | dense: long prompts in the chunked form | not needed | step 6 | step 6 | step 6 |
+  | `qwen35moe` (Qwen3.6-35B-A3B): every command and `serve` | step 7 | step 7 | step 7, experts on the CPU | step 7 |
+  | MTP and state checkpoints | after the design discussion | | | |
+
+  Quants: Q8_0, Q4_K_M (Q4_K, Q5_K, Q6_K) and Q4_1 files run today; BF16, F16, MXFP4 and IQ4_NL files wait for the quantization plan and step 10; Q5_1 and the type-53 files stay refused.
+- **Design (8b, minimal):** the scheduler keeps no donor for a model whose layers keep a recurrent state, since a state exists only at the end of what it has read: a finished or paused request releases its blocks and its state slot, so there are no forks and no prefix reuse, a follow-up turn recomputes its history, and a paused request resumes by the exact replay from 0. Every admitted request holds one of the `--max-seqs` state slots the load reserves, and a scheduler asked for more requests at once than the model's state slots is refused as it is made, so admission never waits on a slot.
+- **Done:**
+  - `serve` no longer refuses the model; `park` keeps no donor of a model that keeps a state; `Model::state_slots` and the scheduler's refusal above.
+  - Tests: the suite's `qwen35` component serves the tiny Hv = 3 Hk model (greedy ids alone, four at once and from `generate`, and four uncapped requests paused and resumed with no donor); `server-resume` and `server-passes-cpu` run a hybrid qwen35 model with Q8_0 matrices through their pause, cancellation, failure, stop and split cases; `server-passes` serves a model keeping a state in one schedule of four, with the slot ledger held in every schedule.
+  - On the change's first head (`d97f7da9`, before the native tests), `tools/server_mix_check.py` on one MI50 at default clocks gave every request its ids alone, together, skewed and through `generate`: Qwen3.5-0.8B Q8_0 (16 requests, and 12 uncapped with 23 pauses and 26970 tokens recomputed), Qwen3.5-9B Q4_K_M, Qwen3.6-27B Q8_0 and Qwen3.8-27B Q8_0 (8 requests each).
+- **Left:** CTest and the CPU suite on the rig at this head; the device tier (Qwen3 byte identity on the CPU and one MI50 against main, the suite on the device, the Radeon VII); `tools/long_context_check.py` through `serve` on the 9B; the hosted run; then 8a on its own branch, then 7, 6 and 8d.
+- **Gotchas:** a hybrid model's resume recomputes from 0, so a long conversation's follow-up turns pay their whole history each time until checkpoints (step 8c); the KV budget still defaults to the model context (262144 tokens on these files) and grows on demand, so on one card give `--ctx-size` until 8a fits it at load.
 
 ## README support overview (2026-09-30, branch docs/readme-support, merged at `d74f0015`)
 

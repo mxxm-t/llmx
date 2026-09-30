@@ -11,7 +11,7 @@ The tables below list the supported models, file formats, quantization types, ba
 |---|---|---|---|---|
 | `qwen3` (dense) | Qwen3-0.6B, 8B, 14B, 32B | Supported | Supported | Supported |
 | `qwen3moe` (mixture of experts) | Qwen3-30B-A3B, Qwen3-235B-A22B | Supported | Supported | Supported |
-| `qwen35` (hybrid linear and full attention) | Qwen3.5-0.8B, 4B, 9B, Qwen3.6-27B | Supported | Supported | Planned |
+| `qwen35` (hybrid linear and full attention) | Qwen3.5-0.8B, 4B, 9B, Qwen3.6-27B, Qwen3.8-27B | Supported | Supported | Supported, without prefix reuse |
 | `qwen35moe` (Qwen 3.5 mixture of experts) | | Planned | Planned | Planned |
 | Llama, Mistral, Gemma, Phi, DeepSeek V4 | | Planned | Planned | Planned |
 

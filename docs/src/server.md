@@ -43,6 +43,7 @@ scheduler are the runtime's own.
   Otherwise `best_donor` matches it by tokens and classes (`alike`), so a resume forks only rows computed as its own were, and a first admission by tokens alone; the pass that ends a request's history wants its logits.
   Each finished request's log line counts its pauses, the resumes that took its donor back and the rows its resumes recomputed.
   A finished request's history stays as a donor: a later prompt repeating its tokens forks the shared full blocks and prefills only the rest.
+  A model whose layers keep a recurrent state (`Model::keeps_state`) keeps no donor (`park`), since its state exists only at the end of what it has read: a finished or paused request gives back its blocks and its state slot, and a paused one resumes by recomputing its history from its start.
   The donor a request forks is chosen before room is made and the other donors go first; if the pool is still short the chosen one is consumed: only the shared blocks pass to the request and the rest are freed, so shared blocks are reserved once and a follow-up turn keeps the history it repeats.
   A request sharing every full block of its donor, a follow-up turn or a resume, consumes it before any other donor goes, so an unrelated donor stays whenever consuming that one makes room.
   `make_room` (in `policy.hpp`) is the one owner of who gives up blocks for whom.
@@ -69,7 +70,6 @@ scheduler are the runtime's own.
 - `api.hpp`: the routes and `serve(model, tok, format, config, listener)`.
   `Config` carries the scheduler's `passes` and `timing` beside its queue and sequence limits, and `serve` prints the passes the scheduler keeps in flight as it starts.
   `/v1/health` adds a timed scheduler's figures as `timing` (`timing_json`): each time a mean over the rounds, each stage's idle share over the span its device time was read in, and the device-bound rate, the rows the passes carried over the busiest stage's device time.
-  `require_servable(model)` refuses a model whose layers keep a recurrent state (`Model::keeps_state`), since the scheduler forks donors, reuses prefixes and recomputes a paused request's rows, none of which carries a state yet; `llmx serve` calls it before the server listens.
   Native `/v1/generate`, `/v1/chat` and `/v1/health`; the OpenAI-compatible `/v1/chat/completions`, `/v1/completions` and `/v1/models`, one parse, one request and one drain loop shared with the native routes, with the clients' synonyms accepted and errors in their shape.
   Every POST route reads its body through `body_of`, which refuses anything but a JSON object with 400.
   `encode` gives a prompt's ids to the generating routes and `/v1/tokenize` alike, refusing a text the tokenizer cannot encode with 400.

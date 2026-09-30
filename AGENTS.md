@@ -617,7 +617,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   by hand, not by `run_tests.py`.
   `--cli` sends the message through two fresh `llmx generate --chat --file`
   runs instead, whose `--verbose` output gives the prompt's token count and
-  the generated ids, for a model the server refuses, such as a `qwen35` file.
+  the generated ids.
   A position past the margin prints both backends' top candidates there, the
   device reading the same tokens, so a near-tie is told from a wrong kernel.
   The device reads them before the baseline does, so its work ends before
@@ -657,7 +657,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   The fixtures are Hv = Hk with a tied head, Hv = 3 Hk with its own head, and that model with one MTP block, whose file must print the bytes the file without it prints.
   The writer makes the weights as HF holds them and applies the converter's transforms itself (docs/QWEN35.md, GGUF conventions).
   Beyond the F32 checks, the NLL is scored in passes of three tokens and one token at a time, and greedy decode after a prefill must give HF's greedy tokens.
-  `serve` must refuse the file before it listens, since the scheduler does not hold a recurrent state yet, and `bench --seqs 3` must hold a state slot for each of its sequences.
+  Served with a context of 1024, the Hv = 3 Hk model must give the same greedy ids through `/v1/generate` alone, four at once and from `generate`, and four uncapped requests on a pool of 1024 tokens must be paused and resumed with the text each gives alone, the server keeping no donor and taking nothing back; `bench --seqs 3` must hold a state slot for each of its sequences.
   On a device whose backend lacks the linear attention's ops the files are refused as they load, and the component reports SKIP, which `run_tests.py` counts as neither a pass nor a failure (`common.SKIPPED`), as it does where llmx refuses the architecture (`qwen35.REFUSALS`).
 - **Baseline** (`tests/baseline.py`): real-model EXTERNAL ground truth.
   Compares llmx against golden fixtures generated once from the HF reference by `tools/gen_baseline.py` and committed to `tests/data/`.

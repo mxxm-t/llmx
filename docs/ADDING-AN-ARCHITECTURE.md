@@ -197,7 +197,7 @@ So the same prompt gives the same bytes through `generate`, `chat` and `perplexi
   - refuses forks, and so prefix reuse, until checkpoints serve them, and takes a history back only to 0, where the state reads as zero;
   - marks the states lost when a pass fails, so the sequence continues only from a reset.
 
-  `serve` refuses the model until its scheduler handles the state (`server::require_servable`).
+  `serve` holds such a model's requests without donors: a finished or paused request gives back its blocks and its state slot, a follow-up turn recomputes its history, and a paused request resumes by recomputing from its start (`docs/SERVER.md`).
 
 ### Refusals
 

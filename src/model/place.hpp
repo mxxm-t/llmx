@@ -1,8 +1,10 @@
 #pragma once
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -123,6 +125,10 @@ inline bool ffn_on_host(const PlacementRequest& request, const std::vector<Layer
     return request.cpu_moe < 0 || before < (size_t)request.cpu_moe;
 }
 
+// The reads a fitted budget short of the options' waits for the devices' free memory to stop rising, and the wait between them: about as long as a device takes to reclaim a large model's memory from a process that has ended.
+inline constexpr int kSettleReads = 20;
+inline constexpr std::chrono::milliseconds kSettleWait{250};
+
 // The options with the KV budget fitted (PlacementRequest::fit_kv): the most whole blocks of the largest block size, at most the options' budget, at which the fit of model/layer_split.hpp places the model on these devices and the host, and backed whole at load.
 // Beside a device with experts on the CPU, the device holds neither those layers' feed-forward blocks nor their experts; a device that cannot tell its free memory takes the options' budget.
 // Refused when not one block fits beside the weights, the activations and the recurrent state slots.
@@ -139,7 +145,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
             if (ffn_on_host(request, plan.layers, l))
                 for (Role& role : held.layers[l].roles)
                     if (role.part == Part::ffn) role.tensor.reset();
-    const std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
+    std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
     const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
     const std::optional<size_t> logits = request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt;
     std::string why;
@@ -154,21 +160,34 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
             return false;
         }
     };
-    size_t tokens = kv_tokens(plan, options);
-    if (!fits(tokens)) {
-        // The most whole blocks that fit, by bisection: each more block only adds to what the devices hold.
-        size_t lo = 0, hi = tokens / block;
+    const size_t want = kv_tokens(plan, options);
+    // The options' budget where it fits, else the most whole blocks that fit, by bisection, since each more block only adds to what the devices hold; 0 when none does.
+    const auto most = [&] {
+        if (fits(want)) return want;
+        size_t lo = 0, hi = want / block;
         while (lo < hi) {
             const size_t mid = lo + (hi - lo + 1) / 2;
             if (fits(mid * block)) lo = mid;
             else hi = mid - 1;
         }
-        if (!lo) {
-            fits(block);
-            throw std::runtime_error("placement: no room for one KV block of " + std::to_string(block) +
-                                     " tokens beside the weights, the activations and the recurrent states (" + why + ")");
-        }
-        tokens = lo * block;
+        return lo * block;
+    };
+    // A process that has just ended gives a device its memory back over a few seconds, so a budget short of the options' is fitted again as the free memory the devices report rises, until two reads find it no higher.
+    size_t tokens = most();
+    for (int read = 0, steady = 0; tokens < want && read < kSettleReads && steady < 2; ++read) {
+        std::this_thread::sleep_for(kSettleWait);
+        std::vector<DeviceBudget> again = budgets_for(backends, request.names);
+        bool rose = false;
+        for (size_t d = 0; d < again.size(); ++d) rose = rose || again[d].bytes.value_or(0) > budgets[d].bytes.value_or(0);
+        budgets = std::move(again);
+        steady = rose ? 0 : steady + 1;
+        if (rose) tokens = most();
+    }
+    if (!tokens) {
+        if (!fits(1)) throw std::runtime_error("placement: the model does not fit the devices' free memory even without its KV (" + why + ")");
+        fits(block);
+        throw std::runtime_error("placement: no room for one KV block of " + std::to_string(block) +
+                                 " tokens beside the weights, the activations and the recurrent states (" + why + ")");
     }
     options.kv_tokens = tokens;
     options.kv_backed = true;

@@ -1,5 +1,19 @@
 # llmx - Development Status
 
+## Qwen 3.5, 3.6 and 3.8 everywhere (2026-09-30, branch feat/qwen35-serve)
+
+- **Goal:** the qwen35 architecture fully working (user, 2026-09-30): every command on the CPU, the MI50 and the Radeon VII, on one card and on a layer split, dense qwen35 and qwen35moe, at every quant the gate files use; serving first, so Qwen3.6-27B and Qwen3.8-27B Q8_0 reach an OpenAI-compatible client through `llmx serve`. MTP and state checkpoints wait for the speculative decoding design discussion.
+- **Checklist**, each gap closed by its gate (the plan's steps in "Qwen 3.5, 3.6 and 3.8", below):
+  - [x] dense qwen35: `generate`, `chat`, `logits`, `perplexity`, `bench` on the CPU (step 4) and on Vulkan, one MI50 and the Radeon VII (step 5), Q8_0 and Q4_K_M, HF-gated.
+  - [x] dense qwen35 over a layer split: two MI50s bit-identical to one, and CPU splits in the suite (step 5).
+  - [ ] dense qwen35: `serve` (step 8b, this branch) on the CPU, one MI50 and the Radeon VII, with the fit at load (8a).
+  - [ ] dense qwen35: `serve` over a split (8d).
+  - [ ] qwen35moe (step 7): every command, the CPU and Vulkan, one card and a split, and `serve`.
+  - [ ] chunked prefill for long prompts (step 6).
+  - [ ] MTP and checkpoints: after the design discussion.
+- **Design (8b, minimal):** the scheduler keeps no donor for a model whose layers keep a recurrent state, since a state exists only at the end of what it has read: a finished or paused request releases its blocks and its state slot, so there are no forks and no prefix reuse, a follow-up turn recomputes its history, and a paused request resumes by the exact replay from 0. Every admitted request holds one of the `--max-seqs` state slots the load reserves, so admission never waits on a slot.
+- **Left:** the change and its gates: ids alone against four at once and through a pause on the tiny qwen35 fixtures (suite, hosted), on the 0.8B, 9B and 27B files on one MI50 and the Radeon VII, the server suite components, `tools/server_mix_check.py` on a qwen35 file; then 8a.
+
 ## README support overview (2026-09-30, branch docs/readme-support, merged at `d74f0015`)
 
 - **Goal:** a README that shows a newcomer what llmx supports: architectures and models, quantization types, file formats, backends and devices, multi-device modes and the server, each marked Supported or Planned.

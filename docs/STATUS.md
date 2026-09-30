@@ -29,6 +29,15 @@
   Step 6 can gain at most the recurrence's share of prompt time: on one MI50 (`bench --profile`, main `8ff34685`) `delta_rule` is 16.6 and 13.2 percent of the device time of pp512 and pp4096 on Qwen3.5-0.8B Q8_0 (1.2 us a token a layer at pp512), and 2.7 and 2.6 percent on Qwen3.5-9B Q4_K_M.
 - **Gotchas:** a hybrid model's resume recomputes from 0, so a long conversation's follow-up turns pay their whole history each time until checkpoints (step 8c); the KV budget still defaults to the model context (262144 tokens on these files) and grows on demand, so on one card give `--ctx-size` until 8a fits it at load.
 
+## The server's KV budget fitted and backed at load (2026-09-30, branch fix/serve-kv-fit, step 8a of the qwen35 plan)
+
+- **Goal:** `serve` takes as its KV budget the most the devices hold beside the weights, the activations, the recurrent state slots and the passes' buffers, at most `--ctx-size` or the model context, and backs it whole at load, so no pass grows the cache and a request's room is known when it is admitted; a load where not one block fits is refused. Question 4 of the qwen35 plan, taken with its recommendation by the user's order to serve qwen35 on one card (2026-09-30).
+- **Why:** the qwen35 files carry a context of 262144 tokens, which `serve` took as its budget and grew on demand: on one MI50 the 27B Q8_0 leaves about 4.7 GiB, so requests admitted against that budget failed mid-pass when growth ran out of memory, and a doubling growth holds the old and new buffers together, so only half to two thirds of the room was reachable.
+- **Design:** one owner, `place_model`, when the request asks for it (`PlacementRequest::fit_kv`, which only `serve` sets): the largest budget, in whole blocks of the largest block size, at which the fit of `model/layer_split.hpp` places the model on the devices given (one device included, and beside the experts on the CPU without those layers' feed-forward blocks); `ModelOptions::kv_backed` then backs every storage whole as the model is made. The other commands keep growth, so a short chat does not allocate the context.
+- **Done:** nothing yet.
+- **Left:** the change, a `placement` case (a budget cut to what fits and backed whole, the request's budget kept where it fits, a load refused where no block fits), the server suites unchanged on dense and MoE models, `tools/server_mix_check.py` and the serving load tool on Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M against main with no throughput loss, the hosted run.
+- **Gotchas:** the budget now follows the free memory at load, so two starts can differ by a block where other processes hold memory.
+
 ## README support overview (2026-09-30, branch docs/readme-support, merged at `d74f0015`)
 
 - **Goal:** a README that shows a newcomer what llmx supports: architectures and models, quantization types, file formats, backends and devices, multi-device modes and the server, each marked Supported or Planned.

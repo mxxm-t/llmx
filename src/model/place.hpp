@@ -94,6 +94,8 @@ struct PlacementRequest {
     // Histories the caller holds at once and the tokens each reaches, when it knows them, as bench does its sequences; zero leaves the options' budget as it is.
     // Each history takes whole blocks, up to the model's context, so the budget grows to hold them all where it would not.
     size_t histories = 0, history_tokens = 0;
+    // The KV budget fitted to what the devices hold beside everything else, at most the options' budget, and backed whole at load (fitted_kv); a server's.
+    bool fit_kv = false;
 };
 
 // A placed model and, when it was split, what each device was given (LayerSplit::describe).
@@ -111,6 +113,66 @@ inline bool adds_host_for_experts(const std::vector<backend::BackendPtr>& backen
 inline bool host_reads_in_place(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
     return adds_host_for_experts(backends, request) ||
            std::any_of(backends.begin(), backends.end(), [](const backend::BackendPtr& b) { return b && b->reads_in_place(); });
+}
+
+// Whether the request puts routed layer l's feed-forward block on the CPU beside its one device: the first `cpu_moe` routed layers, or every one.
+inline bool ffn_on_host(const PlacementRequest& request, const std::vector<LayerPlan>& layers, size_t l) {
+    if (!layers[l].routed) return false;
+    size_t before = 0;
+    for (size_t i = 0; i < l; ++i) before += layers[i].routed;
+    return request.cpu_moe < 0 || before < (size_t)request.cpu_moe;
+}
+
+// The options with the KV budget fitted (PlacementRequest::fit_kv): the most whole blocks of the largest block size, at most the options' budget, at which the fit of model/layer_split.hpp places the model on these devices and the host, and backed whole at load.
+// Beside a device with experts on the CPU, the device holds neither those layers' feed-forward blocks nor their experts; a device that cannot tell its free memory takes the options' budget.
+// Refused when not one block fits beside the weights, the activations and the recurrent state slots.
+inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
+                              const PlacementRequest& request, ModelOptions options) {
+    size_t block = 1;
+    for (const auto& b : backends) {
+        if (!b) throw std::runtime_error("inference: missing backend");
+        block = std::max(block, b->kv_layout().block_tokens);
+    }
+    ModelPlan held = plan;
+    if (adds_host_for_experts(backends, request))
+        for (size_t l = 0; l < held.layers.size(); ++l)
+            if (ffn_on_host(request, plan.layers, l))
+                for (Role& role : held.layers[l].roles)
+                    if (role.part == Part::ffn) role.tensor.reset();
+    const std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
+    const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
+    const std::optional<size_t> logits = request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt;
+    std::string why;
+    const auto fits = [&](size_t tokens) {
+        ModelOptions o = options;
+        o.kv_tokens = tokens;
+        try {
+            split_layers(footprint(weights, held, o), budgets, rows, request.shares, core::host_memory_available(), std::max<size_t>(1, request.slots), logits);
+            return true;
+        } catch (const std::runtime_error& e) {
+            why = e.what();
+            return false;
+        }
+    };
+    size_t tokens = kv_tokens(plan, options);
+    if (!fits(tokens)) {
+        // The most whole blocks that fit, by bisection: each more block only adds to what the devices hold.
+        size_t lo = 0, hi = tokens / block;
+        while (lo < hi) {
+            const size_t mid = lo + (hi - lo + 1) / 2;
+            if (fits(mid * block)) lo = mid;
+            else hi = mid - 1;
+        }
+        if (!lo) {
+            fits(block);
+            throw std::runtime_error("placement: no room for one KV block of " + std::to_string(block) +
+                                     " tokens beside the weights, the activations and the recurrent states (" + why + ")");
+        }
+        tokens = lo * block;
+    }
+    options.kv_tokens = tokens;
+    options.kv_backed = true;
+    return options;
 }
 
 // The model over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several, with the request's ubatch set.
@@ -141,6 +203,7 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
         }
         if (short_of) options.kv_tokens = held;
     }
+    if (request.fit_kv) options = fitted_kv(weights, plan, backends, request, options);
     PlacedModel placed;
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)
@@ -159,12 +222,8 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
         place.ffn_device.assign(n_layer, 1);
         place.embed_device = place.output_device = 1;
         place.stream_from = request.stream_from;
-        int seen = 0;
-        for (size_t l = 0; l < n_layer; ++l) {
-            if (!plan.layers[l].routed) continue;
-            if (request.cpu_moe < 0 || seen < request.cpu_moe) place.ffn_device[l] = 0;
-            ++seen;
-        }
+        for (size_t l = 0; l < n_layer; ++l)
+            if (ffn_on_host(request, plan.layers, l)) place.ffn_device[l] = 0;
         std::vector<backend::BackendPtr> both{backend::make_cpu_backend(), std::move(backends[0])};
         placed.model = std::make_unique<Model>(weights, plan, std::move(both), place, options, adopt);
     }

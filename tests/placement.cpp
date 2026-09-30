@@ -603,6 +603,57 @@ void histories_fit_the_pool() {
     }
 }
 
+// A device reporting `room` bytes free, which is not the CPU; with `copying` it keeps copies of the weights it adopts, so the fit counts them.
+struct SizedDevice : HostMemoryDevice {
+    size_t room = 0;
+    bool copying = false;
+    std::optional<size_t> memory_available() const override { return room; }
+    bool reads_in_place() const override { return !copying; }
+};
+
+// A server's KV budget (PlacementRequest::fit_kv): the request's budget where it fits, backed whole as the model is made; the most whole blocks that fit where it does not, one more block not fitting; a load refused where not one block fits; and beside experts on the CPU, the device not charged for those layers' feed-forward weights.
+void kv_fitted() {
+    const auto weights = fixture();
+    auto place = [&](size_t room, size_t budget, bool fit, const gguf::GGUFModel& m, int cpu_moe = 0, bool copying = false) {
+        auto device = std::make_shared<SizedDevice>();
+        device->room = room;
+        device->copying = copying;
+        device->set_threads(1);
+        infer::PlacementRequest request;
+        request.names = {"device"};
+        request.fit_kv = fit;
+        request.cpu_moe = cpu_moe;
+        infer::ModelOptions options;
+        options.kv_tokens = budget;
+        return infer::place_model(infer::gguf_weights(m), {device}, request, options).model;
+    };
+    const size_t roomy = size_t(1) << 30;
+    auto grown = place(roomy, 0, false, weights);
+    require(grown->kv_tokens_total() == 256 && grown->kv_allocated_bytes() == 0, "a budget not fitted was backed before a pass");
+    grown->prefill(std::vector<uint32_t>(256, 3));
+    auto kept = place(roomy, 0, true, weights);
+    require(kept->kv_tokens_total() == 256 && kept->kv_allocated_bytes() == grown->kv_allocated_bytes(),
+            "a fitted budget that fits was cut, or not backed whole as the model was made");
+    // A budget of 2^20 tokens on a device with 8 MiB free is cut to whole blocks, which fit, and one more block does not.
+    const size_t cut = place(8 << 20, size_t(1) << 20, true, weights)->kv_tokens_total();
+    require(cut > 0 && cut < (size_t(1) << 20) && cut % 128 == 0, "a budget past the device's memory was not cut to whole blocks");
+    require(place(8 << 20, cut, true, weights)->kv_tokens_total() == cut && place(8 << 20, cut + 128, true, weights)->kv_tokens_total() == cut,
+            "the cut budget is not the most whole blocks that fit");
+    bool refused = false;
+    try {
+        place(1, 0, true, weights);
+    } catch (const std::runtime_error& e) {
+        refused = std::string(e.what()).find("no room for one KV block") != std::string::npos;
+    }
+    require(refused, "a device with no room for one KV block was not refused");
+    // Beside experts on the CPU a copying device holds every layer's attention and not the routed feed-forward blocks, which take more than a block, so it fits more KV than it does holding them.
+    const auto moe = tiny_qwen_moe(2, 2 * 128, true);
+    const size_t with_experts = place(8 << 20, size_t(1) << 20, true, moe, 0, true)->kv_tokens_total();
+    const size_t without = place(8 << 20, size_t(1) << 20, true, moe, -1, true)->kv_tokens_total();
+    require(without > with_experts, "a device beside experts on the CPU was charged for their weights");
+    checked += 6;
+}
+
 // A history recomputed in the classes that first computed it, over two CPU stages, as a paused request's resume recomputes it (docs/SERVER.md, pausing): a 40-token prompt at its extent in slices of 16, then 199 greedy tokens as entries of extent 1 of up to 64 rows, logits only on the last.
 // The synthetic Q8_0 model's decode rows take the 8-bit dots, so the replay must give the logits one backend gives after the prompt and 199 single decode steps, bit for bit; and so must a fork at the first block replaying the rest.
 void replay_over_stages() {
@@ -1075,6 +1126,7 @@ int main() {
         split_matches_single();
         layer_split_fits();
         histories_fit_the_pool();
+        kv_fitted();
         bad_placements_refused();
         pipelined_matches_single();
         pipelined_failure_rolls_back();

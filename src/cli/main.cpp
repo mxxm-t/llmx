@@ -427,7 +427,7 @@ std::string load_timing(const infer::LoadTimes& t) {
 // Open a model file as the flags ask, through infer::load_model: the devices --device lists, made first so a bad flag fails before the file is read, the model placed over them for its ubatch plus `decode_rows` generated tokens a pass (a server's sequences), progress on stderr when `progress`, and a split's plan when `show_plan`.
 // `threads` is the worker count to set, 0 to keep the backend's own; with `profiled`, the one device times its kernels and its address is written there (bench --profile).
 // `history_tokens`, when given, is what each of the `decode_rows` sequences holds, and the cache grows to hold them all at once where its budget would not (infer::PlacementRequest::histories).
-// `slots` is the passes a server keeps in flight, whose handoff buffers and logits rows a split's fit counts, and with `timed` every device times its work (serve --timing).
+// `slots` is the passes a server keeps in flight, whose handoff buffers and logits rows a split's fit counts, and a server fits its KV budget to the devices and backs it at load; with `timed` every device times its work (serve --timing).
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                                bool show_plan = false, backend::Backend** profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
                                                bool timed = false) {
@@ -446,6 +446,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     request.slots = slots;
     // A server keeps logits rows for its passes in flight by its own rule, not one for every row of a pass.
     if (slots) request.logit_rows = server::logit_rows(slots, decode_rows).size;
+    request.fit_kv = slots > 0;
     if (history_tokens) {
         request.histories = decode_rows;
         request.history_tokens = history_tokens;
@@ -943,7 +944,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --max-queue N           Queued request limit, paused requests not counted (default: " << cfg.max_queue << ")\n"
             << "  --passes N              Passes in flight; above 1 needs a layer split (default: its stages, else 1)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
-            << "  --ctx-size N, -c        Total KV token budget (default: model context)\n";
+            << "  --ctx-size N, -c        Most KV tokens in total, fitted to the devices at load (default: model context)\n";
         model_options(false);
         out << "\nRoutes:\n"
             << "  POST /v1/generate             POST /v1/chat\n"

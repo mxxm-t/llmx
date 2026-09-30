@@ -12,5 +12,16 @@ backends its caller made. It reads the plan
   (the backends' names, layer shares, experts on the CPU and their stream
   point, the ubatch, the decode rows, pass slots and logits rows a split is
   fitted for,
-  and the histories the budget must hold), and the placed model with its
-  split's description.
+  and the histories the budget must hold, and `fit_kv`, a server's budget
+  fitted to the devices), and the placed model with its split's description.
+- `fitted_kv(weights, plan, backends, request, options)`: the options with
+  the KV budget fitted, which `place_model` takes when `request.fit_kv` is
+  set, as `serve` sets it: the options' budget where the fit of
+  `split_layers` places the model on the backends given, one included, and
+  the host; else, by bisection, the most whole blocks of the largest block
+  size that fit, one more not fitting; refused when not one block fits.
+  Beside experts on the CPU the plan it fits leaves out the feed-forward
+  roles of the layers whose block runs on the CPU (`ffn_on_host`, which
+  `place_model` also places them by), since the device holds neither those
+  weights nor their experts. It sets `ModelOptions::kv_backed`, so the
+  storages back the whole budget as the model is made.

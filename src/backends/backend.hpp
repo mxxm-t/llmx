@@ -138,6 +138,8 @@ public:
     // A growth that failed part way is not counted.
     virtual size_t allocated_bytes() const = 0;
     virtual size_t peak_bytes() const = 0;
+    // Backs every block of the budget at once, so no later write grows the storage.
+    virtual void back_all() = 0;
 };
 
 // One sequence's history in one storage: logical block i is physical block blocks[i], `length` entries are committed, and `nq` rows of this pass belong to the sequence.

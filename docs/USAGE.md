@@ -563,12 +563,18 @@ queue of 64. `--max-seqs` is how many requests decode at once, the rest
 wait in the queue, and past `--max-queue` queued requests a new one is
 refused with 503.
 Paused requests wait apart and are not counted.
-`--ctx-size` (`-c`) is the KV pool's total token budget shared
-by every request, the model context by default: with 16 sequences over a
-40k-token model that is 2.5k tokens each on average, so a deployment that
-serves long conversations sets it to what its memory holds, rounded up
-to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device), and a request whose prompt plus
-`max_tokens` exceeds the budget or the model context, whichever is smaller, is refused with 413.
+`--ctx-size` (`-c`) is the most the KV pool's total token budget, shared
+by every request, may take, the model context by default, rounded up to
+whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device).
+The server fits the budget as it loads: where the devices cannot hold it
+beside the weights, a pass's activations and a recurrent state for each of
+the `--max-seqs` requests, it takes the most whole blocks they hold, and it
+backs the whole budget at load, so no request grows the cache; a model that
+leaves no room for one block is refused before the server listens.
+The line the server prints as it starts gives the budget it took: with 16
+sequences over a 40k-token budget that is 2.5k tokens each on average, and
+a request whose prompt plus `max_tokens` exceeds the budget or the model
+context, whichever is smaller, is refused with 413.
 `--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue`, `--passes` and `--ctx-size` are at least 1.
 `--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage by default, so every device works on some pass while the host samples another; one elsewhere, where a number above 1 is refused as the server starts.
 The server prints the number it keeps, and passes whose buffers the memory cannot hold are dropped at start with a line on stderr.

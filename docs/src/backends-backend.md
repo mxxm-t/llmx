@@ -101,8 +101,9 @@ placement contracts in `docs/EXECUTION.md`.
   handle, block table, committed length, `nq` rows of this pass, and the
   rows' extent as in `RowRuns`) and never computes an offset. Rows are laid out in view order and view `v`'s rows go
   to positions `length .. length + nq` of its sequence. Storage is backed on
-  demand up to the blocks `max_tokens` needs; it reports retained bytes and
-  the peak held during a growth copy.
+  demand up to the blocks `max_tokens` needs, or all at once by
+  `back_all()`; it reports retained bytes and the peak held during a growth
+  copy.
   The backends here derive their storage from `BlockKVStorage` (`backends-kv_storage.md`), which holds the buffers, the accounting, the growth rule, the whole-budget check and the view checks once.
 - `attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)`:
   causal GQA over every view, shared by decode and prefill. Queries/output

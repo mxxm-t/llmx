@@ -24,6 +24,10 @@ public:
     size_t max_blocks() const override { return max_; }
     size_t allocated_bytes() const override { return backed_ * (kblock_ + vblock_) * k_.size(); }
     size_t peak_bytes() const override { return peak_; }
+    // One growth to the whole budget, which copies nothing on a fresh storage.
+    void back_all() override {
+        if (max_) ensure(max_ - 1);
+    }
 
     size_t layers() const { return k_.size(); }
     size_t heads() const { return heads_; }

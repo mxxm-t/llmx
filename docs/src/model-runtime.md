@@ -42,7 +42,11 @@ delegated to a `backend::Backend`.
   sequences that may hold a recurrent state at once in a model whose layers
   keep one: one for a command's own sequence, the sequences a pass carries
   for `bench --seqs` (the CLI's `open_model` sets it from them), four for
-  each device of its split, two at least, for `llmx-split-check`. Both sides default to
+  each device of its split, two at least, for `llmx-split-check`; and
+  `kv_backed`, which backs every storage's whole budget as the model is made
+  (`KVStorage::back_all`) rather than as passes write it, so no pass grows
+  the cache, as a server's fitted budget asks (`fitted_kv` in
+  [place](model-place.md)). Both sides default to
   `KVType::f16`, the runtime's one default: the CLI, the server, the
   synthetic bench and the split check all start from it.
 - `Sequence`: one request's history over a model's cache, made by

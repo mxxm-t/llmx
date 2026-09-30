@@ -37,7 +37,7 @@ is measured against the single-sequence path and the reference.
   placement can differ), which is whole in every storage because a model
   refuses block sizes that do not nest. A live request's growing history
   is never shared.
-- **A memory budget that admits, not crashes.** The KV pool holds `--ctx-size` tokens in total, the model context by default.
+- **A memory budget that admits, not crashes.** The KV pool holds `--ctx-size` tokens in total, the model context by default, or the most whole blocks the devices hold beside the weights, a pass's activations and the recurrent states where they cannot hold that, fitted and backed whole as the server loads (`fitted_kv`), so no pass grows the cache and an admitted request never meets a device out of memory; a model that leaves no room for one block is refused before the server listens.
   A capped request is admitted when the pool can hold its prompt and its `max_tokens`, an uncapped one (a compatible route without `max_tokens`) when it can hold its prompt and a growth step, reserving more as it generates; otherwise it waits in the queue, and past `--max-queue` queued requests a new one is refused with 503, paused requests not counted.
   A request's donor is chosen before room is made for it, and the other donors are evicted, oldest first, when it needs their blocks.
   If the pool is still short, its donor is consumed: the request forks it and the donor goes, so the blocks they share are reserved once rather than for each, and a follow-up turn keeps the history it repeats however many donors fill the pool.

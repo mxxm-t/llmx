@@ -66,6 +66,8 @@ struct ModelOptions {
     size_t kv_tokens = 0;
     // Sequences that may hold a recurrent state at once, for a model whose layers keep one: each state storage holds this many slots from load on and never grows.
     size_t state_slots = 1;
+    // The whole KV budget backed as the model is made rather than as passes write it, so no pass grows the cache (a server's fitted budget, PlacementRequest::fit_kv).
+    bool kv_backed = false;
 };
 
 // One request's history in a model's cache, made by Model::make_sequence for that model's pools and block sizes: the committed length of each stage, a block table per KV storage, and per device the ticket of the last pass that touched it, which a release waits on rather than draining the device (docs/EXECUTION.md).
@@ -309,7 +311,7 @@ public:
             resolve_tensors(weights, adopt);
 
             // Each device whose mixer layers keep KV gets a storage for exactly those layers, with its own block size and pool.
-            // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it.
+            // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it, unless the options back it whole.
             const size_t budget = kv_tokens(plan_, options_);
             for (auto& dp : devices_) {
                 Device& d = *dp;
@@ -323,6 +325,7 @@ public:
                 }
                 d.storage = d.b->kv_alloc((size_t)d.kv_layers, plan_.kv_heads, plan_.head_dim,
                                           budget, options_.kv_k, options_.kv_v);
+                if (options_.kv_backed) d.storage->back_all();
                 d.pool.configure(d.storage->max_blocks());
                 d.storage_index = (int)storages_.size();
                 storages_.push_back(&d);

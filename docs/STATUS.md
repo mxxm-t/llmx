@@ -6,7 +6,8 @@
 - **Done:** isolated branch integrate/mxfp4-cpu-main starts at public main83b943a. Five CPU/quant runtime files match retained ef178699 exactly after line-ending normalization. Existing fixtures, spec decoders and HF consumers are reused; GPU and unrelated KV changes are excluded. The one shared MX test helper reports unsupported-device skips through the existing refusal policy, which still fails a required type. Main server-tool cache controls are preserved.
 - **Checks so far:** fresh Windows MSVC CPU build, native36/36 and eight focused format/reference/HF/split components pass. MXFP4 original-F32 control150 cases has max logit error0.00000143/0.00002; production dense tied/untied and MoE max0.00012650/0.0002. Split78/78 and existing Qwen3-0.6B Q8_0 four prompt/decode/cache identity cells pass against main83b943a. These are development checks, not final clean-head merge evidence.
 - **Server/device checks:** complete affected CPU server component passes, including tiny MXFP4 first-token HF max0.00008910/0.0004 and existing real Q8 concurrency/reuse/resume checks. The updated reference consumer passes36/36. A fresh Vulkan build refuses MXFP4 at load by type name; optional component/server skips and required-type failure are exercised on the actual Radeon backend. No MXFP4 GPU kernel is introduced.
-- **Left:** reconcile docs-only main6282500, then Linux/platform and real-model CPU HF checks, complete relevant suite/identity/timing and exact-head hosted gates before merge. No MXFP4 merge or speed-parity claim.
+- **Main reconciliation:** merged docs-only6282500 without conflicts; runtime, tests and build configuration stay identical to431942f6. Clean Linux and Windows rebuilds follow.
+- **Left:** Linux/platform and real-model CPU HF checks, complete relevant suite/identity/timing and exact-head hosted gates before merge. No MXFP4 merge or speed-parity claim.
 - **Evidence and review:** [development checkpoint](benchmarks/mxfp4-cpu-main-checkpoint-20260930.json) pins both build logs, binary/version, four identity cells, actual refusal and 18 locally verified archive payloads. All78 Markdown pages reconciled against83b943a:65 unchanged by normalized content retain their prior review,13 affected pages checked against source and results. Docs/dead-code pass with13/8 known findings and16/15 planted faults. No fresh line-by-line review of unchanged history is claimed.
 - **Gotchas:** Vulkan remains separate, with its six real-MoE ranking failures unresolved. CPU-first scope waives no applicable correctness bound. Prompt activations remain original F32, decode activations 16-bit. Main's server-tool cache controls are preserved.
 
@@ -14,6 +15,16 @@
 Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 `docs/benchmarks/`; their dated next steps are not current blockers.
+
+## Server consistency tool controls merged (2026-09-30)
+
+The fresh-phase server consistency tool and explicit `--cache-type f16|f32` selection merged at `83b943a` on Gitea and GitHub, fast-forwarded from `893e3c9` after all seven jobs of [hosted run 36640683980](https://github.com/mxxm-t/llmx/actions/runs/36640683980) passed on that exact head. Both remote main refs were verified and the temporary gate branch was deleted. Runtime source is unchanged.
+
+Local validation: fresh Windows CPU build,35/35 CTest, nine offline tool tests and the complete CPU server/docs/dead-code components passed. Real pinned Qwen3-0.6B Q8_0 checks passed separately with F16 and F32: four concurrent and three completed staggered replies exact in ids/log-probabilities/top lists, clean cancellation, fresh repeat and four CLI text matches per cache. The tool checks same-runtime consistency; independent HF and performance are separate concerns.
+
+Evidence: `llmx-server-mix-cache-local-evidence-20260930.tar.gz`, SHA-256 `f459ad28af2006f7c9f02ae5f18a0f819685fcac48c5325eb332b8001be461cf`,17 locally verified payloads. The publication audit in local Temp, `llmx-server-mix-cache-publish-20260930.json`, holds all seven job results and verified remote heads. MXFP4 development remains separate and unmerged.
+
+This merge record changes only STATUS. All77 project Markdown files were reconciled against the validated83b943a tree;76 are unchanged. The completed feature's open block was removed, its shipped row added and this record checked against the gate/publication evidence. Docs and dead-code checks pass; this documentation commit follows the feature merge separately as AGENTS requires.
 
 ## Two-row decode builds for the Q4 and K-quant rows (2026-09-29, branch perf/kquant-decode-columns, merged at `b5cc467a`)
 
@@ -8218,6 +8229,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Build config (config.hpp + CMake + build.bat) | Done |
 | Test suite (roundtrip / perf / tokenizer)| Done     |
 | Native server wave submission synchronization | Done |
+| Server consistency tool: fresh phases and matched cache selection | Done (main `83b943a`, seven hosted jobs passed) |
 | Perf `bench` command                     | Done     |
 | CPU backend optimization                 | Done     |
 | Early backend weight-type refusal and per-layer stream fallback | Done (main `737e082`, six hosted jobs passed) |
@@ -9956,13 +9968,3 @@ feature ships, delete its block and mark the row `Done` above.
 
 When you start a feature, open a block above before writing code - see
 `AGENTS.md` -> "Starting a feature".
-
-
-## Server consistency tool controls (2026-09-30)
-
-- Goal: separate the existing fresh-phase server validation from private MXFP4 work and select the same KV cache type explicitly for server and CLI comparisons.
-- Done: reused the private fresh-phase tool and its offline tests independently of MXFP4. Added `--cache-type f16|f32`, forwarded once to both KV sides for every server and CLI comparison. Runtime source stays on main893e3c9. Fresh Windows CPU build,35/35 CTest, nine offline tool tests and the complete CPU server/docs/dead-code components pass. Real pinned Qwen3-0.6B Q8_0 checks pass separately with F16 and F32: four concurrent and three completed staggered replies exact in ids/logprobs/top lists, clean cancellation, fresh repeat and four CLI text matches per cache. No performance claim.
-- Left: hosted CI at the exact branch head, then fast-forward only if main has not moved. No main merge yet.
-- Gotchas: the tool proves same-runtime request consistency, not independent HF correctness or throughput. Explicit cache selection must reach every server lifetime and CLI comparison. Other MXFP4 gates remain separate.
-- Checkpoint: 77 Markdown files reconciled against main893e3c9; 74 unchanged. AGENTS, USAGE and this block reviewed against the tool, its help and the completed checks. Existing MXFP4 feature records stay on their separate branch.
-- Evidence: local archive `llmx-server-mix-cache-local-evidence-20260930.tar.gz`, SHA-256 `f459ad28af2006f7c9f02ae5f18a0f819685fcac48c5325eb332b8001be461cf`, 17 payloads verified; contains build/CTest/suite logs, command and artifact hashes, real-model replies and per-phase health.

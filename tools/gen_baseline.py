@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|tokenizer-qwen35|qwen35-tiny]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|mxfp4|tokenizer-qwen35|qwen35-tiny]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
 
@@ -13,9 +13,9 @@ The GGUF arguments are labels, not proof of the converted model's provenance.
 Real-model logits/PPL use CPU float32 eager attention and --threads (default 6).
 qwen35 writes the logit, chat and PPL goldens of a pinned Qwen3.5 checkpoint (QWEN35_MODELS) into tests/data/<its directory>, and is not part of all.
 file-exact writes the logit and PPL goldens of the reference model holding a qwen3 or qwen35 GGUF file's own weights, every tensor decoded to f32 by tests/spec_decode.py and, for qwen35, the converter's changes undone, so llmx can be held on that file to Q8_0-class bounds.
-The independent synthetic f32 and moe fixtures use one thread; only --output-dir applies to those modes.
+The independent synthetic f32, moe and mxfp4 fixtures use one thread; only --output-dir applies to those modes.
 moe-q8 writes the goldens of tests/moe.py's Q8_0 model, HF holding each variant's file's own weights as tests/spec_decode.py decodes them, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
-all includes both regardless of --repo.
+all includes f32 and moe regardless of --repo; mxfp4 is generated explicitly.
 tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenizer.json and tokenizer_config.json, takes only --output-dir, and is not part of all.
 qwen35-tiny writes the goldens of the tiny qwen35 fixtures of tests/qwen35.py from HF Qwen3_5ForCausalLM's token-by-token cached forward, takes only --output-dir, and is not part of all.
 
@@ -688,6 +688,21 @@ def _write(path, doc, indent=1):
         f.write("\n")
 
 
+def load_tiny_weights(model, weights, torch, tied=False):
+    """Bind named F32 tensors and expert-major stacks to an HF tiny model, with no missing or extra parameters."""
+    state = {}
+    for _, name, shape, values in weights:
+        if isinstance(name, list):
+            per = len(values) // len(name)
+            for e, expert in enumerate(name):
+                state[expert] = torch.tensor(values[e * per:(e + 1) * per], dtype=torch.float32).reshape(shape[1], shape[0])
+        else:
+            state[name] = torch.tensor(values, dtype=torch.float32).reshape(list(reversed(shape)))
+    if tied:
+        state["lm_head.weight"] = state["model.embed_tokens.weight"]
+    model.load_state_dict(state, strict=True)
+
+
 def tiny_qwen3(tied):
     """The tiny dense model of tests/f32.py as an HF Qwen3ForCausalLM with eager attention, holding the weights f32.tensors builds; returns the model and those weights."""
     import torch
@@ -703,11 +718,7 @@ def tiny_qwen3(tied):
     config._attn_implementation = "eager"
     model = Qwen3ForCausalLM(config).float().eval()
     weights = tensors(tied)
-    state = {name: torch.tensor(values, dtype=torch.float32).reshape(list(reversed(shape)))
-             for _, name, shape, values in weights}
-    if tied:
-        state["lm_head.weight"] = state["model.embed_tokens.weight"]
-    model.load_state_dict(state, strict=True)
+    load_tiny_weights(model, weights, torch, tied)
     return model, weights
 
 
@@ -755,6 +766,50 @@ def gen_f32(output_dir=OUT_DIR):
     print("wrote %s (tied/untied, full logits and windowed NLL)" % path)
 
 
+def gen_mxfp4(output_dir=OUT_DIR):
+    import torch
+    import transformers
+    from transformers import Qwen3Config, Qwen3ForCausalLM, Qwen3MoeConfig, Qwen3MoeForCausalLM
+    from mxfp4 import VARIANTS, fixture, packed_hash, weight_hash
+
+    if transformers.__version__ != "4.55.2":
+        raise SystemExit("mxfp4 requires pinned transformers 4.55.2")
+    torch.set_num_threads(1)
+    fixtures = []
+    for name, tied, moe in VARIANTS:
+        config, weights, packed = fixture(tied, moe)
+        params = dict(vocab_size=257, hidden_size=config["embedding_length"],
+                      intermediate_size=config["feed_forward_length"], num_hidden_layers=config["block_count"],
+                      num_attention_heads=config["attention.head_count"], num_key_value_heads=config["attention.head_count_kv"],
+                      head_dim=config["attention.key_length"], max_position_embeddings=config["context_length"],
+                      rope_theta=10000.0, rms_norm_eps=1e-6, tie_word_embeddings=tied, attention_dropout=0.0)
+        if moe:
+            params.update(moe_intermediate_size=config["expert_feed_forward_length"], num_experts=config["expert_count"],
+                          num_experts_per_tok=config["expert_used_count"], norm_topk_prob=True, decoder_sparse_step=1, mlp_only_layers=[])
+        hf_config = (Qwen3MoeConfig if moe else Qwen3Config)(**params)
+        hf_config._attn_implementation = "eager"
+        model = (Qwen3MoeForCausalLM if moe else Qwen3ForCausalLM)(hf_config).float().eval()
+        load_tiny_weights(model, weights, torch, tied)
+        gaps = []
+        if moe:
+            def watch(_, __, out):
+                probabilities = torch.softmax(out.double(), dim=-1).sort(dim=-1, descending=True).values
+                k = config["expert_used_count"]
+                gaps.append((probabilities[:, k - 1] - probabilities[:, k]).min().item())
+            for layer in model.model.layers:
+                layer.mlp.gate.register_forward_hook(watch)
+        cases, perplexity = reference_outputs(model, torch)
+        if gaps and min(gaps) < 1e-4:
+            raise SystemExit("MXFP4 MoE routing gap %.2e is too near a tie; change the fixture weights" % min(gaps))
+        fixtures.append(dict(name=name, config=config, weights_sha256=weight_hash(weights), packed_sha256=packed_hash(packed),
+                             min_routing_gap=min(gaps) if gaps else None, cases=cases, perplexity=perplexity))
+    path = os.path.join(output_dir, "baseline_mxfp4.json")
+    _write(path, {"_comment": "Generated by tools/gen_baseline.py mxfp4 from independently spec-decoded raw blocks.",
+                  "torch_version": torch.__version__, "transformers_version": transformers.__version__,
+                  "dtype": "float32", "attention": "eager", "fixtures": fixtures})
+    print("wrote %s (MXFP4 dense tied/untied and MoE, logits and windowed NLL)" % path)
+
+
 def gen_moe(output_dir=OUT_DIR):
     import torch
     import transformers
@@ -773,15 +828,7 @@ def gen_moe(output_dir=OUT_DIR):
     config._attn_implementation = "eager"
     model = Qwen3MoeForCausalLM(config).float().eval()
     weights = tensors()
-    state = {}
-    for _, name, shape, values in weights:
-        if isinstance(name, list):
-            per = len(values) // len(name)
-            for e, expert in enumerate(name):
-                state[expert] = torch.tensor(values[e * per:(e + 1) * per], dtype=torch.float32).reshape(shape[1], shape[0])
-        else:
-            state[name] = torch.tensor(values, dtype=torch.float32).reshape(list(reversed(shape)))
-    model.load_state_dict(state, strict=True)
+    load_tiny_weights(model, weights, torch)
     # The smallest gap between a token's k-th and next expert probability over every forward reference_outputs runs; a near tie could route differently under other rounding.
     k, gaps = CONFIG["expert_used_count"], []
     def watch(_, __, out):
@@ -1097,6 +1144,7 @@ FIXED_KINDS = {
     "f32": "uses fixed synthetic weights and one thread",
     "moe": "uses fixed synthetic weights and one thread",
     "moe-q8": "uses fixed synthetic weights and one thread",
+    "mxfp4": "uses fixed synthetic raw blocks and one thread",
     "tokenizer-qwen35": "reads its own pinned tokenizer files",
     "qwen35-tiny": "uses fixed synthetic weights and one thread",
 }
@@ -1104,7 +1152,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "tokenizer-qwen35", "qwen35-tiny", "qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "mxfp4", "tokenizer-qwen35", "qwen35-tiny", "qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1207,6 +1255,8 @@ def main(argv=None):
         gen_moe(args.output_dir)
     if args.kind == "moe-q8":
         gen_moe_q8(args.output_dir)
+    if args.kind == "mxfp4":
+        gen_mxfp4(args.output_dir)
     if args.kind == "tokenizer-qwen35":
         gen_tokenizer_qwen35(args.output_dir)
     if args.kind == "qwen35-tiny":

@@ -20,7 +20,7 @@ Block quantization kernels, in namespace `quant`.
 - `QuantType`: description of a quant type (block size, bytes/block,
   block-wise (de)quantize routines).
 - `Registry::instance().get(id)`: the quant type for a GGML id, or null for a type llmx does not read.
-  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K` and `F32` on first use and never changes after, so no caller sets it up and any thread may read it.
+  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `MXFP4` and `F32` on first use and never changes after, so no caller sets it up and any thread may read it.
   `F32` is registered as a block of one value in 4 bytes.
 - `row_bytes(type, nin, rows = 1)`: the bytes in `rows` rows of `nin` values of a registered type, which every backend op sizes its rows by and the format layer sizes each file tensor by (`gguf::TensorInfo::data_size`).
   It throws for a type the registry does not name, for a row that ends inside a block and for a size that would wrap, so no op truncates a partial block.
@@ -33,3 +33,5 @@ type ids and block sizes the registry names live in `types.hpp`, whose page
 CPU Q8_0 decode keeps the original F32 inputs through its float dot; Q4_0, Q4_1, Q4_K, Q5_K and Q6_K decode takes the integer dots in `backends/cpu/q8_dots.hpp`.
 Batched prompt rows of Q8_0, Q4_0 and Q4_1 dequantize through these block routines (`docs/src/backends-cpu.md`).
 
+
+MXFP4 is read-only, decoded by `mxfp4.hpp` ([quant-mxfp4](quant-mxfp4.md)). The generic CPU prompt path widens its blocks to F32, while decode uses 16-bit activation dots. Registration also enables raw conversion and embedding; it does not imply Vulkan support.

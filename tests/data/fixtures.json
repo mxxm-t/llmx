@@ -100,6 +100,16 @@
     "hosted": false
   },
   {
+    "family": "qwen3",
+    "repo": "unsloth/Qwen3-8B-GGUF",
+    "file": "Qwen3-8B-BF16.gguf",
+    "revision": "a6adef130ffb23ddaf1a62fec9dced968c9bc482",
+    "sha256": "5e416a2020fe63e76ea13c8979be35fc6070aaf3578f7876400c55c2f5c3eb30",
+    "size": 16388044384,
+    "gate": false,
+    "hosted": false
+  },
+  {
     "family": "qwen35",
     "repo": "unsloth/Qwen3.5-0.8B-GGUF",
     "file": "Qwen3.5-0.8B-Q8_0.gguf",

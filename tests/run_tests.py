@@ -18,6 +18,7 @@ import tokenizer
 import perplexity
 import f32
 import moe
+import mxfp4
 import qwen35
 import split
 import decode_probe
@@ -97,6 +98,7 @@ def main():
                   ("perplexity", perplexity.run),
                   ("f32", f32.run),
                   ("moe", moe.run),
+                  ("mxfp4", lambda: mxfp4.run(require=args.require_tools)),
                   ("qwen35", qwen35.run),
                   ("split", lambda: split.run(require=args.require_tools)),
                   ("decode-probe", lambda: decode_probe.run(require=args.require_tools)),

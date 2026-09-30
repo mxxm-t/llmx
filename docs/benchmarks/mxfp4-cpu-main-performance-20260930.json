@@ -1,0 +1,2461 @@
+{
+  "status": "Measured checkpoint; no MXFP4 merge readiness claim",
+  "source_head": "f55f025a1332999ee69acf905badf4b97598362d",
+  "archive": {
+    "archive": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-perf-evidence-r2-20260930.tar.gz",
+    "sha256": "5b4092c71442f18353104c9b32fac726b81fdb6c257261051ab5889b9e0b06d1",
+    "payloads": 238,
+    "plan_sha256": "2fccc248597a64556677bf94f4ca46881da8c819192108fdf3670965d6c1d92f",
+    "supersedes": "The initial archive omitted raw monitor.jsonl; retained unchanged, this archive includes it.",
+    "scope": "Frozen CPU comparison, 22 readiness and all 88 measured calls, both iterations, raw monitoring, analysis and build manifests. Existing-type small changes have block and layout sensitivity; not a blanket performance gate pass."
+  },
+  "locally_verified_payloads": 238,
+  "plan": {
+    "scope": "Existing compare_cpu.cpp harness on current clean CPU subset, with same-header layout control and frozen mx CPU library. Preserve established215-token prefill/32-token decode,F32 cache,ubatch128 and6threads. All six existing quantized types covered by four0.6B mixtures; fixed owned CPU affinity for every arm. Same-header layout control shares candidate generated build identity so only the uncalled function perturbs it.",
+    "created": "2026-09-30T00:21:54.585499+00:00",
+    "models": [
+      {
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "host_path": "/opt/claude-work/llmx-vulkan-mi50/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+        "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "group": "existing",
+        "size": 639446688,
+        "runtime_path": "/fixtures/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf"
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "host_path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+        "runtime_path": "/fixtures/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+        "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "group": "existing"
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "host_path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+        "runtime_path": "/fixtures/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+        "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+        "group": "existing"
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "host_path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+        "runtime_path": "/fixtures/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+        "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+        "group": "existing"
+      },
+      {
+        "file": "Qwen3-0.6B-MXFP4.gguf",
+        "host_path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/fixtures/Qwen3-0.6B-MXFP4.gguf",
+        "sha256": "84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45",
+        "group": "new",
+        "exists": true,
+        "size": 322830656,
+        "runtime_path": "/work/fixtures/Qwen3-0.6B-MXFP4.gguf"
+      },
+      {
+        "file": "Qwen3-8B-MXFP4.gguf",
+        "host_path": "/zpool1/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf",
+        "sha256": "ebfb5ea2edd1cd6ba5c08a0f31d6c40bb0984a360fe1f694adacb21adfb4d807",
+        "group": "new",
+        "exists": true,
+        "size": 4358354368,
+        "runtime_path": "/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf"
+      }
+    ],
+    "execution": {
+      "cpu_quota": 6,
+      "threads": 6,
+      "ubatch": 128,
+      "cache": "f32",
+      "prompt_tokens": 215,
+      "forced_decode_tokens": 32,
+      "helper_runs_per_call": 2,
+      "affinity": "0-3,8-11"
+    },
+    "monitoring": {
+      "interval_seconds": 1,
+      "unrelated_cpu_flag_core_percent": 50,
+      "disk_io_flag_bytes_per_second": 10485760,
+      "gpu_busy_flag_percent": 5,
+      "unknown_policy": "Mark missing counters and process coverage gaps unknown, retain every call. No idle-host requirement or automatic exclusion.",
+      "same_monitor_every_arm": true
+    },
+    "container": {
+      "name": "llmx-p2-x-cpu-compare-20260928",
+      "id": "1cc72c5ef12e280b6fdf1b0143111a889ceae38ceb17108beb6c21c94e8b7323",
+      "image": "sha256:a83c92cf625046e09959de1a7b1e7b241e723646b5e9c6d6f47e6ce28fdc83e3"
+    },
+    "arms": {
+      "main": {
+        "head": "6282500fdd1d539e4b94f065e881396860378b25",
+        "helper_sha256": "a6c854a5528e1d67151f6139d960d55e5a4367aa5089b54c3d1bb4976a462e52",
+        "helper_source_sha256": "57c1b1a6ee365c62618a09e0e3376cee358f79db56e4e422b0cc9202acb795e3",
+        "generated_config_sha256": "491660170fc92e8abfacfc8144606ffc56f159069514c2a1684738c532e0b57c"
+      },
+      "candidate": {
+        "head": "f55f025a1332999ee69acf905badf4b97598362d",
+        "helper_sha256": "67c02a18fd730b1ceb58ec6bfd8fc54947035a1bc5ddcaca905745d27bffec8d",
+        "helper_source_sha256": "57c1b1a6ee365c62618a09e0e3376cee358f79db56e4e422b0cc9202acb795e3",
+        "generated_config_sha256": "491660170fc92e8abfacfc8144606ffc56f159069514c2a1684738c532e0b57c"
+      },
+      "layout": {
+        "head": "683d892096faa05df2466e117a2d671bd17fc36a",
+        "helper_sha256": "581d8a3291acb210f079def5c122d3921007f981d545290a02ef63a7be42df81",
+        "helper_source_sha256": "57c1b1a6ee365c62618a09e0e3376cee358f79db56e4e422b0cc9202acb795e3",
+        "generated_config_sha256": "491660170fc92e8abfacfc8144606ffc56f159069514c2a1684738c532e0b57c"
+      },
+      "reference": {
+        "helper_sha256": "c29599f1bbc86c0474e0c32f0a93bab435ac4a4491e8c3b9a62d736960a151de",
+        "revision": "eefc4e7321c869496146697d63362f073941aed6",
+        "library_sha256": "e0c7f4646c09bea502560c26f529ef6ce96dbb8add1b6816d79ab980a445c2b1"
+      }
+    },
+    "token_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+    "helper_sha256": "57c1b1a6ee365c62618a09e0e3376cee358f79db56e4e422b0cc9202acb795e3",
+    "schedule": {
+      "blocks": 2,
+      "existing_order": [
+        "main",
+        "candidate",
+        "layout",
+        "reference",
+        "reference",
+        "layout",
+        "candidate",
+        "main"
+      ],
+      "new_order": [
+        "candidate",
+        "layout",
+        "reference",
+        "reference",
+        "layout",
+        "candidate"
+      ]
+    },
+    "planned_calls": 88,
+    "retention": "Retain all readiness and measured calls and both helper iterations. Primary warm second iteration; report first separately. No automatic sample discard. Unknown process coverage is not idle.",
+    "layout_scope": "Uncalled retained function in candidate q8_dots.hpp; private committed control, not shipped or a universal layout bound.",
+    "compiler": "g++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+    "source_build_report": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-linux-20260930/report.json",
+    "previous_plan_sha256": "e5d3eafad487fb865878a6a6a4dbc89ce2cb8779a6eee0f7706413d7be8da569",
+    "clean_cli_artifacts": {
+      "main": {
+        "head": "6282500fdd1d539e4b94f065e881396860378b25",
+        "version": "llmx 0.1.0+g6282500fdd1d",
+        "source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-linux-20260930/main/source",
+        "build": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-linux-20260930/main/build",
+        "sha256": "cd307c5953296c87f3854fca96a8bbe993fdfc02246200656784e444aa70ff2f"
+      },
+      "candidate": {
+        "head": "f55f025a1332999ee69acf905badf4b97598362d",
+        "version": "llmx 0.1.0+gf55f025a1332",
+        "source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-linux-20260930/candidate/source",
+        "build": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-main-linux-20260930/candidate/build",
+        "sha256": "c1ad4c9e1d2994fccbe7076fed4c27b85e0b946be49d192832e7fe7fd8470723"
+      }
+    }
+  },
+  "primary_iteration": 1,
+  "summary": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "iteration": 0,
+      "arms": {
+        "main": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1096.74287725,
+            "median": 1100.106917,
+            "minimum": 1081.073519,
+            "maximum": 1105.684156
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 935.782206,
+            "median": 833.7471405,
+            "minimum": 827.141541,
+            "maximum": 1248.493002
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1089.975517,
+            "median": 1090.3331054999999,
+            "minimum": 1084.444551,
+            "maximum": 1094.791306
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 833.02519875,
+            "median": 833.7449655,
+            "minimum": 826.82377,
+            "maximum": 837.787094
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1093.6875770000001,
+            "median": 1092.4184935,
+            "minimum": 1090.849246,
+            "maximum": 1099.064075
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 837.19157525,
+            "median": 834.811833,
+            "minimum": 823.5265,
+            "maximum": 855.616135
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1331.6047825,
+            "median": 1338.314549,
+            "minimum": 1308.743011,
+            "maximum": 1341.047021
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 810.030758,
+            "median": 804.840318,
+            "minimum": 792.625832,
+            "maximum": 837.816564
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_main": {
+          "pp_ms": 0.896406011217854,
+          "tg_ms": 0.00026087114044504034
+        },
+        "candidate_vs_reference": {
+          "pp_ms": 22.74364065890504,
+          "tg_ms": -3.4668452219877355
+        },
+        "layout_vs_main": {
+          "pp_ms": 0.703798365346886,
+          "tg_ms": -0.12753682421748902
+        },
+        "layout_vs_candidate": {
+          "pp_ms": -0.19089643871909034,
+          "tg_ms": -0.1277973619715045
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "iteration": 1,
+      "arms": {
+        "main": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1032.45454825,
+            "median": 1032.984259,
+            "minimum": 1024.407199,
+            "maximum": 1039.442476
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 882.66762325,
+            "median": 849.3646245,
+            "minimum": 812.193187,
+            "maximum": 1019.748057
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1032.6246429999999,
+            "median": 1034.195321,
+            "minimum": 1024.930394,
+            "maximum": 1037.177536
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 838.9834599999999,
+            "median": 838.749708,
+            "minimum": 833.03991,
+            "maximum": 845.394514
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1029.1000715,
+            "median": 1029.271077,
+            "minimum": 1012.230889,
+            "maximum": 1045.627243
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 846.60604825,
+            "median": 851.6411384999999,
+            "minimum": 827.294515,
+            "maximum": 855.847401
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1340.29444825,
+            "median": 1339.0522405000002,
+            "minimum": 1332.294585,
+            "maximum": 1350.778727
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 795.03698325,
+            "median": 792.2131595000001,
+            "minimum": 788.929251,
+            "maximum": 806.792363
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_main": {
+          "pp_ms": -0.11710186416515889,
+          "tg_ms": 1.265564255791074
+        },
+        "candidate_vs_reference": {
+          "pp_ms": 29.47769278294774,
+          "tg_ms": -5.548323660340393
+        },
+        "layout_vs_main": {
+          "pp_ms": 0.36075841272278364,
+          "tg_ms": -0.2673090691707958
+        },
+        "layout_vs_candidate": {
+          "pp_ms": 0.4784205162310151,
+          "tg_ms": -1.5137162728782183
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "iteration": 0,
+      "arms": {
+        "main": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1172.0042967499999,
+            "median": 1173.3571204999998,
+            "minimum": 1157.900631,
+            "maximum": 1183.402315
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 789.7810315,
+            "median": 792.3173385,
+            "minimum": 715.213123,
+            "maximum": 859.276326
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1176.45827475,
+            "median": 1181.506218,
+            "minimum": 1143.912737,
+            "maximum": 1198.907926
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 774.45561575,
+            "median": 721.530434,
+            "minimum": 720.767971,
+            "maximum": 933.993624
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1170.34599425,
+            "median": 1167.2261495,
+            "minimum": 1151.046673,
+            "maximum": 1195.885005
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 791.18111075,
+            "median": 772.5531725,
+            "minimum": 718.842362,
+            "maximum": 900.775736
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 998.82823725,
+            "median": 1004.388256,
+            "minimum": 970.175973,
+            "maximum": 1016.360464
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 640.3168035,
+            "median": 629.8723865,
+            "minimum": 562.859567,
+            "maximum": 738.662874
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_main": {
+          "pp_ms": -0.6897210844810098,
+          "tg_ms": 9.810660945730799
+        },
+        "candidate_vs_reference": {
+          "pp_ms": -14.990861605435924,
+          "tg_ms": -12.703282242977442
+        },
+        "layout_vs_main": {
+          "pp_ms": 0.525259908084319,
+          "tg_ms": 2.5582919989886044
+        },
+        "layout_vs_candidate": {
+          "pp_ms": 1.2234191725499777,
+          "tg_ms": -6.604430648428917
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "iteration": 1,
+      "arms": {
+        "main": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1114.14788825,
+            "median": 1118.549587,
+            "minimum": 1093.863587,
+            "maximum": 1125.628792
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 809.28483325,
+            "median": 802.297066,
+            "minimum": 722.580946,
+            "maximum": 909.964255
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1120.01478125,
+            "median": 1124.7133789999998,
+            "minimum": 1090.760613,
+            "maximum": 1139.871754
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 770.0163285,
+            "median": 736.6982195,
+            "minimum": 732.222249,
+            "maximum": 874.446626
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1115.77153225,
+            "median": 1115.169079,
+            "minimum": 1094.794285,
+            "maximum": 1137.953686
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 812.3095425,
+            "median": 803.978072,
+            "minimum": 721.108751,
+            "maximum": 920.173275
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 990.6676825,
+            "median": 990.611463,
+            "minimum": 972.173884,
+            "maximum": 1009.27392
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 676.03131525,
+            "median": 656.5843775000001,
+            "minimum": 560.889667,
+            "maximum": 830.066839
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_main": {
+          "pp_ms": -0.5480322467116161,
+          "tg_ms": 8.904439397793329
+        },
+        "candidate_vs_reference": {
+          "pp_ms": -11.923208037165168,
+          "tg_ms": -10.874716387175953
+        },
+        "layout_vs_main": {
+          "pp_ms": 0.3031386059440644,
+          "tg_ms": -0.20908605079468234
+        },
+        "layout_vs_candidate": {
+          "pp_ms": 0.855861248283385,
+          "tg_ms": -8.368369094026729
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "iteration": 0,
+      "arms": {
+        "main": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1122.52817275,
+            "median": 1125.5514745,
+            "minimum": 1101.322654,
+            "maximum": 1137.687088
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 771.39519525,
+            "median": 737.107887,
+            "minimum": 720.028238,
+            "maximum": 891.336769
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1111.12517875,
+            "median": 1115.492449,
+            "minimum": 1087.017379,
+            "maximum": 1126.498438
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 776.48051725,
+            "median": 730.593599,
+            "minimum": 709.357775,
+            "maximum": 935.377096
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1127.1714554999999,
+            "median": 1127.399335,
+            "minimum": 1123.321961,
+            "maximum": 1130.565191
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 724.713966,
+            "median": 725.471854,
+            "minimum": 719.863414,
+            "maximum": 728.048742
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 922.7751805,
+            "median": 925.8530065,
+            "minimum": 897.277599,
+            "maximum": 942.11711
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 681.4270745,
+            "median": 680.0620005000001,
+            "minimum": 582.468833,
+            "maximum": 783.115464
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_main": {
+          "pp_ms": 0.9017564851306226,
+          "tg_ms": 0.8916431801368585
+        },
+        "candidate_vs_reference": {
+          "pp_ms": -17.000513331130584,
+          "tg_ms": -6.916512623319604
+        },
+        "layout_vs_main": {
+          "pp_ms": -0.1639047001921523,
+          "tg_ms": 1.6039261807116123
+        },
+        "layout_vs_candidate": {
+          "pp_ms": -1.0561373978458133,
+          "tg_ms": 0.7059881057770223
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "iteration": 1,
+      "arms": {
+        "main": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1057.7754365,
+            "median": 1055.945186,
+            "minimum": 1042.875869,
+            "maximum": 1076.335505
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 767.00492725,
+            "median": 739.566062,
+            "minimum": 712.012495,
+            "maximum": 876.87509
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1062.0943427500001,
+            "median": 1060.725741,
+            "minimum": 1046.007875,
+            "maximum": 1080.918014
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 743.1434055,
+            "median": 723.100657,
+            "minimum": 714.023837,
+            "maximum": 812.348471
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1071.01525125,
+            "median": 1072.601407,
+            "minimum": 1043.000343,
+            "maximum": 1095.857848
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 769.5113785,
+            "median": 730.4647055,
+            "minimum": 703.113395,
+            "maximum": 914.002708
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 917.2540085,
+            "median": 916.789417,
+            "minimum": 898.375773,
+            "maximum": 937.061427
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 686.3263400000001,
+            "median": 682.2938225,
+            "minimum": 586.779403,
+            "maximum": 793.938312
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_main": {
+          "pp_ms": -0.4506871866325368,
+          "tg_ms": 2.2770557377601808
+        },
+        "candidate_vs_reference": {
+          "pp_ms": -13.569607904895753,
+          "tg_ms": -5.643313154948482
+        },
+        "layout_vs_main": {
+          "pp_ms": -1.552880771113907,
+          "tg_ms": 1.2459680024882402
+        },
+        "layout_vs_candidate": {
+          "pp_ms": -1.1071835187328016,
+          "tg_ms": -1.0081320075498224
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "iteration": 0,
+      "arms": {
+        "main": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1134.9729455,
+            "median": 1137.7183034999998,
+            "minimum": 1112.113692,
+            "maximum": 1152.341483
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 784.9713725,
+            "median": 783.956034,
+            "minimum": 772.875473,
+            "maximum": 799.097949
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1136.0178745,
+            "median": 1140.1264065,
+            "minimum": 1122.066244,
+            "maximum": 1141.752441
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 839.97875975,
+            "median": 784.6439600000001,
+            "minimum": 779.0383,
+            "maximum": 1011.588819
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1128.2747195,
+            "median": 1138.8764685,
+            "minimum": 1094.866948,
+            "maximum": 1140.478993
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 827.747331,
+            "median": 789.756205,
+            "minimum": 776.988058,
+            "maximum": 954.488856
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1665.81849075,
+            "median": 1679.166746,
+            "minimum": 1616.198845,
+            "maximum": 1688.741626
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 639.1676685,
+            "median": 639.04935,
+            "minimum": 637.014818,
+            "maximum": 641.557156
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_main": {
+          "pp_ms": -0.21121368527834417,
+          "tg_ms": -0.08767365009730854
+        },
+        "candidate_vs_reference": {
+          "pp_ms": 47.27899787487293,
+          "tg_ms": -18.55550000028039
+        },
+        "layout_vs_main": {
+          "pp_ms": -0.10169364562652161,
+          "tg_ms": -0.7344255054001048
+        },
+        "layout_vs_candidate": {
+          "pp_ms": 0.10975185058008652,
+          "tg_ms": -0.6473193838343994
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "iteration": 1,
+      "arms": {
+        "main": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1078.2235002500001,
+            "median": 1083.0401590000001,
+            "minimum": 1050.095959,
+            "maximum": 1096.717724
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 783.76245325,
+            "median": 783.6192435,
+            "minimum": 770.897183,
+            "maximum": 796.914143
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1078.29737475,
+            "median": 1084.6255820000001,
+            "minimum": 1056.973867,
+            "maximum": 1086.964468
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 839.95007425,
+            "median": 809.6017830000001,
+            "minimum": 784.216857,
+            "maximum": 956.379874
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1069.7842335,
+            "median": 1078.5051555,
+            "minimum": 1040.510448,
+            "maximum": 1081.616175
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 826.06325775,
+            "median": 788.518403,
+            "minimum": 781.934348,
+            "maximum": 945.281877
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1672.354864,
+            "median": 1679.8706120000002,
+            "minimum": 1646.622548,
+            "maximum": 1683.055684
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 636.48057425,
+            "median": 635.5826595000001,
+            "minimum": 630.533031,
+            "maximum": 644.223947
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_main": {
+          "pp_ms": -0.14617237748316692,
+          "tg_ms": -3.209298700371077
+        },
+        "candidate_vs_reference": {
+          "pp_ms": 54.88023147143508,
+          "tg_ms": -21.494409616437316
+        },
+        "layout_vs_main": {
+          "pp_ms": 0.42048973775166143,
+          "tg_ms": -0.6213120050667986
+        },
+        "layout_vs_candidate": {
+          "pp_ms": 0.5674916312442324,
+          "tg_ms": 2.673796821962071
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-MXFP4.gguf",
+      "iteration": 0,
+      "arms": {
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1172.46837125,
+            "median": 1171.4298825,
+            "minimum": 1167.877674,
+            "maximum": 1179.136046
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 654.72731875,
+            "median": 655.4866945,
+            "minimum": 638.871235,
+            "maximum": 669.064651
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1174.64988225,
+            "median": 1175.7570335,
+            "minimum": 1161.194661,
+            "maximum": 1185.890801
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 666.885813,
+            "median": 660.8310865,
+            "minimum": 653.319154,
+            "maximum": 692.561925
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 997.059316,
+            "median": 992.98083,
+            "minimum": 983.445225,
+            "maximum": 1018.830379
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 537.5962030000001,
+            "median": 529.6669549999999,
+            "minimum": 506.171867,
+            "maximum": 584.879035
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_reference": {
+          "pp_ms": -15.233438651843512,
+          "tg_ms": -19.194857890437333
+        },
+        "layout_vs_candidate": {
+          "pp_ms": -0.36803105375596834,
+          "tg_ms": -0.8087379830004404
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-MXFP4.gguf",
+      "iteration": 1,
+      "arms": {
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1117.98735975,
+            "median": 1119.612519,
+            "minimum": 1111.372639,
+            "maximum": 1121.351762
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 660.87887775,
+            "median": 664.1334865,
+            "minimum": 632.221253,
+            "maximum": 683.027285
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 1115.10016675,
+            "median": 1117.4093065,
+            "minimum": 1102.873321,
+            "maximum": 1122.708733
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 658.368117,
+            "median": 659.4715954999999,
+            "minimum": 642.764723,
+            "maximum": 671.764554
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 995.88506325,
+            "median": 994.1180850000001,
+            "minimum": 982.2782,
+            "maximum": 1013.025883
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 531.670213,
+            "median": 523.959181,
+            "minimum": 512.301983,
+            "maximum": 566.460507
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_reference": {
+          "pp_ms": -11.208738011619179,
+          "tg_ms": -21.10634508714839
+        },
+        "layout_vs_candidate": {
+          "pp_ms": 0.19717148292786035,
+          "tg_ms": 0.7069130849321148
+        }
+      }
+    },
+    {
+      "model": "Qwen3-8B-MXFP4.gguf",
+      "iteration": 0,
+      "arms": {
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 15065.5164075,
+            "median": 15032.985375,
+            "minimum": 14927.19315,
+            "maximum": 15268.90173
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 6542.0209895,
+            "median": 6301.186476,
+            "minimum": 6198.353299,
+            "maximum": 7367.357707
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 14953.4776175,
+            "median": 14988.258575,
+            "minimum": 14793.18695,
+            "maximum": 15044.20637
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 6267.2453155,
+            "median": 6232.7485735,
+            "minimum": 6208.869488,
+            "maximum": 6394.614627
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 11902.776635,
+            "median": 11882.43564,
+            "minimum": 11826.938,
+            "maximum": 12019.29726
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 4721.31435625,
+            "median": 4227.7968815,
+            "minimum": 4224.102015,
+            "maximum": 6205.561647
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_reference": {
+          "pp_ms": -20.957578660585906,
+          "tg_ms": -32.90474900873255
+        },
+        "layout_vs_candidate": {
+          "pp_ms": 0.29841225233866453,
+          "tg_ms": 1.0980372734908705
+        }
+      }
+    },
+    {
+      "model": "Qwen3-8B-MXFP4.gguf",
+      "iteration": 1,
+      "arms": {
+        "candidate": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 15000.4524575,
+            "median": 14999.280729999999,
+            "minimum": 14858.1975,
+            "maximum": 15145.05087
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 6476.5272335,
+            "median": 6322.347128,
+            "minimum": 6208.260219,
+            "maximum": 7053.154459
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "layout": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 14852.691265000001,
+            "median": 14836.386030000001,
+            "minimum": 14731.41704,
+            "maximum": 15006.57596
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 6904.96715525,
+            "median": 6261.288049000001,
+            "minimum": 6197.491203,
+            "maximum": 8899.80132
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        },
+        "reference": {
+          "pp_ms": {
+            "n": 4,
+            "mean": 11882.1338775,
+            "median": 11886.49361,
+            "minimum": 11824.42066,
+            "maximum": 11931.12763
+          },
+          "tg_ms": {
+            "n": 4,
+            "mean": 4751.8696765,
+            "median": 4371.7167205000005,
+            "minimum": 4232.532101,
+            "maximum": 6031.513164
+          },
+          "flagged_calls": 4,
+          "unknown_calls": 4
+        }
+      },
+      "speed_change_percent": {
+        "candidate_vs_reference": {
+          "pp_ms": -20.75290926300304,
+          "tg_ms": -30.85294698326788
+        },
+        "layout_vs_candidate": {
+          "pp_ms": 1.0979405609331971,
+          "tg_ms": 0.975183996042972
+        }
+      }
+    }
+  ],
+  "blocks": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "iteration": 0,
+      "block": 0,
+      "arms": {
+        "main": {
+          "pp_ms": 1100.106917,
+          "tg_ms": 1041.9823225
+        },
+        "candidate": {
+          "pp_ms": 1089.6179285,
+          "tg_ms": 835.729146
+        },
+        "layout": {
+          "pp_ms": 1095.859408,
+          "tg_ms": 841.821586
+        },
+        "reference": {
+          "pp_ms": 1324.895016,
+          "tg_ms": 826.8953775
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "iteration": 0,
+      "block": 1,
+      "arms": {
+        "main": {
+          "pp_ms": 1093.3788375,
+          "tg_ms": 829.5820894999999
+        },
+        "candidate": {
+          "pp_ms": 1090.3331054999999,
+          "tg_ms": 830.3212515
+        },
+        "layout": {
+          "pp_ms": 1091.515746,
+          "tg_ms": 832.5615645
+        },
+        "reference": {
+          "pp_ms": 1338.314549,
+          "tg_ms": 793.1661385
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "iteration": 1,
+      "block": 0,
+      "arms": {
+        "main": {
+          "pp_ms": 1031.100322,
+          "tg_ms": 915.970622
+        },
+        "candidate": {
+          "pp_ms": 1036.5292715,
+          "tg_ms": 843.609015
+        },
+        "layout": {
+          "pp_ms": 1028.929066,
+          "tg_ms": 841.4176884999999
+        },
+        "reference": {
+          "pp_ms": 1341.536656,
+          "tg_ms": 789.8187675
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "iteration": 1,
+      "block": 1,
+      "arms": {
+        "main": {
+          "pp_ms": 1033.8087745,
+          "tg_ms": 849.3646245
+        },
+        "candidate": {
+          "pp_ms": 1028.7200145,
+          "tg_ms": 834.357905
+        },
+        "layout": {
+          "pp_ms": 1029.271077,
+          "tg_ms": 851.794408
+        },
+        "reference": {
+          "pp_ms": 1339.0522405000002,
+          "tg_ms": 800.255199
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "iteration": 0,
+      "block": 0,
+      "arms": {
+        "main": {
+          "pp_ms": 1161.3186449999998,
+          "tg_ms": 852.2822935
+        },
+        "candidate": {
+          "pp_ms": 1155.0902460000002,
+          "tg_ms": 827.3807975
+        },
+        "layout": {
+          "pp_ms": 1152.3778735,
+          "tg_ms": 861.922141
+        },
+        "reference": {
+          "pp_ms": 993.2682185,
+          "tg_ms": 717.476996
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "iteration": 0,
+      "block": 1,
+      "arms": {
+        "main": {
+          "pp_ms": 1182.6899485,
+          "tg_ms": 727.2797694999999
+        },
+        "candidate": {
+          "pp_ms": 1197.8263035,
+          "tg_ms": 721.530434
+        },
+        "layout": {
+          "pp_ms": 1188.3141150000001,
+          "tg_ms": 720.4400805
+        },
+        "reference": {
+          "pp_ms": 1004.388256,
+          "tg_ms": 563.156611
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "iteration": 1,
+      "block": 0,
+      "arms": {
+        "main": {
+          "pp_ms": 1103.0273455000001,
+          "tg_ms": 890.8119935
+        },
+        "candidate": {
+          "pp_ms": 1106.104944,
+          "tg_ms": 804.539379
+        },
+        "layout": {
+          "pp_ms": 1098.256265,
+          "tg_ms": 896.9464949999999
+        },
+        "reference": {
+          "pp_ms": 972.3783900000001,
+          "tg_ms": 787.7203585
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "iteration": 1,
+      "block": 1,
+      "arms": {
+        "main": {
+          "pp_ms": 1125.268431,
+          "tg_ms": 727.7576730000001
+        },
+        "candidate": {
+          "pp_ms": 1133.9246185,
+          "tg_ms": 735.493278
+        },
+        "layout": {
+          "pp_ms": 1133.2867995000001,
+          "tg_ms": 727.67259
+        },
+        "reference": {
+          "pp_ms": 1008.956975,
+          "tg_ms": 564.3422720000001
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "iteration": 0,
+      "block": 0,
+      "arms": {
+        "main": {
+          "pp_ms": 1114.652569,
+          "tg_ms": 805.6825034999999
+        },
+        "candidate": {
+          "pp_ms": 1115.492449,
+          "tg_ms": 824.2677425
+        },
+        "layout": {
+          "pp_ms": 1125.8124665,
+          "tg_ms": 725.471854
+        },
+        "reference": {
+          "pp_ms": 909.398332,
+          "tg_ms": 776.850409
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "iteration": 0,
+      "block": 1,
+      "arms": {
+        "main": {
+          "pp_ms": 1130.4037764999998,
+          "tg_ms": 737.107887
+        },
+        "candidate": {
+          "pp_ms": 1106.7579085,
+          "tg_ms": 728.6932919999999
+        },
+        "layout": {
+          "pp_ms": 1128.5304445,
+          "tg_ms": 723.9560779999999
+        },
+        "reference": {
+          "pp_ms": 936.1520290000001,
+          "tg_ms": 586.00374
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "iteration": 1,
+      "block": 0,
+      "arms": {
+        "main": {
+          "pp_ms": 1055.945186,
+          "tg_ms": 794.4437925
+        },
+        "candidate": {
+          "pp_ms": 1063.4629445,
+          "tg_ms": 766.585917
+        },
+        "layout": {
+          "pp_ms": 1069.4290955000001,
+          "tg_ms": 827.0416775
+        },
+        "reference": {
+          "pp_ms": 899.835967,
+          "tg_ms": 785.140795
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "iteration": 1,
+      "block": 1,
+      "arms": {
+        "main": {
+          "pp_ms": 1059.605687,
+          "tg_ms": 739.566062
+        },
+        "candidate": {
+          "pp_ms": 1060.725741,
+          "tg_ms": 719.7008940000001
+        },
+        "layout": {
+          "pp_ms": 1072.601407,
+          "tg_ms": 711.9810795
+        },
+        "reference": {
+          "pp_ms": 934.67205,
+          "tg_ms": 587.511885
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "iteration": 0,
+      "block": 0,
+      "arms": {
+        "main": {
+          "pp_ms": 1149.125425,
+          "tg_ms": 783.956034
+        },
+        "candidate": {
+          "pp_ms": 1130.2898535,
+          "tg_ms": 897.278189
+        },
+        "layout": {
+          "pp_ms": 1116.8299944999999,
+          "tg_ms": 865.738457
+        },
+        "reference": {
+          "pp_ms": 1652.4702355,
+          "tg_ms": 640.138823
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "iteration": 0,
+      "block": 1,
+      "arms": {
+        "main": {
+          "pp_ms": 1120.820466,
+          "tg_ms": 785.986711
+        },
+        "candidate": {
+          "pp_ms": 1141.7458955000002,
+          "tg_ms": 782.6793305000001
+        },
+        "layout": {
+          "pp_ms": 1139.7194445,
+          "tg_ms": 789.756205
+        },
+        "reference": {
+          "pp_ms": 1679.166746,
+          "tg_ms": 638.196514
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "iteration": 1,
+      "block": 0,
+      "arms": {
+        "main": {
+          "pp_ms": 1093.588549,
+          "tg_ms": 783.6192435
+        },
+        "candidate": {
+          "pp_ms": 1071.9691675,
+          "tg_ms": 870.2983655
+        },
+        "layout": {
+          "pp_ms": 1061.0633115,
+          "tg_ms": 869.2036674999999
+        },
+        "reference": {
+          "pp_ms": 1680.9728205000001,
+          "tg_ms": 641.1084575
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "iteration": 1,
+      "block": 1,
+      "arms": {
+        "main": {
+          "pp_ms": 1062.8584515,
+          "tg_ms": 783.905663
+        },
+        "candidate": {
+          "pp_ms": 1084.6255820000001,
+          "tg_ms": 809.6017830000001
+        },
+        "layout": {
+          "pp_ms": 1078.5051555,
+          "tg_ms": 782.9228479999999
+        },
+        "reference": {
+          "pp_ms": 1663.7369075000001,
+          "tg_ms": 631.852691
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-MXFP4.gguf",
+      "iteration": 0,
+      "block": 0,
+      "arms": {
+        "candidate": {
+          "pp_ms": 1174.451334,
+          "tg_ms": 649.336878
+        },
+        "layout": {
+          "pp_ms": 1181.742015,
+          "tg_ms": 653.986944
+        },
+        "reference": {
+          "pp_ms": 1009.865637,
+          "tg_ms": 513.0220850000001
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-MXFP4.gguf",
+      "iteration": 0,
+      "block": 1,
+      "arms": {
+        "candidate": {
+          "pp_ms": 1170.4854085000002,
+          "tg_ms": 660.1177595
+        },
+        "layout": {
+          "pp_ms": 1167.5577495,
+          "tg_ms": 679.784682
+        },
+        "reference": {
+          "pp_ms": 984.252995,
+          "tg_ms": 562.1703210000001
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-MXFP4.gguf",
+      "iteration": 1,
+      "block": 0,
+      "arms": {
+        "candidate": {
+          "pp_ms": 1116.3622005,
+          "tg_ms": 639.2890225000001
+        },
+        "layout": {
+          "pp_ms": 1119.3121944999998,
+          "tg_ms": 650.0928054999999
+        },
+        "reference": {
+          "pp_ms": 1009.0083215,
+          "tg_ms": 514.496864
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-MXFP4.gguf",
+      "iteration": 1,
+      "block": 1,
+      "arms": {
+        "candidate": {
+          "pp_ms": 1119.612519,
+          "tg_ms": 682.4687329999999
+        },
+        "layout": {
+          "pp_ms": 1110.8881390000001,
+          "tg_ms": 666.6434285
+        },
+        "reference": {
+          "pp_ms": 982.761805,
+          "tg_ms": 548.843562
+        }
+      }
+    },
+    {
+      "model": "Qwen3-8B-MXFP4.gguf",
+      "iteration": 0,
+      "block": 0,
+      "arms": {
+        "candidate": {
+          "pp_ms": 14929.433519999999,
+          "tg_ms": 6284.560151
+        },
+        "layout": {
+          "pp_ms": 14907.597614999999,
+          "tg_ms": 6209.6686925
+        },
+        "reference": {
+          "pp_ms": 11855.713615,
+          "tg_ms": 4225.719254
+        }
+      }
+    },
+    {
+      "model": "Qwen3-8B-MXFP4.gguf",
+      "iteration": 0,
+      "block": 1,
+      "arms": {
+        "candidate": {
+          "pp_ms": 15201.599295,
+          "tg_ms": 6799.481828
+        },
+        "layout": {
+          "pp_ms": 14999.357619999999,
+          "tg_ms": 6324.821938499999
+        },
+        "reference": {
+          "pp_ms": 11949.839655,
+          "tg_ms": 5216.9094585
+        }
+      }
+    },
+    {
+      "model": "Qwen3-8B-MXFP4.gguf",
+      "iteration": 1,
+      "block": 0,
+      "arms": {
+        "candidate": {
+          "pp_ms": 15001.624185,
+          "tg_ms": 6701.533589500001
+        },
+        "layout": {
+          "pp_ms": 14792.329725,
+          "tg_ms": 6207.832921499999
+        },
+        "reference": {
+          "pp_ms": 11877.774145,
+          "tg_ms": 4245.9693735
+        }
+      }
+    },
+    {
+      "model": "Qwen3-8B-MXFP4.gguf",
+      "iteration": 1,
+      "block": 1,
+      "arms": {
+        "candidate": {
+          "pp_ms": 14999.280729999999,
+          "tg_ms": 6251.5208775
+        },
+        "layout": {
+          "pp_ms": 14913.052805,
+          "tg_ms": 7602.101389
+        },
+        "reference": {
+          "pp_ms": 11886.49361,
+          "tg_ms": 5257.7699795
+        }
+      }
+    }
+  ],
+  "monitoring": {
+    "samples": 1071,
+    "flags": {
+      "unrelated_cpu": 60,
+      "disk_io": 25,
+      "gpu_busy": 88
+    },
+    "unknown_calls": 88,
+    "sample_seconds": {
+      "n": 1071,
+      "mean": 0.07989484553099684,
+      "median": 0.08467801101505756,
+      "minimum": 0.04450214095413685,
+      "maximum": 0.18571018695365638
+    },
+    "limitations": [
+      "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+      "Activity windows cover whole helper calls, including model loading; phase-level attribution is unavailable.",
+      "CPU rates integrate sampled process ticks; new and disappearing processes have unknown deltas, never assumed idle.",
+      "Disk bytes sum non-partition device counters and can count multiple physical writes for one logical operation.",
+      "GPU flags use observed sample endpoints; unsampled activity is not ruled out.",
+      "Host runner and recorded docker launchers are orchestration, separate from unrelated work."
+    ]
+  },
+  "diagnostic_summary_identity": {
+    "Qwen3-0.6B-Q8_0.gguf": {
+      "distinct_summaries": 1,
+      "all_equal": true
+    },
+    "Qwen3-0.6B-Q4_0.gguf": {
+      "distinct_summaries": 1,
+      "all_equal": true
+    },
+    "Qwen3-0.6B-Q4_K_M.gguf": {
+      "distinct_summaries": 1,
+      "all_equal": true
+    },
+    "Qwen3-0.6B-Q5_K_M.gguf": {
+      "distinct_summaries": 1,
+      "all_equal": true
+    }
+  },
+  "hosted": {
+    "run": "https://github.com/mxxm-t/llmx/actions/runs/36650244448",
+    "head": "f55f025a1332999ee69acf905badf4b97598362d",
+    "jobs": [
+      {
+        "name": "CPU (Linux UBSan)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/mxxm-t/llmx/actions/runs/36650244448/job/109682454584"
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/mxxm-t/llmx/actions/runs/36650244448/job/109682454727"
+      },
+      {
+        "name": "HF reference (CPU)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/mxxm-t/llmx/actions/runs/36650244448/job/109682454803"
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/mxxm-t/llmx/actions/runs/36650244448/job/109682454810"
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/mxxm-t/llmx/actions/runs/36650244448/job/109682454828"
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/mxxm-t/llmx/actions/runs/36650244448/job/109682454846"
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/mxxm-t/llmx/actions/runs/36650244448/job/109682454873"
+      }
+    ]
+  },
+  "interpretation": [
+    "MXFP4 remains below mx in both phases on both measured models.",
+    "Existing-type prefill changes are within the same-header layout-control range.",
+    "Q4_0 decode candidate/main changes +10.72 percent in block 0 and -1.05 in block 1; no stable gain established.",
+    "Q5_K_M decode candidate/main median is -3.21 percent, with block means -9.96 and -3.17; layout/main block means -9.85 and +0.13. Preserve the observed loss without claiming a cause.",
+    "All calls have GPU activity flags; 60 have unrelated CPU flags and 25 disk flags. Every call has process-coverage limitations. No sample was discarded or replaced.",
+    "Top1/logit-sum equality is diagnostic, not a replacement for raw-output identity or HF checks.",
+    "First-support speed allowance recorded by LDEV on 2026-09-29 at 22:57 is not a correctness waiver."
+  ],
+  "linux_existing_type_identity": {
+    "manifest_sha256": "4beab9c948194f406c15c3b50da987f9beaeae3ec0c9329cb1043a086c8c782d",
+    "result": {
+      "status": "pass",
+      "pid": 62205,
+      "tokens": [
+        284,
+        8397,
+        425,
+        10965,
+        465,
+        284,
+        715,
+        8397,
+        425,
+        10965,
+        465,
+        374,
+        458,
+        6364,
+        4531,
+        1154,
+        12425,
+        323,
+        33496,
+        12089,
+        659,
+        1260,
+        1030,
+        264,
+        8640,
+        569,
+        12,
+        31,
+        39400,
+        3476,
+        389,
+        279,
+        12425,
+        4013,
+        576,
+        8596,
+        304,
+        220,
+        17,
+        15,
+        15,
+        15,
+        659,
+        1096,
+        572,
+        8110,
+        553
+      ],
+      "scope": "Clean main6282500 versus CPU MXFP4f55f025a, raw full-vocabulary prompt/decode/64greedy identity on four existing quant mixtures, both caches. Correctness only; other CPU correctness checks may run concurrently. No timing claims.",
+      "runs": [
+        {
+          "arm": "main",
+          "file": "Qwen3-0.6B-Q8_0.gguf",
+          "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+          "cache": "f16",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/main/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q8_0-f16-main",
+            "cpu",
+            "f16",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "7df74d4f1f059f990d6934b0cd2e0b61cfe84aeaf8c82a8ab4c163e8b6006e61",
+          "pid": 62274,
+          "exit": 0,
+          "captures": {
+            "batched": "4775b9f131acbb5447a21626507f7dcf819635962a975b1ad0c375364b664d8f",
+            "decode": "6d1e0f9a1aecac3c8f9f89cca8a3a3847b13aaab60fd57902fe58eb008e3448d",
+            "greedy": "e675fec5bf8d6e305666f9ea9b89ffffc8a44695cc607cb78a9a475f1b2d5283"
+          }
+        },
+        {
+          "arm": "candidate",
+          "file": "Qwen3-0.6B-Q8_0.gguf",
+          "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+          "cache": "f16",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q8_0-f16-candidate",
+            "cpu",
+            "f16",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "240b17222b1a836571b8a4b44d9aaaffc0892f3405d11a12791f8ff842cd4e4c",
+          "pid": 62439,
+          "exit": 0,
+          "captures": {
+            "batched": "4775b9f131acbb5447a21626507f7dcf819635962a975b1ad0c375364b664d8f",
+            "decode": "6d1e0f9a1aecac3c8f9f89cca8a3a3847b13aaab60fd57902fe58eb008e3448d",
+            "greedy": "e675fec5bf8d6e305666f9ea9b89ffffc8a44695cc607cb78a9a475f1b2d5283"
+          }
+        },
+        {
+          "arm": "main",
+          "file": "Qwen3-0.6B-Q8_0.gguf",
+          "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+          "cache": "f32",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/main/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q8_0-f32-main",
+            "cpu",
+            "f32",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "7df74d4f1f059f990d6934b0cd2e0b61cfe84aeaf8c82a8ab4c163e8b6006e61",
+          "pid": 62574,
+          "exit": 0,
+          "captures": {
+            "batched": "d519cabbf92f2a2d288b724645b7b56316e25603f80796c54afbc42b7c5d70de",
+            "decode": "7a1fffa4f63a68300c6947b2856e8aaa396244fcbb160451d1b25d8f8cc564b1",
+            "greedy": "8d3a6db88903a4a5fa379f2757d6279a3a591764c1a88306c941c66ff847b8fd"
+          }
+        },
+        {
+          "arm": "candidate",
+          "file": "Qwen3-0.6B-Q8_0.gguf",
+          "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+          "cache": "f32",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q8_0-f32-candidate",
+            "cpu",
+            "f32",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "240b17222b1a836571b8a4b44d9aaaffc0892f3405d11a12791f8ff842cd4e4c",
+          "pid": 62750,
+          "exit": 0,
+          "captures": {
+            "batched": "d519cabbf92f2a2d288b724645b7b56316e25603f80796c54afbc42b7c5d70de",
+            "decode": "7a1fffa4f63a68300c6947b2856e8aaa396244fcbb160451d1b25d8f8cc564b1",
+            "greedy": "8d3a6db88903a4a5fa379f2757d6279a3a591764c1a88306c941c66ff847b8fd"
+          }
+        },
+        {
+          "arm": "main",
+          "file": "Qwen3-0.6B-Q4_0.gguf",
+          "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+          "cache": "f16",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/main/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q4_0-f16-main",
+            "cpu",
+            "f16",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "7df74d4f1f059f990d6934b0cd2e0b61cfe84aeaf8c82a8ab4c163e8b6006e61",
+          "pid": 63356,
+          "exit": 0,
+          "captures": {
+            "batched": "bec92736630d4f983601480e218a6ce66a3ceed94d9d58ad0413ecc6645aa510",
+            "decode": "b5affb85bbc88bc4f00a460172408cd20b72f45b17ee153b9922aef594bc8e90",
+            "greedy": "17d3737e9605d1712988a9e0c01225757bf0d18a34bdb7345cf3c07fb0e497b6"
+          }
+        },
+        {
+          "arm": "candidate",
+          "file": "Qwen3-0.6B-Q4_0.gguf",
+          "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+          "cache": "f16",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q4_0-f16-candidate",
+            "cpu",
+            "f16",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "240b17222b1a836571b8a4b44d9aaaffc0892f3405d11a12791f8ff842cd4e4c",
+          "pid": 63518,
+          "exit": 0,
+          "captures": {
+            "batched": "bec92736630d4f983601480e218a6ce66a3ceed94d9d58ad0413ecc6645aa510",
+            "decode": "b5affb85bbc88bc4f00a460172408cd20b72f45b17ee153b9922aef594bc8e90",
+            "greedy": "17d3737e9605d1712988a9e0c01225757bf0d18a34bdb7345cf3c07fb0e497b6"
+          }
+        },
+        {
+          "arm": "main",
+          "file": "Qwen3-0.6B-Q4_0.gguf",
+          "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+          "cache": "f32",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/main/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q4_0-f32-main",
+            "cpu",
+            "f32",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "7df74d4f1f059f990d6934b0cd2e0b61cfe84aeaf8c82a8ab4c163e8b6006e61",
+          "pid": 63654,
+          "exit": 0,
+          "captures": {
+            "batched": "9ddf73151e897ad97eefd63c301566de5e585e786658166be9d2b3f1c4ca889b",
+            "decode": "ddf0139640c7b126f177f5c7d47df1c90f617b9f2dc359c58711cc626e9281dd",
+            "greedy": "8a40c71bde60fc5ddd47a86cf32922b3a7bfd6fa558537bbec3fdab1c580d723"
+          }
+        },
+        {
+          "arm": "candidate",
+          "file": "Qwen3-0.6B-Q4_0.gguf",
+          "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+          "cache": "f32",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q4_0-f32-candidate",
+            "cpu",
+            "f32",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "240b17222b1a836571b8a4b44d9aaaffc0892f3405d11a12791f8ff842cd4e4c",
+          "pid": 64373,
+          "exit": 0,
+          "captures": {
+            "batched": "9ddf73151e897ad97eefd63c301566de5e585e786658166be9d2b3f1c4ca889b",
+            "decode": "ddf0139640c7b126f177f5c7d47df1c90f617b9f2dc359c58711cc626e9281dd",
+            "greedy": "8a40c71bde60fc5ddd47a86cf32922b3a7bfd6fa558537bbec3fdab1c580d723"
+          }
+        },
+        {
+          "arm": "main",
+          "file": "Qwen3-0.6B-Q5_K_M.gguf",
+          "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+          "cache": "f16",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/main/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q5_K_M-f16-main",
+            "cpu",
+            "f16",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "7df74d4f1f059f990d6934b0cd2e0b61cfe84aeaf8c82a8ab4c163e8b6006e61",
+          "pid": 64602,
+          "exit": 0,
+          "captures": {
+            "batched": "cc215d540d1209d50423fc79164602e4f956ac2a44b996b712d6ef9480228e5c",
+            "decode": "00aa9caaac6d3c4526bf857927a4daa661e6381b391084945b39411ccd07ca5e",
+            "greedy": "b0f228abfe4050aee2fdae3b6ba151214c0852ea16328535cbcb6b8bf43aebf3"
+          }
+        },
+        {
+          "arm": "candidate",
+          "file": "Qwen3-0.6B-Q5_K_M.gguf",
+          "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+          "cache": "f16",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q5_K_M-f16-candidate",
+            "cpu",
+            "f16",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "240b17222b1a836571b8a4b44d9aaaffc0892f3405d11a12791f8ff842cd4e4c",
+          "pid": 65078,
+          "exit": 0,
+          "captures": {
+            "batched": "cc215d540d1209d50423fc79164602e4f956ac2a44b996b712d6ef9480228e5c",
+            "decode": "00aa9caaac6d3c4526bf857927a4daa661e6381b391084945b39411ccd07ca5e",
+            "greedy": "b0f228abfe4050aee2fdae3b6ba151214c0852ea16328535cbcb6b8bf43aebf3"
+          }
+        },
+        {
+          "arm": "main",
+          "file": "Qwen3-0.6B-Q5_K_M.gguf",
+          "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+          "cache": "f32",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/main/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q5_K_M-f32-main",
+            "cpu",
+            "f32",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "7df74d4f1f059f990d6934b0cd2e0b61cfe84aeaf8c82a8ab4c163e8b6006e61",
+          "pid": 65233,
+          "exit": 0,
+          "captures": {
+            "batched": "057381117ff8ee545a0ddb18ecf6fb2551887be75a707965e3ba89b37f7dcea9",
+            "decode": "a74ebe52677aff13e7050c1a40805afb2f8dfe57395d6f1efd4b1553129a6838",
+            "greedy": "da1f5904646d445b49cf4778df559627655d743faf3dfec60de6ac44f3a3f4fa"
+          }
+        },
+        {
+          "arm": "candidate",
+          "file": "Qwen3-0.6B-Q5_K_M.gguf",
+          "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+          "cache": "f32",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q5_K_M-f32-candidate",
+            "cpu",
+            "f32",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "240b17222b1a836571b8a4b44d9aaaffc0892f3405d11a12791f8ff842cd4e4c",
+          "pid": 65416,
+          "exit": 0,
+          "captures": {
+            "batched": "057381117ff8ee545a0ddb18ecf6fb2551887be75a707965e3ba89b37f7dcea9",
+            "decode": "a74ebe52677aff13e7050c1a40805afb2f8dfe57395d6f1efd4b1553129a6838",
+            "greedy": "da1f5904646d445b49cf4778df559627655d743faf3dfec60de6ac44f3a3f4fa"
+          }
+        },
+        {
+          "arm": "main",
+          "file": "Qwen3-0.6B-Q4_K_M.gguf",
+          "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+          "cache": "f16",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/main/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q4_K_M-f16-main",
+            "cpu",
+            "f16",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "7df74d4f1f059f990d6934b0cd2e0b61cfe84aeaf8c82a8ab4c163e8b6006e61",
+          "pid": 65565,
+          "exit": 0,
+          "captures": {
+            "batched": "9bdf9cba22b8f051b9f25a9f93861ee8af1791721fbe43ee7147fd30f607879f",
+            "decode": "cce5dda0eca1dde6156398b105606ace7ec32cc08a14f778c3795816b042f6d1",
+            "greedy": "355134758e537c3479970c667e4cba064d26233ea5dccb46fcc2ed3db7679723"
+          }
+        },
+        {
+          "arm": "candidate",
+          "file": "Qwen3-0.6B-Q4_K_M.gguf",
+          "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+          "cache": "f16",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q4_K_M-f16-candidate",
+            "cpu",
+            "f16",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "240b17222b1a836571b8a4b44d9aaaffc0892f3405d11a12791f8ff842cd4e4c",
+          "pid": 66245,
+          "exit": 0,
+          "captures": {
+            "batched": "9bdf9cba22b8f051b9f25a9f93861ee8af1791721fbe43ee7147fd30f607879f",
+            "decode": "cce5dda0eca1dde6156398b105606ace7ec32cc08a14f778c3795816b042f6d1",
+            "greedy": "355134758e537c3479970c667e4cba064d26233ea5dccb46fcc2ed3db7679723"
+          }
+        },
+        {
+          "arm": "main",
+          "file": "Qwen3-0.6B-Q4_K_M.gguf",
+          "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+          "cache": "f32",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/main/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q4_K_M-f32-main",
+            "cpu",
+            "f32",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "7df74d4f1f059f990d6934b0cd2e0b61cfe84aeaf8c82a8ab4c163e8b6006e61",
+          "pid": 66404,
+          "exit": 0,
+          "captures": {
+            "batched": "d64e3dc75d55ff7dbe48eb540b0dcf65bb760754aa19e37f863cd2aac0f057e2",
+            "decode": "ad7fdd6c41c0ec50c96e1fdbdac1040fba0e4744c31690bda525bd771acc8bea",
+            "greedy": "0caa9f042a7529d248e7a8cc10468369189118a231c7a2ba928048604dfd8a6d"
+          }
+        },
+        {
+          "arm": "candidate",
+          "file": "Qwen3-0.6B-Q4_K_M.gguf",
+          "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+          "cache": "f32",
+          "command": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu2-20260928",
+            "taskset",
+            "-c",
+            "2,3",
+            "timeout",
+            "--kill-after=10s",
+            "600",
+            "/work/mxfp4-cpu-main-linux-20260930/candidate/build/llmx-model-logits",
+            "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/tokens.ids",
+            "/work/mxfp4-cpu-main-linux-identity-r2-20260930/Qwen3-0.6B-Q4_K_M-f32-candidate",
+            "cpu",
+            "f32",
+            "128",
+            "0"
+          ],
+          "tool_sha256": "240b17222b1a836571b8a4b44d9aaaffc0892f3405d11a12791f8ff842cd4e4c",
+          "pid": 66916,
+          "exit": 0,
+          "captures": {
+            "batched": "d64e3dc75d55ff7dbe48eb540b0dcf65bb760754aa19e37f863cd2aac0f057e2",
+            "decode": "ad7fdd6c41c0ec50c96e1fdbdac1040fba0e4744c31690bda525bd771acc8bea",
+            "greedy": "0caa9f042a7529d248e7a8cc10468369189118a231c7a2ba928048604dfd8a6d"
+          }
+        }
+      ],
+      "comparisons": [
+        {
+          "file": "Qwen3-0.6B-Q8_0.gguf",
+          "cache": "f16",
+          "raw_captures_equal": 3
+        },
+        {
+          "file": "Qwen3-0.6B-Q8_0.gguf",
+          "cache": "f32",
+          "raw_captures_equal": 3
+        },
+        {
+          "file": "Qwen3-0.6B-Q4_0.gguf",
+          "cache": "f16",
+          "raw_captures_equal": 3
+        },
+        {
+          "file": "Qwen3-0.6B-Q4_0.gguf",
+          "cache": "f32",
+          "raw_captures_equal": 3
+        },
+        {
+          "file": "Qwen3-0.6B-Q5_K_M.gguf",
+          "cache": "f16",
+          "raw_captures_equal": 3
+        },
+        {
+          "file": "Qwen3-0.6B-Q5_K_M.gguf",
+          "cache": "f32",
+          "raw_captures_equal": 3
+        },
+        {
+          "file": "Qwen3-0.6B-Q4_K_M.gguf",
+          "cache": "f16",
+          "raw_captures_equal": 3
+        },
+        {
+          "file": "Qwen3-0.6B-Q4_K_M.gguf",
+          "cache": "f32",
+          "raw_captures_equal": 3
+        }
+      ]
+    },
+    "earlier_harness_failure": "Initial run used the read-only benchmark workspace mount and failed opening its capture file. Preserved at mxfp4-cpu-main-linux-identity-20260930; corrected by using the existing writable test container, with its model hashes verified. No runtime changes."
+  }
+}

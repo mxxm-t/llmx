@@ -8,7 +8,6 @@ unused | tools/model_logits.cpp | wmain | 1 | the Windows C runtime calls this U
 
 # Functions only the tests reach, found by name.
 test-only | src/backends/cpu/cpu_backend.hpp | CpuBackend::workers_started | 1 | the pool's start count, a probe backend-errors and model-validation read to pin when workers start; kept until the tests take the count another way, with cleanup/known-findings
-test-only | src/backends/cpu/cpu_backend.hpp | CpuBackend::set_decode_activations8 | 1 | a switch only tests flip to get the float decode arithmetic back, while the product always runs the quantized activations; goes with cleanup/known-findings, the tests building their reference another way
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_name | 1 | the device's name, which only the Vulkan test prints; its comment still names the CLI, which no longer calls it; goes with cleanup/known-findings
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_profile | 1 | the device profile, which only the Vulkan test reads to predict the backend's kernel choice; kept as the test's probe or folded into it with cleanup/known-findings
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representations | 1 | the kernels' driver representations, which only the Vulkan test's --isa writes out; bench --profile captures them for nothing; decided with cleanup/known-findings

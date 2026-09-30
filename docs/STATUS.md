@@ -4,12 +4,39 @@
 
 - **Goal:** let Windows builds use the system's enabled long-path support for model and cache paths, with one shared application manifest in both build routes.
 - **Done:** the unchanged native hub-pull test passes with a 68-character fixture root and fails with a 173-character root in the nested snapshot path. The Windows policy is already enabled. Adding only `longPathAware` to a copy of the test executable makes that same long-root test pass; no runtime code or system setting changed.
-- **Test first:** the existing round-trip component now reads a GGUF and writes its decoded metadata/payload through paths longer than 260 characters on Windows when the system policy is enabled. It requires the same bytes and model path as the short-path operation. Policy unavailable or disabled is reported as a skip of this case, not as long-path coverage. The unmodified main-runtime executable fails the new long-path read after both short-path quantization round trips pass.
+- **Test first:** the existing round-trip component now reads a GGUF and writes its decoded metadata/payload through paths longer than 260 characters on Windows when the system policy is enabled. It requires payload bytes identical to the short-path operation and the full long model path in the metadata. Policy unavailable or disabled is reported as a skip of this case, not as long-path coverage. The unmodified main-runtime executable fails the new long-path read after both short-path quantization round trips pass.
 - **Implementation:** CMake gives each MSVC executable the shared `cmake/windows.manifest`, and build.bat passes that same file to the linker. Runtime path handling is unchanged.
 - **Validation:** fresh CMake build passes 35/35 native tests, roundtrip/docs/dead-code, and the native hub-pull test at the 173-character fixture root. The plain build and its long-path round-trip pass too. The first plain-build wrapper failed to locate build.bat before compilation; the explicit-path retry passed. All attempts are retained under the local Temp llmx-long-paths-check-20260930 directory.
-- **Docs:** checked the build/test descriptions and all Markdown mentions of path limits against the manifest and both passing build routes; AGENTS and BUILD now describe the opt-in and the existing policy prerequisite. Full checkpoint review and the final merge record remain pending.
-- **Left:** full CPU suite and Qwen3-0.6B identity, final checkpoint documentation review, and hosted merge gate.
-- **Gotchas:** separate branch `fix/windows-long-paths` starts at main `4141ec56`; the CPU MXFP4 gate remains at its unchanged head. This change does not enable the Windows system policy or promise that every Windows API accepts long paths.
+- **Docs:** checked the build/test descriptions and all Markdown mentions of path limits against the manifest and both passing build routes; AGENTS and BUILD now describe the opt-in and the existing policy prerequisite. All project Markdown is reconciled against the recorded main review: unchanged pages retain that review; the build/test descriptions, STATUS, and introduced CPU merge record were checked against the actual build and test results.
+- **Full gate:** committed 6d382c44 passes native 35/35 and all 24 CPU suite components with required tools and every pinned HF fixture, including Qwen3.5 Q8 59/59 and Q4 114/114. Four Qwen3-0.6B mixtures with both cache types give 24/24 identical raw batched/decode/greedy capture pairs against the main-equivalent CPU reference c1398b1b; the only runtime change from that reference to main4141ec56 is the Vulkan shader.
+- **Left:** fresh integration builds/CTest and focused checks on the reconciled source, final documentation checks, and exact-head hosted gate.
+- **Gotchas:** separate branch `fix/windows-long-paths` started at main `4141ec56` and now integrates landed CPU main `d81ed428` without code conflicts. It also includes the separate pending CPU merge-record commit `a0016dda` so its hosted gate covers the final STATUS state once, without conflating the feature commits. This change does not enable the Windows system policy or promise that every Windows API accepts long paths.
+
+## CPU MXFP4 and capture shares merged (2026-09-30)
+
+Merged `d81ed428` by fast-forward from `4141ec56` on Gitea and GitHub after [hosted run 36665074026](https://github.com/mxxm-t/llmx/actions/runs/36665074026) passed all seven jobs at that exact head. This lands CPU MXFP4 and the explicit-share option in the raw-logit test tool. Vulkan still refuses MXFP4; its implementation and correctness gate remain separate.
+
+The CPU feature delta is unchanged through the conflict-free integration of the already-validated MI50 accumulating dots. Final Windows Vulkan build passes 40/40 native tests and four focused components; the final Linux build, native tests and four focused components pass too. Earlier full CPU suites pass 25/25 on both systems with both Qwen3.5 fixtures present. CPU and one-MI50 existing-model identity is exact in 54/54 raw captures per environment; Radeon/hybrid and explicit two-MI50 1:1 checks each pass 54/54. Dense MXFP4 file-exact HF passes on 0.6B and 8B with both caches, and real-model CPU server checks pass with both caches. Required device-type refusal is tested; an optional unsupported-MXFP4 device component remains a reported skip.
+
+First CPU support is accepted with the speed gate open, as decided on 2026-09-29. No HF bound was relaxed. The supplementary large-MoE CPU/HF diagnostic remains 4/12; it is not the approved CPU branch gate. The six applicable CPU/device ranking failures remain blockers for the separate Vulkan branch.
+
+Final CPU timing uses clean main `c1398b1b`, candidate `9be203b9`, and pinned mx `eefc4e73`, GCC 14.2 in one container, six threads, 215 prompt tokens, 32 forced decode tokens, F32 KV and ubatch 128. Each table cell is the median second iteration of four calls across two mirrored blocks. All 25 readiness and 100 measured calls, both iterations, build identities and monitoring are retained. Main has no MXFP4 support.
+
+| Model | Main pp / tg tok/s | Candidate pp / tg tok/s | mx target pp / tg tok/s | Candidate / main pp / tg change |
+|---|---:|---:|---:|---:|
+| Qwen3-0.6B-Q8_0 | 206.85 / 33.25 | 209.80 / 33.72 | 161.46 / 38.00 | +1.43% / +1.40% |
+| Qwen3-0.6B-Q4_0 | 193.13 / 41.33 | 192.02 / 42.62 | 221.12 / 55.45 | -0.57% / +3.13% |
+| Qwen3-0.6B-Q4_K_M | 201.45 / 42.22 | 201.39 / 44.67 | 230.31 / 49.79 | -0.03% / +5.80% |
+| Qwen3-0.6B-Q5_K_M | 199.68 / 41.14 | 200.70 / 36.91 | 129.79 / 47.06 | +0.51% / -10.26% |
+| Qwen3-0.6B-MXFP4 | n/a | 196.93 / 44.50 | 216.26 / 55.40 | n/a |
+| Qwen3-8B-MXFP4 | n/a | 14.09 / 4.93 | 17.94 / 6.81 | n/a |
+| Qwen3-14B-MXFP4 | n/a | 7.48 / 2.41 | 9.55 / 3.06 | n/a |
+
+Q5_K_M decode is -3.01% and -30.42% in the two original blocks; its layout control loses 8.47% overall. A separate fixed follow-up uses the same binaries and monitor for eight balanced four-arm blocks, every arm in every ordinal position twice. All four readiness and 32 measured calls are retained. It gives main 199.86 / 37.46, candidate 197.85 / 36.87, and mx 127.61 / 43.53 tok/s: candidate -1.01% / -1.56%, with layout -0.36% / -3.33%. Individual decode block changes span -28.02% to +52.99%. The original 10.26% loss did not reproduce as a stable effect; these results do not identify its cause or prove a speed improvement. The small remaining measured tradeoff is accepted for first CPU support.
+
+The full matrix has 2363 monitor samples, flags on 72/100 calls for unrelated CPU activity, 41/100 for disk activity and 56/100 for GPU activity. The follow-up has 177 samples, flags on 32/32, 10/32 and 32/32 respectively. Every call has process-coverage limitations; whole-call activity includes loading and cannot attribute a phase slowdown. No sample was discarded.
+
+The [final evidence](benchmarks/mxfp4-cpu-final-gate-20260930.json) records all summaries/blocks, limitations, exact-head hosted job times, integration checks, source-scope audit and verified landing tips. Its three locally verified archives hold 267 full-matrix, 79 follow-up and 335 Linux correctness payloads; raw float captures remain beside their manifests. Earlier detailed HF/identity checks remain in the [integration evidence](benchmarks/mxfp4-cpu-main-q35-integration-20260930.json). All project Markdown is reconciled against the preceding review: STATUS and VULKAN changed on integration and were checked; unchanged pages retain their prior source review. The completed active blocks are replaced by this record.
 
 Current implementation and remaining work. Historical checkpoints, failed
 experiments and raw evidence remain in [ASSETS](ASSETS.md) and
@@ -8413,7 +8440,7 @@ their own measurements; K-quant optimization remains separate work below.
 | Vulkan allocation failure ownership | Done |
 | Vulkan attention width and mixed-cache validation | Done |
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
-| Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | In progress (block above): the spec decoders, fixtures and MXFP4 writer merged at `e9b13dec`, and MXFP4 is being built on branches of its own |
+| Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | In progress (block above): the spec decoders, fixtures and MXFP4 writer merged at `e9b13dec`; CPU MXFP4 and explicit capture shares merged at `d81ed428`, with speed work and the separate Vulkan branch still open |
 | More model architectures (Llama, ...)    | Planned  |
 | Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the Vulkan backend, merged at `8d68d529` |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (block above); the CPU timing on a quiet host follows |

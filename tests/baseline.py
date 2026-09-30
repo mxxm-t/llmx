@@ -94,9 +94,11 @@ def run_logits():
 
 def check_model_logits(doc, model, spec, name="baseline-logits"):
     """`llmx logits` on `model` against the cases of the logit golden `doc` at the bounds in `spec`.
-    True when every case agrees, False after printing the ones that do not, and None when the configured device has no kernel for the model."""
+    Top-1 must agree on every case unless the file's spec names an approved aggregate count.
+    True within those bounds, False after printing failures, and None when the configured device has no kernel for the model."""
     bounds = dict(spec, max_abs_logit=MAX_PLAUSIBLE_LOGIT)
-    failures, ordered = [], 0
+    failures, ordered, top1 = [], 0, 0
+    required_top1 = spec.get("top1_matches", len(doc["cases"]))
     for case in doc["cases"]:
         rc, out = cli(["logits", model, case["text"], "--top", "10"])
         if common.device_lacks_kernel(rc, out):
@@ -107,14 +109,19 @@ def check_model_logits(doc, model, spec, name="baseline-logits"):
             failures.append((case["text"], "exit %d" % rc))
             continue
         try:
-            ids = common.check_logits(out, case, VOCAB_SIZE, bounds)["top_ids"]
+            ids = common.check_logits(out, case, VOCAB_SIZE, bounds,
+                                      require_top1=required_top1 == len(doc["cases"]))["top_ids"]
         except ValueError as error:
             failures.append((case["text"], str(error)))
             continue
+        top1 += ids[0] == case["top_ids"][0]
         if ids[:5] == case["top_ids"][:5]:
             ordered += 1
 
     n = len(doc["cases"])
+    if top1 < required_top1 and not failures:
+        print("%s[%s]: top-1 %d/%d below required %d/%d" % (name, spec["file"], top1, n, required_top1, n))
+        return False
     if failures:
         print("%s[%s]: %d/%d prompts agree, %d differ:"
               % (name, spec["file"], n - len(failures), n, len(failures)))
@@ -123,7 +130,7 @@ def check_model_logits(doc, model, spec, name="baseline-logits"):
             print("      %s" % why)
         return False
     print("%s[%s]: top-1 %d/%d, top-5 set >=%d %d/%d, exact order %d/%d  [ok]"
-          % (name, spec["file"], n, n, spec["top5_overlap"], n, n, ordered, n))
+          % (name, spec["file"], top1, n, spec["top5_overlap"], n, n, ordered, n))
     return True
 
 

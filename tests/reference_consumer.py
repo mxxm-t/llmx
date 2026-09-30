@@ -12,6 +12,7 @@ import unittest.mock
 from unittest.mock import patch
 
 import baseline
+import baseline_mxfp4
 import baseline_8b as consumer
 import baseline_qwen35
 import baseline_layered as layered
@@ -71,6 +72,20 @@ class ReferenceConsumer(unittest.TestCase):
         policy = patch.object(common, "REQUIRED_DEVICE_TYPES", {}, create=True)
         policy.start()
         self.addCleanup(policy.stop)
+
+    def test_mxfp4_device_refusal_policy(self):
+        import mxfp4
+        refusal = "error: inference: embedding needs tensor token_embd.weight of type MXFP4 (39), which the backend of device 0 does not support"
+        with patch.dict(os.environ, {"LLMX_DEVICE": ""}), patch.object(common, "run_f32_cache") as run:
+            self.assertFalse(mxfp4.device_skip("unused.gguf"))
+            run.assert_not_called()
+        with patch.dict(os.environ, {"LLMX_DEVICE": "vulkan:0"}), patch.object(common, "run_f32_cache", return_value=(1, refusal)):
+            self.assertTrue(mxfp4.device_skip("fixture.gguf"))
+            with patch.object(common, "REQUIRED_DEVICE_TYPES", {39: "MXFP4"}):
+                with self.assertRaisesRegex(RuntimeError, "required device type MXFP4"):
+                    mxfp4.device_skip("fixture.gguf")
+        with patch.dict(os.environ, {"LLMX_DEVICE": "vulkan:0"}), patch.object(common, "run_f32_cache", return_value=(1, "upload failed")):
+            self.assertFalse(mxfp4.device_skip("fixture.gguf"))
 
     def test_required_type_refusal_cannot_be_skipped(self):
         early = "error: inference: embedding needs tensor token_embd.weight of type MXFP4 (39), which the backend of device 0 does not support"
@@ -639,8 +654,77 @@ class LayeredConsumer(unittest.TestCase):
         self.assertIn("no goldens here", report["error"])
 
 
+class MXFP4Consumer(unittest.TestCase):
+    def test_tiny_precision_bounds_keep_f32_strict(self):
+        with self.assertRaises(AssertionError):
+            common.hf_logit_error("F32", {0: 0.0001}, [0.0])
+        self.assertEqual(common.hf_logit_error("MXFP4", {0: 0.0001}, [0.0], "mxfp4"), 0.0001)
+        for got in ({0: 0.000201}, {0: float("nan")}, {1: 0.0}):
+            with self.assertRaises(AssertionError):
+                common.hf_logit_error("MXFP4", got, [0.0], "mxfp4")
+        with self.assertRaises(KeyError):
+            common.hf_logit_error("unknown", {0: 0.0}, [0.0], "unknown")
+
+    def test_tiny_nll_bound_does_not_change(self):
+        with patch.object(common, "run_f32_cache", return_value=(0, "mean NLL: 0.00002\n")):
+            with self.assertRaisesRegex(AssertionError, "NLL error"):
+                common.check_hf_fixture("MXFP4", "model", [], [{"context": 16, "mean_nll": 0.0}],
+                                        "text", [1], precision="mxfp4")
+
+    def test_top1_allowance_is_aggregate_and_opt_in(self):
+        with open(baseline.GOLDEN_LOGITS, encoding="utf-8") as f:
+            doc = json.load(f)
+        self.assertEqual(len(doc["cases"]), 6)
+        for changed, spec, accepted in ((1, baseline_mxfp4.BOUNDS, True), (2, baseline_mxfp4.BOUNDS, False),
+                                        (1, dict(baseline.FILE_EXACT_BOUNDS, file="file.gguf"), False)):
+            outputs = []
+            for i, case in enumerate(doc["cases"]):
+                altered = dict(case, top_ids=list(case["top_ids"]))
+                if i < changed:
+                    altered["top_ids"][:2] = reversed(altered["top_ids"][:2])
+                outputs.append((0, logits_text(altered)))
+            with patch.object(baseline, "cli", side_effect=outputs), contextlib.redirect_stdout(io.StringIO()):
+                self.assertIs(baseline.check_model_logits(doc, "model", spec), accepted)
+
+    def test_quality_bounds_reject_worse_overlap_and_nll(self):
+        with open(baseline.GOLDEN_LOGITS, encoding="utf-8") as f:
+            case = json.load(f)["cases"][0]
+        altered = dict(case, top_ids=[case["top_ids"][0]] + list(range(100, 109)))
+        bounds = dict(baseline_mxfp4.BOUNDS, max_abs_logit=baseline.MAX_PLAUSIBLE_LOGIT)
+        with self.assertRaises(ValueError):
+            common.check_logits(logits_text(altered), case, baseline.VOCAB_SIZE, bounds, require_top1=False)
+        with open(baseline.GOLDEN_PPL, encoding="utf-8") as f:
+            doc = json.load(f)
+        for case in common.ppl_cases(doc):
+            bound = 0.35 if case["context_size"] else 0.21
+            for error, accepted in ((bound - 0.001, True), (bound + 0.001, False)):
+                output = ppl_text(case, case["mean_nll"] + error, doc["n_tokens"], baseline.MODEL_CONTEXT)
+                if accepted:
+                    common.check_ppl(output, case, doc["n_tokens"], baseline.MODEL_CONTEXT, bounds)
+                else:
+                    with self.assertRaises(ValueError):
+                        common.check_ppl(output, case, doc["n_tokens"], baseline.MODEL_CONTEXT, bounds)
+
+    def test_file_identity_is_required_before_execution(self):
+        for name in ("baseline_logits.json", "baseline_perplexity.json"):
+            with open(baseline_mxfp4.FILE_EXACT / name, encoding="utf-8") as f:
+                self.assertEqual(json.load(f)["weights"]["sha256"], baseline_mxfp4.MODEL_SHA256)
+        with patch.object(baseline, "file_sha256", return_value="0" * 64), patch.object(baseline, "run_file_exact") as exact:
+            with self.assertRaisesRegex(AssertionError, "pinned writer"):
+                baseline_mxfp4.run("other.gguf")
+            exact.assert_not_called()
+
+    def test_file_exact_failure_cannot_pass_on_quality_bounds(self):
+        with patch.object(baseline, "file_sha256", return_value=baseline_mxfp4.MODEL_SHA256), \
+                patch.object(baseline, "run_file_exact", return_value=False) as exact, \
+                patch.object(baseline, "check_model_logits") as quality:
+            self.assertFalse(baseline_mxfp4.run("model.gguf"))
+            exact.assert_called_once_with(str(baseline_mxfp4.FILE_EXACT), "model.gguf")
+            quality.assert_not_called()
+
+
 def run():
-    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceConsumer, Qwen35Consumer, Qwen35QualityConsumer, LayeredConsumer))
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceConsumer, Qwen35Consumer, Qwen35QualityConsumer, LayeredConsumer, MXFP4Consumer))
     result = unittest.TextTestRunner(stream=sys.stdout).run(suite)
     return result.wasSuccessful()
 

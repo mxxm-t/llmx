@@ -1,16 +1,18 @@
 #pragma once
 // CPU dots over activations quantized per block of 32; weights remain packed and integer sums are scaled once per block (docs/src/backends-cpu.md).
-// Q4_0, Q4_1 and Q6_K use 16-bit activations; Q4_K and Q5_K use 8-bit activations. Q8_0 keeps original F32 inputs in the float dots.
+// Q4_0, Q4_1, Q6_K and MXFP4 use 16-bit activations; Q4_K and Q5_K use 8-bit activations. Q8_0 keeps original F32 inputs in the float dots.
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <stdexcept>
 #include <vector>
 #include <immintrin.h>
 
 #include "core/fp16.hpp"
 #include "quant/k_quants.hpp"
+#include "quant/mxfp4.hpp"
 #include "quant/types.hpp"
 
 namespace backend {
@@ -162,6 +164,56 @@ inline __m256i dot16(__m256i w8, const int16_t* x) {
     const __m256i hi = _mm256_madd_epi16(_mm256_cvtepi8_epi16(_mm256_extracti128_si256(w8, 1)), _mm256_loadu_si256((const __m256i*)(x + 16)));
     return _mm256_add_epi32(lo, hi);
 }
+// Each nibble half widens directly into its integer dot, retaining the eight lanes of dot16 without joining and extracting halves.
+inline __m256i dot_mxfp4_block(const uint8_t* qs, const int16_t* x) {
+    const __m128i packed = _mm_loadu_si128((const __m128i*)qs);
+    const __m128i mask = _mm_set1_epi8(15);
+    const __m128i table = _mm_loadu_si128((const __m128i*)quant::MXFP4_VALUES);
+    const __m128i lo = _mm_shuffle_epi8(table, _mm_and_si128(packed, mask));
+    const __m128i hi = _mm_shuffle_epi8(table, _mm_and_si128(_mm_srli_epi16(packed, 4), mask));
+    const __m256i sum0 = _mm256_madd_epi16(_mm256_cvtepi8_epi16(lo), _mm256_loadu_si256((const __m256i*)x));
+    const __m256i sum1 = _mm256_madd_epi16(_mm256_cvtepi8_epi16(hi), _mm256_loadu_si256((const __m256i*)(x + 16)));
+    return _mm256_add_epi32(sum0, sum1);
+}
+
+// Extreme scales take decoded f32 weights against the same quantized activations, with double products so combining scales cannot underflow or overflow first.
+inline float dot_mxfp4_wide(const uint8_t* row, const Rows16& x, size_t r) {
+    const int16_t* q = x.qs(r);
+    const float* d = x.ds(r);
+    double sum = 0.0;
+    for (size_t b = 0; b < x.nin / quant::MXFP4_BLOCK; ++b) {
+        float weights[quant::MXFP4_BLOCK];
+        quant::dequantize_row_mxfp4(row + b * quant::MXFP4_TYPESIZE, weights, 1);
+        for (size_t j = 0; j < quant::MXFP4_BLOCK; ++j)
+            sum += double(weights[j]) * (double(q[b * quant::MXFP4_BLOCK + j]) * double(d[b]));
+    }
+    return float(sum);
+}
+
+// Whether the packed dot can combine the scales without losing range; the high exponents may already have infinite decoded weights.
+inline bool mxfp4_dot_scale(uint8_t e, float activation, float& scale) {
+    scale = quant::mxfp4_scale(e) * activation;
+    uint32_t bits;
+    std::memcpy(&bits, &scale, sizeof bits);
+    const uint32_t exponent = bits & 0x7f800000u;
+    return e < quant::MXFP4_FIRST_OVERFLOW_EXPONENT && exponent - 0x00800000u < 0x7f000000u;
+}
+
+inline float dot_mxfp4(const uint8_t* row, const Rows16& x, size_t r) {
+    const int16_t* q = x.qs(r);
+    const float* d = x.ds(r);
+    __m256 acc = _mm256_setzero_ps();
+    for (size_t b = 0; b < x.nin / quant::MXFP4_BLOCK; ++b) {
+        const uint8_t* p = row + b * quant::MXFP4_TYPESIZE;
+        float scale;
+        if (!mxfp4_dot_scale(p[0], d[b], scale)) return dot_mxfp4_wide(row, x, r);
+        const __m256i sum = dot_mxfp4_block(p + 1, q + b * quant::MXFP4_BLOCK);
+        acc = _mm256_fmadd_ps(_mm256_set1_ps(scale), _mm256_cvtepi32_ps(sum), acc);
+    }
+    const float result = hsum(acc);
+    return std::isfinite(result) ? result : dot_mxfp4_wide(row, x, r);
+}
+
 inline float dot_q4_0(const uint8_t* row, const Rows16& x, size_t r) {
     const size_t nb = x.nin / 32;
     const int16_t* q = x.qs(r);
@@ -440,10 +492,10 @@ inline void block_dots(const uint8_t* w, size_t row_bytes, size_t nrows, const t
 // Whether a type has a dot here, which activations it reads, and the dot itself.
 inline bool has_dot(uint32_t type) {
     return type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 ||
-           type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K;
+           type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_MXFP4;
 }
 inline bool reads16(uint32_t type) {
-    return type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q6_K;
+    return type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_MXFP4;
 }
 
 // The activation rows of a call, each precision quantized once when a type first reads it; `par(rows, fn)` runs fn over ranges of rows, from several threads if it likes.
@@ -486,7 +538,8 @@ inline void dot_block(uint32_t type, const uint8_t* w, size_t row_bytes, size_t 
     case quant::GGML_TYPE_Q4_1: block_dots<KQ4<true>>(w, row_bytes, nrows, x.x16, r, n, out, o0); break;
     case quant::GGML_TYPE_Q4_K: block_dots<KQ45_K<false>>(w, row_bytes, nrows, x.x8, r, n, out, o0); break;
     case quant::GGML_TYPE_Q5_K: block_dots<KQ45_K<true>>(w, row_bytes, nrows, x.x8, r, n, out, o0); break;
-    default: block_dots<KQ6_K>(w, row_bytes, nrows, x.x16, r, n, out, o0); break;
+    case quant::GGML_TYPE_Q6_K: block_dots<KQ6_K>(w, row_bytes, nrows, x.x16, r, n, out, o0); break;
+    default: throw std::runtime_error("backend: unsupported packed dot type");
     }
 }
 
@@ -497,7 +550,9 @@ inline float dot(uint32_t type, const uint8_t* row, const Activations& x, size_t
     case quant::GGML_TYPE_Q4_1: return dot_q4_1(row, x.x16, r);
     case quant::GGML_TYPE_Q4_K: return dot_q45_K(row, x.x8, r, false);
     case quant::GGML_TYPE_Q5_K: return dot_q45_K(row, x.x8, r, true);
-    default: return dot_q6_K(row, x.x16, r);
+    case quant::GGML_TYPE_Q6_K: return dot_q6_K(row, x.x16, r);
+    case quant::GGML_TYPE_MXFP4: return dot_mxfp4(row, x.x16, r);
+    default: throw std::runtime_error("backend: unsupported packed dot type");
     }
 }
 

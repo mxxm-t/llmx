@@ -240,6 +240,11 @@ if(BUILD_TESTING)
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/qwen35-0.8b/baseline_chat.json
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/qwen35-4b/baseline_chat.json)
     set_tests_properties(chat-template PROPERTIES TIMEOUT 30)
+    add_executable(llmx-mxfp4-test tests/mxfp4.cpp)
+    target_include_directories(llmx-mxfp4-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    list(APPEND LLMX_TARGETS llmx-mxfp4-test)
+    add_test(NAME mxfp4 COMMAND llmx-mxfp4-test)
+    set_tests_properties(mxfp4 PROPERTIES TIMEOUT 60)
     add_executable(llmx-fp16-test tests/fp16.cpp)
     target_include_directories(llmx-fp16-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-fp16-test)
@@ -324,6 +329,14 @@ if(BUILD_TESTING)
     list(APPEND LLMX_TARGETS llmx-server-utf8-test)
     add_test(NAME server-utf8 COMMAND llmx-server-utf8-test)
     set_tests_properties(server-utf8 PROPERTIES TIMEOUT 30)
+
+    # The suite compares original CPU F32 activations against independent HF fixtures beside quantized decode.
+    add_executable(llmx-cpu-f32-check tools/cpu_f32_check.cpp)
+    target_include_directories(llmx-cpu-f32-check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(LLMX_HAS_BACKEND_VULKAN)
+        target_link_libraries(llmx-cpu-f32-check PRIVATE llmx-vulkan)
+    endif()
+    list(APPEND LLMX_TARGETS llmx-cpu-f32-check)
 
     # Not a CTest: a model on one device against it split by layers over several, raw logits compared bit for bit; the suite's `split` component runs it over CPU backends, beside the executable.
     # It reads the build's config.hpp first, so it takes Vulkan devices exactly when the build has them.

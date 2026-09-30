@@ -146,7 +146,7 @@ python tests/roundtrip.py
 python tests/run_tests.py --exe build/Release/llmx.exe
 ```
 `llmx.exe info FILE` lists the metadata and tensors of a written GGUF.
-On Windows with `LongPathsEnabled` set, the round-trip component also reads a GGUF and writes identical metadata/payload through paths longer than 260 characters; it records a skip of this case if the policy is disabled or unavailable. Both MSVC build routes embed the shared `cmake/windows.manifest`; no test or runtime enables the system policy.
+On Windows with `LongPathsEnabled` set, the round-trip component also reads a GGUF through a path longer than 260 characters and checks identical decoded payload bytes and the preserved full model path in its metadata; it records a skip of this case if the policy is disabled or unavailable. Both MSVC build routes embed the shared `cmake/windows.manifest`; no test or runtime enables the system policy.
 
 ## Tests
 
@@ -265,6 +265,8 @@ nesting/thread guards, allocation and microbatch boundaries, error draining and
 scope reuse. Windows-only `prefill-placement` covers real eligible topology,
 unsupported topology fallback and synthetic apply/restore failures without
 requiring a six-core hosted runner. Neither replaces the independent HF gate.
+
+`mxfp4` checks CPU decoding at every exponent and code in every position against an independent oracle, scale-product boundaries, one-hot dots, odd block counts, extreme-scale cancellation and guarded outputs. `tests/mxfp4.py` checks dense tied/untied and MoE raw-block fixtures against pinned HF, including 150 original-F32 control cases at 2e-5 and production logits at the approved 2e-4 bound; NLL keeps 1e-5. `tests/baseline_mxfp4.py` checks the pinned real writer output against file-exact HF and its separate approved quality bounds (docs/ASSETS.md, MXFP4 CPU fixtures). On a selected device without the type, the component reports SKIP; requiring MXFP4 turns that refusal into failure. The server's MXFP4 subcheck uses the same refusal policy.
 
 `fp16` checks binary32 to binary16 conversion without an oracle library:
 every finite half must encode back to its own bits, and floats at a fixed stride through the magnitudes below 2 of both signs, with eight chosen values such as the largest half and the smallest normal and subnormal ones, must each encode to the nearest half, ties to even.
@@ -472,7 +474,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   version and build identifier format, and the usage banner starts with it.
 - **Device reference** (`tests/device_reference.py`): the quantization plan's shared CPU/device criterion in `tests/common.py`, with deliberate ranking, NLL, calibration, shape, nonfinite and greedy faults.
   CMake's `llmx-model-logits` captures every full-vocabulary row of an excerpt in batched and per-token execution, then 64 argmax steps after prefill, without stopping at EOS.
-  Tiny F32 captures are checked against independent HF rows; the tests also check Unicode paths, malformed IDs, incomplete files and the caller's complete flow, with a damaged low-ranked logit that must fail the calibrated maximum.
+  Tiny F32 captures are checked against independent HF rows; the tests also check Unicode paths, malformed IDs, explicit layer-share capture equivalence and share refusals, incomplete files and the caller's complete flow, with a damaged low-ranked logit that must fail the calibrated maximum.
   The control measures the largest logit gap and reports its other disagreements; the candidate retains every acceptance check. Both roles reject malformed or nonfinite captures.
   `tools/check_device.py` runs the real-model comparison with an existing-type control selected first and retains raw results; see `docs/CI.md`, Device versus CPU numerical checks.
   A missing capture tool fails with `--require-tools` and otherwise reports SKIP after the criterion tests.
@@ -495,7 +497,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   Also checks quantize's JSON tensor schema/dimension and binary-length rejection,
   output preservation on validation failure, and valid one-to-four-dimensional
   conversion for both writable types.
-  `dequantize` must match, bit for bit, the spec decoders of `tests/spec_decode.py`: Q8_0 and Q4_0 on the blocks quantize writes, and Q4_1, Q4_K, Q5_K, Q6_K, Q8_0 and Q4_0 on raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, which their quantizers never write, so the references of `q8-dots` and `backend-group`, which take them from llmx's decoders, rest on an independent decode for all six types.
+  `dequantize` must match, bit for bit, the spec decoders of `tests/spec_decode.py`: Q8_0 and Q4_0 on the blocks quantize writes, and Q4_1, Q4_K, Q5_K, Q6_K, Q8_0 and Q4_0 on raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, which their quantizers never write, so the references of `q8-dots` and `backend-group`, which take them from llmx's decoders, rest on an independent decode for all six types. MXFP4 additionally checks every exponent and code in every position through the actual dequantize CLI, against the independent spec decoder.
   Q4_0's raw blocks take each of the test's scales twice, negatives included, so every position takes every nibble, and under a negative scale nibble 8 must decode as -0, as the format's d*(nibble - 8) gives it (`docs/ASSETS.md`).
   Both types quantize and dequantize under a non-ASCII directory to the same bytes as under an ASCII one, and a type name quantize does not write is refused with exit status 2.
 - **Raw blocks** (`tests/raw_blocks.py`): the spec decoders of `tests/spec_decode.py`, one for each GGUF type the pinned fixtures and the MXFP4 writer's file hold (F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS and MXFP4), each in a pure form, the readable reference, and a numpy form for whole files.
@@ -632,7 +634,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   After the decode steps, the prompt and the steps are recomputed by class on each model, as a paused request's resume recomputes them: the prompt at its extent in ubatch slices and the steps as entries of extent 1 of up to 64 rows, whole and from a fork at the last whole block when the history passes one, which must give the decode's last logits; it prints how many of these ran from a fork.
   The split must be bit-identical, since each layer runs the same kernels on the same rows wherever it sits; a split over different backends is held to the HF bounds instead.
   Each listed device is a backend of its own, without the CLI's listed-once rule, so `cpu,cpu` is two CPU backends.
-  The `split` component (`tests/split.py`) runs the tool found beside `--exe` on the tiny F32 model, tied and untied, the tiny MoE model and the tiny qwen35 models of Hv = Hk and Hv = 3 Hk, one CPU against `cpu,cpu`, the MoE also against `cpu,cpu,cpu` and the qwen35 models against `cpu,cpu,cpu,cpu`, a layer a stage, where two stages hold only a linear-attention layer's state and no KV, at ubatch 1, 3 and 16 and with f16 and f32 caches, with 3 decode steps after a 13-token text, which fills their 16-token context.
+  The `split` component (`tests/split.py`) runs the tool found beside `--exe` on the tiny F32 model, tied and untied, the tiny MoE model, the three MXFP4 dense tied/untied and routed fixtures, and the tiny qwen35 models of Hv = Hk and Hv = 3 Hk, one CPU against `cpu,cpu`, the MoE also against `cpu,cpu,cpu` and the qwen35 models against `cpu,cpu,cpu,cpu`, a layer a stage, where two stages hold only a linear-attention layer's state and no KV, at ubatch 1, 3 and 16 and with f16 and f32 caches, with 3 decode steps after a 13-token text, which fills their 16-token context.
   A model that keeps a recurrent state is not forked, so the tool recomputes it by class from no fork.
   It also writes a synthetic Q8_0 model with a 256-token context, whose decode rows take the CPU's 8-bit dots and prompt rows the float path, and runs it against `cpu,cpu` after a 100-token text with 40 steps and a 150-token text with 8, histories that pass a 128-token block, so every run recomputes from a fork on one backend and on the split, which the component requires.
   It skips when the tool is not there, unless `--require-tools` is given, and the configured device, shares, cache type and load mode do not reach it.
@@ -759,7 +761,7 @@ matters: **each layer depends only on the layers below it** -
 |--------------|-------------------------------------------------|
 | `core/`      | fp16 <-> f32, JSON parser, UTF-8, file hashes, the host memory a process can still take and owned pages, comma-separated lists, the CPUs a process may use and the cgroups its limits are read from |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
-| `quant/`     | type ids and block sizes, QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K kernels |
+| `quant/`     | type ids and block sizes, QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K/MXFP4 kernels |
 | `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, output files published whole, raw F32 tensors to and from GGUF |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | runtime (sequences, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices |

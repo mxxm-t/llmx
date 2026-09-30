@@ -139,9 +139,11 @@ class NativeCapture(unittest.TestCase):
         self.tool = Path(common.EXE).with_name("llmx-model-logits" + (".exe" if os.name == "nt" else ""))
         self.version = subprocess.check_output([common.EXE, "--version"], text=True).strip()[5:]
 
-    def capture(self, cache="f32", ubatch="2", ids=None):
+    def capture(self, cache="f32", ubatch="2", ids=None, shares=None):
         prefix = self.root / "capture"
         cmd = [str(self.tool), str(self.model), str(ids or self.ids), str(prefix), "cpu", cache, ubatch, "0"]
+        if shares is not None:
+            cmd.append(shares)
         result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=120)
         return prefix, result
 
@@ -163,6 +165,23 @@ class NativeCapture(unittest.TestCase):
             meta_path.write_text(json.dumps(dict(meta, **{key: value})))
             with self.assertRaises(ValueError):
                 check_device.capture_metadata(meta_path, [97, 98, 99], self.version)
+
+    def test_explicit_layer_shares(self):
+        prefix, result = self.capture()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        original = {phase: Path(str(prefix) + "." + phase + ".bin").read_bytes()
+                    for phase in ("batched", "decode", "greedy")}
+        metadata = result.stdout
+        _, result = self.capture(shares="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, metadata)
+        for phase, data in original.items():
+            self.assertEqual(Path(str(prefix) + "." + phase + ".bin").read_bytes(), data)
+        for shares in ("", "-1", "1.5", "0", "1,1", "2147483648"):
+            with self.subTest(shares=shares):
+                _, result = self.capture(shares=shares)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("share", result.stderr.lower())
 
     def test_bad_inputs_and_capture_lengths(self):
         for text in ("", "1", "97 -1", "97 257", "97 1.5", "97 x", "97 4294967296"):

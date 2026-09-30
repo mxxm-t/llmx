@@ -3892,3 +3892,11 @@ Its 1,165,130 bytes have SHA256
 Every archived record was rehashed after writing. Model/executable payloads
 remain local; identities are retained. Root independently recomputed all five
 paired statistics and all 12 loaded-model fingerprint comparisons.
+
+## MXFP4 CPU fixtures
+
+`tests/data/baseline_mxfp4.json` pins tiny dense tied/untied and routed raw-block models. `tools/gen_baseline.py mxfp4` independently decodes their packed weights with the spec decoder before pinned HF computes the logits and NLL. Packed and decoded hashes are checked by the consumer. The original-F32 CPU control keeps the 2e-5 logit bound; production MXFP4 uses the previously approved 2e-4 bound and the unchanged 1e-5 tiny-model NLL bound.
+
+`tests/baseline_mxfp4.py --model FILE` checks the pinned 0.6B writer output (SHA-256 `84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45`) first against file-exact HF, then against original-fp32 model quality: 5/6 top-1, at least 2/5 top-five overlap, mean-NLL differences at most 0.21 continuous and 0.35 windowed. These are the existing file-specific approvals, not relaxed runtime correctness: [approval record](benchmarks/mxfp4-approved-gates-20260927.json). Other models do not inherit them.
+
+The manual file-exact fixtures are `tests/data/mxfp4-file-exact/` and `tests/data/mxfp4-8b-file-exact/`; the latter pins the 8B file with SHA-256 `ebfb5ea2edd1cd6ba5c08a0f31d6c40bb0984a360fe1f694adacb21adfb4d807`. `tests/baseline.py --file-exact DIR --model FILE` consumes them. Neither real file is a hosted download. The separate GPU MoE ranking failure is not waived by this CPU implementation.

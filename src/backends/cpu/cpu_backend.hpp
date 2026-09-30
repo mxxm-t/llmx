@@ -1313,7 +1313,9 @@ private:
         span(*data_s.buffer, data_s.offset * sizeof(float), size_mul(n_expert, stride));
         const uint8_t* data = (const uint8_t*)bytes_at(data_s);
         const bool q8 = quantized_dots(type, nin);
-        if (q8) {
+        // MXFP4 prompts retain original activations, as the plain prompt product does.
+        const bool prompt_q8 = q8 && type != quant::GGML_TYPE_MXFP4;
+        if (q8 && (prompt_q8 || std::find(decode.begin(), decode.end(), char(1)) != decode.end())) {
             if (xq8_.src != X || xq8_.rows != xrows || xq8_.nin != nin) xq8_.reset(X, xrows, nin);
             prepare_x(type);
         }
@@ -1328,7 +1330,7 @@ private:
                 if (decode[i / k]) {
                     single.push_back(i);
                     expert_of.push_back((uint32_t)e);
-                } else if (q8) {
+                } else if (prompt_q8) {
                     expert_rows_.push_back(i / per);
                     expert_outs_.push_back(out + (size_t)i * nout);
                 }
@@ -1344,7 +1346,7 @@ private:
                 }
             });
         }
-        if (q8) {
+        if (prompt_q8) {
             // Stretches of an expert's rows, handed out as workers free up, since experts carry different numbers of entries.
             const size_t R = 16, per_expert = (nout + R - 1) / R;
             std::vector<uint32_t> busy;

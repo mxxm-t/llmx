@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## macOS hosted job budget (2026-09-30, in progress)
+
+- **Goal:** let the existing macOS checks finish when hosted compilation varies, while keeping a finite job limit and every test unchanged.
+- **Evidence:** exact Windows-fix head c6b964c6 in hosted run 36670343011 built successfully on macOS in 9m39s and passed native tests in 1m55s, then its Python suite was cancelled by the 15-minute job limit. The check annotation explicitly reports that timeout. Nearby successful macOS jobs built in 3m25s, 3m44s and 6m36s, with the full Python suite taking 4m32s to 5m10s. A full successful run already took 14m03s on main d81ed428.
+- **Done:** the CPU matrix gives macOS 25 minutes; Linux and Windows retain 15. No test timeout, correctness bound or command changes. This separate CI branch starts on main d81ed428 and has no Windows-manifest dependency.
+- **Left:** hosted validation at the final integrated head before landing. The cancelled run remains evidence, not a pass; it is retained beside the subsequent run.
+- **Docs:** all project Markdown checked against this configuration-only delta; no page claims the old job budget, and only this STATUS record needs changing. docs/dead-code checks cover the edited tree.
+- **Gotchas:** this provides completion headroom; it is not evidence of a runtime speed regression or a fix for a failed test.
+
 ## Explicit shares in raw-logit captures (2026-09-30, in progress)
 
 - **Goal:** let the existing `llmx-model-logits` tool pin layer proportions for the quantization plan's two-device 1:1 identity gate.

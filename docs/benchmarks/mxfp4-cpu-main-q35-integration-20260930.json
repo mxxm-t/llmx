@@ -10522,6 +10522,143 @@
           }
         }
       }
+    },
+    "linux_integrated_device_gate": {
+      "manifest": "C:\\Users\\Marko\\AppData\\Local\\Temp\\mxfp4-cpu-shares-device-followup-complete-20260930.json",
+      "sha256": "f7670f46e4e024b880f28e2958ab6cec1115f8116fe89e73ce030d5ae71874e9",
+      "result": {
+        "status": "pass",
+        "pid": 271912,
+        "scope": "Follow live explicit-split identity, then current integrated Linux device tests and existing unsupported-MX policy on two devices. Reuses CTest and run_tests.py.",
+        "steps": [
+          {
+            "name": "split-mx-optional",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-split-20260930",
+              "taskset",
+              "-c",
+              "0-3,8-11",
+              "timeout",
+              "--kill-after=10s",
+              "7200",
+              "python3",
+              "-u",
+              "-X",
+              "utf8",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/source/tests/run_tests.py",
+              "--exe",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx",
+              "--require-tools",
+              "--no-perf-floor",
+              "--only",
+              "mxfp4",
+              "--device",
+              "vulkan:0,vulkan:1",
+              "--layer-shares",
+              "1,1"
+            ],
+            "expected_exit": 0,
+            "started": 1790738071.8382783,
+            "pid": 273549,
+            "exit": 0,
+            "ended": 1790738072.6135516
+          },
+          {
+            "name": "split-mx-required",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-split-20260930",
+              "taskset",
+              "-c",
+              "0-3,8-11",
+              "timeout",
+              "--kill-after=10s",
+              "7200",
+              "python3",
+              "-u",
+              "-X",
+              "utf8",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/source/tests/run_tests.py",
+              "--exe",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx",
+              "--require-tools",
+              "--no-perf-floor",
+              "--only",
+              "mxfp4",
+              "--device",
+              "vulkan:0,vulkan:1",
+              "--layer-shares",
+              "1,1",
+              "--require-device-types",
+              "MXFP4"
+            ],
+            "expected_exit": 1,
+            "started": 1790738072.6139894,
+            "pid": 273590,
+            "exit": 1,
+            "ended": 1790738073.3296852
+          },
+          {
+            "name": "native-vulkan",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0-3,8-11",
+              "timeout",
+              "--kill-after=10s",
+              "7200",
+              "ctest",
+              "--test-dir",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build",
+              "--output-on-failure",
+              "-R",
+              "vulkan"
+            ],
+            "expected_exit": 0,
+            "started": 1790738073.330055,
+            "pid": 273651,
+            "exit": 0,
+            "ended": 1790738088.5771844
+          },
+          {
+            "name": "full-device-suite",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0-3,8-11",
+              "timeout",
+              "--kill-after=10s",
+              "7200",
+              "python3",
+              "-u",
+              "-X",
+              "utf8",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/source/tests/run_tests.py",
+              "--exe",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx",
+              "--require-tools",
+              "--no-perf-floor",
+              "--require-baseline",
+              "--device",
+              "vulkan:0"
+            ],
+            "expected_exit": 0,
+            "started": 1790738088.5775175,
+            "pid": 273858,
+            "exit": 0,
+            "ended": 1790738454.5274615
+          }
+        ]
+      }
     }
   },
   "source_and_docs_review": {
@@ -11254,7 +11391,6 @@
     "correction": "Earlier CPU-merge-blocking language based solely on this additional diagnostic overstated the approved CPU gate."
   },
   "remaining": [
-    "Linux current integrated device suite and native GPU checks are running after the completed two-MI50 capture matrix.",
     "CPU timing against current main including 14B; first-support allowance does not close speed gaps.",
     "Reconcile other developer main merge, then required build/CTest and exact-head hosted gate before public merge."
   ],

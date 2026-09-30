@@ -1,11 +1,16 @@
 # llmx - Development Status
 
-## README support overview (2026-09-30, branch docs/readme-support)
+## README support overview (2026-09-30, branch docs/readme-support, merged at `d74f0015`)
 
 - **Goal:** a README that shows a newcomer what llmx supports: architectures and models, quantization types, file formats, backends and devices, multi-device modes and the server, each marked Supported or Planned.
 - **Done:** the README's tables are checked against `src/model/arch/registry.hpp`, `src/quant/`, the Vulkan backend's `supports_type`, `src/server/api.hpp`, USAGE and ROADMAP; Planned marks only what ROADMAP plans (qwen35moe and further architectures, qwen35 serving, F16/BF16/IQ4/Q3_K/Q2_K, MXFP4 on Vulkan, safetensors, ROCm/CUDA/SYCL, the tensor split, the staged tensor split, replicas and multi-node).
 - **Names:** the multi-device modes are named layer split, expert offload, tensor split and staged tensor split in the README, USAGE, MULTI-DEVICE, ROADMAP, ARCHITECTURE, EXECUTION, ADDING-AN-ARCHITECTURE, AGENTS and `docs/src`; a tensor group stays the name of the devices a tensor split runs on.
-- **Left:** the docs and dead-code components and the hosted run, then the merge.
+- **Merged** at `d74f0015` (2026-09-30) by fast-forward from `4970a071` on Gitea and GitHub, together with the gate guidelines and the precision plan below, after the docs and dead-code components passed on that exact tree.
+
+## Gate guidelines and the precision plan (2026-09-30, merged at `d74f0015`)
+
+- **Gate guidelines:** AGENTS.md's merge gates list the traps they exist for (a check counts only for the path it reaches, short checks do not bound long ones, a bound follows the precision a path computes in, no correctness traded for speed by default, timing at default clocks, an open speed gate recorded and not waived, review findings rechecked), and a docs-only branch lands on its docs and dead-code checks without waiting for the hosted run.
+- **Precision plan:** `docs/PRECISION.md`, approved by the user with its seven decisions; ROADMAP #8 records the policy as planned. Its steps 2 to 6 are the other developer's, and new quantization support waits for the complete system.
 
 ## macOS hosted job budget (2026-09-30, in progress)
 

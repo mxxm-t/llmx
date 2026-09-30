@@ -1,4 +1,5 @@
 // Requests the scheduler pauses and resumes give, token for token, the ids and log-probabilities they give alone, over the synthetic Q8_0 model whose prompt and decode rows take different CPU paths, and room goes by first admission (docs/SERVER.md).
+// A hybrid model, whose linear-attention layers keep a recurrent state, keeps no donor, and its requests resume by recomputing from their start.
 // A request cancelled, or a scheduler stopped, while a pass is in flight leaves every block to come back and every donor free to fork.
 // Usage: llmx-server-resume-test [cpu|device]; both by default, the device cases on Vulkan device 0 when it opens.
 #include <atomic>
@@ -540,6 +541,107 @@ void cancelled_while_paused(const Make& make, const bpe::Tokenizer& tok, uint32_
     require(model->kv_used_bytes() == 0, "a pool holds blocks once the scheduler has stopped");
 }
 
+// A model whose layers keep a recurrent state keeps no donor, so every resume recomputes its request's history from its start, and nothing is forked or taken back.
+void no_donors(const server::Scheduler::Stats& s, const std::string& what) {
+    require(s.donors == 0 && s.taken_back == 0 && s.prefix_hits == 0, what + ": " + std::to_string(s.donors) + " donors, " + std::to_string(s.taken_back) +
+            " taken back and " + std::to_string(s.prefix_hits) + " prefixes reused, against none");
+}
+
+// `n` capped requests at once on `model`, each of which must run whole: with the scheduler's max_seqs at the model's state slots, every slot is free.
+void every_slot_free(infer::Model& model, const bpe::Tokenizer& tok, uint32_t vocab, size_t n, const std::string& what) {
+    std::vector<Req> reqs;
+    for (uint32_t i = 0; i < n; ++i) reqs.push_back({prompt_of(20 + i, 30, vocab), 40});
+    const std::vector<Reply> got = serve(model, tok, n, {reqs});
+    for (size_t i = 0; i < n; ++i) require(got[i].size() == 40, what + ": request " + std::to_string(i) + " on the recycled slots gave " + std::to_string(got[i].size()) + " tokens");
+}
+
+// The hybrid model: requests paused and resumed give their replies alone on one CPU and over a two-CPU split with passes in flight, a follow-up turn recomputes its history rather than forking, and requests cancelled paused, in flight or by a stop leave every block and every state slot free.
+void hybrid(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const Make one = on(weights, [] { return cpus(1); }, 3);
+    const std::vector<Req> three = {{prompt_of(1, 40, vocab)}, {prompt_of(2, 9, vocab)}, {prompt_of(3, 23, vocab)}};
+    auto s = alone_then_together(one, tok, 1024, 0, 3, {}, three, "a hybrid model's three uncapped requests");
+    no_donors(s, "a hybrid model's three uncapped requests");
+    require(s.recomputed > s.pauses * 40, "a hybrid model's three uncapped requests: no resume recomputed a generated token");
+    s = alone_then_together(one, tok, 1024, 1, 3, {}, {{prompt_of(1, 4, vocab)}, {prompt_of(2, 384, vocab)}}, "a hybrid model's victim still prefilling");
+    no_donors(s, "a hybrid model's victim still prefilling");
+    // A follow-up turn repeating a finished request's history forks nothing, so it recomputes that history as its prompt.
+    const Req first{prompt_of(5, 20, vocab), 200};
+    auto model = one(1024, 0);
+    std::vector<uint32_t> again = first.prompt;
+    const Reply turn = serve(*model, tok, 3, {{first}})[0];
+    for (const auto& t : turn) again.push_back(t.id);
+    const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
+    again.insert(again.end(), more.begin(), more.end());
+    s = alone_then_together(one, tok, 1024, 0, 3, {first}, {{prompt_of(1, 9, vocab)}, {again}}, "a hybrid model's follow-up turn");
+    no_donors(s, "a hybrid model's follow-up turn");
+    s = alone_then_together(on(weights, [] { return cpus(2); }, 3), tok, 1024, 0, 3, {}, three, "a hybrid model on a two-CPU split");
+    no_donors(s, "a hybrid model on a two-CPU split");
+    require(s.passes == 2, "a hybrid model on a two-CPU split kept " + std::to_string(s.passes) + " passes in flight, against 2");
+    // Paused requests cancelled, then the slots and blocks they held taken by as many requests at once.
+    model = one(1024, 0);
+    {
+        server::Scheduler sched(*model, tok, 3, 64);
+        std::thread runner([&] { sched.run(); });
+        try {
+            std::vector<std::shared_ptr<server::Request>> handles;
+            for (const Req& r : three) handles.push_back(sched.submit(r.prompt, params_of(r)));
+            const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+            while (sched.stats().pauses == 0) {
+                require(std::chrono::steady_clock::now() < until, "a hybrid model's cancelled requests: nothing paused in 60 seconds");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            for (auto& h : handles) h->cancel();
+            for (auto& h : handles) collect(*h);
+            ledger(sched.stats(), *model, "a hybrid model's paused requests cancelled");
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    every_slot_free(*model, tok, vocab, 3, "a hybrid model after paused requests were cancelled");
+    require(model->kv_used_bytes() == 0, "a hybrid model's pool holds blocks once its schedulers have stopped");
+    // A request cancelled in flight and a stop in flight, on a split of three CPUs.
+    for (const bool stop : {false, true}) {
+        const std::string what = stop ? "a hybrid model stopped in flight" : "a hybrid model's request cancelled in flight";
+        const std::vector<std::shared_ptr<Hooked>> devices = hooked(3);
+        auto split = on(weights, [&devices] { return std::vector<backend::BackendPtr>(devices.begin(), devices.end()); }, 3)(1024, 0);
+        {
+            server::Scheduler sched(*split, tok, 3, 64);
+            const Req v{prompt_of(1, 130, vocab), 300};
+            const auto hv = sched.submit(v.prompt, params_of(v));
+            size_t submits = 0;
+            devices.back()->hook = [&] { if (++submits == 10) (stop ? sched.stop() : hv->cancel()); };
+            std::thread runner([&] { sched.run(); });
+            try {
+                const Reply got = collect(*hv);
+                require(hv->finish() == "cancel" && got.size() < 300, what + ": it ended with " + hv->finish() + " after " + std::to_string(got.size()) + " tokens");
+                if (!stop) ledger(sched.stats(), *split, what);
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+            no_donors(sched.stats(), what);
+        }
+        devices.back()->hook = nullptr;
+        every_slot_free(*split, tok, vocab, 3, what);
+        whole_pool_free(*split, 1024, vocab, what);
+    }
+    // A scheduler that would run more requests at once than the model holds states is refused as it is made.
+    bool refused = false;
+    try {
+        server::Scheduler sched(*model, tok, 4, 64);
+    } catch (const std::logic_error& e) {
+        refused = std::string(e.what()).find("recurrent state slots") != std::string::npos;
+    }
+    require(refused, "a scheduler of 4 requests at once over a hybrid model holding 3 states was not refused");
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -573,6 +675,8 @@ int main(int argc, char** argv) {
             growth_before_admission(one, tok, vocab);
             stall_holds_room(one, tok, vocab);
             cancelled_short_donor(one, tok, vocab);
+            const gguf::GGUFModel mixed = served_hybrid(kHybrid);
+            hybrid(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             std::printf("server-resume: CPU cases pass\n");
         }
         if (only != "cpu") {

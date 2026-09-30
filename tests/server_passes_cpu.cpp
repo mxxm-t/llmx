@@ -1,4 +1,4 @@
-// The scheduler with passes in flight (docs/SERVER.md, the round) over the synthetic Q8_0 model on one CPU and split over two and three, at P = 1, S, S + 1 and 2S: every request's ids and log-probabilities equal its run alone on one CPU with one pass in flight.
+// The scheduler with passes in flight (docs/SERVER.md, the round) over the synthetic Q8_0 model and a hybrid one on one CPU and split over two and three, at P = 1, S, S + 1 and 2S: every request's ids and log-probabilities equal its run alone on one CPU with one pass in flight.
 // The load mixes prompts longer than the ubatch with short ones, capped and uncapped requests on a pool that pauses them, and greedy and seeded sampling with top_logprobs 5.
 // A request cancelled from inside a stage ends cancelled with its reply so far, a stage that fails once ends only its own pass's requests with the error, and a stop from inside a stage ends every request cancelled, each leaving every block free.
 // The passes of a load that never pauses are replayed in their order through Model::forward on a fresh model of the same placement, every logits row bit for bit, and without logprobs, so no row is copied out of the passes' logits, it gives the same ids.
@@ -308,32 +308,37 @@ void stopped(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t
     }
 }
 
+// Every case over `weights`, served one pass at a time on one CPU and with passes in flight on splits.
+void cases(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const Make one = on(weights, [] { return cpus(1); });
+    const auto split = [&weights](size_t stages) { return on(weights, [stages] { return cpus(stages); }); };
+    // Passes in flight need a pipelined split, and one CPU runs one at a time.
+    {
+        auto model = one(kBlock, kUbatch);
+        bool refused = false;
+        try {
+            server::Scheduler sched(*model, tok, kSeqs, 64, 2);
+        } catch (const std::runtime_error& e) {
+            refused = std::string(e.what()).find("passes in flight") != std::string::npos;
+        }
+        require(refused, "two passes in flight on one CPU were not refused");
+    }
+    paused(one, split, tok, vocab);
+    replayed(one, split, tok, vocab);
+    in_place(one, split, tok, vocab);
+    cancelled(weights, one, tok, vocab);
+    failed(weights, one, tok, vocab);
+    stopped(weights, tok, vocab);
+}
+
 } // namespace
 
 int main() {
     try {
-        const gguf::GGUFModel weights = served(kSplit);
-        const bpe::Tokenizer tok(weights);
-        const uint32_t vocab = (uint32_t)kSplit.vocab;
-        const Make one = on(weights, [] { return cpus(1); });
-        const auto split = [&weights](size_t stages) { return on(weights, [stages] { return cpus(stages); }); };
-        // Passes in flight need a pipelined split, and one CPU runs one at a time.
-        {
-            auto model = one(kBlock, kUbatch);
-            bool refused = false;
-            try {
-                server::Scheduler sched(*model, tok, kSeqs, 64, 2);
-            } catch (const std::runtime_error& e) {
-                refused = std::string(e.what()).find("passes in flight") != std::string::npos;
-            }
-            require(refused, "two passes in flight on one CPU were not refused");
-        }
-        paused(one, split, tok, vocab);
-        replayed(one, split, tok, vocab);
-        in_place(one, split, tok, vocab);
-        cancelled(weights, one, tok, vocab);
-        failed(weights, one, tok, vocab);
-        stopped(weights, tok, vocab);
+        cases(served(kSplit), (uint32_t)kSplit.vocab);
+        // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: it keeps no donor, and a stage may hold only states.
+        cases(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);
         std::cout << "server-passes-cpu: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& e) {

@@ -1,4 +1,5 @@
 // The scheduler's policy core (server/policy.hpp): make_room, the growth rule, the round's stages, the decode share and the logits rows by hand, then the scheduler's round over them under a simulated executor, in random schedules over 1 to 4 stages, some of them on the host, 1 to 2S pass slots and two pools of different block sizes, with random stage times, arrivals, growth, pauses, cancellations, failures and stops.
+// One schedule in four serves a model that keeps a recurrent state: no request leaves a donor, and no more requests are active than there are state slots.
 // The simulated round is the scheduler's at any number of slots: a pass formed in every free slot while a request is ready, each taking an even share of the decoding requests, each request in one pass at a time, the host's stages recorded after the round's device stages, and a failure ending its own pass's requests alone.
 // After every event a request is in at most one pass and no pass is empty, each device runs its passes in formation order, a slot and a run of logits rows belong to one pass until it ends, no pool is over-reserved and nothing in flight is paused, parked or ended, and a request is refused room only when the donors, and for growth the uncapped requests admitted after it, cannot give it, the oldest only when a capped request holds the rest.
 // A growth plan pauses one request at most and waits only on a request in flight, and the oldest request's wait ends in the round that request's pass retires; within one lap every decoder that is not stalled gets a token and a cancellation ends; admission is first-come, no free slot idles while a request is ready, a failed pass leaves every other pass in flight, and a drained schedule ends every request; after a stop the ledger and the logits rows hold nothing.
@@ -52,6 +53,8 @@ struct Sim {
         double ready = 0;            // when its last recorded stage ends on its device
     };
     size_t S, P, lap, max_seqs = 4, ubatch = 16, fail_per_mille = 2;
+    // A model whose layers keep a recurrent state: each active request holds one of max_seqs state slots, and no request leaves a donor.
+    bool stateful = false;
     server::Pools pools{{64, 32}, {64, 128}};
     server::Growth growth{16};
     std::vector<size_t> reserved{0, 0};
@@ -86,6 +89,7 @@ struct Sim {
         pools.blocks[1] = pools.blocks[0] / 2 + rng() % 4;
         growth.tokens = b * (1 + rng() % 4);
         rows = server::logit_rows(P, max_seqs);
+        stateful = rng() % 4 == 0;
         // Now and then one stage runs on the host, and now and then every one, as a split over CPUs.
         const size_t h = rng() % 8;
         if (h < 2) host[rng() % S] = 1;
@@ -155,6 +159,9 @@ struct Sim {
         }
         for (const auto* waiting : {&queue, &paused})
             for (const Req& r : *waiting) require(r.slot == npos, at + ": a waiting request in flight");
+        // The slot ledger: a state slot for each active request, and none held by a donor.
+        require(active.size() <= max_seqs, at + ": more requests active than there are slots");
+        require(!stateful || donors.empty(), at + ": a model keeping a recurrent state kept a donor");
         std::vector<std::pair<size_t, size_t>> runs;
         for (size_t k = 0; k < slots.size(); ++k) {
             const Pass& p = slots[k];
@@ -187,13 +194,13 @@ struct Sim {
         queue.push_back(r);
     }
 
-    // A request leaves the active set: its history a donor when it holds at least `least` tokens (a full block for a finished request, any for a paused one's), its blocks returned otherwise; the donor's id, 0 when none.
+    // A request leaves the active set: its history a donor when it holds at least `least` tokens (a full block for a finished request, any for a paused one's) and the model keeps no state, its blocks returned otherwise; the donor's id, 0 when none.
     uint64_t park(size_t i, size_t least) {
         Req r = active[i];
         require(r.slot == npos, at + ": a request in flight parked");
         active.erase(active.begin() + (std::ptrdiff_t)i);
         sub(reserved, r.need);
-        if (!r.len || r.len < least) return 0;
+        if (stateful || !r.len || r.len < least) return 0;
         if (donors.size() >= max_seqs) drop(0);
         donors.push_back({++donor_ids, r.len, blocks_for(r.len)});
         add(reserved, donors.back().blocks);
@@ -679,7 +686,7 @@ void due_step_first() {
 
 // Random schedules: schedule n runs over 1 + n % 4 stages and 1 to twice that many pass slots, submissions arriving with the host's time, and ends either in a stop at a random round or, one in eight, once every request has ended.
 void random_schedules(size_t n) {
-    size_t totals[9] = {0}, rounds = 0;
+    size_t totals[10] = {0}, rounds = 0;
     for (uint32_t seed = 1; seed <= n; ++seed) {
         const size_t S = 1 + seed % 4, P = 1 + (seed / 4) % (2 * S);
         Sim sim(seed, S, P);
@@ -707,15 +714,16 @@ void random_schedules(size_t n) {
         } catch (const std::exception& e) {
             throw std::runtime_error("schedule " + std::to_string(seed) + " (" + std::to_string(S) + " stages, " + std::to_string(P) + " slots): " + e.what());
         }
-        const size_t counts[9] = {sim.ended, sim.pauses, sim.stalls, sim.taken_back, sim.waits, sim.resolved, sim.failures, sim.flying_cancels, sim.unrecorded_cancels};
-        for (size_t i = 0; i < 9; ++i) totals[i] += counts[i];
+        const size_t counts[10] = {sim.ended, sim.pauses, sim.stalls, sim.taken_back, sim.waits, sim.resolved, sim.failures, sim.flying_cancels, sim.unrecorded_cancels,
+                                   sim.stateful ? sim.pauses : 0};
+        for (size_t i = 0; i < 10; ++i) totals[i] += counts[i];
         rounds += sim.round_no;
     }
     // Enough schedules must meet every rule's case.
     if (n >= 1000)
-        for (size_t i = 1; i < 9; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight and cancellations before a first stage");
-    std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses, %zu stalls, %zu donors taken back, %zu growth plans that waited on a request in flight, %zu waits of the oldest request ended in the round the request left flight, %zu failed passes, %zu cancellations in flight (%zu before a first stage)\n",
-                n, rounds, totals[0], totals[1], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8]);
+        for (size_t i = 1; i < 10; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight, cancellations before a first stage and pauses of a model keeping a state");
+    std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses (%zu keeping a state), %zu stalls, %zu donors taken back, %zu growth plans that waited on a request in flight, %zu waits of the oldest request ended in the round the request left flight, %zu failed passes, %zu cancellations in flight (%zu before a first stage)\n",
+                n, rounds, totals[0], totals[1], totals[9], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8]);
 }
 
 } // namespace

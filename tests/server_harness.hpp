@@ -1,11 +1,13 @@
 #pragma once
-// What the scheduler's native tests share: the synthetic Q8_0 model served over CPU backends or a device, requests and their replies, a run of waves through one scheduler, and replies compared bit for bit.
+// What the scheduler's native tests share: the synthetic Q8_0 model and a hybrid one served over CPU backends or a device, requests and their replies, a run of waves through one scheduler, and replies compared bit for bit.
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -15,6 +17,7 @@
 #include "model/runtime.hpp"
 #include "model/place.hpp"
 #include "model/arch/registry.hpp"
+#include "quant/quant.hpp"
 #include "server/scheduler.hpp"
 
 inline size_t checks = 0;
@@ -34,13 +37,12 @@ inline const Shape kDevice{2, 256, 512, 2, 1, 128, 256};
 // The CPU shape with a layer for each of up to four stages, for the cases that split it over several CPUs.
 inline const Shape kSplit{4, 64, 128, 4, 2, 16, 64};
 
-// The synthetic model with a token list and no end token, so an uncapped reply runs to what the request may hold.
-inline gguf::GGUFModel served(const Shape& s) {
-    gguf::GGUFModel m = infer::synthetic_model({s.layers, s.embd, s.ff, s.heads, s.kv_heads, s.head_dim, s.vocab, 20260925u});
+// A model with a token list of `vocab` tokens and no end token, so an uncapped reply runs to what the request may hold.
+inline gguf::GGUFModel with_tokens(gguf::GGUFModel m, int vocab) {
     gguf::MetaValue tokens;
     tokens.vtype = gguf::V_ARRAY;
     tokens.u = gguf::V_STRING;
-    for (int i = 0; i < s.vocab; ++i) {
+    for (int i = 0; i < vocab; ++i) {
         gguf::MetaValue t;
         t.vtype = gguf::V_STRING;
         t.s = "t" + std::to_string(i);
@@ -48,6 +50,105 @@ inline gguf::GGUFModel served(const Shape& s) {
     }
     m.kv.push_back({"tokenizer.ggml.tokens", tokens});
     return m;
+}
+
+// The synthetic model, served.
+inline gguf::GGUFModel served(const Shape& s) {
+    return with_tokens(infer::synthetic_model({s.layers, s.embd, s.ff, s.heads, s.kv_heads, s.head_dim, s.vocab, 20260925u}), s.vocab);
+}
+
+// A qwen35 model whose layers alternate linear and full attention, so each request holds a recurrent state slot beside its KV blocks (docs/QWEN35.md).
+struct HybridShape {
+    int layers, embd, ff, heads, kv_heads, head_dim, rope_dim, k_heads, v_heads, state_k, state_v, vocab;
+};
+// The CPU shape's widths, with four layers for up to four stages, two of them linear attention.
+inline const HybridShape kHybrid{4, 64, 128, 4, 2, 16, 8, 2, 4, 16, 16, 64};
+
+// A hybrid model with random weights, Q8_0 matrices as the synthetic model has, so its prompt and decode rows take different CPU paths, and F32 norms and linear-attention tables; a context of 4096, which the cases' pools bound first.
+inline gguf::GGUFModel served_hybrid(const HybridShape& s) {
+    gguf::GGUFModel m;
+    gguf::MetaValue arch;
+    arch.vtype = gguf::V_STRING;
+    arch.s = "qwen35";
+    m.kv.push_back({"general.architecture", arch});
+    for (const auto& kv : std::vector<std::pair<std::string, int>>{
+             {"block_count", s.layers}, {"embedding_length", s.embd}, {"feed_forward_length", s.ff}, {"attention.head_count", s.heads},
+             {"attention.head_count_kv", s.kv_heads}, {"attention.key_length", s.head_dim}, {"attention.value_length", s.head_dim},
+             {"rope.dimension_count", s.rope_dim}, {"context_length", 4096}, {"ssm.conv_kernel", 4}, {"ssm.state_size", s.state_k},
+             {"ssm.group_count", s.k_heads}, {"ssm.time_step_rank", s.v_heads}, {"ssm.inner_size", s.v_heads * s.state_v},
+             {"full_attention_interval", 2}}) {
+        gguf::MetaValue v;
+        v.vtype = gguf::V_UINT32;
+        v.u = (uint64_t)kv.second;
+        m.kv.push_back({"qwen35." + kv.first, v});
+    }
+    gguf::MetaValue sections;
+    sections.vtype = gguf::V_ARRAY;
+    sections.u = gguf::V_INT32;
+    for (int n : {s.rope_dim / 4, s.rope_dim / 2 - s.rope_dim / 4, 0, 0}) {
+        gguf::MetaValue e;
+        e.vtype = gguf::V_INT32;
+        e.i = n;
+        sections.arr.push_back(e);
+    }
+    m.kv.push_back({"qwen35.rope.dimension_sections", sections});
+    std::mt19937 rng(20260930u);
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    // A tensor of shape [nin, rest...] with values scale * u + offset, u uniform in [-1, 1]; `q8` quantizes it to Q8_0 by rows of nin.
+    auto add = [&](const std::string& name, std::vector<uint64_t> ne, bool q8, float scale = 1.0f, float offset = 0.0f) {
+        size_t rows = 1;
+        for (size_t d = 1; d < ne.size(); ++d) rows *= (size_t)ne[d];
+        const size_t nin = (size_t)ne[0];
+        std::vector<float> values(nin * rows);
+        for (float& v : values) v = offset + scale * dist(rng);
+        std::vector<uint8_t> bytes;
+        if (q8) {
+            const size_t blocks = nin / quant::Q8_0_BLOCK;
+            bytes.resize(rows * blocks * quant::Q8_0_TYPESIZE);
+            for (size_t r = 0; r < rows; ++r) quant::quantize_row_q8_0(values.data() + r * nin, bytes.data() + r * blocks * quant::Q8_0_TYPESIZE, blocks);
+        } else {
+            bytes.resize(values.size() * sizeof(float));
+            std::memcpy(bytes.data(), values.data(), bytes.size());
+        }
+        gguf::TensorInfo t;
+        t.name = name;
+        t.ne = std::move(ne);
+        t.type = q8 ? quant::GGML_TYPE_Q8_0 : quant::GGML_TYPE_F32;
+        m.tensors.push_back(std::move(t));
+        m.add_tensor_data(bytes);
+    };
+    const uint64_t E = (uint64_t)s.embd, F = (uint64_t)s.ff, D = (uint64_t)s.head_dim, HV = (uint64_t)s.v_heads, DV = (uint64_t)s.state_v;
+    const uint64_t C = 2 * (uint64_t)(s.k_heads * s.state_k) + HV * DV;
+    add("token_embd.weight", {E, (uint64_t)s.vocab}, true);
+    add("output.weight", {E, (uint64_t)s.vocab}, true);
+    add("output_norm.weight", {E}, false, 0.1f, 1.0f);
+    for (int l = 0; l < s.layers; ++l) {
+        const std::string pre = "blk." + std::to_string(l) + ".";
+        add(pre + "attn_norm.weight", {E}, false, 0.1f, 1.0f);
+        add(pre + "post_attention_norm.weight", {E}, false, 0.1f, 1.0f);
+        if (l % 2) {
+            add(pre + "attn_q.weight", {E, 2 * (uint64_t)s.heads * D}, true);
+            add(pre + "attn_k.weight", {E, (uint64_t)s.kv_heads * D}, true);
+            add(pre + "attn_v.weight", {E, (uint64_t)s.kv_heads * D}, true);
+            add(pre + "attn_q_norm.weight", {D}, false, 0.1f, 1.0f);
+            add(pre + "attn_k_norm.weight", {D}, false, 0.1f, 1.0f);
+            add(pre + "attn_output.weight", {(uint64_t)s.heads * D, E}, true);
+        } else {
+            add(pre + "attn_qkv.weight", {E, C}, true);
+            add(pre + "attn_gate.weight", {E, HV * DV}, true);
+            add(pre + "ssm_alpha.weight", {E, HV}, true);
+            add(pre + "ssm_beta.weight", {E, HV}, true);
+            add(pre + "ssm_conv1d.weight", {4, C}, false, 0.5f);
+            add(pre + "ssm_a", {HV}, false, 0.4f, -0.5f);
+            add(pre + "ssm_dt.bias", {HV}, false, 0.5f);
+            add(pre + "ssm_norm.weight", {DV}, false, 0.1f, 1.0f);
+            add(pre + "ssm_out.weight", {HV * DV, E}, true);
+        }
+        add(pre + "ffn_gate.weight", {E, F}, true);
+        add(pre + "ffn_up.weight", {E, F}, true);
+        add(pre + "ffn_down.weight", {F, E}, true);
+    }
+    return with_tokens(std::move(m), s.vocab);
 }
 
 // A prompt of n ids starting with `first`, the rest a fixed walk through the vocabulary.
@@ -177,10 +278,12 @@ inline void same(const Reply& alone, const Reply& got, const std::string& what, 
 // A fresh model over the backends `backends` makes, with a pool of `pool` tokens and prompts taken `ubatch` tokens a pass (the default when 0).
 using Make = std::function<std::unique_ptr<infer::Model>(size_t pool, int ubatch)>;
 
-inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend::BackendPtr>()> backends) {
-    return [&weights, backends](size_t pool, int ubatch) {
+// A hybrid model holds `state_slots` recurrent states, which bounds the requests a scheduler over it runs at once; the others hold none.
+inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend::BackendPtr>()> backends, size_t state_slots = 8) {
+    return [&weights, backends, state_slots](size_t pool, int ubatch) {
         infer::ModelOptions options;
         options.kv_tokens = pool;
+        options.state_slots = state_slots;
         std::vector<backend::BackendPtr> b = backends();
         infer::PlacementRequest request;
         for (size_t i = 0; i < b.size(); ++i) request.names.push_back("device " + std::to_string(i));

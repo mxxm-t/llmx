@@ -643,7 +643,9 @@ void kv_fitted() {
     require(place(8 << 20, cut, true, weights)->kv_tokens_total() == cut && place(8 << 20, cut + 128, true, weights)->kv_tokens_total() == cut,
             "the cut budget is not the most whole blocks that fit");
     // Free memory that rises while the fit reads it, as a device reclaims an ended process's memory, is read again until it settles, so the load takes what the device holds once it has.
-    require(place(8 << 20, size_t(1) << 20, true, weights, 0, false, 2)->kv_tokens_total() == cut, "a fit did not wait for a device's free memory to settle");
+    require(place(8 << 20, cut, true, weights, 0, false, 2)->kv_tokens_total() == cut, "a fit did not wait for a device's free memory to settle");
+    // A device may hold an ended process's memory for a while between frees: free memory that stays level for four seconds and then rises is waited for too.
+    require(place(8 << 20, cut, true, weights, 0, false, 16)->kv_tokens_total() == cut, "a fit gave up before a device began to give memory back");
     // A split's placement, which every command fits, waits for it the same way: two devices reporting a byte free for two reads each are placed once their memory has come back.
     {
         std::vector<backend::BackendPtr> two;
@@ -660,9 +662,10 @@ void kv_fitted() {
         require(infer::place_model(infer::gguf_weights(weights), two, request, infer::ModelOptions{}).model->stage_count() == 2,
                 "a split did not wait for its devices' free memory to settle");
     }
-    const auto refusal_of = [&](size_t room) {
+    // A budget the device holds is taken at once, while one it cuts waits for its free memory to settle, so a load meant to succeed asks only for what it holds.
+    const auto refusal_of = [&](size_t room, size_t budget = 0) {
         try {
-            place(room, 0, true, weights);
+            place(room, budget, true, weights);
         } catch (const std::runtime_error& e) {
             return std::string(e.what());
         }
@@ -670,12 +673,26 @@ void kv_fitted() {
     };
     require(refusal_of(1).find("does not fit the devices' free memory even without its KV") != std::string::npos,
             "a device that cannot hold the model was not refused as such");
-    // The least room a load takes, by bisection; a byte less holds the model without a whole block of KV.
+    // The least room that holds one block beside the model, found through the fit's own terms without placing a model, since every refused load waits for the memory to settle; a byte less holds the model without a whole block of KV.
+    const auto holds_block = [&](size_t room) {
+        auto device = std::make_shared<SizedDevice>();
+        device->room = room;
+        infer::ModelOptions options;
+        options.kv_tokens = 128;
+        try {
+            infer::split_layers(infer::footprint(infer::gguf_weights(weights), infer::plan_model(infer::gguf_weights(weights)), options),
+                                infer::budgets_for({device}, {"device"}), infer::kDefaultUbatch, {}, core::host_memory_available());
+            return true;
+        } catch (const std::runtime_error&) {
+            return false;
+        }
+    };
     size_t lo = 1, hi = 8 << 20;
     while (hi - lo > 1) {
         const size_t mid = lo + (hi - lo) / 2;
-        (refusal_of(mid).empty() ? hi : lo) = mid;
+        (holds_block(mid) ? hi : lo) = mid;
     }
+    require(refusal_of(hi, 128).empty(), "the least room that holds a block of KV beside the model did not load");
     require(refusal_of(lo).find("no room for one KV block") != std::string::npos, "a device with no room for one KV block was not refused as such");
     // Beside experts on the CPU a copying device holds every layer's attention and not the routed feed-forward blocks, which take more than a block, so it fits more KV than it does holding them.
     const auto moe = tiny_qwen_moe(2, 2 * 128, true);

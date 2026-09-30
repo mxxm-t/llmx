@@ -6568,6 +6568,31 @@
         "error": "Traceback (most recent call last):\n  File \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q35-windows-vulkan-check-20260930.py\", line 21, in <module>\n    run('suite',['python','-X','utf8','tests/run_tests.py','--exe',str(build/'Release/llmx.exe'),'--require-tools','--no-perf-floor','--require-baseline','--device','vulkan:0'],root)\n  File \"C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-q35-windows-vulkan-check-20260930.py\", line 9, in run\n    save();assert rec['exit']==0,label;print('PASS',label,flush=True)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: suite\n"
       },
       "native_stdout_sha256": "283067b77f3225415a35b6d5dc759cf3601ac808c27ae3a95a38b97f4d624fb2"
+    },
+    "windows_full_cpu_suite": {
+      "report": {
+        "status": "pass",
+        "pid": 11552,
+        "scope": "Complete current9be203b9 Windows CPU suite with all required pinned gate fixtures present. Earlier native36/36 and focused15/15 retained; no performance claim.",
+        "version": "llmx 0.1.0+g9be203b963bc",
+        "exe_sha256": "bae5186c88fd80c0d80af94826e23614022e995505261d0af7dcae16ddcb98ee",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-20260930\\build\\Release\\llmx.exe",
+          "--require-tools",
+          "--require-baseline",
+          "--no-perf-floor"
+        ],
+        "child_pid": 16508,
+        "exit": 0
+      },
+      "component_summary": "dead-code  PASS\n  docs       PASS\n  arch-boundary PASS\n  version    PASS\n  cli        PASS\n  reference-generator PASS\n  reference-consumer PASS\n  device-reference PASS\n  roundtrip  PASS\n  raw-blocks PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  moe        PASS\n  mxfp4      PASS\n  qwen35     PASS\n  split      PASS\n  decode-probe PASS\n  shards     PASS\n  server     PASS\n  server-load PASS\n  chat       PASS\n  threads    PASS\n  baseline   PASS",
+      "report_sha256": "b943b2114ca2a1085ca5dd129f91a712812e18896f1e141144fc1320bd7d172e",
+      "stdout_sha256": "bfa635f924d07ca2039f0ce1482635ab91dd5d92051ceb01d2795952c0d6cdf0"
     }
   },
   "source_and_docs_review": {
@@ -7304,5 +7329,91 @@
     "Applicable platform/device, split and real-model server consistency evidence.",
     "Remaining required CPU timing cells and assessment; first-support allowance does not close speed gaps.",
     "Required HF and final hosted gate on the reconciled source before public merge."
-  ]
+  ],
+  "capture_tool_dependency": {
+    "source_head": "c9b8a4d44b6aa4472586c58c2bcb3666c33d4e9e",
+    "report": {
+      "status": "pass",
+      "pid": 26620,
+      "head": "c9b8a4d44b6aa4472586c58c2bcb3666c33d4e9e",
+      "scope": "Fresh clean committed CPU build of the isolated capture shares tool; native and affected components only. No runtime or device/performance claim.",
+      "steps": [
+        {
+          "name": "configure",
+          "command": [
+            "cmake",
+            "-S",
+            ".",
+            "-B",
+            "build-final",
+            "-G",
+            "Visual Studio 18 2026",
+            "-A",
+            "x64",
+            "-DLLMX_HAS_BACKEND_VULKAN=OFF",
+            "-DBUILD_TESTING=ON"
+          ],
+          "started": 1790736268.2108555,
+          "pid": 22836,
+          "exit": 0,
+          "ended": 1790736271.410894
+        },
+        {
+          "name": "build",
+          "command": [
+            "cmake",
+            "--build",
+            "build-final",
+            "--config",
+            "Release",
+            "--parallel",
+            "2"
+          ],
+          "started": 1790736271.410894,
+          "pid": 32600,
+          "exit": 0,
+          "ended": 1790736366.5520227
+        },
+        {
+          "name": "native",
+          "command": [
+            "ctest",
+            "--test-dir",
+            "build-final",
+            "-C",
+            "Release",
+            "--output-on-failure"
+          ],
+          "started": 1790736366.5530224,
+          "pid": 21864,
+          "exit": 0,
+          "ended": 1790736441.732959
+        },
+        {
+          "name": "focused",
+          "command": [
+            "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "-X",
+            "utf8",
+            "tests/run_tests.py",
+            "--exe",
+            "build-final/Release/llmx.exe",
+            "--require-tools",
+            "--only",
+            "device-reference,docs,dead-code"
+          ],
+          "started": 1790736441.732959,
+          "pid": 33952,
+          "exit": 0,
+          "ended": 1790736451.7452173
+        }
+      ],
+      "version": "llmx 0.1.0+gc9b8a4d44b6a",
+      "sha256": {
+        "llmx.exe": "90e0e4c01f75d117383e1bd9e6c6f0e47bc973f10f7d52d91d3c502273fcf2b7",
+        "llmx-model-logits.exe": "240b5ad310742fef8148ebe21d260aef14de07dfb3a03e6d02aeb556617deb49"
+      }
+    },
+    "scope": "Tool-only optional shares, no src runtime delta relative to main. Previously recorded CPU/Mi50 captures remain from runtime9be203b9. Integrated source and new equal-share captures require their own build evidence."
+  }
 }

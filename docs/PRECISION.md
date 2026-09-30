@@ -56,7 +56,7 @@ Keep the implementation in the placement owner and existing backend dispatch own
 ## 2. Capabilities and kernel classes (planned)
 
 **A backend's capabilities.** `Backend::native_dtypes()` lists the dtypes whose kernels the backend has, preferred 16-bit first.
-A capability is advertised only when every reached kernel family implements that policy or a documented visible fallback. Report native arithmetic, emulation and wider fallback accurately; F16C conversion alone is not native F16 arithmetic. The following are target capabilities after conformance, not claims about current kernels:
+The auto-preference list advertises a dtype only after the backend implements that policy across its reached kernel families. An explicit dtype served only by emulation or F32 fallback is not thereby added to the native auto-preference list. Report native arithmetic, emulation and wider fallback accurately; F16C conversion alone is not native F16 arithmetic. The following are target capabilities after conformance, not claims about current kernels:
 - CPU (AVX2, F16C, no AVX-512 BF16): F16, F32.
 - Vulkan on the MI50 and the Radeon VII: F16 (half arithmetic, and the block-int16 twins below), F32.
 - A device with BF16 arithmetic lists BF16 first once its BF16 kernels exist.

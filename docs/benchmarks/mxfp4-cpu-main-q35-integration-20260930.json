@@ -6593,6 +6593,3935 @@
       "component_summary": "dead-code  PASS\n  docs       PASS\n  arch-boundary PASS\n  version    PASS\n  cli        PASS\n  reference-generator PASS\n  reference-consumer PASS\n  device-reference PASS\n  roundtrip  PASS\n  raw-blocks PASS\n  perf       PASS\n  tokenizer  PASS\n  perplexity PASS\n  f32        PASS\n  moe        PASS\n  mxfp4      PASS\n  qwen35     PASS\n  split      PASS\n  decode-probe PASS\n  shards     PASS\n  server     PASS\n  server-load PASS\n  chat       PASS\n  threads    PASS\n  baseline   PASS",
       "report_sha256": "b943b2114ca2a1085ca5dd129f91a712812e18896f1e141144fc1320bd7d172e",
       "stdout_sha256": "bfa635f924d07ca2039f0ce1482635ab91dd5d92051ceb01d2795952c0d6cdf0"
+    },
+    "linux_full_cpu_suite": {
+      "manifest": "C:\\Users\\Marko\\AppData\\Local\\Temp\\mxfp4-cpu-q35-followup-complete-20260930.json",
+      "sha256": "73d8e7832f1ab7d05f2ec889868447e9453b735b002f67099ab2ef06ed63a1e6",
+      "result": {
+        "status": "pass",
+        "pid": 187083,
+        "scope": "Follow existing live identity PIDs, then full current CPU suite and pinned dense HF consumers. No performance or additional GPU job.",
+        "steps": [
+          {
+            "name": "full-cpu-suite",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0,1,8-11",
+              "timeout",
+              "--kill-after=10s",
+              "7200",
+              "python3",
+              "-u",
+              "-X",
+              "utf8",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/source/tests/run_tests.py",
+              "--exe",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx",
+              "--require-tools",
+              "--require-baseline",
+              "--no-perf-floor"
+            ],
+            "started": 1790735061.1299534,
+            "pid": 187173,
+            "exit": 0,
+            "ended": 1790736295.4674382
+          },
+          {
+            "name": "dense-hf",
+            "command": [
+              "python3",
+              "/opt/claude-work/llmx-p2-x-mxfp4-cpu/llmx-cpu-q35-dense-hf-20260930.py"
+            ],
+            "started": 1790736295.4678004,
+            "pid": 224842,
+            "exit": 0,
+            "ended": 1790737112.0158792
+          }
+        ]
+      }
+    },
+    "linux_dense_hf": {
+      "manifest": "C:\\Users\\Marko\\AppData\\Local\\Temp\\mxfp4-cpu-q35-dense-hf-complete-20260930.json",
+      "sha256": "1d0c1ae1ed85f9c1cd231e52a0697cdc562021f8664687864320a9366d36e08d",
+      "result": {
+        "status": "pass",
+        "pid": 224842,
+        "scope": "Existing real dense-model HF consumers and pinned bounds, both caches; clean CPU 9be203b9 source; no performance or final merge claim.",
+        "exe_sha256": "d2f1b6dae0f4c25d6fdbf7a4b54805aabe56159e7929803e858636c0f342ab23",
+        "runs": [
+          {
+            "model": {
+              "name": "mx-06",
+              "path": "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+              "sha256": "84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45",
+              "bytes": 322830656,
+              "kind": "new",
+              "prompt_lengths": [
+                64,
+                512,
+                4096
+              ],
+              "host_path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/fixtures/Qwen3-0.6B-MXFP4.gguf"
+            },
+            "cache": "f32",
+            "command": [
+              "docker",
+              "exec",
+              "-e",
+              "LLMX_CACHE_TYPE=f32",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0,1,8-11",
+              "timeout",
+              "--kill-after=10s",
+              "1800",
+              "python3",
+              "-X",
+              "utf8",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/source/tests/baseline_mxfp4.py",
+              "--exe",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx",
+              "--model",
+              "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+              "--device",
+              "cpu",
+              "--cache-type",
+              "f32"
+            ],
+            "reference_sha256": {
+              "baseline_perplexity.json": "11f4e48274c0d1394e3d6d64fd5eb8194011267d14b8c74c9865b3593a7e5000",
+              "baseline_logits.json": "91c4e641885048836dec14018294b0b57a64ff99daafc34f70821f5a015329a7"
+            },
+            "start": 1790736295.8168635,
+            "pid": 224864,
+            "exit": 0,
+            "ended": 1790736368.6168349
+          },
+          {
+            "model": {
+              "name": "mx-06",
+              "path": "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+              "sha256": "84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45",
+              "bytes": 322830656,
+              "kind": "new",
+              "prompt_lengths": [
+                64,
+                512,
+                4096
+              ],
+              "host_path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/fixtures/Qwen3-0.6B-MXFP4.gguf"
+            },
+            "cache": "f16",
+            "command": [
+              "docker",
+              "exec",
+              "-e",
+              "LLMX_CACHE_TYPE=f16",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0,1,8-11",
+              "timeout",
+              "--kill-after=10s",
+              "1800",
+              "python3",
+              "-X",
+              "utf8",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/source/tests/baseline_mxfp4.py",
+              "--exe",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx",
+              "--model",
+              "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+              "--device",
+              "cpu",
+              "--cache-type",
+              "f16"
+            ],
+            "reference_sha256": {
+              "baseline_perplexity.json": "11f4e48274c0d1394e3d6d64fd5eb8194011267d14b8c74c9865b3593a7e5000",
+              "baseline_logits.json": "91c4e641885048836dec14018294b0b57a64ff99daafc34f70821f5a015329a7"
+            },
+            "start": 1790736368.617459,
+            "pid": 227579,
+            "exit": 0,
+            "ended": 1790736442.8722565
+          },
+          {
+            "model": {
+              "name": "mx-8",
+              "path": "/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf",
+              "sha256": "ebfb5ea2edd1cd6ba5c08a0f31d6c40bb0984a360fe1f694adacb21adfb4d807",
+              "bytes": 4358354368,
+              "kind": "new",
+              "prompt_lengths": [
+                64,
+                512,
+                4096
+              ],
+              "host_path": "/zpool1/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf"
+            },
+            "cache": "f32",
+            "command": [
+              "docker",
+              "exec",
+              "-e",
+              "LLMX_CACHE_TYPE=f32",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0,1,8-11",
+              "timeout",
+              "--kill-after=10s",
+              "1800",
+              "python3",
+              "-X",
+              "utf8",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/source/tests/baseline.py",
+              "--exe",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx",
+              "--model",
+              "/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf",
+              "--device",
+              "cpu",
+              "--file-exact",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/source/tests/data/mxfp4-8b-file-exact"
+            ],
+            "reference_sha256": {
+              "baseline_perplexity.json": "b26745bc1c23e0f83b903a0f282da83cbe3dfdd210d20656e6184f5b4ae8f933",
+              "baseline_logits.json": "46e49605cbcaf3a2cebc78c4a0a5ef8c0499f20f1f1d22e34644df03e3b7ab4c"
+            },
+            "start": 1790736447.34543,
+            "pid": 230678,
+            "exit": 0,
+            "ended": 1790736800.0549037
+          },
+          {
+            "model": {
+              "name": "mx-8",
+              "path": "/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf",
+              "sha256": "ebfb5ea2edd1cd6ba5c08a0f31d6c40bb0984a360fe1f694adacb21adfb4d807",
+              "bytes": 4358354368,
+              "kind": "new",
+              "prompt_lengths": [
+                64,
+                512,
+                4096
+              ],
+              "host_path": "/zpool1/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf"
+            },
+            "cache": "f16",
+            "command": [
+              "docker",
+              "exec",
+              "-e",
+              "LLMX_CACHE_TYPE=f16",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0,1,8-11",
+              "timeout",
+              "--kill-after=10s",
+              "1800",
+              "python3",
+              "-X",
+              "utf8",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/source/tests/baseline.py",
+              "--exe",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx",
+              "--model",
+              "/models/llmx-xdev-mxfp4-20260927/Qwen3-8B-MXFP4.gguf",
+              "--device",
+              "cpu",
+              "--file-exact",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/source/tests/data/mxfp4-8b-file-exact"
+            ],
+            "reference_sha256": {
+              "baseline_perplexity.json": "b26745bc1c23e0f83b903a0f282da83cbe3dfdd210d20656e6184f5b4ae8f933",
+              "baseline_logits.json": "46e49605cbcaf3a2cebc78c4a0a5ef8c0499f20f1f1d22e34644df03e3b7ab4c"
+            },
+            "start": 1790736800.05783,
+            "pid": 239473,
+            "exit": 0,
+            "ended": 1790737111.998694
+          }
+        ]
+      }
+    },
+    "linux_real_server": {
+      "manifest": "C:\\Users\\Marko\\AppData\\Local\\Temp\\mxfp4-cpu-q35-real-server-complete-20260930.json",
+      "sha256": "aa9c37dcf51e1708ee28fe0e72969116413d84911ffc5e6ed4e71f2f6d88d153",
+      "result": {
+        "status": "pass",
+        "pid": 144902,
+        "scope": "Real MXFP4 CPU server consistency on 9be203b9, existing server_mix_check.py, 16 distinct requests, all checked through CLI, fresh phases and 65536-token pool, both KV caches. Correctness only.",
+        "runs": [
+          {
+            "cache": "f16",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-vulkan-phase-20260929",
+              "taskset",
+              "-c",
+              "2,3",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "python3",
+              "-u",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/source/tools/server_mix_check.py",
+              "--exe",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx",
+              "--model",
+              "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+              "--text",
+              "/models/wiki.test.raw",
+              "--device",
+              "cpu",
+              "--requests",
+              "16",
+              "--max-seqs",
+              "8",
+              "--ctx-size",
+              "65536",
+              "--fresh-phases",
+              "--cli",
+              "16",
+              "--cache-type",
+              "f16",
+              "--ids",
+              "/work/mxfp4-cpu-q35-real-server-20260930/f16-ids.json"
+            ],
+            "start": "2026-09-30T02:04:19.301482+00:00",
+            "pid": 144997,
+            "exit": 0,
+            "end": "2026-09-30T02:35:14.978501+00:00"
+          },
+          {
+            "cache": "f32",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-vulkan-phase-20260929",
+              "taskset",
+              "-c",
+              "2,3",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "python3",
+              "-u",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/source/tools/server_mix_check.py",
+              "--exe",
+              "/work/mxfp4-cpu-main-q35-linux-20260930/candidate/build/llmx",
+              "--model",
+              "/work/fixtures/Qwen3-0.6B-MXFP4.gguf",
+              "--text",
+              "/models/wiki.test.raw",
+              "--device",
+              "cpu",
+              "--requests",
+              "16",
+              "--max-seqs",
+              "8",
+              "--ctx-size",
+              "65536",
+              "--fresh-phases",
+              "--cli",
+              "16",
+              "--cache-type",
+              "f32",
+              "--ids",
+              "/work/mxfp4-cpu-q35-real-server-20260930/f32-ids.json"
+            ],
+            "start": "2026-09-30T02:35:14.981377+00:00",
+            "pid": 212550,
+            "exit": 0,
+            "end": "2026-09-30T02:59:01.442736+00:00"
+          }
+        ],
+        "model_sha256": "84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45",
+        "exe_sha256": "d2f1b6dae0f4c25d6fdbf7a4b54805aabe56159e7929803e858636c0f342ab23",
+        "tool_sha256": "d6b51221eaaa063a5d886e6e88eef3cbbf1819a26a2603e2647846343b9f3c44",
+        "version": "llmx 0.1.0+g9be203b963bc",
+        "text_sha256": "173c87a53759e0201f33e0ccf978e510c2042d7f2cb78229d9a50d79b9e7dd08"
+      }
+    },
+    "shares_windows_builds": {
+      "manifest": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-windows-check-20260930\\complete.json",
+      "sha256": "b9f4ad3aa1f67e01d6c9f3874df4c6d2af702302bda26e09bf3e19f754aa799c",
+      "result": {
+        "status": "pass",
+        "pid": 33600,
+        "arms": {
+          "main": {
+            "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930",
+            "head": "c9b8a4d44b6aa4472586c58c2bcb3666c33d4e9e",
+            "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx.exe",
+            "version": "llmx 0.1.0+gc9b8a4d44b6a",
+            "sha256": "9fbad2f76675e1360acfaa2b9826fae5ea626f7acf91fbcea4381e622cb4b7b1"
+          },
+          "candidate": {
+            "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930",
+            "head": "5444f1a5bc8e2124ede51d047b8c001c7937660b",
+            "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx.exe",
+            "version": "llmx 0.1.0+g5444f1a5bc8e",
+            "sha256": "78e3a335b5b46ca6b2b5a2b6ca616424b3b3737b66631219a42f4d410b17ea3a"
+          }
+        },
+        "commands": [
+          {
+            "label": "main-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930",
+              "-B",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build",
+              "-G",
+              "Visual Studio 18 2026",
+              "-A",
+              "x64",
+              "-DLLMX_HAS_BACKEND_VULKAN=ON",
+              "-DBUILD_TESTING=ON"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930",
+            "started": "2026-09-30T02:52:09.950239+00:00",
+            "pid": 10280,
+            "exit": 0
+          },
+          {
+            "label": "main-build",
+            "args": [
+              "cmake",
+              "--build",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build",
+              "--config",
+              "Release",
+              "--parallel",
+              "2",
+              "--target",
+              "llmx",
+              "llmx-model-logits"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930",
+            "started": "2026-09-30T02:52:13.304775+00:00",
+            "pid": 4208,
+            "exit": 0
+          },
+          {
+            "label": "candidate-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930",
+              "-B",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build",
+              "-G",
+              "Visual Studio 18 2026",
+              "-A",
+              "x64",
+              "-DLLMX_HAS_BACKEND_VULKAN=ON",
+              "-DBUILD_TESTING=ON"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930",
+            "started": "2026-09-30T02:53:02.791414+00:00",
+            "pid": 19708,
+            "exit": 0
+          },
+          {
+            "label": "candidate-build",
+            "args": [
+              "cmake",
+              "--build",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build",
+              "--config",
+              "Release",
+              "--parallel",
+              "2"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930",
+            "started": "2026-09-30T02:53:06.078677+00:00",
+            "pid": 22236,
+            "exit": 0
+          },
+          {
+            "label": "native",
+            "args": [
+              "ctest",
+              "--test-dir",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build",
+              "-C",
+              "Release",
+              "--output-on-failure",
+              "-E",
+              "vulkan"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930",
+            "started": "2026-09-30T02:54:24.677233+00:00",
+            "pid": 17632,
+            "exit": 0
+          },
+          {
+            "label": "suite",
+            "args": [
+              "python",
+              "-X",
+              "utf8",
+              "tests/run_tests.py",
+              "--exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx.exe",
+              "--require-tools",
+              "--no-perf-floor",
+              "--only",
+              "dead-code,docs,device-reference,mxfp4"
+            ],
+            "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930",
+            "started": "2026-09-30T02:55:10.150429+00:00",
+            "pid": 33292,
+            "exit": 0
+          }
+        ],
+        "scope": "Matching fresh Vulkan-enabled sources for explicit-share captures: c9b8a4d4 has main c139 runtime plus the tool option; 5444f1a5 adds CPU MXFP4. Build both, run CPU CTests and affected components only while LDEV owns Radeon. GPU CTests and identity remain pending. No timing claim."
+      }
+    },
+    "shares_linux_builds": {
+      "manifest": "C:\\Users\\Marko\\AppData\\Local\\Temp\\mxfp4-cpu-shares-linux-complete-20260930.json",
+      "sha256": "d7e9adacfb8215bc38c5c29f18b043824b3414c2066c84c97e24a177c4d92d2e",
+      "result": {
+        "status": "pass",
+        "launcher_pid": 246948,
+        "commands": [
+          {
+            "name": "main-clone",
+            "command": [
+              "git",
+              "clone",
+              "--depth",
+              "1",
+              "--single-branch",
+              "--branch",
+              "test/model-logits-shares",
+              "http://11.10.10.12:3000/admin/llmx.git",
+              "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-shares-linux-20260930/main/source"
+            ],
+            "started": "2026-09-30T02:59:33.643030+00:00",
+            "pid": 246994,
+            "returncode": 0
+          },
+          {
+            "name": "main-configure",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0,1",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "cmake",
+              "-S",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/source",
+              "-B",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_HAS_BACKEND_VULKAN=ON",
+              "-DBUILD_TESTING=ON"
+            ],
+            "started": "2026-09-30T02:59:36.028637+00:00",
+            "pid": 247029,
+            "returncode": 0
+          },
+          {
+            "name": "main-build",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0,1",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "cmake",
+              "--build",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build",
+              "--parallel",
+              "2",
+              "--target",
+              "llmx",
+              "llmx-model-logits",
+              "llmx-split-check"
+            ],
+            "started": "2026-09-30T02:59:36.795113+00:00",
+            "pid": 247115,
+            "returncode": 0
+          },
+          {
+            "name": "candidate-clone",
+            "command": [
+              "git",
+              "clone",
+              "--depth",
+              "1",
+              "--single-branch",
+              "--branch",
+              "integrate/mxfp4-cpu-main",
+              "http://11.10.10.12:3000/admin/llmx.git",
+              "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-shares-linux-20260930/candidate/source"
+            ],
+            "started": "2026-09-30T03:01:25.339077+00:00",
+            "pid": 250390,
+            "returncode": 0
+          },
+          {
+            "name": "candidate-configure",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0,1",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "cmake",
+              "-S",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/source",
+              "-B",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_HAS_BACKEND_VULKAN=ON",
+              "-DBUILD_TESTING=ON"
+            ],
+            "started": "2026-09-30T03:01:26.452795+00:00",
+            "pid": 250415,
+            "returncode": 0
+          },
+          {
+            "name": "candidate-build",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0,1",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "cmake",
+              "--build",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build",
+              "--parallel",
+              "2"
+            ],
+            "started": "2026-09-30T03:01:27.168748+00:00",
+            "pid": 250510,
+            "returncode": 0
+          },
+          {
+            "name": "native",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0,1",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "ctest",
+              "--test-dir",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build",
+              "--output-on-failure",
+              "-E",
+              "vulkan"
+            ],
+            "started": "2026-09-30T03:06:32.999651+00:00",
+            "pid": 257446,
+            "returncode": 0
+          },
+          {
+            "name": "cpu-suite",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-p2-x-mxfp4-gpu2-20260928",
+              "taskset",
+              "-c",
+              "0,1",
+              "timeout",
+              "--kill-after=10s",
+              "3600",
+              "python3",
+              "-X",
+              "utf8",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/source/tests/run_tests.py",
+              "--exe",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx",
+              "--require-tools",
+              "--no-perf-floor",
+              "--only",
+              "dead-code,docs,device-reference,mxfp4"
+            ],
+            "started": "2026-09-30T03:07:21.244500+00:00",
+            "pid": 260041,
+            "returncode": 0
+          }
+        ],
+        "arms": {
+          "main": {
+            "head": "c9b8a4d44b6aa4472586c58c2bcb3666c33d4e9e",
+            "version": "llmx 0.1.0+gc9b8a4d44b6a",
+            "source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-shares-linux-20260930/main/source",
+            "build": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-shares-linux-20260930/main/build",
+            "sha256": "c7345ae7f524f30021df521066f61d57b4bda9e5092a5549abc4cdbcf31d10dc"
+          },
+          "candidate": {
+            "head": "5444f1a5bc8e2124ede51d047b8c001c7937660b",
+            "version": "llmx 0.1.0+g5444f1a5bc8e",
+            "source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-shares-linux-20260930/candidate/source",
+            "build": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-cpu-shares-linux-20260930/candidate/build",
+            "sha256": "4cafdc9ed54da2b2e8d6aeadc56b7c81f302a3206e3074c5d83db5816a59d3d0"
+          }
+        },
+        "scope": "Matching clean Vulkan-enabled builds for explicit-share captures: main runtime c139 plus tool option c9b8a4d4, CPU candidate5444f1a5. CPU native and affected checks only initially; GPU work coordinated separately. No timing claim.",
+        "container": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600"
+      }
+    },
+    "radeon_hybrid_full_identity": {
+      "manifest": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\complete.json",
+      "sha256": "127ce612b07678a79ff315ebd62ce7ac34e0dbe16ee775c624d05bcbc8444955",
+      "result": {
+        "status": "pass",
+        "pid": 33656,
+        "tokens": [
+          284,
+          8397,
+          425,
+          10965,
+          465,
+          284,
+          715,
+          8397,
+          425,
+          10965,
+          465,
+          374,
+          458,
+          6364,
+          4531,
+          1154,
+          12425,
+          323,
+          33496,
+          12089,
+          659,
+          1260,
+          1030,
+          264,
+          8640,
+          569,
+          12,
+          31,
+          39400,
+          3476,
+          389,
+          279,
+          12425,
+          4013,
+          576,
+          8596,
+          304,
+          220,
+          17,
+          15,
+          15,
+          15,
+          659,
+          1096,
+          572,
+          8110,
+          553,
+          264,
+          39400,
+          3476,
+          304,
+          279,
+          1486,
+          6252,
+          2382,
+          5326,
+          553,
+          21315,
+          75923,
+          1154,
+          892,
+          572,
+          10660,
+          304,
+          220,
+          17,
+          15,
+          15,
+          16,
+          518,
+          279,
+          16194,
+          7154,
+          26221,
+          659,
+          1260,
+          1030,
+          264,
+          8640,
+          3476,
+          304,
+          279,
+          12425,
+          4013,
+          20207,
+          3757,
+          1581,
+          291,
+          304,
+          220,
+          17,
+          15,
+          15,
+          17,
+          659,
+          758,
+          220,
+          17,
+          15,
+          15,
+          19,
+          425,
+          10965,
+          465,
+          26120,
+          264,
+          3476,
+          438,
+          330,
+          28417,
+          330,
+          304,
+          279,
+          9234,
+          330,
+          70066,
+          364,
+          82,
+          15106,
+          330,
+          315,
+          279,
+          12425,
+          4013,
+          576,
+          5724,
+          37625,
+          2587,
+          566,
+          58235,
+          16263,
+          19571,
+          4389,
+          26099,
+          323,
+          42323,
+          15035,
+          18337,
+          659,
+          1260,
+          572,
+          6311,
+          304,
+          279,
+          220,
+          17,
+          15,
+          15,
+          20,
+          33496,
+          53148,
+          315,
+          279,
+          25179,
+          92301,
+          1486,
+          43562,
+          49840,
+          1154,
+          892,
+          572,
+          10660,
+          518,
+          279,
+          45406,
+          26221,
+          304,
+          70998,
+          323,
+          279,
+          11012,
+          1268,
+          38420,
+          16937,
+          304,
+          7148,
+          659,
+          1260,
+          572,
+          15540,
+          553,
+          3757,
+          67473,
+          323,
+          58235,
+          16263,
+          7355,
+          1232,
+          812,
+          672,
+          1154,
+          49975,
+          1863,
+          12707,
+          1154,
+          13928,
+          17734,
+          1154,
+          55130,
+          23905,
+          416,
+          1154,
+          59310,
+          80664,
+          323,
+          67034,
+          10926,
+          659,
+          715,
+          758,
+          220,
+          17,
+          15,
+          15,
+          21,
+          1154,
+          425,
+          10965,
+          465,
+          58235,
+          16263,
+          1232,
+          812,
+          672,
+          304,
+          279,
+          1486,
+          93736,
+          5326,
+          553,
+          4389,
+          45107,
+          27507,
+          659,
+          1260,
+          9723,
+          389,
+          264,
+          220,
+          17,
+          15,
+          15,
+          21,
+          9234,
+          315,
+          279,
+          12425
+        ],
+        "scope": "Main runtime c1398b1b plus capture-tool option c9b8a4d4 versus CPU integration5444f1a5. Radeon for tiny/dense files; 30B-A3B with12 CPU expert layers, as the hybrid gate names. This is not a pure-GPU30B or two-device result. Model list: tiny F32 tied/untied, real 0.6B F32 and four quant mixtures, 8B Q8_0, 30B-A3B Q4_K_M. Full 247-token excerpt and 64 greedy rows, both caches. Tiny models reuse HF-verified weights with context metadata 512 and IDs 1..247. Correctness only, no performance claims.",
+        "runs": [
+          {
+            "arm": "main",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 10756,
+            "exit": 0,
+            "captures": {
+              "batched": "5b11c233f6a49ebd48d82a7d1322789fa3f496249f2d3af74de54050fdd18605",
+              "decode": "57af53eeecc0179e482a53b2b4ade1a84e8e7456983c20987cbac9ea1ba01a53",
+              "greedy": "3384e62d3d14e82e941c16814acadf906e2d36107c24ef2d444bbf049e1296f4"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 32760,
+            "exit": 0,
+            "captures": {
+              "batched": "5b11c233f6a49ebd48d82a7d1322789fa3f496249f2d3af74de54050fdd18605",
+              "decode": "57af53eeecc0179e482a53b2b4ade1a84e8e7456983c20987cbac9ea1ba01a53",
+              "greedy": "3384e62d3d14e82e941c16814acadf906e2d36107c24ef2d444bbf049e1296f4"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 10008,
+            "exit": 0,
+            "captures": {
+              "batched": "74e15dd7140b40ee01556614cb675a785d053427b3b99e1865142db6420c6648",
+              "decode": "da36315b75c29b83422a4c0f108b1fc17f119dd0bc4d6294de28896465f81e97",
+              "greedy": "b2460f8424e0c51506f738ff8ec3d31c39bddec32a038d214a8393aa6314b200"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 34756,
+            "exit": 0,
+            "captures": {
+              "batched": "74e15dd7140b40ee01556614cb675a785d053427b3b99e1865142db6420c6648",
+              "decode": "da36315b75c29b83422a4c0f108b1fc17f119dd0bc4d6294de28896465f81e97",
+              "greedy": "b2460f8424e0c51506f738ff8ec3d31c39bddec32a038d214a8393aa6314b200"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 26240,
+            "exit": 0,
+            "captures": {
+              "batched": "f3c3cbc414dca920ff21c3d4269e7fb7d1b213b4e4ce8cbbea7198a8dde85f4f",
+              "decode": "40eb85c48a68a45d8aa46b2659671df9a8b6e701a27d081f8114dabba8835bf7",
+              "greedy": "e26f0f3812781f3a6f2585d8eaad9f05a3ee8d2943490f1890ae30651b24147f"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 11656,
+            "exit": 0,
+            "captures": {
+              "batched": "f3c3cbc414dca920ff21c3d4269e7fb7d1b213b4e4ce8cbbea7198a8dde85f4f",
+              "decode": "40eb85c48a68a45d8aa46b2659671df9a8b6e701a27d081f8114dabba8835bf7",
+              "greedy": "e26f0f3812781f3a6f2585d8eaad9f05a3ee8d2943490f1890ae30651b24147f"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 29192,
+            "exit": 0,
+            "captures": {
+              "batched": "4862a0eccb126194ca690484e9fbaac2457da1b4f759209c7f5c195c9aa2bb10",
+              "decode": "84311a510a9539a3ea4a7388d720749725acb43667bf0849463512293ce82709",
+              "greedy": "8b2ca05b81d1caff8f98766da21e9fd69c54e33b50395660592251dbd146fdb1"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 34784,
+            "exit": 0,
+            "captures": {
+              "batched": "4862a0eccb126194ca690484e9fbaac2457da1b4f759209c7f5c195c9aa2bb10",
+              "decode": "84311a510a9539a3ea4a7388d720749725acb43667bf0849463512293ce82709",
+              "greedy": "8b2ca05b81d1caff8f98766da21e9fd69c54e33b50395660592251dbd146fdb1"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q8_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q8_0-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 32716,
+            "exit": 0,
+            "captures": {
+              "batched": "a485015c061171e8976e0fde56ea06e1e7ebba2509f8b7445d38c21d18ef867d",
+              "decode": "867ab9c79f41225a4c14bc9fa4a809f8b78b3f62b96ae1f8cda688ea91847d01",
+              "greedy": "1ad23225157a2fdcd6342d9276e1129fbce244650c032029032af880ad92ff9e"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q8_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q8_0-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 17376,
+            "exit": 0,
+            "captures": {
+              "batched": "a485015c061171e8976e0fde56ea06e1e7ebba2509f8b7445d38c21d18ef867d",
+              "decode": "867ab9c79f41225a4c14bc9fa4a809f8b78b3f62b96ae1f8cda688ea91847d01",
+              "greedy": "1ad23225157a2fdcd6342d9276e1129fbce244650c032029032af880ad92ff9e"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q8_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q8_0-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 31928,
+            "exit": 0,
+            "captures": {
+              "batched": "f1fc0f779e1eb5c828b15c32f509be0957a4b74d3751a0367a2979890f080b1b",
+              "decode": "5a7643733ba9b52e1e1964ec0f12806e23b6167016a7b42a0f93d6d3454f02dc",
+              "greedy": "1de1bbfd88ba7925c0d5aec81dd7633581a5af6d73e4946ceee4cae0d7de3966"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q8_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q8_0-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 33664,
+            "exit": 0,
+            "captures": {
+              "batched": "f1fc0f779e1eb5c828b15c32f509be0957a4b74d3751a0367a2979890f080b1b",
+              "decode": "5a7643733ba9b52e1e1964ec0f12806e23b6167016a7b42a0f93d6d3454f02dc",
+              "greedy": "1de1bbfd88ba7925c0d5aec81dd7633581a5af6d73e4946ceee4cae0d7de3966"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_0-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 33896,
+            "exit": 0,
+            "captures": {
+              "batched": "485da52c47271410c468ad10464657baf32384a4741f19117c20053615c501b3",
+              "decode": "cd151a21a063587a4d50ce490ed41971253d593334da1fc463f6dab4ff04960f",
+              "greedy": "640cb8bf73cc70ecd5068b0ffbb1929b0e990e9bfff841ace9a10daa0281384a"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_0-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 30976,
+            "exit": 0,
+            "captures": {
+              "batched": "485da52c47271410c468ad10464657baf32384a4741f19117c20053615c501b3",
+              "decode": "cd151a21a063587a4d50ce490ed41971253d593334da1fc463f6dab4ff04960f",
+              "greedy": "640cb8bf73cc70ecd5068b0ffbb1929b0e990e9bfff841ace9a10daa0281384a"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_0-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 31776,
+            "exit": 0,
+            "captures": {
+              "batched": "fdf9082a1f11c23c94e54650efab99ad689b562f547869f9d2d917561236eeb4",
+              "decode": "707bb6b75eaba09d7a4562ce7f4722640df4a6ee96f271563d679070d734e1c4",
+              "greedy": "fc98b9c4ebfd13b287d8374b5f0377602d9285bbe27682c69c420e08eb3f8c2e"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_0-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 32320,
+            "exit": 0,
+            "captures": {
+              "batched": "fdf9082a1f11c23c94e54650efab99ad689b562f547869f9d2d917561236eeb4",
+              "decode": "707bb6b75eaba09d7a4562ce7f4722640df4a6ee96f271563d679070d734e1c4",
+              "greedy": "fc98b9c4ebfd13b287d8374b5f0377602d9285bbe27682c69c420e08eb3f8c2e"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q5_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q5_K_M-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 34100,
+            "exit": 0,
+            "captures": {
+              "batched": "350a8003c05f78ae8c661f4f49e894b747d580785cc16b9950326520b41e9197",
+              "decode": "8a0deaacc02850c0bc6c3fadc70d8f5f8b8c7100e0c441edc112dcfcbd2a1392",
+              "greedy": "c03c98537a3fab4c6cb7e37f3773906669b1029b200eee4c7d9a9d21406fb53f"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q5_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q5_K_M-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 13632,
+            "exit": 0,
+            "captures": {
+              "batched": "350a8003c05f78ae8c661f4f49e894b747d580785cc16b9950326520b41e9197",
+              "decode": "8a0deaacc02850c0bc6c3fadc70d8f5f8b8c7100e0c441edc112dcfcbd2a1392",
+              "greedy": "c03c98537a3fab4c6cb7e37f3773906669b1029b200eee4c7d9a9d21406fb53f"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q5_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q5_K_M-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 24800,
+            "exit": 0,
+            "captures": {
+              "batched": "e4f8c39ad592c2f43c211181024927f49befc28b0d5d82dbe2ce6cf7ed430da8",
+              "decode": "5cc2aee247a664d1d92595bc0e11b95d5931a7604a27650d928a61b00aefaeef",
+              "greedy": "65f392fb72e53cb8229d286b30e8aeec0fd081640beddcba63bbf733776f6fc6"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q5_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q5_K_M-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 29308,
+            "exit": 0,
+            "captures": {
+              "batched": "e4f8c39ad592c2f43c211181024927f49befc28b0d5d82dbe2ce6cf7ed430da8",
+              "decode": "5cc2aee247a664d1d92595bc0e11b95d5931a7604a27650d928a61b00aefaeef",
+              "greedy": "65f392fb72e53cb8229d286b30e8aeec0fd081640beddcba63bbf733776f6fc6"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_K_M-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 34688,
+            "exit": 0,
+            "captures": {
+              "batched": "1d222d26c9f6b0e3f47c9f5cc213e8d827c26cc8a018e12929f16e919103aefd",
+              "decode": "d9f2dcbc66f28b6acf00ab08387d862c10c5fa130f10b17ec2585f9aac422ad3",
+              "greedy": "bdf23bf35aa9018d898c81df4fc08a7f4a2171ae4cef924cb776f3e62cb8d322"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_K_M-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 23596,
+            "exit": 0,
+            "captures": {
+              "batched": "1d222d26c9f6b0e3f47c9f5cc213e8d827c26cc8a018e12929f16e919103aefd",
+              "decode": "d9f2dcbc66f28b6acf00ab08387d862c10c5fa130f10b17ec2585f9aac422ad3",
+              "greedy": "bdf23bf35aa9018d898c81df4fc08a7f4a2171ae4cef924cb776f3e62cb8d322"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_K_M-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 9012,
+            "exit": 0,
+            "captures": {
+              "batched": "10a51dc0376f917007b46d4a90ec53f94f35deedc3139407b5d79d48b14719db",
+              "decode": "b227ecb38d24cd7ca891670e3b64efcb1598c486fad40bb653dd69ca4d848f11",
+              "greedy": "15eebfd2515aa49e4976d2a79e9502e6b1b9f8dfdc2aee1a6bc3715ddd4aba9f"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-Q4_K_M-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 32568,
+            "exit": 0,
+            "captures": {
+              "batched": "10a51dc0376f917007b46d4a90ec53f94f35deedc3139407b5d79d48b14719db",
+              "decode": "b227ecb38d24cd7ca891670e3b64efcb1598c486fad40bb653dd69ca4d848f11",
+              "greedy": "15eebfd2515aa49e4976d2a79e9502e6b1b9f8dfdc2aee1a6bc3715ddd4aba9f"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-F32.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-F32-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 23588,
+            "exit": 0,
+            "captures": {
+              "batched": "b33ae14dfe27f040984cedb6549c5f794f3a6951f1d10434e15532207b3c414e",
+              "decode": "3b61729820ece1e1921eb76faff0d1743f984b772d77ef8025604396c9edc2fc",
+              "greedy": "f85de88af16b917d39a803b592be9862366cb35300c29244ad29508022172662"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-F32.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-F32-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 18996,
+            "exit": 0,
+            "captures": {
+              "batched": "b33ae14dfe27f040984cedb6549c5f794f3a6951f1d10434e15532207b3c414e",
+              "decode": "3b61729820ece1e1921eb76faff0d1743f984b772d77ef8025604396c9edc2fc",
+              "greedy": "f85de88af16b917d39a803b592be9862366cb35300c29244ad29508022172662"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-F32.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-F32-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 30128,
+            "exit": 0,
+            "captures": {
+              "batched": "28aec2fa3a40aad69373079459451c3d6ae26863402e3672d8c32402c6b805e2",
+              "decode": "85484136d25724351f131f7e011031257d8b12b87336c399dc3fdaaee77bc677",
+              "greedy": "89db793d46cf50672b5f616c01adfe60fc491d9425ae6cf5d8d33b0dc08fdbea"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-F32.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-0.6B-F32-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 18092,
+            "exit": 0,
+            "captures": {
+              "batched": "28aec2fa3a40aad69373079459451c3d6ae26863402e3672d8c32402c6b805e2",
+              "decode": "85484136d25724351f131f7e011031257d8b12b87336c399dc3fdaaee77bc677",
+              "greedy": "89db793d46cf50672b5f616c01adfe60fc491d9425ae6cf5d8d33b0dc08fdbea"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-8B-Q8_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-8B-Q8_0-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 32136,
+            "exit": 0,
+            "captures": {
+              "batched": "7c90f638a9dd961d560251eb20f991046731d135ea10fe33bffe6fa9358c9939",
+              "decode": "e60dd26d67a23ab87bc140bd1cc59419dfe0f47d7655b589e05337f258def2ee",
+              "greedy": "3d2b780203d9e499739af96ee71a4c793a20e1376dde01bb48866aaca68034d2"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-8B-Q8_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-8B-Q8_0-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 4800,
+            "exit": 0,
+            "captures": {
+              "batched": "7c90f638a9dd961d560251eb20f991046731d135ea10fe33bffe6fa9358c9939",
+              "decode": "e60dd26d67a23ab87bc140bd1cc59419dfe0f47d7655b589e05337f258def2ee",
+              "greedy": "3d2b780203d9e499739af96ee71a4c793a20e1376dde01bb48866aaca68034d2"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-8B-Q8_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-8B-Q8_0-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 33212,
+            "exit": 0,
+            "captures": {
+              "batched": "76343269750a435ecacd915a7c3cd63192381b2e53956e3b4d7bd783c58b7deb",
+              "decode": "ee39e1bbf802c1f62ec407d47045910d45e015cc869c5713ad19a939918e2e6f",
+              "greedy": "70be7b9c8c922987e03787138ed32c90a729ff609ca5152aa882064e8d053587"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-8B-Q8_0.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-8B-Q8_0-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "0"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 16660,
+            "exit": 0,
+            "captures": {
+              "batched": "76343269750a435ecacd915a7c3cd63192381b2e53956e3b4d7bd783c58b7deb",
+              "decode": "ee39e1bbf802c1f62ec407d47045910d45e015cc869c5713ad19a939918e2e6f",
+              "greedy": "70be7b9c8c922987e03787138ed32c90a729ff609ca5152aa882064e8d053587"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 12,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mxfp4-device-check-20260928\\Qwen3-30B-A3B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-30B-A3B-Q4_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-30B-A3B-Q4_K_M-f16-main",
+              "vulkan:0",
+              "f16",
+              "128",
+              "12"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 33992,
+            "exit": 0,
+            "captures": {
+              "batched": "5ea7eb7d3a03b6b9c77744a2a7966512ba400b16bbea7cee69819e321c39ebc2",
+              "decode": "82a6d6847c2d3502a63f26f6ddc2a79b40e04a9d9d67832ba97960b331fbe181",
+              "greedy": "108dbc7edd543fdea6c52060e43eda3f9473b89778ad4b541f318c69024678d7"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 12,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mxfp4-device-check-20260928\\Qwen3-30B-A3B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-30B-A3B-Q4_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-30B-A3B-Q4_K_M-f16-candidate",
+              "vulkan:0",
+              "f16",
+              "128",
+              "12"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 31996,
+            "exit": 0,
+            "captures": {
+              "batched": "5ea7eb7d3a03b6b9c77744a2a7966512ba400b16bbea7cee69819e321c39ebc2",
+              "decode": "82a6d6847c2d3502a63f26f6ddc2a79b40e04a9d9d67832ba97960b331fbe181",
+              "greedy": "108dbc7edd543fdea6c52060e43eda3f9473b89778ad4b541f318c69024678d7"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 12,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-base-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mxfp4-device-check-20260928\\Qwen3-30B-A3B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-30B-A3B-Q4_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-30B-A3B-Q4_K_M-f32-main",
+              "vulkan:0",
+              "f32",
+              "128",
+              "12"
+            ],
+            "tool_sha256": "eacf53f0c041ea356375f58c6cc5dd993a906e2ba8752e86b67808735b1d0dc4",
+            "pid": 22984,
+            "exit": 0,
+            "captures": {
+              "batched": "c031fac1ba761623dadea84dae9e4632f52773bba52a2720e405f663f47d7f04",
+              "decode": "98c3018a0bbfd5ed261318b826ff92b05436b62b82edadfe3bdb7f6ca18046e3",
+              "greedy": "040eeb62a286259fe6198bb563841cc186bd70c808482938628aa2110fbf0c45"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 12,
+            "command": [
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build\\Release\\llmx-model-logits.exe",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mxfp4-device-check-20260928\\Qwen3-30B-A3B-Q4_K_M.gguf",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-30B-A3B-Q4_K_M.ids",
+              "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\Qwen3-30B-A3B-Q4_K_M-f32-candidate",
+              "vulkan:0",
+              "f32",
+              "128",
+              "12"
+            ],
+            "tool_sha256": "410afa94bb766837c3277e5a33fd9003a73efc7fb8ae84deef4f67900b05ef1a",
+            "pid": 28348,
+            "exit": 0,
+            "captures": {
+              "batched": "c031fac1ba761623dadea84dae9e4632f52773bba52a2720e405f663f47d7f04",
+              "decode": "98c3018a0bbfd5ed261318b826ff92b05436b62b82edadfe3bdb7f6ca18046e3",
+              "greedy": "040eeb62a286259fe6198bb563841cc186bd70c808482938628aa2110fbf0c45"
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "file": "tiny-f32-untied.gguf",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-untied.gguf",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 0,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "cache": "f16",
+            "device": "vulkan:0",
+            "cpu_experts": 12,
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "cache": "f32",
+            "device": "vulkan:0",
+            "cpu_experts": 12,
+            "raw_captures_equal": 3
+          }
+        ],
+        "native_gpu_command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-candidate-20260930\\build",
+          "-C",
+          "Release",
+          "--output-on-failure",
+          "-R",
+          "vulkan"
+        ],
+        "native_gpu_exit": 0,
+        "models": [
+          {
+            "file": "tiny-f32-untied.gguf",
+            "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-untied.gguf",
+            "sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "vocab": 257,
+            "tiny": true,
+            "weights_sha256": "e4480d5d59f953bdb30cfcecac3d0b108295ba09d8ecb989eaa955133ffc12d2"
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-shares-radeon-identity-20260930\\tiny-f32-tied.gguf",
+            "sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "vocab": 257,
+            "tiny": true,
+            "weights_sha256": "c5a997b4123db2b75ab180bbc0693548f4665f6188af110c7547d79ebc7d2eb3"
+          },
+          {
+            "family": "qwen3",
+            "repo": "Qwen/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
+            "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "size": 639446688,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 5,
+            "continuous_nll": 0.01,
+            "window_nll": 0.02,
+            "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "size": 382156480,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.16,
+            "window_nll": 0.2,
+            "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "size": 444415680,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.05,
+            "window_nll": 0.16,
+            "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "size": 396705472,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.13,
+            "window_nll": 0.25,
+            "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+            "sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "path": "C:\\Users\\Marko\\.lmstudio\\models\\Qwen\\Qwen3-8B-GGUF\\Qwen3-8B-Q8_0.gguf",
+            "sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "path": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mxfp4-device-check-20260928\\Qwen3-30B-A3B-Q4_K_M.gguf",
+            "sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "vocab": 151936
+          }
+        ],
+        "arms": {
+          "main": {
+            "head": "c9b8a4d44b6aa4472586c58c2bcb3666c33d4e9e",
+            "version": "llmx 0.1.0+gc9b8a4d44b6a",
+            "exe_sha256": "9fbad2f76675e1360acfaa2b9826fae5ea626f7acf91fbcea4381e622cb4b7b1"
+          },
+          "candidate": {
+            "head": "5444f1a5bc8e2124ede51d047b8c001c7937660b",
+            "version": "llmx 0.1.0+g5444f1a5bc8e",
+            "exe_sha256": "78e3a335b5b46ca6b2b5a2b6ca616424b3b3737b66631219a42f4d410b17ea3a"
+          }
+        }
+      }
+    },
+    "two_mi50_equal_split_identity": {
+      "manifest": "C:\\Users\\Marko\\AppData\\Local\\Temp\\mxfp4-cpu-shares-two-mi50-complete-20260930.json",
+      "sha256": "559f646a87191e76d7eb8b8faa2ebdcd9fa12761917cb2ff17bb2f0a7b6bbb9a",
+      "result": {
+        "status": "pass",
+        "pid": 42,
+        "tokens": [
+          284,
+          8397,
+          425,
+          10965,
+          465,
+          284,
+          715,
+          8397,
+          425,
+          10965,
+          465,
+          374,
+          458,
+          6364,
+          4531,
+          1154,
+          12425,
+          323,
+          33496,
+          12089,
+          659,
+          1260,
+          1030,
+          264,
+          8640,
+          569,
+          12,
+          31,
+          39400,
+          3476,
+          389,
+          279,
+          12425,
+          4013,
+          576,
+          8596,
+          304,
+          220,
+          17,
+          15,
+          15,
+          15,
+          659,
+          1096,
+          572,
+          8110,
+          553,
+          264,
+          39400,
+          3476,
+          304,
+          279,
+          1486,
+          6252,
+          2382,
+          5326,
+          553,
+          21315,
+          75923,
+          1154,
+          892,
+          572,
+          10660,
+          304,
+          220,
+          17,
+          15,
+          15,
+          16,
+          518,
+          279,
+          16194,
+          7154,
+          26221,
+          659,
+          1260,
+          1030,
+          264,
+          8640,
+          3476,
+          304,
+          279,
+          12425,
+          4013,
+          20207,
+          3757,
+          1581,
+          291,
+          304,
+          220,
+          17,
+          15,
+          15,
+          17,
+          659,
+          758,
+          220,
+          17,
+          15,
+          15,
+          19,
+          425,
+          10965,
+          465,
+          26120,
+          264,
+          3476,
+          438,
+          330,
+          28417,
+          330,
+          304,
+          279,
+          9234,
+          330,
+          70066,
+          364,
+          82,
+          15106,
+          330,
+          315,
+          279,
+          12425,
+          4013,
+          576,
+          5724,
+          37625,
+          2587,
+          566,
+          58235,
+          16263,
+          19571,
+          4389,
+          26099,
+          323,
+          42323,
+          15035,
+          18337,
+          659,
+          1260,
+          572,
+          6311,
+          304,
+          279,
+          220,
+          17,
+          15,
+          15,
+          20,
+          33496,
+          53148,
+          315,
+          279,
+          25179,
+          92301,
+          1486,
+          43562,
+          49840,
+          1154,
+          892,
+          572,
+          10660,
+          518,
+          279,
+          45406,
+          26221,
+          304,
+          70998,
+          323,
+          279,
+          11012,
+          1268,
+          38420,
+          16937,
+          304,
+          7148,
+          659,
+          1260,
+          572,
+          15540,
+          553,
+          3757,
+          67473,
+          323,
+          58235,
+          16263,
+          7355,
+          1232,
+          812,
+          672,
+          1154,
+          49975,
+          1863,
+          12707,
+          1154,
+          13928,
+          17734,
+          1154,
+          55130,
+          23905,
+          416,
+          1154,
+          59310,
+          80664,
+          323,
+          67034,
+          10926,
+          659,
+          715,
+          758,
+          220,
+          17,
+          15,
+          15,
+          21,
+          1154,
+          425,
+          10965,
+          465,
+          58235,
+          16263,
+          1232,
+          812,
+          672,
+          304,
+          279,
+          1486,
+          93736,
+          5326,
+          553,
+          4389,
+          45107,
+          27507,
+          659,
+          1260,
+          9723,
+          389,
+          264,
+          220,
+          17,
+          15,
+          15,
+          21,
+          9234,
+          315,
+          279,
+          12425
+        ],
+        "scope": "Main runtime c139 with capture option c9b8a4d4 versus CPU integration5444f1a5; two MI50s explicitly split1:1. Complete existing-model list: tiny F32 tied/untied, real 0.6B F32 and four quant mixtures, 8B Q8_0, 30B-A3B Q4_K_M. Full 247-token excerpt and 64 greedy rows, both caches. Tiny models reuse HF-verified weights with context metadata 512 and IDs 1..247. Correctness only, no performance claims.",
+        "runs": [
+          {
+            "arm": "main",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied-f16-main",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 73,
+            "exit": 0,
+            "captures": {
+              "batched": "e9d9cf554cd62a9985315254d2abe22bad3e88a392ae10ca0a2cae3f140f5d0f",
+              "decode": "f76dafda27f7cb15a8a02a7fcfee218b33802377225410cfc7c2c79ca041d4fe",
+              "greedy": "d1d3853136f2b8afb8ac903870be6b46d8e9824a3bb12125857af60511de47c6"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied-f16-candidate",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 89,
+            "exit": 0,
+            "captures": {
+              "batched": "e9d9cf554cd62a9985315254d2abe22bad3e88a392ae10ca0a2cae3f140f5d0f",
+              "decode": "f76dafda27f7cb15a8a02a7fcfee218b33802377225410cfc7c2c79ca041d4fe",
+              "greedy": "d1d3853136f2b8afb8ac903870be6b46d8e9824a3bb12125857af60511de47c6"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied-f32-main",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 100,
+            "exit": 0,
+            "captures": {
+              "batched": "5eb3bf32c90c318f100292ccbdffc11ad92c4ab09508b89739c48625ba796dbd",
+              "decode": "9a0072e7b6d0469479fac52395ff352f1e8607976b755e2f5d3cd75180a3028b",
+              "greedy": "b1f7261fbff9a7ddbe2a584af28aa62c758b36d14babe3e5a4c9430eb12a05ea"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-untied.gguf",
+            "model_sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied-f32-candidate",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 112,
+            "exit": 0,
+            "captures": {
+              "batched": "5eb3bf32c90c318f100292ccbdffc11ad92c4ab09508b89739c48625ba796dbd",
+              "decode": "9a0072e7b6d0469479fac52395ff352f1e8607976b755e2f5d3cd75180a3028b",
+              "greedy": "b1f7261fbff9a7ddbe2a584af28aa62c758b36d14babe3e5a4c9430eb12a05ea"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied-f16-main",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 123,
+            "exit": 0,
+            "captures": {
+              "batched": "0a9b02f2eb97a28dfac2faa042dfaaa233cfa3859cfac97db22f18ba5a4faf97",
+              "decode": "112712310236aebe9a3570b505f834b282468cb312e8d541406f14c383253cfe",
+              "greedy": "f95de269575aea6a514be2f2fc9fbcfc5183cf69b40e82c551b3d13549c4dce1"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied-f16-candidate",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 134,
+            "exit": 0,
+            "captures": {
+              "batched": "0a9b02f2eb97a28dfac2faa042dfaaa233cfa3859cfac97db22f18ba5a4faf97",
+              "decode": "112712310236aebe9a3570b505f834b282468cb312e8d541406f14c383253cfe",
+              "greedy": "f95de269575aea6a514be2f2fc9fbcfc5183cf69b40e82c551b3d13549c4dce1"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied-f32-main",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 145,
+            "exit": 0,
+            "captures": {
+              "batched": "4418e38b955f9f283daf7d5f7797756ce37cdef5f564db8022865357455eae6d",
+              "decode": "ce1a626fc3c2d56602b0024f4bffc36d335b9326d0bdecaa206ebbf3c4764162",
+              "greedy": "263f2dc1bf8ef923eeeab289620cd01e69c6c16261eb7b5590971b2e7637a569"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "tiny-f32-tied.gguf",
+            "model_sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied-f32-candidate",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 156,
+            "exit": 0,
+            "captures": {
+              "batched": "4418e38b955f9f283daf7d5f7797756ce37cdef5f564db8022865357455eae6d",
+              "decode": "ce1a626fc3c2d56602b0024f4bffc36d335b9326d0bdecaa206ebbf3c4764162",
+              "greedy": "263f2dc1bf8ef923eeeab289620cd01e69c6c16261eb7b5590971b2e7637a569"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q8_0-f16-main",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 167,
+            "exit": 0,
+            "captures": {
+              "batched": "57f0c53d940dbef70dae36f09ff56ce97df0a0285fcdf9f5d6b28b1f6142b63d",
+              "decode": "c436c0bfb6ef79ea4b8e11d07167fd24aff7fda9492e10e22f0e36363570e2af",
+              "greedy": "1dab7a6c3f187ba5d11ca312f02204b10843fcca91b48c251efbbcf0f558a378"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q8_0-f16-candidate",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 182,
+            "exit": 0,
+            "captures": {
+              "batched": "57f0c53d940dbef70dae36f09ff56ce97df0a0285fcdf9f5d6b28b1f6142b63d",
+              "decode": "c436c0bfb6ef79ea4b8e11d07167fd24aff7fda9492e10e22f0e36363570e2af",
+              "greedy": "1dab7a6c3f187ba5d11ca312f02204b10843fcca91b48c251efbbcf0f558a378"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q8_0-f32-main",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 194,
+            "exit": 0,
+            "captures": {
+              "batched": "1cfe4217d85bd3ff6e3b8549bc92f8a12ef36cfdbf8a27987470c0416cb5a987",
+              "decode": "ab3f624e39769e6b8a545a27fd12f80b45fa5e3a021866ad85bd035a40ed781f",
+              "greedy": "e6d135f16b77809c2c6c5bc05768ffa2aa9c588e670eda4c7dbe9766adbb4e91"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q8_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q8_0-f32-candidate",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 208,
+            "exit": 0,
+            "captures": {
+              "batched": "1cfe4217d85bd3ff6e3b8549bc92f8a12ef36cfdbf8a27987470c0416cb5a987",
+              "decode": "ab3f624e39769e6b8a545a27fd12f80b45fa5e3a021866ad85bd035a40ed781f",
+              "greedy": "e6d135f16b77809c2c6c5bc05768ffa2aa9c588e670eda4c7dbe9766adbb4e91"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_0-f16-main",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 220,
+            "exit": 0,
+            "captures": {
+              "batched": "e8673ee76b33a8f90e9a84da6a800b9059bdfc0fdcb738a4e5e5362728d905fc",
+              "decode": "6205af1c2d3e661f6cd69e5517381abd16ae8a853b77c28644afb81b33f144de",
+              "greedy": "c18097d0c03be486a1691621dc3a7c522753a6c9eaf3fa05dd6089e426622240"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_0-f16-candidate",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 236,
+            "exit": 0,
+            "captures": {
+              "batched": "e8673ee76b33a8f90e9a84da6a800b9059bdfc0fdcb738a4e5e5362728d905fc",
+              "decode": "6205af1c2d3e661f6cd69e5517381abd16ae8a853b77c28644afb81b33f144de",
+              "greedy": "c18097d0c03be486a1691621dc3a7c522753a6c9eaf3fa05dd6089e426622240"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_0-f32-main",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 248,
+            "exit": 0,
+            "captures": {
+              "batched": "e62f08bef25198de80ff6e0040c1bd9a0e422f695910e446327579d0fa5ba765",
+              "decode": "1277156437ff8b5881b3b5ac5d96090ce476672d58ceef6e3fb4787c9a821ccb",
+              "greedy": "cbd7163887974ec6c9a82bfd3f9edce4c184880010cd5fdff77eee983b695bd0"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_0-f32-candidate",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 260,
+            "exit": 0,
+            "captures": {
+              "batched": "e62f08bef25198de80ff6e0040c1bd9a0e422f695910e446327579d0fa5ba765",
+              "decode": "1277156437ff8b5881b3b5ac5d96090ce476672d58ceef6e3fb4787c9a821ccb",
+              "greedy": "cbd7163887974ec6c9a82bfd3f9edce4c184880010cd5fdff77eee983b695bd0"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M-f16-main",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 272,
+            "exit": 0,
+            "captures": {
+              "batched": "a8ace2f2259b4e417e00852cb0969c3064e8a7deaac1b7b0e7373a1c88182959",
+              "decode": "59eb0d7280f861a424d93b5fc51f61c217de245f5999fb03e2f550cc5e40bf0d",
+              "greedy": "a87ab6dc1204704db9eb6ba315921e027cecba4d338d041149adab882f6882f7"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M-f16-candidate",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 286,
+            "exit": 0,
+            "captures": {
+              "batched": "a8ace2f2259b4e417e00852cb0969c3064e8a7deaac1b7b0e7373a1c88182959",
+              "decode": "59eb0d7280f861a424d93b5fc51f61c217de245f5999fb03e2f550cc5e40bf0d",
+              "greedy": "a87ab6dc1204704db9eb6ba315921e027cecba4d338d041149adab882f6882f7"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M-f32-main",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 298,
+            "exit": 0,
+            "captures": {
+              "batched": "6a74f3f76752f84aa560844b95cb754485c501aad38ec852422ce8cb02070797",
+              "decode": "97637d18eabd21de15a3eac45430ec598776de01cb24818b19d73283a3ab8538",
+              "greedy": "e4f601cb867b539d946bc41a9a2dbfb92b825be52eb25d541f928e1727a3316c"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q5_K_M-f32-candidate",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 310,
+            "exit": 0,
+            "captures": {
+              "batched": "6a74f3f76752f84aa560844b95cb754485c501aad38ec852422ce8cb02070797",
+              "decode": "97637d18eabd21de15a3eac45430ec598776de01cb24818b19d73283a3ab8538",
+              "greedy": "e4f601cb867b539d946bc41a9a2dbfb92b825be52eb25d541f928e1727a3316c"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M-f16-main",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 322,
+            "exit": 0,
+            "captures": {
+              "batched": "d67ed9a89a04b03728e68e243c0566e964c65e7b4d9d2f77ed1c654a4ed2a385",
+              "decode": "d62dd8b7cc64912c4d1628cacea180e1d7cb22a7129eb3ca1e969f1ab9f9cb68",
+              "greedy": "5ddd7eb79d0237880c7b37229cc8ccfec782e51f3bef65b86f2e2a3c1420a2e1"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M-f16-candidate",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 335,
+            "exit": 0,
+            "captures": {
+              "batched": "d67ed9a89a04b03728e68e243c0566e964c65e7b4d9d2f77ed1c654a4ed2a385",
+              "decode": "d62dd8b7cc64912c4d1628cacea180e1d7cb22a7129eb3ca1e969f1ab9f9cb68",
+              "greedy": "5ddd7eb79d0237880c7b37229cc8ccfec782e51f3bef65b86f2e2a3c1420a2e1"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M-f32-main",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 347,
+            "exit": 0,
+            "captures": {
+              "batched": "5f164f954ca17b15cf05f2e3d261ad8682914176dca38c8276a4b9944c0a2c08",
+              "decode": "1c2bb80b784f9085a7e34c300624d158ba436265f7787cc3d1d6ecd85e7a79d4",
+              "greedy": "99658f4f999daf6a473adade32694cf24d1625306e641f2aeb9376ab44418753"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-Q4_K_M-f32-candidate",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 359,
+            "exit": 0,
+            "captures": {
+              "batched": "5f164f954ca17b15cf05f2e3d261ad8682914176dca38c8276a4b9944c0a2c08",
+              "decode": "1c2bb80b784f9085a7e34c300624d158ba436265f7787cc3d1d6ecd85e7a79d4",
+              "greedy": "99658f4f999daf6a473adade32694cf24d1625306e641f2aeb9376ab44418753"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-F32-f16-main",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 371,
+            "exit": 0,
+            "captures": {
+              "batched": "70b837acca072360c93bb51a8b8b064b1855e94761de468759228d1d408bb8c6",
+              "decode": "a06fafacda71f404bd43678739d4503eacb7855f3a9a35169a3a7393448f17f1",
+              "greedy": "e27ff68c6e45ae3c5a41825b89f7c8c5b0a99f343278da7cb651f91f8647aa7f"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-F32-f16-candidate",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 384,
+            "exit": 0,
+            "captures": {
+              "batched": "70b837acca072360c93bb51a8b8b064b1855e94761de468759228d1d408bb8c6",
+              "decode": "a06fafacda71f404bd43678739d4503eacb7855f3a9a35169a3a7393448f17f1",
+              "greedy": "e27ff68c6e45ae3c5a41825b89f7c8c5b0a99f343278da7cb651f91f8647aa7f"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-F32-f32-main",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 396,
+            "exit": 0,
+            "captures": {
+              "batched": "aa8ae4ee635739a39f8e8094b896c7d32a4068e8e351fd6367fb3d08cf043b13",
+              "decode": "c74140eb1ca6024e7fb5685ac15c295c34816b8c4736fa04d0494e874a63251d",
+              "greedy": "9fe3ded79b6a254ed5e5ca6c8da810da22884cea277b8042e05912e26037d53e"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-0.6B-F32.gguf",
+            "model_sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-F32.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-0.6B-F32-f32-candidate",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 408,
+            "exit": 0,
+            "captures": {
+              "batched": "aa8ae4ee635739a39f8e8094b896c7d32a4068e8e351fd6367fb3d08cf043b13",
+              "decode": "c74140eb1ca6024e7fb5685ac15c295c34816b8c4736fa04d0494e874a63251d",
+              "greedy": "9fe3ded79b6a254ed5e5ca6c8da810da22884cea277b8042e05912e26037d53e"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-8B-Q8_0-f16-main",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 420,
+            "exit": 0,
+            "captures": {
+              "batched": "bcf2050afc7eb5f0f4a7b9ca9b641c7a064bc802de6d86aa0ee63470da1cc3fd",
+              "decode": "055295c02bb8028c7dcaeeede9c790916dbb3cd54261b0ce18ce7293ccbb8592",
+              "greedy": "9c0b5faede89bdef1a9fe0a339de170ff74db35c9ce2fb2c32ff71cbeb5148a7"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-8B-Q8_0-f16-candidate",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 432,
+            "exit": 0,
+            "captures": {
+              "batched": "bcf2050afc7eb5f0f4a7b9ca9b641c7a064bc802de6d86aa0ee63470da1cc3fd",
+              "decode": "055295c02bb8028c7dcaeeede9c790916dbb3cd54261b0ce18ce7293ccbb8592",
+              "greedy": "9c0b5faede89bdef1a9fe0a339de170ff74db35c9ce2fb2c32ff71cbeb5148a7"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-8B-Q8_0-f32-main",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 444,
+            "exit": 0,
+            "captures": {
+              "batched": "f7694d2f8b85249866bc6fbd4dcb2298aab8c56b429469d799d8e5b3f17e658d",
+              "decode": "6df49a86f6df21ed4c9fd3bba997c2e51b184e3d4e9d922dd4f5b6ef3d45ea44",
+              "greedy": "666502385a1815298cd8cb6d35e082c05f70ccecb5bc8a8828c46a6a6115c565"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "model_sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-8B-Q8_0.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-8B-Q8_0-f32-candidate",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 456,
+            "exit": 0,
+            "captures": {
+              "batched": "f7694d2f8b85249866bc6fbd4dcb2298aab8c56b429469d799d8e5b3f17e658d",
+              "decode": "6df49a86f6df21ed4c9fd3bba997c2e51b184e3d4e9d922dd4f5b6ef3d45ea44",
+              "greedy": "666502385a1815298cd8cb6d35e082c05f70ccecb5bc8a8828c46a6a6115c565"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f16-main",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 468,
+            "exit": 0,
+            "captures": {
+              "batched": "91c6a567ace0dbb824ff64de2a40b1032443ba4539c4df959ddd53607f0e2f1b",
+              "decode": "79a4f89c4f076ffb88cebeb7c1df0e2a5d155bb61c7d57fe7fcab86c059e9f68",
+              "greedy": "b8b1b6d1f8fd8c35bbb26b993829f0d5825e31741cf95d69879802c9db93987d"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f16-candidate",
+              "vulkan:0,vulkan:1",
+              "f16",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 483,
+            "exit": 0,
+            "captures": {
+              "batched": "91c6a567ace0dbb824ff64de2a40b1032443ba4539c4df959ddd53607f0e2f1b",
+              "decode": "79a4f89c4f076ffb88cebeb7c1df0e2a5d155bb61c7d57fe7fcab86c059e9f68",
+              "greedy": "b8b1b6d1f8fd8c35bbb26b993829f0d5825e31741cf95d69879802c9db93987d"
+            }
+          },
+          {
+            "arm": "main",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/main/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f32-main",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "7d7f0693cdb8d979515dd25f0e057a5137871b6f0033d10c7c46a585ada00eb5",
+            "pid": 508,
+            "exit": 0,
+            "captures": {
+              "batched": "7251bf548f520ca5c496d27ca664150755e511a5bba0fd4f70d18ff31e3dc292",
+              "decode": "777086408d0c9267d141b1b966b35e5b751d3ef49bc433545d9acf749aa4f5ed",
+              "greedy": "dff5b6d7b39c83110b8b8e909553c8d6d9c176d0c7683c7ae566ecd9041d7f3d"
+            }
+          },
+          {
+            "arm": "candidate",
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "command": [
+              "timeout",
+              "--kill-after=10s",
+              "7100",
+              "/work/mxfp4-cpu-shares-linux-20260930/candidate/build/llmx-model-logits",
+              "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M.ids",
+              "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/Qwen3-30B-A3B-Q4_K_M-f32-candidate",
+              "vulkan:0,vulkan:1",
+              "f32",
+              "128",
+              "0",
+              "1,1"
+            ],
+            "tool_sha256": "a991ee194a8fed234eea08dfcc3a738a5154fa450efaffc5870f0e73893c276c",
+            "pid": 526,
+            "exit": 0,
+            "captures": {
+              "batched": "7251bf548f520ca5c496d27ca664150755e511a5bba0fd4f70d18ff31e3dc292",
+              "decode": "777086408d0c9267d141b1b966b35e5b751d3ef49bc433545d9acf749aa4f5ed",
+              "greedy": "dff5b6d7b39c83110b8b8e909553c8d6d9c176d0c7683c7ae566ecd9041d7f3d"
+            }
+          }
+        ],
+        "comparisons": [
+          {
+            "file": "tiny-f32-untied.gguf",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-untied.gguf",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "cache": "f16",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "cache": "f32",
+            "device": "vulkan:0,vulkan:1",
+            "layer_shares": [
+              1,
+              1
+            ],
+            "raw_captures_equal": 3
+          }
+        ],
+        "container": {
+          "name": "llmx-p2-x-mxfp4-split-20260930",
+          "id": "69228d9785e4ca6e58028728d04d9c969d33de4b424c2fed4164409aebe78739",
+          "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "command": [
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            "llmx-p2-x-mxfp4-split-20260930",
+            "--init",
+            "--ulimit",
+            "core=0:0",
+            "--cpuset-cpus",
+            "0-3,8-11",
+            "--cpus",
+            "6",
+            "--memory",
+            "32g",
+            "--device=/dev/dri/renderD132",
+            "--device=/dev/dri/renderD133",
+            "--security-opt",
+            "seccomp=unconfined",
+            "-v",
+            "/opt/claude-work/llmx-p2-x-mxfp4-cpu:/work",
+            "-v",
+            "/zpool1/models:/models:ro",
+            "-v",
+            "/opt/claude-work/llmx-vulkan-mi50/models:/root/.cache/huggingface/hub:ro",
+            "-v",
+            "/zpool1/llmx-xdev-validation:/evidence",
+            "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+            "sleep",
+            "infinity"
+          ],
+          "output_host_root": "/zpool1/llmx-xdev-validation",
+          "devices": [
+            "0000:83:00.0",
+            "0000:86:00.0"
+          ]
+        },
+        "device_listing": "3 devices\n\ndevice 0: AMD Instinct MI60 / MI50 (RADV VEGA20) | radv Mesa 25.0.7-2+deb13u1 | pci 0000:83:00.0\n  device uuid 00000000830000000000000000000000\n  driver uuid 414d442d4d4553412d44525600000000\n  VK_KHR_external_semaphore_fd         yes\n  VK_KHR_external_memory_fd            yes\n  VK_EXT_external_memory_dma_buf       yes\n  VK_EXT_external_memory_host          yes\n  VK_EXT_memory_budget                 yes\n  VK_EXT_pci_bus_info                  yes\n  VK_KHR_external_semaphore_win32      no\n  VK_KHR_external_memory_win32         no\n  binary   semaphore: opaque-fd export import | sync-fd export import | opaque-win32 none\n  timeline semaphore: opaque-fd export import | sync-fd none| opaque-win32 none\n  buffer: host-allocation import | opaque-fd export import | dma-buf export import \n  heap 0: 31.33 GiB, budget 31.32 GiB, used 0.00 GiB\n  heap 1: 31.98 GiB device-local, budget 31.97 GiB, used 0.00 GiB\n  host-pointer import: alignment 4096, memory types [5: heap 0, host-visible coherent cached ]\n  host-pointer import of 1048576 bytes into a buffer: ok\n\ndevice 1: AMD Instinct MI60 / MI50 (RADV VEGA20) | radv Mesa 25.0.7-2+deb13u1 | pci 0000:86:00.0\n  device uuid 00000000860000000000000000000000\n  driver uuid 414d442d4d4553412d44525600000000\n  VK_KHR_external_semaphore_fd         yes\n  VK_KHR_external_memory_fd            yes\n  VK_EXT_external_memory_dma_buf       yes\n  VK_EXT_external_memory_host          yes\n  VK_EXT_memory_budget                 yes\n  VK_EXT_pci_bus_info                  yes\n  VK_KHR_external_semaphore_win32      no\n  VK_KHR_external_memory_win32         no\n  binary   semaphore: opaque-fd export import | sync-fd export import | opaque-win32 none\n  timeline semaphore: opaque-fd export import | sync-fd none| opaque-win32 none\n  buffer: host-allocation import | opaque-fd export import | dma-buf export import \n  heap 0: 31.33 GiB, budget 31.32 GiB, used 0.00 GiB\n  heap 1: 31.98 GiB device-local, budget 31.97 GiB, used 0.00 GiB\n  host-pointer import: alignment 4096, memory types [5: heap 0, host-visible coherent cached ]\n  host-pointer import of 1048576 bytes into a buffer: ok\n\ndevice 2: llvmpipe (LLVM 19.1.7, 256 bits) | llvmpipe Mesa 25.0.7-2+deb13u1 (LLVM 19.1.7) | pci ?\n  device uuid 6d65736132352e302e372d322b646500\n  driver uuid 6c6c766d706970655555494400000000\n  VK_KHR_external_semaphore_fd         no\n  VK_KHR_external_memory_fd            yes\n  VK_EXT_external_memory_dma_buf       yes\n  VK_EXT_external_memory_host          yes\n  VK_EXT_memory_budget                 yes\n  VK_EXT_pci_bus_info                  no\n  VK_KHR_external_semaphore_win32      no\n  VK_KHR_external_memory_win32         no\n  binary   semaphore: opaque-fd none| sync-fd none| opaque-win32 none\n  timeline semaphore: opaque-fd none| sync-fd none| opaque-win32 none\n  buffer: host-allocation import | opaque-fd export import | dma-buf import \n  heap 0: 62.66 GiB device-local, budget 62.66 GiB, used 28.33 GiB\n  host-pointer import: alignment 4096, memory types [0: heap 0, device-local host-visible coherent cached ]\n  host-pointer import of 1048576 bytes into a buffer: ok\n\n3 device groups, the widest of 1 device (no peer memory between devices)\ndevices 0 and 1: driver uuid same, device uuid different\n",
+        "models": [
+          {
+            "file": "tiny-f32-untied.gguf",
+            "path": "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-untied.gguf",
+            "sha256": "044934393776ed63f50a89166302b1b674549b9d27fc5a685af1d74cd7bde125",
+            "vocab": 257,
+            "tiny": true,
+            "weights_sha256": "e4480d5d59f953bdb30cfcecac3d0b108295ba09d8ecb989eaa955133ffc12d2"
+          },
+          {
+            "file": "tiny-f32-tied.gguf",
+            "path": "/evidence/mxfp4-cpu-shares-two-mi50-identity-20260930/tiny-f32-tied.gguf",
+            "sha256": "d6e4c3ff942d6d9480910881b1df1cd7ed25440147792a869385afc2d06c4e11",
+            "vocab": 257,
+            "tiny": true,
+            "weights_sha256": "c5a997b4123db2b75ab180bbc0693548f4665f6188af110c7547d79ebc7d2eb3"
+          },
+          {
+            "family": "qwen3",
+            "repo": "Qwen/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
+            "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "size": 639446688,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 5,
+            "continuous_nll": 0.01,
+            "window_nll": 0.02,
+            "path": "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "size": 382156480,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.16,
+            "window_nll": 0.2,
+            "path": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "size": 444415680,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.05,
+            "window_nll": 0.16,
+            "path": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+            "vocab": 151936
+          },
+          {
+            "family": "qwen3",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+            "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "size": 396705472,
+            "gate": true,
+            "hosted": true,
+            "top5_overlap": 4,
+            "continuous_nll": 0.13,
+            "window_nll": 0.25,
+            "path": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-0.6B-F32.gguf",
+            "path": "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+            "sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-8B-Q8_0.gguf",
+            "path": "/models/llmx-xdev-mxfp4-20260928/Qwen3-8B-Q8_0.gguf",
+            "sha256": "408b955510e196121c1c375201744783b5c9a43c7956d73fc78df54c66e883d6",
+            "vocab": 151936
+          },
+          {
+            "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+            "path": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+            "sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+            "vocab": 151936
+          }
+        ],
+        "arms": {
+          "main": {
+            "head": "c9b8a4d44b6aa4472586c58c2bcb3666c33d4e9e",
+            "version": "llmx 0.1.0+gc9b8a4d44b6a",
+            "exe_sha256": "c7345ae7f524f30021df521066f61d57b4bda9e5092a5549abc4cdbcf31d10dc"
+          },
+          "candidate": {
+            "head": "5444f1a5bc8e2124ede51d047b8c001c7937660b",
+            "version": "llmx 0.1.0+g5444f1a5bc8e",
+            "exe_sha256": "4cafdc9ed54da2b2e8d6aeadc56b7c81f302a3206e3074c5d83db5816a59d3d0"
+          }
+        }
+      }
     }
   },
   "source_and_docs_review": {
@@ -7325,10 +11254,9 @@
     "correction": "Earlier CPU-merge-blocking language based solely on this additional diagnostic overstated the approved CPU gate."
   },
   "remaining": [
-    "Complete existing-model identities on Windows CPU, Linux CPU and one MI50: 18 model/cache cells and 54 raw pairs each. Two-MI50 equal split and Radeon/hybrid identity coverage remain open.",
-    "Applicable platform/device, split and real-model server consistency evidence.",
-    "Remaining required CPU timing cells and assessment; first-support allowance does not close speed gaps.",
-    "Required HF and final hosted gate on the reconciled source before public merge."
+    "Linux current integrated device suite and native GPU checks are running after the completed two-MI50 capture matrix.",
+    "CPU timing against current main including 14B; first-support allowance does not close speed gaps.",
+    "Reconcile other developer main merge, then required build/CTest and exact-head hosted gate before public merge."
   ],
   "capture_tool_dependency": {
     "source_head": "c9b8a4d44b6aa4472586c58c2bcb3666c33d4e9e",
@@ -7415,5 +11343,7 @@
       }
     },
     "scope": "Tool-only optional shares, no src runtime delta relative to main. Previously recorded CPU/Mi50 captures remain from runtime9be203b9. Integrated source and new equal-share captures require their own build evidence."
-  }
+  },
+  "validated_integration_head": "5444f1a5bc8e2124ede51d047b8c001c7937660b",
+  "runtime_source_identity": "git diff 9be203b9 5444f1a5 -- src is empty; the capture-shares prerequisite changes tools, tests and docs only."
 }

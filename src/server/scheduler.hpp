@@ -958,12 +958,13 @@ private:
 
     // A request leaves the active set, its history kept as a donor when it holds at least `least` tokens (a full block unless a paused request's own asks for less) and its blocks returned otherwise; the donor's id, 0 when none is kept.
     // A donor keeps only the blocks it holds reserved, and there are at most max_seqs donors, the oldest going when a newcomer needs the room.
+    // A model whose layers keep a recurrent state keeps no donor: its state exists only at the end of what it read, so nothing could fork it, and a paused request resumes by recomputing its history from its start.
     uint64_t park(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::vector<uint32_t>& h, size_t least = 0) {
         auto r = active[i];
         active.erase(active.begin() + (std::ptrdiff_t)i);
         const size_t held = r->seq_.length();
         uint64_t id = 0;
-        if (held && held >= (least ? least : model_.kv_block_tokens())) {
+        if (held && held >= (least ? least : model_.kv_block_tokens()) && !model_.keeps_state()) {
             std::lock_guard<std::mutex> lk(m_);
             while (donors_.size() >= max_seqs_) drop_donor();
             Donor d;

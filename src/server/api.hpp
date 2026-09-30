@@ -593,12 +593,6 @@ private:
 };
 
 // Serve until the listener is closed: the scheduler on its own thread, the accept loop here, one detached thread per connection.
-// The scheduler forks donors, reuses prefixes and resumes a paused request by recomputing its rows, none of which carries a recurrent state yet, so a model whose layers keep one is refused before the server listens.
-inline void require_servable(const infer::Model& model) {
-    if (model.keeps_state())
-        throw std::runtime_error("serve: the model's layers keep a recurrent state, which the server does not hold yet; generate, chat, logits and perplexity run it");
-}
-
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format,
                   const Config& cfg, http::Listener& listener) {
     Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing);

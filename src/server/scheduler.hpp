@@ -200,9 +200,13 @@ public:
     // No `passes` takes the stage count on a pipelined layer split and one elsewhere, which cannot keep more; passes that do not fit the devices' memory run fewer, and stderr says so.
     // A `timed` scheduler times its rounds and reads each stage's device time (Timing), over backends made to time their work.
     // Up to kSamplers threads beside the scheduler thread sample a pass's rows, fewer where the process may use fewer CPUs.
+    // A model whose layers keep a recurrent state must hold a state slot for each of the `max_seqs` requests it runs at once, so admission never waits on one.
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false)
         : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), timed_(timed),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)), reserved_(model.kv_pools(), 0) {
+        if (model_.keeps_state() && max_seqs_ > model_.state_slots())
+            throw std::logic_error("server: " + std::to_string(max_seqs_) + " requests at once need as many recurrent state slots, and the model holds " +
+                                   std::to_string(model_.state_slots()));
         for (size_t s = 0; s < model_.kv_pools(); ++s) {
             pools_.blocks.push_back(model_.kv_pool_blocks(s));
             pools_.block_tokens.push_back(model_.kv_pool_block_tokens(s));

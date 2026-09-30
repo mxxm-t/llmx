@@ -636,8 +636,10 @@ public:
         return seq_.length() * kv_layers_ * kv_bytes_per_position(plan_, options_);
     }
 
-    // Whether some layer keeps a recurrent state, which exists only at the end of what it has read: such a model is not forked, a failed pass loses its entries' states, and a server that cannot hold states refuses it.
+    // Whether some layer keeps a recurrent state, which exists only at the end of what it has read: such a model is not forked, a failed pass loses its entries' states, and a server keeps no donor of it.
     bool keeps_state() const { return state_layers_ > 0; }
+    // The sequences that may hold a recurrent state at once (ModelOptions::state_slots), zero for a model whose layers keep none.
+    size_t state_slots() const { return state_layers_ ? options_.state_slots : 0; }
 
 private:
     // One backend and what the placement put on it.

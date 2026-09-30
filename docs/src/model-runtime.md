@@ -176,8 +176,11 @@ delegated to a `backend::Backend`.
     prompt that fails part way, loses the state of every entry it takes
     back to a length other than 0, where the state reads as zero, and so
     does `abort_pass` even when no stage ran; a lost sequence is refused by
-    the next pass until its reset. A server that
-    cannot hold states refuses such a model.
+    the next pass until its reset. A server keeps no donor of such a
+    model.
+  - `state_slots()`: the sequences that may hold a recurrent state at once,
+    `ModelOptions::state_slots`, zero for a model whose layers keep none; a
+    server over such a model runs at most that many requests at once.
   - `kv_pools()`, `kv_pool_block_tokens(s)`, `kv_pool_blocks(s)`: the
     cache pools a scheduler admits against, one per device whose mixer
     layers keep KV, each in its own blocks; `kv_tokens_total()` is the tokens

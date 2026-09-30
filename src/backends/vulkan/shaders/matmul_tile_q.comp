@@ -44,7 +44,6 @@ layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
 uint pi = 0u;   // this workgroup's projection, uniform across it
 
 #define MROWS (TILE_ROWS / 16u)
-#define RG6 (MROWS < 4u ? MROWS : 4u)   // Q6_K rows the math takes together
 #define WPR (256u / TILE_ROWS)   // threads that stage one row's 8 words
 #define WW (8u / WPR)            // and how many words each
 
@@ -363,18 +362,18 @@ void main() {
 #endif
         }
 #else
-        // The same word-outer form over groups of RG6 rows, the block's two halves of 16 summed apart since Q6_K scales them apart.
+        // The same word-outer form, the block's two halves of 16 summed apart since Q6_K scales them apart; Q6_K takes only the short and small heights (qtile), so a thread's rows are all live at once.
         vec2 c0 = xsc[s * 64u + tc * 4u], c1 = xsc[s * 64u + tc * 4u + 1u];
         vec2 c2 = xsc[s * 64u + tc * 4u + 2u], c3 = xsc[s * 64u + tc * 4u + 3u];
-        for (uint i0 = 0u; i0 < MROWS; i0 += RG6) {
-            int l[RG6][4], h[RG6][4];
-            for (uint i = 0u; i < RG6; ++i) for (uint j = 0u; j < 4u; ++j) { l[i][j] = 0; h[i][j] = 0; }
+        {
+            int l[MROWS][4], h[MROWS][4];
+            for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) { l[i][j] = 0; h[i][j] = 0; }
             for (uint w = 0u; w < 4u; ++w) {
                 uvec2 l0 = xw[s * 8u + w][tc * 4u], l1 = xw[s * 8u + w][tc * 4u + 1u], l2 = xw[s * 8u + w][tc * 4u + 2u], l3 = xw[s * 8u + w][tc * 4u + 3u];
                 uvec2 h0 = xw[s * 8u + w + 4u][tc * 4u], h1 = xw[s * 8u + w + 4u][tc * 4u + 1u];
                 uvec2 h2 = xw[s * 8u + w + 4u][tc * 4u + 2u], h3 = xw[s * 8u + w + 4u][tc * 4u + 3u];
-                for (uint i = 0u; i < RG6; ++i) {
-                    uint r = tr * MROWS + i0 + i;
+                for (uint i = 0u; i < MROWS; ++i) {
+                    uint r = tr * MROWS + i;
                     uvec2 a = wq[s * 8u + w][r], e = wq[s * 8u + w + 4u][r];
                     l[i][0] = dot_pairs(a, l0, l[i][0]); h[i][0] = dot_pairs(e, h0, h[i][0]);
                     l[i][1] = dot_pairs(a, l1, l[i][1]); h[i][1] = dot_pairs(e, h1, h[i][1]);
@@ -382,12 +381,12 @@ void main() {
                     l[i][3] = dot_pairs(a, l3, l[i][3]); h[i][3] = dot_pairs(e, h3, h[i][3]);
                 }
             }
-            for (uint i = 0u; i < RG6; ++i) {
-                vec4 ws = wsc[s * TILE_ROWS + tr * MROWS + i0 + i];
-                acc[i0 + i][0] += c0.x * (ws.x * float(l[i][0]) + ws.y * float(h[i][0]));
-                acc[i0 + i][1] += c1.x * (ws.x * float(l[i][1]) + ws.y * float(h[i][1]));
-                acc[i0 + i][2] += c2.x * (ws.x * float(l[i][2]) + ws.y * float(h[i][2]));
-                acc[i0 + i][3] += c3.x * (ws.x * float(l[i][3]) + ws.y * float(h[i][3]));
+            for (uint i = 0u; i < MROWS; ++i) {
+                vec4 ws = wsc[s * TILE_ROWS + tr * MROWS + i];
+                acc[i][0] += c0.x * (ws.x * float(l[i][0]) + ws.y * float(h[i][0]));
+                acc[i][1] += c1.x * (ws.x * float(l[i][1]) + ws.y * float(h[i][1]));
+                acc[i][2] += c2.x * (ws.x * float(l[i][2]) + ws.y * float(h[i][2]));
+                acc[i][3] += c3.x * (ws.x * float(l[i][3]) + ws.y * float(h[i][3]));
             }
         }
 #endif

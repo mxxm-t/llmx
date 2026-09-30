@@ -344,7 +344,7 @@ enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_P
                 K_QUANTIZE_X, K_MATMUL_ROW_Q8W, K_MATMUL_TILE_TALL,
                 K_MATMUL_ROW_Q4_DOT,
                 K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
-                K_QUANTIZE_XW, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6_TALL,
+                K_QUANTIZE_XW, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6,
                 K_MATMUL_TILE_Q8, K_MATMUL_TILE_Q8_TALL,
                 K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP, K_MATMUL_ROW_K_DOT8, K_MATMUL_ROW_Q4_DOT8,
                 K_ATTENTION_G4, K_ATTENTION_K16_G4, K_ATTENTION_V16_G4, K_ATTENTION_KV16_G4,
@@ -382,7 +382,7 @@ inline bool is_row_kernel(KernelId id) {
 inline bool is_tile_kernel(KernelId id) {
     switch (id) {
     case K_MATMUL_TILE: case K_MATMUL_TILE_TALL: case K_MATMUL_TILE_Q: case K_MATMUL_TILE_Q_TALL:
-    case K_MATMUL_TILE_Q6: case K_MATMUL_TILE_Q6_TALL: case K_MATMUL_TILE_Q8: case K_MATMUL_TILE_Q8_TALL:
+    case K_MATMUL_TILE_Q6: case K_MATMUL_TILE_Q8: case K_MATMUL_TILE_Q8_TALL:
         return true;
     default: return false;
     }
@@ -516,7 +516,7 @@ const char* const kKernelNames[K_COUNT] = {
     "quantize_x", "matmul_row_q8w", "matmul_tile_tall",
     "matmul_row_q4_dot",
     "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
-    "quantize_xw", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6", "matmul_tile_q6_tall",
+    "quantize_xw", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6",
     "matmul_tile_q8", "matmul_tile_q8_tall",
     "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group", "matmul_row_k_dot8", "matmul_row_q4_dot8",
     "attention_g4", "attention_k16_g4", "attention_v16_g4", "attention_kv16_g4",
@@ -567,7 +567,6 @@ const KernelSource kKernels[K_COUNT] = {
     {kSpvQuantizeXW, sizeof(kSpvQuantizeXW), 2, nullptr},
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts},
-    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts},
     {kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts},
@@ -2280,8 +2279,10 @@ public:
         QTile t;
         for (const Projection* pr : ps) t.rows += pr->rows;
         t.height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin);
+        // Q6_K stops at the short height: its tall build holds two groups of rows' half sums and runs one subgroup a SIMD (docs/VULKAN.md).
+        if (ps[0]->type == quant::GGML_TYPE_Q6_K && t.height == kTileRowsTall) t.height = kTileRowsShort;
         const bool tall = t.height == kTileRowsTall;
-        t.kernel = ps[0]->type == quant::GGML_TYPE_Q6_K ? (tall ? K_MATMUL_TILE_Q6_TALL : K_MATMUL_TILE_Q6)
+        t.kernel = ps[0]->type == quant::GGML_TYPE_Q6_K ? K_MATMUL_TILE_Q6
                  : ps[0]->type == quant::GGML_TYPE_Q8_0 ? (tall ? K_MATMUL_TILE_Q8_TALL : K_MATMUL_TILE_Q8)
                                                        : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q);
         for (size_t i = 0; i < 3; ++i) {
@@ -2691,8 +2692,7 @@ private:
             ci.stage.pName = "main";
             // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
             const bool tile = is_tile_kernel(id);
-            const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q6_TALL ||
-                                   id == K_MATMUL_TILE_Q8_TALL;
+            const bool tall_tile = id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
                                              : build_cols(id, variant);
             // Constant 7 selects a producer's build that also writes the 8-bit twin, constant 8 a row kernel's grouped build, and constant 9 the rows a build takes, a cluster's in matmul_row.comp (build_rows) and a subgroup's in the Q8_0 decode kernel.

@@ -1,0 +1,796 @@
+{
+  "scope": "Windows long-path manifest fix; no runtime source delta from CPU main d81ed428. Failing-first commit90216a56, fix6d382c44, code-conflict-free integration969cc034; later changes are documentation only.",
+  "windows_archive": {
+    "archive": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-windows-evidence-20260930.tar.gz",
+    "sha256": "4c5673fe51fed7f2529d64202bf45f355e4764b8d9060e802cfdb936c60ea2b4",
+    "payloads": 90,
+    "scope": "Windows failing-first long-path proof, unchanged-binary manifest experiment, CMake/plain scoped tests, full CPU gate at6d382c44, all24 main-equivalent raw identity pairs, and fresh integrated969cc034 Vulkan/native/focused/plain checks. Large raw captures remain beside identity manifests. Initial wrapper/package-independent failures retained."
+  },
+  "full_windows_gate": {
+    "status": "pass",
+    "pid": 31728,
+    "head": "6d382c4467d9479f01cf1e72ad96412e6f185843",
+    "steps": [
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build",
+          "--config",
+          "Release",
+          "--parallel",
+          "2"
+        ],
+        "pid": 32908,
+        "exit": 0
+      },
+      {
+        "name": "native",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "pid": 31792,
+        "exit": 0
+      },
+      {
+        "name": "suite",
+        "command": [
+          "python",
+          "-P",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build\\Release\\llmx.exe",
+          "--no-perf-floor",
+          "--require-tools",
+          "--require-baseline"
+        ],
+        "pid": 14524,
+        "exit": 0
+      }
+    ],
+    "exe_sha256": "5d6f907c0fcc046086ee5b4923508d173c22a6e54a9a926a1a1438a98db1d6c7"
+  },
+  "identity": {
+    "status": "pass",
+    "pid": 29768,
+    "tokens": [
+      284,
+      8397,
+      425,
+      10965,
+      465,
+      284,
+      715,
+      8397,
+      425,
+      10965,
+      465,
+      374,
+      458,
+      6364,
+      4531,
+      1154,
+      12425,
+      323,
+      33496,
+      12089,
+      659,
+      1260,
+      1030,
+      264,
+      8640,
+      569,
+      12,
+      31,
+      39400,
+      3476,
+      389,
+      279,
+      12425,
+      4013,
+      576,
+      8596,
+      304,
+      220,
+      17,
+      15,
+      15,
+      15,
+      659,
+      1096,
+      572,
+      8110,
+      553
+    ],
+    "scope": "Windows manifest fix 6d382c44 versus baseline c1398b1b: its CPU runtime and capture tool are identical to main4141ec56; only main GPU shader differs. Four Qwen0.6 mixtures, both caches, all raw prompt/decode/64greedy captures. Correctness only, may run alongside the host suite.",
+    "runs": [
+      {
+        "arm": "baseline",
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "cache": "f16",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q8_0-f16-baseline",
+          "cpu",
+          "f16",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "1d470215aa5e22877a07f62b747b547f525175a318caeb233619148f2f4159b3",
+        "pid": 33128,
+        "exit": 0,
+        "captures": {
+          "batched": "7a2cf9daaf6fbae8fd39642b0e2073c6c10bac8a30121f9df3df42af5fef3722",
+          "decode": "122e3706d9c45e1b378e84d7dadfcdc066372c44920146f9d37dd1b8bfe4395c",
+          "greedy": "d5d0b1cc83aaeefa83a5d79cf0326bae68e5e7825f3cdbe5cfd5062a61a5993e"
+        }
+      },
+      {
+        "arm": "candidate",
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "cache": "f16",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q8_0-f16-candidate",
+          "cpu",
+          "f16",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "c5bb4802af7ad90f3a6cec6d46265629f4b844be4add6d1be95bc35385d8252f",
+        "pid": 32540,
+        "exit": 0,
+        "captures": {
+          "batched": "7a2cf9daaf6fbae8fd39642b0e2073c6c10bac8a30121f9df3df42af5fef3722",
+          "decode": "122e3706d9c45e1b378e84d7dadfcdc066372c44920146f9d37dd1b8bfe4395c",
+          "greedy": "d5d0b1cc83aaeefa83a5d79cf0326bae68e5e7825f3cdbe5cfd5062a61a5993e"
+        }
+      },
+      {
+        "arm": "baseline",
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "cache": "f32",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q8_0-f32-baseline",
+          "cpu",
+          "f32",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "1d470215aa5e22877a07f62b747b547f525175a318caeb233619148f2f4159b3",
+        "pid": 31032,
+        "exit": 0,
+        "captures": {
+          "batched": "de702a50ec27b9da6caf7f105cccf5617c3b7ff8c97ff2f97680cf7b1a1e551b",
+          "decode": "7f6b8b11fae226494f9509a8ea64e4bc2bb754aa894986c071f863e3578318d5",
+          "greedy": "f1b9413415dac847c378e2f7ca8d7109fb42f44e9567cbf987a20d4b1a0d0abb"
+        }
+      },
+      {
+        "arm": "candidate",
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "cache": "f32",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q8_0-f32-candidate",
+          "cpu",
+          "f32",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "c5bb4802af7ad90f3a6cec6d46265629f4b844be4add6d1be95bc35385d8252f",
+        "pid": 33032,
+        "exit": 0,
+        "captures": {
+          "batched": "de702a50ec27b9da6caf7f105cccf5617c3b7ff8c97ff2f97680cf7b1a1e551b",
+          "decode": "7f6b8b11fae226494f9509a8ea64e4bc2bb754aa894986c071f863e3578318d5",
+          "greedy": "f1b9413415dac847c378e2f7ca8d7109fb42f44e9567cbf987a20d4b1a0d0abb"
+        }
+      },
+      {
+        "arm": "baseline",
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "cache": "f16",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q4_0-f16-baseline",
+          "cpu",
+          "f16",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "1d470215aa5e22877a07f62b747b547f525175a318caeb233619148f2f4159b3",
+        "pid": 10424,
+        "exit": 0,
+        "captures": {
+          "batched": "26b5d3356e73be922982ea9ee75bb5d8ead32b08a8a3c890ae4a9b800c7e2d97",
+          "decode": "ccaa636da8d0aa2d8d48c7fbf42a0a9bb1e6fae66476774d895fdb19b1bc8f3c",
+          "greedy": "7414be4afac0782e2f6b6140e193773a6b18c996941aa46afaed94e3b8d11dc0"
+        }
+      },
+      {
+        "arm": "candidate",
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "cache": "f16",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q4_0-f16-candidate",
+          "cpu",
+          "f16",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "c5bb4802af7ad90f3a6cec6d46265629f4b844be4add6d1be95bc35385d8252f",
+        "pid": 20512,
+        "exit": 0,
+        "captures": {
+          "batched": "26b5d3356e73be922982ea9ee75bb5d8ead32b08a8a3c890ae4a9b800c7e2d97",
+          "decode": "ccaa636da8d0aa2d8d48c7fbf42a0a9bb1e6fae66476774d895fdb19b1bc8f3c",
+          "greedy": "7414be4afac0782e2f6b6140e193773a6b18c996941aa46afaed94e3b8d11dc0"
+        }
+      },
+      {
+        "arm": "baseline",
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "cache": "f32",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q4_0-f32-baseline",
+          "cpu",
+          "f32",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "1d470215aa5e22877a07f62b747b547f525175a318caeb233619148f2f4159b3",
+        "pid": 8884,
+        "exit": 0,
+        "captures": {
+          "batched": "70e10d834a737931e0fb3bdc761fa6f24c29ea50894bbda2e301ed70745d699a",
+          "decode": "85790e20a9ecb929561fc42ef609900e0632fcae26ca24f97f9c254a786e3f09",
+          "greedy": "c2c61bcf0a03a379adcb6510c81de230db6e0e5141afff3893355b4a7b109447"
+        }
+      },
+      {
+        "arm": "candidate",
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "cache": "f32",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_0.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q4_0-f32-candidate",
+          "cpu",
+          "f32",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "c5bb4802af7ad90f3a6cec6d46265629f4b844be4add6d1be95bc35385d8252f",
+        "pid": 31052,
+        "exit": 0,
+        "captures": {
+          "batched": "70e10d834a737931e0fb3bdc761fa6f24c29ea50894bbda2e301ed70745d699a",
+          "decode": "85790e20a9ecb929561fc42ef609900e0632fcae26ca24f97f9c254a786e3f09",
+          "greedy": "c2c61bcf0a03a379adcb6510c81de230db6e0e5141afff3893355b4a7b109447"
+        }
+      },
+      {
+        "arm": "baseline",
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+        "cache": "f16",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q5_K_M-f16-baseline",
+          "cpu",
+          "f16",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "1d470215aa5e22877a07f62b747b547f525175a318caeb233619148f2f4159b3",
+        "pid": 33284,
+        "exit": 0,
+        "captures": {
+          "batched": "14873ba5ca59153aae0751b8bcf9429fd0fd938e15491c6d62bc1b3bf16bc12f",
+          "decode": "c2d5f2fb1ba2bfe7686e38fcb7ff984c52642afd2da7303b69ad538f304ad312",
+          "greedy": "cd381c992d9e785d686b85045c02ec0cfb6da943ad6dc24d69474d9f6f46b5c1"
+        }
+      },
+      {
+        "arm": "candidate",
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+        "cache": "f16",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q5_K_M-f16-candidate",
+          "cpu",
+          "f16",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "c5bb4802af7ad90f3a6cec6d46265629f4b844be4add6d1be95bc35385d8252f",
+        "pid": 21564,
+        "exit": 0,
+        "captures": {
+          "batched": "14873ba5ca59153aae0751b8bcf9429fd0fd938e15491c6d62bc1b3bf16bc12f",
+          "decode": "c2d5f2fb1ba2bfe7686e38fcb7ff984c52642afd2da7303b69ad538f304ad312",
+          "greedy": "cd381c992d9e785d686b85045c02ec0cfb6da943ad6dc24d69474d9f6f46b5c1"
+        }
+      },
+      {
+        "arm": "baseline",
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+        "cache": "f32",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q5_K_M-f32-baseline",
+          "cpu",
+          "f32",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "1d470215aa5e22877a07f62b747b547f525175a318caeb233619148f2f4159b3",
+        "pid": 32652,
+        "exit": 0,
+        "captures": {
+          "batched": "91d8960de3759165b27fc28e7e2ce6d8eb995e1349e707340eb022e812e809d6",
+          "decode": "21b04014faa702b323c732c60b7b17b6a3baba8cd7d3a3a0dc1f4a57621d961f",
+          "greedy": "736723050ae90545a5ae34f07fc6f0b9d6c98dd2a3766cf1c1b4daef6cd89013"
+        }
+      },
+      {
+        "arm": "candidate",
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+        "cache": "f32",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q5_K_M.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q5_K_M-f32-candidate",
+          "cpu",
+          "f32",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "c5bb4802af7ad90f3a6cec6d46265629f4b844be4add6d1be95bc35385d8252f",
+        "pid": 9072,
+        "exit": 0,
+        "captures": {
+          "batched": "91d8960de3759165b27fc28e7e2ce6d8eb995e1349e707340eb022e812e809d6",
+          "decode": "21b04014faa702b323c732c60b7b17b6a3baba8cd7d3a3a0dc1f4a57621d961f",
+          "greedy": "736723050ae90545a5ae34f07fc6f0b9d6c98dd2a3766cf1c1b4daef6cd89013"
+        }
+      },
+      {
+        "arm": "baseline",
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+        "cache": "f16",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q4_K_M-f16-baseline",
+          "cpu",
+          "f16",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "1d470215aa5e22877a07f62b747b547f525175a318caeb233619148f2f4159b3",
+        "pid": 12492,
+        "exit": 0,
+        "captures": {
+          "batched": "0c2bba96df3ddf1a34e76251c20e5cae23445b0a1f99252946f8342ca5efe96b",
+          "decode": "b540b5b77b3bee464c7098128ad63af21ccd899c91ee21392e772bf0885cb2e1",
+          "greedy": "8288b37031935f6decd9216d9f7c2a75645a9b5918329fc82c56a4d1d6378e27"
+        }
+      },
+      {
+        "arm": "candidate",
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+        "cache": "f16",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q4_K_M-f16-candidate",
+          "cpu",
+          "f16",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "c5bb4802af7ad90f3a6cec6d46265629f4b844be4add6d1be95bc35385d8252f",
+        "pid": 16900,
+        "exit": 0,
+        "captures": {
+          "batched": "0c2bba96df3ddf1a34e76251c20e5cae23445b0a1f99252946f8342ca5efe96b",
+          "decode": "b540b5b77b3bee464c7098128ad63af21ccd899c91ee21392e772bf0885cb2e1",
+          "greedy": "8288b37031935f6decd9216d9f7c2a75645a9b5918329fc82c56a4d1d6378e27"
+        }
+      },
+      {
+        "arm": "baseline",
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+        "cache": "f32",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-cpu-main-win-q35-base-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q4_K_M-f32-baseline",
+          "cpu",
+          "f32",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "1d470215aa5e22877a07f62b747b547f525175a318caeb233619148f2f4159b3",
+        "pid": 26032,
+        "exit": 0,
+        "captures": {
+          "batched": "e79992dceaa98f972e4840883afc00dfd68fe784029ee3ae53a78d7292f080d4",
+          "decode": "7211bdd38601042c5a90a23cb825ce5bd9e5b5aa62c9477dc13ac437c3cac955",
+          "greedy": "acd610c5effde08ead7fac3d34d878cba2fa6df3a25ee71138799b39b350f80e"
+        }
+      },
+      {
+        "arm": "candidate",
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+        "cache": "f32",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build\\Release\\llmx-model-logits.exe",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-Q4_K_M.gguf",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\tokens.ids",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-identity-20260930\\Qwen3-0.6B-Q4_K_M-f32-candidate",
+          "cpu",
+          "f32",
+          "128",
+          "0"
+        ],
+        "tool_sha256": "c5bb4802af7ad90f3a6cec6d46265629f4b844be4add6d1be95bc35385d8252f",
+        "pid": 11364,
+        "exit": 0,
+        "captures": {
+          "batched": "e79992dceaa98f972e4840883afc00dfd68fe784029ee3ae53a78d7292f080d4",
+          "decode": "7211bdd38601042c5a90a23cb825ce5bd9e5b5aa62c9477dc13ac437c3cac955",
+          "greedy": "acd610c5effde08ead7fac3d34d878cba2fa6df3a25ee71138799b39b350f80e"
+        }
+      }
+    ],
+    "comparisons": [
+      {
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "cache": "f16",
+        "raw_captures_equal": 3
+      },
+      {
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "cache": "f32",
+        "raw_captures_equal": 3
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "cache": "f16",
+        "raw_captures_equal": 3
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "cache": "f32",
+        "raw_captures_equal": 3
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "cache": "f16",
+        "raw_captures_equal": 3
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "cache": "f32",
+        "raw_captures_equal": 3
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "cache": "f16",
+        "raw_captures_equal": 3
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "cache": "f32",
+        "raw_captures_equal": 3
+      }
+    ]
+  },
+  "windows_integration": {
+    "status": "pass",
+    "pid": 9400,
+    "arms": {
+      "candidate": {
+        "source": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930",
+        "head": "969cc034cca185f7f0bb303d001178af8d29c40d",
+        "exe": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build-integration\\Release\\llmx.exe",
+        "version": "llmx 0.1.0+g969cc034cca1",
+        "sha256": "e687b04c63c9d5f26cff08f5961eae202cfcac4747772d23df4dbe6a8c1def0f"
+      }
+    },
+    "commands": [
+      {
+        "label": "candidate-configure",
+        "args": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930",
+          "-B",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build-integration",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DBUILD_TESTING=ON"
+        ],
+        "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930",
+        "started": "2026-09-30T04:27:15.998144+00:00",
+        "pid": 11972,
+        "exit": 0
+      },
+      {
+        "label": "candidate-build",
+        "args": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build-integration",
+          "--config",
+          "Release",
+          "--parallel",
+          "2"
+        ],
+        "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930",
+        "started": "2026-09-30T04:27:19.529334+00:00",
+        "pid": 17204,
+        "exit": 0
+      },
+      {
+        "label": "native",
+        "args": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build-integration",
+          "-C",
+          "Release",
+          "--output-on-failure"
+        ],
+        "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930",
+        "started": "2026-09-30T04:28:39.415300+00:00",
+        "pid": 30360,
+        "exit": 0
+      },
+      {
+        "label": "suite",
+        "args": [
+          "python",
+          "-P",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build-integration\\Release\\llmx.exe",
+          "--require-tools",
+          "--no-perf-floor",
+          "--only",
+          "dead-code,docs,device-reference,mxfp4,roundtrip"
+        ],
+        "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930",
+        "started": "2026-09-30T04:29:59.770042+00:00",
+        "pid": 18520,
+        "exit": 0
+      },
+      {
+        "label": "plain-build",
+        "args": [
+          "cmd.exe",
+          "/d",
+          "/c",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\build.bat"
+        ],
+        "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930",
+        "started": "2026-09-30T04:30:14.111289+00:00",
+        "pid": 26384,
+        "exit": 0
+      },
+      {
+        "label": "plain-roundtrip",
+        "args": [
+          "python",
+          "-P",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930\\llmx.exe",
+          "--only",
+          "roundtrip",
+          "--no-perf-floor"
+        ],
+        "cwd": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-long-paths-20260930",
+        "started": "2026-09-30T04:30:24.849209+00:00",
+        "pid": 16512,
+        "exit": 0
+      }
+    ],
+    "scope": "Windows long-path fix after code-conflict-free integration of CPU main d81ed428 and separate merge record a0016dda. Fresh Vulkan-enabled directory; all native and five focused components, plain build and long-path regression. Prior full CPU suite and 24 raw identities retained."
+  },
+  "linux_integration": {
+    "status": "pass",
+    "launcher_pid": 459175,
+    "commands": [
+      {
+        "name": "candidate-clone",
+        "command": [
+          "git",
+          "clone",
+          "--depth",
+          "1",
+          "--single-branch",
+          "--branch",
+          "fix/windows-long-paths",
+          "http://11.10.10.12:3000/admin/llmx.git",
+          "/opt/claude-work/llmx-p2-x-mxfp4-cpu/long-paths-integration-linux-20260930/candidate/source"
+        ],
+        "started": "2026-09-30T04:27:29.937192+00:00",
+        "pid": 459210,
+        "returncode": 0
+      },
+      {
+        "name": "candidate-configure",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu2-20260928",
+          "taskset",
+          "-c",
+          "0,1",
+          "timeout",
+          "--kill-after=10s",
+          "3600",
+          "cmake",
+          "-S",
+          "/work/long-paths-integration-linux-20260930/candidate/source",
+          "-B",
+          "/work/long-paths-integration-linux-20260930/candidate/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DBUILD_TESTING=ON"
+        ],
+        "started": "2026-09-30T04:27:31.308748+00:00",
+        "pid": 459266,
+        "returncode": 0
+      },
+      {
+        "name": "candidate-build",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu2-20260928",
+          "taskset",
+          "-c",
+          "0,1",
+          "timeout",
+          "--kill-after=10s",
+          "3600",
+          "cmake",
+          "--build",
+          "/work/long-paths-integration-linux-20260930/candidate/build",
+          "--parallel",
+          "2"
+        ],
+        "started": "2026-09-30T04:27:32.277892+00:00",
+        "pid": 459363,
+        "returncode": 0
+      },
+      {
+        "name": "native",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu2-20260928",
+          "taskset",
+          "-c",
+          "0,1",
+          "timeout",
+          "--kill-after=10s",
+          "3600",
+          "ctest",
+          "--test-dir",
+          "/work/long-paths-integration-linux-20260930/candidate/build",
+          "--output-on-failure"
+        ],
+        "started": "2026-09-30T04:33:44.168385+00:00",
+        "pid": 481550,
+        "returncode": 0
+      },
+      {
+        "name": "cpu-suite",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu2-20260928",
+          "taskset",
+          "-c",
+          "0,1",
+          "timeout",
+          "--kill-after=10s",
+          "3600",
+          "python3",
+          "-X",
+          "utf8",
+          "/work/long-paths-integration-linux-20260930/candidate/source/tests/run_tests.py",
+          "--exe",
+          "/work/long-paths-integration-linux-20260930/candidate/build/llmx",
+          "--require-tools",
+          "--no-perf-floor",
+          "--only",
+          "dead-code,docs,device-reference,mxfp4,roundtrip"
+        ],
+        "started": "2026-09-30T04:34:47.791395+00:00",
+        "pid": 485868,
+        "returncode": 0
+      }
+    ],
+    "arms": {
+      "candidate": {
+        "head": "969cc034cca185f7f0bb303d001178af8d29c40d",
+        "version": "llmx 0.1.0+g969cc034cca1",
+        "source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/long-paths-integration-linux-20260930/candidate/source",
+        "build": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/long-paths-integration-linux-20260930/candidate/build",
+        "sha256": "90e3a5e17b9327845d695b3a2ce5ad8b99c3469b9ead2389df0e37b6c8513b49"
+      }
+    },
+    "scope": "Windows manifest fix integrated onto CPU main; no runtime delta from d81ed428. Fresh Linux Vulkan-enabled build, native tests and five focused components; prior full gates retained.",
+    "container": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600"
+  },
+  "limitations": [
+    "The system LongPathsEnabled policy must already be enabled. The test reads but does not change it; missing/disabled policy is an explicit case skip.",
+    "The first plain-build wrapper failed to locate build.bat before compilation. The explicit absolute-path retry and later clean integration build pass; all attempts retained.",
+    "Hosted validation must pass the final head before merge."
+  ]
+}

@@ -161,12 +161,12 @@ Nothing is added to the contract before an architecture uses it.
 
 ### Future split modes
 
-Today the runtime splits a model by layers, and each part of a layer runs whole on one device, the one whose backend its `Step` holds.
+Today the runtime runs a model as a layer split, and each part of a layer runs whole on one device, the one whose backend its `Step` holds.
 [MULTI-DEVICE](MULTI-DEVICE.md) plans more ways to split a model:
 - the layer split, which runs now;
 - the head split of layer split phase 3's step 6, an option that divides the output projection's vocabulary rows over the stages;
-- tensor groups in phase 6, where every layer runs on several devices at once: q, k, v, gate and up split by output rows, the attention output and down by input columns, attention by heads with each member keeping the KV of its heads, and two sums over the group per layer;
-- staged tensor, stages of a layer split each of which is a tensor group;
+- the tensor split in phase 6, where every layer runs on a tensor group of several devices at once: q, k, v, gate and up split by output rows, the attention output and down by input columns, attention by heads with each member keeping the KV of its heads, and two sums over the group per layer;
+- the staged tensor split, stages of a layer split each of which is a tensor group;
 - expert parallelism, where a layer's experts are divided between devices.
 
 Each reaches a module as fields of the contract, not as a rewrite of it:
@@ -174,7 +174,7 @@ Each reaches a module as fields of the contract, not as a rewrite of it:
 - a `Step` carries the group member it runs on, the group's width and the range of heads that member holds, and a group-sum hook the parts call where a partial result is summed over the group, which is the identity at width 1.
 
 So once the contract gives a module shard information, its math assumes neither a whole matrix nor all heads: it takes a projection's widths from the `Weight` it is handed, runs over the heads its `Step` names, and calls the group sum where a product split by input columns ends.
-The head split lands those fields in their general form as their first user, and the tensor group adds the group sum.
+The head split lands those fields in their general form as their first user, and the tensor split adds the group sum.
 
 ## Rules
 

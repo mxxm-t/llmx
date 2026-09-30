@@ -34,7 +34,7 @@ guessed:
    be undone for them. The section "Beyond dense Qwen" lists which
    assumptions those are; the steps below are written to avoid them.
 
-**Superseded by [MULTI-DEVICE](MULTI-DEVICE.md):** tensor-parallel work returns there as the tensor group, built after the layer split on the same stages, with its sums placed where it measures to pay. The paragraph below is the reasoning at the time.
+**Superseded by [MULTI-DEVICE](MULTI-DEVICE.md):** tensor-parallel work returns there as the tensor split, built after the layer split on the same stages, with its sums placed where it measures to pay. The paragraph below is the reasoning at the time.
 
 **Per-row (tensor-parallel) split is dropped from the roadmap.** It moves
 data between devices at every projection of every layer, so it only pays
@@ -263,7 +263,7 @@ already selects `cpu` or `vulkan:N`; ROCm selection waits for that backend.
 layers, or all, on the CPU beside a device (`docs/USAGE.md`). A layer
 split is a `--device` list, fitted to the memory each backend reports free
 (`Backend::memory_available`, `split_layers` in `model/layer_split.hpp`)
-unless `--layer-shares` sets the proportions. The flags for tensor groups
+unless `--layer-shares` sets the proportions. The flags for the tensor split
 are sketched in [MULTI-DEVICE](MULTI-DEVICE.md) and land in
 `docs/USAGE.md` and `print_usage` with their phase.
 

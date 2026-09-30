@@ -310,7 +310,7 @@ beside it (below); `--ubatch` keeps its meaning.
 
 ## Several devices (`--device A,B,...`, `--layer-shares`)
 
-A comma-separated `--device` list splits the model by layers over the
+A comma-separated `--device` list runs the model as a layer split over the
 devices in the order listed: the first runs the embedding and the first
 layers, the last runs the final layers and the head, and the residual
 stream crosses once at each boundary per pass. Each device's layers are
@@ -333,8 +333,8 @@ The CPU reports what the process can still take of the host's memory: the host's
 `--layer-shares A,B,...` overrides the fit with each device's proportion of
 the layers, one whole number per listed device: `1,1` halves the layers,
 `3,1` gives the first device three quarters; the fit is still checked. A
-device may be listed once. Experts on the CPU (`--n-cpu-moe`, `--cpu-moe`)
-are a placement of one device and are refused with a list; list the CPU
+device may be listed once. Expert offload (`--n-cpu-moe`, `--cpu-moe`)
+is a placement of one device and is refused with a list; list the CPU
 as a device to give it layers. `bench` without `--model` measures the
 first device listed.
 `--profile` takes one Vulkan device and is refused with a list or layer shares.
@@ -349,10 +349,10 @@ hold the clocks up with the system's own tool where a split serves one
 stream, on Linux with AMD cards `rocm-smi -d 2 3 --setperflevel high` for
 the cards in the split, and `--setperflevel auto` to return them.
 
-## Experts on the CPU (`--n-cpu-moe N`, `--cpu-moe`)
+## Expert offload (`--n-cpu-moe N`, `--cpu-moe`)
 
-A mixture-of-experts model (`qwen3moe`, such as Qwen3-30B-A3B) larger than
-the device's memory can keep its experts in host memory:
+With expert offload, a mixture-of-experts model (`qwen3moe`, such as Qwen3-30B-A3B) larger than
+the device's memory keeps its experts in host memory:
 `--n-cpu-moe N` runs the routed feed-forward block of the first `N` routed
 layers on the CPU, `--cpu-moe` that of every routed layer. Attention, dense
 feed-forward blocks, the embedding table and the output head stay on the

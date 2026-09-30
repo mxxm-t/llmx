@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## README support overview (2026-09-30, branch docs/readme-support)
+
+- **Goal:** a README that shows a newcomer what llmx supports: architectures and models, quantization types, file formats, backends and devices, multi-device modes and the server, each marked Supported or Planned.
+- **Done:** the README's tables are checked against `src/model/arch/registry.hpp`, `src/quant/`, the Vulkan backend's `supports_type`, `src/server/api.hpp`, USAGE and ROADMAP; Planned marks only what ROADMAP plans (qwen35moe and further architectures, qwen35 serving, F16/BF16/IQ4/Q3_K/Q2_K, MXFP4 on Vulkan, safetensors and ONNX, ROCm/CUDA/SYCL, the tensor split, the staged tensor split, replicas and multi-node).
+- **Names:** the multi-device modes are named layer split, expert offload, tensor split and staged tensor split in the README, USAGE, MULTI-DEVICE, ROADMAP, ARCHITECTURE, EXECUTION, ADDING-AN-ARCHITECTURE, AGENTS and `docs/src`; a tensor group stays the name of the devices a tensor split runs on.
+- **Left:** the docs and dead-code components and the hosted run, then the merge.
+
 ## macOS hosted job budget (2026-09-30, in progress)
 
 - **Goal:** let the existing macOS checks finish when hosted compilation varies, while keeping a finite job limit and every test unchanged.

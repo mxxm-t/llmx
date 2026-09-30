@@ -156,10 +156,10 @@ Branch on what a device reports, never on who made it.
   on the hardware here.
 
 ## 5. Multi-device split: layer split [implemented], the rest **[design]**
-Split a single model across several devices on one machine, designed in `docs/MULTI-DEVICE.md` for many users first: layer split with passes in flight, then tensor groups, staged tensor groups and replicas, on one placement of stages and groups.
+Split a single model across several devices on one machine, designed in `docs/MULTI-DEVICE.md` for many users first: layer split with passes in flight, then the tensor split, the staged tensor split and replicas, on one placement of stages and groups.
 - **Layer split** [implemented]: consecutive layers on different devices, bit-identical to one device, fitted to each device's free memory or set by `--layer-shares`. Pipelined stages and a pass in flight per stage in the server are phases 2 and 3 of `docs/MULTI-DEVICE.md`.
-- **Tensor group**: every layer on 2 to 4 devices at once, for per-request decode speed; built after the layer split.
-- **Staged tensor**: stages of tensor groups.
+- **Tensor split**: every layer on a tensor group of 2 to 4 devices at once, for per-request decode speed; built after the layer split.
+- **Staged tensor split**: stages of tensor groups.
 - **Replicas**: several copies of a model that fits one card or group, behind one scheduler.
 - The embedding table and the output head are placed as roles with their own cost.
 - Flags are named for what fits best and mean the same on every backend.

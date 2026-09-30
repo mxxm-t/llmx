@@ -1,4 +1,4 @@
-# `src/model/layer_split.hpp` - a model split by layers over devices
+# `src/model/layer_split.hpp` - the layer split over devices
 
 Which consecutive layers each device runs, fitted to what each device reports free (`docs/MULTI-DEVICE.md`, phase 1). The file knows no architecture: an architecture describes what it asks of memory as a `Footprint`, and the split works on those numbers alone.
 

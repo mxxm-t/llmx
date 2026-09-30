@@ -420,7 +420,7 @@ keeps a handoff buffer. It refuses malformed placements, among them a
 device whose attention layers are not one run, and sequences of another
 model.
 It checks the fit to device budgets (`model/layer_split.hpp`): even shares where room allows, a device without room left out, a host device given only what the others cannot hold, layers placed by their own sizes and their own caches, a cache for some layers and not others refused, the busiest device given as few layers as fit, tied weights counted once, the host's tables, handoff buffers and staging counted where they sit, shares honored or refused, and the fitted placement exact against one device.
-`place_model`, the one placement entry, asks the backends for their budgets, applies the request's ubatch, and splits by shares exactly as one device computes.
+`place_model`, the one placement entry, asks the backends for their budgets, applies the request's ubatch, and places a layer split at the given shares exactly as one device computes.
 A three-layer model placed by `place_model` over two and three CPU backends at ubatch 3 takes a 13-token prompt in five chunks, more than the stages, so the pipelined prefill reuses its pass slots and both handoff buffers; the prompt, three decode steps, a second prompt continuing the history, every row of `score()` and a two-sequence pass must be exact against one backend, with the same `n_tokens` and `kv_used_bytes`, and each stage but the last must keep two handoff buffers and the last none.
 A backend on the last stage then fails while the first stage is chunks ahead, on top of a history, once at an attention mid-prompt and once at the head on the last chunk (`FailingCpu` in `tests/tiny_qwen.hpp`, which `kv-cache` also uses): every storage's length and `kv_used_bytes` must be back at the history, and the same prompt again must be exact.
 `place_model` refuses experts on the CPU beside several devices, on a routed model, and on a model without routed layers, on the CPU as beside a device that reads host memory in place and is not the CPU, each time by the name of the flag given, and a stream point without experts on the CPU; on a routed model, experts on the CPU beside a CPU leave that CPU alone, nothing crossing, with the logits of the model placed without them, and beside that device they run on a CPU placed beside it, the residual crossing each way, with the same logits.
@@ -868,8 +868,8 @@ In the code: code that runs but serves nothing, paths for inputs or devices that
   `src/model/arch/registry.hpp`, one module per architecture under `src/model/arch/`
   on a runtime they share; today qwen3, qwen3moe and qwen35. A new one follows
   `docs/ADDING-AN-ARCHITECTURE.md`.
-- **Split mode** is a runtime flag: a `--device` list splits by layers
-  (`docs/MULTI-DEVICE.md`); tensor groups and node count are planned. See
+- **Split mode** is a runtime flag: a `--device` list selects a layer split
+  (`docs/MULTI-DEVICE.md`); the tensor split and node count are planned. See
   `docs/ROADMAP.md`.
 
 ## Conventions

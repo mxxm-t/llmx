@@ -1,6 +1,6 @@
 # Multi-device execution: layer, tensor and staged splits
 
-Design for ROADMAP #5, written before any code and open for review. It extends [EXECUTION](EXECUTION.md), whose placement, tickets and crossing already run a model over two backends, and replaces its decision to drop tensor-parallel work: that returns here as the tensor group, built after the layer split and designed with it. The server side extends [SERVER](SERVER.md).
+Design for ROADMAP #5, written before any code and open for review. It extends [EXECUTION](EXECUTION.md), whose placement, tickets and crossing already run a model over two backends, and replaces its decision to drop tensor-parallel work: that returns here as the tensor split, built after the layer split and designed with it. The server side extends [SERVER](SERVER.md).
 
 ## Why, and what must hold
 
@@ -27,8 +27,8 @@ The Windows workstation has one Radeon VII (16 GB). There the only second device
 ## Three splits, one placement
 
 - **Layer split.** Consecutive layers on different devices. Only the residual crosses a boundary, `rows x n_embd` floats per pass: 20 KB for a decode token of a 5120-wide model, 10 MB for a 512-row chunk (0.7 ms at link rate). Arithmetic is unchanged, so a split over identical devices, and pipelined against serialized execution of the same placement, is bit-identical; across different devices (CPU and a card) the HF bounds apply.
-- **Tensor group.** Every layer on several devices at once: q, k, v, gate and up split by output rows, the attention output and down by input columns, attention by heads, each member keeping the KV of its heads, and two sums over the group per layer. Each member reads a share of the weights, so one request decodes faster. The sums cost two synchronizations per layer.
-- **Staged tensor.** Stages of a layer split, each stage a tensor group.
+- **Tensor split.** Every layer on a tensor group, several devices at once: q, k, v, gate and up split by output rows, the attention output and down by input columns, attention by heads, each member keeping the KV of its heads, and two sums over the group per layer. Each member reads a share of the weights, so one request decodes faster. The sums cost two synchronizations per layer.
+- **Staged tensor split.** Stages of a layer split, each stage a tensor group.
 
 One description covers all three, so the scheduler and the model code do not branch on the mode:
 
@@ -46,7 +46,7 @@ A layer split is stages of width-1 groups, a tensor split one stage of width N, 
 |---|---|---|
 | Model fits one card, many users | Replicas (one model copy per card or group) | No communication at all. Four width-2 replicas gave 4.43 times the throughput of one width-8 group on this hardware |
 | Too big for one card, many users | Layer split with passes in flight | Throughput grows with cards once enough passes are in flight: 20 to 122 tokens/s from 1 to 16 concurrent on 8 cards |
-| Too big for one card, few users | Tensor group of 2 to 4 | Per-request decode scales: dense 27B 21.5 to 46.8 tokens/s on 1 to 4 cards. Layer split stays at one card's speed (22.3 to 21.3) |
+| Too big for one card, few users | Tensor split over 2 to 4 devices | Per-request decode scales: dense 27B 21.5 to 46.8 tokens/s on 1 to 4 cards. Layer split stays at one card's speed (22.3 to 21.3) |
 | Long prompt | Layer split, prompt chunks pipelined | A prompt's chunks flow through the stages like separate passes |
 | Mixture of experts, many users | Layer split first, then data-parallel attention with expert parallelism | Experts are most of the bytes; sharding them divides each pass's reads by the cards while attention and KV stay local (below) |
 
@@ -99,7 +99,7 @@ Layers as in ARCHITECTURE: the model knows stages, the inference layer runs them
 - **Scheduler** (`server/scheduler.hpp`). One execution context with P pass slots, batch assembly by a token budget and an even decode share (assembly by predicted stage time is phase 3's step 9, `docs/STATUS.md`), admission over several pools, and cancellation and pausing only for sequences not in flight. The slots share each device's activation arena, since each device runs its passes in order, and each pass owns a handoff buffer and a range of logits rows until it ends. A resume recomputes what its cache lacks in the row classes its request records, shaped like a prompt, one pass in flight per sequence; since the classes depend on the request alone, assembly by predicted time may size those slices freely, costing a generated row as a decode row.
 - **Backend** (`backends/`). One addition in phase 1: `memory_available()`, the device's free memory (Vulkan through `VK_EXT_memory_budget`, CPU from the OS), which the fit needs. The group sum for tensor groups is added in its phase and not before.
 
-Flag names are chosen for what fits llmx best; an established name is kept where it is the best fit, and no name is taken only because another runtime uses it. Phase 1 landed the first two: `--device vulkan:0,vulkan:1` lists the devices and splits by layers over them, fitted to their free memory, and `--layer-shares 3,2` overrides the fit with proportions. A sketch for later: `--group-width N` forms tensor groups of N consecutive devices. The flags mean the same on every backend or are refused, as the KV cache types are.
+Flag names are chosen for what fits llmx best; an established name is kept where it is the best fit, and no name is taken only because another runtime uses it. Phase 1 landed the first two: `--device vulkan:0,vulkan:1` lists the devices and runs a layer split over them, fitted to their free memory, and `--layer-shares 3,2` overrides the fit with proportions. A sketch for later: `--group-width N` forms tensor groups of N consecutive devices. The flags mean the same on every backend or are refused, as the KV cache types are.
 
 ## Loading
 
@@ -164,7 +164,7 @@ Shared experts (Qwen2-MoE, DeepSeek) go with the routed ones and are never copie
 
 An expert split across two identical cards is claimed bit-identical to one card only for the path combinations tested bit for bit, under the same conditions as expert parallelism above (each entry's kernel path and extent preserved, exact transfers, slot-order combine). Across a card and the CPU the dot kernels differ, so the gate there is the HF bound, determinism and batch invariance, as for the CPU experts today.
 
-## Tensor groups
+## Tensor split
 
 Built after the layer split and on the same structure.
 
@@ -212,8 +212,8 @@ Each phase is its own branch from main, merged on its own gates, with a STATUS b
 | 5 | Replicas | Aggregate throughput against one split instance on the same cards |
 | 5b | Expert tiers: per-expert placement by measured use, card and CPU or two cards | Radeon VII with Qwen3-30B-A3B Q4_K_M and Q8_0 against today's whole-layer CPU experts and against the references' expert offload; HF MoE gate; bit-identity across two cards |
 | 6b | Data-parallel attention with expert parallelism, if phase 0 says it pays: exchange epochs, compact entry lists, raw returns combined at home, capped capacity, rank-local requests and empty passes, static expert ownership | Bit-identity with one card for every tested path combination, HF bounds elsewhere; Qwen3-30B-A3B and Qwen3-235B-A22B serving at 1 to 64 users and a rate sweep against the layer split and against vLLM's expert-parallel serving on the same cards. Redundant experts only after measured skew |
-| 6 | Tensor groups: on Vulkan two cards on one root complex chained through dma-buf and sync files, as phase 0 measured; on ROCm peer stores | HF gate, determinism and batch invariance; decode at 1 to 4 users against the layer split and both references |
-| 7 | Staged tensor | Prefill and decode against the best single mode at each concurrency |
+| 6 | Tensor split: on Vulkan two cards on one root complex chained through dma-buf and sync files, as phase 0 measured; on ROCm peer stores | HF gate, determinism and batch invariance; decode at 1 to 4 users against the layer split and both references |
+| 7 | Staged tensor split | Prefill and decode against the best single mode at each concurrency |
 
 ## Open questions and risks
 

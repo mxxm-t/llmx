@@ -55,7 +55,7 @@ Pick a device with `--device cpu` (the default) or `--device vulkan:N`; see [USA
 
 | Mode | What it does | Flags | Status |
 |---|---|---|---|
-| Layer split | Consecutive layers on different devices, GPUs and the CPU mixed, fitted to free memory | `--device A,B,...`, `--layer-shares` | Supported |
+| Layer split | Consecutive layers on different devices, GPUs and the CPU mixed, fitted to free memory, for every supported model in every command and `llmx serve` | `--device A,B,...`, `--layer-shares` | Supported |
 | Expert offload | A mixture-of-experts model's experts run on the CPU beside one GPU | `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N` | Supported |
 | Tensor split | Every layer on a group of 2 to 4 devices at once | | Planned |
 | Staged tensor split | A layer split whose stages are tensor splits | | Planned |
@@ -68,7 +68,7 @@ Pick a device with `--device cpu` (the default) or `--device vulkan:N`; see [USA
 
 | Routes | API |
 |---|---|
-| `/v1/chat/completions`, `/v1/completions`, `/v1/models` | OpenAI-compatible, whole or streamed, with log-probabilities |
+| `/v1/chat/completions`, `/v1/completions`, `/v1/models` | OpenAI-compatible, whole or streamed, with log-probabilities; a reasoning model's thinking comes in `reasoning_content` apart from the answer, and `chat_template_kwargs` sets template options such as `enable_thinking` |
 | `/v1/generate`, `/v1/chat`, `/v1/tokenize`, `/v1/detokenize`, `/v1/health` | Native, with token ids |
 
 Tool calls, embeddings and more than one choice per request are not supported.

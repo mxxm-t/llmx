@@ -2913,6 +2913,31 @@ inline size_t stable_prefix(const ChatFormat& format, const bpe::Tokenizer& tok,
     return n;
 }
 
+// The ids a next turn begins with after `messages`, which end with the assistant's reply: what the conversation rendered with a user message after it and the generation prompt shares for two different user messages, so a reply is read as a template renders it once a turn follows, its reasoning dropped or its closing tokens rewritten (docs/SPECULATIVE.md, section 2, Idle re-prefill).
+// With `writing` the reply is still being written, and the two renders also continue it two different ways, so a token the rest of the reply could still join to another is left out.
+// A template that refuses a render, or a text the tokenizer refuses, gives none.
+inline std::vector<uint32_t> stable_prefix(const ChatFormat& format, const bpe::Tokenizer& tok, const std::vector<Message>& messages, bool writing,
+                                           const std::vector<TemplateVar>& vars = {}) {
+    if (messages.empty()) return {};
+    std::vector<uint32_t> ids[2];
+    const char* const more[2] = {"x", " y"};
+    const char* const next[2] = {"a", "b"};
+    try {
+        for (int i = 0; i < 2; ++i) {
+            std::vector<Message> m = messages;
+            if (writing) m.back().content += more[i];
+            m.push_back({"user", next[i], std::nullopt});
+            ids[i] = tok.encode(format.render(m, true, vars));
+        }
+    } catch (const std::exception&) {
+        return {};
+    }
+    size_t n = 0;
+    while (n < ids[0].size() && n < ids[1].size() && ids[0][n] == ids[1][n]) ++n;
+    ids[0].resize(n);
+    return ids[0];
+}
+
 // The template a file carries, or ChatML when it carries none, with its tokenizer's start and end text.
 inline ChatFormat chat_format(const gguf::GGUFModel& m, const bpe::Tokenizer& tok) {
     const gguf::MetaValue* stored = m.find("tokenizer.chat_template");

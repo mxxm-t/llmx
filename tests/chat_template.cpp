@@ -326,6 +326,24 @@ void check_stable_prefix(Tally& tally) {
     if (chat::stable_prefix(refusing, tok, messages, prompt) != 0) tally.fail("a template refusing the render without the generation prompt gives a stable prefix");
     ++tally.cases;
     if (chat::stable_prefix(plain, tok, { { "user", "caf\xc3\xa9", std::nullopt } }, prompt) != 0) tally.fail("a text the tokenizer refuses gives a stable prefix");
+
+    // After a reply, the ids a next turn begins with: up to the next user turn's text, or, while the reply is written, up to its end; a template that renders the last turn's reasoning gives the reply as it renders once a turn follows it, without the reasoning.
+    std::vector<chat::Message> replied = messages;
+    replied.push_back({ "assistant", "Sure thing.", std::string("Thinking.") });
+    const std::string before = "<user>Hello there.\n<assistant>Hi.\n<user>Go on.\n<assistant>Sure thing.";
+    ++tally.cases;
+    if (chat::stable_prefix(plain, tok, replied, false) != tok.encode(before + "\n<user>")) tally.fail("a next turn after a whole reply does not begin where its user turn does");
+    ++tally.cases;
+    if (chat::stable_prefix(plain, tok, replied, true) != tok.encode(before)) tally.fail("a next turn after a reply being written runs past what is written");
+    const chat::ChatFormat reasoning = chat::chat_format(
+        "{% for m in messages %}<{{ m.role }}>{% if loop.last and m.reasoning_content %}[{{ m.reasoning_content }}]{% endif %}{{ m.content }}\n{% endfor %}"
+        "{% if add_generation_prompt %}<assistant>\n{% endif %}", "", "");
+    ++tally.cases;
+    if (chat::stable_prefix(reasoning, tok, replied, false) != tok.encode(before + "\n<user>"))
+        tally.fail("a next turn keeps the reasoning a template renders only for the last turn");
+    replied.back().content = "caf\xc3\xa9";
+    ++tally.cases;
+    if (!chat::stable_prefix(plain, tok, replied, false).empty()) tally.fail("a reply the tokenizer refuses gives a next turn");
 }
 
 int main(int argc, char** argv) {

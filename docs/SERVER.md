@@ -265,7 +265,8 @@ GET  /v1/health      {"status": "ok", "model": "...", "active": n, "queued": m,
                       "donors": d, "prefix_hits": h, "prefix_tokens": t,
                       "pauses": p, "paused": w, "stalls": s, "waits": x,
                       "recomputed": r, "taken_back": b, "checkpoints": c,
-                      "passes": P, "in_flight": f}
+                      "reprefills": j, "reprefill_rows": n,
+                      "reprefill_cancels": y, "passes": P, "in_flight": f}
                      with --timing also "timing": {"rounds", "round_ms",
                       "recording_ms", "relaying_ms", "sampling_ms",
                       "assembly_ms", "receive_wait_ms", "staging_wait_ms",
@@ -293,6 +294,11 @@ A model whose layers keep a recurrent state, a `qwen35` file, has a state only a
 A finished request's donor is its history back to that checkpoint, which a follow-up turn forks, reading the state in place; a paused request keeps its whole history as its checkpoint where a slot is free, taking it back on resuming, and its prompt's checkpoint otherwise.
 A checkpoint takes a free slot, else the oldest donor holding one goes (`make_room`), else it is left out; nothing is paused for one.
 `--state-checkpoints N` sets the slots, by default the fewer of `--max-seqs` and the most that take at most a quarter of the KV budget's room, and 0 keeps no checkpoint, so a follow-up turn recomputes its history and a paused request resumes from its start; each admitted request also holds one of the `--max-seqs` state slots the load reserves.
+A reply's rows are decode rows, which a follow-up turn's prompt rows do not share, so a chat reply is read again as prompt rows for the next turn ([SPECULATIVE](SPECULATIVE.md), section 2, Idle re-prefill): the chat routes give the scheduler the ids the next turn begins with (`Scheduler::follow`), the conversation with the reply as the route returned it, rendered as a following turn renders it (`chat::stable_prefix`), every 32 tokens as far as two continuations of the reply agree and, once it has ended, in full before the reply's last chunk goes out, so the scheduler has them before a client can answer.
+The scheduler reads them in a job, an internal request whose prompt is those ids to their last whole block: it forks the history sharing most with them, the request itself while it runs and its donor once it has ended, reads the rest as prompt rows of the class every longer prompt takes, in slices ending on whole blocks, and becomes a donor beside the one it forked, so the follow-up turn forks past the reply while a regenerated reply, the prompt sent again, still forks the earlier one; both go by donor age as room is needed.
+On a model that keeps a state a job keeps its state at each whole block it reaches, and a running job is a source like a donor, so a follow-up that comes before the job completes forks what it has read.
+A job begun while its reply was written takes at most 64 rows of a pass's leftover budget, and one begun after it only passes no request has rows for; it takes a seat and room as a first admission does, and gives both back at the next pass boundary when a waiting request cannot be admitted from free seats and blocks alone or a request cannot grow, starting again once nothing waits.
+Jobs run only where rows are one class from some extent up to the token limit (`Model::row_class`), on a model that keeps a state only with checkpoint slots, and only for next turns at least that long.
 A message that carries `reasoning_content` as a string is taken as sent, its content and its reasoning unchanged.
 An assistant message without it, or with it null, is kept as `chat` keeps its own replies (`chat::ChatFormat::assistant`): split by `chat::assistant_turn`, the text after its last `</think>` the content and the reasoning before it `reasoning_content`, only when the template reads `reasoning_content` and does not split a turn at `</think>` itself, as the Qwen 3.8 templates do not, and rendered whole, as sent, under every other template.
 So the server renders a conversation as `chat` does, and each model sees earlier reasoning in the form its template was written for, whichever way a client sends it back ([inference-chat](src/inference-chat.md) states the rule).

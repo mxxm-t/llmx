@@ -1201,6 +1201,33 @@ def check_unrelated_donor(model):
         srv.close()
 
 
+def check_reprefill(model):
+    """A chat reply read again as prompt rows (docs/SPECULATIVE.md, section 2, Idle re-prefill): after a first turn of about 500 tokens and a 160-token reply without reasoning, the server reads what the next turn begins with while idle, so a follow-up turn on /v1/chat/completions reuses tokens past the first turn's prompt, into its reply, and gives the reply the same request gives on a fresh server; returns the tokens it reused and the first turn's prompt."""
+    with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
+        text = f.read()[:2000]
+    first = {"messages": [{"role": "user", "content": text + "\n\nSummarize this."}], "max_tokens": 160, "temperature": 0,
+             "ignore_eos": True, "chat_template_kwargs": {"enable_thinking": False}}
+    srv = Server(model)
+    try:
+        a = post_ok(srv, "/v1/chat/completions", first)
+        srv.wait(lambda h: h["reprefills"] >= 1, "the first turn's reply was not read again", 60)
+        messages = first["messages"] + [{"role": "assistant", "content": a["choices"][0]["message"]["content"]}, {"role": "user", "content": "Shorter."}]
+        follow = dict(first, messages=messages, max_tokens=32)
+        b = post_ok(srv, "/v1/chat/completions", follow)
+        reused, prompt = b["timings"]["cache_n"], a["usage"]["prompt_tokens"]
+        assert reused > prompt, (reused, prompt, srv.get("/v1/health"))
+    finally:
+        srv.close()
+    fresh = Server(model)
+    try:
+        c = post_ok(fresh, "/v1/chat/completions", follow)
+        assert c["timings"]["cache_n"] == 0, c
+    finally:
+        fresh.close()
+    assert b["choices"][0]["message"] == c["choices"][0]["message"], (b["choices"][0], c["choices"][0])
+    return reused, prompt
+
+
 # A client that leaves is noticed within seconds wherever its request is, though nothing written to it fails: a whole reply while it is generated, a streamed prompt while it is read, a request waiting for the one slot, and a whole reply whose client shuts only its sending side, which then gets no answer.
 # The server runs one slot and reads prompts one token a pass, so a second request queues and a long prompt stays in its prefill; the pool is POOL tokens.
 # Every request left behind would run for thousands of passes, a whole reply of LONG tokens or a prompt of about 6400, far past the seconds its departure has to be noticed in, so a server that notices nothing fails here on any device.
@@ -1341,6 +1368,9 @@ def run():
         check_uncapped(real)
         check_paused_prefill(real)
         turns = check_conversation(real, excerpt)
+        reused, first = check_reprefill(real)
+        print("server: %s, a chat follow-up reusing %d tokens of a %d-token first turn and its reply, read again while idle, with its reply on a fresh server  [ok]"
+              % (os.path.basename(real), reused, first))
         check_unrelated_donor(real)
         check_departed(real)
         k, n = check_ignore_eos_real(real)

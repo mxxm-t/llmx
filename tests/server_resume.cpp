@@ -2,9 +2,11 @@
 // A hybrid model, whose linear-attention layers keep a recurrent state, keeps no donor, and its requests resume by recomputing from their start.
 // A request cancelled, or a scheduler stopped, while a pass is in flight leaves every block to come back and every donor free to fork.
 // Usage: llmx-server-resume-test [cpu|device]; both by default, the device cases on Vulkan device 0 when it opens.
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <iostream>
+#include <mutex>
 
 #include "server_harness.hpp"
 
@@ -633,6 +635,204 @@ void hybrid_checkpoints(const gguf::GGUFModel& weights, const bpe::Tokenizer& to
     }
 }
 
+// A reply read again as prompt rows (docs/SPECULATIVE.md, section 2, Idle re-prefill): once a 300-token prompt's reply has ended, the ids its conversation's next turn begins with, the prompt, the reply and two closing ids, go to the scheduler, which reads them on a fork of the request's history and keeps them as a donor at their last whole block; a follow-up turn of those ids and a new message then forks all of that, past the reply, and gives the reply of its prompt on a fresh model.
+// Idle, the reply is 100 tokens and the job reads 128 rows in passes of 16 after it, while nothing else runs; a regenerated reply, the prompt sent again, then forks the request's own donor, which stays beside the job's, at the prompt's 256 tokens and gives the same reply. With `interrupt` k, a request submitted as the job's k-th pass retires, needing four of the pool's eight blocks where the donor and the job leave three at most, cancels the job at that boundary: it gives its reply alone, the job runs again once nothing else does, and the follow-up still forks 384 tokens; with `small`, the request needs one block, which is free, and the job runs on beside it.
+// `writing`, the reply is 400 tokens, and once 100 and 380 are written the next turn's ids as far as they go then reach the scheduler, whose job forks the running request and reads them in chunks beside its decode rows, all 640 tokens the whole ids keep before the reply ends, so the ids once it has ended leave nothing to read; the follow-up forks 640 tokens.
+// `at_once`, only the ids once 100 are written reach it while the reply is written, so the job has read 384 tokens when the reply ends, and the follow-up comes as the whole ids do, before the job can read the rest: with one pass in flight it forks the running job's 384 tokens, at least, and the job completes beside it.
+enum class When { idle, writing, at_once };
+
+void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t interrupt, When when, const std::string& what, bool small = false) {
+    const bool writing = when != When::idle;
+    const Req first{prompt_of(5, 300, vocab), writing ? 400 : 100}, other{prompt_of(9, small ? 40 : 440, vocab), 20};
+    // Answered at once, the follow-up must fit beside the job and the donor it forked, or the job gives way to it.
+    const size_t pool = when == When::at_once ? 4096 : writing || !interrupt ? 2048 : 1024;
+    std::vector<uint32_t> early = first.prompt, later = first.prompt;
+    if (writing) {
+        auto alone = make(pool, 16);
+        const std::vector<uint32_t> ids = ids_of(serve(*alone, tok, 3, {{first}})[0]);
+        early.insert(early.end(), ids.begin(), ids.begin() + 100);
+        later.insert(later.end(), ids.begin(), ids.begin() + 380);
+    }
+    auto model = make(pool, 16);
+    Reply follow_reply, other_reply;
+    std::vector<uint32_t> next;
+    {
+        server::Scheduler sched(*model, tok, 3, 64);
+        std::shared_ptr<server::Request> h, interrupter;
+        size_t job_passes = 0, request_passes = 0;
+        std::mutex handles;
+        // A pass that holds none of the case's requests is the job's.
+        sched.on_retire = [&](const server::Scheduler::Retired& t) {
+            std::lock_guard<std::mutex> lock(handles);
+            for (const server::Request* r : t.requests)
+                if (r == h.get() || r == interrupter.get()) {
+                    // 19 passes read the prompt, so the 120th has written more than 100 tokens and the 400th more than 380.
+                    if (writing && r == h.get()) {
+                        ++request_passes;
+                        if (request_passes == 120) sched.follow(h, early, false);
+                        if (request_passes == 400 && when == When::writing) sched.follow(h, later, false);
+                    }
+                    return;
+                }
+            if (++job_passes == interrupt) interrupter = sched.submit(other.prompt, params_of(other));
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            {
+                std::lock_guard<std::mutex> lock(handles);
+                h = sched.submit(first.prompt, params_of(first));
+            }
+            const Reply reply = drain(*h);
+            if (writing) {
+                const size_t rows = sched.stats().reprefill_rows;
+                const size_t want = when == When::writing ? 384 : 128;
+                require(rows == want, what + ": the job read " + std::to_string(rows) + " rows while the reply was written, against " + std::to_string(want));
+            }
+            next = first.prompt;
+            for (uint32_t id : ids_of(reply)) next.push_back(id);
+            next.push_back(1);
+            next.push_back(2);
+            sched.follow(h, next, true);
+            const auto read_again = [&] {
+                const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+                while (sched.stats().reprefills == 0) {
+                    require(std::chrono::steady_clock::now() < until, what + ": the reply was not read again in 60 seconds");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+            };
+            if (when != When::at_once) read_again();
+            // A regenerated reply resends the prompt alone: it forks the request's own donor, which the job's donor stands beside, at the prompt's last whole block, and gives the reply again.
+            if (when == When::idle && !interrupt) {
+                const auto g = sched.submit(first.prompt, params_of(first));
+                same(reply, drain(*g), what + ", the regenerated reply");
+                require(g->reused() == 2 * kBlock, what + ": the regenerated reply reused " + std::to_string(g->reused()) + " tokens, against " + std::to_string(2 * kBlock));
+            }
+            if (interrupt) {
+                std::shared_ptr<server::Request> o;
+                {
+                    std::lock_guard<std::mutex> lock(handles);
+                    o = interrupter;
+                }
+                require(o != nullptr, what + ": the job took fewer than " + std::to_string(interrupt) + " passes");
+                other_reply = drain(*o);
+            }
+            std::vector<uint32_t> again = next;
+            const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
+            again.insert(again.end(), more.begin(), more.end());
+            const Req follow{again, 32};
+            const auto f = sched.submit(follow.prompt, params_of(follow));
+            follow_reply = drain(*f);
+            const size_t kept = next.size() / kBlock * kBlock;
+            if (when == When::at_once) {
+                // With passes in flight the job may be in a pass as the follow-up comes, when it forks the donor instead.
+                const size_t least = (sched.stats().passes > 1 ? 2 : 3) * kBlock;
+                require(f->reused() >= least && f->reused() % kBlock == 0,
+                        what + ": the follow-up turn reused " + std::to_string(f->reused()) + " tokens, against " + std::to_string(least) + " or more");
+                read_again();
+            } else {
+                require(f->reused() == kept, what + ": the follow-up turn reused " + std::to_string(f->reused()) + " tokens, against " + std::to_string(kept));
+            }
+            const server::Scheduler::Stats stats = sched.stats();
+            require(stats.reprefills == 1 && stats.reprefill_cancels == (interrupt && !small ? 1u : 0u),
+                    what + ": " + std::to_string(stats.reprefills) + " jobs done and " + std::to_string(stats.reprefill_cancels) + " cancelled");
+            ledger(stats, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    std::vector<uint32_t> again = next;
+    const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
+    again.insert(again.end(), more.begin(), more.end());
+    auto fresh = make(pool, 16);
+    same(serve(*fresh, tok, 3, {{Req{again, 32}}})[0], follow_reply, what + ", the follow-up turn");
+    if (interrupt) {
+        fresh = make(pool, 16);
+        same(serve(*fresh, tok, 3, {{other}})[0], other_reply, what + ", the request that cancelled the job");
+    }
+}
+
+// A job whose ids grow while its reply is written reserves the blocks they take before it reads them (XDEV's review of step 2c): on 16 blocks of 128 tokens, a 300-token prompt capped at 700 reserves 8, its job 3 for 384 tokens, then 7 for 896 once 600 tokens are written, 15 in all; a request needing 5 blocks then finds no free room, so the job gives way to it rather than both running past the pool, which ended every request of a pass with an allocation error.
+// Every request runs to its length with its reply alone, and once the reply has ended the job starts again and the follow-up forks its 896 tokens.
+void writing_growth(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a job whose ids grow while its reply is written";
+    const Req first{prompt_of(5, 300, vocab), 700}, other{prompt_of(11, 500, vocab), 100};
+    std::vector<uint32_t> early = first.prompt, later = first.prompt;
+    {
+        auto alone = make(2048, 16);
+        const std::vector<uint32_t> ids = ids_of(serve(*alone, tok, 3, {{first}})[0]);
+        early.insert(early.end(), ids.begin(), ids.begin() + 100);
+        later.insert(later.end(), ids.begin(), ids.begin() + 600);
+    }
+    auto model = make(2048, 16);
+    Reply first_reply, other_reply, follow_reply;
+    std::vector<uint32_t> again;
+    {
+        server::Scheduler sched(*model, tok, 3, 64);
+        std::shared_ptr<server::Request> h, o;
+        size_t passes = 0;
+        std::mutex handles;
+        // 19 passes read the prompt, so the 120th has written more than 100 tokens, the 620th more than 600, and by the 640th the job has read its 896.
+        sched.on_retire = [&](const server::Scheduler::Retired& t) {
+            std::lock_guard<std::mutex> lock(handles);
+            if (std::find(t.requests.begin(), t.requests.end(), h.get()) == t.requests.end()) return;
+            ++passes;
+            if (passes == 120) sched.follow(h, early, false);
+            if (passes == 620) sched.follow(h, later, false);
+            if (passes == 640) o = sched.submit(other.prompt, params_of(other));
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            {
+                std::lock_guard<std::mutex> lock(handles);
+                h = sched.submit(first.prompt, params_of(first));
+            }
+            first_reply = drain(*h);
+            std::shared_ptr<server::Request> other_handle;
+            {
+                std::lock_guard<std::mutex> lock(handles);
+                other_handle = o;
+            }
+            require(other_handle != nullptr, what + ": the request needing the room was not submitted");
+            other_reply = drain(*other_handle);
+            std::vector<uint32_t> next = first.prompt;
+            for (uint32_t id : ids_of(first_reply)) next.push_back(id);
+            next.push_back(1);
+            next.push_back(2);
+            sched.follow(h, next, true);
+            const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+            while (sched.stats().reprefills == 0) {
+                require(std::chrono::steady_clock::now() < until, what + ": the reply was not read again in 60 seconds");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            again = next;
+            const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
+            again.insert(again.end(), more.begin(), more.end());
+            const auto f = sched.submit(again, params_of(Req{again, 32}));
+            follow_reply = drain(*f);
+            require(f->reused() == 7 * kBlock, what + ": the follow-up turn reused " + std::to_string(f->reused()) + " tokens, against " + std::to_string(7 * kBlock));
+            const server::Scheduler::Stats stats = sched.stats();
+            require(stats.reprefill_cancels >= 1, what + ": the job did not give way to the request needing its room");
+            ledger(stats, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    auto fresh = make(2048, 16);
+    same(serve(*fresh, tok, 3, {{first}})[0], first_reply, what + ", its request");
+    fresh = make(2048, 16);
+    same(serve(*fresh, tok, 3, {{other}})[0], other_reply, what + ", the request needing its room");
+    fresh = make(2048, 16);
+    same(serve(*fresh, tok, 3, {{Req{again, 32}}})[0], follow_reply, what + ", the follow-up turn");
+}
+
 void hybrid(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
     const Make one = on(weights, [] { return cpus(1); }, 3);
     const std::vector<Req> three = {{prompt_of(1, 40, vocab)}, {prompt_of(2, 9, vocab)}, {prompt_of(3, 23, vocab)}};
@@ -756,6 +956,20 @@ int main(int argc, char** argv) {
             const gguf::GGUFModel mixed = served_hybrid(kHybrid);
             hybrid(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             hybrid_checkpoints(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
+            // The job reads 128 rows in passes of 16, so it can be cancelled at each of the seven boundaries before its last pass.
+            writing_growth(one, tok, vocab);
+            for (const When w : {When::idle, When::writing, When::at_once}) {
+                const std::string when = w == When::writing ? " while it is written" : w == When::at_once ? " and answered at once" : "";
+                reprefilled(one, tok, vocab, 0, w, "a reply read again" + when);
+                reprefilled(on(weights, [] { return cpus(2); }), tok, vocab, 0, w, "a reply read again over a two-CPU split" + when);
+                const bpe::Tokenizer mixed_tok(mixed);
+                const Make kept = on(mixed, [] { return cpus(1); }, 3, 3);
+                for (size_t k = 0; k <= (w == When::idle ? 7u : 0u); ++k)
+                    reprefilled(kept, mixed_tok, (uint32_t)kHybrid.vocab, k, w,
+                                "a hybrid model's reply read again" + when + (k ? ", cancelled after pass " + std::to_string(k) : std::string()));
+                if (w == When::idle) reprefilled(kept, mixed_tok, (uint32_t)kHybrid.vocab, 3, w, "a hybrid model's reply read again beside a request that fits", true);
+                reprefilled(on(mixed, [] { return cpus(2); }, 3, 3), mixed_tok, (uint32_t)kHybrid.vocab, 0, w, "a hybrid model's reply read again over a two-CPU split" + when);
+            }
             std::printf("server-resume: CPU cases pass\n");
         }
         if (only != "cpu") {

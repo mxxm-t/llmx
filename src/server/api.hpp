@@ -114,6 +114,8 @@ public:
 private:
     // How often a connection waiting on its request looks for a departed client.
     static constexpr std::chrono::milliseconds kProbe{100};
+    // A chat reply's next turn is given to the scheduler again every this many tokens while it is written (Scheduler::follow).
+    static constexpr size_t kFollowEvery = 32;
     // The most tokens a request may list beside each sampled one, `top_logprobs` or the completions route's `logprobs`: the compatible chat API's limit, which the completions route takes too, though that API stops at 5.
     static constexpr int kTopLogprobs = 20;
 
@@ -142,7 +144,8 @@ private:
                   ",\"prefix_tokens\":" + std::to_string(s.prefix_tokens) + ",\"pauses\":" + std::to_string(s.pauses) +
                   ",\"paused\":" + std::to_string(s.paused) + ",\"stalls\":" + std::to_string(s.stalls) + ",\"waits\":" + std::to_string(s.waits) +
                   ",\"recomputed\":" + std::to_string(s.recomputed) + ",\"taken_back\":" + std::to_string(s.taken_back) +
-                  ",\"checkpoints\":" + std::to_string(s.checkpoints) +
+                  ",\"checkpoints\":" + std::to_string(s.checkpoints) + ",\"reprefills\":" + std::to_string(s.reprefills) +
+                  ",\"reprefill_rows\":" + std::to_string(s.reprefill_rows) + ",\"reprefill_cancels\":" + std::to_string(s.reprefill_cancels) +
                   ",\"passes\":" + std::to_string(s.passes) + ",\"in_flight\":" + std::to_string(s.in_flight) +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
     }
@@ -288,6 +291,24 @@ private:
     size_t stable_of(const jmini::Value& body, Route route, const std::vector<uint32_t>& prompt) const {
         if (!model_.checkpoint_slots() || (route != Route::chat && route != Route::chat_completions)) return prompt.size();
         return chat::stable_prefix(format_, tok_, messages_of(body), prompt, template_vars(body));
+    }
+
+    // The ids a chat request's next turn begins with after `text`, its reply as far as it is written, given back as the route gave it to the client: the content apart from the reasoning on the compatible route, the text whole on the native one (docs/SPECULATIVE.md, section 2, Idle re-prefill).
+    // None while the reply's reasoning is still being written, which a next turn may drop.
+    std::vector<uint32_t> next_turn(const jmini::Value& body, Route route, const std::string& prompt, const std::string& text, bool writing) const {
+        const bool opened = chat::opens_reasoning(prompt);
+        if (writing && (opened || text.find("<think>") != std::string::npos) && text.find("</think>") == std::string::npos) return {};
+        std::vector<chat::Message> messages = messages_of(body);
+        if (route == Route::chat_completions) {
+            chat::ReplySplit split(opened);
+            const chat::ReplySplit::Parts parts = split.feed(text), last = split.finish();
+            std::optional<std::string> reasoning;
+            if (split.reasoned()) reasoning = parts.reasoning + last.reasoning;
+            messages.push_back({"assistant", parts.content + last.content, reasoning});
+        } else {
+            messages.push_back(format_.assistant(text));
+        }
+        return chat::stable_prefix(format_, tok_, messages, writing, template_vars(body));
     }
 
     // A render the template itself fails, such as its raise_exception on a conversation it does not take, is the request's fault.
@@ -523,6 +544,12 @@ private:
         size_t chars = 0;
         // What a compatible chunk that carries no token holds for its logprobs when the request asked for them.
         const std::string no_logprobs = params.logprobs ? "null" : "";
+        // A chat reply's next turn goes to the scheduler as it is written and, once, as it has ended, before the reply's last words go out, so its job knows them before a client can answer; nothing where the reply did not end as a reply.
+        bool following = (route == Route::chat || route == Route::chat_completions) && sched_.follows();
+        const auto close_follow = [&](bool ended) {
+            if (following) sched_.follow(r, ended ? next_turn(body, route, prompt, text, false) : std::vector<uint32_t>{}, true);
+            following = false;
+        };
         try {
             if (stream) c.begin_stream(200, "text/event-stream");
             Request::Token tok;
@@ -542,6 +569,7 @@ private:
                 const std::string piece = utf8_sanitize(pending.substr(0, whole));
                 pending.erase(0, whole);
                 text += piece;
+                if (following && gen.size() % kFollowEvery == 0) sched_.follow(r, next_turn(body, route, prompt, text, true), false);
                 Sampled s;
                 if (params.logprobs) {
                     s = Sampled{std::move(tok), std::move(bytes), chars};
@@ -575,8 +603,10 @@ private:
                 // The stream's head went out as 200, so the failure is its last event.
                 c.write_chunk("data: " + error_json(r->error(), compat(route)) + "\n\n");
                 c.end_stream();
+                close_follow(false);
                 return;
             }
+            close_follow(finish != "cancel");
             const size_t prompt_tokens = r->prompt_tokens();
             if (stream && compat(route)) {
                 if (split) {
@@ -637,6 +667,7 @@ private:
             r->cancel();
             Request::Token drop;
             while (r->next(drop, Request::Clock::now() + kProbe) != Request::Next::end) {}
+            close_follow(false);
             throw;
         }
     }

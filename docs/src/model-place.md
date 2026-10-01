@@ -14,25 +14,38 @@ backends its caller made. It reads the plan
   fitted for,
   and the histories the budget must hold, `fit_kv`, a server's budget
   fitted to the devices, and `fit_checkpoints`, its checkpoint slots
-  fitted too), and the placed model with its split's description.
+  fitted too), and the placed model with its split's description and the
+  KV tokens its fitted checkpoint slots took from the budget.
 - `settle(budgets, backends, names, settled)`: a fit the devices' free
   memory falls short of, a split's placement or a server's KV budget, tried
   again every `kSettleWait` (250 ms), up to `kSettleReads` (120) reads, each
   time that memory rises, until `kSettleQuiet` (20) reads in a row, five
   seconds, find it no higher, since a device gives an ended process's memory
   back in steps over a few seconds, holding it level for seconds between them.
-- `fitted_kv(weights, plan, backends, request, options)`: the options with
+  Over several backends with a device that reports its free memory, where
+  the layers or the KV budget follow that memory, no shares being given or
+  the budget fitted (`level_first`), it reads until the memory has risen no
+  further for those five seconds, or the thirty have passed, whatever the
+  fit says, and asks the fit of that reading alone,
+  since there a fit that holds does not show a card has given its memory
+  back: the other devices would take the layers it would hold.
+- `fitted_kv(weights, plan, backends, request, options, given_up = nullptr, read = nullptr)`: the options with
   the KV budget fitted, which `place_model` takes when `request.fit_kv` is
   set, as `serve` sets it: the options' budget where the fit of
   `split_layers` places the model on the backends given, one included, and
   the host; else, by bisection, the most whole blocks of the largest block
   size that fit, one more not fitting. A budget short of the options' is
   fitted again as `settle` reads the devices. With `fit_checkpoints`, on a
-  model that keeps a state, it first takes as checkpoint slots the fewer of
+  model that keeps a state, it then takes as checkpoint slots the fewer of
   the options' and the most at which the fit still holds three quarters
   of the budget it holds without them, so they take at most a quarter of
   the KV room, each count tried through the fit itself, so a device that
-  cannot hold one more slot gives none (`docs/SPECULATIVE.md`, section 2). It refuses a model that does not fit even without
+  cannot hold one more slot gives none, and only once the budget without
+  them has settled, so a card still taking back an ended server's memory
+  does not leave a restarted server none (`docs/SPECULATIVE.md`, section 2);
+  the KV tokens they took go to `given_up` when given, and the devices'
+  budgets it settled on to `read`, by which `place_model` then places a
+  split's layers, so the budget and the split see one reading. It refuses a model that does not fit even without
   its KV, and one that leaves no room for one block, each by its own text.
   Beside experts on the CPU the plan it fits leaves out the feed-forward
   roles of the layers whose block runs on the CPU (`ffn_on_host`, which

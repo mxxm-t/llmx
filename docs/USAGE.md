@@ -571,6 +571,7 @@ beside the weights, a pass's activations and a recurrent state for each of
 the `--max-seqs` requests, it takes the most whole blocks they hold, and it
 backs the whole budget at load, so no request grows the cache; a model that
 leaves no room for one block is refused before the server listens.
+Over several devices the server first prints what each device was given, as `bench --model` does, and the fit reads the devices' free memory only once it has risen no further for five seconds, or after thirty, so a server restarted on cards its predecessor held places its layers as on idle cards; every command placing a split by free memory, without `--layer-shares`, waits the same.
 The line the server prints as it starts gives the budget it took: with 16
 sequences over a 40k-token budget that is 2.5k tokens each on average, and
 a request whose prompt plus `max_tokens` exceeds the budget or the model
@@ -581,7 +582,7 @@ The server prints the number it keeps, and passes whose buffers the memory canno
 `--timing` times the rounds and each device's work for `/v1/health`, its dispatches between timestamps, which slows serving: throughput is read from a server without it.
 A model whose layers keep a recurrent state, a `qwen35` file such as Qwen3.5 or Qwen3.6-27B, holds a state for each of the `--max-seqs` requests it runs at once, and keeps a request's state where its prompt's last whole block ends within what a follow-up turn begins with, so a chat's next turn forks that state and reads only the rest (docs/SERVER.md).
 `--state-checkpoints N` is how many such states the server keeps, each the size of one request's state (149.6 MiB on Qwen3.6-27B), by default the fewer of `--max-seqs` and the most that take at most a quarter of the KV budget's room; the oldest finished conversation's goes first, and 0 keeps none, so a follow-up turn recomputes its whole prompt and a paused request resumes from its start.
-The line the server prints as it starts gives the number it took.
+The line the server prints as it starts gives the number it took and the KV tokens they took from the budget.
 The server draws a pass's tokens on its scheduler thread and up to four sampling threads beside it, one fewer sampling thread than the CPUs the process may use where that is fewer, whatever `--threads` says, which counts the CPU backend's workers; it prints the number of sampling threads as it starts.
 
 | Route | Body | Reply |

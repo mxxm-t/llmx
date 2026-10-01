@@ -58,6 +58,7 @@ struct LoadedModel {
     std::optional<bpe::Tokenizer> tok;
     chat::ChatFormat chat;
     std::string plan;                // what each device of a split was given (LayerSplit::describe), empty otherwise
+    size_t checkpoint_kv_tokens = 0; // the KV tokens a server's fitted checkpoint slots took from its budget (PlacedModel)
     LoadTimes times;
     std::vector<core::HostPages> host;   // a direct load's copy of each file, laid out as the file, for the weights a host reads in place
     std::unique_ptr<Model> model;
@@ -388,6 +389,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
                                      planning_adopt(weights, devices, plan, mode != LoadMode::mapped));
     loaded->times.construct = detail::seconds_since(built);
     loaded->plan = std::move(placed.plan);
+    loaded->checkpoint_kv_tokens = placed.checkpoint_kv_tokens;
     loaded->model = std::move(placed.model);
     if (mode != LoadMode::mapped) {
         // Every weight has storage now, so a model that cannot be placed has failed before any weight is uploaded.

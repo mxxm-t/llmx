@@ -517,8 +517,11 @@ void checkpoint_fit() {
         (holds(mid, 0) ? hi : lo) = mid;
     }
     require(!holds(hi, 1), "the first device holds a checkpoint more at the least room it needs without one");
-    require(infer::place_model(w, devices(hi), request, options).model->checkpoint_slots() == 0, "a checkpoint count the first device cannot hold was taken");
-    require(infer::place_model(w, devices(size_t(1) << 30), request, options).model->checkpoint_slots() == 4, "roomy devices did not take the checkpoint slots asked for");
+    // The KV tokens the checkpoints took (PlacedModel::checkpoint_kv_tokens) are none where they took none or the budget stays whole.
+    const infer::PlacedModel none = infer::place_model(w, devices(hi), request, options);
+    require(none.model->checkpoint_slots() == 0 && none.checkpoint_kv_tokens == 0, "a checkpoint count the first device cannot hold was taken");
+    const infer::PlacedModel roomy = infer::place_model(w, devices(size_t(1) << 30), request, options);
+    require(roomy.model->checkpoint_slots() == 4 && roomy.checkpoint_kv_tokens == 0, "roomy devices did not take the checkpoint slots asked for");
     // On one device with room for the whole budget and no more, the checkpoints take at most a quarter of it, in whole blocks of 128: of 512 tokens all four slots asked for, each far smaller than a quarter of the budget's bytes, with 384 tokens left, and of 384 none, since a block is a third; asked for as many as a size holds, the search ends with a count that fits.
     infer::PlacementRequest one = request;
     one.names = {"device 0"};
@@ -548,16 +551,18 @@ void checkpoint_fit() {
             const size_t mid = lo + (hi - lo) / 2;
             (whole(mid) ? hi : lo) = mid;
         }
-        const auto tight = infer::place_model(wc, alone(hi), one, options).model;
+        const infer::PlacedModel placed = infer::place_model(wc, alone(hi), one, options);
+        const auto& tight = placed.model;
         const size_t want_slots = context == 512 ? 4 : 0, want_tokens = 384;
-        require(tight->checkpoint_slots() == want_slots && tight->kv_tokens_total() == want_tokens,
+        require(tight->checkpoint_slots() == want_slots && tight->kv_tokens_total() == want_tokens && placed.checkpoint_kv_tokens == context - want_tokens,
                 "a device holding the whole " + std::to_string(context) + "-token budget and no more took " + std::to_string(tight->checkpoint_slots()) +
                     " checkpoint slots beside " + std::to_string(tight->kv_tokens_total()) + " KV tokens");
         if (context == 512) {
             infer::ModelOptions most = options;
             most.checkpoint_slots = std::numeric_limits<size_t>::max();
-            const auto all = infer::place_model(wc, alone(hi), one, most).model;
-            require(all->checkpoint_slots() >= 4 && all->checkpoint_slots() < 1000 && all->kv_tokens_total() == 384,
+            const infer::PlacedModel placed_all = infer::place_model(wc, alone(hi), one, most);
+            const auto& all = placed_all.model;
+            require(all->checkpoint_slots() >= 4 && all->checkpoint_slots() < 1000 && all->kv_tokens_total() == 384 && placed_all.checkpoint_kv_tokens == 128,
                     "asked for as many checkpoints as a size holds, the fit took " + std::to_string(all->checkpoint_slots()) + " beside " +
                         std::to_string(all->kv_tokens_total()) + " KV tokens");
         }
@@ -567,8 +572,9 @@ void checkpoint_fit() {
         auto d = std::make_shared<Room>();
         d->room = size_t(1) << 30;
         d->rise_after = 2;
-        const auto settled = infer::place_model(w, std::vector<backend::BackendPtr>{d}, one, options).model;
-        require(settled->checkpoint_slots() == 4 && settled->kv_tokens_total() == 512,
+        const infer::PlacedModel placed_settled = infer::place_model(w, std::vector<backend::BackendPtr>{d}, one, options);
+        const auto& settled = placed_settled.model;
+        require(settled->checkpoint_slots() == 4 && settled->kv_tokens_total() == 512 && placed_settled.checkpoint_kv_tokens == 0,
                 "a device whose memory settled after the first reads took " + std::to_string(settled->checkpoint_slots()) + " checkpoint slots beside " +
                     std::to_string(settled->kv_tokens_total()) + " KV tokens");
     }

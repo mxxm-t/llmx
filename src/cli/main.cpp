@@ -856,9 +856,12 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
     http::Listener listener(c.host, c.port);
+    // A split's plan, what each device was given, so a lopsided placement shows in the log.
+    std::cerr << loaded->plan;
     std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
               << " (device " << exec.device << ", up to " << c.max_seqs << " sequences over "
               << model.kv_tokens_total() << " KV tokens" << (model.keeps_state() ? ", " + std::to_string(model.checkpoint_slots()) + " state checkpoints" : std::string())
+              << (loaded->checkpoint_kv_tokens ? " taking " + std::to_string(loaded->checkpoint_kv_tokens) + " KV tokens" : std::string())
               << ", queue of " << c.max_queue << ")\n";
     server::serve(model, tok, loaded->chat, c, listener);
     return 0;

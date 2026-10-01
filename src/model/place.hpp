@@ -108,6 +108,7 @@ struct PlacementRequest {
 struct PlacedModel {
     std::unique_ptr<Model> model;
     std::string plan;
+    size_t checkpoint_kv_tokens = 0;   // the KV tokens the fitted checkpoint slots took from the budget (fitted_kv)
 };
 
 // Whether the placement of `request` over `backends` adds a CPU backend for experts on the CPU, which it does beside one backend that is not the CPU.
@@ -135,10 +136,18 @@ inline constexpr std::chrono::milliseconds kSettleWait{250};
 inline constexpr int kSettleQuiet = 20;
 inline constexpr int kSettleReads = 120;
 
+// Whether a fit of `request` over `backends` waits for their free memory to stay level before it reads it: several backends, one a device that reports its free memory, whose layers or KV budget follow that memory (no shares given, or a fitted budget), since there a fit that holds does not show a card has given back an ended process's memory, another taking the layers it would hold.
+inline bool level_first(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
+    if (backends.size() < 2 || (!request.shares.empty() && !request.fit_kv)) return false;
+    return std::any_of(backends.begin(), backends.end(), [](const backend::BackendPtr& b) { return b && !b->is_cpu() && b->memory_available(); });
+}
+
 // A process that has just ended gives a device its memory back over a few seconds, so a fit that `settled` says falls short is tried again each time the free memory the devices report rises, until kSettleQuiet reads in a row find it no higher or kSettleReads reads have passed; `budgets` holds the last read.
+// With `level` (level_first) the reads go on until that memory has risen no further for kSettleQuiet reads, or kSettleReads have passed, and `settled` is asked of that reading alone.
 template <class Settled>
-inline void settle(std::vector<DeviceBudget>& budgets, const std::vector<backend::BackendPtr>& backends, const std::vector<std::string>& names, Settled settled) {
-    if (settled()) return;
+inline void settle(std::vector<DeviceBudget>& budgets, const std::vector<backend::BackendPtr>& backends, const std::vector<std::string>& names, Settled settled,
+                   bool level = false) {
+    if (!level && settled()) return;
     for (int read = 0, steady = 0; read < kSettleReads && steady < kSettleQuiet; ++read) {
         std::this_thread::sleep_for(kSettleWait);
         std::vector<DeviceBudget> again = budgets_for(backends, names);
@@ -146,16 +155,18 @@ inline void settle(std::vector<DeviceBudget>& budgets, const std::vector<backend
         for (size_t d = 0; d < again.size(); ++d) rose = rose || again[d].bytes.value_or(0) > budgets[d].bytes.value_or(0);
         budgets = std::move(again);
         steady = rose ? 0 : steady + 1;
-        if (rose && settled()) return;
+        if (!level && rose && settled()) return;
     }
+    if (level) settled();
 }
 
 // The options with the KV budget fitted (PlacementRequest::fit_kv): the most whole blocks of the largest block size, at most the options' budget, at which the fit of model/layer_split.hpp places the model on these devices and the host, and backed whole at load.
 // Beside a device with experts on the CPU, the device holds neither those layers' feed-forward blocks nor their experts; a device that cannot tell its free memory takes the options' budget.
 // Refused when not one block fits beside the weights, the activations and the recurrent state slots.
-// With fit_checkpoints a model that keeps a state takes as checkpoint slots the fewer of the options' and the most at which the placement still holds three quarters of the budget it holds without them, so they take at most a quarter of the KV room, each count tried through the fit itself (docs/SPECULATIVE.md, section 2).
+// With fit_checkpoints a model that keeps a state takes as checkpoint slots the fewer of the options' and the most at which the placement still holds three quarters of the budget it holds without them, so they take at most a quarter of the KV room, each count tried through the fit itself once the devices' free memory has settled (docs/SPECULATIVE.md, section 2); `given_up`, when given, gets the KV tokens the checkpoints took from the budget, and `read`, the devices' budgets the fit settled on, so a split places its layers by the same reading.
 inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
-                              const PlacementRequest& request, ModelOptions options) {
+                              const PlacementRequest& request, ModelOptions options, size_t* given_up = nullptr,
+                              std::vector<DeviceBudget>* read = nullptr) {
     size_t block = 1;
     for (const auto& b : backends) {
         if (!b) throw std::runtime_error("inference: missing backend");
@@ -196,11 +207,17 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         }
         return lo * block;
     };
-    // The checkpoint slots first, by bisection, since each more slot only adds to what a device holds: the most at which the placement holds three quarters of the blocks it holds without them, rounded up, so the slots take at most a quarter of the KV room; none where even one does not fit.
-    if (request.fit_checkpoints && std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; }) && kept) {
-        const size_t most_kept = kept;
-        kept = 0;
-        const size_t bare = most() / block, target = std::max<size_t>(1, bare - bare / 4) * block;
+    // The budget without checkpoint slots first, read again while the devices' free memory rises, since a card still taking back an ended process's memory would leave room for none.
+    const bool choose = request.fit_checkpoints && kept &&
+                        std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; });
+    const size_t most_kept = kept;
+    if (choose) kept = 0;
+    size_t tokens = 0;
+    settle(budgets, backends, request.names, [&] { return (tokens = most()) >= want; }, level_first(backends, request));
+    // Then the checkpoint slots, by bisection, since each more slot only adds to what a device holds: the most at which the placement holds three quarters of the blocks it holds without them, rounded up, so the slots take at most a quarter of the KV room; none where even one does not fit.
+    const size_t bare = tokens;
+    if (choose && tokens) {
+        const size_t blocks = tokens / block, target = std::max<size_t>(1, blocks - blocks / 4) * block;
         size_t lo = 0, hi = most_kept;
         while (lo < hi) {
             kept = lo + (hi - lo) / 2 + (hi - lo) % 2;
@@ -208,9 +225,10 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
             else hi = kept - 1;
         }
         kept = lo;
+        if (kept) tokens = most();
     }
-    size_t tokens = 0;
-    settle(budgets, backends, request.names, [&] { return (tokens = most()) >= want; });
+    if (given_up) *given_up = bare - tokens;
+    if (read) *read = budgets;
     if (!tokens) {
         if (!fits(1))
             throw std::runtime_error("placement: the model does not fit the devices' free memory even without its KV, which stayed level for five seconds (" + why + ")");
@@ -252,17 +270,18 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
         }
         if (short_of) options.kv_tokens = held;
     }
-    if (request.fit_kv) options = fitted_kv(weights, plan, backends, request, options);
     PlacedModel placed;
+    // A fitted budget's reading of the devices is the one the split places its layers by, so both see the same settled memory.
+    std::vector<DeviceBudget> budgets;
+    if (request.fit_kv) options = fitted_kv(weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets);
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)
             throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
-        std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
         const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
         const Footprint fp = footprint(weights, plan, options);
         std::optional<LayerSplit> split;
         std::exception_ptr refused;
-        settle(budgets, backends, request.names, [&] {
+        auto fit = [&] {
             try {
                 split = split_layers(fp, budgets, rows, request.shares, core::host_memory_available(), request.slots,
                                      request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
@@ -271,9 +290,16 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
                 refused = std::current_exception();
                 return false;
             }
-        });
+        };
+        if (request.fit_kv) {
+            fit();
+        } else {
+            budgets = budgets_for(backends, request.names);
+            settle(budgets, backends, request.names, fit, level_first(backends, request));
+        }
         if (!split) std::rethrow_exception(refused);
-        placed = {std::make_unique<Model>(weights, plan, std::move(backends), placement_for(*split), options, adopt), split->describe(budgets)};
+        placed.model = std::make_unique<Model>(weights, plan, std::move(backends), placement_for(*split), options, adopt);
+        placed.plan = split->describe(budgets);
     } else if (!adds_host_for_experts(backends, request)) {
         placed.model = std::make_unique<Model>(weights, plan, std::move(backends), Placement{}, options, adopt);
     } else {

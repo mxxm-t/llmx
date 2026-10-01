@@ -471,11 +471,15 @@ void checkpoints() {
     require(same(broken.prefill(tail), want), "the history after a failed step differs");
 }
 
-// A device reporting `room` bytes free that keeps copies of what it adopts, so the fit charges it the weights its layers take.
+// A device reporting `room` bytes free that keeps copies of what it adopts, so the fit charges it the weights its layers take; its first `rise_after` reads report one byte, as a card still taking back an ended process's memory does.
+// With `device` it says it is not the CPU, as a card does.
 struct Room : backend::CpuBackend {
     size_t room = 0;
-    std::optional<size_t> memory_available() const override { return room; }
+    mutable int rise_after = 0;
+    bool device = false;
+    std::optional<size_t> memory_available() const override { return rise_after-- > 0 ? 1 : room; }
     bool reads_in_place() const override { return false; }
+    bool is_cpu() const override { return !device; }
 };
 
 // The automatic checkpoint count is tried through the fit itself (infer::fitted_kv): on a split whose first stage holds only a linear layer's states, on a device with room for its live states and not one checkpoint more, the fit gives no checkpoint slot and the model is placed; on roomy devices it gives the slots asked for. Slot counts whose sum a size cannot hold are refused.
@@ -557,6 +561,33 @@ void checkpoint_fit() {
                     "asked for as many checkpoints as a size holds, the fit took " + std::to_string(all->checkpoint_slots()) + " beside " +
                         std::to_string(all->kv_tokens_total()) + " KV tokens");
         }
+    }
+    // A device whose free memory is still coming back when the fit first reads it, as a server restarted on the card its predecessor held finds it: once the memory has settled it holds the whole budget and the checkpoints asked for, so it gets both.
+    {
+        auto d = std::make_shared<Room>();
+        d->room = size_t(1) << 30;
+        d->rise_after = 2;
+        const auto settled = infer::place_model(w, std::vector<backend::BackendPtr>{d}, one, options).model;
+        require(settled->checkpoint_slots() == 4 && settled->kv_tokens_total() == 512,
+                "a device whose memory settled after the first reads took " + std::to_string(settled->checkpoint_slots()) + " checkpoint slots beside " +
+                    std::to_string(settled->kv_tokens_total()) + " KV tokens");
+    }
+    // Two cards fitted to their free memory, the first's coming back in a step some two seconds after the fit first reads it, as when a split server restarts on the cards its predecessor held: the split, the KV budget and the checkpoints are those of idle cards, not the second card holding every layer.
+    {
+        const auto cards = [](int rise) {
+            auto a = std::make_shared<Room>(), b = std::make_shared<Room>();
+            a->room = b->room = size_t(1) << 30;
+            a->device = b->device = true;
+            a->rise_after = rise;
+            return std::vector<backend::BackendPtr>{a, b};
+        };
+        infer::PlacementRequest fitted = request;
+        fitted.shares.clear();
+        const infer::PlacedModel idle = infer::place_model(w, cards(0), fitted, options);
+        const infer::PlacedModel late = infer::place_model(w, cards(8), fitted, options);
+        require(late.plan == idle.plan && late.model->checkpoint_slots() == idle.model->checkpoint_slots() &&
+                    late.model->kv_tokens_total() == idle.model->kv_tokens_total(),
+                "a split whose first card's memory came back late was placed as\n" + late.plan + "where idle cards give\n" + idle.plan);
     }
     infer::ModelOptions wrapped;
     wrapped.state_slots = std::numeric_limits<size_t>::max();

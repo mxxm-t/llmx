@@ -53,7 +53,7 @@ struct DeviceProfile {
     size_t tile_narrow_nin = 4096;
     // Prompt extent from which a routed projection takes the tile kernel over each expert's rows rather than the row kernel per entry, by weight family (moe_tile_from_for): F32, Q8_0 and Q6_K, then Q4_0 and Q4_1, Q4_K and Q5_K.
     size_t moe_tile_from = 32, moe_tile_from_q4 = 96, moe_tile_from_q4k = 64, moe_tile_from_q5k = 48;
-    // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row, for heads 128 wide and narrower and for heads 256 wide (docs/STATUS.md).
+    // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row, for heads 128 wide and narrower and for heads 256 wide (docs/STATUS.md), each at most 256, the lanes of attention_merge's workgroup.
     size_t attention_split_chunk = 32, attention_split_max = 64, attention_split_max_wide = 64;
     // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, for rows at least tile_narrow_nin wide and narrower, and the fewest quant blocks of 32 a part may sum.
     uint32_t tile_split_per_cu = 8, tile_split_per_cu_narrow = 4, tile_split_min_blocks = 8;

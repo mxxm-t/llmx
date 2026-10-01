@@ -1,5 +1,28 @@
 # llmx - Development Status
 
+## The attention merge reads each part's state once (2026-10-01, branch perf/attention-merge, lands by fast-forward)
+
+- **Goal:** less of an MI50's decode at long histories in `attention_merge`, which `--profile` put at 13.2 ms of 115 ms of device time over 4096 decode dispatches of Qwen3-30B-A3B Q4_K_M after 16384 tokens at 64 parts, a quarter of attention's own time, for a merge of a few hundred kilobytes a layer.
+- **Done:** each of a row and head's parts has its maximum and sum read once into shared memory and its weight formed once, where each of 128 lanes read every part's state and formed every weight; the maximum is taken across subgroups, which is exact in any order; a lane loads eight parts' values of its column before it sums them, in part order, as one lane reading every part did, so the output keeps its bits. The parts a row may take are at most 256, the merge's workgroup (`attention_split_max`).
+- **Gates** (each tree built from its own sha, default clocks):
+  - The merge's device time over those 4096 dispatches, at 64 parts: 13.2 ms on main, 7.5 ms with the change. Decode after 16384 tokens, tg256, on one MI50:
+
+    | model | base | change |
+    |---|---|---|
+    | Qwen3-30B-A3B Q4_K_M, at 64 parts (main `87051ea3`) | 57.35, 57.89 | 60.28, 60.55 |
+    | Qwen3-30B-A3B Q4_K_M, at 32 parts (main `59760e1e`) | 61.19, 60.89 | 61.77, 61.52 |
+    | Qwen3-30B-A3B Q4_K_M, after 4096 tokens, at 32 parts | 84.47, 89.75 | 92.95, 91.51 |
+    | Qwen3-8B Q8_0, at 32 parts | 48.54, 49.60 | 48.99, 50.06 |
+
+  - The same greedy ids as main after a ~4k-token prompt on Qwen3-8B Q8_0, Qwen3-30B-A3B Q4_K_M and Qwen3.5-0.8B Q4_K_M (heads 256 wide) on an MI50, and on Qwen3-8B Q8_0 on the Radeon VII.
+  - On an MI50, CTest 39 of 39 and the device suite with `--require-tools` passing every component it runs (the qwen35 fixtures not on that disk skip, as MXFP4 does on the device); on the Radeon VII, CTest 40 of 40, and decode after 4096 tokens on Qwen3-8B Q8_0 at 36.87 and 36.17 tok/s against main's 36.25 and 35.00.
+  - The hosted run at the head.
+- **Left:** nothing. After it, Qwen3-30B-A3B Q4_K_M after 16384 tokens stands at about 62 tok/s against the reference's 69.5; Qwen3-8B Q8_0 at about 50 against 43.7 and Qwen3-0.6B Q8_0 at about 160 against 159.4. The rest of the gap is the per-row attention kernel's own time, 45 percent of decode at that depth.
+- **Gotchas, measured on the way and not kept** (`exp/` branches on Gitea, never merged):
+  - Heads per workgroup and the parts cap, swept with knobs read from the environment in an experiment build: on Qwen3-30B-A3B, Qwen3-8B and Qwen3-0.6B Q8_0 after 16384 tokens the profile's numbers (four heads of a KV head or two, 32 parts) were the fastest of 1, 2 and 4 heads by 16, 32, 64 and 128 parts.
+  - The four-head build taking one token at a time rather than two: 72 registers rather than 76, still three subgroups a SIMD, and 1 to 3 percent slower.
+  - Key and value rows kept as their packed halves until each value is used: 64 registers and four subgroups a SIMD, but 53.6 against 62.6 tok/s on Qwen3-30B-A3B, the unpacking repeated for each head costing more than the subgroups gained.
+
 ## Decode attention at depth: fewer parts on an MI50 (2026-10-01, branch perf/attention-splits, lands by fast-forward)
 
 - **Goal:** close the decode gap at long histories on an MI50, where Qwen3-30B-A3B Q4_K_M gave 56.4 tok/s at tg512 after 16384 tokens against the reference's 69.5.

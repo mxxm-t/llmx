@@ -791,7 +791,7 @@ matters: **each layer depends only on the layers below it** -
 | `quant/`     | type ids and block sizes, QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K/MXFP4 kernels |
 | `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, output files published whole, raw F32 tensors to and from GGUF |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
-| `model/`     | runtime (sequences, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices |
+| `model/`     | runtime (sequences and their histories, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
 | `inference/` | model loading, sampler, log-probabilities, generate, perplexity, chat template renderer |
 | `server/`    | multi-user server (`docs/SERVER.md`): HTTP layer, scheduler with prefix reuse, its policy core and sampling threads, routes |

@@ -18,7 +18,7 @@ The storage kinds, each declared by a module's plan (`LayerPlan::cache`), and ea
 | recurrent state | one fixed-size state a slot, the state after the last row read | 0, a checkpoint, or a row inside a mark | qwen35's linear-attention layers |
 | ring and compressor tails | the last rows, kept by committed length with k_max headroom | every length within the headroom | DeepSeek V4.x (its own plan) |
 
-**The owner** is the model runtime (`model/runtime.hpp`, `model/kv_cache.hpp`): `infer::Model` and `infer::Sequence`.
+**The owner** is the model runtime (`model/runtime.hpp`, its history operations in `model/history.hpp`, and `model/kv_cache.hpp`): `infer::Model` and `infer::Sequence`.
 The server and the CLI ask for the operations below and never touch a block, a slot or a storage; the module declares its cache kinds and names no operation.
 
 **The operations**, each one call on `Model`:

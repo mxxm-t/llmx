@@ -171,48 +171,12 @@ delegated to a `backend::Backend`.
     each device runs the stages recorded on it in that order and a pass
     keeps its own handoff buffer, logits rows and ticket. `forward`,
     `prefill`, `step` and `score` do not use it.
-  - `make_sequence()`, `reset(sequence)`: a fresh history, and one returned
-    to the pools, its blocks and its state slot, after waiting on its last
-    ticket; a sequence in flight is refused.
+  - `make_sequence()`: a fresh history over the model's cache, a table per KV storage and a count for each stage without one.
   - `keeps_state()`: whether some layer keeps a recurrent state, which
     exists only at the end of what it has read, so such a model forks and
-    takes a history back only at its checkpoint (`docs/SPECULATIVE.md`,
-    section 1). A sequence holds one checkpoint at most, a state kept at a
-    position in a slot of the pool's checkpoint side, counted by reference
-    since a fork reads it in place: a `BatchEntry::keep` entry writes its
-    state into a fresh checkpoint slot (`StateView::dst`), which the next
-    pass reads (`src`) as it writes the live slot, and which replaces the
-    sequence's older checkpoint once the entry's last stage commits it;
-    `keep(sequence)` makes the live state at the current length the
-    checkpoint between passes, its slot moving to the checkpoint side.
-    `retract(sequence, length)` is the one call that shortens a history: to
-    `length` where the caches hold it, else to the checkpoint at or below
-    it, else to 0, returning the length reached; a failed pass, or a prompt
-    that fails part way, takes its entries back the same way, since a pass
-    writes the live state in place. `checkpoint(sequence)`,
-    `checkpoint_slots()` and `checkpoints_free()` give the position and the
-    slots.
-  - `mark(sequence)`: the history kept at its length while one pass runs
-    past it, so a retract into that pass reaches any of its rows exactly, as
-    a verify of drafts needs (`docs/SPECULATIVE.md`, section 1). On a model
-    that keeps no state it does nothing, since its caches reach every
-    length; on one that does, the live slot moves to the pool's mark side
-    and becomes the next pass's `src`, the pass writing a fresh live slot,
-    and after each state layer's mixer the pass copies the marked entry's
-    rows of the inputs its update read (`LayerPlan::saved`) into the mark's
-    buffer. The sequence holds the mark through a `MarkHold`, so a marked
-    sequence destroyed or moved from returns its holds once, and every
-    allocation comes before a hold is taken, so a mark that fails changes
-    nothing. It returns false, marking nothing, when no mark is free; a
-    second mark, a fork or a `keep` of a marked sequence, a second pass
-    after a mark, a pass of more rows than `mark_rows` and a `keep` entry
-    after a mark are refused. `retract(sequence, length)` inside the pass
-    after a mark runs the state's update again from the mark over the kept
-    rows' saved inputs into the live slot (`Architecture::recur`, in the
-    model's own arena), at the mark's position takes the mark's state back,
-    and at the pass's end keeps it; the mark then goes. A failed pass goes
-    back to the mark, and a rerun that throws drains the devices and keeps
-    the mark, so the retract may be called again.
+    takes a history back only at its checkpoint ([history](model-history.md)).
+    `checkpoint_slots()` and `checkpoints_free()` give the checkpoint slots in all and those a keep can still take.
+  - A sequence's history, `fork`, `reset`, `retract`, `mark`, `keep` and `checkpoint`, has its operations in `model/history.hpp`, declared in the class and defined there ([history](model-history.md)).
   - `state_slots()`: the sequences that may hold a recurrent state at once,
     `ModelOptions::state_slots`, zero for a model whose layers keep none; a
     server over such a model runs at most that many requests at once.
@@ -221,15 +185,7 @@ delegated to a `backend::Backend`.
     layers keep KV, each in its own blocks; `kv_tokens_total()` is the tokens
     every pool can hold, and `kv_block_tokens()` the largest block, which a
     reusable prefix ends on.
-  - `fork(sequence, length)`: a second history holding the first `length`
-    tokens, which must be whole blocks in every storage, sharing every block
-    below `length` on every storage without allocating or copying physical
-    KV blocks; the logical block tables and ticket vectors still allocate. The
-    server forks a donor at the blocks a prompt shares with it.
-    On a model whose layers keep a state `length` must be the source's checkpoint, whose state the fork's first pass reads in place.
-    A forked sequence continues exactly as a fresh one fed the same tokens at the same extents would; rows another extent computed can differ from them by rounding, so a caller forks only rows whose class (`row_class`) is its own.
   - `row_class(extent)` is the one owner of which rows compute the same bits: each used device's `Backend::row_class` and whether the rows take a streamed layer on the device.
-    A sequence in flight is not forked.
   - `set_threads(n)` applies to every backend and `threads_available()` reports the largest count among them, the host's wherever it sits in a placement.
     The thread getter reports the resolved backend count, allowing the CLI to restore automatic decode settings after prefill.
   - `n_tokens()` is the default sequence's length; `context_length()` and `n_vocab()` are the plan's.

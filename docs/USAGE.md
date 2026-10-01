@@ -485,6 +485,8 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--ignore-eos`          | never end at the model's end-of-text token           | off     |
+| `--drafter D`           | draft tokens to verify in one pass: `off` or `lookup` | `off`  |
+| `--draft-max N`         | most drafts a verify takes, 1 to 63                  | 3       |
 | `-f`, `--file <path>`   | read the prompt from a UTF-8 file, right after the model | (none) |
 | `--chat`                | send the prompt as one user message through the model's chat template | off (raw text) |
 | `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status, and after `tg:` the generated token ids as `ids: a,b,...`, which `logits --then-ids` reads back | off   |
@@ -495,12 +497,16 @@ A sampled token is drawn from the tokens `--topk` and `--topp` keep, ranked by s
 `--topk 0` ranks only the best tokens, 64 at first and more as the `--topp` nucleus needs them, and with `--topp 1` ranks none: the draw walks every token in id order.
 `--ignore-eos` takes the end-of-text token out of every draw, greedy included, so the reply runs to `-n` unless a `--stop` match ends it first; the server's `ignore_eos` is the same rule, and the two give the same tokens for the same settings.
 The model's context still bounds the reply: a `-n` up to what the prompt leaves of it runs to `-n`, and past that the command stops with the context error, as it does without the option, where the server refuses such a request before it starts.
+`--drafter lookup` drafts the tokens that followed the latest earlier occurrence of the last three tokens, else two, else one, of the prompt and the reply so far, and verifies the last token and up to `--draft-max` drafts in one pass of generated tokens (docs/SPECULATIVE.md, section 3).
+Each row is sampled as the token without drafts would be, so the text, the ids and every draw are the same as with `--drafter off`, greedy or seeded; drafts that match save passes, which pays where the reply repeats its prompt or itself, and a reply whose drafts kept average below half a draft a verify drafts nothing for its next 16 tokens, then tries again.
+On a model that keeps a recurrent state a verify keeps the state it started from in a slot of its own, and a rejected draft runs the state's update again over the rows it keeps.
+A verify costs more than a step, and on a device its cost rises sharply past eight rows, so a large `--draft-max` can cost more than it saves; nothing yet prices a draft against its pass, so the default stays small (docs/STATUS.md has the measurements).
 
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`
 
 Interactive chat loop reading lines from stdin.
 Uses the model's `tokenizer.chat_template` to format the conversation, rendered byte for byte as the Jinja template language defines it (`docs/src/inference-chat.md` lists what the renderer takes).
-Supports the same sampling flags as `generate`, plus `--system` to set the system message (default: `You are a helpful assistant.`).
+Supports the same sampling and drafting flags as `generate`, plus `--system` to set the system message (default: `You are a helpful assistant.`).
 Messages come only from stdin, so a positional argument after the model is refused.
 A template that uses a part of the template language the renderer does not take is refused, with the reason, before the first turn; `generate` without `--chat` still runs on that file.
 A template can also refuse a conversation itself, and that ends the command with the template's message.

@@ -183,8 +183,8 @@ private:
     std::vector<int32_t> blocks_;
 };
 
-// The slots of a model's recurrent state, each the same slot in every state storage: `live` of them for the sequences that hold a state at once, and `checkpoints` more for states kept at a position (docs/SPECULATIVE.md, section 1).
-// The two sides share the slots and are counted apart, so a live slot is always there for a sequence the live side admits, whatever the checkpoints hold.
+// The slots of a model's recurrent state, each the same slot in every state storage: `live` of them for the sequences that hold a state at once, `checkpoints` more for states kept at a position, and `marks` more for states kept while a verify runs past them (docs/SPECULATIVE.md, section 1).
+// The sides share the slots and are counted apart, so a live slot is always there for a sequence the live side admits, whatever the checkpoints and marks hold.
 // A slot holds nothing a sequence must clear: a history of length 0 reads a zero state whatever its slot holds.
 // Sequences hold the pool's address, so it is neither copied nor moved.
 class SlotPool {
@@ -193,16 +193,21 @@ public:
     SlotPool(const SlotPool&) = delete;
     SlotPool& operator=(const SlotPool&) = delete;
 
-    void configure(size_t live, size_t checkpoints) {
-        if (live_held_ || kept_held_) throw std::logic_error("state slots reconfigured while some are held");
-        if (checkpoints > std::numeric_limits<size_t>::max() - live) throw std::runtime_error("inference: more state slots than a size holds");
-        const size_t slots = live + checkpoints;
+    void configure(size_t live, size_t checkpoints, size_t marks = 0) {
+        if (live_held_ || kept_held_ || mark_held_) throw std::logic_error("state slots reconfigured while some are held");
+        if (checkpoints > std::numeric_limits<size_t>::max() - live || marks > std::numeric_limits<size_t>::max() - live - checkpoints)
+            throw std::runtime_error("inference: more state slots than a size holds");
+        const size_t slots = live + checkpoints + marks;
         free_.clear();
         free_.reserve(slots);
         for (size_t s = slots; s-- > 0;) free_.push_back(s);
         refs_.assign(slots, 0);
         live_ = live;
         kept_ = checkpoints;
+        marks_ = marks;
+        mark_buffers_.clear();
+        mark_buffers_.reserve(marks);
+        for (size_t m = marks; m-- > 0;) mark_buffers_.push_back(m);
     }
     size_t acquire() {
         if (live_held_ == live_) throw std::runtime_error("inference: every recurrent state slot is held");
@@ -239,6 +244,32 @@ public:
     }
     size_t kept_available() const { return kept_ - kept_held_; }
 
+    // A live slot becomes a mark's, its state kept where it is while the next pass writes another, when the mark side has room; the live side then has one more to give.
+    bool mark_live() noexcept {
+        if (mark_held_ == marks_) return false;
+        --live_held_;
+        ++mark_held_;
+        return true;
+    }
+    // A mark's slot goes back to being a sequence's live slot, the live slot that pass wrote returned first.
+    void unmark() noexcept {
+        --mark_held_;
+        ++live_held_;
+    }
+    void release_mark(size_t s) noexcept {
+        free_.push_back(s);
+        --mark_held_;
+    }
+    // A mark's buffer of saved inputs, one per mark, whether or not the mark holds a slot; none free gives false.
+    bool acquire_mark_buffer(size_t& buffer) noexcept {
+        if (mark_buffers_.empty()) return false;
+        buffer = mark_buffers_.back();
+        mark_buffers_.pop_back();
+        return true;
+    }
+    // Returned to the capacity configure reserved, so it never allocates.
+    void release_mark_buffer(size_t buffer) noexcept { mark_buffers_.push_back(buffer); }
+
 private:
     size_t take() {
         const size_t s = free_.back();
@@ -247,7 +278,8 @@ private:
     }
     std::vector<size_t> free_;   // taken from the back, slot 0 first
     std::vector<uint32_t> refs_;
-    size_t live_ = 0, kept_ = 0, live_held_ = 0, kept_held_ = 0;
+    std::vector<size_t> mark_buffers_;   // the marks' buffers no hold has
+    size_t live_ = 0, kept_ = 0, marks_ = 0, live_held_ = 0, kept_held_ = 0, mark_held_ = 0;
 };
 
 // A sequence's hold on one live slot of a SlotPool, returned when it is released, moved over or destroyed.
@@ -278,12 +310,67 @@ public:
         if (pool_) pool_->release(slot_);
         pool_ = nullptr;
     }
-    // The slot handed to the checkpoint side (SlotPool::keep_live), so this hold ends without returning it.
+    // The slot handed to the checkpoint or the mark side (SlotPool::keep_live, SlotPool::mark_live), so this hold ends without returning it.
     void forget() noexcept { pool_ = nullptr; }
+    // A mark's slot taken back as this live hold (SlotPool::unmark).
+    void adopt(SlotPool& pool, size_t slot) noexcept {
+        release();
+        pool.unmark();
+        pool_ = &pool;
+        slot_ = slot;
+    }
 
 private:
     SlotPool* pool_ = nullptr;
     size_t slot_ = 0;
+};
+
+// A sequence's hold on a mark (Model::mark): one of the pool's mark buffers and, where the mark took the sequence's live slot, that slot on the mark side, each returned once, when the hold is released, moved over or destroyed.
+class MarkHold {
+public:
+    MarkHold() = default;
+    MarkHold(const MarkHold&) = delete;
+    MarkHold& operator=(const MarkHold&) = delete;
+    MarkHold(MarkHold&& o) noexcept : pool_(o.pool_), buffer_(o.buffer_), slot_(o.slot_), owns_(o.owns_) { o.pool_ = nullptr; }
+    MarkHold& operator=(MarkHold&& o) noexcept {
+        if (this != &o) {
+            release();
+            pool_ = o.pool_, buffer_ = o.buffer_, slot_ = o.slot_, owns_ = o.owns_;
+            o.pool_ = nullptr;
+        }
+        return *this;
+    }
+    ~MarkHold() { release(); }
+    // A buffer, and with `live` the live slot `slot` moved to the mark side; false, taking nothing, where either has no room.
+    bool take(SlotPool& pool, bool live, size_t slot) noexcept {
+        release();
+        if (!pool.acquire_mark_buffer(buffer_)) return false;
+        if (live && !pool.mark_live()) {
+            pool.release_mark_buffer(buffer_);
+            return false;
+        }
+        pool_ = &pool, slot_ = slot, owns_ = live;
+        return true;
+    }
+    bool held() const { return pool_ != nullptr; }
+    bool owns() const { return owns_; }
+    size_t buffer() const { return buffer_; }
+    // The slot handed back as a live slot (StateSlot::adopt), so only the buffer is left to return.
+    size_t give_slot() noexcept {
+        owns_ = false;
+        return slot_;
+    }
+    void release() noexcept {
+        if (!pool_) return;
+        if (owns_) pool_->release_mark(slot_);
+        pool_->release_mark_buffer(buffer_);
+        pool_ = nullptr;
+    }
+
+private:
+    SlotPool* pool_ = nullptr;
+    size_t buffer_ = 0, slot_ = 0;
+    bool owns_ = false;
 };
 
 // A state kept at a position: one reference to a checkpoint's slot, copied by taking another, returned when the last goes.

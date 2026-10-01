@@ -218,6 +218,7 @@ def run():
         model = write_model(os.path.join(directory, "tiny-moe.gguf"), weights, config=CONFIG, arch="qwen3moe")
         worst, _ = common.check_hf_fixture("MoE", model, golden["cases"], golden["perplexity"], TEXTS[-1],
                                            (1, 2, 3, 5, 16), placements)
+        common.check_drafts("MoE", model)
     print("moe: all 257 logits vs HF over routed and dense layers, batch widths, threads, expert placement and PPL; max error %.8f  [ok]" % worst)
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_moe_q8.json"), encoding="utf-8") as f:
         golden = json.load(f)

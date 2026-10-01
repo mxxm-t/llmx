@@ -707,6 +707,77 @@ void failed_admission_takes_no_slot() {
     require(failed > 0, "begin_pass allocated nothing on a fresh reservation");
 }
 
+// A mark's holds are returned once, whatever becomes of its sequence: on a model of one live slot and one mark, a marked sequence destroyed, at length 0 and holding the live slot, leaves both for the next; a marked sequence moved, by construction and by assignment, takes its mark with it, so a reset of the one moved from releases nothing; and a mark whose allocations fail in turn changes nothing, the sequence then stepping and marking as before.
+void marks() {
+    // The weights are read in place, so the file outlives the model.
+    const gguf::GGUFModel file = tiny();
+    const infer::ModelWeights w = infer::gguf_weights(file);
+    const uint32_t ids[] = {3, 1, 4, 1, 5};
+    infer::ModelOptions options;
+    options.state_slots = 1;
+    options.mark_slots = 1;
+    options.mark_rows = 4;
+    infer::Model model(w, backend::make_cpu_backend(), options);
+    infer::ExecContext ctx;
+    const auto pass = [&](infer::Sequence& s, size_t n) {
+        const infer::BatchEntry e{&s, ids, n, true};
+        model.forward(ctx, &e, 1);
+    };
+    {
+        infer::Sequence fresh = model.make_sequence();
+        require(model.mark(fresh), "a fresh sequence's mark was refused");
+    }
+    {
+        infer::Sequence live = model.make_sequence();
+        pass(live, 3);
+        require(model.mark(live), "the mark of a sequence holding the live slot was refused");
+    }
+    infer::Sequence a = model.make_sequence();
+    pass(a, 3);
+    require(model.mark(a), "a destroyed sequence kept its mark or the live slot");
+    pass(a, 2);
+    infer::Sequence b(std::move(a));
+    model.reset(a);
+    require(model.retract(b, 4) == 4, "a mark moved by construction did not reach its length");
+    require(model.mark(b), "a mark was not returned by the retract after a move");
+    infer::Sequence c = model.make_sequence();
+    c = std::move(b);
+    model.reset(b);
+    pass(c, 1);
+    require(model.retract(c, 4) == 4, "a mark moved by assignment did not reach the mark");
+    // A marked sequence assigned over returns its mark, so another sequence takes it.
+    require(model.mark(c), "a mark after a retract to the mark was refused");
+    c = model.make_sequence();
+    infer::Sequence after = model.make_sequence();
+    require(model.mark(after), "a sequence assigned over kept its mark");
+    model.reset(after);
+    model.reset(c);
+    // Each allocation of a mark failed in turn: nothing taken or changed, so the history steps and is marked afterwards.
+    size_t failed = 0;
+    for (size_t k = 1;; ++k) {
+        infer::Sequence s = model.make_sequence();
+        pass(s, 3);
+        bool threw = false, marked = false;
+        fail_allocation = k;
+        try {
+            marked = model.mark(s);
+        } catch (const std::bad_alloc&) {
+            threw = true;
+        }
+        fail_allocation = 0;
+        if (!threw) {
+            require(marked && model.retract(s, 3) == 3, "a mark after failed allocations was refused");
+            break;
+        }
+        ++failed;
+        require(s.length() == 3, "a mark whose allocation failed changed the history");
+        pass(s, 1);
+        require(model.mark(s), "a mark whose allocation failed kept a hold");
+        model.reset(s);
+    }
+    require(failed > 0, "a mark allocated nothing");
+}
+
 // A prompt in slices of 1, 3 and 16, and its decode, give the bytes of the prompt in one pass; two sequences in one pass give each one's bytes alone.
 void slices(const gguf::GGUFModel& m) {
     const infer::ModelWeights w = infer::gguf_weights(m);
@@ -847,6 +918,7 @@ int main() {
         checkpoint_fit();
         refused_passes_take_no_slot();
         failed_admission_takes_no_slot();
+        marks();
         slices(tiny());
         split_with_a_stage_of_states(tiny());
         experts();

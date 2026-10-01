@@ -49,14 +49,27 @@ struct OpUse {
     backend::Op op;
 };
 
-// A decoder layer as the model runs it: the architecture's own kind for it, handed back on every call for the layer, whether its feed-forward part holds routed experts, what its mixer keeps between passes, its roles in the order they are adopted, and the ops of its parts that some backends lack.
+// Rows of an arena slot that a state layer's mixer leaves for Architecture::recur: in slot `slot`, `width` floats a row, the `plane`-th block of the pass's rows, so plane 1 starts `rows` rows in.
+struct Saved {
+    size_t slot, width, plane = 0;
+};
+
+// A decoder layer as the model runs it: the architecture's own kind for it, handed back on every call for the layer, whether its feed-forward part holds routed experts, what its mixer keeps between passes, its roles in the order they are adopted, the ops of its parts that some backends lack, and for a layer that keeps a state the inputs its state's update reads (Architecture::recur).
 struct LayerPlan {
     uint8_t kind = 0;
     bool routed = false;
     Cache cache = Cache::kv;
     std::vector<Role> roles;
     std::vector<OpUse> ops;
+    std::vector<Saved> saved;
 };
+
+// The floats a row of a state layer saves for a mark (LayerPlan::saved).
+inline size_t saved_floats(const LayerPlan& layer) {
+    size_t n = 0;
+    for (const Saved& v : layer.saved) n = backend::size_add(n, v.width);
+    return n;
+}
 
 // What an architecture declares of a model: the size of every resolved row of weights, the vocabulary, the roles of the pass (the embedding's and the head's) and each layer's, the positions a sequence may reach, and what the arena, the caches and the tables take.
 // Every role id is below role_ids, and slot 0 is as wide as the residual, which plan_model holds every plan to.
@@ -112,6 +125,9 @@ public:
     virtual void fill_tables(std::vector<std::vector<float>>& tables) const = 0;
     virtual void embed(const Step& s, const uint32_t* ids) const = 0;
     virtual void mixer(const Step& s) const = 0;
+    // The ops of a state layer's mixer that update its state, from the rows LayerPlan::saved names in their slots: the mixer runs them, and a retract inside a mark runs them again over the rows it keeps (docs/SPECULATIVE.md, section 1).
+    // A layer that keeps no state has none.
+    virtual void recur(const Step&) const {}
     virtual void ffn(const Step& s) const = 0;
     virtual void head(const HeadStep& s) const = 0;
 };

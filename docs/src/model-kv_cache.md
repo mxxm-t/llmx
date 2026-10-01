@@ -38,8 +38,8 @@ state), whose slots live in a `backend::StateStorage`.
   movable for the same reason.
 
 - `SlotPool` hands out the state slots of a model, the same slot in every
-  state storage, on two sides counted apart over the slots they share
-  (`configure(live, checkpoints)`, refused while any is held): the live
+  state storage, on three sides counted apart over the slots they share
+  (`configure(live, checkpoints, marks = 0)`, refused while any is held): the live
   side, one per sequence that holds a state, where `acquire` throws when
   every live slot is held, `release` returns one and `available` counts
   the free ones, so a sequence the live side admits always finds a slot;
@@ -48,13 +48,24 @@ state), whose slots live in a `backend::StateStorage`.
   with one reference, `retain` and `release_kept` count references and
   free it with the last, `keep_live` moves a held live slot to the
   checkpoint side when that side has room, and `kept_available` counts
-  its free slots. A slot holds nothing a
+  its free slots; and the mark side, a verify's starting states
+  (`Model::mark`), where `mark_live` moves a held live slot there when the
+  side has room, `unmark` moves it back to the live side and `release_mark`
+  frees it, beside a buffer of saved inputs for each mark, taken by
+  `acquire_mark_buffer` and returned by `release_mark_buffer` without
+  allocating. A slot holds nothing a
   sequence must clear, since a history of length 0 reads a zero state
   whatever its slot holds. `StateSlot` is a sequence's hold on one slot,
   taken by `take`, which does nothing when one is already held, named by
   `slot`, and returned by `release`, when it is moved over or when it is
   destroyed, and `held` says whether it holds one; `forget` ends the hold
-  without returning a slot `keep_live` moved. `Checkpoint` is one reference
+  without returning a slot `keep_live` or `mark_live` moved, and
+  `adopt(pool, slot)` returns the slot it holds and takes a mark's slot back
+  as its live slot. `MarkHold` is a sequence's hold on a mark, a buffer and,
+  where the mark took the live slot, that slot on the mark side (`take`,
+  which takes nothing where either has no room), each returned once by
+  `release`, a move over it or its destruction; `give_slot` hands the slot
+  back as a live slot, leaving the buffer to return. `Checkpoint` is one reference
   to a checkpoint's slot with its position (`slot`, `pos`), copied by
   taking another and returning the slot with the last; neither `StateSlot`
   nor the pool is copyable and the pool is not movable.

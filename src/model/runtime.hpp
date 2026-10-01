@@ -68,6 +68,8 @@ struct ModelOptions {
     size_t state_slots = 1;
     // States kept at a position beside those (Model::checkpoint), each a slot more in every state storage (docs/SPECULATIVE.md, section 2).
     size_t checkpoint_slots = 0;
+    // Marks (Model::mark), each a slot more in every state storage and room for the recurrent inputs of `mark_rows` rows of every state layer, the most a pass after a mark may take.
+    size_t mark_slots = 0, mark_rows = 0;
     // The whole KV budget backed as the model is made rather than as passes write it, so no pass grows the cache (a server's fitted budget, PlacementRequest::fit_kv).
     bool kv_backed = false;
 };
@@ -95,6 +97,15 @@ private:
     Checkpoint kept_;                     // its state kept at a position, which a fork or a retract continues from; one at most, a newer replacing it
     static constexpr size_t kLive = SIZE_MAX;
     std::vector<size_t> from_;            // per stage, the slot its state is read from: the live slot (kLive) or a checkpoint's
+    // A mark (Model::mark): its hold on a buffer and maybe a slot, the history at `pos`, whose state is read from `from` on each stage while one pass runs past it, and whether that pass has been planned.
+    struct Mark {
+        MarkHold hold;
+        bool ran = false;
+        size_t pos = 0;
+        std::vector<size_t> from;
+        bool held() const { return hold.held(); }
+    };
+    Mark mark_;
     std::vector<backend::Ticket> last_;
     const Model* owner_ = nullptr;
     bool in_flight_ = false;
@@ -339,9 +350,21 @@ public:
             }
             // Each device whose mixer layers keep a state holds every slot of theirs from now on, zeroed, so no pass allocates state.
             if (state_layers_) {
-                for (auto& d : devices_)
-                    if (d->state_layers) d->states = d->b->state_alloc((size_t)d->state_layers, backend::size_add(options_.state_slots, options_.checkpoint_slots), plan_.state);
-                slots_.configure(options_.state_slots, options_.checkpoint_slots);
+                const size_t slots = backend::size_add(backend::size_add(options_.state_slots, options_.checkpoint_slots), options_.mark_slots);
+                for (size_t di = 0; di < devices_.size(); ++di) {
+                    Device& d = *devices_[di];
+                    if (!d.state_layers) continue;
+                    d.states = d.b->state_alloc((size_t)d.state_layers, slots, plan_.state);
+                    // Each mark's room for the recurrent inputs of its rows, per state layer of the device.
+                    if (!options_.mark_slots) continue;
+                    for (size_t l = 0; l < n_layer; ++l)
+                        if (place_.mixer_device[l] == (int)di && plan_.layers[l].cache == Cache::state)
+                            d.saved_floats = std::max(d.saved_floats, saved_floats(plan_.layers[l]));
+                    if (!d.saved_floats) throw std::logic_error("inference: a state layer that saves no inputs for a mark");
+                    d.saved = d.b->alloc(backend::size_mul(backend::size_mul(backend::size_mul(options_.mark_slots, (size_t)d.state_layers),
+                                                                             backend::size_mul(options_.mark_rows, d.saved_floats)), sizeof(float)));
+                }
+                slots_.configure(options_.state_slots, options_.checkpoint_slots, options_.mark_slots);
             }
             seq_ = make_sequence();
 
@@ -406,6 +429,7 @@ public:
     Sequence fork(const Sequence& src, size_t length) {
         if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
         if (src.in_flight_) throw std::logic_error("inference: a fork of a sequence in flight");
+        if (src.mark_.held()) throw std::logic_error("inference: a fork of a marked sequence");
         if (state_layers_ && (!src.kept_.held() || src.kept_.pos() != length))
             throw std::logic_error("inference: a fork of a model whose layers keep a recurrent state takes its source's checkpoint");
         if (length > src.length()) throw std::logic_error("KV cache: a fork takes whole blocks of the history");
@@ -536,6 +560,7 @@ public:
     // Every pass ends in a submit or, on failure, a sync, so the sequence's last tickets cover everything that could still be touching a block or a slot: this waits for those and no more.
     void reset(Sequence& s) {
         settle(s, "a reset");
+        drop_mark(s);
         for (auto& kv : s.kv_) kv.reset();
         std::fill(s.length_.begin(), s.length_.end(), 0);
         std::fill(s.from_.begin(), s.from_.end(), Sequence::kLive);
@@ -545,16 +570,48 @@ public:
 
     // The history back to at most `length`, the one call that shortens it (docs/SPECULATIVE.md, section 1), and the length it reached: `length` wherever the caches hold it, else, on a model whose layers keep a state, the sequence's checkpoint at or below it, else 0.
     // The caller computes the rest again, without sampling, as a resume does; blocks and a checkpoint past the length reached return to their pools.
+    // Inside a mark it reaches `length` itself: past the mark its state is run again from the mark's over the kept rows' saved inputs (Architecture::recur), at the mark it is the mark's, and the mark goes; a retract that throws keeps the mark, so it may be called again.
     size_t retract(Sequence& s, size_t length) {
         settle(s, "a retract");
-        if (length >= s.length()) return s.length();
+        if (s.mark_.held() && s.mark_.ran && length > s.mark_.pos && length < s.length()) {
+            rerun(s, length - s.mark_.pos);
+            drop_mark(s);
+            for (size_t& n : s.length_) n = std::min(n, length);
+            for (auto& kv : s.kv_) kv.truncate(length);
+            return length;
+        }
+        if (length >= s.length()) {
+            if (s.mark_.ran) drop_mark(s);
+            else if (s.mark_.held()) restore_mark(s);
+            return s.length();
+        }
         return rewind(s, length);
+    }
+
+    // Keep the sequence's state at its current length while one pass runs past it, so a retract into that pass reaches any of its rows exactly (docs/SPECULATIVE.md, section 1): a verify of drafts marks its history first.
+    // Nothing on a model that keeps no state, whose caches reach every length; on one that keeps a state, the live slot becomes the mark's and the pass writes a fresh one, saving its rows' recurrent inputs.
+    // False when no mark is free, and then nothing is marked; a second mark is refused.
+    bool mark(Sequence& s) {
+        settle(s, "a mark");
+        if (s.mark_.held()) throw std::logic_error("inference: a second mark");
+        if (!state_layers_) return true;
+        // Everything that may throw first, then the holds, which do not.
+        const bool live = s.state_.held();
+        std::vector<size_t> from = live ? std::vector<size_t>(stages_.size(), s.state_.slot()) : s.from_;
+        if (!s.mark_.hold.take(slots_, live, live ? s.state_.slot() : 0)) return false;
+        if (live) s.state_.forget();
+        s.mark_.ran = false;
+        s.mark_.pos = s.length();
+        std::copy(from.begin(), from.end(), s.from_.begin());
+        s.mark_.from.swap(from);
+        return true;
     }
 
     // The sequence's state kept at its current length, between passes, as its checkpoint: a paused history keeps its state this way, its live slot becoming the checkpoint's with no copy.
     // False when the model keeps no state or no checkpoint slot is free; the older checkpoint it replaces goes first, so its slot serves.
     bool keep(Sequence& s) {
         settle(s, "a keep");
+        if (s.mark_.held()) throw std::logic_error("inference: a keep of a marked sequence");
         if (!state_layers_) return false;
         if (s.kept_.held() && s.kept_.pos() == s.length()) return true;
         if (!s.state_.held()) return false;
@@ -585,6 +642,16 @@ public:
         forward(ctx_, &entry, 1);
         return row(ctx_, 0);
     }
+
+    // The logits after each of `n` tokens fed in one pass as generated tokens, as a verify of drafts feeds them (docs/SPECULATIVE.md, section 3): `n` rows of the vocabulary, each the bits single steps give, valid until the next pass.
+    const float* step(const uint32_t* ids, size_t n) {
+        BatchEntry entry{&seq_, ids, n, true};
+        entry.every_logits = true;
+        entry.extent = 1;
+        forward(ctx_, &entry, 1);
+        return ctx_.logits(0);
+    }
+    bool mark() { return mark(seq_); }
 
     // Process a whole prompt with matrix-matrix matmuls instead of one token at a time.
     // Each weight row is then reused across the batch, which is the difference between prefill being compute bound and paying the entire weight stream once per token.
@@ -724,6 +791,8 @@ private:
         std::unique_ptr<backend::KVStorage> storage;
         BlockPool pool;
         std::unique_ptr<backend::StateStorage> states;
+        backend::BufferPtr saved;                // every mark's saved recurrent inputs, per mark, state layer, saved item and row
+        size_t saved_floats = 0;                 // a row's saved inputs in one state layer
         std::vector<backend::BufferPtr> tables;  // the position tables, on a device that runs a mixer
     };
 
@@ -852,13 +921,23 @@ private:
     void settle(Sequence& s, const char* what) {
         if (s.owner_ != this) throw std::runtime_error("inference: sequence of another model");
         if (s.in_flight_) throw std::logic_error(std::string("inference: ") + what + " of a sequence in flight");
-        for (size_t d = 0; d < devices_.size(); ++d)
+        // A sequence moved from has no tickets, nothing of it being left to wait on.
+        for (size_t d = 0; d < devices_.size() && d < s.last_.size(); ++d)
             if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
     }
 
     // A history back to `length`, or on a model that keeps a state to its checkpoint at or below `length`, else 0, whose live state a pass may have written: every stage and storage at the length reached, which is returned, the blocks and a checkpoint beyond it returned.
     // The state is then the checkpoint's, or zero, so the live slot goes back too, and the next pass takes one: a donor parked at its checkpoint holds none of the slots admission counts on.
     size_t rewind(Sequence& s, size_t length) noexcept {
+        // At or past a mark the state is the mark's, and the history goes back to its position; below it the mark is not needed.
+        if (s.mark_.held() && length >= s.mark_.pos) {
+            const size_t to = s.mark_.pos;
+            restore_mark(s);
+            for (size_t& n : s.length_) n = std::min(n, to);
+            for (auto& kv : s.kv_) kv.truncate(to);
+            return to;
+        }
+        drop_mark(s);
         size_t to = length;
         if (state_layers_) {
             if (s.kept_.held() && s.kept_.pos() > length) s.kept_.release();
@@ -869,6 +948,88 @@ private:
         for (size_t& n : s.length_) n = std::min(n, to);
         for (auto& kv : s.kv_) kv.truncate(to);
         return to;
+    }
+
+    // Where row 0 of saved item `item` of local state layer `layer` of mark buffer `buffer` sits in device d's saved buffer, in floats; its rows follow one another.
+    size_t saved_at(const Device& d, const LayerPlan& lp, size_t buffer, size_t layer, size_t item) const {
+        size_t before = 0;
+        for (size_t i = 0; i < item; ++i) before += lp.saved[i].width;
+        return ((buffer * (size_t)d.state_layers + layer) * d.saved_floats + before) * options_.mark_rows;
+    }
+
+    // After state layer l's mixer on device `dev`: each marked entry's rows of the inputs its state's update read, copied into its mark's buffer.
+    void save(ExecContext& ctx, const Pass& p, size_t dev, int l) {
+        const Device& d = *devices_[dev];
+        const LayerPlan& lp = plan_.layers[(size_t)l];
+        const ExecContext::Scratch& sc = ctx.scratch[dev];
+        for (size_t e = 0; e < p.entries.size(); ++e) {
+            const Sequence::Mark& m = p.entries[e].seq->mark_;
+            if (!m.held()) continue;
+            const size_t r0 = e ? p.runs[e - 1].end : 0, n = p.entries[e].n;
+            for (size_t i = 0; i < lp.saved.size(); ++i) {
+                const Saved& v = lp.saved[i];
+                d.b->copy(*d.saved, saved_at(d, lp, m.hold.buffer(), (size_t)d.local_layer[(size_t)l], i) * sizeof(float), *sc.arena,
+                          sc.offset[v.slot] + (v.plane * p.rows + r0) * v.width * sizeof(float), n * v.width * sizeof(float));
+            }
+        }
+    }
+
+    // The state after the first `rows` rows of the pass past the sequence's mark, into its live slot: on each device that keeps a state, every state layer's saved inputs copied back into the model's own arena and its update run from the mark's state (Architecture::recur), in each device's order after that pass.
+    // A failure drains every device and leaves the mark, which a retry reads again.
+    void rerun(Sequence& s, size_t rows) {
+        const Sequence::Mark& m = s.mark_;
+        try {
+            ensure(ctx_, rows, 0, handoffs(1));
+            const backend::RowRun run{rows, 1};
+            for (size_t st = 0; st < stages_.size(); ++st) {
+                const size_t dev = stages_[st].device;
+                Device& d = *devices_[dev];
+                if (!d.states) continue;
+                const ExecContext::Scratch& sc = ctx_.scratch[dev];
+                const size_t src = m.from[st] == Sequence::kLive ? s.state_.slot() : m.from[st];
+                const backend::StateView view{d.states.get(), src, s.state_.slot(), m.pos, rows};
+                for (int l = stages_[st].first; l < stages_[st].end; ++l) {
+                    const LayerPlan& lp = plan_.layers[(size_t)l];
+                    if (lp.cache != Cache::state) continue;
+                    const size_t layer = (size_t)d.local_layer[(size_t)l];
+                    for (size_t i = 0; i < lp.saved.size(); ++i) {
+                        const Saved& v = lp.saved[i];
+                        d.b->copy(*sc.arena, sc.offset[v.slot] + v.plane * rows * v.width * sizeof(float), *d.saved,
+                                  saved_at(d, lp, m.hold.buffer(), layer, i) * sizeof(float), rows * v.width * sizeof(float));
+                    }
+                    Step step = part(ctx_, dev, home_[(size_t)l].data(), lp.kind, 0, rows, {&run, 1});
+                    step.states = &view;
+                    step.n_views = 1;
+                    step.state_layer = layer;
+                    arch_->recur(step);
+                }
+                s.last_[dev] = d.b->submit();
+            }
+        } catch (...) {
+            retire();
+            throw;
+        }
+    }
+
+    // The state at the mark's position as the sequence's again: the mark's slot its live slot where the mark took it from there, else read from where it was then; the live slot a pass wrote returned and the mark gone.
+    void restore_mark(Sequence& s) noexcept {
+        Sequence::Mark& m = s.mark_;
+        if (!m.held()) return;
+        if (m.hold.owns()) {
+            s.state_.adopt(slots_, m.hold.give_slot());
+            std::fill(s.from_.begin(), s.from_.end(), Sequence::kLive);
+        } else {
+            s.state_.release();
+            std::copy(m.from.begin(), m.from.end(), s.from_.begin());
+        }
+        m.hold.release();
+        m.ran = false;
+    }
+
+    // The mark gone with its slot, the state staying where the passes after it left it.
+    void drop_mark(Sequence& s) noexcept {
+        s.mark_.hold.release();
+        s.mark_.ran = false;
     }
 
     // A pass's plan: its rows in entry order, their positions after each history, and the rows the head reads, from logits row `logits_base` on, with nothing reserved yet, since each stage reserves the blocks of the storage it writes.
@@ -906,6 +1067,13 @@ private:
         }
         if (fresh > slots_.available()) throw std::runtime_error("inference: every recurrent state slot is held");
         if (keeps > slots_.kept_available()) throw std::runtime_error("inference: every checkpoint slot is held");
+        for (size_t e = 0; e < n_entries; ++e) {
+            const Sequence::Mark& m = entries[e].seq->mark_;
+            if (!m.held()) continue;
+            if (m.ran) throw std::logic_error("inference: a marked sequence takes one pass before its retract");
+            if (entries[e].n > options_.mark_rows) throw std::logic_error("inference: a pass after a mark beyond the rows a mark saves");
+            if (entries[e].keep) throw std::logic_error("inference: a checkpoint in a pass after a mark");
+        }
         for (size_t e = 0; keeps && e < n_entries; ++e)
             if (entries[e].keep && !whole_blocks(history(*entries[e].seq) + entries[e].n))
                 throw std::logic_error("inference: a checkpoint at a position of whole blocks in every storage");
@@ -956,6 +1124,7 @@ private:
         for (size_t e = 0; e < n_entries; ++e) p.long_runs = p.long_runs || streams(p, e);
         // Last, once nothing can fail: the checks above left a free slot for each.
         for (size_t e = 0; fresh && e < n_entries; ++e) entries[e].seq->state_.take(slots_);
+        for (size_t e = 0; e < n_entries; ++e) entries[e].seq->mark_.ran = entries[e].seq->mark_.held();
         for (size_t e = 0; keeps && e < n_entries; ++e)
             if (entries[e].keep) p.kept[e] = Checkpoint(slots_, slots_.acquire_kept(), p.start[e] + entries[e].n);
     }
@@ -996,6 +1165,7 @@ private:
         for (int l = st.first; l < st.end; l++) {
             if (st.device != cur) { cross(ctx, cur, st.device, 0, p.rows); cur = st.device; }
             arch_->mixer(mixer_part(ctx, p, cur, l));
+            if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, cur, l);
             if (p.long_runs && stream_device_[(size_t)l] == (int)cur) {
                 ffn_split(ctx, p, cur, l);
                 continue;

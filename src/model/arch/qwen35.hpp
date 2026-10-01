@@ -200,6 +200,7 @@ public:
                                                        {ssm_out, Part::mixer, RoleKind::matrix, pre + "ssm_out.weight", "", V, E}});
                 layer.ops = {{Part::mixer, backend::Op::causal_conv_silu}, {Part::mixer, backend::Op::gated_delta_rule},
                              {Part::mixer, backend::Op::gated_rms_norm}};
+                layer.saved = {{2, (size_t)C}, {5, (size_t)Hv}, {5, (size_t)Hv, 1}};
             }
             if (c.n_expert) {
                 const uint64_t X = (uint64_t)c.n_expert, Fe = (uint64_t)c.n_ff_exp, Fs = (uint64_t)c.n_ff_shexp;
@@ -281,6 +282,17 @@ public:
 
     void head(const HeadStep& s) const override { blocks::head(s, s.w[output_norm], s.w[output], cfg_.rms_eps, s.slot(1)); }
 
+    // A linear-attention layer's state update: the causal conv over the raw rows (slot 2) into the conv's output (slot 3), and the recurrence over it with alpha and beta (slot 5) into the recurrence's output (slot 6), each reading the views' src slots and writing their dst slots.
+    void recur(const Step& s) const override {
+        backend::Backend& b = s.b;
+        const Weight* w = s.w;
+        const size_t Hv = (size_t)cfg_.v_heads;
+        const backend::Slice raw = s.slot(2), u = s.slot(3), alpha = s.slot(5), o = s.slot(6);
+        const backend::Slice beta{alpha.buffer, alpha.offset + s.rows * Hv};
+        b.causal_conv_silu(u, raw, w[ssm_conv1d].slice(), s.state_layer, s.states, s.n_views);
+        b.gated_delta_rule(o, u, alpha, beta, w[ssm_a].slice(), w[ssm_dt].slice(), s.state_layer, s.states, s.n_views);
+    }
+
 private:
     Config cfg_;
 
@@ -301,18 +313,17 @@ private:
         b.matmul_add(w[attn_output].type, w[attn_output].slice(), o, s.x, w[attn_output].nin, w[attn_output].nout, s.rows, s.runs);
     }
 
-    // The gated delta net (docs/QWEN35.md, Linear attention): the raw q, k and v rows, z, alpha and beta; the causal conv over the raw rows and the state's carried ones; the recurrence from the sequence's state; the gated norm by z; and the output projection joining the residual.
+    // The gated delta net (docs/QWEN35.md, Linear attention): the raw q, k and v rows, z, alpha and beta; the state's update (recur), the causal conv over the raw rows and the state's carried ones and the recurrence from the sequence's state; the gated norm by z; and the output projection joining the residual.
     void linear_attention(const Step& s, backend::Slice h) const {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
         const size_t E = (size_t)cfg_.n_embd, Hv = (size_t)cfg_.v_heads;
-        const backend::Slice raw = s.slot(2), u = s.slot(3), z = s.slot(4), alpha = s.slot(5), o = s.slot(6);
+        const backend::Slice raw = s.slot(2), z = s.slot(4), alpha = s.slot(5), o = s.slot(6);
         const backend::Slice beta{alpha.buffer, alpha.offset + s.rows * Hv};
         b.matmul(w[attn_qkv].type, w[attn_qkv].slice(), h, raw, E, w[attn_qkv].nout, s.rows, s.runs);
         b.matmul_group({blocks::projection(w[attn_gate], z), blocks::projection(w[ssm_alpha], alpha), blocks::projection(w[ssm_beta], beta)},
                        h, E, s.rows, s.runs);
-        b.causal_conv_silu(u, raw, w[ssm_conv1d].slice(), s.state_layer, s.states, s.n_views);
-        b.gated_delta_rule(o, u, alpha, beta, w[ssm_a].slice(), w[ssm_dt].slice(), s.state_layer, s.states, s.n_views);
+        recur(s);
         b.gated_rms_norm(o, o, z, w[ssm_norm].slice(), s.rows, Hv, (size_t)cfg_.v_dim, cfg_.rms_eps, s.runs);
         b.matmul_add(w[ssm_out].type, w[ssm_out].slice(), o, s.x, w[ssm_out].nin, w[ssm_out].nout, s.rows, s.runs);
     }

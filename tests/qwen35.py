@@ -286,6 +286,8 @@ def check_serve(directory):
                                config=dict(gguf_config(routed), context_length=1024), arch="qwen35moe")
     first = "".join(chr(97 + (i * 7) % 26) for i in range(500))
     for served in (model, routed_model):
+        # Drafts verified through a hybrid model's mark and its rerun, over a context that holds a longer reply and a chat.
+        common.check_drafts(served, served, "abcabcabcabcabcabc xyz abcabcabcabc", 60, chat=True)
         srv = server.Server(served, "--max-seqs", "4")
         try:
             reply = server.post_ok(srv, "/v1/generate", {"prompt": first, "temperature": 0, "max_tokens": 24, "ignore_eos": True})
@@ -373,6 +375,7 @@ def run():
             worst = max(worst, error, check_logits_input(directory, model, goldens["cases"]))
             check_scores(name, model, goldens["perplexity"])
             check_greedy(name, model, goldens["greedy"])
+            common.check_drafts(name, model)
             if "base" in fixture:
                 for text in TEXTS:
                     printed = [cli(["logits", models[which], text, "--top", str(VOCAB)]) for which in (fixture["base"], spec["name"])]

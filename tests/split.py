@@ -74,13 +74,14 @@ def tool_path():
 
 
 def run_tool(tool, model, text, split, steps, ubatch, cache, tokens):
-    """One split against one device; the number of recomputes the tool ran from a fork."""
+    """One split against one device; the number of recomputes the tool ran from a fork, and of the rounds of verifies it ran."""
     args = [tool, model, text, "cpu", split, str(steps), str(ubatch), cache]
     p = subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace", timeout=120)
     forked = re.search(r"whole and (\d+) from a fork", p.stdout)
-    assert p.returncode == 0 and ": %d tokens, %s caches;" % (tokens, cache) in p.stdout and "bit-identical" in p.stdout and forked, \
+    verifies = re.search(r"verifies: (\d+) rounds", p.stdout)
+    assert p.returncode == 0 and ": %d tokens, %s caches;" % (tokens, cache) in p.stdout and "bit-identical" in p.stdout and forked and verifies, \
         "split differs from one device: %s\n%s%s" % (" ".join(args[1:]), p.stdout, p.stderr)
-    return int(forked.group(1))
+    return int(forked.group(1)), int(verifies.group(1))
 
 
 def run(require=False):
@@ -116,12 +117,13 @@ def run(require=False):
                 f.write(("The layer split recomputes a paused request by class. " * 4)[:length])
             for ubatch in UBATCHES:
                 for cache in CACHE_TYPES:
-                    # One device and the split each recompute from a fork at the block, so every run has two.
-                    forked = run_tool(tool, q8, long_text, "cpu,cpu", steps, ubatch, cache, length)
+                    # One device and the split each recompute from a fork at the block, so every run has two; the decode's 40 steps hold rounds of verifies.
+                    forked, verifies = run_tool(tool, q8, long_text, "cpu,cpu", steps, ubatch, cache, length)
                     assert forked == 2, "split: %d recomputes from a fork on the Q8_0 model's %d-token history, against 2" % (forked, length + steps)
+                    assert verifies or steps < 17, "split: no rounds of verifies after %d decode steps" % steps
                     runs += 1
     print("split: %d runs of the tiny F32 (tied, untied), MoE, MXFP4 (dense tied/untied and MoE), qwen35 and Q8_0 models over 2, 3 and 4 CPU backends at ubatch %s with %s caches, "
-          "bit-identical to one, the Q8_0 model's recompute also from a fork at a block  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
+          "bit-identical to one, the Q8_0 model's recompute also from a fork at a block and its verifies of drafts  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
     return True
 
 

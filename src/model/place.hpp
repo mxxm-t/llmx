@@ -64,7 +64,8 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     fp.logits_per_row = fp.output.rows * sizeof(float);
     for (const LayerPlan& layer : plan.layers)
         fp.cache.push_back(layer.cache == Cache::kv      ? kv_tokens(plan, options) * kv_bytes_per_position(plan, options)
-                           : layer.cache == Cache::state ? plan.state.layer_bytes(backend::size_add(options.state_slots, options.checkpoint_slots))
+                           : layer.cache == Cache::state ? backend::size_add(plan.state.layer_bytes(backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots)),
+                                                                             backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(saved_floats(layer), sizeof(float))))
                                                          : 0);
     for (size_t n : plan.tables) fp.tables += n * sizeof(float);
     fp.handoff_per_row = plan.residual * sizeof(float);

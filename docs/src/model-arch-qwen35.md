@@ -66,7 +66,9 @@ conversation's prefix through state checkpoints ([server](server.md)).
     2 Hk Dk + Hv Dv), `attn_gate`, `ssm_alpha`, `ssm_beta`, `ssm_conv1d`
     as a `table` (`[4, C]`, F32), `ssm_a` and `ssm_dt.bias` as F32
     vectors of Hv, `ssm_norm` (Dv) and `ssm_out`, issuing
-    `causal_conv_silu`, `gated_delta_rule` and `gated_rms_norm`. A layer
+    `causal_conv_silu`, `gated_delta_rule` and `gated_rms_norm`, and saves
+    for a mark the raw qkv rows (slot 2, C wide), alpha and beta (slot 5,
+    Hv wide each, beta `rows` rows in). A layer
     holding the other kind's first projection is refused, naming the
     tensor, and so is a router, and blocks past the decoder layers are not
     read; a router in a qwen35 file is refused. The head's `output.weight` takes `token_embd.weight` as its
@@ -97,10 +99,15 @@ conversation's prefix through state checkpoints ([server](server.md)).
       gate read where `attn_q` left it; `attn_output` added into the
       residual.
     - linear attention: the raw qkv rows through their own `matmul`, then
-      z, alpha and beta in one `matmul_group`; `causal_conv_silu` from the rows and the state's
-      carried ones; `gated_delta_rule` from the sequence's slot, V head `j`
-      reading K head `j mod Hk`; `gated_rms_norm` by z in place; `ssm_out`
-      added into the residual.
+      z, alpha and beta in one `matmul_group`; the state's update
+      (`recur`); `gated_rms_norm` by z in place; `ssm_out` added into the
+      residual.
+  - `recur`: a linear-attention layer's state update from its slots:
+    `causal_conv_silu` from the raw rows and the state's carried ones into
+    the conv's output, and `gated_delta_rule` from the sequence's slot over
+    it with alpha and beta into the recurrence's output, V head `j` reading
+    K head `j mod Hk`; the mixer runs it, and a retract into a verify runs
+    it again over the rows the mark saved.
 - `open_dense(file, prefix)`, `open_routed(file, prefix)`: the
   registry's readers of a qwen35 file and a qwen35moe file, each the
   architecture over the configuration `read_config` reads.

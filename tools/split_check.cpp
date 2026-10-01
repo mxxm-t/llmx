@@ -1,5 +1,5 @@
 // A model on one device against the same model split by layers over several, compared as raw float logits: every position of a scored text through the prompt path, then a prefill in chunks of the ubatch, which a split pipelines over its stages, and greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phases 1 and 2).
-// Then the prompt and the steps replayed by class on each, as a paused request's resume recomputes them, which must give the decode's logits, and from a fork too unless the model keeps a recurrent state, which is not forked; and passes in flight through the pass API, which must give what the same passes give one after another.
+// Then the prompt and the steps replayed by class on each, as a paused request's resume recomputes them, which must give the decode's logits, and from a fork too unless the model keeps a recurrent state, which is not forked; verifies of drafts, the decode's tokens fed after a mark and retracted, which must give the same rows on both; and passes in flight through the pass API, which must give what the same passes give one after another.
 // Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type]; a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default when left out.
 #include <algorithm>
 #include <chrono>
@@ -217,6 +217,38 @@ static size_t in_flight(infer::Model& one, infer::Model& two, const std::vector<
     return formed.size();
 }
 
+// Verifies of drafts (docs/SPECULATIVE.md, section 3): after the prompt, rounds that mark the history, feed k + 1 of the decode's tokens as generated tokens in one pass, k from 1 to 16, and retract to keep some of them, none and all included, on both models; every verify row and every step after a retract to the mark compared, and the step after the last round. Returns the rows that differ and counts the rounds.
+static size_t verify(infer::Model& one, infer::Model& two, const std::vector<uint32_t>& history, size_t prompt, size_t& rounds) {
+    const size_t vocab = one.n_vocab();
+    one.reset();
+    two.reset();
+    const std::vector<uint32_t> head(history.begin(), history.begin() + (std::ptrdiff_t)prompt);
+    one.prefill(head);
+    two.prefill(head);
+    size_t at = prompt, differ = 0;
+    std::vector<float> rows;
+    auto step_differs = [&](uint32_t id) {
+        const std::vector<float> x = one.step((int)id), y = two.step((int)id);
+        return std::memcmp(x.data(), y.data(), vocab * sizeof(float)) != 0;
+    };
+    for (rounds = 0; at + 17 <= history.size(); ++rounds) {
+        const size_t k = 1 + rounds % 16, keep = rounds % 5 == 4 ? k + 1 : (rounds * 7) % (k + 1);
+        if (!one.mark() || !two.mark()) throw std::runtime_error("a mark was refused");
+        const float* a = one.step(history.data() + at, k + 1);
+        rows.assign(a, a + (k + 1) * vocab);
+        const float* b = two.step(history.data() + at, k + 1);
+        for (size_t i = 0; i <= k; ++i) differ += std::memcmp(&rows[i * vocab], b + i * vocab, vocab * sizeof(float)) != 0;
+        if (one.retract(at + keep) != at + keep || two.retract(at + keep) != at + keep) throw std::runtime_error("a retract inside a mark fell short");
+        at += keep;
+        if (!keep) {
+            differ += step_differs(history[at]);
+            ++at;
+        }
+    }
+    if (at < history.size()) differ += step_differs(history[at]);
+    return differ;
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) {
         std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch] [f16|f32]\n");
@@ -231,6 +263,9 @@ int main(int argc, char** argv) {
         options.kv_tokens = 4096;
         // A model that keeps a recurrent state holds a slot for each sequence at once: the mixed passes' two, and the 2P of passes in flight for P up to twice the stages, which are at most the split's devices.
         options.state_slots = std::max<size_t>(2, 4 * core::comma_list(split).size());
+        // A mark for the verifies, of up to 17 rows.
+        options.mark_slots = 1;
+        options.mark_rows = 17;
         infer::PlacementRequest alone;
         alone.names = {name(single)};
         alone.ubatch = ubatch;
@@ -279,6 +314,9 @@ int main(int argc, char** argv) {
         size_t forked = 0;
         const size_t replay_differ = steps ? replay(one, history, ids.size(), a, forked) + replay(two, history, ids.size(), b, forked) : 0;
         std::printf("replay by class: the prompt and %d steps on one device and the split, whole and %zu from a fork at a block, %zu differ from the decode\n", steps, forked, replay_differ);
+        size_t rounds = 0;
+        const size_t verify_differ = verify(one, two, history, ids.size(), rounds);
+        std::printf("verifies: %zu rounds of 2 to 17 rows after a mark, each retracted, %zu rows differ\n", rounds, verify_differ);
         const size_t mixed_differ = mixed(one, two, ids);
         // Passes in flight at P = S, S + 1 and 2S, on a split that takes them and a text long enough for their prompts and steps.
         size_t flight_differ = 0;
@@ -294,7 +332,7 @@ int main(int argc, char** argv) {
         } else {
             std::printf("passes in flight: not run, the split %s\n", two.pipelined() ? "text is too short" : "takes one pass at a time");
         }
-        const bool same = !differ && !steps_differ && !replay_differ && !mixed_differ && !flight_differ;
+        const bool same = !differ && !steps_differ && !replay_differ && !verify_differ && !mixed_differ && !flight_differ;
         std::printf("%s\n", same ? "bit-identical" : "DIFFERENT");
         return same ? 0 : 1;
     } catch (const std::exception& e) {

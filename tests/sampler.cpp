@@ -13,7 +13,10 @@
 #include <string>
 #include <vector>
 
+#include <random>
+
 #include "inference/sampler.hpp"
+#include "inference/spec.hpp"
 
 namespace {
 
@@ -323,6 +326,87 @@ void against_reference() {
 
 }  // namespace
 
+// infer::accept against the loop without drafts written out here: row i sampled after the picks before it, one draw a row, the reply ending at an end token or the limit, and the drafts deciding only where sampling stops.
+// Rows of twelve scores on five levels, so greedy meets ties; drafts are the loop's own picks with one replaced at a random place, or a random id; greedy, seeded at top-k 0 with top-p, and with a penalty; an end token and a limit falling at every row.
+void acceptance() {
+    std::mt19937 gen_rows(20261001u);
+    const size_t n = 12;
+    const infer::Sampling settings[] = {
+        [] { infer::Sampling s; s.temp = 0; return s; }(),
+        [] { infer::Sampling s; s.temp = 0.9f; s.top_k = 0; s.top_p = 0.9f; return s; }(),
+        [] { infer::Sampling s; s.temp = 1.3f; s.top_k = 5; s.top_p = 1; s.penalty = 1.4f; return s; }(),
+    };
+    for (int trial = 0; trial < 3000; ++trial) {
+        const infer::Sampling& s = settings[trial % 3];
+        const size_t k = 1 + (size_t)trial % 8;
+        std::vector<float> rows((k + 1) * n);
+        for (float& v : rows) v = (float)(gen_rows() % 5);
+        const int32_t end = trial % 4 == 0 ? (int32_t)(gen_rows() % n) : -1;
+        const size_t limit = 1 + gen_rows() % (k + 3);
+        const uint64_t seed = 1 + (uint64_t)trial;
+        // The loop without drafts over these rows, which also gives the drafts it would keep.
+        std::vector<uint32_t> gen0{(uint32_t)(trial % n)}, picks;
+        infer::RNG r0;
+        r0.seed(seed);
+        for (size_t i = 0; i <= k; ++i) {
+            const uint32_t y = infer::sample(rows.data() + i * n, n, s, end, gen0, r0);
+            picks.push_back(y);
+            if (end >= 0 && y == (uint32_t)end) break;
+            gen0.push_back(y);
+            if (gen0.size() - 1 >= limit) break;
+        }
+        std::vector<uint32_t> drafts(picks.begin(), picks.end());
+        drafts.resize(k, 0);
+        const size_t miss = gen_rows() % (k + 2);
+        if (miss < k) drafts[miss] = (drafts[miss] + 1 + (uint32_t)(gen_rows() % (n - 1))) % (uint32_t)n;
+        // Where the loop without drafts stops: the first pick that ends the reply or differs from its draft, or row k.
+        size_t want_rows = 0;
+        for (size_t i = 0; i < picks.size(); ++i) {
+            want_rows = i + 1;
+            const bool ended = (end >= 0 && picks[i] == (uint32_t)end) || i + 1 >= limit;
+            if (ended || i == k || picks[i] != drafts[i]) break;
+        }
+        std::vector<uint32_t> gen{(uint32_t)(trial % n)};
+        infer::RNG r;
+        r.seed(seed);
+        const infer::Accepted a = infer::accept(rows.data(), n, drafts.data(), k, s, end, gen, r, [&](uint32_t id) {
+            if (end >= 0 && id == (uint32_t)end) return false;
+            gen.push_back(id);
+            return gen.size() - 1 < limit;
+        });
+        require(a.rows == want_rows && a.last == picks[want_rows - 1], "accept stopped at another row than the loop without drafts, trial " + std::to_string(trial));
+        // The draws are the loop's: replaying its first want_rows rows leaves the generator where accept left it.
+        std::vector<uint32_t> gen1{(uint32_t)(trial % n)};
+        infer::RNG r1;
+        r1.seed(seed);
+        for (size_t i = 0; i < want_rows; ++i) {
+            const uint32_t y = infer::sample(rows.data() + i * n, n, s, end, gen1, r1);
+            if (!(end >= 0 && y == (uint32_t)end)) gen1.push_back(y);
+        }
+        require(r1.s == r.s && gen1 == gen, "accept drew otherwise than the loop without drafts, trial " + std::to_string(trial));
+    }
+}
+
+// spec::Acceptance, the one acceptance average: from 2, each empty verify moves it an eighth of the way to 0, so ten still leave it at half a draft or more and the eleventh rests the request; 16 tokens stepped then end the rest, and a verify keeping three moves the same average back above the break-even.
+void acceptance_rest() {
+    infer::spec::Acceptance a;
+    for (int i = 0; i < 10; ++i) {
+        a.verified(0);
+        require(!a.resting() && infer::spec::draft_length(3, 100, 100, a) == 3, "the acceptance rested after " + std::to_string(i + 1) + " empty verifies");
+    }
+    a.verified(0);
+    require(a.resting() && infer::spec::draft_length(3, 100, 100, a) == 0, "eleven empty verifies did not rest the request");
+    for (int i = 0; i < 15; ++i) a.stepped();
+    require(a.resting(), "the rest ended before 16 tokens");
+    a.stepped();
+    require(!a.resting() && infer::spec::draft_length(3, 100, 100, a) == 3, "16 tokens did not end the rest");
+    a.verified(3);
+    require(!a.resting(), "a verify keeping three left the average below the break-even");
+    a.verified(0);
+    a.verified(0);
+    require(!a.resting(), "the average forgot the verify that kept three");
+}
+
 int main() {
     try {
         temperature_zero();
@@ -333,6 +417,8 @@ int main() {
         seeds();
         masked();
         against_reference();
+        acceptance();
+        acceptance_rest();
         std::cout << "sampler: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& error) {

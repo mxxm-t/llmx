@@ -236,6 +236,7 @@ def run():
             error, _ = common.check_hf_fixture("F32", model, fixture["cases"], fixture["perplexity"], TEXTS[-1],
                                                (1, 2, 3, 5, 16))
             worst = max(worst, error, check_logits_input(directory, model, fixture["cases"]))
+            common.check_drafts("F32", model)
         # The bench measures on top of a history when asked for a depth, and refuses one with batched decode.
         rc, out = cli(["bench", "--model", model, "--p", "4", "--n", "2", "--r", "1", "--depth", "6"])
         assert rc == 0 and "pp4 @ d6" in out and "tg2 @ d6" in out, "bench --depth failed: " + out

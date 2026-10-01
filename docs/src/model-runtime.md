@@ -38,7 +38,7 @@ delegated to a `backend::Backend`.
 - `ModelOptions`: what is fixed at construction, before the caches are
   allocated: each cache side's type (`kv_k`, `kv_v`, the CLI's
   `--cache-type-k` and `--cache-type-v`), `kv_tokens`, the positions
-  every pool holds, zero for one model context, `checkpoint_slots`, the states kept at a position beside the live ones (`serve --state-checkpoints`, two for `chat`), and `state_slots`, the
+  every pool holds, zero for one model context, `checkpoint_slots`, the states kept at a position beside the live ones (`serve --state-checkpoints`, two for `chat`), `mark_slots` and `mark_rows`, the marks a verify keeps its starting state in and the rows a pass after a mark may take (one of `--draft-max` + 1 rows for `generate` and `chat` with a drafter), and `state_slots`, the
   sequences that may hold a recurrent state at once in a model whose layers
   keep one: one for a command's own sequence, the sequences a pass carries
   for `bench --seqs` (the CLI's `open_model` sets it from them), four for
@@ -111,7 +111,7 @@ delegated to a `backend::Backend`.
   Each stage commits its own length, whatever its layers keep, so a stage
   whose layers keep no KV has no storage and still runs. Each device whose
   mixer layers keep a recurrent state holds a `backend::StateStorage` of
-  exactly those layers with `state_slots` + `checkpoint_slots` slots, allocated and zeroed at
+  exactly those layers with `state_slots` + `checkpoint_slots` + `mark_slots` slots, and with marks a buffer of each mark's saved recurrent inputs, `mark_rows` rows of every state layer, allocated and zeroed at
   load and never grown (`Backend::state_alloc`), and a sequence takes one
   slot of the model's `SlotPool` in its first pass, once the pass is
   accepted and planned, and keeps it until its reset, its destruction or a
@@ -192,6 +192,27 @@ delegated to a `backend::Backend`.
     writes the live state in place. `checkpoint(sequence)`,
     `checkpoint_slots()` and `checkpoints_free()` give the position and the
     slots.
+  - `mark(sequence)`: the history kept at its length while one pass runs
+    past it, so a retract into that pass reaches any of its rows exactly, as
+    a verify of drafts needs (`docs/SPECULATIVE.md`, section 1). On a model
+    that keeps no state it does nothing, since its caches reach every
+    length; on one that does, the live slot moves to the pool's mark side
+    and becomes the next pass's `src`, the pass writing a fresh live slot,
+    and after each state layer's mixer the pass copies the marked entry's
+    rows of the inputs its update read (`LayerPlan::saved`) into the mark's
+    buffer. The sequence holds the mark through a `MarkHold`, so a marked
+    sequence destroyed or moved from returns its holds once, and every
+    allocation comes before a hold is taken, so a mark that fails changes
+    nothing. It returns false, marking nothing, when no mark is free; a
+    second mark, a fork or a `keep` of a marked sequence, a second pass
+    after a mark, a pass of more rows than `mark_rows` and a `keep` entry
+    after a mark are refused. `retract(sequence, length)` inside the pass
+    after a mark runs the state's update again from the mark over the kept
+    rows' saved inputs into the live slot (`Architecture::recur`, in the
+    model's own arena), at the mark's position takes the mark's state back,
+    and at the pass's end keeps it; the mark then goes. A failed pass goes
+    back to the mark, and a rerun that throws drains the devices and keeps
+    the mark, so the retract may be called again.
   - `state_slots()`: the sequences that may hold a recurrent state at once,
     `ModelOptions::state_slots`, zero for a model whose layers keep none; a
     server over such a model runs at most that many requests at once.
@@ -214,6 +235,11 @@ delegated to a `backend::Backend`.
   - `n_tokens()` is the default sequence's length; `context_length()` and `n_vocab()` are the plan's.
   - `step(token_id) -> logits`: one entry of one token through `forward` on
     the model's own sequence and context. This is the decode path.
+  - `step(ids, n) -> rows`: one entry of `n` tokens of extent 1 with every
+    row's logits, as a verify of drafts feeds them, so every row takes the
+    decode kernels and gives the bits single steps give; the rows stay
+    valid until the next pass. `mark()` and `retract(length)` act on the
+    model's own sequence.
   - `prefill(ids) -> logits`: the prompt in chunks of `ubatch()` tokens, one
     entry per chunk, inside one backend prefill scope, so each weight row is
     read once per chunk instead of once per token. Only the last chunk asks

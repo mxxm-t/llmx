@@ -431,7 +431,7 @@ std::string load_timing(const infer::LoadTimes& t) {
 // `checkpoints` is the states a model that keeps one holds at a position (infer::ModelOptions::checkpoint_slots), -1 for the most a server's fit gives up to `decode_rows`.
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                                bool show_plan = false, backend::Backend** profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
-                                               bool timed = false, int checkpoints = 0) {
+                                               bool timed = false, int checkpoints = 0, size_t mark_rows = 0) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
     if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     const auto specs = backend::device_specs(exec.device);
@@ -457,6 +457,11 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     if (decode_rows) options.state_slots = decode_rows;
     options.checkpoint_slots = checkpoints < 0 ? decode_rows : (size_t)checkpoints;
     request.fit_checkpoints = checkpoints < 0;
+    // A command that verifies drafts marks its one sequence before each verify, of up to `mark_rows` rows.
+    if (mark_rows) {
+        options.mark_slots = 1;
+        options.mark_rows = mark_rows;
+    }
     format::LoadProgress shown;
     if (progress) {
         std::cerr << "Reading model metadata...\n";
@@ -492,9 +497,27 @@ std::string chat_prompt(const chat::ChatFormat& format, const std::string& text)
     return format.render({ { "user", text, std::nullopt } }, true);
 }
 
-int cmd_generate(const std::string& model_path, const std::string& prompt, bool as_chat, const infer::GenParams& gp, const ExecOptions& exec) {
+// What `--drafter` and `--draft-max` ask of generate and chat: the proposer, none for off, and the most drafts a verify feeds after the last pick.
+struct Drafts {
+    std::unique_ptr<infer::spec::Proposer> proposer;
+    size_t draft_max = 3;
+    // The rows of a verify a mark must save, none without a proposer.
+    size_t mark_rows() const { return proposer ? draft_max + 1 : 0; }
+    // A request's drafting over the history it continues, or nothing without a proposer.
+    std::unique_ptr<infer::spec::Drafting> drafting(const std::vector<uint32_t>& history) const {
+        if (!proposer) return nullptr;
+        auto d = std::make_unique<infer::spec::Drafting>();
+        d->proposer = proposer.get();
+        d->draft_max = draft_max;
+        d->history = history;
+        return d;
+    }
+};
+
+int cmd_generate(const std::string& model_path, const std::string& prompt, bool as_chat, const infer::GenParams& gp, const ExecOptions& exec,
+                 const Drafts& drafts) {
     const bool progress = show_progress(exec);
-    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose);
+    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 0, drafts.mark_rows());
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     const int decode_threads = model.threads_available();
@@ -510,7 +533,8 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
         printf("pp: %zu tok, %.0f ms, %.2f tok/s\n", ids.size(), pp_ms, (double)ids.size() / (pp_ms / 1e3));
     });
     const auto t0 = std::chrono::steady_clock::now();
-    std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits, emit_text);
+    const auto drafting = drafts.drafting(ids);
+    std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits, emit_text, drafting.get());
     std::cout << "\n";
     double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     printf("tg: %zu tok, %.0f ms, %.2f tok/s\n", gen.size(), tg_ms,
@@ -594,10 +618,10 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     return 0;
 }
 
-int cmd_chat(const std::string& model_path, const std::string& system, const infer::GenParams& gp, const ExecOptions& exec) {
+int cmd_chat(const std::string& model_path, const std::string& system, const infer::GenParams& gp, const ExecOptions& exec, const Drafts& drafts) {
     const bool progress = show_progress(exec);
     // A model that keeps a state keeps it where the next turn will begin, and two slots let a turn's checkpoint take over from the last one's.
-    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 2);
+    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 2, drafts.mark_rows());
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     const chat::ChatFormat& format = loaded->chat;
@@ -642,7 +666,8 @@ int cmd_chat(const std::string& model_path, const std::string& system, const inf
         const std::vector<float> logits = prefill_turn(model, exec, std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()),
                                                        decode_threads, progress, {}, keep_at);
         cached_ids = std::move(gen_ids);
-        std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits, emit_text);
+        const auto drafting = drafts.drafting(cached_ids);
+        std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits, emit_text, drafting.get());
         std::cout << "\n" << std::flush;
         // A stop match may return its final token without feeding it.
         // EOS is excluded; the next rendered turn supplies its own closing tokens.
@@ -949,6 +974,10 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
             << "  --stop TEXT             Stop when generated text contains TEXT\n"
             << "  --ignore-eos            Never end at the end-of-text token; run to -n or --stop\n"
+            << "  --drafter D             Draft tokens to verify in one pass: off or lookup, the\n"
+            << "                          tokens that followed the last ones earlier; the output\n"
+            << "                          is the same either way (default: off)\n"
+            << "  --draft-max N           Most drafts a verify takes, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n"
             << "  --verbose               Show the prompt token count, progress and execution details" << (chat ? "" : ", and the generated ids") << "\n";
         if (chat) out
             << "  --system TEXT           System message (default: " << kChatSystem << ")\n";
@@ -1152,6 +1181,7 @@ int main(int argc, char** argv) {
             std::string prompt;
             bool have_prompt = false, as_chat = false;
             GivenFlags given;
+            Drafts drafts;
             // generate takes its prompt from the file `--file` or `-f` names right after the model, as logits and perplexity take their text, for a prompt longer than a command line holds.
             const std::string third = argc > 3 ? argv[3] : "";
             const int first = !chat && (third == "--file" || third == "-f") ? text_arg(argc, argv) : 3;
@@ -1169,6 +1199,13 @@ int main(int argc, char** argv) {
                 else if (f == "--seed") gp.seed = int_arg<uint64_t>(argc, argv, i, a, 0);
                 else if (f == "--stop") gp.stop = nonempty_value(argc, argv, i, a, "a text");
                 else if (f == "--ignore-eos") gp.ignore_eos = true;
+                else if (f == "--drafter") {
+                    const std::string d = flag_value(argc, argv, i, a);
+                    if (d == "off") drafts.proposer.reset();
+                    else if (d == "lookup") drafts.proposer = std::make_unique<infer::spec::Lookup>();
+                    else throw UsageError("--drafter takes off or lookup, not '" + d + "'");
+                }
+                else if (f == "--draft-max") drafts.draft_max = (size_t)int_arg(argc, argv, i, a, 1, infer::spec::kMaxDrafts);
                 else if (exec_flag(argc, argv, i, exec, true)) {}
                 else if (f == "--system" && chat) system = flag_value(argc, argv, i, a);
                 else if (f == "--chat" && !chat) as_chat = true;
@@ -1179,9 +1216,9 @@ int main(int argc, char** argv) {
                 else { prompt = a; have_prompt = true; }
                 given.take(a, i > at);
             }
-            if (chat) return cmd_chat(argv[2], system, gp, exec);
+            if (chat) return cmd_chat(argv[2], system, gp, exec, drafts);
             if (!have_prompt) throw UsageError("missing the prompt");
-            return cmd_generate(argv[2], first == 5 ? read_text_file(argv[4], cmd) : prompt, as_chat, gp, exec);
+            return cmd_generate(argv[2], first == 5 ? read_text_file(argv[4], cmd) : prompt, as_chat, gp, exec, drafts);
         }
 
         if (cmd == "perplexity") {

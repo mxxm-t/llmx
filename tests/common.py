@@ -196,6 +196,27 @@ def generate_text(stdout):
     return frame[1]
 
 
+def check_drafts(name, model, prompt="ababab", n=9, chat=False):
+    """Speculative decoding leaves output as it was (docs/SPECULATIVE.md, section 3): generate, greedy and seeded, with `--drafter lookup` at `--draft-max` 1, 4, 8 and 16 prints the bytes and the ids generate prints with drafts off, and with `chat` so does a chat of two turns; `n` tokens after `prompt` fit the model's context."""
+    for sampling in (["--temp", "0"], ["--temp", "0.8", "--seed", "3"]):
+        base = ["generate", model, prompt, "-n", str(n), "--ignore-eos", "--verbose"] + sampling
+        off = run_process(base + ["--drafter", "off"])
+        assert off.returncode == 0, "%s generate failed: %s" % (name, off.stderr.decode("utf-8", "replace"))
+        want = (generate_text(off.stdout), re.search(rb"^ids:.*$", cli_stdout(off.stdout), re.M)[0])
+        for k in ("1", "4", "8", "16"):
+            on = run_process(base + ["--drafter", "lookup", "--draft-max", k])
+            assert on.returncode == 0, "%s generate with drafts failed: %s" % (name, on.stderr.decode("utf-8", "replace"))
+            got = (generate_text(on.stdout), re.search(rb"^ids:.*$", cli_stdout(on.stdout), re.M)[0])
+            assert got == want, "%s: generate %s with --draft-max %s gave %r, without drafts %r" % (name, sampling, k, got, want)
+    if not chat:
+        return
+    turns = (prompt + "\n" + prompt[::-1] + "\n").encode("utf-8")
+    chats = [run_process(["chat", model, "-n", str(n), "--temp", "0"] + flags, input=turns)
+             for flags in (["--drafter", "off"], ["--drafter", "lookup", "--draft-max", "8"])]
+    assert all(c.returncode == 0 for c in chats), "%s chat failed: %s" % (name, chats[-1].stderr.decode("utf-8", "replace"))
+    assert chats[0].stdout == chats[1].stdout, "%s: chat with drafts printed other text than without" % name
+
+
 def free_port():
     """A loopback port the system has just handed out and nothing holds."""
     s = socket.socket()

@@ -17,7 +17,11 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   between passes, its `Cache`: keys and values for every position, a
   recurrent state of fixed size, or nothing, its roles in adoption order,
   and the ops of its parts that some backends lack, each an `OpUse`: the
-  part and the `backend::Op`) and
+  part and the `backend::Op`, and for a layer whose cache is a state the
+  inputs its state's update reads, each a `Saved`: an arena slot, the
+  floats a row takes in it and which block of the pass's rows it is, so
+  plane 1 starts `rows` rows in; `saved_floats(layer)` is their floats a
+  row) and
   `ModelPlan` (the size of a row of resolved weights, the vocabulary, the
   pass's roles and each layer's, the context length, and what the arena,
   the caches and the tables take: the residual row, the arena's slot
@@ -67,3 +71,9 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     step is a `HeadStep`: the parts as backend ops. The runtime calls each once per layer per
     pass, or once per group of entries when a routed layer streams, and a
     part issues backend ops and nothing else.
+  - `recur(step)`: a state layer's ops that update its state, from the rows
+    its `saved` names in their slots, reading the views' `src` slots and
+    writing their `dst` slots. The mixer runs them, and the runtime runs
+    them again over a mark's kept rows when a retract lands inside a verify
+    (`docs/SPECULATIVE.md`, section 1); a layer that keeps no state has
+    none.

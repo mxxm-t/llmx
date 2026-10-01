@@ -202,8 +202,8 @@ def check_help():
     # bench's --size and --iters are the synthetic bench's, which runs in full on a short line giving the other of the two once; --profile times one Vulkan device, and --moe-stream-from streams the experts on the CPU.
     synthetic = ["bench", "--p", "1", "--n", "1"]
     company = {"--profile": ["--device", "vulkan:0"], "--moe-stream-from": ["--cpu-moe"]}
-    # Values a placeholder's would not give: --size is a multiple of 32, and a perplexity window holds two tokens at least.
-    values = {"--size": "32", "--ctx-size": "2", "-c": "2"}
+    # Values a placeholder's would not give: --size is a multiple of 32, a perplexity window holds two tokens at least, and --drafter names a drafter.
+    values = {"--size": "32", "--ctx-size": "2", "-c": "2", "--drafter": "off"}
 
     def given(flag, value):
         return [flag] + ([values.get(flag, PLACEHOLDERS[value])] if value else [])

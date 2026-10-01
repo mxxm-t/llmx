@@ -1,5 +1,33 @@
 # llmx - Development Status
 
+## Decode attention at depth: fewer parts on an MI50 (2026-10-01, branch perf/attention-splits, lands by fast-forward)
+
+- **Goal:** close the decode gap at long histories on an MI50, where Qwen3-30B-A3B Q4_K_M gave 56.4 tok/s at tg512 after 16384 tokens against the reference's 69.5.
+- **Done:**
+  - The cap on a row's attention parts is a profile number per head width: `attention_split_max` for heads 128 wide and narrower, 32 in the MI50 row and 64 by default, and `attention_split_max_wide` for heads 256 wide, 64.
+  - On an MI50 the gain is the merge's: `--profile` of decode after 16384 tokens gave `attention_merge` 13.2 ms at 64 parts and 7.7 ms at 32 on Qwen3-30B-A3B Q4_K_M (17.7 and 10.1 ms on Qwen3-8B Q8_0) of 4096 dispatches, while the attention kernel took the same time.
+  - Heads 256 wide stay at 64 parts: at 32 their lane groups, half as many a workgroup, take 64 tokens each, and Qwen3.6-27B Q8_0 fell from 19.9 to 18.5 tok/s at depth, every sample lower.
+  - The Radeon VII keeps 64: at 32, Qwen3-8B Q8_0 decode after 4096 tokens gave 19.6 and 19.8 tok/s against main's 27.8 and 34.4.
+- **Gates** (each tree built from its own sha, default clocks):
+  - MI50 timing against main `ef33cf78`, two rounds of base, fix, reference, reference, fix, base on one card, with 32 parts for every head:
+
+    | model | cell | main | branch | reference |
+    |---|---|---:|---:|---:|
+    | Qwen3-30B-A3B Q4_K_M | tg512 @ d16384 | 56.41 | 59.66 (+5.8%) | 69.51 |
+    | Qwen3-30B-A3B Q4_K_M | tg128 | 128.46 | 130.87 | 105.86 |
+    | Qwen3-30B-A3B Q4_K_M | pp512 | 1118.18 | 1119.02 | 1073.25 |
+    | Qwen3-8B Q8_0 | tg512 @ d16384 | 46.63 | 48.55 (+4.1%) | 43.74 |
+    | Qwen3-8B Q8_0 | tg128 | 73.03 | 72.78 | 56.35 |
+    | Qwen3-8B Q8_0 | pp512 | 831.37 | 830.48 | 859.01 |
+
+    Prompt cells are level, as prompts take attention's tiled kernel. With heads 256 wide at 64 parts, Qwen3.6-27B Q8_0 at tg512 after 16384 tokens gave 19.96 and 20.01 tok/s on main `87051ea3` and 19.92 and 19.97 on the branch, arms main, branch, branch, main, and Qwen3.5-0.8B Q4_K_M's 64 greedy ids after a 3688-token prompt were main's.
+  - `tools/long_context_check.py` on Qwen3-8B Q8_0 through `serve` on an MI50: two fresh servers gave the same 512 tokens, and the CPU took each as its top choice at 512 of 512 positions, the largest gap 0.000 logits.
+  - On an MI50, CTest 39 of 39 and the device suite with `--require-tools` passing every component it runs (the qwen35 fixtures not on that disk skip, as MXFP4 does on the device); Qwen3-8B Q8_0 `logits` on three short prompts gave main's bytes, since their histories split as before.
+  - The Radeon VII under Windows: CTest 40 of 40; at 32 parts the 16k long-context check on Qwen3-0.6B Q8_0 passed at 512 of 512, the largest gap 0.000; at the head, where it keeps main's 64, Qwen3-8B Q8_0's 64 greedy ids after a ~4k-token prompt were main's, and decode after 4096 tokens gave 34.35 and 34.19 tok/s against main's 34.79 and 33.99, the arms interleaved while the other developer's Windows tests, started at 07:55 without timing, ran on the same PC.
+  - The hosted run at the head.
+- **Left:** nothing; `perf/attention-merge` follows with the merge itself.
+- **Gotchas:** the per-row kernel's speed follows its occupancy, not its arithmetic. A tiled softmax (`perf/attention-tiled`, parked) scored 16 tokens a lane group with a transposed butterfly, keeping the scores' bits, and updated the softmax once a tile; it took 84 registers where main's kernel takes 40 (six subgroups a SIMD to three) and 132 in the four-head build where main's takes 76 (three to one), and decode after 16384 tokens fell from 51.3 to 34.6 tok/s on Qwen3-30B-A3B Q4_K_M and from 42.6 to 33.1 on Qwen3-8B Q8_0. On the Radeon VII, `bench --depth 16384` on Qwen3-8B Q8_0 stops with "bad allocation" on main as on the branch.
+
 ## A restarted server waits for the card to give back its predecessor's memory (2026-10-01, lands as `fix/fit-settle`)
 
 - **Goal:** a server restarted on the cards an ended server held loads once the cards have given that memory back, instead of being refused as a model that does not fit; a model that truly does not fit is still refused, by its own text.

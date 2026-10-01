@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## One row class: a generated token's row and a prompt's row the same bits (2026-10-01, investigation, no branch yet)
+
+- **Goal:** find whether a generated token and a prompt token can take one arithmetic in every op, so a reply's decode rows, a verify's rows and any checkpoint position are reusable as they are, exactly, which would make the re-read of 2c unnecessary (docs/SPECULATIVE.md, section 2); agreed with the other developer as a measured investigation, owned by the coordinator for the integer tiles and attention, float tile and dispatch work coordinated with the dtype branch.
+- **First measurement** (`exp/one-row-class`, never merged: the row-class check reporting, for four rows of one prompt, how many outputs at extent 1 differ from extents 2, 64, 512 and 1000):
+  - MI50: extents 1 and 2 give the same bits everywhere (both on the row kernels). From the tile crossover on, F32 and Q8_0 matmuls and the routed F32 and Q8_0 products differ by summation order only (largest relative 2.3e-4); Q4_0, Q4_1, Q4_K, Q5_K and Q6_K differ by up to 158 percent relative on small outputs, since the decode row kernels read the 8-bit twin and the tile the 16-bit one; attention differs by order only (6.1e-4) between the per-row kernel and the tile.
+  - CPU: attention gives the same bits at every extent; every matmul type differs from extent 2 on, F32 and Q8_0 by order (8.6e-4), the K-quants by up to 24 percent through the 8-bit decode dots, the routed products by order (1.9e-4).
+- **So:** the precision part (8-bit decode activations on both backends) is the dtype plan's steps 4 and 5 (docs/PRECISION.md), which move those rows to 16 bits; what remains after it is summation order in the matmul's float block sums and in attention's reduction. The next measurement waits for those steps: the dispatch and arithmetic audit of each op, tails, grouped and routed calls, the head and residual paths, attention's lengths, F32 exceptions and dtype in the probe's identity, then the cost of one order on each path.
+- **Rule:** no row class merges until every op of every stage, CPU and streamed experts included, gives identical rows over the claimed extents and the end-to-end reuse checks pass; if one order costs too much, the classes and 2c stay. No gate is weakened by it.
+
 ## The attention merge reads each part's state once (2026-10-01, branch perf/attention-merge, lands by fast-forward)
 
 - **Goal:** less of an MI50's decode at long histories in `attention_merge`, which `--profile` put at 13.2 ms of 115 ms of device time over 4096 decode dispatches of Qwen3-30B-A3B Q4_K_M after 16384 tokens at 64 parts, a quarter of attention's own time, for a merge of a few hundred kilobytes a layer.

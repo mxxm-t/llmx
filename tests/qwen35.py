@@ -4,7 +4,6 @@ import os
 import re
 import struct
 import tempfile
-import threading
 
 import common
 from common import run_f32_cache as cli
@@ -306,17 +305,9 @@ def check_serve(directory):
         srv = server.Server(model, "--max-seqs", "4", "--ctx-size", "1024", *kept)
         try:
             alone = [server.post_ok(srv, "/v1/completions", body)["choices"][0]["text"] for body in uncapped]
-            results = {}
-            def worker(i):
-                results[i] = srv.post("/v1/completions", uncapped[i], timeout=600)
-            threads = [threading.Thread(target=worker, args=(i,)) for i in range(len(uncapped))]
-            for t in threads:
-                t.start()
-            for t in threads:
-                t.join()
-            for i, body in enumerate(uncapped):
-                status, reply = results[i]
-                assert status == 200 and reply["choices"][0]["text"] == alone[i], (body, reply, alone[i])
+            # A request here can run in under 100 ms, and the first admits no other once its first growth step holds the room, so the four must arrive at once to be admitted together and pause.
+            for (status, reply), body, text in zip(srv.together("/v1/completions", uncapped), uncapped, alone):
+                assert status == 200 and reply["choices"][0]["text"] == text, (body, reply, text)
             health = srv.get("/v1/health")
             assert health["active"] == 0 and health["paused"] == 0 and health["pauses"] > 0, health
             if kept:

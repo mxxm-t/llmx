@@ -1,3 +1,4 @@
+import http.client
 import json
 import math
 import os
@@ -78,6 +79,30 @@ class Server:
         s.sendall(b"POST %s HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n"
                   % (path.encode(), len(data)) + data)
         return s
+
+    def together(self, path, bodies, timeout=600):
+        """Each body's status and parsed reply, the requests arriving at once: each is sent whole on a socket of its own but for its last byte, then the last bytes back to back.
+        Client threads that each open a connection and send their request can arrive far enough apart that one request ends before the next is admitted."""
+        socks, lasts = [], []
+        try:
+            for body in bodies:
+                s = socket.create_connection(("127.0.0.1", self.port), timeout=timeout)
+                socks.append(s)
+                data = json.dumps(body).encode("utf-8")
+                request = b"POST %s HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % (path.encode(), len(data)) + data
+                s.sendall(request[:-1])
+                lasts.append(request[-1:])
+            for s, last in zip(socks, lasts):
+                s.sendall(last)
+            replies = []
+            for s in socks:
+                r = http.client.HTTPResponse(s)
+                r.begin()
+                replies.append((r.status, json.loads(r.read().decode("utf-8"))))
+            return replies
+        finally:
+            for s in socks:
+                s.close()
 
     def oversized(self, path):
         """The head and the parsed body of the reply to a POST announcing a body past the size limit, which the server refuses while it reads."""

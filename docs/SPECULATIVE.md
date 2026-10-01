@@ -60,7 +60,7 @@ A sequence holds one checkpoint at most, a newer one replacing it, which is all 
 ## 2. Checkpoint storage and policy (planned)
 
 **Where.** On the device, as more slots of each state storage beside the live ones, so a restore or a fork reads a checkpoint in place.
-A host tier, for donors the device slots cannot keep, comes only if measured to pay: a 27B checkpoint crosses in 13 to 31 ms at 5 to 12 GB/s, against about 4 s of recompute per 1000 tokens.
+A host tier behind it keeps what the device slots cannot (Host tier, below, step 2b): a 27B checkpoint crosses in 13 to 31 ms at 5 to 12 GB/s, against about 4 s of recompute per 1000 tokens.
 
 **Size.** A checkpoint is one sequence's state, F32, plus the KV blocks of [0, p) it pins, which the ledger already counts as the donor's blocks:
 
@@ -81,7 +81,7 @@ A host tier, for donors the device slots cannot keep, comes only if measured to 
 - On the Qwen 3.5 and 3.6 templates the next turn drops the reply's reasoning and diverges right after the assistant header, so its prompt starts with S; on the 3.8 templates with `reasoning_content` passed back it keeps the whole reply, still after S, and the reply's rows are decode rows, which the new prompt's class does not share anyway.
 - No checkpoint when c is 0 or at or below the fork the request started from.
 - The slice that reaches c ends at c and carries `keep`, so a request pays at most one pass boundary for it; the prompt goes on in the next pass.
-- Message-boundary and every-N checkpoints are later options, each kept only on a measured gain.
+- Message-boundary checkpoints come with the host tier (below); every-N checkpoints stay a later option, kept only on a measured gain.
 - The reference server cuts a prompt 4 + ubatch and 4 tokens before its end and keeps up to 32 host copies a slot, 256 tokens apart (section 4, lesson 23); S is where the next turn actually diverges, whatever the template, and eviction goes by donor age, never by spacing (lesson 17).
 
 **Prefix reuse for a model that keeps a state.**
@@ -94,6 +94,20 @@ A paused request takes its own donor back whole where it survives: its live slot
 A request's checkpoint is optional: it takes a free slot, else the oldest donor goes with its blocks, else it is skipped; nothing is paused for one, and an active request's checkpoint is never taken.
 On a model that keeps a state, a donor without a checkpoint cannot be continued, whatever KV blocks it holds, so a donor whose checkpoint is taken is dropped with its blocks.
 `/v1/health` adds checkpoints held and the forks that read one.
+
+**Host tier (step 2b, agreed with the other developer 2026-10-01).**
+The device keeps each conversation's latest checkpoint, forked in place; host memory keeps what the device cannot, so an edited earlier message and more conversations than the device slots hold are resumed rather than recomputed.
+- **Write-back:** a finished donor's checkpoint and KV blocks are copied to host memory after its last pass, and evicting the donor from the device then drops the device copy only.
+  The source blocks and slot stay held until the copy's ticket retires, by the retirement rule blocks and slots keep today; a separate transfer queue or thread comes only if measured to overlap.
+- **Promotion:** `best_donor` searches both tiers by tokens and row classes; a host hit uploads the state and the blocks the request needs into free device slots and blocks before its first pass (27B: 149.6 MiB of state and 64 KiB a token, about 70 ms for an 8k conversation at 10 GB/s, against about 32 s of recompute).
+- **Message-boundary checkpoints:** a state-only checkpoint, held on the host, at each user message's start where that start is a token prefix of the final rendered prompt, checked by tokens and row classes rather than assumed, since rendering a prefix can rewrite earlier tokens, and only at whole-block positions; its KV is a prefix of the donor's own blocks and is never stored twice.
+  Each is written through a staging ring of two device slots; an edited message resumes at the checkpoint before it.
+- **Owners:** the scheduler decides which donor is kept, written back, promoted or dropped, through `make_room` over device blocks, device slots and host bytes, by donor age in every tier; `Model` and the backends' storages own the snapshot, copy and restore, so the scheduler never sees a KV or state layout.
+- **Bounds:** `--host-cache-bytes` caps the tier, its default a fraction of `core::host_memory_available` at start; the cap counts pending copies and staging, admission to the tier is checked against the host's current headroom, and old entries are evicted before a new one waits.
+  A copy that fails or is cancelled leaves a valid device donor or no entry, never a partly written host entry that a request could hit.
+- **Every model:** for qwen3 and qwen3moe the tier is KV prefix offload, the same entries without a state.
+- **Exactness:** a copy keeps the bytes and the row classes, so a resumed or promoted history gives the CLI's bits.
+  Tests: a host round trip of KV and state on every placement, mixed ones included; promotion beside a pass in flight; eviction and cancellation while a copy is pending; injected host allocation and transfer failures.
 
 ## 3. Speculative decoding on top (planned)
 
@@ -193,6 +207,7 @@ Each step is a branch off main, landed as at most two commits, with every comman
 |---|---|---|---|
 | 1 | `fix/server-row-class` | `Model::row_class`; `best_donor`, first admissions and take-backs compare classes by it, for every model (SERVER, Open gaps, closed) | `server-resume` and `server-passes-cpu` unchanged; a follow-up turn's ids equal `generate` on its full prompt, on Qwen3-0.6B and 8B Q8_0, CPU, one MI50 and a split; `tools/server_mix_check.py` |
 | 2 | `feat/qwen35-checkpoints` (8c) | section 1's checkpoint, fork, retract to a checkpoint and failed-pass rules over KV and states (no mark yet), the one slot pool, `--state-checkpoints` and the fit, section 2's policy in the scheduler, `chat`'s checkpoint | `arch-qwen35`: a fork at a checkpoint equals a fresh sequence fed the same tokens bit for bit, alone and beside others, and over four CPU stages; retract and a failed pass back to a checkpoint; generation cycles that decode, retract from the new tail and continue, equal to never retracting, with four sequences at once (lesson 3); `server-resume`, `server-passes` and `server-passes-cpu` with hybrid donors; the `qwen35` component: a six-turn conversation, every turn's ids equal to `generate` on its full prompt, reused tokens growing each turn; `tools/server_mix_check.py` on Qwen3.5-0.8B, 9B and Qwen3.6-27B Q8_0 on one MI50 and the Radeon VII (0.8B and 9B); the use: time to first token of each turn of a 27B conversation reaching 8k tokens, against main, and the KV budget each fits |
+| 2b | `feat/host-cache` | section 2's host tier: write-back, promotion, message-boundary checkpoints, `--host-cache-bytes`, its owners and bounds | the exactness tests of the host tier above; per-turn time to first token, prompt tokens re-read, host bytes held and bytes transferred, and the inter-token latency of unrelated active requests, against main and the reference server with its checkpoints on, on Qwen3.8-27B Q8_0: a conversation reaching about 8k tokens, the same with an edited earlier message, and more conversations than the device tier holds |
 | 3 | `feat/spec-verify` | multi-row `step`, `mark` and the saved-row rerun, `infer::accept`, `spec::Proposer`, lookup, `spec::draft_length`, the round in `generate` and `chat`, `--drafter off\|lookup`, `--draft-max`, test-only synthetic proposers; qwen3, qwen3moe and qwen35 targets | the 2026-09-26 plan's step 1 gates, plus the hybrid fixture: synthetic proposers rejecting at j = 0, 1, 2 and k, every token and logprob equal to the run without drafts, greedy and seeded, on the CPU, one MI50 and the Radeon VII; drafts past an end token and a second retract before a pass (lessons 5 and 8); retracts repeated at intermediate positions of a long generation; a rerun that fails, injected |
 | 4 | `feat/qwen35-mtp` | the embedded MTP proposer: the MTP layer indexed by token, the in-pass rows, the on-device draft chain, the output device on a split | the 2026-09-26 plan's step 4 gates: identity on and off, a loaded drafter at k = 0 giving the logits of none, decode within 3 percent and pp512 and pp16384 within 2 percent at k = 0, acceptance within the margin of the exact reference build on Qwen3.6-27B-MTP and Qwen3.8-27B Q8_0 |
 | 5 | `feat/spec-server` | steps 3 and 4 in the scheduler (section 3), after the layer split's final gate | `server-spec` CTest, `tools/server_mix_check.py` drafts on against off at P = 1 and P = S, `tools/server_load.py` at 1 to 64 users |

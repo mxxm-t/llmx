@@ -89,6 +89,11 @@
 - **Done:** AGENTS.md now has a branch land as at most two commits (the failing test, then the change with its tests, docs and STATUS entry), a feature's docs in the same commit as its code, and no separate merge-record commit: the landing commit's STATUS entry is the record.
   Existing history is not rewritten, since STATUS, ASSETS and the evidence cite its hashes.
 
+## The Windows CI job's limit (2026-10-01, branch fix/windows-ci-budget, lands by fast-forward)
+
+- **Why:** the Windows CPU job ran 13 min 54 s to 14 min 52 s on main's last three hosted runs against its 15-minute limit, and twice ended at the limit on feat/qwen35-checkpoints with every step passed (runs 36843077334 and 36844790789), the build alone taking 2 min 46 s to 3 min 51 s by runner.
+- **Done:** the limit is 20 minutes on Windows; Linux keeps 15 and macOS 25 (`docs/CI.md`).
+
 ## A first admission forks only rows of its own classes (2026-10-01, branch fix/server-row-class, step 1 of SPECULATIVE, lands by fast-forward)
 
 - **Goal:** a server reply equals the CLI's for the same prompt when the request forks a donor, so a follow-up turn no longer continues from the previous reply's decode rows and a prompt no longer continues from rows another prompt's tile split computed ([SPECULATIVE](SPECULATIVE.md), section 1 and step 1).

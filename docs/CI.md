@@ -50,6 +50,8 @@ Workflow lint and negative checks for corrupt downloads, missing fixtures and in
 The CPU backend currently uses x86 intrinsics, and CMake enables AVX2/FMA/F16C.
 The kernels use them with no runtime check, so that binary does not run on older CPUs.
 Intel macOS is intentional; ARM and a portable scalar build are not covered.
+
+The CPU jobs' limit is 15 minutes, 25 on macOS and 20 on Windows, whose job ran 13 min 54 s to 14 min 52 s on main's last three runs (build 2 min 46 s to 3 min 41 s, the native tests and the suite 9 to 9.5 minutes), so a slower runner or a few more seconds of tests ended it at the limit with every step passed.
 The Vulkan backend has its build job above; a job that runs its kernels
 needs a device, which hosted runners do not have. Actual GPU numerical and
 performance results require the corresponding hardware; compilation alone

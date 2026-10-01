@@ -19,7 +19,7 @@ jobs:
   cpu:
     name: CPU (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 25 || 15 }}
+    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 25 || matrix.os == 'windows-2022' && 20 || 15 }}
     strategy:
       fail-fast: false
       matrix:

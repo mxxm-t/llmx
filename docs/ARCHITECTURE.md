@@ -187,7 +187,8 @@ contents; it allocates its own logical block tables. A block returns to the
 pool only after the backend has retired the work
 that read it; the server reuses a finished request's blocks for a prompt
 that repeats its tokens (`docs/SERVER.md`). A model whose layers keep a
-recurrent state is not forked.
+recurrent state is forked only at a sequence's checkpoint, a state kept at a
+position (`docs/SPECULATIVE.md`).
 
 The device and server work (ROADMAP #4a and #7) preserves these
 boundaries, and further work must too:

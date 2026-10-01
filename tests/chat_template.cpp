@@ -9,7 +9,9 @@
 #include <vector>
 #include "core/json.hpp"
 #include "core/sha.hpp"
+#include "format/gguf.hpp"
 #include "inference/chat.hpp"
+#include "tokenizer/tokenizer.hpp"
 
 // Checks chat templates against the HF reference renderer's output in a fixture tools/gen_chat_baseline.py writes (tests/data/baseline_chat_template.json, or a --scan of GGUF files), and the renderer's own limits; docs/src/inference-chat.md lists the checks.
 // A model's chat goldens given after it (tests/data/qwen35-*/baseline_chat.json) are rendered too, each under the template of the fixture its SHA-256 names.
@@ -292,6 +294,40 @@ const char* const qwen3_repositories =
 const char* const qwen3_repositories_expected =
     "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nRemember violet.<|im_end|>\n<|im_start|>assistant\n<think>\nReason.\n</think>\n\nAnswer.<|im_end|>\n";
 
+// How much of a prompt a follow-up turn begins with (chat::stable_prefix), over a tokenizer of one token a byte below 128: the ids of the conversation rendered without the generation prompt where they prefix the prompt's, and 0 where the template refuses that render or the tokenizer the text.
+void check_stable_prefix(Tally& tally) {
+    gguf::GGUFModel m;
+    gguf::MetaValue tokens;
+    tokens.vtype = gguf::V_ARRAY;
+    tokens.u = gguf::V_STRING;
+    const auto bytes = bpe::build_byte_encoder();
+    for (int b = 0; b < 128; ++b) {
+        gguf::MetaValue t;
+        t.vtype = gguf::V_STRING;
+        t.s = bytes.at((uint8_t)b);
+        tokens.arr.push_back(t);
+    }
+    m.kv.push_back({ "tokenizer.ggml.tokens", tokens });
+    const bpe::Tokenizer tok(m);
+    const std::vector<chat::Message> messages = { { "user", "Hello there.", std::nullopt }, { "assistant", "Hi.", std::nullopt }, { "user", "Go on.", std::nullopt } };
+    const std::string turns = "{% for m in messages %}<{{ m.role }}>{{ m.content }}\n{% endfor %}";
+    const chat::ChatFormat plain = chat::chat_format(turns + "{% if add_generation_prompt %}<assistant>\n{% endif %}", "", "");
+    const std::vector<uint32_t> prompt = tok.encode(plain.render(messages, true));
+    const size_t stable = tok.encode(plain.render(messages, false)).size();
+    ++tally.cases;
+    if (stable >= prompt.size() || chat::stable_prefix(plain, tok, messages, prompt) != stable)
+        tally.fail("the stable prefix of a conversation is not its render without the generation prompt");
+    ++tally.cases;
+    const std::vector<uint32_t> other(prompt.begin(), prompt.begin() + 5);
+    if (chat::stable_prefix(plain, tok, messages, other) != 5) tally.fail("the stable prefix runs past the prompt it prefixes");
+    const chat::ChatFormat refusing =
+        chat::chat_format("{% if not add_generation_prompt %}{{ raise_exception('a generation prompt is required') }}{% endif %}" + turns + "<assistant>\n", "", "");
+    ++tally.cases;
+    if (chat::stable_prefix(refusing, tok, messages, prompt) != 0) tally.fail("a template refusing the render without the generation prompt gives a stable prefix");
+    ++tally.cases;
+    if (chat::stable_prefix(plain, tok, { { "user", "caf\xc3\xa9", std::nullopt } }, prompt) != 0) tally.fail("a text the tokenizer refuses gives a stable prefix");
+}
+
 int main(int argc, char** argv) {
     try {
         if (argc < 2) throw std::runtime_error("usage: llmx-chat-template-test FIXTURE.json...");
@@ -368,6 +404,7 @@ int main(int argc, char** argv) {
             const chat::ChatFormat format = chat::chat_format("{{ strftime_now('%Q %-d %Ez') }}", "", "");
             try { format.render({ { "user", "x", std::nullopt } }, false); } catch (const chat::TemplateError&) {}
         }
+        check_stable_prefix(tally);
         {
             ++tally.cases;
             const chat::ChatFormat format = chat::chat_format(qwen3_repositories, "", "<|im_end|>");

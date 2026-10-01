@@ -278,12 +278,13 @@ inline void same(const Reply& alone, const Reply& got, const std::string& what, 
 // A fresh model over the backends `backends` makes, with a pool of `pool` tokens and prompts taken `ubatch` tokens a pass (the default when 0).
 using Make = std::function<std::unique_ptr<infer::Model>(size_t pool, int ubatch)>;
 
-// A hybrid model holds `state_slots` recurrent states, which bounds the requests a scheduler over it runs at once; the others hold none.
-inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend::BackendPtr>()> backends, size_t state_slots = 8) {
-    return [&weights, backends, state_slots](size_t pool, int ubatch) {
+// A hybrid model holds `state_slots` recurrent states, which bounds the requests a scheduler over it runs at once, and `checkpoints` states kept for prefix reuse; the others hold none.
+inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend::BackendPtr>()> backends, size_t state_slots = 8, size_t checkpoints = 0) {
+    return [&weights, backends, state_slots, checkpoints](size_t pool, int ubatch) {
         infer::ModelOptions options;
         options.kv_tokens = pool;
         options.state_slots = state_slots;
+        options.checkpoint_slots = checkpoints;
         std::vector<backend::BackendPtr> b = backends();
         infer::PlacementRequest request;
         for (size_t i = 0; i < b.size(); ++i) request.names.push_back("device " + std::to_string(i));

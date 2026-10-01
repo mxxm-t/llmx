@@ -46,8 +46,9 @@ class Request {
 public:
     using Clock = std::chrono::steady_clock;
 
-    Request(std::vector<uint32_t> prompt, SampleParams params)
-        : prompt_(std::move(prompt)), params_(std::move(params)), submitted_(Clock::now()) {}
+    // `stable` is how much of the prompt a follow-up turn would begin with, the whole prompt for a text (docs/SPECULATIVE.md, section 2).
+    Request(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max())
+        : prompt_(std::move(prompt)), params_(std::move(params)), stable_(std::min(stable, prompt_.size())), submitted_(Clock::now()) {}
 
     // A sampled token as the channel delivers it; with logprobs asked, its log-probability and the most likely tokens at its position, most likely first.
     struct Token {
@@ -151,6 +152,7 @@ private:
 
     const std::vector<uint32_t> prompt_;
     SampleParams params_;   // never changed once made, since next reads it in the connection thread
+    const size_t stable_;
     mutable std::mutex m_;
     std::condition_variable cv_;
     std::deque<Token> out_;
@@ -182,6 +184,7 @@ private:
     size_t taken_back_ = 0;        // resumes that took its donor back
     size_t reached_ = 0;           // the longest history its cache has held, past which nothing is recomputed
     size_t recomputed_ = 0;        // rows its resumes computed again
+    size_t keep_at_ = 0;           // on a model that keeps a state, where the slice that reaches it keeps the state as a checkpoint; 0 once kept or skipped
 };
 
 // The queue is full: the request is refused now rather than waiting.
@@ -236,7 +239,7 @@ public:
 
     // Queue a request; the handle's channel delivers its tokens.
     // A prompt the limit cannot hold is refused here, before it waits, and so is a request arriving at a full queue; an uncapped request's max_tokens is the room its prompt leaves.
-    std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params) {
+    std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max()) {
         if (prompt.empty()) throw std::runtime_error("server: empty prompt");
         if (params.until_limit) {
             if (prompt.size() >= token_limit())
@@ -246,7 +249,7 @@ public:
         if (params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
         if (prompt.size() + (size_t)params.max_tokens > token_limit())
             throw TooLong("prompt plus max_tokens exceeds the " + std::to_string(token_limit()) + " tokens a request may hold");
-        auto r = std::make_shared<Request>(std::move(prompt), std::move(params));
+        auto r = std::make_shared<Request>(std::move(prompt), std::move(params), stable);
         {
             std::lock_guard<std::mutex> lk(m_);
             if (queue_.size() >= max_queue_)
@@ -275,6 +278,7 @@ public:
         size_t waits = 0;        // of those, the ones whose room waited on a request in flight
         size_t recomputed = 0;   // rows resumes computed again
         size_t taken_back = 0;   // resumes that took their own donor back whole
+        size_t checkpoints = 0;  // states kept as checkpoints now, on a model whose layers keep one
         size_t passes = 0, in_flight = 0;   // the passes the context keeps in flight at most, and those in flight now
         size_t samplers = 0;                // the threads that sample beside the scheduler thread
         std::vector<size_t> reserved, donor_blocks;   // per cache pool, the blocks the ledger holds reserved and those the donors hold
@@ -284,7 +288,7 @@ public:
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
         Stats s{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_, (size_t)pauses_,
-                paused_count_.load(), stalls_, waits_, recomputed_, taken_back_, slots_.size(), in_flight_.load(), samplers_.threads(), reserved_,
+                paused_count_.load(), stalls_, waits_, recomputed_, taken_back_, checkpoints_.load(), slots_.size(), in_flight_.load(), samplers_.threads(), reserved_,
                 std::vector<size_t>(reserved_.size(), 0), timed_, timing_};
         for (const Donor& d : donors_) add(s.donor_blocks, d.blocks);
         return s;
@@ -351,6 +355,7 @@ public:
                     fail_all(active, e.what());
                     host.clear();
                 }
+                checkpoints_.store(model_.checkpoint_slots() - model_.checkpoints_free());
                 if (timed_) round_.assembly_ms += ms_since(room_start) - formed_stages_ms_;
             }
             for (const auto& a : host)
@@ -458,13 +463,15 @@ private:
                 add_entry(r, infer::BatchEntry{&r->seq_, &r->last_id_, 1, true});
                 ++f.decoders;
             }
-        size_t budget = ubatch_;
+        size_t budget = ubatch_, keeps = 0;
         for (auto& r : active) {
             if (decoding(*r) || r->seq_.in_flight() || !budget) continue;
             const size_t at = r->seq_.length(), end = history_tokens(*r);
             if (at >= end) continue;
             const RowClass& c = class_at(r->classes_, at);
             size_t n = std::min(c.end, end) - at;
+            // A slice that would pass the request's checkpoint ends there, so its state can be kept there.
+            if (r->keep_at_ > at && r->keep_at_ < at + n) n = r->keep_at_ - at;
             if (c.extent == 1 && at < r->reached_) {
                 // Rows of extent 1 a resume computes again, generated tokens or a forked reply's: a pass takes at most kReplayRows of them, each costing ubatch / kReplayRows of the budget, which is at most the whole budget, so a request gets one while the budget is untouched.
                 // A one-token prompt read for the first time costs its row as any prompt does.
@@ -479,6 +486,11 @@ private:
             // The entry that ends the history wants the logits the next token is sampled from, and every entry carries its stretch's extent, so its rows take the kernels and the streamed path that first computed them.
             infer::BatchEntry e{&r->seq_, token_ptr(*r, at), n, at + n == end};
             e.extent = c.extent;
+            if (r->keep_at_ && r->keep_at_ == at + n) {
+                e.keep = checkpoint_room(keeps);
+                keeps += e.keep;
+                r->keep_at_ = 0;
+            }
             add_entry(r, e);
         }
         if (entries_.empty()) {
@@ -842,7 +854,24 @@ private:
         return waiting.erase(it);
     }
 
+    // A free checkpoint slot for a keep beside `keeps` others the pass takes, the oldest donors that hold one giving theirs where none is free (make_room, with checkpoint slots as one more pool); a checkpoint is never forced, so false leaves it out.
+    bool checkpoint_room(size_t keeps) {
+        if (model_.checkpoints_free() > keeps) return true;
+        const size_t slots = model_.checkpoint_slots();
+        std::vector<std::vector<size_t>> held;
+        for (const Donor& d : donors_) held.push_back({model_.checkpoint(d.seq) ? size_t(1) : size_t(0)});
+        const Taken t = make_room({slots}, {slots - model_.checkpoints_free() + keeps}, held, npos, false, {}, 0, false, {1});
+        if (!t.enough) return false;
+        std::vector<size_t> gone = t.donors;
+        std::sort(gone.begin(), gone.end(), std::greater<size_t>());
+        std::lock_guard<std::mutex> lk(m_);
+        for (size_t i : gone) drop_donor(i);
+        // A slot a fork still reads stays held after its donor goes.
+        return model_.checkpoints_free() > keeps;
+    }
+
     // The donor sharing the longest run of whole blocks with r's history by tokens, over rows computed as r's were or, at its first admission, as it would compute them: its prompt at the prompt's extent; the run's length goes to `tokens`, zero when none shares a block.
+    // On a model that keeps a state the run reaches only as far as the donor's checkpoint, where a fork can read the state.
     // The last history token is never shared, since a pass must compute it to give logits.
     size_t best_donor(const Request& r, size_t& tokens) const {
         const size_t bt = model_.kv_block_tokens(), h = history_tokens(r);
@@ -857,6 +886,10 @@ private:
             while (n < limit && t[n] == *token_ptr(r, n)) ++n;
             n = alike(own, donors_[d].classes, n);
             n = n / bt * bt;
+            if (model_.keeps_state()) {
+                const std::optional<size_t> kept = model_.checkpoint(donors_[d].seq);
+                n = kept && *kept <= n && *kept % bt == 0 ? *kept : 0;
+            }
             if (n > tokens) { tokens = n; best = d; }
         }
         return best;
@@ -893,6 +926,9 @@ private:
         r.classes_.push_back(RowClass{std::numeric_limits<size_t>::max(), 1});
         r.reached_ = shared;
         r.rng_.seed(r.params_.seed);
+        // One checkpoint where a follow-up turn would fork it: whole blocks within the stable prefix, never the last prompt token, past what the request forked.
+        const size_t bt = model_.kv_block_tokens(), at = std::min(r.stable_, p - 1) / bt * bt;
+        if (model_.checkpoint_slots() && at > shared) r.keep_at_ = at;
     }
 
     // A donor's blocks back to the pool, the oldest donor's unless another is named.
@@ -964,13 +1000,17 @@ private:
 
     // A request leaves the active set, its history kept as a donor when it holds at least `least` tokens (a full block unless a paused request's own asks for less) and its blocks returned otherwise; the donor's id, 0 when none is kept.
     // A donor keeps only the blocks it holds reserved, and there are at most max_seqs donors, the oldest going when a newcomer needs the room.
-    // A model whose layers keep a recurrent state keeps no donor: its state exists only at the end of what it read, so nothing could fork it, and a paused request resumes by recomputing its history from its start.
+    // On a model whose layers keep a recurrent state, which exists only at the end of what it read, a donor ends at its checkpoint: a paused request's whole history kept as one where a checkpoint slot is free, else, as a finished request's, the checkpoint at its prompt; with none it keeps no donor and recomputes from its start.
     uint64_t park(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::vector<uint32_t>& h, size_t least = 0) {
         auto r = active[i];
         active.erase(active.begin() + (std::ptrdiff_t)i);
-        const size_t held = r->seq_.length();
+        size_t held = r->seq_.length();
+        if (model_.keeps_state() && held && !(least && model_.keep(r->seq_))) {
+            const std::optional<size_t> kept = model_.checkpoint(r->seq_);
+            held = kept ? model_.retract(r->seq_, *kept) : 0;
+        }
         uint64_t id = 0;
-        if (held && held >= (least ? least : model_.kv_block_tokens()) && !model_.keeps_state()) {
+        if (held && held >= (least ? least : model_.kv_block_tokens())) {
             std::lock_guard<std::mutex> lk(m_);
             while (donors_.size() >= max_seqs_) drop_donor();
             Donor d;
@@ -1030,7 +1070,7 @@ private:
     // Paused requests in order of first admission, the scheduler thread's; they hold nothing but a donor, and do not count against max_queue.
     std::deque<std::shared_ptr<Request>> paused_;
     std::deque<Donor> donors_;
-    std::atomic<size_t> active_count_{0}, paused_count_{0}, in_flight_{0};
+    std::atomic<size_t> active_count_{0}, paused_count_{0}, in_flight_{0}, checkpoints_{0};
     size_t prefix_hits_ = 0, prefix_tokens_ = 0;   // under the lock
     uint64_t admissions_ = 0;   // the scheduler thread's
     uint64_t pauses_ = 0;       // under the lock

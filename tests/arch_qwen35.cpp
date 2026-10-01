@@ -7,8 +7,10 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -351,7 +353,7 @@ struct FailingHead : backend::CpuBackend {
     }
 };
 
-// The runtime's rules for a model that keeps a state: the op check, no fork, the slots, and a failed pass losing the state.
+// The runtime's rules for a model that keeps a state: the op check, no fork without a checkpoint, the slots, and a failed pass going back to the start, where the state reads as zero, when it has no checkpoint.
 void state_rules() {
     const gguf::GGUFModel m = tiny();
     const infer::ModelWeights w = infer::gguf_weights(m);
@@ -373,13 +375,13 @@ void state_rules() {
     refuses("a second slot", "every recurrent state slot is held", [&] { model.forward(ctx, &first, 1); });
     model.reset();
     model.forward(ctx, &first, 1);
-    refuses("a fork", "a fork of a model whose layers keep a recurrent state", [&] { model.fork(a, 0); });
+    refuses("a fork", "a fork of a model whose layers keep a recurrent state takes its source's checkpoint", [&] { model.fork(a, 0); });
     const infer::BatchEntry rest{&a, ids.data() + 4, 4, true};
     model.forward(ctx, &rest, 1);
     require(!std::memcmp(ctx.logits(0), want.data(), VOCAB * sizeof(float)), "a sequence in two passes differs from the prompt in one");
     model.reset(a);
 
-    // A failed pass on a history loses the state it touched; a failure from length 0 leaves a zero state behind, which is no loss.
+    // A failed pass on a history whose state it may have written, with no checkpoint, goes back to the start; a failure from length 0 leaves a zero state behind, which is no loss.
     auto failing = std::make_shared<FailingHead>();
     infer::Model broken(w, failing);
     failing->fail = true;
@@ -388,9 +390,178 @@ void state_rules() {
     require(same(broken.prefill(ids), want), "a sequence after a failed first pass differs");
     failing->fail = true;
     refuses("a step failing", "injected", [&] { broken.step(7); });
-    refuses("a step after a lost state", "a sequence whose recurrent state a failed pass lost continues only from a reset", [&] { broken.step(7); });
-    broken.reset();
-    require(same(broken.prefill(ids), want), "a reset sequence differs from a fresh one");
+    require(broken.n_tokens() == 0, "a failed step without a checkpoint kept a history");
+    require(same(broken.prefill(ids), want), "a sequence after a failed step differs from a fresh one");
+}
+
+// State checkpoints (docs/SPECULATIVE.md, section 1), on a model of a 512-token context whose prompts pass a CPU block: a keep changes no logits; a retract reaches the checkpoint and a fork reads it in place, each continuing with the bits of the history never stopped; keep() turns the live state into the checkpoint; a failed pass goes back to the checkpoint; the slots are counted and given back.
+void checkpoints() {
+    const gguf::GGUFModel m = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    std::vector<uint32_t> ids(200);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = (uint32_t)((i * 7 + 3) % VOCAB);
+    const std::vector<uint32_t> head(ids.begin(), ids.begin() + 128), tail(ids.begin() + 128, ids.end());
+    infer::ModelOptions options;
+    options.state_slots = 2;
+    options.checkpoint_slots = 1;
+    infer::Model fresh(w, backend::make_cpu_backend(), options);
+    const std::vector<float> want = fresh.prefill(ids);
+    std::vector<float> steps;
+    for (uint32_t t : {9u, 14u}) {
+        const std::vector<float> next = fresh.step((int)t);
+        steps.insert(steps.end(), next.begin(), next.end());
+    }
+
+    infer::Model model(w, backend::make_cpu_backend(), options);
+    require(model.checkpoint_slots() == 1 && model.checkpoints_free() == 1, "the checkpoint slots");
+    require(same(model.prefill(ids, 128), want), "a prompt keeping its state at 128 differs");
+    {
+        infer::Sequence z = model.make_sequence();
+        require(!model.checkpoint(z), "a fresh sequence holds a checkpoint");
+    }
+    require(model.checkpoints_free() == 0, "a kept state took no slot");
+    require(model.retract(150) == 128 && model.n_tokens() == 128, "a retract inside the prompt did not reach its checkpoint");
+    require(same(model.prefill(tail), want), "the prompt continued from its checkpoint differs");
+    std::vector<float> got;
+    for (uint32_t t : {9u, 14u}) {
+        const std::vector<float> next = model.step((int)t);
+        got.insert(got.end(), next.begin(), next.end());
+    }
+    require(same(got, steps), "decode after a checkpoint's continuation differs");
+    model.reset();
+    require(model.checkpoints_free() == 1, "a reset kept its checkpoint's slot");
+
+    // Explicit sequences: a keep entry, a fork at its checkpoint read in place beside its source's continuation, and a fork where there is none refused.
+    infer::Sequence a = model.make_sequence();
+    infer::ExecContext ctx;
+    infer::BatchEntry keep{&a, head.data(), head.size(), false};
+    keep.keep = true;
+    keep.extent = ids.size();
+    model.forward(ctx, &keep, 1);
+    require(model.checkpoint(a) == std::optional<size_t>(128), "a keep entry left no checkpoint at its end");
+    refuses("a fork past the checkpoint", "takes its source's checkpoint", [&] { model.fork(a, 0); });
+    infer::Sequence f = model.fork(a, 128);
+    infer::BatchEntry both[] = {{&a, tail.data(), tail.size(), true}, {&f, tail.data(), tail.size(), true}};
+    both[0].extent = both[1].extent = ids.size();
+    model.forward(ctx, both, 2);
+    require(!std::memcmp(ctx.logits(0), want.data(), VOCAB * sizeof(float)) && !std::memcmp(ctx.logits(1), want.data(), VOCAB * sizeof(float)),
+            "a source and its fork continued from a checkpoint differ from the prompt in one");
+    model.reset(f);
+    require(model.checkpoints_free() == 0, "a fork's end gave its source's checkpoint slot back");
+
+    // keep() between passes: the live state at 200 becomes the checkpoint, replacing the one at 128 in the one slot, and the history goes on from it.
+    require(model.keep(a) && model.checkpoint(a) == std::optional<size_t>(200), "the live state was not kept");
+    const uint32_t t9 = 9, t14 = 14;
+    infer::BatchEntry s1{&a, &t9, 1, true}, s2{&a, &t14, 1, true};
+    model.forward(ctx, &s1, 1);
+    std::vector<float> kept(ctx.logits(0), ctx.logits(0) + VOCAB);
+    model.forward(ctx, &s2, 1);
+    kept.insert(kept.end(), ctx.logits(0), ctx.logits(0) + VOCAB);
+    require(same(kept, steps), "decode after keeping the live state differs");
+    require(model.retract(a, 201) == 200 && a.length() == 200, "a retract past the kept state did not reach it");
+    model.reset(a);
+
+    // A failed pass goes back to the checkpoint, and the history continues from there with the bits of one never failed.
+    auto failing = std::make_shared<FailingHead>();
+    infer::Model broken(w, failing, options);
+    require(same(broken.prefill(ids, 128), want), "a prompt keeping its state differs on the failing backend");
+    failing->fail = true;
+    refuses("a step failing", "injected", [&] { broken.step(9); });
+    require(broken.n_tokens() == 128, "a failed step did not go back to the checkpoint");
+    require(same(broken.prefill(tail), want), "the history after a failed step differs");
+}
+
+// A device reporting `room` bytes free that keeps copies of what it adopts, so the fit charges it the weights its layers take.
+struct Room : backend::CpuBackend {
+    size_t room = 0;
+    std::optional<size_t> memory_available() const override { return room; }
+    bool reads_in_place() const override { return false; }
+};
+
+// The automatic checkpoint count is tried through the fit itself (infer::fitted_kv): on a split whose first stage holds only a linear layer's states, on a device with room for its live states and not one checkpoint more, the fit gives no checkpoint slot and the model is placed; on roomy devices it gives the slots asked for. Slot counts whose sum a size cannot hold are refused.
+void checkpoint_fit() {
+    const gguf::GGUFModel m = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    const infer::ModelPlan plan = infer::plan_model(w);
+    const auto devices = [](size_t first) {
+        auto a = std::make_shared<Room>(), b = std::make_shared<Room>();
+        a->room = first;
+        b->room = size_t(1) << 30;
+        return std::vector<backend::BackendPtr>{a, b};
+    };
+    infer::PlacementRequest request;
+    request.names = {"device 0", "device 1"};
+    request.shares = {1, 3};
+    request.fit_kv = request.fit_checkpoints = true;
+    infer::ModelOptions options;
+    options.state_slots = 2;
+    options.checkpoint_slots = 4;
+    const auto holds = [&](size_t room, size_t kept) {
+        infer::ModelOptions o = options;
+        o.checkpoint_slots = kept;
+        try {
+            infer::split_layers(infer::footprint(w, plan, o), infer::budgets_for(devices(room), request.names), infer::kDefaultUbatch, request.shares,
+                                core::host_memory_available());
+            return true;
+        } catch (const std::runtime_error&) {
+            return false;
+        }
+    };
+    size_t lo = 1, hi = size_t(1) << 30;
+    while (hi - lo > 1) {
+        const size_t mid = lo + (hi - lo) / 2;
+        (holds(mid, 0) ? hi : lo) = mid;
+    }
+    require(!holds(hi, 1), "the first device holds a checkpoint more at the least room it needs without one");
+    require(infer::place_model(w, devices(hi), request, options).model->checkpoint_slots() == 0, "a checkpoint count the first device cannot hold was taken");
+    require(infer::place_model(w, devices(size_t(1) << 30), request, options).model->checkpoint_slots() == 4, "roomy devices did not take the checkpoint slots asked for");
+    // On one device with room for the whole budget and no more, the checkpoints take at most a quarter of it, in whole blocks of 128: of 512 tokens all four slots asked for, each far smaller than a quarter of the budget's bytes, with 384 tokens left, and of 384 none, since a block is a third; asked for as many as a size holds, the search ends with a count that fits.
+    infer::PlacementRequest one = request;
+    one.names = {"device 0"};
+    one.shares.clear();
+    const auto alone = [&](size_t room) {
+        auto d = std::make_shared<Room>();
+        d->room = room;
+        return std::vector<backend::BackendPtr>{d};
+    };
+    for (const size_t context : {size_t(512), size_t(384)}) {
+        const gguf::GGUFModel mc = tiny([&](gguf::GGUFModel& g) { set(g, "context_length", context); });
+        const infer::ModelWeights wc = infer::gguf_weights(mc);
+        const infer::ModelPlan pc = infer::plan_model(wc);
+        const auto whole = [&](size_t room) {
+            infer::ModelOptions o = options;
+            o.checkpoint_slots = 0;
+            try {
+                infer::split_layers(infer::footprint(wc, pc, o), infer::budgets_for(alone(room), one.names), infer::kDefaultUbatch, {},
+                                    core::host_memory_available());
+                return true;
+            } catch (const std::runtime_error&) {
+                return false;
+            }
+        };
+        lo = 1, hi = size_t(1) << 30;
+        while (hi - lo > 1) {
+            const size_t mid = lo + (hi - lo) / 2;
+            (whole(mid) ? hi : lo) = mid;
+        }
+        const auto tight = infer::place_model(wc, alone(hi), one, options).model;
+        const size_t want_slots = context == 512 ? 4 : 0, want_tokens = 384;
+        require(tight->checkpoint_slots() == want_slots && tight->kv_tokens_total() == want_tokens,
+                "a device holding the whole " + std::to_string(context) + "-token budget and no more took " + std::to_string(tight->checkpoint_slots()) +
+                    " checkpoint slots beside " + std::to_string(tight->kv_tokens_total()) + " KV tokens");
+        if (context == 512) {
+            infer::ModelOptions most = options;
+            most.checkpoint_slots = std::numeric_limits<size_t>::max();
+            const auto all = infer::place_model(wc, alone(hi), one, most).model;
+            require(all->checkpoint_slots() >= 4 && all->checkpoint_slots() < 1000 && all->kv_tokens_total() == 384,
+                    "asked for as many checkpoints as a size holds, the fit took " + std::to_string(all->checkpoint_slots()) + " beside " +
+                        std::to_string(all->kv_tokens_total()) + " KV tokens");
+        }
+    }
+    infer::ModelOptions wrapped;
+    wrapped.state_slots = std::numeric_limits<size_t>::max();
+    wrapped.checkpoint_slots = 2;
+    refuses("state slots past a size", "size overflows", [&] { infer::Model model(w, backend::make_cpu_backend(), wrapped); });
 }
 
 // Runs a pass through every stage of a context reserved for passes and returns its first logits row, or nothing when it wants none.
@@ -635,6 +806,8 @@ int main() {
         plan();
         footprint();
         state_rules();
+        checkpoints();
+        checkpoint_fit();
         refused_passes_take_no_slot();
         failed_admission_takes_no_slot();
         slices(tiny());

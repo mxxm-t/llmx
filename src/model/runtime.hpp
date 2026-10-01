@@ -66,6 +66,8 @@ struct ModelOptions {
     size_t kv_tokens = 0;
     // Sequences that may hold a recurrent state at once, for a model whose layers keep one: each state storage holds this many slots from load on and never grows.
     size_t state_slots = 1;
+    // States kept at a position beside those (Model::checkpoint), each a slot more in every state storage (docs/SPECULATIVE.md, section 2).
+    size_t checkpoint_slots = 0;
     // The whole KV budget backed as the model is made rather than as passes write it, so no pass grows the cache (a server's fitted budget, PlacementRequest::fit_kv).
     bool kv_backed = false;
 };
@@ -89,8 +91,10 @@ private:
     std::vector<int> storage_of_;         // per stage, its KV storage, or -1 where its layers keep none
     std::vector<size_t> length_;          // per stage, the count of a stage without KV
     std::vector<KVSequence> kv_;          // per KV storage
-    StateSlot state_;                     // its slot in every state storage, from its first pass to its reset
-    bool lost_ = false;                   // a failed pass left its state behind its length, so it continues only from a reset
+    StateSlot state_;                     // its live slot in every state storage, from its first pass to its reset
+    Checkpoint kept_;                     // its state kept at a position, which a fork or a retract continues from; one at most, a newer replacing it
+    static constexpr size_t kLive = SIZE_MAX;
+    std::vector<size_t> from_;            // per stage, the slot its state is read from: the live slot (kLive) or a checkpoint's
     std::vector<backend::Ticket> last_;
     const Model* owner_ = nullptr;
     bool in_flight_ = false;
@@ -110,6 +114,8 @@ struct BatchEntry {
     // Zero takes the entry's own row count.
     // A prompt given its extent takes the same kernels and path whether it arrives in one pass or in slices, alone or beside other sequences, with or without a reused prefix.
     size_t extent = 0;
+    // Keep the state after the entry's last token as its sequence's checkpoint (Model::checkpoint), at a position of whole blocks in every storage; the pass takes a checkpoint slot for it.
+    bool keep = false;
 };
 
 // What a pass's stages read as they are recorded: its entries, its rows and their positions, the rows the head reads, and each storage's cache views once its stage has reserved them.
@@ -122,6 +128,7 @@ struct Pass {
     std::vector<uint32_t> ids, pos, pick;
     std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
     std::vector<std::vector<backend::StateView>> states;   // per device, per entry, on a device whose layers keep a state
+    std::vector<Checkpoint> kept;                      // per entry, the checkpoint a keep entry writes, its sequence's once the last stage commits it
     std::vector<backend::RowRun> runs, head_runs;      // the pass's rows and the head's, by entry
     size_t handoff = 0;                                // which of each device's handoff buffers its crossings use: a prompt chunk's parity, a reserved pass's slot
     size_t logits_base = 0;                            // the context's logits row its head writes first
@@ -333,8 +340,8 @@ public:
             // Each device whose mixer layers keep a state holds every slot of theirs from now on, zeroed, so no pass allocates state.
             if (state_layers_) {
                 for (auto& d : devices_)
-                    if (d->state_layers) d->states = d->b->state_alloc((size_t)d->state_layers, options_.state_slots, plan_.state);
-                slots_.configure(options_.state_slots);
+                    if (d->state_layers) d->states = d->b->state_alloc((size_t)d->state_layers, backend::size_add(options_.state_slots, options_.checkpoint_slots), plan_.state);
+                slots_.configure(options_.state_slots, options_.checkpoint_slots);
             }
             seq_ = make_sequence();
 
@@ -395,11 +402,12 @@ public:
 
     // A second history holding the first `length` tokens of `src`, which must be whole blocks in every storage: every block below `length` is shared, read-only from now on, and the fork appends into fresh ones, so nothing is allocated or copied here.
     // The fork inherits the tickets of the passes that wrote what it shares.
+    // A recurrent state exists only at the end of what it has read, so on a model that keeps one the fork takes src's checkpoint at `length`, whose state its first pass reads in place.
     Sequence fork(const Sequence& src, size_t length) {
         if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
         if (src.in_flight_) throw std::logic_error("inference: a fork of a sequence in flight");
-        // A recurrent state exists only at the end of what it has read, so it has no earlier point to fork from.
-        if (state_layers_) throw std::logic_error("inference: a fork of a model whose layers keep a recurrent state");
+        if (state_layers_ && (!src.kept_.held() || src.kept_.pos() != length))
+            throw std::logic_error("inference: a fork of a model whose layers keep a recurrent state takes its source's checkpoint");
         if (length > src.length()) throw std::logic_error("KV cache: a fork takes whole blocks of the history");
         Sequence f;
         f.storage_of_ = src.storage_of_;
@@ -408,6 +416,11 @@ public:
         for (const KVSequence& kv : src.kv_) f.kv_.push_back(kv.fork(length));
         f.last_ = src.last_;
         f.owner_ = this;
+        f.from_.assign(stages_.size(), Sequence::kLive);
+        if (state_layers_) {
+            f.kept_ = src.kept_;
+            std::fill(f.from_.begin(), f.from_.end(), f.kept_.slot());
+        }
         return f;
     }
 
@@ -420,6 +433,7 @@ public:
         for (Device* d : storages_)
             s.kv_.emplace_back(&d->pool, d->b->kv_layout().block_tokens);
         s.last_.assign(devices_.size(), 0);
+        s.from_.assign(stages_.size(), Sequence::kLive);
         s.owner_ = this;
         return s;
     }
@@ -521,16 +535,45 @@ public:
     // Blocks and the state slot return to their pools; their storage is retained.
     // Every pass ends in a submit or, on failure, a sync, so the sequence's last tickets cover everything that could still be touching a block or a slot: this waits for those and no more.
     void reset(Sequence& s) {
-        if (s.owner_ != this)
-            throw std::runtime_error("inference: sequence of another model");
-        if (s.in_flight_) throw std::logic_error("inference: a reset of a sequence in flight");
-        for (size_t d = 0; d < devices_.size(); ++d)
-            if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
+        settle(s, "a reset");
         for (auto& kv : s.kv_) kv.reset();
         std::fill(s.length_.begin(), s.length_.end(), 0);
-        s.lost_ = false;
+        std::fill(s.from_.begin(), s.from_.end(), Sequence::kLive);
+        s.kept_.release();
         s.state_.release();
     }
+
+    // The history back to at most `length`, the one call that shortens it (docs/SPECULATIVE.md, section 1), and the length it reached: `length` wherever the caches hold it, else, on a model whose layers keep a state, the sequence's checkpoint at or below it, else 0.
+    // The caller computes the rest again, without sampling, as a resume does; blocks and a checkpoint past the length reached return to their pools.
+    size_t retract(Sequence& s, size_t length) {
+        settle(s, "a retract");
+        if (length >= s.length()) return s.length();
+        return rewind(s, length);
+    }
+
+    // The sequence's state kept at its current length, between passes, as its checkpoint: a paused history keeps its state this way, its live slot becoming the checkpoint's with no copy.
+    // False when the model keeps no state or no checkpoint slot is free; the older checkpoint it replaces goes first, so its slot serves.
+    bool keep(Sequence& s) {
+        settle(s, "a keep");
+        if (!state_layers_) return false;
+        if (s.kept_.held() && s.kept_.pos() == s.length()) return true;
+        if (!s.state_.held()) return false;
+        s.kept_.release();
+        if (!slots_.keep_live(s.state_.slot())) return false;
+        s.kept_ = Checkpoint(slots_, s.state_.slot(), s.length());
+        std::fill(s.from_.begin(), s.from_.end(), s.state_.slot());
+        s.state_.forget();
+        return true;
+    }
+
+    // The position of the sequence's checkpoint, which a fork of it takes and a retract reaches.
+    std::optional<size_t> checkpoint(const Sequence& s) const {
+        if (!s.kept_.held()) return std::nullopt;
+        return s.kept_.pos();
+    }
+    // Checkpoint slots in all, and those a keep can still take.
+    size_t checkpoint_slots() const { return state_layers_ ? options_.checkpoint_slots : 0; }
+    size_t checkpoints_free() const { return state_layers_ ? slots_.kept_available() : 0; }
 
     // The single-sequence entry points the CLI uses: one sequence and one context owned here, and one entry per pass.
 
@@ -546,7 +589,8 @@ public:
     // Process a whole prompt with matrix-matrix matmuls instead of one token at a time.
     // Each weight row is then reused across the batch, which is the difference between prefill being compute bound and paying the entire weight stream once per token.
     // Only the final token's logits are needed, so only the last pass asks for them.
-    std::vector<float> prefill(const std::vector<uint32_t>& ids) {
+    // A `keep_at` inside the prompt keeps the state there as the sequence's checkpoint, the chunk before it cut to end there.
+    std::vector<float> prefill(const std::vector<uint32_t>& ids, size_t keep_at = 0) {
         if (ids.empty()) throw std::runtime_error("inference: empty prompt");
         // The prompt is one transaction across its microbatches: a failure in any of them restores the history from before the call.
         const size_t start = seq_.length();
@@ -554,11 +598,21 @@ public:
             // Sized to the largest chunk this prompt will use, inside the scope, so a short prompt does not allocate scratch for a full ubatch.
             // Sized before any chunk runs, so nothing in flight loses its storage.
             ensure(ctx_, std::min((size_t)ubatch(), ids.size()), 1, handoffs(1));
-            const size_t B = (size_t)ubatch(), chunks = (ids.size() + B - 1) / B;
+            // Chunks of the ubatch, one cut short to end at `keep_at`.
+            const size_t B = (size_t)ubatch(), cut = keep_at > start ? keep_at - start : 0;
+            std::vector<std::pair<size_t, size_t>> parts;
+            for (size_t i = 0; i < ids.size();) {
+                size_t n = std::min(B, ids.size() - i);
+                if (cut > i && cut < i + n) n = cut - i;
+                parts.push_back({i, n});
+                i += n;
+            }
+            const size_t chunks = parts.size();
             auto chunk = [&](size_t c) {
-                const size_t i = c * B, n = std::min(B, ids.size() - i);
+                const size_t i = parts[c].first, n = parts[c].second;
                 BatchEntry entry{&seq_, ids.data() + i, n, i + n == ids.size()};
                 entry.extent = start + ids.size();
+                entry.keep = cut && i + n == cut;
                 return entry;
             };
             if (!pipelined_) {
@@ -589,7 +643,7 @@ public:
             scoped(0, work);
         } catch (...) {
             retire();
-            truncate(seq_, start);
+            rewind(seq_, start);
             throw;
         }
         return row(ctx_, 0);
@@ -622,6 +676,7 @@ public:
     }
 
     void reset() { reset(seq_); }
+    size_t retract(size_t length) { return retract(seq_, length); }
 
     // Allocated is what the backends back; used is the committed history.
     // The gap is the paging cost in memory (docs/KV-CACHE.md).
@@ -639,7 +694,7 @@ public:
         return seq_.length() * kv_layers_ * kv_bytes_per_position(plan_, options_);
     }
 
-    // Whether some layer keeps a recurrent state, which exists only at the end of what it has read: such a model is not forked, a failed pass loses its entries' states, and a server keeps no donor of it.
+    // Whether some layer keeps a recurrent state, which exists only at the end of what it has read: such a model forks and retracts only at a checkpoint, and a failed pass returns its entries to theirs.
     bool keeps_state() const { return state_layers_ > 0; }
     // The sequences that may hold a recurrent state at once (ModelOptions::state_slots), zero for a model whose layers keep none.
     size_t state_slots() const { return state_layers_ ? options_.state_slots : 0; }
@@ -793,12 +848,27 @@ private:
     // The history a pass continues: the first stage's committed length, which a pipelined prompt's chunk commits first; outside a prompt every stage agrees.
     size_t history(const Sequence& s) const { return s.stage_length(0); }
 
-    // A history back to `length` in every stage and storage, the blocks beyond it returned.
-    // A pass updates a state in place and a state exists only at the end of what it has read, so a history with a state that goes back anywhere but to 0, where the state reads as zero, is lost.
-    void truncate(Sequence& s, size_t length) noexcept {
-        for (size_t& n : s.length_) n = std::min(n, length);
-        for (auto& kv : s.kv_) kv.truncate(length);
-        s.lost_ = state_layers_ && length;
+    // A sequence out of flight whose passes have retired, before it gives blocks or slots back.
+    void settle(Sequence& s, const char* what) {
+        if (s.owner_ != this) throw std::runtime_error("inference: sequence of another model");
+        if (s.in_flight_) throw std::logic_error(std::string("inference: ") + what + " of a sequence in flight");
+        for (size_t d = 0; d < devices_.size(); ++d)
+            if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
+    }
+
+    // A history back to `length`, or on a model that keeps a state to its checkpoint at or below `length`, else 0, whose live state a pass may have written: every stage and storage at the length reached, which is returned, the blocks and a checkpoint beyond it returned.
+    // The state is then the checkpoint's, or zero, so the live slot goes back too, and the next pass takes one: a donor parked at its checkpoint holds none of the slots admission counts on.
+    size_t rewind(Sequence& s, size_t length) noexcept {
+        size_t to = length;
+        if (state_layers_) {
+            if (s.kept_.held() && s.kept_.pos() > length) s.kept_.release();
+            to = s.kept_.held() ? s.kept_.pos() : 0;
+            std::fill(s.from_.begin(), s.from_.end(), s.kept_.held() ? s.kept_.slot() : Sequence::kLive);
+            s.state_.release();
+        }
+        for (size_t& n : s.length_) n = std::min(n, to);
+        for (auto& kv : s.kv_) kv.truncate(to);
+        return to;
     }
 
     // A pass's plan: its rows in entry order, their positions after each history, and the rows the head reads, from logits row `logits_base` on, with nothing reserved yet, since each stage reserves the blocks of the storage it writes.
@@ -811,7 +881,6 @@ private:
             if (!en.seq || en.seq->owner_ != this)
                 throw std::runtime_error("inference: batch entry without a sequence of this model");
             if (en.seq->in_flight_) throw std::logic_error("inference: a sequence already in flight");
-            if (en.seq->lost_) throw std::runtime_error("inference: a sequence whose recurrent state a failed pass lost continues only from a reset");
             if (!en.ids || !en.n)
                 throw std::runtime_error("inference: batch entry without tokens");
             // The position tables cover [0, context_length); a row past them would read off the end.
@@ -829,10 +898,17 @@ private:
         if (marked < n_entries) throw std::logic_error("inference: a sequence listed twice in a pass");
         if (ctx.slots && (rows > ctx.pass_rows || want > ctx.logit_rows || logits_base > ctx.logit_rows - want))
             throw std::logic_error("inference: a pass beyond the rows or logits rows reserve_passes reserved");
-        // Every entry holds a state slot from its first pass on, so a pass never runs short of one; a pass that cannot take them all, is refused or fails to plan takes none.
-        size_t fresh = 0;
-        for (size_t e = 0; state_layers_ && e < n_entries; ++e) fresh += !entries[e].seq->state_.held();
+        // Every entry holds a state slot from its first pass on, so a pass never runs short of one, and a keep entry a checkpoint slot; a pass that cannot take them all, is refused or fails to plan takes none.
+        size_t fresh = 0, keeps = 0;
+        for (size_t e = 0; state_layers_ && e < n_entries; ++e) {
+            fresh += !entries[e].seq->state_.held();
+            keeps += entries[e].keep;
+        }
         if (fresh > slots_.available()) throw std::runtime_error("inference: every recurrent state slot is held");
+        if (keeps > slots_.kept_available()) throw std::runtime_error("inference: every checkpoint slot is held");
+        for (size_t e = 0; keeps && e < n_entries; ++e)
+            if (entries[e].keep && !whole_blocks(history(*entries[e].seq) + entries[e].n))
+                throw std::logic_error("inference: a checkpoint at a position of whole blocks in every storage");
         if (!ctx.slots) ensure(ctx, rows, want, handoffs(1));
         p.entries.assign(entries, entries + n_entries);
         p.start.resize(n_entries);
@@ -852,6 +928,8 @@ private:
             p.states.resize(devices_.size());
             for (auto& v : p.states) v.resize(n_entries);
         }
+        p.kept.clear();
+        p.kept.resize(n_entries);
         size_t r = 0, w = 0;
         for (size_t e = 0; e < n_entries; ++e) {
             const BatchEntry& en = entries[e];
@@ -876,8 +954,17 @@ private:
         }
         p.long_runs = false;
         for (size_t e = 0; e < n_entries; ++e) p.long_runs = p.long_runs || streams(p, e);
-        // Last, once nothing can fail: the check above left a free slot for each.
+        // Last, once nothing can fail: the checks above left a free slot for each.
         for (size_t e = 0; fresh && e < n_entries; ++e) entries[e].seq->state_.take(slots_);
+        for (size_t e = 0; keeps && e < n_entries; ++e)
+            if (entries[e].keep) p.kept[e] = Checkpoint(slots_, slots_.acquire_kept(), p.start[e] + entries[e].n);
+    }
+
+    // Whether `pos` is whole blocks in every KV storage, as a fork and a checkpoint need.
+    bool whole_blocks(size_t pos) const {
+        for (const Device* d : storages_)
+            if (pos % d->b->kv_layout().block_tokens) return false;
+        return true;
     }
 
     // Stage s of a pass: its storage's blocks reserved, the residual embedded or received from the stage before, its layers, then the head after the last stage or the residual sent on, its submissions, and the commit of its length and its storage.
@@ -891,10 +978,12 @@ private:
             p.views[(size_t)storage][e] = kv.view(home.storage.get());
             p.views[(size_t)storage][e].extent = p.runs[e].extent;
         }
-        // A state is read and written in place in the sequence's slot, after the history this stage has committed.
+        // A state is read from where the history this stage has committed left it, the live slot or a checkpoint, and written to the live slot, or for a keep entry to its checkpoint's.
         for (size_t e = 0; home.states && e < p.entries.size(); ++e) {
             const Sequence& q = *p.entries[e].seq;
-            p.states[st.device][e] = backend::StateView{home.states.get(), q.state_.slot(), q.state_.slot(), q.stage_length(s), p.entries[e].n};
+            const size_t src = q.from_[s] == Sequence::kLive ? q.state_.slot() : q.from_[s];
+            const size_t dst = p.kept[e].held() ? p.kept[e].slot() : q.state_.slot();
+            p.states[st.device][e] = backend::StateView{home.states.get(), src, dst, q.stage_length(s), p.entries[e].n};
         }
         size_t cur = st.device;
         const backend::RowRuns all{p.runs.data(), p.runs.size()};
@@ -929,10 +1018,15 @@ private:
         }
         for (size_t d : st.touches) ctx.tickets[d] = devices_[d]->b->submit();
         p.sent = ctx.tickets[cur];
-        for (const BatchEntry& en : p.entries) {
-            if (storage >= 0) en.seq->kv_[(size_t)storage].commit();
-            else en.seq->length_[s] += en.n;
-            for (size_t d : st.touches) en.seq->last_[d] = ctx.tickets[d];
+        for (size_t e = 0; e < p.entries.size(); ++e) {
+            Sequence& q = *p.entries[e].seq;
+            if (storage >= 0) q.kv_[(size_t)storage].commit();
+            else q.length_[s] += p.entries[e].n;
+            for (size_t d : st.touches) q.last_[d] = ctx.tickets[d];
+            if (!state_layers_) continue;
+            q.from_[s] = p.kept[e].held() ? p.kept[e].slot() : Sequence::kLive;
+            // Once every stage holds it, the checkpoint is the sequence's, and the one it replaces goes: a later write of that slot is enqueued after every read of it on each device's stream.
+            if (s + 1 == stages_.size() && p.kept[e].held()) q.kept_ = std::move(p.kept[e]);
         }
     }
 
@@ -944,10 +1038,11 @@ private:
         ctx.pending = p.want > 0;
     }
 
-    // A failed pass: every device drained, then every entry's histories back to where the pass found them, the blocks its stages reserved or committed returned.
-    void roll_back(const Pass& p) noexcept {
+    // A failed pass: every device drained, then every entry's histories back to where the pass found them, or on a model that keeps a state, whose live state the pass may have written, to its checkpoint (rewind); the blocks and the checkpoint slots its stages reserved or wrote returned.
+    void roll_back(Pass& p) noexcept {
         retire();
-        for (size_t e = 0; e < p.entries.size(); ++e) truncate(*p.entries[e].seq, p.start[e]);
+        for (size_t e = 0; e < p.entries.size(); ++e) rewind(*p.entries[e].seq, p.start[e]);
+        p.kept.clear();
     }
 
     // The pass in a reserved context's slot, which must be in flight.

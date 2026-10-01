@@ -3,7 +3,7 @@
 `infer::BlockPool` and `infer::KVSequence` are the backend-neutral half of the
 paged KV cache designed in [KV-CACHE](../KV-CACHE.md). They hold no floats:
 physical blocks live in a `backend::KVStorage` and the model layer never
-computes an offset into them. `infer::SlotPool` and `infer::StateSlot` are
+computes an offset into them. `infer::SlotPool`, `infer::StateSlot` and `infer::Checkpoint` are
 the same half of the recurrent state ([QWEN35](../QWEN35.md), The recurrent
 state), whose slots live in a `backend::StateStorage`.
 
@@ -37,16 +37,27 @@ state), whose slots live in a `backend::StateStorage`.
   never allocate and cannot fail half way. `Model` is not copyable or
   movable for the same reason.
 
-- `SlotPool` hands out the state slots of a model, one per sequence that
-  holds a state and the same slot in every state storage: `acquire` throws
-  when every slot is held, `release` returns one, `available` counts the
-  free ones, and `configure` sets the count in place and is refused while
-  any is held. A slot holds nothing a
+- `SlotPool` hands out the state slots of a model, the same slot in every
+  state storage, on two sides counted apart over the slots they share
+  (`configure(live, checkpoints)`, refused while any is held): the live
+  side, one per sequence that holds a state, where `acquire` throws when
+  every live slot is held, `release` returns one and `available` counts
+  the free ones, so a sequence the live side admits always finds a slot;
+  and the checkpoint side, states kept at a position
+  (`docs/SPECULATIVE.md`, section 1), where `acquire_kept` takes a slot
+  with one reference, `retain` and `release_kept` count references and
+  free it with the last, `keep_live` moves a held live slot to the
+  checkpoint side when that side has room, and `kept_available` counts
+  its free slots. A slot holds nothing a
   sequence must clear, since a history of length 0 reads a zero state
   whatever its slot holds. `StateSlot` is a sequence's hold on one slot,
   taken by `take`, which does nothing when one is already held, named by
   `slot`, and returned by `release`, when it is moved over or when it is
-  destroyed, and `held` says whether it holds one; neither class is copyable and the pool is not movable.
+  destroyed, and `held` says whether it holds one; `forget` ends the hold
+  without returning a slot `keep_live` moved. `Checkpoint` is one reference
+  to a checkpoint's slot with its position (`slot`, `pos`), copied by
+  taking another and returning the slot with the last; neither `StateSlot`
+  nor the pool is copyable and the pool is not movable.
 
 `Model` owns one block pool per device whose mixer layers keep KV, one slot
 pool when a layer keeps a state, and one default sequence; a `Sequence`

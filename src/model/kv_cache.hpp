@@ -183,7 +183,8 @@ private:
     std::vector<int32_t> blocks_;
 };
 
-// The slots of a model's recurrent state, one per sequence that holds a state, each the same slot in every state storage.
+// The slots of a model's recurrent state, each the same slot in every state storage: `live` of them for the sequences that hold a state at once, and `checkpoints` more for states kept at a position (docs/SPECULATIVE.md, section 1).
+// The two sides share the slots and are counted apart, so a live slot is always there for a sequence the live side admits, whatever the checkpoints hold.
 // A slot holds nothing a sequence must clear: a history of length 0 reads a zero state whatever its slot holds.
 // Sequences hold the pool's address, so it is neither copied nor moved.
 class SlotPool {
@@ -192,32 +193,64 @@ public:
     SlotPool(const SlotPool&) = delete;
     SlotPool& operator=(const SlotPool&) = delete;
 
-    void configure(size_t slots) {
-        if (held_) throw std::logic_error("state slots reconfigured while some are held");
+    void configure(size_t live, size_t checkpoints) {
+        if (live_held_ || kept_held_) throw std::logic_error("state slots reconfigured while some are held");
+        if (checkpoints > std::numeric_limits<size_t>::max() - live) throw std::runtime_error("inference: more state slots than a size holds");
+        const size_t slots = live + checkpoints;
         free_.clear();
         free_.reserve(slots);
         for (size_t s = slots; s-- > 0;) free_.push_back(s);
-        held_ = 0;
+        refs_.assign(slots, 0);
+        live_ = live;
+        kept_ = checkpoints;
     }
     size_t acquire() {
-        if (free_.empty()) throw std::runtime_error("inference: every recurrent state slot is held");
-        const size_t s = free_.back();
-        free_.pop_back();
-        ++held_;
-        return s;
+        if (live_held_ == live_) throw std::runtime_error("inference: every recurrent state slot is held");
+        ++live_held_;
+        return take();
     }
     void release(size_t s) noexcept {
         free_.push_back(s);
-        --held_;
+        --live_held_;
     }
-    size_t available() const { return free_.size(); }
+    size_t available() const { return live_ - live_held_; }
+
+    // A checkpoint's slot, counted by reference: a sequence and every fork reading it hold one each.
+    size_t acquire_kept() {
+        if (kept_held_ == kept_) throw std::runtime_error("inference: every checkpoint slot is held");
+        ++kept_held_;
+        const size_t s = take();
+        refs_[s] = 1;
+        return s;
+    }
+    void retain(size_t s) noexcept { ++refs_[s]; }
+    void release_kept(size_t s) noexcept {
+        if (--refs_[s]) return;
+        free_.push_back(s);
+        --kept_held_;
+    }
+    // A live slot becomes a checkpoint's, its state kept where it is, when the checkpoint side has room; the live side then has one more to give.
+    bool keep_live(size_t s) noexcept {
+        if (kept_held_ == kept_) return false;
+        --live_held_;
+        ++kept_held_;
+        refs_[s] = 1;
+        return true;
+    }
+    size_t kept_available() const { return kept_ - kept_held_; }
 
 private:
+    size_t take() {
+        const size_t s = free_.back();
+        free_.pop_back();
+        return s;
+    }
     std::vector<size_t> free_;   // taken from the back, slot 0 first
-    size_t held_ = 0;
+    std::vector<uint32_t> refs_;
+    size_t live_ = 0, kept_ = 0, live_held_ = 0, kept_held_ = 0;
 };
 
-// A sequence's hold on one slot of a SlotPool, returned when it is released, moved over or destroyed.
+// A sequence's hold on one live slot of a SlotPool, returned when it is released, moved over or destroyed.
 class StateSlot {
 public:
     StateSlot() = default;
@@ -234,7 +267,6 @@ public:
         return *this;
     }
     ~StateSlot() { release(); }
-
     size_t slot() const { return slot_; }
     bool held() const { return pool_ != nullptr; }
     void take(SlotPool& pool) {
@@ -246,10 +278,54 @@ public:
         if (pool_) pool_->release(slot_);
         pool_ = nullptr;
     }
+    // The slot handed to the checkpoint side (SlotPool::keep_live), so this hold ends without returning it.
+    void forget() noexcept { pool_ = nullptr; }
 
 private:
     SlotPool* pool_ = nullptr;
     size_t slot_ = 0;
+};
+
+// A state kept at a position: one reference to a checkpoint's slot, copied by taking another, returned when the last goes.
+class Checkpoint {
+public:
+    Checkpoint() = default;
+    Checkpoint(SlotPool& pool, size_t slot, size_t pos) : pool_(&pool), slot_(slot), pos_(pos) {}
+    Checkpoint(const Checkpoint& o) noexcept : pool_(o.pool_), slot_(o.slot_), pos_(o.pos_) {
+        if (pool_) pool_->retain(slot_);
+    }
+    Checkpoint& operator=(const Checkpoint& o) noexcept {
+        if (this != &o) {
+            Checkpoint c(o);
+            swap(c);
+        }
+        return *this;
+    }
+    Checkpoint(Checkpoint&& o) noexcept { swap(o); }
+    Checkpoint& operator=(Checkpoint&& o) noexcept {
+        if (this != &o) {
+            release();
+            swap(o);
+        }
+        return *this;
+    }
+    ~Checkpoint() { release(); }
+    bool held() const { return pool_ != nullptr; }
+    size_t slot() const { return slot_; }
+    size_t pos() const { return pos_; }
+    void release() noexcept {
+        if (pool_) pool_->release_kept(slot_);
+        pool_ = nullptr;
+    }
+
+private:
+    void swap(Checkpoint& o) noexcept {
+        std::swap(pool_, o.pool_);
+        std::swap(slot_, o.slot_);
+        std::swap(pos_, o.pos_);
+    }
+    SlotPool* pool_ = nullptr;
+    size_t slot_ = 0, pos_ = 0;
 };
 
 } // namespace infer

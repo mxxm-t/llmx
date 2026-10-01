@@ -264,7 +264,7 @@ POST /v1/detokenize  {"tokens": [ids]} -> {"text": "..."}
 GET  /v1/health      {"status": "ok", "model": "...", "active": n, "queued": m,
                       "donors": d, "prefix_hits": h, "prefix_tokens": t,
                       "pauses": p, "paused": w, "stalls": s, "waits": x,
-                      "recomputed": r, "taken_back": b,
+                      "recomputed": r, "taken_back": b, "checkpoints": c,
                       "passes": P, "in_flight": f}
                      with --timing also "timing": {"rounds", "round_ms",
                       "recording_ms", "relaying_ms", "sampling_ms",
@@ -289,7 +289,10 @@ Both get the same U+FFFD repair as generated text, so every reply is UTF-8.
 A non-streaming request gets one JSON object with the text, the ids and the counts.
 Errors are JSON with an HTTP status: 400 for a bad request (a text the tokenizer cannot encode and a token id outside the vocabulary included), 413 for a prompt and its `max_tokens` past what one request may hold (the model context or the KV pool, whichever is smaller) or a body past 64 MiB, 503 when the queue is full.
 A conversation the chat template raises on is a bad request, answered 400 with the template's message; a template the renderer refuses stops `serve` before it listens, since no chat request could be answered.
-A model whose layers keep a recurrent state, a `qwen35` file, is served without donors, since a state exists only at the end of what it has read and nothing could fork it: a finished or paused request gives back its blocks and its state slot, so there is no prefix reuse, a follow-up turn recomputes its history, and a paused request resumes by recomputing from its start; each admitted request holds one of the `--max-seqs` state slots the load reserves.
+A model whose layers keep a recurrent state, a `qwen35` file, has a state only at the end of what it has read, so its prefix reuse goes through checkpoints, states kept at a position in slots of their own ([SPECULATIVE](SPECULATIVE.md), section 2): each request keeps one where its prompt's last whole block ends within what a follow-up turn would begin with, the conversation rendered without the generation prompt for a chat route and the whole prompt for a text, the slice that reaches it ending there.
+A finished request's donor is its history back to that checkpoint, which a follow-up turn forks, reading the state in place; a paused request keeps its whole history as its checkpoint where a slot is free, taking it back on resuming, and its prompt's checkpoint otherwise.
+A checkpoint takes a free slot, else the oldest donor holding one goes (`make_room`), else it is left out; nothing is paused for one.
+`--state-checkpoints N` sets the slots, by default the fewer of `--max-seqs` and the most that take at most a quarter of the KV budget's room, and 0 keeps no checkpoint, so a follow-up turn recomputes its history and a paused request resumes from its start; each admitted request also holds one of the `--max-seqs` state slots the load reserves.
 A message that carries `reasoning_content` as a string is taken as sent, its content and its reasoning unchanged.
 An assistant message without it, or with it null, is kept as `chat` keeps its own replies (`chat::ChatFormat::assistant`): split by `chat::assistant_turn`, the text after its last `</think>` the content and the reasoning before it `reasoning_content`, only when the template reads `reasoning_content` and does not split a turn at `</think>` itself, as the Qwen 3.8 templates do not, and rendered whole, as sent, under every other template.
 So the server renders a conversation as `chat` does, and each model sees earlier reasoning in the form its template was written for, whichever way a client sends it back ([inference-chat](src/inference-chat.md) states the rule).

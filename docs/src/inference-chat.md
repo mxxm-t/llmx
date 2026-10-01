@@ -19,6 +19,8 @@ Namespace `chat`, with the language itself in `chat::jj`.
   `chat` records each of its replies through it, and the server reads an assistant message a client sends back through it when the message carries no `reasoning_content`, so a conversation renders the same through both.
 - `chat_format(source, bos, eos)` parses a template's source; `chat_format(file, tok)` takes the file's template, or ChatML when it carries none, with its tokenizer's start and end text.
   The loader builds it once (`LoadedModel::chat`, [load](inference-load.md)), and `chat` and the server take it from there.
+- `stable_prefix(format, tok, messages, prompt, vars)`: how much of `prompt`, the ids of `messages` rendered with the generation prompt, a follow-up turn begins with: the ids of the messages rendered without it, as far as they prefix the prompt's, where a model that keeps a recurrent state keeps it for the next turn to fork (`docs/SPECULATIVE.md`, section 2).
+  A template that raises on that render, or a text the tokenizer refuses, gives 0, so nothing is kept; `chat` and the server's chat routes both take it from here.
 - `Refused` is a template the renderer does not take; `TemplateError` is a render that fails.
 
 The variables a render reads are those the reference passes for a conversation without tools or documents: `messages` (each a dict of `role`, `content` and, when present, `reasoning_content`, in that order), `tools` and `documents` as none, `add_generation_prompt`, `bos_token` and `eos_token`.

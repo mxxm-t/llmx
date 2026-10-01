@@ -107,7 +107,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     if (!fp.cache.empty() && fp.cache.size() != L) throw std::logic_error("split: a cache for some layers and not others");
     // cached[i]: the cache of layers [0, i), the same on every device.
     std::vector<size_t> cached(L + 1, 0);
-    for (size_t l = 0; l < L; ++l) cached[l + 1] = cached[l] + (fp.cache.empty() ? 0 : fp.cache[l]);
+    for (size_t l = 0; l < L; ++l) cached[l + 1] = backend::size_add(cached[l], fp.cache.empty() ? 0 : fp.cache[l]);
 
     auto resident = [&](size_t d, const Matrix& m) -> size_t {
         if (devices[d].host) return 0;
@@ -154,7 +154,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {
-        return prefix[d][i + k] - prefix[d][i] + cached[i + k] - cached[i] + end_weights(d, first, last) + overhead(d, h);
+        return backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], cached[i + k] - cached[i]), backend::size_add(end_weights(d, first, last), overhead(d, h)));
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
 

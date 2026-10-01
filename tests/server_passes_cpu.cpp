@@ -337,7 +337,7 @@ void cases(const gguf::GGUFModel& weights, uint32_t vocab) {
 int main() {
     try {
         cases(served(kSplit), (uint32_t)kSplit.vocab);
-        // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: it keeps no donor, and a stage may hold only states.
+        // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: without checkpoint slots it keeps no donor, and a stage may hold only states.
         cases(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);
         std::cout << "server-passes-cpu: " << checks << " checks pass\n";
         return 0;

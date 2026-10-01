@@ -8,8 +8,8 @@ and `open_routed`. It implements the architecture contract
 names it. The math, the files' conventions and the recurrent state are in
 [QWEN35](../QWEN35.md); the plan and its steps are in `docs/STATUS.md`.
 It runs on the CPU and on a Vulkan device, whose backends both implement
-the ops each part names (`LayerPlan::ops`), and `llmx serve` holds its
-requests without donors ([server](server.md)).
+the ops each part names (`LayerPlan::ops`), and `llmx serve` reuses a
+conversation's prefix through state checkpoints ([server](server.md)).
 
 - `Config`, `read_config(file, prefix, moe)`: the configuration, read
   under the prefix the registry hands it through

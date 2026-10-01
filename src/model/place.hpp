@@ -64,7 +64,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     fp.logits_per_row = fp.output.rows * sizeof(float);
     for (const LayerPlan& layer : plan.layers)
         fp.cache.push_back(layer.cache == Cache::kv      ? kv_tokens(plan, options) * kv_bytes_per_position(plan, options)
-                           : layer.cache == Cache::state ? plan.state.layer_bytes(options.state_slots)
+                           : layer.cache == Cache::state ? plan.state.layer_bytes(backend::size_add(options.state_slots, options.checkpoint_slots))
                                                          : 0);
     for (size_t n : plan.tables) fp.tables += n * sizeof(float);
     fp.handoff_per_row = plan.residual * sizeof(float);
@@ -100,6 +100,8 @@ struct PlacementRequest {
     size_t histories = 0, history_tokens = 0;
     // The KV budget fitted to what the devices hold beside everything else, at most the options' budget, and backed whole at load (fitted_kv); a server's.
     bool fit_kv = false;
+    // With fit_kv, the options' checkpoint slots are the most the fit gives rather than a number it must hold (fitted_kv).
+    bool fit_checkpoints = false;
 };
 
 // A placed model and, when it was split, what each device was given (LayerSplit::describe).
@@ -151,6 +153,7 @@ inline void settle(std::vector<DeviceBudget>& budgets, const std::vector<backend
 // The options with the KV budget fitted (PlacementRequest::fit_kv): the most whole blocks of the largest block size, at most the options' budget, at which the fit of model/layer_split.hpp places the model on these devices and the host, and backed whole at load.
 // Beside a device with experts on the CPU, the device holds neither those layers' feed-forward blocks nor their experts; a device that cannot tell its free memory takes the options' budget.
 // Refused when not one block fits beside the weights, the activations and the recurrent state slots.
+// With fit_checkpoints a model that keeps a state takes as checkpoint slots the fewer of the options' and the most at which the placement still holds three quarters of the budget it holds without them, so they take at most a quarter of the KV room, each count tried through the fit itself (docs/SPECULATIVE.md, section 2).
 inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
                               const PlacementRequest& request, ModelOptions options) {
     size_t block = 1;
@@ -168,9 +171,11 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
     const std::optional<size_t> logits = request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt;
     std::string why;
+    size_t kept = options.checkpoint_slots;
     const auto fits = [&](size_t tokens) {
         ModelOptions o = options;
         o.kv_tokens = tokens;
+        o.checkpoint_slots = kept;
         try {
             split_layers(footprint(weights, held, o), budgets, rows, request.shares, core::host_memory_available(), std::max<size_t>(1, request.slots), logits);
             return true;
@@ -191,6 +196,19 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         }
         return lo * block;
     };
+    // The checkpoint slots first, by bisection, since each more slot only adds to what a device holds: the most at which the placement holds three quarters of the blocks it holds without them, rounded up, so the slots take at most a quarter of the KV room; none where even one does not fit.
+    if (request.fit_checkpoints && std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; }) && kept) {
+        const size_t most_kept = kept;
+        kept = 0;
+        const size_t bare = most() / block, target = std::max<size_t>(1, bare - bare / 4) * block;
+        size_t lo = 0, hi = most_kept;
+        while (lo < hi) {
+            kept = lo + (hi - lo) / 2 + (hi - lo) % 2;
+            if (fits(target)) lo = kept;
+            else hi = kept - 1;
+        }
+        kept = lo;
+    }
     size_t tokens = 0;
     settle(budgets, backends, request.names, [&] { return (tokens = most()) >= want; });
     if (!tokens) {
@@ -202,6 +220,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     }
     options.kv_tokens = tokens;
     options.kv_backed = true;
+    options.checkpoint_slots = kept;
     return options;
 }
 

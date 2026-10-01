@@ -29,7 +29,7 @@ The server and the CLI ask for the operations below and never touch a block, a s
 | checkpoint at p | an entry ending at p with `BatchEntry::keep` | nothing: rows below L are never rewritten | the entry writes its state into a free slot (StateView `dst`), which becomes the checkpoint at p; the next pass reads it (`src`) and writes the live slot | no copy, no host wait |
 | fork at p | `fork(src, p)` | whole blocks below p shared, as today | the fork's first pass reads src's checkpoint at p in place and writes the fork's own live slot | no copy |
 | mark (from step 3) | `mark(seq)` | nothing | the live slot is kept as the mark at L; later passes write a fresh slot and save their recurrent inputs, up to k_max + 1 rows | no copy |
-| retract to L | `retract(seq, L)`, returns the length reached | blocks past L returned | inside a mark's saved rows: the recurrence rerun from the mark over them into the live slot, enqueued before the next pass; else the latest checkpoint at or below L, else 0 | KV free; state: a rerun of at most k_max + 1 rows, or the caller's recompute |
+| retract to L | `retract(seq, L)`, returns the length reached | blocks past L returned | inside a mark's saved rows: the recurrence rerun from the mark over them into the live slot, enqueued before the next pass; else its checkpoint at or below L, else 0 | KV free; state: a rerun of at most k_max + 1 rows, or the caller's recompute |
 | reset | `reset(seq)` (today) | every block returned | the live slot, the mark and every checkpoint returned | none |
 
 - `retract` is the only call that shortens a history, for every caller: a rejected draft, a donor trimmed at park, a failed pass, a paused request.
@@ -54,7 +54,8 @@ A checkpoint named in a pass is valid once the pass's last stage has run (`end_p
 Nothing crosses between devices: every stage writes and reads only its own part.
 
 **Slots.** One slot pool per model, each slot live, a checkpoint or a mark by use.
-`ModelOptions::state_slots` is the total, fitted at load and never grown; `ModelOptions::live_slots` of them stay available for live use, so admission never waits on a slot: when a live slot becomes a checkpoint or a mark, a free slot takes its place on the live side in the same call, or the change is not made.
+`ModelOptions::state_slots` live slots and `ModelOptions::checkpoint_slots` more, fitted at load and never grown, are counted apart, so admission never waits on a live slot: when a live slot becomes a checkpoint (`Model::keep`), it moves to the checkpoint side only where that side has room, and the live side has one more to give.
+A sequence holds one checkpoint at most, a newer one replacing it, which is all prefix reuse needs; a mark (step 3) is a slot of its own.
 
 ## 2. Checkpoint storage and policy (planned)
 

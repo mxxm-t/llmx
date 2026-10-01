@@ -595,6 +595,44 @@ void every_slot_free(infer::Model& model, const bpe::Tokenizer& tok, uint32_t vo
 }
 
 // The hybrid model: requests paused and resumed give their replies alone on one CPU and over a two-CPU split with passes in flight, a follow-up turn recomputes its history rather than forking, and requests cancelled paused, in flight or by a stop leave every block and every state slot free.
+// A hybrid model with checkpoint slots (docs/SPECULATIVE.md, section 2): a finished request keeps its state at its prompt's last whole block, so a follow-up turn forks it and gives the reply of its prompt on a fresh model; with one slot the newer conversation's checkpoint takes the older's; and a paused request keeps its whole history as its checkpoint and takes it back, recomputing nothing, as take_back has it.
+void hybrid_checkpoints(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const auto follow_up_of = [&](const Make& make, const Req& first) {
+        auto model = make(1024, 0);
+        std::vector<uint32_t> again = first.prompt;
+        for (uint32_t id : ids_of(serve(*model, tok, 3, {{first}})[0])) again.push_back(id);
+        const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
+        again.insert(again.end(), more.begin(), more.end());
+        return Req{again, 32};
+    };
+    const Make kept = on(weights, [] { return cpus(1); }, 3, 3);
+    const Req a{prompt_of(5, 300, vocab), 40}, b{prompt_of(7, 300, vocab), 40};
+    as_on_fresh(kept, tok, {a}, follow_up_of(kept, a), 2 * kBlock, "a hybrid model's follow-up turn from its checkpoint");
+    const Make split = on(weights, [] { return cpus(2); }, 3, 3);
+    as_on_fresh(split, tok, {a}, follow_up_of(split, a), 2 * kBlock, "a hybrid model's follow-up turn from its checkpoint over a two-CPU split");
+    const Make one_slot = on(weights, [] { return cpus(1); }, 3, 1);
+    as_on_fresh(one_slot, tok, {a, b}, follow_up_of(one_slot, a), 0, "a hybrid model's older conversation, its checkpoint taken by a newer one");
+    as_on_fresh(one_slot, tok, {a, b}, follow_up_of(one_slot, b), 2 * kBlock, "a hybrid model's newer conversation, one checkpoint slot");
+    take_back(kept, tok, vocab);
+    // A donor parked at its checkpoint holds none of the live slots admission counts on: with one, the same prompt again forks it and runs, and with three, three requests at once beside the donor each find their slot.
+    {
+        auto model = on(weights, [] { return cpus(1); }, 1, 1)(1024, 0);
+        server::Scheduler::Stats stats;
+        const std::vector<Reply> r = serve(*model, tok, 1, {{a}, {a}}, &stats);
+        same(r[0], r[1], "a hybrid model's repeated prompt with one live slot");
+        require(stats.prefix_tokens == 2 * kBlock, "a hybrid model's repeated prompt with one live slot reused " + std::to_string(stats.prefix_tokens) + " tokens");
+    }
+    {
+        const std::vector<Req> three = {{prompt_of(1, 40, vocab), 64}, {prompt_of(2, 9, vocab), 64}, {prompt_of(3, 23, vocab), 64}};
+        auto model = kept(1024, 0);
+        const std::vector<Reply> r = serve(*model, tok, 3, {{a}, three});
+        for (size_t i = 0; i < three.size(); ++i) {
+            auto fresh = kept(1024, 0);
+            same(serve(*fresh, tok, 3, {{three[i]}})[0], r[1 + i], "a hybrid model's request beside a donor, " + std::to_string(i));
+        }
+    }
+}
+
 void hybrid(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
     const Make one = on(weights, [] { return cpus(1); }, 3);
     const std::vector<Req> three = {{prompt_of(1, 40, vocab)}, {prompt_of(2, 9, vocab)}, {prompt_of(3, 23, vocab)}};
@@ -717,6 +755,7 @@ int main(int argc, char** argv) {
             cancelled_short_donor(one, tok, vocab);
             const gguf::GGUFModel mixed = served_hybrid(kHybrid);
             hybrid(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
+            hybrid_checkpoints(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             std::printf("server-resume: CPU cases pass\n");
         }
         if (only != "cpu") {

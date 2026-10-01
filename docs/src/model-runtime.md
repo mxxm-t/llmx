@@ -38,7 +38,7 @@ delegated to a `backend::Backend`.
 - `ModelOptions`: what is fixed at construction, before the caches are
   allocated: each cache side's type (`kv_k`, `kv_v`, the CLI's
   `--cache-type-k` and `--cache-type-v`), `kv_tokens`, the positions
-  every pool holds, zero for one model context, and `state_slots`, the
+  every pool holds, zero for one model context, `checkpoint_slots`, the states kept at a position beside the live ones (`serve --state-checkpoints`, two for `chat`), and `state_slots`, the
   sequences that may hold a recurrent state at once in a model whose layers
   keep one: one for a command's own sequence, the sequences a pass carries
   for `bench --seqs` (the CLI's `open_model` sets it from them), four for
@@ -111,7 +111,7 @@ delegated to a `backend::Backend`.
   Each stage commits its own length, whatever its layers keep, so a stage
   whose layers keep no KV has no storage and still runs. Each device whose
   mixer layers keep a recurrent state holds a `backend::StateStorage` of
-  exactly those layers with `state_slots` slots, allocated and zeroed at
+  exactly those layers with `state_slots` + `checkpoint_slots` slots, allocated and zeroed at
   load and never grown (`Backend::state_alloc`), and a sequence takes one
   slot of the model's `SlotPool` in its first pass, once the pass is
   accepted and planned, and keeps it until its reset, its destruction or a
@@ -175,13 +175,23 @@ delegated to a `backend::Backend`.
     to the pools, its blocks and its state slot, after waiting on its last
     ticket; a sequence in flight is refused.
   - `keeps_state()`: whether some layer keeps a recurrent state, which
-    exists only at the end of what it has read. Such a model is never
-    forked. A pass updates the state in place, so a failed pass, or a
-    prompt that fails part way, loses the state of every entry it takes
-    back to a length other than 0, where the state reads as zero, and so
-    does `abort_pass` even when no stage ran; a lost sequence is refused by
-    the next pass until its reset. A server keeps no donor of such a
-    model.
+    exists only at the end of what it has read, so such a model forks and
+    takes a history back only at its checkpoint (`docs/SPECULATIVE.md`,
+    section 1). A sequence holds one checkpoint at most, a state kept at a
+    position in a slot of the pool's checkpoint side, counted by reference
+    since a fork reads it in place: a `BatchEntry::keep` entry writes its
+    state into a fresh checkpoint slot (`StateView::dst`), which the next
+    pass reads (`src`) as it writes the live slot, and which replaces the
+    sequence's older checkpoint once the entry's last stage commits it;
+    `keep(sequence)` makes the live state at the current length the
+    checkpoint between passes, its slot moving to the checkpoint side.
+    `retract(sequence, length)` is the one call that shortens a history: to
+    `length` where the caches hold it, else to the checkpoint at or below
+    it, else to 0, returning the length reached; a failed pass, or a prompt
+    that fails part way, takes its entries back the same way, since a pass
+    writes the live state in place. `checkpoint(sequence)`,
+    `checkpoint_slots()` and `checkpoints_free()` give the position and the
+    slots.
   - `state_slots()`: the sequences that may hold a recurrent state at once,
     `ModelOptions::state_slots`, zero for a model whose layers keep none; a
     server over such a model runs at most that many requests at once.
@@ -195,7 +205,7 @@ delegated to a `backend::Backend`.
     below `length` on every storage without allocating or copying physical
     KV blocks; the logical block tables and ticket vectors still allocate. The
     server forks a donor at the blocks a prompt shares with it.
-    A model whose layers keep a state is not forked.
+    On a model whose layers keep a state `length` must be the source's checkpoint, whose state the fork's first pass reads in place.
     A forked sequence continues exactly as a fresh one fed the same tokens at the same extents would; rows another extent computed can differ from them by rounding, so a caller forks only rows whose class (`row_class`) is its own.
   - `row_class(extent)` is the one owner of which rows compute the same bits: each used device's `Backend::row_class` and whether the rows take a streamed layer on the device.
     A sequence in flight is not forked.

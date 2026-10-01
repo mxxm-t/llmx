@@ -261,7 +261,7 @@ def write_fixture(directory, fixture):
 
 
 def check_serve(directory):
-    """The Hv = 3 Hk model served with a context of 1024: greedy ids through /v1/generate alone, four at once and from the CLI are the same, and uncapped requests on a pool too small for them together are paused and resumed with the text each gives alone."""
+    """The Hv = 3 Hk model served with a context of 1024: greedy ids through /v1/generate alone, four at once and from the CLI are the same; a follow-up turn forks the state its first turn kept at its prompt's last whole block and gives the CLI's text for its whole prompt, on this model and on a qwen35moe one; and uncapped requests on a pool too small for them together are paused and resumed with the text each gives alone, with and without checkpoints, those without recomputing from their start; growth takes the paused requests' donors here, so the take-back of a kept state is `server-resume`'s."""
     # Imported here, since the server test imports the baseline checks, which import this module.
     import server
     fixture = FIXTURES[1]
@@ -280,27 +280,47 @@ def check_serve(directory):
             assert list(common.generate_text(p.stdout)) == ids, (body["prompt"], ids)
     finally:
         srv.close()
-    # Uncapped, each request runs to the context the pool holds, so four together pause and resume, each recomputing its history from its start.
+    # A follow-up turn repeating a 500-byte prompt and its reply, as a chat client sends the conversation back, on this model and on a qwen35moe one; both pass 449 tokens, so on a device they take one tile split and the fork may take the rows.
+    routed = next(f for f in FIXTURES if f.get("moe"))
+    routed_model = write_model(os.path.join(directory, "tiny-qwen35moe-serve.gguf"), gguf_tensors(routed, raw_weights(routed)), eos_id=EOS,
+                               config=dict(gguf_config(routed), context_length=1024), arch="qwen35moe")
+    first = "".join(chr(97 + (i * 7) % 26) for i in range(500))
+    for served in (model, routed_model):
+        srv = server.Server(served, "--max-seqs", "4")
+        try:
+            reply = server.post_ok(srv, "/v1/generate", {"prompt": first, "temperature": 0, "max_tokens": 24, "ignore_eos": True})
+            follow = first + reply["text"] + " and then?"
+            again = server.post_ok(srv, "/v1/generate", {"prompt": follow, "temperature": 0, "max_tokens": 24, "ignore_eos": True})
+            assert 0 < again["reused_tokens"] < len(first), (served, again["reused_tokens"], srv.get("/v1/health"))
+            p = common.run_process(["generate", served, follow, "-n", "24", "--temp", "0", "--ignore-eos"], cache="f32")
+            assert p.returncode == 0, p.stderr.decode("utf-8", "replace")
+            assert list(common.generate_text(p.stdout)) == again["ids"], (served, again["ids"])
+            assert srv.get("/v1/health")["checkpoints"] > 0
+        finally:
+            srv.close()
+    # Uncapped, each request runs to the context the pool holds, so four together pause and resume with the text each gives alone, with checkpoints and without, where each recomputes its history from its start.
     uncapped = [{"prompt": text, "temperature": 0, "ignore_eos": True} for text in prompts]
-    srv = server.Server(model, "--max-seqs", "4", "--ctx-size", "1024")
-    try:
-        alone = [server.post_ok(srv, "/v1/completions", body)["choices"][0]["text"] for body in uncapped]
-        results = {}
-        def worker(i):
-            results[i] = srv.post("/v1/completions", uncapped[i], timeout=600)
-        threads = [threading.Thread(target=worker, args=(i,)) for i in range(len(uncapped))]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-        for i, body in enumerate(uncapped):
-            status, reply = results[i]
-            assert status == 200 and reply["choices"][0]["text"] == alone[i], (body, reply, alone[i])
-        health = srv.get("/v1/health")
-        assert health["active"] == 0 and health["paused"] == 0 and health["pauses"] > 0 and health["recomputed"] > 0, health
-        assert health["taken_back"] == 0 and health["donors"] == 0, health
-    finally:
-        srv.close()
+    for kept in (["--state-checkpoints", "0"], []):
+        srv = server.Server(model, "--max-seqs", "4", "--ctx-size", "1024", *kept)
+        try:
+            alone = [server.post_ok(srv, "/v1/completions", body)["choices"][0]["text"] for body in uncapped]
+            results = {}
+            def worker(i):
+                results[i] = srv.post("/v1/completions", uncapped[i], timeout=600)
+            threads = [threading.Thread(target=worker, args=(i,)) for i in range(len(uncapped))]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            for i, body in enumerate(uncapped):
+                status, reply = results[i]
+                assert status == 200 and reply["choices"][0]["text"] == alone[i], (body, reply, alone[i])
+            health = srv.get("/v1/health")
+            assert health["active"] == 0 and health["paused"] == 0 and health["pauses"] > 0, health
+            if kept:
+                assert health["recomputed"] > 0 and health["taken_back"] == 0 and health["donors"] == 0, health
+        finally:
+            srv.close()
 
 
 def check_scores(name, model, perplexity):

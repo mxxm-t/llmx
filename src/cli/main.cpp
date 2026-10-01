@@ -428,9 +428,10 @@ std::string load_timing(const infer::LoadTimes& t) {
 // `threads` is the worker count to set, 0 to keep the backend's own; with `profiled`, the one device times its kernels and its address is written there (bench --profile).
 // `history_tokens`, when given, is what each of the `decode_rows` sequences holds, and the cache grows to hold them all at once where its budget would not (infer::PlacementRequest::histories).
 // `slots` is the passes a server keeps in flight, whose handoff buffers and logits rows a split's fit counts, and a server fits its KV budget to the devices and backs it at load; with `timed` every device times its work (serve --timing).
+// `checkpoints` is the states a model that keeps one holds at a position (infer::ModelOptions::checkpoint_slots), -1 for the most a server's fit gives up to `decode_rows`.
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                                bool show_plan = false, backend::Backend** profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
-                                               bool timed = false) {
+                                               bool timed = false, int checkpoints = 0) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
     if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     const auto specs = backend::device_specs(exec.device);
@@ -454,6 +455,8 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     infer::ModelOptions options = model_options(exec);
     // A recurrent state is held by each sequence decoding at once: the command's own one, or the sequences a pass carries.
     if (decode_rows) options.state_slots = decode_rows;
+    options.checkpoint_slots = checkpoints < 0 ? decode_rows : (size_t)checkpoints;
+    request.fit_checkpoints = checkpoints < 0;
     format::LoadProgress shown;
     if (progress) {
         std::cerr << "Reading model metadata...\n";
@@ -468,13 +471,14 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
 // One turn's prompt, before its reply is generated: prefill `ids` on the prompt's worker count (--threads-batch, else `decode_threads`), then set `decode_threads` back.
 // `prefilled`, called before the decode lines are shown, gets the prompt's time in milliseconds, which includes setting the decode count back, since a changed count stops the CPU workers the prompt ran on.
 // Returns the logits after the last prompt token.
+// A `keep_at` inside the turn keeps the model's state there as its checkpoint (infer::Model::prefill).
 std::vector<float> prefill_turn(infer::Model& model, const ExecOptions& exec, const std::vector<uint32_t>& ids, int decode_threads, bool progress,
-                                const std::function<void(double)>& prefilled = {}) {
+                                const std::function<void(double)>& prefilled = {}, size_t keep_at = 0) {
     model.set_threads(exec.threads_batch > 0 ? exec.threads_batch : decode_threads);
     if (exec.verbose) std::cerr << "threads: prefill " << model.threads_available() << "\n";
     if (progress) std::cerr << "Processing " << ids.size() << " prompt tokens...\n";
     const auto t0 = std::chrono::steady_clock::now();
-    std::vector<float> logits = model.prefill(ids);
+    std::vector<float> logits = model.prefill(ids, keep_at);
     model.set_threads(decode_threads);
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (prefilled) prefilled(ms);
@@ -592,7 +596,8 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
 
 int cmd_chat(const std::string& model_path, const std::string& system, const infer::GenParams& gp, const ExecOptions& exec) {
     const bool progress = show_progress(exec);
-    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose);
+    // A model that keeps a state keeps it where the next turn will begin, and two slots let a turn's checkpoint take over from the last one's.
+    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 2);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     const chat::ChatFormat& format = loaded->chat;
@@ -604,6 +609,7 @@ int cmd_chat(const std::string& model_path, const std::string& system, const inf
     std::vector<chat::Message> messages;
     messages.push_back({ "system", system, std::nullopt });
     std::vector<uint32_t> cached_ids;
+    size_t kept_extent = 0;   // the length of the prompt whose rows the model's checkpoint holds
 
     std::cout << "Chat ready (type your message; Ctrl+C to quit)\n" << std::flush;
     std::string line;
@@ -617,11 +623,24 @@ int cmd_chat(const std::string& model_path, const std::string& system, const inf
         // Reuse only an exact prefix; an unchanged prompt also needs fresh logits because generate() does not retain its final distribution.
         if (cached_ids.size() >= gen_ids.size() ||
             !std::equal(cached_ids.begin(), cached_ids.end(), gen_ids.begin())) {
-            model.reset();
-            cached_ids.clear();
+            // A model that keeps a state goes back to its checkpoint within the shared prefix, whose rows the last prompt computed as this one computes them.
+            size_t shared = 0;
+            while (shared < cached_ids.size() && shared + 1 < gen_ids.size() && cached_ids[shared] == gen_ids[shared]) ++shared;
+            const bool alike = model.keeps_state() && model.row_class(kept_extent) == model.row_class(gen_ids.size());
+            const size_t reached = alike ? model.retract(shared) : 0;
+            if (!reached) model.reset();
+            cached_ids.resize(reached);
+        }
+        // The state is kept where the next turn begins: whole blocks of the conversation rendered without the generation prompt.
+        size_t keep_at = 0;
+        if (model.keeps_state()) {
+            const size_t n = std::min(chat::stable_prefix(format, tok, messages, gen_ids), gen_ids.size() - 1);
+            keep_at = n / model.kv_block_tokens() * model.kv_block_tokens();
+            if (keep_at <= cached_ids.size()) keep_at = 0;
+            else kept_extent = gen_ids.size();
         }
         const std::vector<float> logits = prefill_turn(model, exec, std::vector<uint32_t>(gen_ids.begin() + cached_ids.size(), gen_ids.end()),
-                                                       decode_threads, progress);
+                                                       decode_threads, progress, {}, keep_at);
         cached_ids = std::move(gen_ids);
         std::vector<uint32_t> reply = infer::generate(model, tok, gp, rng, logits, emit_text);
         std::cout << "\n" << std::flush;
@@ -828,7 +847,7 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec) {
     // Without --passes a pipelined split keeps a pass in flight per stage, and its stages are at most the devices listed.
     const size_t slots = cfg.passes ? cfg.passes : backend::device_specs(exec.device).size();
-    const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing);
+    const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     // A template the renderer refuses stops the server before it listens, as it stops chat before a turn.
@@ -839,7 +858,8 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     http::Listener listener(c.host, c.port);
     std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
               << " (device " << exec.device << ", up to " << c.max_seqs << " sequences over "
-              << model.kv_tokens_total() << " KV tokens, queue of " << c.max_queue << ")\n";
+              << model.kv_tokens_total() << " KV tokens" << (model.keeps_state() ? ", " + std::to_string(model.checkpoint_slots()) + " state checkpoints" : std::string())
+              << ", queue of " << c.max_queue << ")\n";
     server::serve(model, tok, loaded->chat, c, listener);
     return 0;
 }
@@ -943,6 +963,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --max-seqs N            Active request limit (default: " << cfg.max_seqs << ")\n"
             << "  --max-queue N           Queued request limit, paused requests not counted (default: " << cfg.max_queue << ")\n"
             << "  --passes N              Passes in flight; above 1 needs a layer split (default: its stages, else 1)\n"
+            << "  --state-checkpoints N   States a recurrent model keeps for prefix reuse (default: fitted, up to --max-seqs)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
             << "  --ctx-size N, -c        Most KV tokens in total, fitted to the devices at load (default: model context)\n";
         model_options(false);
@@ -1247,6 +1268,7 @@ int main(int argc, char** argv) {
                 else if (f == "--max-seqs") cfg.max_seqs = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--max-queue") cfg.max_queue = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--passes") cfg.passes = (size_t)int_arg(argc, argv, i, a, 1);
+                else if (f == "--state-checkpoints") cfg.state_checkpoints = int_arg(argc, argv, i, a, 0);
                 else if (f == "--timing") cfg.timing = true;
                 else if (f == "--ctx-size") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
                 else if (exec_flag(argc, argv, i, exec, false)) {}

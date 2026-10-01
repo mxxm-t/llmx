@@ -26,6 +26,7 @@ struct Config {
     size_t max_seqs = 16;
     size_t max_queue = 64;   // requests waiting for admission; past it, 503
     size_t passes = 0;       // passes in flight; 0 takes the stage count on a pipelined layer split and one elsewhere (Scheduler)
+    int state_checkpoints = -1;   // on a model that keeps a state, the states kept for prefix reuse; -1 for the most the fit gives up to max_seqs
     bool timing = false;     // time the rounds and the stages for /v1/health, over backends made to time their work
     std::string model_name;
 };
@@ -141,6 +142,7 @@ private:
                   ",\"prefix_tokens\":" + std::to_string(s.prefix_tokens) + ",\"pauses\":" + std::to_string(s.pauses) +
                   ",\"paused\":" + std::to_string(s.paused) + ",\"stalls\":" + std::to_string(s.stalls) + ",\"waits\":" + std::to_string(s.waits) +
                   ",\"recomputed\":" + std::to_string(s.recomputed) + ",\"taken_back\":" + std::to_string(s.taken_back) +
+                  ",\"checkpoints\":" + std::to_string(s.checkpoints) +
                   ",\"passes\":" + std::to_string(s.passes) + ",\"in_flight\":" + std::to_string(s.in_flight) +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
     }
@@ -280,6 +282,12 @@ private:
             else throw BadRequest(400, "chat_template_kwargs values must be booleans, numbers, strings or null");
         }
         return vars;
+    }
+
+    // How much of a request's prompt a follow-up turn begins with, where the model keeps a state a follow-up could fork (chat::stable_prefix for a chat route, a text's whole prompt); a model that keeps none is not asked to render again.
+    size_t stable_of(const jmini::Value& body, Route route, const std::vector<uint32_t>& prompt) const {
+        if (!model_.checkpoint_slots() || (route != Route::chat && route != Route::chat_completions)) return prompt.size();
+        return chat::stable_prefix(format_, tok_, messages_of(body), prompt, template_vars(body));
     }
 
     // A render the template itself fails, such as its raise_exception on a conversation it does not take, is the request's fault.
@@ -493,7 +501,9 @@ private:
         const bool include_usage = so && so->isObject() && flag(*so, "include_usage");
 
         std::shared_ptr<Request> r;
-        try { r = sched_.submit(encode(prompt), params); }
+        std::vector<uint32_t> ids = encode(prompt);
+        const size_t stable = stable_of(body, route, ids);
+        try { r = sched_.submit(std::move(ids), params, stable); }
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }

@@ -1,5 +1,5 @@
 // The scheduler's policy core (server/policy.hpp): make_room, the growth rule, the round's stages, the decode share and the logits rows by hand, then the scheduler's round over them under a simulated executor, in random schedules over 1 to 4 stages, some of them on the host, 1 to 2S pass slots and two pools of different block sizes, with random stage times, arrivals, growth, pauses, cancellations, failures and stops.
-// One schedule in four serves a model that keeps a recurrent state: no request leaves a donor, and no more requests are active than there are state slots.
+// One schedule in four serves a model that keeps a recurrent state and no checkpoint slots: no request leaves a donor, and no more requests are active than there are state slots.
 // The simulated round is the scheduler's at any number of slots: a pass formed in every free slot while a request is ready, each taking an even share of the decoding requests, each request in one pass at a time, the host's stages recorded after the round's device stages, and a failure ending its own pass's requests alone.
 // After every event a request is in at most one pass and no pass is empty, each device runs its passes in formation order, a slot and a run of logits rows belong to one pass until it ends, no pool is over-reserved and nothing in flight is paused, parked or ended, and a request is refused room only when the donors, and for growth the uncapped requests admitted after it, cannot give it, the oldest only when a capped request holds the rest.
 // A growth plan pauses one request at most and waits only on a request in flight, and the oldest request's wait ends in the round that request's pass retires; within one lap every decoder that is not stalled gets a token and a cancellation ends; admission is first-come, no free slot idles while a request is ready, a failed pass leaves every other pass in flight, and a drained schedule ends every request; after a stop the ledger and the logits rows hold nothing.
@@ -53,7 +53,7 @@ struct Sim {
         double ready = 0;            // when its last recorded stage ends on its device
     };
     size_t S, P, lap, max_seqs = 4, ubatch = 16, fail_per_mille = 2;
-    // A model whose layers keep a recurrent state: each active request holds one of max_seqs state slots, and no request leaves a donor.
+    // A model whose layers keep a recurrent state and no checkpoint slots: each active request holds one of max_seqs state slots, and no request leaves a donor.
     bool stateful = false;
     server::Pools pools{{64, 32}, {64, 128}};
     server::Growth growth{16};

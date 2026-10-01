@@ -329,8 +329,10 @@ On the model side, each addition lands as a field of the architecture contract (
   at load, each sequence holding one slot, and the five ops of
   `backend::Op` (`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`,
   `norm_rope_partial`, `sigmoid_mul`), which a backend reports through
-  `Backend::implements`; such a model is not forked, and a
-  failed pass loses the states it touched. Do not assume every layer keeps
+  `Backend::implements`; such a model is forked and taken back only at a
+  sequence's checkpoint, a state kept at a position in a slot of its own,
+  and a failed pass takes its sequences back to theirs
+  (`docs/SPECULATIVE.md`). Do not assume every layer keeps
   KV, or that every stage of a split has a KV storage.
 - **Mixture of experts.** A routed matmul over the experts each token
   selected, and expert placement, which the per-role placement above

@@ -2901,6 +2901,18 @@ inline ChatFormat chat_format(const std::string& source, std::string bos, std::s
     return f;
 }
 
+// How much of `prompt`, the ids of `messages` rendered with the generation prompt, a follow-up turn begins with: the ids of the messages rendered without it, as far as they prefix the prompt's, where a model that keeps its state there lets the next turn fork it (docs/SPECULATIVE.md, section 2).
+// A template that refuses that render, or a text the tokenizer refuses, gives 0, so nothing is kept.
+inline size_t stable_prefix(const ChatFormat& format, const bpe::Tokenizer& tok, const std::vector<Message>& messages, const std::vector<uint32_t>& prompt,
+                            const std::vector<TemplateVar>& vars = {}) {
+    std::vector<uint32_t> ids;
+    try { ids = tok.encode(format.render(messages, false, vars)); }
+    catch (const std::exception&) { return 0; }
+    size_t n = 0;
+    while (n < ids.size() && n < prompt.size() && ids[n] == prompt[n]) ++n;
+    return n;
+}
+
 // The template a file carries, or ChatML when it carries none, with its tokenizer's start and end text.
 inline ChatFormat chat_format(const gguf::GGUFModel& m, const bpe::Tokenizer& tok) {
     const gguf::MetaValue* stored = m.find("tokenizer.chat_template");

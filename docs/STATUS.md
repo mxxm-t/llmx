@@ -166,6 +166,24 @@
 - **Goal:** the owner section 1 of SPECULATIVE names, before step 4 adds the MTP layer's part of the history operations ([SPECULATIVE](SPECULATIVE.md), section 1 and step 3's follow-up above).
 - **Done:** `src/model/history.hpp` holds the operations on a sequence's history, `Model::fork`, `reset`, `retract`, `mark`, `keep` and `checkpoint`, and the private steps only they take, `settle`, `rewind`, `saved_at`, `save`, `rerun`, `restore_mark` and `drop_mark`, each body and its comments moved unchanged and defined out of the class; `Model` declares them where they were, and `runtime.hpp` includes the file after the class. `runtime.hpp` goes from 1413 lines to 1220. `docs/src/model-history.md` takes their description from the runtime's page.
 - **Gates** (`e3c029bf`, this commit before its gate line): the moved lines are the removed ones, in order, but for the indent and `inline` and `Model::` before each name. On the rig against main `57a8c04a`, each tree built from its own sha: CTest 40 of 40; the suite on the CPU and on an MI50 passes every component but `raw-blocks`, which needs numpy the container lacks, and `mxfp4`, skipped on the MI50; Qwen3-0.6B and Qwen3.5-0.8B Q8_0 give main's bytes in all 14 identity cells on the CPU and the 14 on the MI50; `llmx-split-check` of both, `cpu` against `cpu,cpu` over the excerpt with 8 steps and ubatch 64, bit-identical, its output main's but for the free memory it reads. On Windows, CTest 37 of 37 and the CPU suite. The hosted run 36923198561, green on all 7 jobs; this line alone changed after it.
+- **Timing** against main `57a8c04a`, each built from its own detached tree on the rig, `bench --model --threads 4 --r 3` on one MI50 at default clocks (and the CPU, cores 4-7), arms base, change, change, base in two rounds, tok/s in run order; load average 5 to 30 from other work on the machine, recorded per run. No cell moves 2 percent, so no layout control was run.
+
+  | cell | base `57a8c04a` | change `395b4950` | change in the mean, percent |
+  |---|---|---|---:|
+  | Qwen3-0.6B Q8_0, pp512 | 8540.12, 8552.34, 8553.20, 8544.12 | 8555.08, 8547.38, 8541.65, 8516.54 | -0.09 |
+  | Qwen3-0.6B Q8_0, pp4096 | 4431.03, 4429.49, 4430.47, 4430.01 | 4431.99, 4429.80, 4429.44, 4430.35 | +0.00 |
+  | Qwen3-0.6B Q8_0, tg128 | 388.79, 391.39, 390.66, 391.25 | 392.67, 391.28, 391.58, 390.92 | +0.28 |
+  | Qwen3-8B Q8_0, pp512 | 829.50, 829.30, 829.24, 830.34 | 829.60, 830.55, 829.47, 829.30 | +0.02 |
+  | Qwen3-8B Q8_0, pp4096 | 691.39, 691.27, 690.66, 690.54 | 691.34, 690.93, 690.60, 691.19 | +0.01 |
+  | Qwen3-8B Q8_0, tg128 | 74.89, 74.76, 74.78, 74.84 | 74.85, 74.86, 74.84, 74.64 | -0.03 |
+  | Qwen3.5-0.8B Q8_0, pp512 | 7418.50, 7408.62, 7428.14, 7427.83 | 7419.98, 7424.64, 7416.57, 7420.71 | -0.00 |
+  | Qwen3.5-0.8B Q8_0, tg128 | 349.29, 351.21, 347.56, 349.03 | 348.37, 348.62, 351.46, 351.36 | +0.19 |
+  | Qwen3.6-27B Q8_0, pp512 | 258.32, 257.70, 258.19, 258.16 | 257.87, 257.65, 257.85, 258.05 | -0.09 |
+  | Qwen3.6-27B Q8_0, tg128 | 22.92, 22.93, 22.87, 22.47 | 22.88, 22.88, 22.88, 22.89 | +0.37 |
+  | Qwen3-30B-A3B Q4_K_M, tg512 after 16384 | 62.94, 62.26, 63.06, 63.02 | 62.94, 62.99, 61.84, 63.02 | -0.20 |
+  | CPU, Qwen3-0.6B Q8_0, pp512 | 222.12, 216.66, 211.15, 215.12 | 215.57, 214.81, 215.27, 218.30 | -0.13 |
+  | CPU, Qwen3-0.6B Q8_0, tg128 | 45.94, 46.08, 46.15, 46.24 | 46.06, 46.30, 45.97, 46.14 | +0.03 |
+
 - **Gotchas:** a branch that changed one of these bodies in `runtime.hpp` moves its change to `history.hpp`, where the body sits dedented by one level, `inline` and `Model::` before its name.
 
 ## Speculative decoding's verify, with lookup (2026-10-01, branch feat/spec-verify, step 3 of SPECULATIVE)

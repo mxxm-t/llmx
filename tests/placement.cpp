@@ -129,6 +129,35 @@ void split_matches_single() {
 }
 
 // The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host device given only what the others cannot hold and taken back when endpoint weights leave no room, tied weights counted once and the output norm always, resident copies counted, unknown and zero budgets kept apart, shares honored and refused when wrong, and the fitted placement exact against one device.
+void host_scratch_fits() {
+    const size_t MiB = size_t(1) << 20;
+    infer::Footprint fp;
+    fp.layers.resize(1);
+    fp.cache = {7 * MiB};
+    fp.tables = 4096;
+    fp.activations_per_row = 4096;
+    fp.logits_per_row = 4096;
+    infer::DeviceBudget host;
+    host.name = "cpu";
+    host.host = true;
+    host.bytes = 8 * MiB;
+    host.scratch = 2 * MiB;
+    bool refused = false;
+    try { infer::split_layers(fp, {host}, 1); } catch (const std::runtime_error&) { refused = true; }
+    require(refused, "a host fit consumed the backend's scratch reserve");
+    host.bytes = 10 * MiB;
+    const auto one = infer::split_layers(fp, {host}, 1);
+    require(one.stages[0].other == host.scratch + 3 * 4096,
+            "a host's scratch, tables, arena and logits were not each counted once");
+    fp.layers.resize(2);
+    fp.cache = {3 * MiB, 3 * MiB};
+    host.bytes = 6 * MiB;
+    const auto two = infer::split_layers(fp, {host, host}, 1);
+    require(two.stages[0].count == 1 && two.stages[1].count == 1,
+            "host scratch did not constrain the automatic layer placement");
+    checked += 3;
+}
+
 void layer_split_fits() {
     const auto weights = fixture();
     const infer::ModelOptions options;
@@ -1171,6 +1200,7 @@ void passes_refused() {
 
 int main() {
     try {
+        host_scratch_fits();
         split_matches_single();
         layer_split_fits();
         histories_fit_the_pool();

@@ -51,6 +51,17 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 - **So:** the precision part (8-bit decode activations on both backends) is the dtype plan's steps 4 and 5 (docs/PRECISION.md), which move those rows to 16 bits; what remains after it is summation order in the matmul's float block sums and in attention's reduction. The next measurement waits for those steps: the dispatch and arithmetic audit of each op, tails, grouped and routed calls, the head and residual paths, attention's lengths, F32 exceptions and dtype in the probe's identity, then the cost of one order on each path.
 - **Rule:** no row class merges until every op of every stage, CPU and streamed experts included, gives identical rows over the claimed extents and the end-to-end reuse checks pass; if one order costs too much, the classes and 2c stay. No gate is weakened by it.
 
+## Decode attention takes three heads a workgroup (2026-10-02, branch perf/attention-three-heads, lands by fast-forward)
+
+- **Goal:** decode at long histories on models whose KV head serves a multiple of three query heads, Qwen3.6-27B's six among them, which took two heads a workgroup and so loaded each token's key and value three times a KV head.
+- **Done:** once a row's history fills every part, a decode attention workgroup takes four, three or two heads of a KV head as the group divides, where it took four or two; each head's arithmetic is the same in either grouping. `backend-vulkan`'s attention after a long history adds query/KV ratios 3 and 6, which take the three-head path, to 1, 2, 4 and 8.
+- **Gates** (each tree built from its own sha, default clocks, one MI50):
+  - Decode on Qwen3.6-27B Q8_0, tg256, arms main, change, change, main: after 16384 tokens 20.09 and 20.05 tok/s on main `25549f02`'s kernels against 20.57 and 20.52; after 4096 tokens 21.76 and 21.72 against 21.83 and 21.90. Models whose group divides by four take the build they took.
+  - Qwen3.6-27B Q8_0's 64 greedy ids after a ~4k-token prompt are main's.
+  - On an MI50, CTest 40 of 40 and the device suite with `--require-tools` passing every component it runs (the qwen35 gate fixtures not on that disk skip, as MXFP4 does on the device); on the Radeon VII, CTest 41 of 41 and Qwen3-8B Q8_0's ids after a ~4k-token prompt main's.
+  - The hosted run at the head. Rebased onto main `8af97e88` without a conflict, so the builds, CTest and the hosted run ran again there.
+- **Left:** nothing.
+
 ## The attention merge reads each part's state once (2026-10-01, branch perf/attention-merge, lands by fast-forward)
 
 - **Goal:** less of an MI50's decode at long histories in `attention_merge`, which `--profile` put at 13.2 ms of 115 ms of device time over 4096 decode dispatches of Qwen3-30B-A3B Q4_K_M after 16384 tokens at 64 parts, a quarter of attention's own time, for a merge of a few hundred kilobytes a layer.

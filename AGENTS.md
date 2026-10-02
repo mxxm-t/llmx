@@ -399,8 +399,8 @@ The instruction counter excludes the reciprocal scale of integer address divisio
 Where the captured K4 ISA contains native 16-bit integer dots, every captured Q6 row build must retain those dots too. This catches operand widening during centering even when the resulting scalar integer arithmetic is numerically exact; drivers without that recognized ISA witness are not covered by this instruction check.
 CTest runs `backend-vulkan` without `--isa`, and no hosted runner has a GPU, so `llmx-backend-vulkan-test --isa DIR` is run by hand on an MI50 under RADV and on the Radeon VII under the AMD proprietary driver at every change to a row kernel, its builds or how a pass is chunked.
 Tiled attention covers heads 128 wide, and 256 wide six to a KV head as qwen35's 27B has them, over 32, 45 and 100 query rows after histories of 0, 70 and 600 tokens in f32 and f16 caches.
-Attention additionally covers 80 combinations of head widths 32/40/64/128/256,
-query/KV head ratios 1/2/4/8 and all four F32/F16 cache-side pairs, with nonzero
+Attention additionally covers 120 combinations of head widths 32/40/64/128/256,
+query/KV head ratios 1/2/3/4/6/8 and all four F32/F16 cache-side pairs, with nonzero
 inputs at long histories. Both rows of a mixed short/long pass must equal the
 same rows taken separately, bit for bit; CPU comparisons retain the bound
 `1e-4 * (1 + abs(reference))`.

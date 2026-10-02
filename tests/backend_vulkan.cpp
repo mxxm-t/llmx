@@ -732,7 +732,7 @@ size_t check_kernels(backend::Backend& vk) {
         for (int head_dim : {32, 40, 64, 128, 256})
         for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16})
         for (backend::KVType vt : {backend::KVType::f32, backend::KVType::f16})
-        for (int group : {1, 2, 4, 8}) {
+        for (int group : {1, 2, 3, 4, 6, 8}) {
             const int n_head_kv = 2, n_head = n_head_kv * group;
             const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
             const size_t longs[2] = {2100, 3000}, shorts = 40;

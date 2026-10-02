@@ -2648,11 +2648,11 @@ public:
             const size_t scratch_floats = nsplit > 1 ? pairs * nsplit * ((size_t)head_dim + 2) : 0;
             if (scratch_floats && (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)))
                 grow(scratch_, scratch_floats * sizeof(float));
-            // The query heads a workgroup takes: once the longest row's history fills every split, up to four of those sharing a KV head, so a token's key and value are loaded once for them (shaders/attention.comp).
+            // The query heads a workgroup takes: once the longest row's history fills every split, up to four of those sharing a KV head, four, three or two as the group divides, so a token's key and value are loaded once for them (shaders/attention.comp).
             // A shorter history leaves few workgroups, and taking heads together would leave the device idle; each head's arithmetic is the same either way.
             const size_t group = (size_t)(n_head / n_head_kv);
             const bool long_history = longest >= chunk * split_max;
-            const uint32_t hg = !long_history ? 1u : group % 4 == 0 ? 4u : group % 2 == 0 ? 2u : 1u;
+            const uint32_t hg = !long_history ? 1u : group % 4 == 0 ? 4u : group % 3 == 0 ? 3u : group % 2 == 0 ? 2u : 1u;
             struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant, max_parts, hg; }
                 pc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, (uint32_t)head_dim, u32(kVkBlockTokens),
                    scale, u32(nsplit), u32(chunk), quant ? 1u : 0u, u32(split_max), hg};

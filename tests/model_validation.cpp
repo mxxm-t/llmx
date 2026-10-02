@@ -716,15 +716,19 @@ void placement_checks() {
     rejects("a negative layer share", [&] { infer::place_model(weights, {cpu(), cpu()}, request, options); });
 }
 
-// A device with one missing weight type, whose counters distinguish an early refusal from a failed upload.
+// A device with a missing weight type or mixed routed products, whose counters distinguish an early refusal from a failed upload.
 struct TypeBackend : backend::CpuBackend {
     uint32_t refused = quant::GGML_TYPE_Q8_0;
     size_t adoptions = 0, allocations = 0, routed_calls = 0;
     bool device = false;
+    bool mixed_experts = true;
     bool reads_in_place() const override { return !device; }
+    bool implements(backend::Op op) const override { return op != backend::Op::mixed_experts || mixed_experts; }
     void matmul_experts(std::initializer_list<backend::Projection> projections, backend::CSlice x, size_t nin,
                         size_t rows, const Routing& routing, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         for (const auto& p : projections) require(supports_type(p.type), "a routed product reached an unsupported backend");
+        for (const auto& p : projections)
+            require(mixed_experts || p.type == projections.begin()->type, "mixed routed products reached an unsupported backend");
         ++routed_calls;
         backend::CpuBackend::matmul_experts(projections, x, nin, rows, routing, runs, dtype);
     }
@@ -765,9 +769,10 @@ void type_capability_checks() {
     }
 }
 
-// The first layer has a Q4_0 expert or router that one device lacks; the second remains eligible for streaming.
+// The first layer has a missing type or mixed routed products; a separately typed down projection must remain eligible for streaming.
 void type_stream_checks() {
-    for (const bool copied_role : {false, true}) {
+    for (const int defect : {0, 1, 2, 3}) {
+        const bool copied_role = defect == 1, mixed = defect >= 2, down_only = defect == 3;
         auto file = fixture(false, quant::GGML_TYPE_Q8_0, false, true, 2);
         for (auto& kv : file.kv) kv.first.replace(0, 5, "qwen3moe");
         set(file, "general.architecture", text("qwen3moe"));
@@ -777,8 +782,10 @@ void type_stream_checks() {
         for (int l = 0; l < 2; ++l) {
             const std::string pre = "blk." + std::to_string(l) + ".";
             add(file, pre + "ffn_gate_inp.weight", {256, 2}, l == 0 && copied_role ? 2 : 0);
-            for (const char* name : {"ffn_gate_exps.weight", "ffn_up_exps.weight", "ffn_down_exps.weight"})
-                add(file, pre + name, {256, 256, 2}, l == 0 && !copied_role ? 2 : 8);
+            for (const char* name : {"ffn_gate_exps.weight", "ffn_up_exps.weight", "ffn_down_exps.weight"}) {
+                const bool different = !mixed || std::string(name) == (down_only ? "ffn_down_exps.weight" : "ffn_gate_exps.weight");
+                add(file, pre + name, {256, 256, 2}, l == 0 && !copied_role && different ? 2 : 8);
+            }
         }
         for (size_t t = 0; t < file.tensors.size(); ++t) {
             const auto& info = file.tensors[t];
@@ -795,18 +802,53 @@ void type_stream_checks() {
             }
         }
         const auto weights = infer::gguf_weights(file);
+        if (mixed) {
+            auto limited = std::make_shared<TypeBackend>();
+            limited->refused = UINT32_MAX; limited->mixed_experts = false; limited->set_threads(1);
+            std::string error;
+            try { infer::Model model(weights, limited); }
+            catch (const std::runtime_error& e) { error = e.what(); }
+            if (down_only) require(error.empty(), "a separately typed down projection was refused: " + error);
+            else {
+                require(error == "inference: layer 0's feed-forward part needs mixed_experts, which the backend of its device does not implement",
+                        "missing early mixed expert refusal: " + error);
+                require(!limited->adoptions && !limited->allocations, "mixed expert refusal reached adoption or allocation");
+                refusals.push_back("unsupported mixed expert pair: " + error);
+                for (const char* name : {"blk.0.ffn_gate_exps.weight", "blk.0.ffn_up_exps.weight"}) {
+                    auto missing = weights;
+                    missing.tensors.erase(std::remove_if(missing.tensors.begin(), missing.tensors.end(),
+                        [&](const auto& t) { return t.name == name; }), missing.tensors.end());
+                    error.clear();
+                    try { infer::Model model(missing, limited); }
+                    catch (const std::runtime_error& e) { error = e.what(); }
+                    require(error == std::string("inference: missing tensor ") + name, "mixed expert planning hid a missing tensor: " + error);
+                    refusals.push_back(std::string("missing mixed pair ") + name + ": " + error);
+                }
+            }
+            const auto plan = infer::plan_model(weights);
+            for (size_t l = 0; l < plan.layers.size(); ++l) {
+                const auto& ops = plan.layers[l].ops;
+                const auto count = std::count_if(ops.begin(), ops.end(), [](const auto& u) {
+                    return u.part == infer::Part::ffn && u.op == backend::Op::mixed_experts;
+                });
+                require(count == (l == 0 && !down_only ? 1 : 0), "mixed expert operation declared for the wrong projections");
+            }
+            ++checks;
+        }
         std::vector<float> expected;
         for (const bool streaming : {false, true}) {
             auto device = std::make_shared<TypeBackend>(), host = std::make_shared<TypeBackend>();
-            device->refused = quant::GGML_TYPE_Q4_0; device->device = true;
+            device->refused = mixed ? UINT32_MAX : quant::GGML_TYPE_Q4_0; device->device = true;
+            device->mixed_experts = !mixed;
             host->refused = UINT32_MAX;
             device->set_threads(1); host->set_threads(1);
             infer::Placement place;
             place.mixer_device = {0, 0}; place.ffn_device = {1, 1}; place.stream_from = streaming ? 2 : 0;
             infer::Model model(weights, {device, host}, place);
             std::vector<float> logits = model.prefill({0, 1, 2});
-            require(device->routed_calls == (streaming ? 1u : 0u) && host->routed_calls == (streaming ? 1u : 2u),
-                    "stream eligibility did not leave exactly the unsupported layer on the host");
+            const size_t on_device = streaming ? (down_only ? 2u : 1u) : 0u;
+            require(device->routed_calls == on_device && host->routed_calls == 2u - on_device,
+                    "stream eligibility did not keep only unsupported layers on the host");
             for (uint32_t id : {3u, 4u}) {
                 const auto row = model.step(id);
                 logits.insert(logits.end(), row.begin(), row.end());
@@ -818,18 +860,22 @@ void type_stream_checks() {
                          "type fallback changed the prompt or follow-up logits");
             ++checks;
         }
+        if (down_only) continue;
         auto device = std::make_shared<TypeBackend>(), host = std::make_shared<TypeBackend>();
-        device->refused = UINT32_MAX; device->device = true; host->refused = quant::GGML_TYPE_Q4_0;
+        device->refused = UINT32_MAX; device->device = true;
+        host->refused = mixed ? UINT32_MAX : quant::GGML_TYPE_Q4_0; host->mixed_experts = !mixed;
         device->set_threads(1); host->set_threads(1);
         infer::Placement place;
         place.mixer_device = {0, 0}; place.ffn_device = {1, 1}; place.stream_from = 2;
         std::string error;
         try { infer::Model model(weights, {device, host}, place); }
         catch (const std::runtime_error& e) { error = e.what(); }
-        require(error.find("layer 0's feed-forward part") != std::string::npos && error.find("type Q4_0 (2)") != std::string::npos &&
-                    error.find("device 1") != std::string::npos && !device->adoptions && !host->adoptions &&
+        require(error.find("layer 0's feed-forward part") != std::string::npos &&
+                    (mixed ? error.find("needs mixed_experts") != std::string::npos :
+                             error.find("type Q4_0 (2)") != std::string::npos && error.find("device 1") != std::string::npos) &&
+                    !device->adoptions && !host->adoptions &&
                     !device->allocations && !host->allocations, "streaming hid unsupported home weights: " + error);
-        refusals.push_back(std::string("unsupported host ") + (copied_role ? "router" : "expert") + " type: " + error);
+        if (!mixed) refusals.push_back(std::string("unsupported host ") + (copied_role ? "router" : "expert") + " type: " + error);
         ++checks;
     }
 }

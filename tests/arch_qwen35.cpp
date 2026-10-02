@@ -912,6 +912,22 @@ void experts() {
 
     const gguf::GGUFModel m = routed(tiny());
     const infer::ModelPlan p = infer::plan_model(infer::gguf_weights(m));
+    // Planning reads only the storage tags here; these altered views are not executable quantized fixtures.
+    for (const char* name : {"blk.0.ffn_gate_exps.weight", "blk.1.ffn_up_exps.weight", "blk.0.ffn_down_exps.weight"}) {
+        auto weights = infer::gguf_weights(m);
+        for (auto& t : weights.tensors)
+            if (t.name == name) t.type = quant::GGML_TYPE_Q8_0;
+        const auto mixed = infer::plan_model(weights);
+        for (size_t l = 0; l < mixed.layers.size(); ++l) {
+            const auto& ops = mixed.layers[l].ops;
+            const auto count = std::count_if(ops.begin(), ops.end(), [](const auto& u) {
+                return u.part == infer::Part::ffn && u.op == backend::Op::mixed_experts;
+            });
+            const bool needed = (l == 0 && std::string(name) == "blk.0.ffn_gate_exps.weight") ||
+                                (l == 1 && std::string(name) == "blk.1.ffn_up_exps.weight");
+            require(count == (needed ? 1 : 0), "a routed layer's mixed gate/up capability differs from its projections");
+        }
+    }
     for (size_t l = 0; l < 4; ++l) {
         const infer::LayerPlan& layer = p.layers[l];
         const bool full = l % 2;

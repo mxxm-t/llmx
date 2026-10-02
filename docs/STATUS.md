@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Mixed routed projection types checked at load (2026-10-02, in progress)
+
+- **Goal:** refuse a routed gate/up pair on a backend that cannot execute differing storage types before allocating or adopting model buffers, and keep such a streamed layer on a capable host.
+- **Done:** a fresh MSVC Release build of both native regressions passes. Before the fix, `model-validation` fails because the unsupported pair is accepted, and `arch-qwen35` fails because its plan omits the required operation. The new enum value is passive here; no architecture declares it yet. Logs are retained in this worktree's `build-test-first/`.
+- **Left:** declare the capability through both architecture plans and Vulkan, run the focused native checks, and update the affected owner pages. The regression also covers CPU acceptance, streamed fallback and the separately typed down projection once the load refusal is repaired. Completed-branch gates remain before landing.
+- **Gotchas:** the down projection is a separate call and may use another type. Missing or malformed tensors must retain their existing refusal order. No matrix arithmetic, kernel, shader or runtime validation pass changes are intended.
+
 ## Dtype release documentation correction (2026-10-02)
 
 - **Goal:** make the live AGENTS, Vulkan and CI descriptions agree with the activation dtype release at `8af97e88`, already published.

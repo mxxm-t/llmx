@@ -263,7 +263,7 @@ inline size_t check_state_views(const StateView* views, size_t n_views, size_t l
 }
 
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
-enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul };
+enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, mixed_experts };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -271,6 +271,7 @@ inline const char* op_name(Op op) {
         case Op::gated_rms_norm: return "gated_rms_norm";
         case Op::norm_rope_partial: return "norm_rope_partial";
         case Op::sigmoid_mul: return "sigmoid_mul";
+        case Op::mixed_experts: return "mixed_experts";
     }
     return "an unknown op";
 }

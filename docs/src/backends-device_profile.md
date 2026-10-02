@@ -15,7 +15,5 @@ vendor name.
 - `TunedDevice`, `tuned_devices()`: the devices and drivers the profile was tuned on, keyed by a substring of each name, each row with a function that assigns the numbers measured there by name.
   It is the table to extend when bringing up hardware, with the sweeps in `docs/VULKAN.md`.
 - `profile_for(caps)`: the defaults, tuned by the first row whose device and driver both match; a row that prefers the integer dot applies only where the device has it.
-- `tile_from_for`, `moe_tile_from_for`, `tile_rows_for`: the batch rows from
-  which a matmul of these types and width takes the tile, the prompt extent
-  from which a routed projection of this weight type does, and a tile's
-  height from the call's shape and the device's compute units.
+- `tile_from_for`, `tile_rows_for`: the batch rows from which a matmul of the selected family and width takes the tile, and a tile's height from the call's shape and the device's compute units.
+  Storage-type selection belongs to the Vulkan weight descriptor; it also selects which routed crossover field of `DeviceProfile` applies. The profile holds the measured numbers without a second storage-type dispatch.

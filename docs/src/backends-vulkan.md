@@ -17,10 +17,13 @@ kernel notes and measurements are `docs/VULKAN.md`.
 
 The lifetime and packed-quantization tests include the implementation and use test-only friends to inspect private storage and dispatch kernels; there is no runtime probe API. The kernel registry keeps F32 rows on the ordinary row module while selecting optional float-preserving modules for Q8 row consumers. The Q8 integer tile uses its ordinary module: F16-range inputs and binary16 weight scales keep its products above the F32 denormal range. The separate MXFP4 integer tile retains preservation for its wider weight scales. Both entries reuse the row shader source. The ordinary K4 row uses the unpreserved module: its selected F16 input range and binary16 weight scales do not need F32 denormal preservation. Its unused preserving build is removed; the integer-dot K4 variant keeps its separate selection. Quantized weights with an explicit F32 policy use its `LLMX_FLOAT_X` build, optionally float-preserving on a supporting device. It reads one exact decoded weight through `quantized_at` in `shaders/qdecode.glsl`, then uses F32 FMA and the existing row reduction. Dense, grouped and routed calls share this path; the F32 policy binds the original input instead of preparing an integer twin.
 
-- `supports_type(type)` accepts F32 and the block types of `decoded_blocks`, with MXFP4 additionally requiring optional double arithmetic and float preservation;
+- `weight_kernels(type)` is the private descriptor of each implemented storage type: row layout and modules, ordinary and BF16 float tiles, integer tiles, and its dense and routed crossover families. An absent type has no descriptor. `supports_type(type)` reads this owner, with MXFP4 additionally requiring optional double arithmetic and float preservation;
   the model's pre-adoption check and the backend's matrix checks use this
   same query, so they cannot disagree about a weight type.
   `implements` supports the qwen35 layer ops but refuses `Op::mixed_experts`. A grouped gate/up pair with differing storage types is therefore refused at model load; an otherwise eligible streamed layer stays on its capable host. Its separate down projection may use another type.
+
+- `LLMX_VULKAN_KERNELS` is the single ordered list of kernel IDs, diagnostic names and source bindings, including optional preservation modules. It generates `KernelId`, `kKernelNames` and `kKernels`; cache variants depend on the adjacent IDs it preserves. The source dead-code check reads this list and holds its reachability with planted missing-module, orphan-ID and missing-name faults.
+  `backend-vulkan` witnesses dense and routed products through the existing timestamp diagnostics, with expected kernel names independent of the descriptor, at each crossover's two sides under F16, F32 and BF16. It also pins unsupported-type refusal text; the existing numerical and row-class checks remain separate. A device without timestamps reports that dispatch-name coverage is unavailable.
 
 - `make_vulkan_backend(index, diagnostics)`, `vulkan_device_name`: open
   the loader, pick the device, require what the kernels need (Vulkan 1.2,
@@ -103,7 +106,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   A buffer `alloc` zero-fills or `adopt` copies into is held by each command-buffer slot that names it until the slot retires, so a caller may drop it before anything is submitted.
 - `check_matrix(type, data, nin, rows, what)`: the one check of a weight operand, made by `check_group` for a matmul and by the routed products and `embed` before they record a dispatch.
   `check_group` checks a matmul call whole, weights, outputs and X, before `matmul_runs` records any of the calls its runs split it into, so a call it refuses records and writes nothing.
-  `supports_type`, F32 and the block types of `decoded_blocks`, decides which types have kernels, and a type without one is refused with the unsupported-type error that `tests/common.py` matches, naming the operand as `what`, a matrix or an embedding.
+  `supports_type`, through the weight descriptor, decides which types have kernels, and a type without one is refused with the unsupported-type error that `tests/common.py` matches, naming the operand as `what`, a matrix or an embedding.
   The operand must then hold `rows` rows sized by `quant::row_bytes`, which refuses a row that ends inside a block.
 - `matmul` and `matmul_group` (up to three projections a call, the
   kernels' limit, with a type's block sizes from `quant::Registry`): narrow
@@ -171,7 +174,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   take the row kernels' grouped pipeline over the same grouping, a run of
   up to eight entries of one expert per workgroup row, so the expert's rows
   are read once per run. A row's entries take the tile when its prompt's extent reaches the
-  weight type's `moe_tile_from_for` (`device_profile.hpp`); a routed tile is never split, so an entry
+  weight descriptor's selected crossover in `DeviceProfile`; a routed tile is never split, so an entry
   computes the same whatever else is routed beside it. The down
   projection's slots land in scratch and `shaders/moe_combine.comp` adds
   their weighted sum to the residual; it reuses the grouping made for gate and up and reads the twin the SiLU writes for its input, while the router and gate and up share their input's twin.

@@ -412,48 +412,152 @@ const uint32_t kSpvMatmulTileQ8mx[] = {
 #include "vulkan/matmul_tile_q8mx.inc"
 };
 
-enum KernelId { K_ADD, K_SILU_MUL, K_GATHER_ROWS, K_RMS_NORM_ROWS, K_NORM_ROPE_PARTIAL, K_EMBED,
-                K_MATMUL_ROW, K_KV_WRITE, K_ATTENTION, K_ATTENTION_MERGE, K_MATMUL_TILE, K_MATMUL_ROW_Q4,
-                K_MATMUL_ROW_K4, K_MATMUL_ROW_K5, K_MATMUL_ROW_K, K_NORM_ROPE_KV, K_ATTENTION_TILE,
-                K_KV_WRITE_K16, K_KV_WRITE_V16, K_KV_WRITE_KV16,
-                K_ATTENTION_K16, K_ATTENTION_V16, K_ATTENTION_KV16,
-                K_ATTENTION_TILE_K16, K_ATTENTION_TILE_V16, K_ATTENTION_TILE_KV16,
-                K_NORM_ROPE_KV_K16, K_NORM_ROPE_KV_V16, K_NORM_ROPE_KV_KV16,
-                K_QUANTIZE_X, K_MATMUL_ROW_Q8W, K_MATMUL_TILE_TALL,
-                K_MATMUL_ROW_Q4_DOT,
-                K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_K_DOT,
-                K_QUANTIZE_XW, K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_TILE_Q6,
-                K_MATMUL_TILE_Q8, K_MATMUL_TILE_Q8_TALL,
-                K_MATMUL_REDUCE, K_MATMUL_VEC_Q8, K_MOE_ROUTE, K_MOE_COMBINE, K_MOE_GROUP,
-                K_ATTENTION_G4, K_ATTENTION_K16_G4, K_ATTENTION_V16_G4, K_ATTENTION_KV16_G4,
-                K_ATTENTION_VEC, K_ATTENTION_VEC_K16, K_ATTENTION_VEC_V16, K_ATTENTION_VEC_KV16, K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, K_ATTENTION_VEC_V16_G4, K_ATTENTION_VEC_KV16_G4, K_MATMUL_ROW_F32,
-                K_SIGMOID_MUL, K_GATED_RMS_NORM, K_CAUSAL_CONV_SILU, K_DELTA_RULE,
-                K_ATTENTION_TILE_D256, K_ATTENTION_TILE_D256_K16, K_ATTENTION_TILE_D256_V16, K_ATTENTION_TILE_D256_KV16,
-                K_ATTENTION_VEC_D256, K_ATTENTION_VEC_D256_K16, K_ATTENTION_VEC_D256_V16, K_ATTENTION_VEC_D256_KV16,
-                K_ATTENTION_VEC_D256_G4, K_ATTENTION_VEC_D256_K16_G4, K_ATTENTION_VEC_D256_V16_G4, K_ATTENTION_VEC_D256_KV16_G4, K_MATMUL_ROW_FLOAT_X, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
-                K_EMBED_MXFP4, K_MATMUL_TILE_MXFP4, K_MATMUL_TILE_MXFP4_TALL, K_MATMUL_TILE_MXFP4_BF16, K_MATMUL_TILE_MXFP4_BF16_TALL, K_MATMUL_REDUCE_MXFP4,
-                K_COPY_MXFP4, K_MATMUL_ROW_MXFP4, K_MATMUL_ROW_MXFP4_DOT, K_MATMUL_ROW_MXFP4_FLOAT_X, K_MATMUL_TILE_Q8MX, K_MATMUL_TILE_Q8MX_TALL, K_COUNT };
+// IDs, diagnostic names and module bindings share this order; cache variants rely on adjacent IDs.
+#define LLMX_VULKAN_KERNELS(X) \
+    X(K_ADD, "add", kSpvAdd, sizeof(kSpvAdd), 2, nullptr) \
+    X(K_SILU_MUL, "silu_mul", kSpvSiluMul, sizeof(kSpvSiluMul), 4, nullptr) \
+    X(K_GATHER_ROWS, "gather_rows", kSpvGatherRows, sizeof(kSpvGatherRows), 3, nullptr) \
+    X(K_RMS_NORM_ROWS, "rms_norm_rows", kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 4, nullptr) \
+    X(K_NORM_ROPE_PARTIAL, "norm_rope_partial", kSpvNormRopePartial, sizeof(kSpvNormRopePartial), 6, nullptr) \
+    X(K_EMBED, "embed", kSpvEmbed, sizeof(kSpvEmbed), 4, nullptr) \
+    X(K_MATMUL_ROW, "matmul_row", kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts, kSpvMatmulRowPreserve, sizeof(kSpvMatmulRowPreserve)) \
+    X(K_KV_WRITE, "kv_write", kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr) \
+    X(K_ATTENTION, "attention", kSpvAttention, sizeof(kSpvAttention), 7, nullptr) \
+    X(K_ATTENTION_MERGE, "attention_merge", kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr) \
+    X(K_MATMUL_TILE, "matmul_tile", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve)) \
+    X(K_MATMUL_ROW_Q4, "matmul_row_q4", kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 12, kMatmulRowCounts, kSpvMatmulRowQ4Preserve, sizeof(kSpvMatmulRowQ4Preserve)) \
+    X(K_MATMUL_ROW_K4, "matmul_row_k4", kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 12, kMatmulRowCounts) \
+    X(K_MATMUL_ROW_K5, "matmul_row_k5", kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 12, kMatmulRowCounts, kSpvMatmulRowK5Preserve, sizeof(kSpvMatmulRowK5Preserve)) \
+    X(K_MATMUL_ROW_K, "matmul_row_k", kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 12, kMatmulRowCounts, kSpvMatmulRowKPreserve, sizeof(kSpvMatmulRowKPreserve)) \
+    X(K_NORM_ROPE_KV, "norm_rope_kv", kSpvNormRopeKv, sizeof(kSpvNormRopeKv), 11, nullptr) \
+    X(K_ATTENTION_TILE, "attention_tile", kSpvAttentionTile, sizeof(kSpvAttentionTile), 6, nullptr) \
+    X(K_KV_WRITE_K16, "kv_write_k16", kSpvKvWriteK16, sizeof(kSpvKvWriteK16), 5, nullptr) \
+    X(K_KV_WRITE_V16, "kv_write_v16", kSpvKvWriteV16, sizeof(kSpvKvWriteV16), 5, nullptr) \
+    X(K_KV_WRITE_KV16, "kv_write_kv16", kSpvKvWriteKV16, sizeof(kSpvKvWriteKV16), 5, nullptr) \
+    X(K_ATTENTION_K16, "attention_k16", kSpvAttentionK16, sizeof(kSpvAttentionK16), 7, nullptr) \
+    X(K_ATTENTION_V16, "attention_v16", kSpvAttentionV16, sizeof(kSpvAttentionV16), 7, nullptr) \
+    X(K_ATTENTION_KV16, "attention_kv16", kSpvAttentionKV16, sizeof(kSpvAttentionKV16), 7, nullptr) \
+    X(K_ATTENTION_TILE_K16, "attention_tile_k16", kSpvAttentionTileK16, sizeof(kSpvAttentionTileK16), 6, nullptr) \
+    X(K_ATTENTION_TILE_V16, "attention_tile_v16", kSpvAttentionTileV16, sizeof(kSpvAttentionTileV16), 6, nullptr) \
+    X(K_ATTENTION_TILE_KV16, "attention_tile_kv16", kSpvAttentionTileKV16, sizeof(kSpvAttentionTileKV16), 6, nullptr) \
+    X(K_NORM_ROPE_KV_K16, "norm_rope_kv_k16", kSpvNormRopeKvK16, sizeof(kSpvNormRopeKvK16), 11, nullptr) \
+    X(K_NORM_ROPE_KV_V16, "norm_rope_kv_v16", kSpvNormRopeKvV16, sizeof(kSpvNormRopeKvV16), 11, nullptr) \
+    X(K_NORM_ROPE_KV_KV16, "norm_rope_kv_kv16", kSpvNormRopeKvKV16, sizeof(kSpvNormRopeKvKV16), 11, nullptr) \
+    X(K_QUANTIZE_X, "quantize_x", kSpvQuantizeX, sizeof(kSpvQuantizeX), 2, nullptr) \
+    X(K_MATMUL_ROW_Q8W, "matmul_row_q8w", kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 12, kMatmulRowCounts, kSpvMatmulRowQ8wPreserve, sizeof(kSpvMatmulRowQ8wPreserve)) \
+    X(K_MATMUL_TILE_TALL, "matmul_tile_tall", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve)) \
+    X(K_MATMUL_ROW_Q4_DOT, "matmul_row_q4_dot", kSpvMatmulRowQ4Dot, sizeof(kSpvMatmulRowQ4Dot), 12, kMatmulRowCounts, kSpvMatmulRowQ4DotPreserve, sizeof(kSpvMatmulRowQ4DotPreserve)) \
+    X(K_MATMUL_ROW_K4_DOT, "matmul_row_k4_dot", kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 12, kMatmulRowCounts, kSpvMatmulRowK4DotPreserve, sizeof(kSpvMatmulRowK4DotPreserve)) \
+    X(K_MATMUL_ROW_K5_DOT, "matmul_row_k5_dot", kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 12, kMatmulRowCounts, kSpvMatmulRowK5DotPreserve, sizeof(kSpvMatmulRowK5DotPreserve)) \
+    X(K_MATMUL_ROW_K_DOT, "matmul_row_k_dot", kSpvMatmulRowKDot, sizeof(kSpvMatmulRowKDot), 12, kMatmulRowCounts, kSpvMatmulRowKDotPreserve, sizeof(kSpvMatmulRowKDotPreserve)) \
+    X(K_QUANTIZE_XW, "quantize_xw", kSpvQuantizeXW, sizeof(kSpvQuantizeXW), 2, nullptr) \
+    X(K_MATMUL_TILE_Q, "matmul_tile_q", kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts, kSpvMatmulTileQPreserve, sizeof(kSpvMatmulTileQPreserve)) \
+    X(K_MATMUL_TILE_Q_TALL, "matmul_tile_q_tall", kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts, kSpvMatmulTileQPreserve, sizeof(kSpvMatmulTileQPreserve)) \
+    X(K_MATMUL_TILE_Q6, "matmul_tile_q6", kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts, kSpvMatmulTileQ6Preserve, sizeof(kSpvMatmulTileQ6Preserve)) \
+    X(K_MATMUL_TILE_Q8, "matmul_tile_q8", kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts) \
+    X(K_MATMUL_TILE_Q8_TALL, "matmul_tile_q8_tall", kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts) \
+    X(K_MATMUL_REDUCE, "matmul_reduce", kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, kMatmulReduceCounts, kSpvMatmulReducePreserve, sizeof(kSpvMatmulReducePreserve)) \
+    X(K_MATMUL_VEC_Q8, "matmul_vec_q8", kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 12, kMatmulRowCounts, kSpvMatmulVecQ8Preserve, sizeof(kSpvMatmulVecQ8Preserve)) \
+    X(K_MOE_ROUTE, "moe_route", kSpvMoeRoute, sizeof(kSpvMoeRoute), 3, nullptr) \
+    X(K_MOE_COMBINE, "moe_combine", kSpvMoeCombine, sizeof(kSpvMoeCombine), 3, nullptr) \
+    X(K_MOE_GROUP, "moe_group", kSpvMoeGroup, sizeof(kSpvMoeGroup), 2, nullptr) \
+    X(K_ATTENTION_G4, "attention_g4", kSpvAttentionG4, sizeof(kSpvAttentionG4), 7, nullptr) \
+    X(K_ATTENTION_K16_G4, "attention_k16_g4", kSpvAttentionK16G4, sizeof(kSpvAttentionK16G4), 7, nullptr) \
+    X(K_ATTENTION_V16_G4, "attention_v16_g4", kSpvAttentionV16G4, sizeof(kSpvAttentionV16G4), 7, nullptr) \
+    X(K_ATTENTION_KV16_G4, "attention_kv16_g4", kSpvAttentionKV16G4, sizeof(kSpvAttentionKV16G4), 7, nullptr) \
+    X(K_ATTENTION_VEC, "attention_vec", kSpvAttentionVec, sizeof(kSpvAttentionVec), 7, nullptr) \
+    X(K_ATTENTION_VEC_K16, "attention_vec_k16", kSpvAttentionVecK16, sizeof(kSpvAttentionVecK16), 7, nullptr) \
+    X(K_ATTENTION_VEC_V16, "attention_vec_v16", kSpvAttentionVecV16, sizeof(kSpvAttentionVecV16), 7, nullptr) \
+    X(K_ATTENTION_VEC_KV16, "attention_vec_kv16", kSpvAttentionVecKV16, sizeof(kSpvAttentionVecKV16), 7, nullptr) \
+    X(K_ATTENTION_VEC_G4, "attention_vec_g4", kSpvAttentionVecG4, sizeof(kSpvAttentionVecG4), 7, nullptr) \
+    X(K_ATTENTION_VEC_K16_G4, "attention_vec_k16_g4", kSpvAttentionVecK16G4, sizeof(kSpvAttentionVecK16G4), 7, nullptr) \
+    X(K_ATTENTION_VEC_V16_G4, "attention_vec_v16_g4", kSpvAttentionVecV16G4, sizeof(kSpvAttentionVecV16G4), 7, nullptr) \
+    X(K_ATTENTION_VEC_KV16_G4, "attention_vec_kv16_g4", kSpvAttentionVecKV16G4, sizeof(kSpvAttentionVecKV16G4), 7, nullptr) \
+    X(K_MATMUL_ROW_F32, "matmul_row_f32", kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts) \
+    X(K_SIGMOID_MUL, "sigmoid_mul", kSpvSigmoidMul, sizeof(kSpvSigmoidMul), 4, nullptr) \
+    X(K_GATED_RMS_NORM, "gated_rms_norm", kSpvGatedRmsNorm, sizeof(kSpvGatedRmsNorm), 5, nullptr) \
+    X(K_CAUSAL_CONV_SILU, "causal_conv_silu", kSpvCausalConvSilu, sizeof(kSpvCausalConvSilu), 5, nullptr) \
+    X(K_DELTA_RULE, "delta_rule", kSpvDeltaRule, sizeof(kSpvDeltaRule), 8, nullptr) \
+    X(K_ATTENTION_TILE_D256, "attention_tile_d256", kSpvAttentionTileD256, sizeof(kSpvAttentionTileD256), 6, nullptr) \
+    X(K_ATTENTION_TILE_D256_K16, "attention_tile_d256_k16", kSpvAttentionTileD256K16, sizeof(kSpvAttentionTileD256K16), 6, nullptr) \
+    X(K_ATTENTION_TILE_D256_V16, "attention_tile_d256_v16", kSpvAttentionTileD256V16, sizeof(kSpvAttentionTileD256V16), 6, nullptr) \
+    X(K_ATTENTION_TILE_D256_KV16, "attention_tile_d256_kv16", kSpvAttentionTileD256KV16, sizeof(kSpvAttentionTileD256KV16), 6, nullptr) \
+    X(K_ATTENTION_VEC_D256, "attention_vec_d256", kSpvAttentionVecD256, sizeof(kSpvAttentionVecD256), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_K16, "attention_vec_d256_k16", kSpvAttentionVecD256K16, sizeof(kSpvAttentionVecD256K16), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_V16, "attention_vec_d256_v16", kSpvAttentionVecD256V16, sizeof(kSpvAttentionVecD256V16), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_KV16, "attention_vec_d256_kv16", kSpvAttentionVecD256KV16, sizeof(kSpvAttentionVecD256KV16), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_G4, "attention_vec_d256_g4", kSpvAttentionVecD256G4, sizeof(kSpvAttentionVecD256G4), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_K16_G4, "attention_vec_d256_k16_g4", kSpvAttentionVecD256K16G4, sizeof(kSpvAttentionVecD256K16G4), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_V16_G4, "attention_vec_d256_v16_g4", kSpvAttentionVecD256V16G4, sizeof(kSpvAttentionVecD256V16G4), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_KV16_G4, "attention_vec_d256_kv16_g4", kSpvAttentionVecD256KV16G4, sizeof(kSpvAttentionVecD256KV16G4), 7, nullptr) \
+    X(K_MATMUL_ROW_FLOAT_X, "matmul_row_float_x", kSpvMatmulRowFloatX, sizeof(kSpvMatmulRowFloatX), 12, kMatmulRowCounts, kSpvMatmulRowFloatXPreserve, sizeof(kSpvMatmulRowFloatXPreserve)) \
+    X(K_MATMUL_TILE_BF16, "matmul_tile_bf16", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve)) \
+    X(K_MATMUL_TILE_BF16_TALL, "matmul_tile_bf16_tall", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve)) \
+    X(K_EMBED_MXFP4, "embed_mxfp4", kSpvEmbedMxfp4, sizeof(kSpvEmbedMxfp4), 4, nullptr) \
+    X(K_MATMUL_TILE_MXFP4, "matmul_tile_mxfp4", kSpvMatmulTileMxfp4, sizeof(kSpvMatmulTileMxfp4), 6, nullptr) \
+    X(K_MATMUL_TILE_MXFP4_TALL, "matmul_tile_mxfp4_tall", kSpvMatmulTileMxfp4, sizeof(kSpvMatmulTileMxfp4), 6, nullptr) \
+    X(K_MATMUL_TILE_MXFP4_BF16, "matmul_tile_mxfp4_bf16", kSpvMatmulTileMxfp4Bf16, sizeof(kSpvMatmulTileMxfp4Bf16), 6, nullptr) \
+    X(K_MATMUL_TILE_MXFP4_BF16_TALL, "matmul_tile_mxfp4_bf16_tall", kSpvMatmulTileMxfp4Bf16, sizeof(kSpvMatmulTileMxfp4Bf16), 6, nullptr) \
+    X(K_MATMUL_REDUCE_MXFP4, "matmul_reduce_mxfp4", kSpvMatmulReduceMxfp4, sizeof(kSpvMatmulReduceMxfp4), 2, kMatmulReduceCounts) \
+    X(K_COPY_MXFP4, "copy_mxfp4", kSpvCopyMxfp4, sizeof(kSpvCopyMxfp4), 2, nullptr) \
+    X(K_MATMUL_ROW_MXFP4, "matmul_row_mxfp4", kSpvMatmulRowMxfp4, sizeof(kSpvMatmulRowMxfp4), 12, kMatmulRowCounts) \
+    X(K_MATMUL_ROW_MXFP4_DOT, "matmul_row_mxfp4_dot", kSpvMatmulRowMxfp4Dot, sizeof(kSpvMatmulRowMxfp4Dot), 12, kMatmulRowCounts) \
+    X(K_MATMUL_ROW_MXFP4_FLOAT_X, "matmul_row_mxfp4_float_x", kSpvMatmulRowMxfp4FloatX, sizeof(kSpvMatmulRowMxfp4FloatX), 12, kMatmulRowCounts) \
+    X(K_MATMUL_TILE_Q8MX, "matmul_tile_q8mx", kSpvMatmulTileQ8mx, sizeof(kSpvMatmulTileQ8mx), 6, kMatmulTileQ8mxCounts) \
+    X(K_MATMUL_TILE_Q8MX_TALL, "matmul_tile_q8mx_tall", kSpvMatmulTileQ8mx, sizeof(kSpvMatmulTileQ8mx), 6, kMatmulTileQ8mxCounts)
+
+#define LLMX_KERNEL_ID(id, name, ...) id,
+enum KernelId { LLMX_VULKAN_KERNELS(LLMX_KERNEL_ID) K_COUNT };
+#undef LLMX_KERNEL_ID
+
+// A supported weight format's dispatch choices, independent of the requested activation dtype.
+enum class RowLayout { values, blocks, q8_pairs, q4_pairs, k_blocks };
+struct WeightKernels {
+    uint32_t type;
+    RowLayout layout;
+    KernelId row, dot_row, float_row;
+    KernelId tile, tall_tile, bf16_tile, bf16_tall_tile;
+    KernelId integer_tile, integer_tall_tile;
+    bool fast_tile, mxfp4;
+    size_t DeviceProfile::*moe_from;
+};
+
+const WeightKernels* weight_kernels(uint32_t type) {
+    static const WeightKernels formats[] = {
+        {quant::GGML_TYPE_F32, RowLayout::values, K_MATMUL_ROW_F32, K_MATMUL_ROW_F32, K_MATMUL_ROW_F32,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_COUNT, K_COUNT, true, false, &DeviceProfile::moe_tile_from},
+        {quant::GGML_TYPE_Q8_0, RowLayout::q8_pairs, K_MATMUL_ROW, K_MATMUL_ROW, K_MATMUL_ROW_FLOAT_X,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_MATMUL_TILE_Q8, K_MATMUL_TILE_Q8_TALL, true, false, &DeviceProfile::moe_tile_from},
+        {quant::GGML_TYPE_Q4_0, RowLayout::q4_pairs, K_MATMUL_ROW_Q4, K_MATMUL_ROW_Q4_DOT, K_MATMUL_ROW_FLOAT_X,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, false, false, &DeviceProfile::moe_tile_from_q4},
+        {quant::GGML_TYPE_Q4_1, RowLayout::blocks, K_MATMUL_ROW_Q4, K_MATMUL_ROW_Q4_DOT, K_MATMUL_ROW_FLOAT_X,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, false, false, &DeviceProfile::moe_tile_from_q4},
+        {quant::GGML_TYPE_Q4_K, RowLayout::k_blocks, K_MATMUL_ROW_K4, K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_FLOAT_X,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, false, false, &DeviceProfile::moe_tile_from_q4k},
+        {quant::GGML_TYPE_Q5_K, RowLayout::k_blocks, K_MATMUL_ROW_K5, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_FLOAT_X,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, false, false, &DeviceProfile::moe_tile_from_q5k},
+        {quant::GGML_TYPE_Q6_K, RowLayout::k_blocks, K_MATMUL_ROW_K, K_MATMUL_ROW_K_DOT, K_MATMUL_ROW_FLOAT_X,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6, false, false, &DeviceProfile::moe_tile_from},
+        {quant::GGML_TYPE_MXFP4, RowLayout::blocks, K_MATMUL_ROW_MXFP4, K_MATMUL_ROW_MXFP4_DOT, K_MATMUL_ROW_MXFP4_FLOAT_X,
+         K_MATMUL_TILE_MXFP4, K_MATMUL_TILE_MXFP4_TALL, K_MATMUL_TILE_MXFP4_BF16, K_MATMUL_TILE_MXFP4_BF16_TALL,
+         K_MATMUL_TILE_Q8MX, K_MATMUL_TILE_Q8MX_TALL, false, true, &DeviceProfile::moe_tile_from},
+    };
+    for (const WeightKernels& format : formats) if (format.type == type) return &format;
+    return nullptr;
+}
 
 // Dense and routed BF16 calls share the float tile's input-rounding variant.
 inline KernelId float_tile_kernel(bool tall, Dtype dtype, uint32_t type) {
-    if (type == quant::GGML_TYPE_MXFP4) {
-        if (dtype == Dtype::bf16) return tall ? K_MATMUL_TILE_MXFP4_BF16_TALL : K_MATMUL_TILE_MXFP4_BF16;
-        return tall ? K_MATMUL_TILE_MXFP4_TALL : K_MATMUL_TILE_MXFP4;
-    }
-    if (dtype == Dtype::bf16) return tall ? K_MATMUL_TILE_BF16_TALL : K_MATMUL_TILE_BF16;
-    return tall ? K_MATMUL_TILE_TALL : K_MATMUL_TILE;
-}
-
-// The same row kernel in its two dot forms; which one a device wants is measured (backends/device_profile.hpp).
-// F32 rows have no dot form, and Q8_0 rows take matmul_vec_q8.comp where the dot is preferred.
-inline KernelId row_dot_variant(KernelId plain) {
-    switch (plain) {
-    case K_MATMUL_ROW_Q4: return K_MATMUL_ROW_Q4_DOT;
-    case K_MATMUL_ROW_K4: return K_MATMUL_ROW_K4_DOT;
-    case K_MATMUL_ROW_K5: return K_MATMUL_ROW_K5_DOT;
-    case K_MATMUL_ROW_K: return K_MATMUL_ROW_K_DOT;
-    default: return plain;
-    }
+    const WeightKernels& format = *weight_kernels(type);
+    if (dtype == Dtype::bf16) return tall ? format.bf16_tall_tile : format.bf16_tile;
+    return tall ? format.tall_tile : format.tile;
 }
 
 // Row kernels share dispatch and take the column count as specialization constant 0; the policy selects floats or an activation twin.
@@ -604,126 +708,14 @@ const uint32_t kMatmulTileQCounts[5] = {3, 3, 1, 1, 1};
 const uint32_t kMatmulTileQ8mxCounts[6] = {3, 3, 1, 1, 1, 3};
 const uint32_t kMatmulReduceCounts[2] = {3, 1};
 
-const char* const kKernelNames[K_COUNT] = {
-    "add", "silu_mul", "gather_rows", "rms_norm_rows", "norm_rope_partial", "embed",
-    "matmul_row", "kv_write", "attention", "attention_merge", "matmul_tile", "matmul_row_q4",
-    "matmul_row_k4", "matmul_row_k5", "matmul_row_k", "norm_rope_kv", "attention_tile",
-    "kv_write_k16", "kv_write_v16", "kv_write_kv16",
-    "attention_k16", "attention_v16", "attention_kv16",
-    "attention_tile_k16", "attention_tile_v16", "attention_tile_kv16",
-    "norm_rope_kv_k16", "norm_rope_kv_v16", "norm_rope_kv_kv16",
-    "quantize_x", "matmul_row_q8w", "matmul_tile_tall",
-    "matmul_row_q4_dot",
-    "matmul_row_k4_dot", "matmul_row_k5_dot", "matmul_row_k_dot",
-    "quantize_xw", "matmul_tile_q", "matmul_tile_q_tall", "matmul_tile_q6",
-    "matmul_tile_q8", "matmul_tile_q8_tall",
-    "matmul_reduce", "matmul_vec_q8", "moe_route", "moe_combine", "moe_group",
-    "attention_g4", "attention_k16_g4", "attention_v16_g4", "attention_kv16_g4",
-    "attention_vec", "attention_vec_k16", "attention_vec_v16", "attention_vec_kv16", "attention_vec_g4", "attention_vec_k16_g4", "attention_vec_v16_g4", "attention_vec_kv16_g4", "matmul_row_f32",
-    "sigmoid_mul", "gated_rms_norm", "causal_conv_silu", "delta_rule",
-    "attention_tile_d256", "attention_tile_d256_k16", "attention_tile_d256_v16", "attention_tile_d256_kv16",
-    "attention_vec_d256", "attention_vec_d256_k16", "attention_vec_d256_v16", "attention_vec_d256_kv16",
-    "attention_vec_d256_g4", "attention_vec_d256_k16_g4", "attention_vec_d256_v16_g4", "attention_vec_d256_kv16_g4", "matmul_row_float_x", "matmul_tile_bf16", "matmul_tile_bf16_tall",
-    "embed_mxfp4", "matmul_tile_mxfp4", "matmul_tile_mxfp4_tall", "matmul_tile_mxfp4_bf16", "matmul_tile_mxfp4_bf16_tall", "matmul_reduce_mxfp4",
-    "copy_mxfp4", "matmul_row_mxfp4", "matmul_row_mxfp4_dot", "matmul_row_mxfp4_float_x", "matmul_tile_q8mx", "matmul_tile_q8mx_tall",
-};
+#define LLMX_KERNEL_NAME(id, name, ...) name,
+const char* const kKernelNames[K_COUNT] = { LLMX_VULKAN_KERNELS(LLMX_KERNEL_NAME) };
+#undef LLMX_KERNEL_NAME
 
-const KernelSource kKernels[K_COUNT] = {
-    {kSpvAdd, sizeof(kSpvAdd), 2, nullptr},
-    {kSpvSiluMul, sizeof(kSpvSiluMul), 4, nullptr},
-    {kSpvGatherRows, sizeof(kSpvGatherRows), 3, nullptr},
-    {kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 4, nullptr},
-    {kSpvNormRopePartial, sizeof(kSpvNormRopePartial), 6, nullptr},
-    {kSpvEmbed, sizeof(kSpvEmbed), 4, nullptr},
-    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts, kSpvMatmulRowPreserve, sizeof(kSpvMatmulRowPreserve)},
-    {kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr},
-    {kSpvAttention, sizeof(kSpvAttention), 7, nullptr},
-    {kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr},
-    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve)},
-    {kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 12, kMatmulRowCounts, kSpvMatmulRowQ4Preserve, sizeof(kSpvMatmulRowQ4Preserve)},
-    // The K4 row uses F16-range activations; its products need no F32 denormal preservation.
-    {kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 12, kMatmulRowCounts},
-    {kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 12, kMatmulRowCounts, kSpvMatmulRowK5Preserve, sizeof(kSpvMatmulRowK5Preserve)},
-    {kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 12, kMatmulRowCounts, kSpvMatmulRowKPreserve, sizeof(kSpvMatmulRowKPreserve)},
-    {kSpvNormRopeKv, sizeof(kSpvNormRopeKv), 11, nullptr},
-    {kSpvAttentionTile, sizeof(kSpvAttentionTile), 6, nullptr},
-    {kSpvKvWriteK16, sizeof(kSpvKvWriteK16), 5, nullptr},
-    {kSpvKvWriteV16, sizeof(kSpvKvWriteV16), 5, nullptr},
-    {kSpvKvWriteKV16, sizeof(kSpvKvWriteKV16), 5, nullptr},
-    {kSpvAttentionK16, sizeof(kSpvAttentionK16), 7, nullptr},
-    {kSpvAttentionV16, sizeof(kSpvAttentionV16), 7, nullptr},
-    {kSpvAttentionKV16, sizeof(kSpvAttentionKV16), 7, nullptr},
-    {kSpvAttentionTileK16, sizeof(kSpvAttentionTileK16), 6, nullptr},
-    {kSpvAttentionTileV16, sizeof(kSpvAttentionTileV16), 6, nullptr},
-    {kSpvAttentionTileKV16, sizeof(kSpvAttentionTileKV16), 6, nullptr},
-    {kSpvNormRopeKvK16, sizeof(kSpvNormRopeKvK16), 11, nullptr},
-    {kSpvNormRopeKvV16, sizeof(kSpvNormRopeKvV16), 11, nullptr},
-    {kSpvNormRopeKvKV16, sizeof(kSpvNormRopeKvKV16), 11, nullptr},
-    {kSpvQuantizeX, sizeof(kSpvQuantizeX), 2, nullptr},
-    {kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 12, kMatmulRowCounts, kSpvMatmulRowQ8wPreserve, sizeof(kSpvMatmulRowQ8wPreserve)},
-    {kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve)},
-    {kSpvMatmulRowQ4Dot, sizeof(kSpvMatmulRowQ4Dot), 12, kMatmulRowCounts, kSpvMatmulRowQ4DotPreserve, sizeof(kSpvMatmulRowQ4DotPreserve)},
-    {kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 12, kMatmulRowCounts, kSpvMatmulRowK4DotPreserve, sizeof(kSpvMatmulRowK4DotPreserve)},
-    {kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 12, kMatmulRowCounts, kSpvMatmulRowK5DotPreserve, sizeof(kSpvMatmulRowK5DotPreserve)},
-    {kSpvMatmulRowKDot, sizeof(kSpvMatmulRowKDot), 12, kMatmulRowCounts, kSpvMatmulRowKDotPreserve, sizeof(kSpvMatmulRowKDotPreserve)},
-    {kSpvQuantizeXW, sizeof(kSpvQuantizeXW), 2, nullptr},
-    {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts, kSpvMatmulTileQPreserve, sizeof(kSpvMatmulTileQPreserve)},
-    {kSpvMatmulTileQ, sizeof(kSpvMatmulTileQ), 5, kMatmulTileQCounts, kSpvMatmulTileQPreserve, sizeof(kSpvMatmulTileQPreserve)},
-    {kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts, kSpvMatmulTileQ6Preserve, sizeof(kSpvMatmulTileQ6Preserve)},
-    // Q8 tiles use F16-range inputs and half scales; their products stay above F32 denormals.
-    {kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts},
-    {kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts},
-    {kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, kMatmulReduceCounts, kSpvMatmulReducePreserve, sizeof(kSpvMatmulReducePreserve)},
-    {kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 12, kMatmulRowCounts, kSpvMatmulVecQ8Preserve, sizeof(kSpvMatmulVecQ8Preserve)},
-    {kSpvMoeRoute, sizeof(kSpvMoeRoute), 3, nullptr},
-    {kSpvMoeCombine, sizeof(kSpvMoeCombine), 3, nullptr},
-    {kSpvMoeGroup, sizeof(kSpvMoeGroup), 2, nullptr},
-    {kSpvAttentionG4, sizeof(kSpvAttentionG4), 7, nullptr},
-    {kSpvAttentionK16G4, sizeof(kSpvAttentionK16G4), 7, nullptr},
-    {kSpvAttentionV16G4, sizeof(kSpvAttentionV16G4), 7, nullptr},
-    {kSpvAttentionKV16G4, sizeof(kSpvAttentionKV16G4), 7, nullptr},
-    {kSpvAttentionVec, sizeof(kSpvAttentionVec), 7, nullptr},
-    {kSpvAttentionVecK16, sizeof(kSpvAttentionVecK16), 7, nullptr},
-    {kSpvAttentionVecV16, sizeof(kSpvAttentionVecV16), 7, nullptr},
-    {kSpvAttentionVecKV16, sizeof(kSpvAttentionVecKV16), 7, nullptr},
-    {kSpvAttentionVecG4, sizeof(kSpvAttentionVecG4), 7, nullptr},
-    {kSpvAttentionVecK16G4, sizeof(kSpvAttentionVecK16G4), 7, nullptr},
-    {kSpvAttentionVecV16G4, sizeof(kSpvAttentionVecV16G4), 7, nullptr},
-    {kSpvAttentionVecKV16G4, sizeof(kSpvAttentionVecKV16G4), 7, nullptr},
-    // F32 shares the row source, but not the optional Q8 float-preservation modes.
-    {kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts},
-    {kSpvSigmoidMul, sizeof(kSpvSigmoidMul), 4, nullptr},
-    {kSpvGatedRmsNorm, sizeof(kSpvGatedRmsNorm), 5, nullptr},
-    {kSpvCausalConvSilu, sizeof(kSpvCausalConvSilu), 5, nullptr},
-    {kSpvDeltaRule, sizeof(kSpvDeltaRule), 8, nullptr},
-    {kSpvAttentionTileD256, sizeof(kSpvAttentionTileD256), 6, nullptr},
-    {kSpvAttentionTileD256K16, sizeof(kSpvAttentionTileD256K16), 6, nullptr},
-    {kSpvAttentionTileD256V16, sizeof(kSpvAttentionTileD256V16), 6, nullptr},
-    {kSpvAttentionTileD256KV16, sizeof(kSpvAttentionTileD256KV16), 6, nullptr},
-    {kSpvAttentionVecD256, sizeof(kSpvAttentionVecD256), 7, nullptr},
-    {kSpvAttentionVecD256K16, sizeof(kSpvAttentionVecD256K16), 7, nullptr},
-    {kSpvAttentionVecD256V16, sizeof(kSpvAttentionVecD256V16), 7, nullptr},
-    {kSpvAttentionVecD256KV16, sizeof(kSpvAttentionVecD256KV16), 7, nullptr},
-    {kSpvAttentionVecD256G4, sizeof(kSpvAttentionVecD256G4), 7, nullptr},
-    {kSpvAttentionVecD256K16G4, sizeof(kSpvAttentionVecD256K16G4), 7, nullptr},
-    {kSpvAttentionVecD256V16G4, sizeof(kSpvAttentionVecD256V16G4), 7, nullptr},
-    {kSpvAttentionVecD256KV16G4, sizeof(kSpvAttentionVecD256KV16G4), 7, nullptr},
-    {kSpvMatmulRowFloatX, sizeof(kSpvMatmulRowFloatX), 12, kMatmulRowCounts, kSpvMatmulRowFloatXPreserve, sizeof(kSpvMatmulRowFloatXPreserve)},
-    {kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve)},
-    {kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve)},
-    {kSpvEmbedMxfp4, sizeof(kSpvEmbedMxfp4), 4, nullptr},
-    {kSpvMatmulTileMxfp4, sizeof(kSpvMatmulTileMxfp4), 6, nullptr},
-    {kSpvMatmulTileMxfp4, sizeof(kSpvMatmulTileMxfp4), 6, nullptr},
-    {kSpvMatmulTileMxfp4Bf16, sizeof(kSpvMatmulTileMxfp4Bf16), 6, nullptr},
-    {kSpvMatmulTileMxfp4Bf16, sizeof(kSpvMatmulTileMxfp4Bf16), 6, nullptr},
-    {kSpvMatmulReduceMxfp4, sizeof(kSpvMatmulReduceMxfp4), 2, kMatmulReduceCounts},
-    {kSpvCopyMxfp4, sizeof(kSpvCopyMxfp4), 2, nullptr},
-    {kSpvMatmulRowMxfp4, sizeof(kSpvMatmulRowMxfp4), 12, kMatmulRowCounts},
-    {kSpvMatmulRowMxfp4Dot, sizeof(kSpvMatmulRowMxfp4Dot), 12, kMatmulRowCounts},
-    {kSpvMatmulRowMxfp4FloatX, sizeof(kSpvMatmulRowMxfp4FloatX), 12, kMatmulRowCounts},
-    {kSpvMatmulTileQ8mx, sizeof(kSpvMatmulTileQ8mx), 6, kMatmulTileQ8mxCounts},
-    {kSpvMatmulTileQ8mx, sizeof(kSpvMatmulTileQ8mx), 6, kMatmulTileQ8mxCounts},
-};
+#define LLMX_KERNEL_SOURCE(id, name, ...) {__VA_ARGS__},
+const KernelSource kKernels[K_COUNT] = { LLMX_VULKAN_KERNELS(LLMX_KERNEL_SOURCE) };
+#undef LLMX_KERNEL_SOURCE
+#undef LLMX_VULKAN_KERNELS
 
 // The variant of a cache kernel for a storage's K and V types.
 class VulkanKVStorage;
@@ -1268,7 +1260,8 @@ public:
     }
 
     bool supports_type(uint32_t type) const override {
-        return type == quant::GGML_TYPE_MXFP4 ? dev_->mxfp4 : type == quant::GGML_TYPE_F32 || decoded_blocks(type);
+        const WeightKernels* format = weight_kernels(type);
+        return format && (!format->mxfp4 || dev_->mxfp4);
     }
     std::vector<Dtype> native_dtypes() const override { return {Dtype::f16, Dtype::f32}; }
     bool emulates_dtype(Dtype dtype) const override { return dtype == Dtype::bf16 && dev_->preserve_float32; }
@@ -2032,7 +2025,7 @@ public:
         bool eight_bit_or_float = true;
         for (size_t i = 0; i < count; ++i) {
             const Projection& pr = projections[i];
-            if (pr.rows && pr.type != quant::GGML_TYPE_Q8_0 && pr.type != quant::GGML_TYPE_F32) eight_bit_or_float = false;
+            if (pr.rows && !weight_kernels(pr.type)->fast_tile) eight_bit_or_float = false;
         }
         return tile_from_for(dev_->profile, eight_bit_or_float, nin);
     }
@@ -2294,50 +2287,37 @@ public:
         uint32_t type, wide, cluster;
     };
     RowPlan row_plan(uint32_t type, size_t nin, Dtype dtype) const {
-        const size_t nblocks = nin / block_values_of(type);
+        const WeightKernels& format = *weight_kernels(type);
+        const size_t nblocks = nin / quant::storage_type(type)->block_size;
         uint32_t wide = 0, lanes = 1;
         size_t units = nin;
-        KernelId kernel = K_MATMUL_ROW;
-        switch (type) {
-        case quant::GGML_TYPE_F32:
-            kernel = K_MATMUL_ROW_F32;
-            break;
-        case quant::GGML_TYPE_MXFP4:
-            units = nblocks;
-            kernel = dev_->profile.mxfp4_integer_dot ? K_MATMUL_ROW_MXFP4_DOT : K_MATMUL_ROW_MXFP4;
-            break;
-        case quant::GGML_TYPE_Q8_0:
+        const bool dot = format.mxfp4 ? dev_->profile.mxfp4_integer_dot : dev_->profile.prefer_integer_dot;
+        KernelId kernel = dot ? format.dot_row : format.row;
+        switch (format.layout) {
+        case RowLayout::values: break;
+        case RowLayout::blocks: units = nblocks; break;
+        case RowLayout::q8_pairs:
             wide = nblocks % 2 == 0 && nblocks / 2 >= kQ8LanesPerPair;
             lanes = wide ? kQ8LanesPerPair : 1;
             units = wide ? nblocks / 2 * lanes : nblocks;
             if (wide) kernel = K_MATMUL_ROW_Q8W;
             break;
-        case quant::GGML_TYPE_Q4_0:
+        case RowLayout::q4_pairs:
             wide = nblocks % 2 == 0;
             lanes = wide ? 2 : 1;
             units = wide ? nblocks / 2 * lanes : nblocks;
-            kernel = K_MATMUL_ROW_Q4;
             break;
-        case quant::GGML_TYPE_Q4_1:
-            units = nblocks;
-            kernel = K_MATMUL_ROW_Q4;
-            break;
-        case quant::GGML_TYPE_Q4_K:
-        case quant::GGML_TYPE_Q5_K:
-        case quant::GGML_TYPE_Q6_K:
+        case RowLayout::k_blocks:
             lanes = kKQuantLanes;
             units = nblocks * lanes;
-            kernel = type == quant::GGML_TYPE_Q6_K ? K_MATMUL_ROW_K : type == quant::GGML_TYPE_Q5_K ? K_MATMUL_ROW_K5 : K_MATMUL_ROW_K4;
             break;
-        default: break;
         }
-        if (dtype == Dtype::f32 && type != quant::GGML_TYPE_F32) {
-            kernel = type == quant::GGML_TYPE_MXFP4 ? K_MATMUL_ROW_MXFP4_FLOAT_X : K_MATMUL_ROW_FLOAT_X;
+        if (dtype == Dtype::f32 && format.layout != RowLayout::values) {
+            kernel = format.float_row;
             units = nin;
             lanes = 1;
             wide = 0;
         }
-        if (dev_->profile.prefer_integer_dot) kernel = row_dot_variant(kernel);
         uint32_t cluster = lanes;
         while (cluster < dev_->caps.subgroup_size && cluster < units) cluster *= 2;
         if (kernel == K_MATMUL_ROW_K4_DOT || kernel == K_MATMUL_ROW_K5_DOT)
@@ -2355,7 +2335,7 @@ public:
     // What a row kernel reads X through: the floats for F32 weights or policy, else the activations' twin (shaders/xquant.glsl), which the norm, SiLU and attention kernels write beside their output and tag.
     // An input without one gets a quantize dispatch here; the scratch is reused stream-ordered.
     VkDescriptorBufferInfo row_twin(CSlice X, uint32_t type, size_t n, Dtype dtype) {
-        if (type == quant::GGML_TYPE_F32 || dtype == Dtype::f32) return bind(X);
+        if (weight_kernels(type)->layout == RowLayout::values || dtype == Dtype::f32) return bind(X);
         const VkDescriptorBufferInfo xf = bind(X);
         VkDescriptorBufferInfo xqi = xq_for(n);
         if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset)) {
@@ -2428,7 +2408,7 @@ public:
     // Calls `each(first, count, tile)` over the token rows of a routed call, a call per stretch of rows that take the same kernel.
     template <typename Fn>
     void expert_runs(uint32_t type, size_t nrows, RowRuns runs, const Fn& each) {
-        const size_t from = moe_tile_from_for(dev_->profile, type);
+        const size_t from = dev_->profile.*(weight_kernels(type)->moe_from);
         if (!runs.n) { each(0, nrows, nrows >= from); return; }
         for_each_run(nrows, runs, [&](const RowRun& r) { return r.extent >= from; }, each);
     }
@@ -2585,7 +2565,7 @@ public:
 
     // Whether a type's wide matmul goes through the integer-dot tile on this device; profile_for prefers the integer dot only where the device has it.
     bool integer_dot_tile(uint32_t type) const {
-        return dev_->profile.prefer_integer_dot && type != quant::GGML_TYPE_F32;
+        return dev_->profile.prefer_integer_dot && weight_kernels(type)->integer_tile != K_COUNT;
     }
 
     // An integer-dot tile call over up to three projections of one type: the height their rows and `column_groups` call for, its module, and each projection's first workgroup and rows.
@@ -2601,13 +2581,10 @@ public:
         QTile t;
         for (const Projection* pr : ps) t.rows += pr->rows;
         t.height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin);
-        // Q6_K stops at the short height: its tall build holds two groups of rows' half sums and runs one subgroup a SIMD (docs/VULKAN.md).
-        if (ps[0]->type == quant::GGML_TYPE_Q6_K && t.height == kTileRowsTall) t.height = kTileRowsShort;
-        const bool tall = t.height == kTileRowsTall;
-        t.kernel = ps[0]->type == quant::GGML_TYPE_MXFP4 ? (tall ? K_MATMUL_TILE_Q8MX_TALL : K_MATMUL_TILE_Q8MX)
-                 : ps[0]->type == quant::GGML_TYPE_Q6_K ? K_MATMUL_TILE_Q6
-                 : ps[0]->type == quant::GGML_TYPE_Q8_0 ? (tall ? K_MATMUL_TILE_Q8_TALL : K_MATMUL_TILE_Q8)
-                                                       : (tall ? K_MATMUL_TILE_Q_TALL : K_MATMUL_TILE_Q);
+        const WeightKernels& format = *weight_kernels(ps[0]->type);
+        // Q6_K has only the short module: the tall build would hold twice the half sums.
+        if (format.integer_tile == format.integer_tall_tile && t.height == kTileRowsTall) t.height = kTileRowsShort;
+        t.kernel = t.height == kTileRowsTall ? format.integer_tall_tile : format.integer_tile;
         for (size_t i = 0; i < 3; ++i) {
             t.p[i] = i < ps.size() ? ps[i] : ps[0];
             if (i >= ps.size()) continue;
@@ -2888,21 +2865,6 @@ private:
         auto* s = dynamic_cast<VulkanKVStorage*>(storage);
         if (!s) throw std::runtime_error("vulkan: KV storage of another backend");
         return *s;
-    }
-
-    // The registry's entry for a block type the kernels decode, null for any other type.
-    static const quant::QuantType* decoded_blocks(uint32_t type) {
-        switch (type) {
-        case quant::GGML_TYPE_Q8_0: case quant::GGML_TYPE_Q4_0: case quant::GGML_TYPE_Q4_1:
-        case quant::GGML_TYPE_Q4_K: case quant::GGML_TYPE_Q5_K: case quant::GGML_TYPE_Q6_K: case quant::GGML_TYPE_MXFP4:
-            return quant::Registry::instance().get(type);
-        default: return nullptr;
-        }
-    }
-    // The values per block of a type the kernels decode, one for F32.
-    static size_t block_values_of(uint32_t type) {
-        const quant::QuantType* qt = decoded_blocks(type);
-        return qt ? qt->block_size : 1;
     }
 
     static uint32_t u32(size_t v) {

@@ -1573,7 +1573,9 @@ size_t check_kernels(backend::Backend& vk) {
             Pair::In xi = p.in(x), x2i = p.in(x2);
             for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1,
                                   quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
-                from = backend::moe_tile_from_for(prof, type);
+                from = type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 ? prof.moe_tile_from_q4
+                     : type == quant::GGML_TYPE_Q4_K ? prof.moe_tile_from_q4k
+                     : type == quant::GGML_TYPE_Q5_K ? prof.moe_tile_from_q5k : prof.moe_tile_from;
                 // The row kernel reads the 16-bit twin; the tile reads the 16-bit twin where the integer dot takes quantized types, else floats.
                 auto fed_rows = [&](const std::vector<float>& v, size_t per_row, size_t per_entry_rows) {
                     std::vector<float> out(v.size());
@@ -2098,6 +2100,91 @@ std::vector<uint8_t> pattern(size_t bytes, uint32_t seed) {
 // alloc and adopt leave a new buffer held by the slot that fills or copies it, so the first pass submits until the slots let go of the operands before it makes the call.
 // It drops them when the call throws, so a command the call left naming one names freed memory and fails the next submission.
 // After each pass, a valid call must give what it gave before any refusal.
+// Names come from the expected kernels, not the private dispatch table; numeric and row-class checks run separately.
+size_t check_weight_dispatch() {
+    const auto owner = backend::make_vulkan_backend(0, true);
+    backend::Backend& vk = *owner;
+    const backend::DeviceProfile p = backend::vulkan_device_profile(vk);
+    struct Expected { uint32_t type; const char* row; const char* integer_tile; };
+    const Expected cases[] = {{0, "matmul_row_f32", ""}, {8, "matmul_row_q8w", "matmul_tile_q8"},
+        {2, "matmul_row_q4", "matmul_tile_q"}, {3, "matmul_row_q4", "matmul_tile_q"},
+        {12, "matmul_row_k4", "matmul_tile_q"}, {13, "matmul_row_k5", "matmul_tile_q"},
+        {14, "matmul_row_k", "matmul_tile_q6"}, {39, "matmul_row_mxfp4", "matmul_tile_q8mx"}};
+    size_t checks = 0;
+    for (const Expected& e : cases) {
+        if (e.type == 39 && !vk.supports_type(e.type)) continue;
+        require(vk.supports_type(e.type), "an implemented weight type lost device support");
+        for (size_t nin : {size_t(96), size_t(256), size_t(4096)}) {
+            if (nin == 96 && e.type != 2 && e.type != 8) continue;
+            const size_t nout = 3;
+            const auto bytes = matrix(e.type, nin, nout, 401);
+            const auto xf = uniform(nin, 402);
+            const uint32_t id = 0;
+            const auto w = vk.adopt(bytes.data(), bytes.size()), x = vk.adopt(xf.data(), xf.size() * sizeof(float));
+            const auto ids = vk.adopt(&id, sizeof(id)), y = vk.alloc(nout * sizeof(float));
+            for (bool routed : {false, true}) {
+                const bool fast = e.type == 0 || e.type == 8;
+                const size_t dense_from = fast ? (nin < p.tile_narrow_nin ? p.tile_from_8bit_narrow : p.tile_from_8bit)
+                                              : (nin < p.tile_narrow_nin ? p.tile_from_other_narrow : p.tile_from_other);
+                const size_t from = !routed ? dense_from : e.type == 2 || e.type == 3 ? p.moe_tile_from_q4
+                                  : e.type == 12 ? p.moe_tile_from_q4k : e.type == 13 ? p.moe_tile_from_q5k : p.moe_tile_from;
+                for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::f32, backend::Dtype::bf16}) {
+                    for (size_t extent : {size_t(1), from - 1, from}) {
+                        const bool tile = dtype == backend::Dtype::bf16 || extent >= from;
+                        const bool integer = dtype == backend::Dtype::f16 && p.prefer_integer_dot && e.type != 0 && !(routed && e.type == 39);
+                        std::string expected;
+                        if (tile) {
+                            expected = integer ? e.integer_tile : e.type == 39 ? "matmul_tile_mxfp4" : "matmul_tile";
+                            if (dtype == backend::Dtype::bf16) expected += "_bf16";
+                        } else if (dtype == backend::Dtype::f32 && e.type != 0) {
+                            expected = e.type == 39 ? "matmul_row_mxfp4_float_x" : "matmul_row_float_x";
+                        } else {
+                            expected = e.type == 8 && nin == 96 ? "matmul_row" : e.row;
+                            if (e.type == 8 && p.prefer_integer_dot) expected = "matmul_vec_q8";
+                            else if ((e.type == 39 && p.mxfp4_integer_dot) ||
+                                     (p.prefer_integer_dot && e.type != 0 && e.type != 8 && e.type != 39)) expected += "_dot";
+                        }
+                        (void)backend::vulkan_kernel_times(vk);
+                        const backend::RowRun run{1, extent};
+                        if (routed) {
+                            const backend::Backend::Routing routing{{ids.get(), 0}, {}, 1, 1};
+                            vk.matmul_experts({{e.type, {w.get(), 0}, {y.get(), 0}, nout}}, {x.get(), 0}, nin, 1, routing, {&run, 1}, dtype);
+                        } else {
+                            vk.matmul(e.type, {w.get(), 0}, {x.get(), 0}, {y.get(), 0}, nin, nout, 1, {&run, 1}, dtype);
+                        }
+                        const auto times = backend::vulkan_kernel_times(vk);
+                        if (times.empty() && !checks) {
+                            vk.sync();
+                            std::cout << "backend-vulkan: dispatch names unavailable without device timestamps\n";
+                            return 0;
+                        }
+                        size_t products = 0;
+                        for (const auto& entry : times) {
+                            if (entry.first.rfind("matmul_", 0) != 0 || entry.first.rfind("matmul_reduce", 0) == 0) continue;
+                            require(entry.first == expected || entry.first == expected + "_1col" || entry.first == expected + "_small",
+                                    ("weight dispatch expected " + expected + ", got " + entry.first).c_str());
+                            ++products;
+                        }
+                        require(products == 1, "weight dispatch did not witness exactly one product kernel");
+                        ++checks;
+                    }
+                }
+            }
+        }
+    }
+    for (uint32_t type : {1u, 4u, 10u, 30u, 42u, 43u, UINT32_MAX}) {
+        require(!vk.supports_type(type), "metadata-only or unknown weight type acquired a kernel");
+        const std::string expected = "vulkan: unsupported matrix type " + std::to_string(type) +
+                                     " (docs/VULKAN.md lists the types the kernels decode)";
+        bool refused = false;
+        try { vk.matmul(type, {}, {}, {}, 256, 1, 1); }
+        catch (const std::runtime_error& e) { refused = e.what() == expected; }
+        require(refused, "unsupported weight type lost its early refusal text");
+        ++checks;
+    }
+    return checks;
+}
+
 size_t check_refusals(backend::Backend& vk) {
     require(!vk.implements(backend::Op::mixed_experts), "Vulkan advertises unsupported mixed routed projections");
     const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
@@ -2999,6 +3086,7 @@ int main(int argc, char** argv) {
         checks += 1;
 
         checks += check_refusals(*b);
+        std::cout << "backend-vulkan: " << check_weight_dispatch() << " expected weight dispatches and type refusals\n";
 
         std::cout << "backend-vulkan: " << testq::check_matrix_precision(*b) << " shared matrix precision values passed\n";
         std::cout << "backend-vulkan: " << check_matrix_witness(*b) << " matrix-path witnesses match arithmetic\n";

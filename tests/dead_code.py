@@ -586,19 +586,20 @@ def shader_findings(texts):
     for name in entries:
         if name not in arrays:
             add(VK, name + ".inc", "built but no kSpv array includes it")
-    t0 = find(code, "const KernelSource kKernels[K_COUNT]", VK)
-    table = code[t0:find(code, "};", VK, t0)]
+    catalog_start = find(code, "#define LLMX_VULKAN_KERNELS(X)", VK)
+    catalog_end = find(code, "#define LLMX_KERNEL_ID", VK, catalog_start)
+    catalog = code[catalog_start:catalog_end]
     for inc, arr in sorted(arrays.items()):
-        if arr not in table:
+        if arr not in catalog:
             add(VK, arr, "embedded from %s.inc but not in kKernels" % inc)
-    e0 = find(code, "enum KernelId {", VK)
-    e1 = find(code, "};", VK, e0)
-    ids = [x.split("=")[0].strip() for x in code[e0 + len("enum KernelId {"):e1].split(",") if x.strip()]
+    ids = re.findall(r"X\((K_[A-Z0-9_]+),", catalog) + ["K_COUNT"]
+    raw_catalog = vk[vk.index("#define LLMX_VULKAN_KERNELS(X)"):vk.index("#define LLMX_KERNEL_ID")]
+    names = dict(re.findall(r'X\((K_[A-Z0-9_]+), "([^"]*)",', raw_catalog))
+    for k in ids[:-1]:
+        if not names.get(k):
+            add(VK, k + ".name", "kernel catalog entry has no diagnostic name")
     pos = {k: n for n, k in enumerate(ids)}
-    n0 = find(code, "const char* const kKernelNames", VK)
-    variant_decl = "inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s);"
-    n1 = find(code, variant_decl, VK)
-    outside = code[:e0] + code[e1:n0] + code[n1:]
+    outside = code[:catalog_start] + code[catalog_end:]
     named = set(re.findall(r"\bK_[A-Z0-9_]+\b", outside))
     derived = set()
     # kv_variant(f32, k16, s) returns f32, k16, k16 + 1 or k16 + 2 by the storage's cache types.
@@ -1373,6 +1374,13 @@ def self_test(texts, found, listed):
             ("an override with a braced default argument", ("override", "src/core/utf8.hpp", "PlantedImpl::planted_default"))]),
         (shader_findings, dict(texts, **{SHADERS + "planted.comp": "#version 450\nvoid main() {}\n"}), [
             ("an unreached shader", ("shader", SHADERS + "planted.comp", "not built"))]),
+        (shader_findings, plant(texts, VK, '    X(K_ADD,',
+                               '    X(K_PLANTED, "planted", kSpvAdd, sizeof(kSpvAdd), 2, nullptr) \\\n'), [
+            ("an orphan kernel catalog ID", ("shader", VK, "K_PLANTED"))]),
+        (shader_findings, dict(texts, **{VK: texts[VK].replace("kSpvAdd, sizeof(kSpvAdd),", "kSpvSiluMul, sizeof(kSpvSiluMul),", 1)}), [
+            ("an embedded module omitted from the catalog", ("shader", VK, "kSpvAdd"))]),
+        (shader_findings, dict(texts, **{VK: texts[VK].replace('X(K_ADD, "add",', 'X(K_ADD, "",', 1)}), [
+            ("a missing kernel diagnostic name", ("shader", VK, "K_ADD.name"))]),
         (flag_findings, flags, [
             ("a flag whose value only the help prints", ("flag", MAIN, "--planted-flag")),
             ("a flag parsed and dropped", ("flag", MAIN, "--planted-noop"))]),

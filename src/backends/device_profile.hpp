@@ -49,7 +49,7 @@ struct DeviceProfile {
     size_t tile_from_8bit = 32, tile_from_8bit_narrow = 64, tile_from_other = 64;
     size_t tile_from_other_narrow = 64;
     size_t tile_narrow_nin = 4096;
-    // Prompt extent from which a routed projection takes the tile kernel over each expert's rows rather than the row kernel per entry, by weight family (moe_tile_from_for): F32, Q8_0 and Q6_K, then Q4_0 and Q4_1, Q4_K and Q5_K.
+    // Prompt extent from which a routed projection takes the tile kernel over each expert's rows rather than the row kernel per entry, by weight family (the Vulkan weight descriptor): F32, Q8_0 and Q6_K, then Q4_0 and Q4_1, Q4_K and Q5_K.
     size_t moe_tile_from = 32, moe_tile_from_q4 = 96, moe_tile_from_q4k = 64, moe_tile_from_q5k = 48;
     // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row, for heads 128 wide and narrower and for heads 256 wide (docs/STATUS.md), each at most 256, the lanes of attention_merge's workgroup.
     size_t attention_split_chunk = 32, attention_split_max = 64, attention_split_max_wide = 64;
@@ -135,16 +135,6 @@ inline size_t tile_from_for(const DeviceProfile& profile, bool every_projection_
     if (!every_projection_8bit_or_float)
         return nin < profile.tile_narrow_nin ? profile.tile_from_other_narrow : profile.tile_from_other;
     return nin < profile.tile_narrow_nin ? profile.tile_from_8bit_narrow : profile.tile_from_8bit;
-}
-
-// Prompt extent from which a routed projection of this weight type takes the tile kernel: the 4-bit rows, cheap to unpack per entry, stay ahead of the tile's grouping longer.
-inline size_t moe_tile_from_for(const DeviceProfile& profile, uint32_t type) {
-    switch (type) {
-    case quant::GGML_TYPE_Q4_0: case quant::GGML_TYPE_Q4_1: return profile.moe_tile_from_q4;
-    case quant::GGML_TYPE_Q4_K: return profile.moe_tile_from_q4k;
-    case quant::GGML_TYPE_Q5_K: return profile.moe_tile_from_q5k;
-    default: return profile.moe_tile_from;
-    }
 }
 
 // Rows of a matmul tile given the call's shape: the tallest height that still yields the profile's workgroups per compute unit, then the middle one, then the smallest.

@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Dtype release documentation correction (2026-10-02)
+
+- **Goal:** make the live AGENTS, Vulkan and CI descriptions agree with the activation dtype release at `8af97e88`, already published.
+- **Done:** corrected the remaining private-branch and unadvertised-F16 claims against the released CPU and Vulkan capability declarations. The retained publication audit confirms all seven jobs in [CI run 36987806876](https://github.com/mxxm-t/llmx/actions/runs/36987806876) passed at `8af97e88`, then GitHub and Gitea main advanced to that exact commit. The published Windows executable reports `llmx 0.1.0+g8af97e888262`; the docs and source dead-code checks pass against it.
+- **Landing:** rebased onto the gated storage main `0b2b0f20`, preserving its record and the split-hold record. This docs-only correction lands by fast-forward after its `docs` and `dead-code` checks; no runtime source changes. The following dtype entry retains its pre-publication checkpoint, with the completed release recorded above.
+- **Gotchas:** this changes no runtime policy, qualification result or performance claim. Historical measurements and open reference-speed work remain intact; native F16 does not mean literal half arithmetic on every path or native BF16 support.
+
 ## Storage metadata independent of execution support (2026-10-02, branch refactor/storage-types-20261002)
 
 - **Goal:** complete the storage-description part of the quantization plan's step 0 before adding F16/BF16 weight kernels. A known GGUF storage type can be sized and inspected without a decoder; inference and conversion still require their own implemented support.
@@ -40,7 +47,7 @@
 - **Left:** nothing.
 
 
-## Activation dtype across CPU and Vulkan (2026-10-02, lands by fast-forward)
+## Activation dtype across CPU and Vulkan (2026-10-02, pre-publication checkpoint)
 
 `--dtype auto|f16|bf16|f32` resolves once during placement and reaches every model command, the server and each execution stage. Current CPU and Vulkan backends prefer qualified F16 under auto; explicit F32 remains available, and BF16 emulation or a wider fallback is reported. Weight storage, KV storage and the retained F32 state operations are separate. Vulkan MXFP4 support lands with the completed policy.
 - **Done:** independent HF depth comparisons are complete on CPU and MI50 for all three frozen 16k histories, against both original-F32 quality and the preselected literal-F16 reference. Each covers all five reference logits at all 512 scored positions. CPU raw16 has 511 exact top-one matches, one accepted tie and no miss; CPU raw8/chat and all three MI50 histories have 512 exact matches. The accepted tie's HF gap is 0.002174377 under the frozen 0.1 rule. Retained qualification passes include Windows 25 Python components and 43 native tests, Linux 42 native tests, MI50 AUTO 25 components and all 90 BF16 physical split cases. The test-first CPU fit dependency (`33965fa9`, then `d34ded17`) is integrated at `c7cb1407`; native F16 preference and its reviewed documentation are applied.

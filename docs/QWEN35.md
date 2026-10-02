@@ -184,8 +184,8 @@ It proposes the token after next: at position i it reads the main model's row h_
 1. u = `nextn.eh_proj` [RMSNorm(`token_embd`[t_{i+1}]; `nextn.enorm`), RMSNorm(h_i; `nextn.hnorm`)], the two E-wide rows concatenated in that order.
    h_i is the main model's row after `output_norm`, which llama.cpp's graph also feeds it (`t_h_nextn`, taken after `output_norm` in `qwen35.cpp`).
 2. One gated attention layer and its FFN run over u, with a decoder layer's residual structure and the tensors under `blk.L` (`attn_norm`, `attn_q`, `attn_k`, `attn_v`, `attn_q_norm`, `attn_k_norm`, `attn_output`, `post_attention_norm` and the FFN's).
-   It runs at rotary position i.
-   Its K and V are one more attention layer in the target's KV storage, with the row layout that STATUS gives.
+   It runs at rotary position i + 1, the position of the token it reads, and is row i + 1 of the MTP layer, whose row 0 reads a zero h ([SPECULATIVE](SPECULATIVE.md), section 7, decisions 1 and 2).
+   Its K and V are one more attention layer in the target's KV storage, laid out as SPECULATIVE's section 7 gives.
    On qwen35moe its FFN is the MoE FFN above.
 3. With x the block's output row, the draft logits are `output` RMSNorm(x; `nextn.shared_head_norm`), with the main model's head, or `token_embd` when tied.
 

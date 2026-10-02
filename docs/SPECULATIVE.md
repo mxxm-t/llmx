@@ -211,6 +211,7 @@ Sources are commits of that fork, its notes (`tp-notes/research/`, at 2993afb7d1
 | 21 | Adaptive depth was neutral with a draft model and cut 35B-A3B MTP from 57.3 to 32.2 t/s; disabling after one miss was too eager | one acceptance average a request, no fast adaptation | `adaptive-spec-depth.md` (6183cea399), `mtp-runtime-recommendations.md` |
 | 22 | A graph whose shape followed the number of snapshots cost prefill 2.5 times (421 against 1047 t/s) | a checkpoint changes no kernel or dispatch shape, only a `StateView` slot | 2e740434ea |
 | 23 | The reference server checkpoints 4 + ubatch and 4 tokens before a prompt's end, host-resident | S from the template, device slots | `tools/server/server-context.cpp` (`checkpoint_offsets`) |
+| 24 | The MTP block's carried h started as stale bytes, so repeated requests drafted differently (228/140 against 226/141 drafted/kept) until it was zeroed at position 0; a zero h at any later position cut acceptance from 0.518 to 0.328 | the carried row lives in the slot pool and follows every history call; only a sequence's first row reads a zero h (section 7) | 017a5d3f8f, a186706304, 7393b6c88e |
 
 ## 5. Order of work (planned)
 
@@ -223,7 +224,7 @@ Each step is a branch off main, landed as at most two commits, with every comman
 | 2b | `feat/host-cache`, in two parts | section 2's host tier: (a) write-back, promotion, `--host-cache-bytes`, its owners and bounds; (b) message-boundary checkpoints | the exactness tests of the host tier above; per-turn time to first token, prompt tokens re-read, host bytes held and bytes transferred, and the inter-token latency of unrelated active requests, against main and the reference server with its checkpoints on, on Qwen3.8-27B Q8_0: a conversation reaching about 8k tokens, the same with an edited earlier message, and more conversations than the device tier holds |
 | 2c | `feat/idle-reprefill` | section 2's idle re-prefill, both triggers | a follow-up continuing from re-prefilled rows equal to `generate` on its full prompt, bit for bit, on one device, a split and a placement with streamed experts; the job cancelled at every pass boundary; follow-up time to first token and tokens read with reasoning off against main and the reference server, and unrelated requests' inter-token latency while jobs run |
 | 3 | `feat/spec-verify` | multi-row `step`, `mark` and the saved-row rerun, `infer::accept`, `spec::Proposer`, lookup, `spec::draft_length`, the round in `generate` and `chat`, `--drafter off\|lookup`, `--draft-max`, test-only synthetic proposers; qwen3, qwen3moe and qwen35 targets | the 2026-09-26 plan's step 1 gates, plus the hybrid fixture: synthetic proposers rejecting at j = 0, 1, 2 and k, every token and logprob equal to the run without drafts, greedy and seeded, on the CPU, one MI50 and the Radeon VII; drafts past an end token and a second retract before a pass (lessons 5 and 8); retracts repeated at intermediate positions of a long generation; a rerun that fails, injected |
-| 4 | `feat/qwen35-mtp` | the embedded MTP proposer: the MTP layer indexed by token, the in-pass rows, the on-device draft chain, the output device on a split | the 2026-09-26 plan's step 4 gates: identity on and off, a loaded drafter at k = 0 giving the logits of none, decode within 3 percent and pp512 and pp16384 within 2 percent at k = 0, acceptance within the margin of the exact reference build on Qwen3.6-27B-MTP and Qwen3.8-27B Q8_0 |
+| 4 | `feat/qwen35-mtp` | the embedded MTP proposer as section 7 plans it: the MTP layer indexed by token, its context rows in the target's pass, its carried row in the slot pool, the on-device draft chain, the output device on a split, `--drafter embedded` | section 7's gates: the 2026-09-26 plan's step 4 gates (identity on and off, a loaded drafter at k = 0 giving the logits of none, decode within 3 percent and pp512 and pp16384 within 2 percent at k = 0, acceptance within the margin of the exact reference build on Qwen3.6-27B-MTP and Qwen3.8-27B Q8_0), plus the history calls carrying the MTP rows, the assembled tiny reference and a long-context cell |
 | 5 | `feat/spec-server` | steps 3 and 4 in the scheduler (section 3), after the layer split's final gate | `server-spec` CTest, `tools/server_mix_check.py` drafts on against off at P = 1 and P = S, `tools/server_load.py` at 1 to 64 users |
 | 6 | `feat/spec-drafters` | sidecar sources, `spec::pair`, draft models, `llmx-drafter-pack` | the 2026-09-26 plan's step 2 gates |
 | 7 | `feat/spec-dflash2`, then DSpark, then qwen4exp MTP | as the 2026-09-26 plan's steps 5 to 7 | theirs |
@@ -253,3 +254,110 @@ Each recommendation was agreed with XDEV on 2026-09-30, with its clarifications 
    **Recommendation:** approve; if MTP should reach the server before that gate, step 5 runs on today's round at one pass in flight and the gate reruns once passes in flight land.
 8. **The rest of the 2026-09-26 recommendations** (its questions 3 to 6 and 8 to 19: the `draft.` namespace, gate thresholds, the Radeon VII gate, the reference builds, the V4.1 DSpark file and placement, drafter rows under reuse, drafter memory, DFlash, DeepSeek and qwen4exp MTP, the single-user comparison, draft models on the server, coupled drafting, the `--drafter` default); its question 17, the verify-slot pool, is replaced by the mark.
    **Recommendation:** carry them over as approved, each step checking again the assumptions it relies on; they are decisions, not measurements revalidated today.
+
+## 7. Step 4: the embedded MTP proposer (planned)
+
+Proposed on 2026-10-01 for review with XDEV and the user's approval: how step 4 builds MTP for qwen35 on sections 1 to 3 and on step 3's code, changing none of their decisions.
+Sources: the MTP block in [QWEN35](QWEN35.md); the user's mx-llama.cpp history (section 4, lesson 24 and the notes cited below, at `test/best-stack-mtp-20260902`, f2a54df595); vLLM's `vllm/model_executor/models/qwen3_5_mtp.py` and its EAGLE-family proposer `vllm/v1/spec_decode/llm_base_proposer.py` (main at 08e03df9, read 2026-10-01); and the GGUF headers of the MTP files on the Linux MI50 machine.
+
+**The files.**
+Qwen3.6-27B-MTP Q8_0 and Q4_1 and Qwen3.8-27B Q8_0 and UD-Q8_K_XL each hold one block, `blk.64`, of 15 tensors: `nextn.eh_proj` [10240, 5120], the three `nextn.` norms, and a full-attention layer with a dense FFN under the decoder layers' names; none has `nextn.embed_tokens` or `nextn.shared_head_head`, so the block reads the target's `token_embd` and `output`.
+The Q4_1 file's block is Q8_0 throughout; the UD-Q8_K_XL's `eh_proj`, `attn_q`, `attn_k` and `attn_v` are BF16; the Qwen3.6-35B-A3B-MTP files' block is MoE with a BF16 router and shared-expert gate.
+At Q8_0 the block's matrices take 430 MiB and the head 1.26 GiB, so a draft step reads about 1.68 GiB, 6.3 percent of a 27B decode step's weights; a context row reads only `eh_proj`, `attn_k` and `attn_v`, 63.75 MiB a pass, about 0.23 percent of a decode step and of a prompt row's multiply-adds; the MTP layer's KV is 4 KiB a token at f16.
+
+**What a row computes.**
+Row j of the MTP layer reads h(j-1), the target's row after `output_norm`, and t(j), at the target's rotary position j.
+- A **context row**, one for every row a target pass feeds: u = `eh_proj` [RMSNorm(e(t(j)); `enorm`), RMSNorm(h(j-1); `hnorm`)], then `attn_norm`, K and V with the k norm and the partial rope, written into the MTP layer's KV row j.
+  Attention, the FFN and the head are skipped: K and V depend on the layer's input alone, and nothing reads a context row's output (the user's history's KV-only replay, fa9c6ee0f2; vLLM pads with such rows).
+- A **draft row**: the whole block, attention over the MTP rows 0 to j, the FFN, `nextn.shared_head_norm`, the target's head and the argmax, ties to the lowest id.
+  Draft step m > 1 reads the previous draft as t and the previous draft row's output after `shared_head_norm` as h (vLLM's `propose` loop; the user's history after upstream 166fe29492).
+- Row 0 reads a zero h (decision 1), as the user's history does since 017a5d3f8f.
+
+**Owners**, each once:
+
+| concern | owner |
+|---|---|
+| the block's metadata and refusals | `qwen35::read_config`, as today (one block at most) |
+| the block's roles, planned only when a drafter is asked for | `Qwen35::plan` given the request, filling `ModelPlan::drafter`, a `LayerPlan` of `Part::draft` roles whose cache is KV and which carries one row a slot |
+| the block's math | `Qwen35::draft_rows` (context rows) and `Qwen35::draft` (one draft row for each drafting sequence); the two norms, the concatenation and `eh_proj` in `blocks::nextn_input` beside the other shared pieces |
+| the contract | `Architecture::draft_rows` and `Architecture::draft`, none by default; `Part::draft` |
+| the MTP layer's KV | one more KV layer in the output device's storage, with the target's block table, length, fork, retract and budget |
+| the carried row | E floats a slot on the output device, at the slot indices the state storages use, read at a pass's src slot and written at its dst slot; a sequence with no history reads a zero h whatever its slot holds, NaN included, as the state ops read a zero state; the h rows a mark saves sit in the mark's saved buffer, allocated, counted and released with the state layers' saved inputs by the same owner |
+| context rows in a pass | `Model::run_stage` after the last stage, on the output device, before the head; with the block loaded the final norm runs over every row the pass feeds, not only the rows `blocks::head` gathers for logits, once a row, and the head reads the logits rows' normed values from that result rather than norming them again; its cost and the off and k = 0 byte identity are in the k = 0 gate |
+| the draft chain | `Model::draft(seq, last, k, out)` in `model/history.hpp`, beside the other history operations |
+| the proposer | `spec::Embedded` in `inference/spec.hpp`, whose `draft` calls `Model::draft` with the history's last token |
+| two new ops | `Backend::argmax_rows` (ties to the lowest id, an id past the vocabulary where the best logit is not finite) and `Backend::embed` reading ids from a device buffer, on the CPU and Vulkan, refused at load by name where a backend lacks them; an invalid id is handled on the device: `embed` writes a zero row for it and never reads the table there, and `argmax_rows` gives an invalid id for every later step of that request, so one request's invalid draft neither reads out of bounds nor touches another request's rows |
+| loading and the fit | `PlacementRequest::drafter` through `place_model` and `plan_model`, the placement deciding where the block's roles sit and the proposer none; the fit counts the block, an embedding copy only where no copy of `token_embd` is resident on the output device already (a tied head or the embedding there is reused, never adopted or counted twice), the MTP KV, the carried rows and the mark's saved h rows after the KV budget, or refuses with the numbers |
+| the flag | `--drafter embedded` in `Drafts` (`cli/main.cpp`) on `generate` and `chat`, and on `bench --model`, which loads the block and runs its context rows without drafting (the k = 0 gate); a file without an MTP block refused, naming the file |
+
+The round (`infer::generate`), `infer::accept`, `spec::draft_length`, `spec::Acceptance`, `Model::mark`, `Model::retract` and `Model::rerun` are step 3's and gain no MTP code; `Proposer::reads`, `block` and `settle` stay deferred, since the MTP proposer keeps nothing of its own.
+
+**One round**, history L, the carried row holding h(L-1), last pick y:
+1. `mark(seq)`, as in step 3.
+2. `Model::draft(seq, y, k, out)`: one submission on the output device takes the KV blocks of positions L to L + k - 1 in its storage and commits no length; draft row L reads the carried row and y, row L + m - 1 the previous row's normed output and draft m - 1; `argmax_rows` writes each draft id on the device and `embed` reads it for the next step; the host reads k ids once and keeps those before the first invalid one.
+   The blocks it takes are taken and returned through the KV cache's owner like a pass's, so a failed draft, an allocation failure among them included, returns them though no length was committed.
+   The rows it wrote lie past the committed length and are overwritten by the verify before anything reads them.
+3. The verify, `Model::step([y, d1 ... dk])`: after the last stage, the context rows L to L + k, row L from the carried row and y, row L + i from the pass's h(L + i - 1) and d(i); the pass writes h(L + k) into the dst slot's carried row and, under the mark, saves the pass's h rows as `LayerPlan::saved` inputs.
+4. `infer::accept`, then `retract(seq, n)`: the MTP rows past n go with the target's blocks, and the rerun that restores the recurrent state also copies h(n-1) from the saved rows into the live slot's carried row.
+
+A round drafting nothing, a plain decode step and every prompt slice compute their context rows the same way, the first from the carried row, so the MTP layer always holds every row its tokens determine, as vLLM keeps its drafter's KV in step at K = 0.
+
+**Rollback and reuse need no MTP code.**
+The MTP KV is the target's storage, so retract, fork, reset and a failed pass treat it as one more layer.
+The carried row is a slot's, so a checkpoint at c carries h(c-1), a fork at c reads it, a mark's rerun restores it, a failed pass returns to the mark's or the checkpoint's, and a reset returns it; lessons 14, 15 and 24 are the failures this rules out.
+A failed draft pass changes no committed length, and the round's retract to L returns its blocks and the mark.
+
+**On a layer split** the block runs on the output device, the last stage's on a pipelined split: the target's normed rows, the head and the carried row are there, so nothing crosses for drafting (lesson 13).
+`token_embd` is adopted there too where the embedding sits on another device, 1.26 GiB on the 27B Q8_0, counted by the fit (decision 5).
+The draft chain is one submission on that device; in the CLI the other stages wait for it, and in the server (step 5) passes in flight use them.
+
+**Row classes.**
+A context row takes its entry's extent, so a prompt's MTP rows are prompt rows and a reply's are decode rows, and a fork shares a donor's MTP rows under the rule that already shares its target rows (section 1); the block's matmuls choose kernels by extent as every op does.
+Draft rows are extent 1 and never history.
+
+**Gates**, beside the 2026-09-26 plan's step 4 gates in section 5:
+- Identity: tokens and logprobs with `--drafter embedded` equal to `--drafter off`, greedy and seeded, through `generate` and `chat`, on the CPU, one MI50, a two-MI50 split and the Radeon VII (tiny fixtures there, since a 27B does not fit), on Qwen3.6-27B-MTP Q8_0 and Q4_1 and Qwen3.8-27B Q8_0; with the block loaded at k = 0, the logits of no drafter bit for bit.
+- History: on the tiny MTP fixture, the drafts and draft logits of a sequence forked at a checkpoint, of one retracted at every position of a generation cycle, of a reset one and of one continued after a failed pass equal those of a fresh sequence fed the same tokens, bit for bit, alone and beside others and over four CPU stages; a first pass whose slot holds NaN reads a zero h; a draft past the vocabulary or not finite ends drafting for its request.
+- The two ops: NaN, infinity, an invalid id and ties in one request's row beside a valid request, which drafts as it does alone, the invalid one reading no table row; a draft's block reservation failing, part way through a block and at an allocation, returning every block it took.
+- The block's math: the tiny fixture's draft logits at steps 1 and 2 against the assembled HF reference (decision 7), within the F32 bounds, from prompts of one and two tokens, so row 0 and the first carried row are both reached, and from longer ones.
+- Acceptance: per position at `--draft-max` 1 and 3 on a fixed prompt set, within the margin of the reference build (decision 8), on Qwen3.6-27B-MTP Q8_0 and Qwen3.8-27B Q8_0, with the counts and denominators of every position kept; a draft length above 1 is what checks the h of step 2.
+- Rollback: the user's history found rollback the main cost of MTP, so a round's rollback is timed on its own on the 27B Q8_0 on one MI50 and a two-MI50 split: a partial rejection (the mark's rerun of every state layer over the kept rows, the MTP rows' retract and the carried row's copy) at most 2 percent of a decode step, a full acceptance and the mark itself no measurable cost; timed as completed work, queued device execution and synchronization included, not host submission alone, against a decode step at the same placement, precision and clocks, at every rejection position with the kept prefix's length recorded, so a cheap short rerun cannot stand for the long one; if the rerun misses, it runs as one submission over every state layer, fused inside the mark's saved-state and rerun owner with its failure and history checks kept, before step 4 merges.
+- Speed and memory: decode at the default depth against off and against the reference build with its MTP, on one MI50 and a two-MI50 split, with the memory the block takes; at k = 0 decode within 3 percent and pp512 and pp16384 within 2 percent; and one cell after a 16k-token prompt, since vLLM reports acceptance falling with context and decode slower with MTP from 16K (its issue 47602, Qwen3.6-27B: 0.935, 0.829, 0.715 by position at 2K against 0.721, 0.512, 0.395 at 30K; decode +129 percent at 2K, -14 percent at 16K).
+- The use: a measured decode gain on the dense 27B, or it does not merge.
+
+**Decisions**, each with options and a recommendation:
+1. **Row 0**, which has no h(-1).
+   - A: a zero h, attended like any row, as the user's history does; no kernel change; the acceptance gate's reference computes the same function.
+   - B: a first row in the attention view, so the MTP layer attends rows 1 to j as vLLM's does; a bound in the CPU attention and the three Vulkan attention kernels.
+   **Recommendation:** A; B only if the acceptance gate misses at short prompts.
+2. **Rotary position** of row j: the target's j (the user's history), or j - 1 (vLLM, and the qwen35 plan's earlier text); rope is relative, so the scores differ only in rounding.
+   **Recommendation:** j, reusing the pass's positions with no shifted list; this replaces "rotary position i - 1" in the qwen35 plan.
+3. **The carried row.**
+   - A: a row a slot on the output device, carried by the slot pool's history calls.
+   - B: a row a sequence outside the pool, with its own reset, fork, checkpoint and retract code, which is how lessons 14, 15 and 24 happened.
+   - C: none, recomputing the row before a fork as vLLM recomputes the last block on a prefix hit (its issue 38182: the hit rate fell from about 92 to 71 percent), which a model that keeps a state cannot do without a checkpoint a block earlier.
+   **Recommendation:** A.
+4. **The draft chain.**
+   - A: one submission of k steps on the device, with `argmax_rows` and `embed` from device ids.
+   - B: a host loop, one wait a step; the user's history measured about 12.3 ms a call of up to four steps on six MI50s, and an h fetch of 46.6 ms against 3.2 ms of draft decode on a tensor split.
+   **Recommendation:** A, as the 2026-09-26 plan approved.
+5. **The embedding on a split's output device.**
+   - A: `token_embd` adopted there as well, counted by the fit.
+   - B: embedding rows crossing with the residual for context rows, and a host lookup and upload for every draft step.
+   **Recommendation:** A.
+6. **Depth.**
+   One `--draft-max` default for every drafter, 3 today; the user's history found the 27B Q8_0's best at 2 to 4 on a layer split (+52.6 to +89.6 percent, 0.867, 0.676 and 0.511 kept by position at 3) and output changes at 8 from its kernels, which extent-1 verifies rule out here.
+   **Recommendation:** sweep 1 to 4 on the 27B Q8_0 on one MI50 and a split and keep one default, chosen from the workloads' tradeoff with every depth's results kept; a default per drafter only if the evidence asks for it.
+7. **The assembled tiny MTP reference** (the qwen35 plan's question 11): HF drops `mtp.*`, so HF's own full-attention `Qwen3_5DecoderLayer`, with the fc, the three norms and the head written around it in the reference environment, run on the tiny fixture with an MTP block.
+   It is labelled an assembled HF reference, not HF's own MTP; its packages, code and fixture are pinned, and it holds each convention on its own: the concatenation's order, the target's h after `output_norm`, the h of step 2 after `shared_head_norm` and the rotary position; step 1 alone does not qualify the chain.
+   **Recommendation:** approve; it is the only check of the block's math against an external reference.
+8. **The acceptance reference build**: the user's mx-llama.cpp family at `test/best-stack-mtp-20260902` (f2a54df595), which holds the post-norm h (166fe29492) and the zero carrier at position 0 (017a5d3f8f); the June notes' figures used the pre-norm h and are history.
+   Before measuring, the exact commit, build, flags, model files and prompts are frozen and recorded, and no other reference is chosen after a miss.
+   **Recommendation:** approve, the margin read as 5 percentage points of acceptance at each position, with counts and denominators kept.
+9. **Scope.**
+   Step 4 is the CLI and the dense qwen35 files; the qwen35moe block runs through the same code with the MoE FFN and is gated once the 16-bit branch reads its BF16 router (the user's history measured the 35B-A3B flat to +1.4 percent on a layer split); the server is step 5; the sidecar form the qwen35 plan's step 9 named moves to step 6 with the other sidecar sources.
+   None of the three is marked supported from the shared code alone, only once its own gate passes.
+   **Recommendation:** approve.
+
+XDEV reviewed this section at 26c40e54 on 2026-10-01, agreed with the owners and the nine recommendations, and asked for the amendments now written in: invalid drafts handled on the device before the next embedding read, the draft's blocks returned through the cache's owner on failure, a resident embedding reused, the carried row's saved rows with the other saved state, one- and two-token prompts and each convention held by the assembled reference, and the reference build frozen before measuring with the margin in percentage points.
+The user approved it on 2026-10-02 ("Mtp is yes if xdev accepted").

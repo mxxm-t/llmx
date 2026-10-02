@@ -278,6 +278,7 @@
 - **Goal:** one owner of where a sequence's history can be re-entered (checkpoint, fork, mark, retract) over KV blocks and recurrent state, prefix reuse for the hybrid models on it first (the qwen35 plan's step 8c), then speculative decoding on the same owner for every proposer.
 - **Done:** the design, [SPECULATIVE](SPECULATIVE.md), taking the speculative decoding plan approved on 2026-09-26 as input and saying what changes; its eight decisions were agreed with XDEV and approved by the user on 2026-09-30.
 - **Left:** its steps in order from step 3, `feat/spec-verify`; steps 1 and 2 have landed (their blocks above).
+- **Step 4's plan** (SPECULATIVE, section 7): the embedded MTP proposer for qwen35, researched from the user's mx-llama.cpp history, vLLM and the MTP files' headers, with nine decisions; proposed 2026-10-01, agreed by XDEV with amendments written in (invalid drafts handled on the device, the draft's blocks returned on failure, a resident embedding reused, a pinned reference build, the margin in percentage points), approved by the user on 2026-10-02; the rollback gate (at most 2 percent of a decode step) added at the user's request.
 
 ## Qwen 3.5, 3.6 and 3.8 everywhere (2026-09-30, 8b merged at `56abfd9a`)
 
@@ -4420,9 +4421,9 @@ This separate merge-record change reviews STATUS against the completed landing e
     - It loads only when `--drafter embedded` or a sidecar path asks for it.
     - Its KV is one more attention layer in the target's KV storage, 4 KiB per token on the 27B, with the target's length, blocks, forks and truncation.
       Every pass computes its rows (`eh_proj`, the norms, K and V; no attention or FFN) for every row it feeds, prompt rows included.
-    - The MTP row that reads h_{i-1} and t_i sits at index i, at rotary position i - 1, and its attention reads indices 1 to i.
+    - The MTP row that reads h_{i-1} and t_i sits at index i, at rotary position i, and its attention reads indices 0 to i, row 0 reading a zero h (SPECULATIVE, section 7, decisions 1 and 2, which replace rotary position i - 1 and indices 1 to i here).
       So a prefix of p rows carries exactly the MTP rows its tokens determine, and a fork takes them with the target's blocks.
-      Each MTP block keeps h of its last position, and the sequence keeps its last h.
+      The sequence's last h is a row a slot in the slot pool, carried by its history calls (SPECULATIVE, section 7, decision 3).
     - On a layer split, the MTP block runs on the output device, which holds h, `output` and a copy of `token_embd` counted by the fit.
       The draft chain (argmax, embedding, next step) is one submission there.
     - On the 35B-A3B, the MTP block's FFN is step 7's MoE FFN.

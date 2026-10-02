@@ -214,6 +214,89 @@ int kernel_checks() {
     return failures;
 }
 
+// Hold setup (Backend::hold_between_submissions) failing at its timeline (1) or at one of its four events (2 to 5): what it made is destroyed, and a later call makes the hold whole.
+struct HoldCalls;
+HoldCalls* hold_calls = nullptr;
+struct HoldCalls {
+    backend::Fn original;
+    std::shared_ptr<backend::Device> device;
+    int failure, creates = 0, freed = 0;
+    std::vector<uint64_t> live;   // the semaphores and events made since these calls were set
+    HoldCalls(backend::VulkanBackend& b, int fail) : device(backend::VulkanLifetimeTest::device(b)), failure(fail) {
+        original = device->fn;
+        hold_calls = this;
+        auto& fn = device->fn;
+        fn.vkCreateSemaphore = semaphore; fn.vkDestroySemaphore = destroy_semaphore;
+        fn.vkCreateEvent = event; fn.vkDestroyEvent = destroy_event;
+        fn.vkFreeCommandBuffers = free_cmds;
+    }
+    ~HoldCalls() { device->fn = original; hold_calls = nullptr; }
+    bool fail_next() { return ++creates == failure; }
+    void gone(uint64_t h) {
+        for (size_t i = 0; i < live.size(); ++i)
+            if (live[i] == h) { live.erase(live.begin() + (std::ptrdiff_t)i); return; }
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL semaphore(VkDevice d, const VkSemaphoreCreateInfo* ci, const VkAllocationCallbacks* a, VkSemaphore* out) {
+        auto& q = *hold_calls;
+        if (q.fail_next()) return VK_ERROR_OUT_OF_HOST_MEMORY;
+        const VkResult r = q.original.vkCreateSemaphore(d, ci, a, out);
+        if (r == VK_SUCCESS) q.live.push_back((uint64_t)*out);
+        return r;
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL event(VkDevice d, const VkEventCreateInfo* ci, const VkAllocationCallbacks* a, VkEvent* out) {
+        auto& q = *hold_calls;
+        if (q.fail_next()) return VK_ERROR_OUT_OF_HOST_MEMORY;
+        const VkResult r = q.original.vkCreateEvent(d, ci, a, out);
+        if (r == VK_SUCCESS) q.live.push_back((uint64_t)*out);
+        return r;
+    }
+    static VKAPI_ATTR void VKAPI_CALL destroy_semaphore(VkDevice d, VkSemaphore s, const VkAllocationCallbacks* a) {
+        hold_calls->gone((uint64_t)s);
+        hold_calls->original.vkDestroySemaphore(d, s, a);
+    }
+    static VKAPI_ATTR void VKAPI_CALL destroy_event(VkDevice d, VkEvent e, const VkAllocationCallbacks* a) {
+        hold_calls->gone((uint64_t)e);
+        hold_calls->original.vkDestroyEvent(d, e, a);
+    }
+    static VKAPI_ATTR void VKAPI_CALL free_cmds(VkDevice d, VkCommandPool p, uint32_t n, const VkCommandBuffer* c) {
+        ++hold_calls->freed;
+        hold_calls->original.vkFreeCommandBuffers(d, p, n, c);
+    }
+};
+
+int hold_checks() {
+    int failures = 0;
+    const std::vector<uint8_t> src = [] { std::vector<uint8_t> v(4096); for (size_t i = 0; i < v.size(); ++i) v[i] = (uint8_t)(i * 7 + 1); return v; }();
+    for (int kind = 1; kind <= 5; ++kind) {
+        auto base = backend::make_vulkan_backend(0);
+        auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+        bool threw = false, cleaned = false, copied = false;
+        {
+            HoldCalls q(b, kind);
+            try { b.hold_between_submissions(true); }
+            catch (const std::exception&) { threw = true; }
+            cleaned = q.live.empty() && q.freed == 1;
+            q.failure = 0;
+            b.hold_between_submissions(true);
+            const auto s = b.adopt(src.data(), src.size());
+            const auto d = b.alloc(src.size(), backend::Memory::host_visible);
+            b.copy(*d, 0, *s, 0, 2048);
+            b.wait(b.submit());
+            b.copy(*d, 2048, *s, 2048, 2048);
+            b.wait(b.submit());
+            copied = std::memcmp(d->host_ptr(), src.data(), src.size()) == 0;
+            b.hold_between_submissions(false);
+            base.reset();
+            cleaned = cleaned && q.live.empty();
+        }
+        const bool ok = threw && cleaned && copied;
+        std::cout << "hold_case=" << kind << " threw=" << threw << " cleaned=" << cleaned << " copied=" << copied
+                  << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
+    return failures;
+}
+
 struct QueryCalls;
 QueryCalls* query_calls = nullptr;
 struct QueryCalls {
@@ -520,7 +603,7 @@ int main(int argc, char** argv) {
     try {
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
-                                 loader_weight_checks() + scratch_reserve_checks();
+                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks();
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;

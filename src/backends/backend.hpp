@@ -360,6 +360,10 @@ public:
         return nullptr;
     }
 
+    // For a device of a placement over several: between its submissions the device waits on itself rather than going idle, so its clock stays up while another device runs its part of a pass (docs/MULTI-DEVICE.md); a backend without such a wait ignores it.
+    // Each true adds a holder and each false removes one, so a backend kept by several models holds while any of them asks; false must not throw.
+    virtual void hold_between_submissions(bool on) { (void)on; }
+
     // Ops enqueue on one stream; submit() flushes and returns a monotonic ticket, and wait(t) retires that submission and everything before it.
     // Results require wait(), sync() or read(); CPU ops complete eagerly (docs/DEVICE-EXECUTION.md).
     virtual Ticket submit() = 0;

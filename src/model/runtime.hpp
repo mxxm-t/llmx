@@ -380,14 +380,25 @@ public:
             for (auto& d : devices_)
                 if (d->mixer_layers)
                     for (const std::vector<float>& t : tables_) d->tables.push_back(d->b->adopt(t.data(), t.size() * sizeof(float)));
+            // Each device of a placement over several waits while the others run their parts, which a device that waits on the host spends at an idle clock; a model made asks, and gives its request back when it goes.
+            if (std::count_if(devices_.begin(), devices_.end(), [](const auto& d) { return d->used; }) > 1)
+                for (auto& d : devices_) {
+                    if (!d->used) continue;
+                    d->b->hold_between_submissions(true);
+                    d->holding = true;
+                }
         } catch (...) {
             // Constructor members still exist here, so pending uploads retire before unwinding releases them.
+            release_holds();
             retire();
             throw;
         }
     }
 
-    ~Model() { retire(); }
+    ~Model() {
+        release_holds();
+        retire();
+    }
 
     // Sequences hold the pools' addresses, so a Model is neither copied nor moved.
     Model(const Model&) = delete;
@@ -706,6 +717,7 @@ private:
         backend::BackendPtr b;
         backend::MatrixPaths matrix_paths;
         bool used = false;
+        bool holding = false;                    // this model asked the backend to hold between submissions
         bool sends = false;                      // the residual leaves it, so it keeps handoff buffers
         int mixer_layers = 0;
         int kv_layers = 0;                       // its mixer layers whose cache is KV
@@ -1236,6 +1248,13 @@ private:
     // Construction failures, failed passes and model teardown drain every used device with sync(), including work behind no ticket; reset() waits on tickets instead.
     void retire() noexcept {
         for (auto& d : devices_) if (d->used) d->b->sync();
+    }
+    void release_holds() noexcept {
+        for (auto& d : devices_)
+            if (d->holding) {
+                d->b->hold_between_submissions(false);
+                d->holding = false;
+            }
     }
 };
 

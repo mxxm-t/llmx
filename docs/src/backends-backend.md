@@ -54,6 +54,12 @@ placement contracts in `docs/EXECUTION.md`.
   rows on the way out and back, so a pass on a single device submits once.
   It waits on its pass's last ticket for the logits, and on a sequence's
   last tickets when that sequence is reset.
+- `hold_between_submissions(on)`: a model made over several devices asks it
+  of each (true) and gives it back when it goes (false), since each waits
+  while the others run their parts of a pass; while any request remains,
+  the device waits on itself between submissions rather than going idle,
+  so its clock stays up. The CPU, and any backend without such a wait,
+  ignores it.
 - `sync()`: `noexcept`, like `wait`, and blocks until everything has
   retired, including ops queued behind no ticket. The model calls it on the
   failure paths before returning KV blocks to the pool, during failed loading

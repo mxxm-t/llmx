@@ -6,6 +6,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -53,6 +56,7 @@ namespace {
     X(vkCreateCommandPool) \
     X(vkDestroyCommandPool) \
     X(vkAllocateCommandBuffers) \
+    X(vkFreeCommandBuffers) \
     X(vkBeginCommandBuffer) \
     X(vkEndCommandBuffer) \
     X(vkResetCommandBuffer) \
@@ -60,6 +64,11 @@ namespace {
     X(vkCreateSemaphore) \
     X(vkDestroySemaphore) \
     X(vkWaitSemaphores) \
+    X(vkCreateEvent) \
+    X(vkDestroyEvent) \
+    X(vkSetEvent) \
+    X(vkResetEvent) \
+    X(vkCmdWaitEvents) \
     X(vkCreateBuffer) \
     X(vkDestroyBuffer) \
     X(vkGetBufferMemoryRequirements) \
@@ -1228,6 +1237,15 @@ public:
 
     ~VulkanBackend() override {
         Device& d = *dev_;
+        if (hold_.watchdog.joinable()) {
+            {
+                std::lock_guard<std::mutex> lk(hold_.mu);
+                hold_release();
+                hold_.quit = true;
+            }
+            hold_.wake.notify_all();
+            hold_.watchdog.join();
+        }
         d.fn.vkDeviceWaitIdle(d.device);
         for (auto& p : pending_) p.clear();
         for (auto& a : arena_) a.buffer.reset();
@@ -1236,6 +1254,8 @@ public:
         if (queries_) d.fn.vkDestroyQueryPool(d.device, queries_, nullptr);
         staging_.reset();
         if (timeline_) d.fn.vkDestroySemaphore(d.device, timeline_, nullptr);
+        for (VkEvent e : hold_.events) if (e) d.fn.vkDestroyEvent(d.device, e, nullptr);
+        if (hold_.timeline) d.fn.vkDestroySemaphore(d.device, hold_.timeline, nullptr);
         if (pool_) d.fn.vkDestroyCommandPool(d.device, pool_, nullptr);
     }
 
@@ -1495,6 +1515,74 @@ public:
     }
 
     Ticket submit() override {
+        const Ticket ticket = flush();
+        if (hold_.on) hold_queue();
+        return ticket;
+    }
+
+    // Holding (Backend::hold_between_submissions), while any holder remains: after each submit() the queue waits on an event the host sets at the next submission, or after kHoldMs, so the device stays busy, and its clock up, while another device runs its stage.
+    void hold_between_submissions(bool on) override {
+        if (!on) {
+            if (!hold_.holders || --hold_.holders) return;
+            std::lock_guard<std::mutex> lk(hold_.mu);
+            hold_release();
+            hold_.on = false;
+            return;
+        }
+        if (!hold_.watchdog.joinable()) hold_setup();
+        ++hold_.holders;
+        hold_.on = true;
+    }
+
+    // The hold's command buffers, timeline, events and watchdog, made once; a failure part way destroys what it made, so a later call starts again.
+    void hold_setup() {
+        Fn& fn = dev_->fn;
+        VkCommandBuffer cmds[kHolds] = {};
+        VkSemaphore timeline = VK_NULL_HANDLE;
+        VkEvent events[kHolds] = {};
+        try {
+            VkCommandBufferAllocateInfo ci{};
+            ci.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            ci.commandPool = pool_;
+            ci.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            ci.commandBufferCount = kHolds;
+            check(fn.vkAllocateCommandBuffers(dev_->device, &ci, cmds), "vkAllocateCommandBuffers");
+            VkSemaphoreTypeCreateInfo ti{};
+            ti.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+            ti.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+            VkSemaphoreCreateInfo si{};
+            si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+            si.pNext = &ti;
+            check(fn.vkCreateSemaphore(dev_->device, &si, nullptr, &timeline), "vkCreateSemaphore");
+            VkEventCreateInfo ei{};
+            ei.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
+            for (VkEvent& e : events) check(fn.vkCreateEvent(dev_->device, &ei, nullptr, &e), "vkCreateEvent");
+            // A held queue whose host stopped submitting is let go, so an idle device idles and no wait outlasts the driver's job timeout.
+            hold_.watchdog = std::thread([this] {
+                std::unique_lock<std::mutex> lk(hold_.mu);
+                while (!hold_.quit) {
+                    if (!hold_.pending) { hold_.wake.wait(lk); continue; }
+                    if (hold_.wake.wait_until(lk, hold_.since + std::chrono::milliseconds(kHoldMs)) == std::cv_status::timeout)
+                        hold_release();
+                }
+            });
+        } catch (...) {
+            for (VkEvent e : events) if (e) fn.vkDestroyEvent(dev_->device, e, nullptr);
+            if (timeline) fn.vkDestroySemaphore(dev_->device, timeline, nullptr);
+            if (cmds[0]) fn.vkFreeCommandBuffers(dev_->device, pool_, kHolds, cmds);
+            throw;
+        }
+        std::copy(cmds, cmds + kHolds, hold_.cmds);
+        std::copy(events, events + kHolds, hold_.events);
+        hold_.timeline = timeline;
+    }
+
+    // The queue's submission of the open command buffer, after letting a held queue go.
+    Ticket flush() {
+        if (hold_.on) {
+            std::lock_guard<std::mutex> lk(hold_.mu);
+            hold_release();
+        }
         VkCommandBuffer cmd = open();
         chunk_ = 0;
         check(dev_->fn.vkEndCommandBuffer(cmd), "vkEndCommandBuffer");
@@ -1519,6 +1607,56 @@ public:
         ring_ticket_[ring_index_] = ticket;
         ring_index_ = (ring_index_ + 1) % kRing;
         return ticket;
+    }
+
+    // Callers hold hold_.mu.
+    void hold_release() {
+        if (!hold_.pending) return;
+        dev_->fn.vkSetEvent(dev_->device, hold_.events[hold_.slot]);
+        hold_.pending = false;
+    }
+
+    // A submission that waits on the next slot's event; the slot's previous hold has finished once the hold timeline reaches its value.
+    void hold_queue() {
+        const uint32_t i = (hold_.slot + 1) % kHolds;
+        if (hold_.value[i]) {
+            VkSemaphoreWaitInfo wi{};
+            wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+            wi.semaphoreCount = 1;
+            wi.pSemaphores = &hold_.timeline;
+            wi.pValues = &hold_.value[i];
+            check(dev_->fn.vkWaitSemaphores(dev_->device, &wi, UINT64_MAX), "vkWaitSemaphores");
+        }
+        check(dev_->fn.vkResetEvent(dev_->device, hold_.events[i]), "vkResetEvent");
+        VkCommandBuffer cmd = hold_.cmds[i];
+        check(dev_->fn.vkResetCommandBuffer(cmd, 0), "vkResetCommandBuffer");
+        VkCommandBufferBeginInfo bi{};
+        bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        check(dev_->fn.vkBeginCommandBuffer(cmd, &bi), "vkBeginCommandBuffer");
+        dev_->fn.vkCmdWaitEvents(cmd, 1, &hold_.events[i], VK_PIPELINE_STAGE_HOST_BIT,
+                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 0, nullptr, 0, nullptr, 0, nullptr);
+        check(dev_->fn.vkEndCommandBuffer(cmd), "vkEndCommandBuffer");
+        const uint64_t value = hold_.last + 1;
+        VkTimelineSemaphoreSubmitInfo tsi{};
+        tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+        tsi.signalSemaphoreValueCount = 1;
+        tsi.pSignalSemaphoreValues = &value;
+        VkSubmitInfo si{};
+        si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        si.pNext = &tsi;
+        si.commandBufferCount = 1;
+        si.pCommandBuffers = &cmd;
+        si.signalSemaphoreCount = 1;
+        si.pSignalSemaphores = &hold_.timeline;
+        std::lock_guard<std::mutex> lk(hold_.mu);
+        check(dev_->fn.vkQueueSubmit(dev_->queue, 1, &si, VK_NULL_HANDLE), "vkQueueSubmit");
+        hold_.last = hold_.value[i] = value;
+        hold_.slot = i;
+        hold_.pending = true;
+        hold_.since = std::chrono::steady_clock::now();
+        hold_.wake.notify_all();
     }
 
     void wait(Ticket t) noexcept override { waited(host_.ticket_ms, t); }
@@ -1574,7 +1712,7 @@ public:
 
     void sync() noexcept override {
         if (open_) {
-            try { submit(); } catch (const std::exception& e) {
+            try { flush(); } catch (const std::exception& e) {
                 std::fprintf(stderr, "vulkan: %s; the device is lost\n", e.what());
                 std::abort();
             }
@@ -1600,7 +1738,7 @@ public:
             VkBufferCopy region{off + done, 0, n};
             dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), st.handle(), 1, &region);
             barrier(cmd);
-            wait(submit());
+            wait(flush());
             std::memcpy((uint8_t*)dst + done, st.mapped(), n);
             done += n;
         }
@@ -2980,7 +3118,7 @@ private:
         }
         barrier(cmd);
         // A pass is submitted in chunks so the device starts on the first while the host records the rest; the ordered timeline makes the last chunk's ticket cover them all.
-        if (++chunk_ >= dev_->profile.dispatch_chunk) submit();
+        if (++chunk_ >= dev_->profile.dispatch_chunk) flush();
     }
 
     // The open command buffer, beginning the next ring slot once its last submission has retired.
@@ -3034,7 +3172,7 @@ private:
             VkBufferCopy region{i * half, off + done, n};
             dev_->fn.vkCmdCopyBuffer(cmd, st.handle(), dst.handle(), 1, &region);
             barrier(cmd);
-            staged_[i] = submit();
+            staged_[i] = flush();
             done += n;
         }
     }
@@ -3057,6 +3195,24 @@ private:
     bool open_ = false;
     VkSemaphore timeline_ = VK_NULL_HANDLE;
     Ticket last_ticket_ = 0;
+    static constexpr uint32_t kHolds = 4;       // hold submissions in flight; one is pending at a time
+    static constexpr int kHoldMs = 100;         // the longest a held queue waits for its host
+    struct {
+        bool on = false;                        // some holder remains
+        size_t holders = 0;
+        VkCommandBuffer cmds[kHolds] = {};
+        VkEvent events[kHolds] = {};
+        VkSemaphore timeline = VK_NULL_HANDLE;  // signalled as each hold ends
+        uint64_t value[kHolds] = {};
+        uint64_t last = 0;
+        uint32_t slot = 0;
+        bool pending = false;                   // the slot's event is unset and its hold queued
+        bool quit = false;
+        std::chrono::steady_clock::time_point since;
+        std::mutex mu;                          // the pending hold and its event, shared with the watchdog
+        std::condition_variable wake;
+        std::thread watchdog;
+    } hold_;
     std::unique_ptr<VulkanBuffer> staging_;
     Ticket staged_[2] = {};                   // the last copy out of each half of staging
     size_t next_half_ = 0;                    // the half of staging the next upload fills first

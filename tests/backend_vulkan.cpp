@@ -17,6 +17,7 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 #include "backends/cpu/cpu_backend.hpp"
@@ -2948,6 +2949,32 @@ int main(int argc, char** argv) {
         b->read(*dst, 0, window.data(), 64);
         require(std::memcmp(window.data(), kept.data(), 64) == 0, "work before sync not retired");
         checks += 2;
+
+        // A device holding between submissions (Backend::hold_between_submissions): work behind a hold runs once the next submission lets it go, also after an idle gap the watchdog ends, and a backend dropped with a hold pending tears down.
+        {
+            auto h = backend::make_vulkan_backend(0, false);
+            h->hold_between_submissions(true);
+            h->hold_between_submissions(true);
+            h->hold_between_submissions(false);
+            const auto hs = h->adopt(kept.data(), 4096);
+            const auto hd = h->alloc(4096, backend::Memory::host_visible);
+            h->copy(*hd, 0, *hs, 0, 1024);
+            h->wait(h->submit());
+            backend::Ticket last = 0;
+            for (size_t o = 1024; o < 2048; o += 128) {
+                h->copy(*hd, o, *hs, o, 128);
+                last = h->submit();
+            }
+            h->wait(last);
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            h->copy(*hd, 2048, *hs, 2048, 2048);
+            h->wait(h->submit());
+            require(std::memcmp(hd->host_ptr(), kept.data(), 4096) == 0, "work beside holds differs");
+            // The last copy retires before its buffers go, and the hold after it is left for the backend's teardown.
+            h->copy(*hd, 0, *hs, 0, 64);
+            h->wait(h->submit());
+        }
+        checks += 1;
 
         // Empty allocations and ranges outside an allocation.
         const auto empty = b->alloc(0);

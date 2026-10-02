@@ -37,6 +37,11 @@ struct CountingCpu : backend::CpuBackend {
         backend::CpuBackend::write(dst, off, src, bytes);
     }
     backend::Ticket submit() override { ++submits; return backend::CpuBackend::submit(); }
+    int holds = 0, hold_calls = 0;
+    void hold_between_submissions(bool on) override {
+        holds += on ? 1 : -1;
+        ++hold_calls;
+    }
 };
 
 // A device that reads host memory in place, as one sharing the host's memory would, and is not the CPU.
@@ -76,6 +81,8 @@ void split_matches_single() {
             "crossings are not where the placement changes");
     require(a->submits == 9 && b->submits == 9 && one->submits == 3, "submissions are not one per stage and crossing");
     require(one->copies == 0 && one->writes == 0, "a single device crossed");
+    // Each device of the split waits while the other runs its part, so the model asks both to hold between submissions, and the single device not.
+    require(a->holds == 1 && b->holds == 1 && one->holds == 0, "holds not asked of exactly a split's devices");
     for (int t : {9, 2, 6}) exact(single.step(t), split.step(t), "split step differs from one device");
     require(split.n_tokens() == 8 && split.kv_used_bytes() == single.kv_used_bytes(),
             "split history differs");
@@ -126,6 +133,31 @@ void split_matches_single() {
     require(ca.handoff.size() == 2 && ca.handoff[0].size() == 1 && ca.handoff[1].empty(),
             "handoff buffers not on exactly the devices a crossing leaves");
     checked += 2;
+
+    // Two models over the same backends each ask, so the backends hold while either is alive.
+    require(a->holds == 2 && b->holds == 2, "a second model over the split did not ask for holds");
+
+    // A model gives its request back when it goes; one using one of its two devices, and one whose construction fails, ask nothing.
+    auto c = std::make_shared<CountingCpu>(), d = std::make_shared<CountingCpu>();
+    for (auto& x : {c, d}) x->set_threads(1);
+    {
+        infer::Model held(infer::gguf_weights(weights), {c, d}, p);
+        require(c->holds == 1 && d->holds == 1, "a split did not ask for holds");
+    }
+    require(c->holds == 0 && d->holds == 0 && c->hold_calls == 2 && d->hold_calls == 2, "a model gone kept its holds");
+    infer::Placement all_on_one;
+    all_on_one.mixer_device = all_on_one.ffn_device = {1, 1};
+    all_on_one.embed_device = all_on_one.output_device = 1;
+    infer::Model alone(infer::gguf_weights(weights), {c, d}, all_on_one);
+    require(c->hold_calls == 2 && d->hold_calls == 2, "a placement on one of its devices asked for holds");
+    const auto three = tiny_qwen(3, 2 * 128, true);
+    infer::Placement apart_runs;
+    apart_runs.mixer_device = apart_runs.ffn_device = {0, 1, 0};
+    bool refused = false;
+    try { infer::Model broken(infer::gguf_weights(three), {c, d}, apart_runs); }
+    catch (const std::runtime_error&) { refused = true; }
+    require(refused && c->hold_calls == 2 && d->hold_calls == 2, "a model refused during construction asked for holds");
+    checked += 3;
 }
 
 // Host scratch constrains the fit even though the host borrows its weights and position tables.

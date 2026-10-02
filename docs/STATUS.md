@@ -1,5 +1,28 @@
 # llmx - Development Status
 
+## Split decode at one card's speed (2026-10-02, branch perf/split-hold, lands by fast-forward)
+
+- **Goal:** one request on a layer split decoding at about one card's speed at automatic clocks, phase 2's decode target (`docs/MULTI-DEVICE.md`), which the MTP comparison showed missed: llmx 12 to 18 percent below the reference on two MI50s with drafts off while level with it on one.
+- **Cause:** on a split each card waits while the other runs its stage. llmx waited on the host, so a waiting card read as idle and both stayed at 930 MHz through a split decode, against 1606 to 1725 MHz on one card; the reference waits on the device, which reads as busy, and its card held 1725 MHz. Both at the automatic performance level, nothing set (`rocm-smi` read only).
+- **Done:** `Backend::hold_between_submissions`, which the model asks of each device when its roles use more than one. On Vulkan each `submit()` is followed by a submission that waits on an event, set by the next submission or, after 100 ms without one, by a watchdog thread the first hold starts, so an idle card still idles and no wait nears the driver's job timeout; the backend's own flushes (a chunk, an upload, a read, `sync`) set a pending event and add none. The CPU ignores it. A model asks once it is made and gives the request back when it goes, the backend holding while any request remains. `placement` checks the devices asked and the requests' balance, `backend-vulkan` copies around holds and after an idle gap, `vulkan-lifetime` a hold setup failing at each step and then made again.
+- **Gates** (each tree built from its own sha, default clocks, GPU[2] and GPU[3] of the MI50 machine):
+  - Decode tg256 at depth 512, arms main `8af97e88`, change, change, main:
+
+    | model | one MI50, main | one MI50, change | two MI50s, main | two MI50s, change |
+    |---|---|---|---|---|
+    | Qwen3-8B Q8_0 | 70.75, 70.66 | 70.46, 70.58 | 47.51, 45.74 | 69.01, 67.57 |
+    | Qwen3.6-27B Q8_0 | 22.60, 22.62 | 22.58, 22.70 | 19.12, 19.22 | 22.59, 22.67 |
+
+  - The reference on the same two cards, Qwen3-8B Q8_0, 512 tokens: 70.3 tok/s on one MI50 and 61.7 split.
+  - `llmx-split-check` on Qwen3-8B Q8_0 over the two MI50s bit-identical to one; CTest 42 of 42 on an MI50; on the Radeon VII, CTest 43 of 43 under the AMD proprietary driver and Qwen3-8B Q8_0's ids main's on `vulkan:0` and on `vulkan:0,cpu` at shares 3,1, where the card holds while the CPU runs its layers.
+  - Qwen3-8B and Qwen3.6-27B Q8_0's 64 greedy ids over the two MI50s are main's.
+  - Through a 400-token split `generate` both cards held 1725 MHz at 96 to 100 percent busy, and both were at 930 MHz and idle within half a second of its end, the watchdog letting the last holds go.
+  - Qwen3-8B Q8_0 served over the two MI50s (`tools/server_load.py`, 256-token prompts, 128-token replies, arms main, change, change, main), output tok/s and inter-token p50: one user 44.1 and 42.9 at 20.0 and 20.7 ms on main against 59.2 and 59.6 at 14.3 and 14.2 ms; 4 users 164.4 and 163.6 against 164.8 and 165.2; 16 users 279.9 and 279.3 against 278.5 and 277.7; 32 users 279.6 and 279.9 against 275.1 and 278.2: with passes in flight both cards are busy already, and the holds cost nothing beyond the runs' spread.
+  - The device suite on an MI50 passes every component it runs but `dead-code`, which found the hold state's struct name unused (now unnamed), and `perf`, whose prefill floor the first synthetic bench in a fresh container misses on main as on the branch (568 and 387 tok/s against 1000 while the idle card raises its clock, then 1870 to 2300 on both), where the synthetic model runs on one device and takes no hold.
+  - Rebased onto main `46f60b64` without a conflict, so the builds, CTest, `docs`, `dead-code` and the hosted run ran again at the head.
+  - The other developer's review found three lifecycle defects, each checked against the code and fixed: the test's last copy freed its buffers before it retired, a hold setup failing part way left its resources and a retry overwrote them, and a model enabled holds for good before its construction could still fail. The fixes reran CTest on an MI50 and the Radeon VII, the split timing and the hosted run. The watchdog's release is held by the clocks above, not by a test, since every submission also releases a hold.
+- **Left:** nothing.
+
 ## Activation dtype across CPU and Vulkan (2026-10-02, lands by fast-forward)
 
 `--dtype auto|f16|bf16|f32` resolves once during placement and reaches every model command, the server and each execution stage. Current CPU and Vulkan backends prefer qualified F16 under auto; explicit F32 remains available, and BF16 emulation or a wider fallback is reported. Weight storage, KV storage and the retained F32 state operations are separate. Vulkan MXFP4 support lands with the completed policy.

@@ -62,6 +62,16 @@ The lifetime and packed-quantization tests include the implementation and use te
   dispatches, so the device starts a pass while the host records the rest,
   and a host recording several stages ahead onto a busy device waits for a
   free slot only once 16 submissions are in flight.
+  A backend asked to hold between submissions (a device of a placement over
+  several), while any request to hold remains, follows each `submit()` with a
+  submission that waits on an event:
+  the next submission sets it, or a watchdog thread, started then, after
+  100 ms without one, so the card stays busy, and its clock up, while
+  another device runs its stage, and an idle card still idles. The
+  backend's own flushes (a chunk, an upload, a read, `sync`) set a pending
+  event and add none. The hold's command buffers, timeline, events and
+  watchdog are made at the first request; a failure part way destroys what
+  it made, so a later request starts again.
   Small per-call inputs go through a host-visible arena per ring slot; a
   scratch outgrown mid-pass retires with the slot rather than being freed
   while recorded commands still name it. Buffer construction cleans up handles

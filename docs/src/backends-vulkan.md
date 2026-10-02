@@ -20,8 +20,7 @@ The lifetime and packed-quantization tests include the implementation and use te
 - `supports_type(type)` accepts F32 and the block types of `decoded_blocks`, with MXFP4 additionally requiring optional double arithmetic and float preservation;
   the model's pre-adoption check and the backend's matrix checks use this
   same query, so they cannot disagree about a weight type.
-  `implements` answers true for every `Op`, so the qwen35 layer ops pass
-  the model's operation-support check at load.
+  `implements` supports the qwen35 layer ops but refuses `Op::mixed_experts`. A grouped gate/up pair with differing storage types is therefore refused at model load; an otherwise eligible streamed layer stays on its capable host. Its separate down projection may use another type.
 
 - `make_vulkan_backend(index, diagnostics)`, `vulkan_device_name`: open
   the loader, pick the device, require what the kernels need (Vulkan 1.2,
@@ -196,7 +195,7 @@ The lifetime and packed-quantization tests include the implementation and use te
     It refuses K heads wider than 128.
   - `state_table` lays a call's state views out for the kernels, the conv appending its chunks, and refuses views of two storages in one call; the slots' floats must be addressable in 32 bits.
   - `state_alloc` and `state_copy` are `Backend`'s own, built on this backend's `alloc` and `copy`; `backend-vulkan` checks their zeroed slots and copies.
-  - `implements` answers true for every op.
+  - `implements` answers true for these state and gating ops; mixed routed projection types remain unsupported as described above.
 - `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`), both reading the shape from one rule, `pads_f32`; routed stacks and gathered tables are bound as they are. `host_resident()`: the upload staging buffer and the ring of host-visible arenas, which live in host memory. `scratch_reserve(free)`: 256 MiB plus a twentieth of what is free, with another 256 MiB for the bounded MXFP4 copy on profiles that prefer integer dots. That extra reserve is profile-based even when the model has no MXFP4 weights; float partials and attention merge state use the existing base reserve.
 - `row_class(extent)`: a generated token is a class of its own; a longer extent's class is which of the profile's crossovers it has reached (the matmul tile of both type families at both row widths, the routed tile of every family and the attention tile) and, once it can take the tile, its split (`split_tiles_of`), so every extent from 449 on is one class.
 

@@ -2099,6 +2099,7 @@ std::vector<uint8_t> pattern(size_t bytes, uint32_t seed) {
 // It drops them when the call throws, so a command the call left naming one names freed memory and fails the next submission.
 // After each pass, a valid call must give what it gave before any refusal.
 size_t check_refusals(backend::Backend& vk) {
+    require(!vk.implements(backend::Op::mixed_experts), "Vulkan advertises unsupported mixed routed projections");
     const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
     const bool integer_dot = prof.prefer_integer_dot;
     const uint32_t q8 = quant::GGML_TYPE_Q8_0, f32 = quant::GGML_TYPE_F32, f16 = 1;   // F16 has no kernel

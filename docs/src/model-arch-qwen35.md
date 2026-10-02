@@ -57,7 +57,7 @@ conversation's prefix through state checkpoints ([server](server.md)).
     layer's `ffn_gate_inp` router (`[E, X]`), the `ffn_{gate,up,down}_exps`
     stacks, `ffn_gate_inp_shexp`, the shared expert's gate as an F32
     vector of E, and the shared expert's `ffn_{gate,up,down}_shexp`,
-    issuing `sigmoid_mul` in the feed-forward part. A routed layer run
+    issuing `sigmoid_mul` in the feed-forward part. `blocks::routed_ops` also declares `mixed_experts` when the gate and up stacks differ in storage type, for both layer kinds; the down stack is a separate product. A routed layer run
     beside its mixer (`Placement::stream_from`) copies its norm, router and
     shared expert there and writes its stacks into a window. A full-attention layer
     keeps KV (`Cache::kv`) and reads `attn_q` as `[E, 2 Hq D]`, each

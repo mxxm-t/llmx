@@ -174,12 +174,13 @@ placement contracts in `docs/EXECUTION.md`.
   routed projections of one X, entry `e` of a projection being its expert
   `ids[e]`'s rows times X row `e / k`. A projection's data holds its
   `n_expert` matrices back to back, as a GGUF stacks them.
+  Differing projection types require `implements(Op::mixed_experts)`, true on the CPU and false on Vulkan. Architecture plans declare this requirement for their grouped gate/up pair; a separately typed down projection does not need it.
 - `matmul_experts_add(type, data, X, Y, nin, nout, nrows, routing, runs)`:
   the routed down projection joining the residual, row `r` of `Y` adding
   the weighted sum of its k slots, formed in slot order before the add.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass, with `norm_rope_partial` above.
   Every backend implements them: the CPU (`backends-cpu.md`) and the Vulkan backend (`backends-vulkan.md`).
-  - `Op` names each of these five and `op_name(op)` spells it; `implements(op)` says whether a backend runs it, false unless the backend says otherwise and true for every op on the CPU and on the Vulkan backend.
+  - `Op` names these five and the mixed routed projection capability above; `op_name(op)` spells each one. `implements(op)` is false unless the backend says otherwise; both backends support the five ops here.
     A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`); a stream destination without one of a routed feed-forward part's ops leaves that layer on its host.
     It is the seam an architecture's new op comes through while one backend lacks it (`docs/ADDING-AN-ARCHITECTURE.md`, New backend ops); these five are pure virtual now that both backends run them.
   - `StateShape`: one linear-attention layer's state for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, `slot_floats()` a slot, every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32, and `layer_bytes(slots)` one layer's buffer of that many slots.

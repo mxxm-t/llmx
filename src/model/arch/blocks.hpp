@@ -11,6 +11,17 @@
 
 namespace infer::blocks {
 
+// A grouped expert call needs mixed-type support only when both declared projections exist and their storage tags differ.
+inline void routed_ops(LayerPlan& layer, const TensorIndex& tensors, uint16_t gate, uint16_t up) {
+    const TensorView *g = nullptr, *u = nullptr;
+    for (const Role& role : layer.roles) {
+        if (role.id != gate && role.id != up) continue;
+        const auto tensor = tensors.find(role.name);
+        if (tensor) (role.id == gate ? g : u) = &tensors.view(*tensor);
+    }
+    if (g && u && g->type != u->type) layer.ops.push_back({Part::ffn, backend::Op::mixed_experts});
+}
+
 // A weight's product into `out`, the buffer passed by raw pointer, not by handle, so building one copies no shared pointer on the per-token path.
 inline backend::Projection projection(const Weight& w, backend::Slice out) {
     return {w.type, {w.data.get(), 0}, out, w.nout};

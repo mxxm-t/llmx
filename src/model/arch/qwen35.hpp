@@ -216,6 +216,7 @@ public:
                                                        {ffn_up_shexp, Part::ffn, RoleKind::matrix, pre + "ffn_up_shexp.weight", "", E, Fs, 0, Stream::copy},
                                                        {ffn_down_shexp, Part::ffn, RoleKind::matrix, pre + "ffn_down_shexp.weight", "", Fs, E, 0, Stream::copy}});
                 layer.ops.push_back({Part::ffn, backend::Op::sigmoid_mul});
+                blocks::routed_ops(layer, tensors, ffn_gate_exps, ffn_up_exps);
             } else {
                 layer.roles.insert(layer.roles.end(), {{post_attention_norm, Part::ffn, RoleKind::norm, pre + "post_attention_norm.weight", "", E},
                                                        {ffn_gate, Part::ffn, RoleKind::matrix, pre + "ffn_gate.weight", "", E, F},

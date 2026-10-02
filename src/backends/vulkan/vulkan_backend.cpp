@@ -1391,8 +1391,8 @@ public:
         return out;
     }
 
-    // Every op of the qwen35 layers has its kernels here.
-    bool implements(Op) const override { return true; }
+    // State and gating ops are supported; grouped expert projections must share one storage type.
+    bool implements(Op op) const override { return op != Op::mixed_experts; }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}

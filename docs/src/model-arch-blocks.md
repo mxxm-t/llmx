@@ -2,7 +2,7 @@
 
 The shared feed-forward and output-head matrix calls forward `Step::dtype`; the routed router explicitly keeps F32. These graph pieces do not resolve a dtype or implement its arithmetic.
 
-The pieces of a pass that more than one architecture runs, in namespace
+The shared planning and pass pieces that more than one architecture runs, in namespace
 `infer::blocks`, each as backend ops over the weights and arena slots it is
 handed. None names a tensor, a metadata key or an architecture, and
 `tests/arch_boundary.py` holds every header under `model/arch/` that the
@@ -11,6 +11,7 @@ roles and slots ([ADDING-AN-ARCHITECTURE](../ADDING-AN-ARCHITECTURE.md),
 One owner). [qwen3](model-arch-qwen3.md) and [qwen35](model-arch-qwen35.md)
 run them.
 
+- `routed_ops(layer, tensors, gate, up)`: finds the two declared roles by id and adds the feed-forward `mixed_experts` requirement when both tensors exist with differing storage types. The down projection is separate. Missing tensors stay with the runtime's existing resolution errors; this helper performs no schema validation.
 - `projection(weight, out)`: a weight's product into `out` for
   `matmul_group` and `matmul_experts`, the buffer passed by raw pointer so
   building one copies no shared pointer on the per-token path.

@@ -52,7 +52,7 @@ names it.
     its attention's norm, q and k norms and four projections, then its
     feed-forward norm, then the router and three expert stacks or the three
     dense matrices; a routed layer's norm and router are `copy` roles and
-    its stacks `window` roles. The head's `output.weight` takes
+    its stacks `window` roles. `blocks::routed_ops` declares `mixed_experts` when the gate and up stacks differ in storage type; the down stack is a separate product. The head's `output.weight` takes
     `token_embd.weight` as its alias, which is the tie. The context is the
     configuration's, the residual the embedding width, the slots
     `slot_widths` with the dense width counted when some layer is

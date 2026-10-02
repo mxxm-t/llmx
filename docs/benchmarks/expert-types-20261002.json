@@ -1,0 +1,2387 @@
+{
+  "scope": "Original model/timing base46f60b64/candidate234b5a00; conflict-free integration47232075 on mainfb366b16 completed; exact-head CI required before landing.",
+  "plan": {
+    "models": [
+      "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf"
+    ],
+    "arms": {
+      "base": {
+        "version": "llmx 0.1.0+g46f60b649133",
+        "sha256": "870b994c30c7e8593fa1911e4897158b51dd5b6f476371d5f95971a1c2a7ced0",
+        "commit": "46f60b6491335b62785caf2d0647998864b0283b"
+      },
+      "candidate": {
+        "version": "llmx 0.1.0+g234b5a00c5b2",
+        "sha256": "696216c44faa7315fe72c2eed580e6892b1c60f1695116e50538b21a0009050c",
+        "commit": "234b5a00c5b292efd3a0b0c03b8f4cd942e5f056"
+      },
+      "control": {
+        "sha256": "53a3623d15a957e2cecf38df20342c4faf0eaf9236a97af1fe580e9cb6a9f229",
+        "version": "llmx 0.1.0+gb9de22aade89",
+        "commit": "b9de22aade89fbbb2bd5f1851377c8c090304bf9"
+      }
+    },
+    "arguments": [
+      "bench",
+      "--threads",
+      "4",
+      "--p",
+      "512",
+      "--n",
+      "128",
+      "--r",
+      "1",
+      "--ubatch",
+      "512",
+      "--cache-type-k",
+      "f16",
+      "--cache-type-v",
+      "f16",
+      "--dtype",
+      "auto"
+    ],
+    "devices": [
+      "cpu",
+      "vulkan:0"
+    ],
+    "order": [
+      "base",
+      "candidate",
+      "control",
+      "control",
+      "candidate",
+      "base"
+    ],
+    "cpu_set": "0-3",
+    "quota": 4,
+    "memory_gib": 32,
+    "activity_flags": {
+      "system_idle_below_percent": 25,
+      "iowait_above_percent": 5,
+      "unrelated_cpu_at_least_percent": 100,
+      "disk_bytes_per_second_above": 50000000,
+      "sample_gap_above_seconds": 2.5
+    },
+    "policy": "Retain every planned call and all activity/unknown observations; no global idle requirement. Reference comparison belongs to phase gate."
+  },
+  "artifacts_sha256": {
+    ".tmp-expert-types-run-20261002/functional-complete.json": "9c4efaca1cc02bb76c157607b4eb28d4b9e7184a6f069c3bef277e80ed7c2cc7",
+    ".tmp-expert-types-run-20261002/binaries.json": "36b45aa461e55e1b5db137e6720f54e43d88f89420f76f5893a829898e2d21d6",
+    ".tmp-expert-types-run-20261002/shader-hashes.json": "e3e29e368aaa8d58bc086f09d6b2dbedd21afd9f9bd16f75d52d1d715bb2a71e",
+    ".tmp-expert-types-run-20261002/identity-complete.json": "187ed56de209f9089841be4a749023aafd8b8347ade974a76cfef8327259fdc2",
+    ".tmp-expert-types-run-20261002/control-complete.json": "70bdb28681718d85633e41698817b768342ef2b5357413d855f88b61c1037a53",
+    ".tmp-expert-types-run-20261002/timing-complete.json": "3064482341364b69de79e78036eaf5e9b7cd3d83bfe3038b688dc811a435f7ea",
+    ".tmp-expert-types-run-20261002/timing-plan.json": "448970e77de10f9fd051abb0ad0bb0db45eaad37fd2d01d82d92331e057cf5f9",
+    ".tmp-expert-types-run-20261002/rates.json": "d5d31219b9fe618eeac48fd74d91a5a85b7bded1ff33a1f9f246c67eaee27a8e",
+    ".tmp-expert-types-run-20261002/activity.jsonl": "44efdc9adbd85c52f4e78c2f1eef745f5cae690af03eca1d82cbc2c358ccfb4e",
+    ".tmp-expert-types-run-20261002/rig-functional.py": "aa78821d994240b914e9d37fd46b996e96d3a39fff189576af46f3eddbe538df",
+    ".tmp-expert-types-run-20261002/rig-identity.py": "889d7bc58df4f98701b29b7995a4fbae26625cc922f6582f4e738d084cf2c998",
+    ".tmp-expert-types-run-20261002/rig-timing.py": "4e21413eea9c09890f730bd22f4071642a6f6d6adec2ae455b174003cc0933a8",
+    ".tmp-expert-types-run-20261002/layout-control.py": "143a0a9c1877f8a46d5b384f7dac6de34146b5b1bd7a813ff27808c2ff8d7c72",
+    ".tmp-storage-types-run-20261002/analyze-timing.py": "d73583a62e068a51061fa97e64e1bb5b9380fef68875c8b846ae5d1754164681",
+    ".tmp-expert-types-run-20261002/analyze-checkpoint.py": "1cd9fcc63ee8ada06b50e27df422ac6d2fa8e9da87999d870a11ff35c1cf5429",
+    ".tmp-expert-types-run-20261002/final-audit.json": "c0b29dd9d42d33fbebb5d420430c6c71534eb955417c47b1db49e6e5fb506f88",
+    ".tmp-expert-types-run-20261002/vulkan-identity.log": "939f076660385567a9f3b782f1991d96f3702a11fef5db6183e4184a5cbcb5a6",
+    ".tmp-expert-types-run-20261002/candidate-ctest.log": "0d68cef4cb84cc9f0b4d5958b920e2900fe8e382936a5d5f800f43947cf8750f",
+    ".tmp-expert-types-run-20261002/candidate-device-suite.log": "0ca5d6924ac767cd17091a95a0d344c6d11b13f77de160b8f74f94808abb929d",
+    ".tmp-expert-types-windows-20261002/completion-audit.json": "5d96f32bfdca55b74d19d0b3ec2d07d876e57530b018a26ded9041e83c5f2e41",
+    ".tmp-expert-types-windows-20261002/access-probe-sandbox.json": "3dbb2acfb030bde82c6ad4421b1dca6aea68cd7982489603d08c05d57147b8fc",
+    ".tmp-expert-types-windows-20261002/access-probe-normal-access.json": "2c35c80dc2c406c92f67a80fdf9e293115ae081ae5e055a6b3903ba8b91ee9d6"
+  },
+  "identity": {
+    "tools": {
+      "base": {
+        "sha256": "bf10d1e48faee440c564f737fe1ce86b4d16c4e65f40924d9d45d5a6118245f8",
+        "commit": "46f60b6491335b62785caf2d0647998864b0283b"
+      },
+      "candidate": {
+        "sha256": "515386ab43e1caf1d2365da0bbc718aabc8d83a6def5488296e6197271fe0eb6",
+        "commit": "234b5a00c5b292efd3a0b0c03b8f4cd942e5f056"
+      }
+    },
+    "cases": [
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "device": "cpu",
+        "ids_sha256": "27e8f21beb0f1d8dc6a4fd6d35b7099f9d08e7dcdeace2d457ba98eb0ff66a51",
+        "captures_sha256": {
+          "batched": "ca69cbe32b578dd268ab079c7ae87394e05955c8578ba5738db68638fd747ab4",
+          "decode": "5ae1f1964cd4ee580ccaab6f8ca719694990feecc4ed8a5384e22a0bce57820c",
+          "greedy": "f0b82e5871d90ed963d9329c95d0d3953714e74df3000235e98fe2eca15005fa"
+        },
+        "records_equal_except_version": true
+      },
+      {
+        "model": "Qwen3-0.6B-Q8_0.gguf",
+        "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "device": "vulkan:0",
+        "ids_sha256": "27e8f21beb0f1d8dc6a4fd6d35b7099f9d08e7dcdeace2d457ba98eb0ff66a51",
+        "captures_sha256": {
+          "batched": "83632ee23ff152269aa44cd10a5ba19f080231d0e37dcc1a2999ea962c1ef6e1",
+          "decode": "dfcf53d249f35d0d9fc5665e43ccb1cdfacf0964be4cf15c14e2e12249a20255",
+          "greedy": "d95a23220994212f9c10df2e355a24c9c94d0b4fe0ee4627b33a19facf3fc46d"
+        },
+        "records_equal_except_version": true
+      },
+      {
+        "model": "qwen3moe-q8.gguf",
+        "model_sha256": "b7134b04fae3cda2c3f3138c97d51754b11ffdad7b7154e695547332e279903b",
+        "device": "cpu",
+        "ids_sha256": "27e8f21beb0f1d8dc6a4fd6d35b7099f9d08e7dcdeace2d457ba98eb0ff66a51",
+        "captures_sha256": {
+          "batched": "9f60ab25079095422cd0fe13b11b0c768f41cfa62b3b92154f245dd4a60c127e",
+          "decode": "9b314d5e4a1a21bfdb0097ea7a7c6e62658a415acdb10d123058f60cf4bd658e",
+          "greedy": "da7f8ca3b3afb50ff5e67052fc637ab080da493aecbca77fb43580d45cb30d0b"
+        },
+        "records_equal_except_version": true
+      },
+      {
+        "model": "qwen3moe-q8.gguf",
+        "model_sha256": "b7134b04fae3cda2c3f3138c97d51754b11ffdad7b7154e695547332e279903b",
+        "device": "vulkan:0",
+        "ids_sha256": "27e8f21beb0f1d8dc6a4fd6d35b7099f9d08e7dcdeace2d457ba98eb0ff66a51",
+        "captures_sha256": {
+          "batched": "9c0df5d38075a7edf86fc884bf62b52fee5bfd5fed5ea667c6f3aca214e8c2f6",
+          "decode": "c5e453f67d98b4af5dde48e6a1e6d24ffdf0e4a2462002a0d67bd60ab3e838c5",
+          "greedy": "eaac9b5a62bc750f6376ab3671aec854f158a1d02fc77af8423d3af52543a061"
+        },
+        "records_equal_except_version": true
+      },
+      {
+        "model": "qwen35moe-f32.gguf",
+        "model_sha256": "0d008f6b5816a5ef19502b8f3f8f2c4a8d6293498b3dbfc25d257daad1c636d9",
+        "device": "cpu",
+        "ids_sha256": "27e8f21beb0f1d8dc6a4fd6d35b7099f9d08e7dcdeace2d457ba98eb0ff66a51",
+        "captures_sha256": {
+          "batched": "43f6a9d0c9ee435fdac0316181347d3dfeead02298ca3f55da4eca0305bf7b0f",
+          "decode": "98dc494d39bf5ea2923696cfe1cae09d96cb36858d17ff0792cd050744edf307",
+          "greedy": "005f16057c50b364330b00876a1a4f3d84a9f76f54fcba8d96c3e31bf23c358b"
+        },
+        "records_equal_except_version": true
+      },
+      {
+        "model": "qwen35moe-f32.gguf",
+        "model_sha256": "0d008f6b5816a5ef19502b8f3f8f2c4a8d6293498b3dbfc25d257daad1c636d9",
+        "device": "vulkan:0",
+        "ids_sha256": "27e8f21beb0f1d8dc6a4fd6d35b7099f9d08e7dcdeace2d457ba98eb0ff66a51",
+        "captures_sha256": {
+          "batched": "318b86a63d2c072dfe8f42ad0896654836d7a13fb69e67443a172045ccca15a8",
+          "decode": "a7f68af6b39f51368b51ac84d4da4ff2a0e0b74b85fa6ad1d8342d7cf0371d44",
+          "greedy": "b377f124bc1a25933db5d7c1378aca330cc05e52b469a82ca495653f0d837908"
+        },
+        "records_equal_except_version": true
+      },
+      {
+        "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+        "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+        "device": "cpu",
+        "ids_sha256": "27e8f21beb0f1d8dc6a4fd6d35b7099f9d08e7dcdeace2d457ba98eb0ff66a51",
+        "captures_sha256": {
+          "batched": "5ed71813a1276dd6a68c050403b146e299adf98817623776bb26da9806e013b2",
+          "decode": "c4d3fb60da28140bcbf84d0e26fdc15dcff533e0a5dc0662a2c0db7931975994",
+          "greedy": "264033ac1c4f042e2abae07f71006c0f5b6b205280938cebc1e8cfa4df6c4c04"
+        },
+        "records_equal_except_version": true
+      },
+      {
+        "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+        "model_sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+        "device": "vulkan:0",
+        "ids_sha256": "27e8f21beb0f1d8dc6a4fd6d35b7099f9d08e7dcdeace2d457ba98eb0ff66a51",
+        "captures_sha256": {
+          "batched": "e849da52a8ef8e1dc02ff343dd091da0acf9f9dcf124b0361237739d89083071",
+          "decode": "a4f7d473a2994023db99bb97935e6a5dac0d0d6a0de8367aa121843eb21b1f9c",
+          "greedy": "57733d10ac5a588383a02bbae8a3e28fb5a5a490b8880b4e4c01e270e3918750"
+        },
+        "records_equal_except_version": true
+      }
+    ]
+  },
+  "shader_modules_equal": 99,
+  "control": {
+    "commit": "b9de22aade89fbbb2bd5f1851377c8c090304bf9",
+    "binary": {
+      "sha256": "53a3623d15a957e2cecf38df20342c4faf0eaf9236a97af1fe580e9cb6a9f229",
+      "version": "llmx 0.1.0+gb9de22aade89"
+    },
+    "text_sections": {
+      "candidate": {
+        "sha256": "c94511c326969cd515b3e2abf21e19302d9eb851d09ac1f616e92dccbb0016cd",
+        "bytes": 1429682
+      },
+      "control": {
+        "sha256": "9f7b6040b0104d2585ac0d26efb515a194693e7773ecc1142e065eba1f169215",
+        "bytes": 1429746
+      }
+    },
+    "identity_cases": 8
+  },
+  "sample_count": 463,
+  "interval_count": 462,
+  "monitor_stop_recorded": true,
+  "comparisons": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "device": "cpu",
+      "phase": "pp512",
+      "medians": {
+        "base": 219.91,
+        "candidate": 220.165,
+        "control": 213.725
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            0.6661191714572468,
+            -0.4305656272661329
+          ],
+          "median_paired_percent": 0.11777677209555693
+        },
+        "control/base": {
+          "forward_reverse_percent": [
+            -5.351765672050379,
+            -0.29006526468454696
+          ],
+          "median_paired_percent": -2.8209154683674633
+        },
+        "candidate/control": {
+          "forward_reverse_percent": [
+            6.358158592431917,
+            -0.14090909090909154
+          ],
+          "median_paired_percent": 3.108624750761413
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "device": "cpu",
+      "phase": "tg128",
+      "medians": {
+        "base": 43.985,
+        "candidate": 44.27,
+        "control": 43.065
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            0.9808394160583989,
+            0.31724450487196076
+          ],
+          "median_paired_percent": 0.6490419604651798
+        },
+        "control/base": {
+          "forward_reverse_percent": [
+            -5.132299270072993,
+            0.9290731928393248
+          ],
+          "median_paired_percent": -2.101613038616834
+        },
+        "candidate/control": {
+          "forward_reverse_percent": [
+            6.443856696321237,
+            -0.606196677144133
+          ],
+          "median_paired_percent": 2.918830009588552
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "device": "vulkan:0",
+      "phase": "pp512",
+      "medians": {
+        "base": 8758.725,
+        "candidate": 8757.099999999999,
+        "control": 8767.21
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            -0.05479233135663453,
+            0.017699923490654967
+          ],
+          "median_paired_percent": -0.01854620393298978
+        },
+        "control/base": {
+          "forward_reverse_percent": [
+            0.14782514397253532,
+            0.04590560802093524
+          ],
+          "median_paired_percent": 0.09686537599673528
+        },
+        "candidate/control": {
+          "forward_reverse_percent": [
+            -0.2023183978662524,
+            -0.028192742480426247
+          ],
+          "median_paired_percent": -0.11525557017333932
+        }
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "device": "vulkan:0",
+      "phase": "tg128",
+      "medians": {
+        "base": 394.92,
+        "candidate": 397.03,
+        "control": 393.825
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            0.28252863124968997,
+            0.7879619744801891
+          ],
+          "median_paired_percent": 0.5352453028649395
+        },
+        "control/base": {
+          "forward_reverse_percent": [
+            -0.24721255234347872,
+            -0.3075593513293784
+          ],
+          "median_paired_percent": -0.27738595183642856
+        },
+        "candidate/control": {
+          "forward_reverse_percent": [
+            0.531054015779886,
+            1.098901098901095
+          ],
+          "median_paired_percent": 0.8149775573404905
+        }
+      }
+    },
+    {
+      "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "cpu",
+      "phase": "pp512",
+      "medians": {
+        "base": 29.04,
+        "candidate": 29.045,
+        "control": 28.875
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            0.2771042604780005,
+            -0.2396439575487852
+          ],
+          "median_paired_percent": 0.01873015146460766
+        },
+        "control/base": {
+          "forward_reverse_percent": [
+            -0.588846553515765,
+            -0.547757617254363
+          ],
+          "median_paired_percent": -0.568302085385064
+        },
+        "candidate/control": {
+          "forward_reverse_percent": [
+            0.8710801393728262,
+            0.3098106712564608
+          ],
+          "median_paired_percent": 0.5904454053146435
+        }
+      }
+    },
+    {
+      "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "cpu",
+      "phase": "tg128",
+      "medians": {
+        "base": 12.91,
+        "candidate": 13.504999999999999,
+        "control": 13.49
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            10.130718954248374,
+            -0.3681885125184192
+          ],
+          "median_paired_percent": 4.881265220864978
+        },
+        "control/base": {
+          "forward_reverse_percent": [
+            9.64052287581698,
+            -0.14727540500736325
+          ],
+          "median_paired_percent": 4.746623735404809
+        },
+        "candidate/control": {
+          "forward_reverse_percent": [
+            0.44709388971684305,
+            -0.22123893805310324
+          ],
+          "median_paired_percent": 0.1129274758318699
+        }
+      }
+    },
+    {
+      "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "vulkan:0",
+      "phase": "pp512",
+      "medians": {
+        "base": 1114.0749999999998,
+        "candidate": 1114.435,
+        "control": 1116.5949999999998
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            0.17441440138810105,
+            -0.10788255958057436
+          ],
+          "median_paired_percent": 0.033265920903763346
+        },
+        "control/base": {
+          "forward_reverse_percent": [
+            1.2254193175245787,
+            -0.7596358740716291
+          ],
+          "median_paired_percent": 0.23289172172647477
+        },
+        "candidate/control": {
+          "forward_reverse_percent": [
+            -1.0382816126843442,
+            0.6567421635656601
+          ],
+          "median_paired_percent": -0.19076972455934205
+        }
+      }
+    },
+    {
+      "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "vulkan:0",
+      "phase": "tg128",
+      "medians": {
+        "base": 126.765,
+        "candidate": 126.48,
+        "control": 126.635
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            -0.21273242987708274,
+            -0.2369481083642655
+          ],
+          "median_paired_percent": -0.22484026912067412
+        },
+        "control/base": {
+          "forward_reverse_percent": [
+            -0.409706901985496,
+            0.20535502724903232
+          ],
+          "median_paired_percent": -0.10217593736823183
+        },
+        "candidate/control": {
+          "forward_reverse_percent": [
+            0.19778481012657778,
+            -0.44139670528887676
+          ],
+          "median_paired_percent": -0.12180594758114949
+        }
+      }
+    }
+  ],
+  "calls": [
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "cpu",
+      "arm": "base",
+      "start": 1790947284.8246248,
+      "end": 1790947295.922052,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-cpu-0-base.log",
+      "rates": {
+        "pp512": 219.18,
+        "tg128": 43.84
+      },
+      "activity": {
+        "intervals": 13,
+        "observation_samples": 14,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 6,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 55,
+          "missed_process_observations": 7,
+          "appeared_processes": 55,
+          "disappeared_processes": 53
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 14,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 14,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "cpu",
+      "arm": "candidate",
+      "start": 1790947295.922659,
+      "end": 1790947306.9096177,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-cpu-1-candidate.log",
+      "rates": {
+        "pp512": 220.64,
+        "tg128": 44.27
+      },
+      "activity": {
+        "intervals": 12,
+        "observation_samples": 13,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 7,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 45,
+          "missed_process_observations": 6,
+          "appeared_processes": 45,
+          "disappeared_processes": 51
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 13,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 13,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "cpu",
+      "arm": "control",
+      "start": 1790947306.9102697,
+      "end": 1790947318.2535589,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-cpu-2-control.log",
+      "rates": {
+        "pp512": 207.45,
+        "tg128": 41.59
+      },
+      "activity": {
+        "intervals": 12,
+        "observation_samples": 13,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 5,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 60,
+          "missed_process_observations": 5,
+          "appeared_processes": 60,
+          "disappeared_processes": 57
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 13,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 13,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "cpu",
+      "arm": "control",
+      "start": 1790947318.2540147,
+      "end": 1790947329.246385,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-cpu-3-control.log",
+      "rates": {
+        "pp512": 220.0,
+        "tg128": 44.54
+      },
+      "activity": {
+        "intervals": 12,
+        "observation_samples": 13,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 8,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 44,
+          "missed_process_observations": 5,
+          "appeared_processes": 44,
+          "disappeared_processes": 55
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 13,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 13,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "cpu",
+      "arm": "candidate",
+      "start": 1790947329.2469826,
+      "end": 1790947340.18327,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-cpu-4-candidate.log",
+      "rates": {
+        "pp512": 219.69,
+        "tg128": 44.27
+      },
+      "activity": {
+        "intervals": 12,
+        "observation_samples": 13,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 7,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 94,
+          "missed_process_observations": 1,
+          "appeared_processes": 94,
+          "disappeared_processes": 52
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 13,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 13,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "cpu",
+      "arm": "base",
+      "start": 1790947340.1839235,
+      "end": 1790947352.625695,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-cpu-5-base.log",
+      "rates": {
+        "pp512": 220.64,
+        "tg128": 44.13
+      },
+      "activity": {
+        "intervals": 13,
+        "observation_samples": 14,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 5,
+          "unrelated_cpu": 5,
+          "disk_activity": 10,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 135,
+          "missed_process_observations": 7,
+          "appeared_processes": 135,
+          "disappeared_processes": 83
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 14,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 646549504.0,
+            "known": 14,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "vulkan:0",
+      "arm": "base",
+      "start": 1790947352.6265152,
+      "end": 1790947354.0434604,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-vulkan-0-0-base.log",
+      "rates": {
+        "pp512": 8760.35,
+        "tg128": 396.42
+      },
+      "activity": {
+        "intervals": 3,
+        "observation_samples": 4,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 1,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 60,
+          "missed_process_observations": 0,
+          "appeared_processes": 60,
+          "disappeared_processes": 8
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 96.0,
+            "known": 4,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 770723840.0,
+            "known": 4,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "vulkan:0",
+      "arm": "candidate",
+      "start": 1790947354.0439267,
+      "end": 1790947355.3600528,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-vulkan-0-1-candidate.log",
+      "rates": {
+        "pp512": 8755.55,
+        "tg128": 397.54
+      },
+      "activity": {
+        "intervals": 2,
+        "observation_samples": 3,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 1,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 8,
+          "missed_process_observations": 0,
+          "appeared_processes": 8,
+          "disappeared_processes": 6
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 82.0,
+            "max": 96.0,
+            "known": 3,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 770682880.0,
+            "max": 770723840.0,
+            "known": 3,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "vulkan:0",
+      "arm": "control",
+      "start": 1790947355.3605554,
+      "end": 1790947356.6765058,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-vulkan-0-2-control.log",
+      "rates": {
+        "pp512": 8773.3,
+        "tg128": 395.44
+      },
+      "activity": {
+        "intervals": 2,
+        "observation_samples": 3,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 1,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 10,
+          "missed_process_observations": 0,
+          "appeared_processes": 10,
+          "disappeared_processes": 11
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 96.0,
+            "known": 3,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 646549504.0,
+            "max": 770723840.0,
+            "known": 3,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "vulkan:0",
+      "arm": "control",
+      "start": 1790947356.677004,
+      "end": 1790947357.9931526,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-vulkan-0-3-control.log",
+      "rates": {
+        "pp512": 8761.12,
+        "tg128": 392.21
+      },
+      "activity": {
+        "intervals": 3,
+        "observation_samples": 4,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 1,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 16,
+          "missed_process_observations": 0,
+          "appeared_processes": 16,
+          "disappeared_processes": 16
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 87.0,
+            "known": 4,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 646549504.0,
+            "max": 770719744.0,
+            "known": 4,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "vulkan:0",
+      "arm": "candidate",
+      "start": 1790947357.9936833,
+      "end": 1790947360.567515,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-vulkan-0-4-candidate.log",
+      "rates": {
+        "pp512": 8758.65,
+        "tg128": 396.52
+      },
+      "activity": {
+        "intervals": 3,
+        "observation_samples": 4,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 14,
+          "missed_process_observations": 1,
+          "appeared_processes": 14,
+          "disappeared_processes": 13
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 90.0,
+            "known": 4,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 668073984.0,
+            "max": 770719744.0,
+            "known": 4,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "device": "vulkan:0",
+      "arm": "base",
+      "start": 1790947360.5682712,
+      "end": 1790947361.984619,
+      "returncode": 0,
+      "log": "Qwen3-0.6B-Q8_0-vulkan-0-5-base.log",
+      "rates": {
+        "pp512": 8757.1,
+        "tg128": 393.42
+      },
+      "activity": {
+        "intervals": 3,
+        "observation_samples": 4,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 34,
+          "missed_process_observations": 1,
+          "appeared_processes": 34,
+          "disappeared_processes": 25
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 90.0,
+            "known": 4,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 770617344.0,
+            "known": 4,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "cpu",
+      "arm": "base",
+      "start": 1790947361.985183,
+      "end": 1790947420.9873974,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-cpu-0-base.log",
+      "rates": {
+        "pp512": 28.87,
+        "tg128": 12.24
+      },
+      "activity": {
+        "intervals": 60,
+        "observation_samples": 61,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 29,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 316,
+          "missed_process_observations": 16,
+          "appeared_processes": 316,
+          "disappeared_processes": 291
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 23.0,
+            "known": 61,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 490708992.0,
+            "known": 61,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 67.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "cpu",
+      "arm": "candidate",
+      "start": 1790947420.9883633,
+      "end": 1790947478.301546,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-cpu-1-candidate.log",
+      "rates": {
+        "pp512": 28.95,
+        "tg128": 13.48
+      },
+      "activity": {
+        "intervals": 58,
+        "observation_samples": 59,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 2,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 240,
+          "missed_process_observations": 19,
+          "appeared_processes": 240,
+          "disappeared_processes": 300
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 59,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 59,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 78.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "cpu",
+      "arm": "control",
+      "start": 1790947478.3022156,
+      "end": 1790947535.7738261,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-cpu-2-control.log",
+      "rates": {
+        "pp512": 28.7,
+        "tg128": 13.42
+      },
+      "activity": {
+        "intervals": 58,
+        "observation_samples": 59,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 1,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 197,
+          "missed_process_observations": 12,
+          "appeared_processes": 197,
+          "disappeared_processes": 204
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 59,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 59,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "cpu",
+      "arm": "control",
+      "start": 1790947535.774491,
+      "end": 1790947592.593763,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-cpu-3-control.log",
+      "rates": {
+        "pp512": 29.05,
+        "tg128": 13.56
+      },
+      "activity": {
+        "intervals": 58,
+        "observation_samples": 59,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 187,
+          "missed_process_observations": 5,
+          "appeared_processes": 187,
+          "disappeared_processes": 197
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 59,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 59,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "cpu",
+      "arm": "candidate",
+      "start": 1790947592.594412,
+      "end": 1790947651.076346,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-cpu-4-candidate.log",
+      "rates": {
+        "pp512": 29.14,
+        "tg128": 13.53
+      },
+      "activity": {
+        "intervals": 60,
+        "observation_samples": 61,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 11,
+          "disk_activity": 13,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 357,
+          "missed_process_observations": 30,
+          "appeared_processes": 357,
+          "disappeared_processes": 237
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 61,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 61,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "cpu",
+      "arm": "base",
+      "start": 1790947651.0770972,
+      "end": 1790947707.6879864,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-cpu-5-base.log",
+      "rates": {
+        "pp512": 29.21,
+        "tg128": 13.58
+      },
+      "activity": {
+        "intervals": 57,
+        "observation_samples": 58,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 226,
+          "missed_process_observations": 11,
+          "appeared_processes": 226,
+          "disappeared_processes": 327
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 58,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 18585546752.0,
+            "known": 58,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "vulkan:0",
+      "arm": "base",
+      "start": 1790947707.6890647,
+      "end": 1790947713.9149098,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-vulkan-0-0-base.log",
+      "rates": {
+        "pp512": 1106.56,
+        "tg128": 126.92
+      },
+      "activity": {
+        "intervals": 7,
+        "observation_samples": 8,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 61,
+          "missed_process_observations": 2,
+          "appeared_processes": 61,
+          "disappeared_processes": 58
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 100.0,
+            "known": 8,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 18857177088.0,
+            "known": 8,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "vulkan:0",
+      "arm": "candidate",
+      "start": 1790947713.9157736,
+      "end": 1790947720.2418442,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-vulkan-0-1-candidate.log",
+      "rates": {
+        "pp512": 1108.49,
+        "tg128": 126.65
+      },
+      "activity": {
+        "intervals": 8,
+        "observation_samples": 9,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 58,
+          "missed_process_observations": 4,
+          "appeared_processes": 58,
+          "disappeared_processes": 34
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 100.0,
+            "known": 9,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 11278872576.0,
+            "max": 18801991680.0,
+            "known": 9,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "vulkan:0",
+      "arm": "control",
+      "start": 1790947720.242577,
+      "end": 1790947726.568543,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-vulkan-0-2-control.log",
+      "rates": {
+        "pp512": 1120.12,
+        "tg128": 126.4
+      },
+      "activity": {
+        "intervals": 7,
+        "observation_samples": 8,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 25,
+          "missed_process_observations": 1,
+          "appeared_processes": 25,
+          "disappeared_processes": 95
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 100.0,
+            "known": 8,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 18585784320.0,
+            "max": 34228580352.0,
+            "known": 8,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "vulkan:0",
+      "arm": "control",
+      "start": 1790947726.5692697,
+      "end": 1790947733.2452145,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-vulkan-0-3-control.log",
+      "rates": {
+        "pp512": 1113.07,
+        "tg128": 126.87
+      },
+      "activity": {
+        "intervals": 8,
+        "observation_samples": 9,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 52,
+          "missed_process_observations": 8,
+          "appeared_processes": 52,
+          "disappeared_processes": 23
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 99.0,
+            "known": 9,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 17133690880.0,
+            "max": 34228580352.0,
+            "known": 9,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "vulkan:0",
+      "arm": "candidate",
+      "start": 1790947733.2459602,
+      "end": 1790947739.820424,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-vulkan-0-4-candidate.log",
+      "rates": {
+        "pp512": 1120.38,
+        "tg128": 126.31
+      },
+      "activity": {
+        "intervals": 7,
+        "observation_samples": 8,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 40,
+          "missed_process_observations": 3,
+          "appeared_processes": 40,
+          "disappeared_processes": 35
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 100.0,
+            "known": 8,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 18029002752.0,
+            "max": 27080548352.0,
+            "known": 8,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    },
+    {
+      "model": "/models/llmx-xdev-mxfp4-20260928/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "device": "vulkan:0",
+      "arm": "base",
+      "start": 1790947739.8212059,
+      "end": 1790947745.944048,
+      "returncode": 0,
+      "log": "Qwen3-30B-A3B-Q4_K_M-vulkan-0-5-base.log",
+      "rates": {
+        "pp512": 1121.59,
+        "tg128": 126.61
+      },
+      "activity": {
+        "intervals": 6,
+        "observation_samples": 7,
+        "unbracketed_seconds": 0.8379731178283691,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 22,
+          "missed_process_observations": 3,
+          "appeared_processes": 22,
+          "disappeared_processes": 31
+        },
+        "gpu_observations_unavailable": false,
+        "selected_card8": {
+          "busy": {
+            "min": 0.0,
+            "max": 100.0,
+            "known": 7,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 18585784320.0,
+            "max": 27080548352.0,
+            "known": 7,
+            "unknown": 0
+          }
+        },
+        "all_cards_unknown": {
+          "busy": 0,
+          "vram_used": 0
+        },
+        "other_cards_busy_max": {
+          "card0": 100.0,
+          "card1": 0.0,
+          "card2": 0.0,
+          "card3": 0.0,
+          "card4": 0.0,
+          "card5": 0.0,
+          "card6": 0.0,
+          "card7": 0.0,
+          "card9": 0.0
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+    "All24 planned calls retained. Whole-call activity includes load and both phases, not phase attribution.",
+    "Shared interval boundaries can count for multiple calls; per-call flag totals must not be added as unique intervals.",
+    "New, departed, missed and unknown process observations are not evidence of inactivity; flags are observed lower bounds.",
+    "GPU counter ranges have no process attribution; disk rates are whole-device and not summed across devices.",
+    "Reference runtime comparison remains a phase-level gate; no fresh mx measurement or parity claim."
+  ],
+  "activity_totals": {
+    "flags": {
+      "cpu_busy": 0,
+      "iowait": 5,
+      "unrelated_cpu": 80,
+      "disk_activity": 23,
+      "sample_gap": 0
+    },
+    "unknown_cpu_intervals": 0,
+    "unknown_disk_intervals": 0,
+    "process_observations": {
+      "unknown_process_roles": 0,
+      "new_processes_without_delta": 2167,
+      "missed_process_observations": 142,
+      "appeared_processes": 2167,
+      "disappeared_processes": 2127
+    }
+  },
+  "windows": {
+    "complete": true,
+    "head": "234b5a00c5b292efd3a0b0c03b8f4cd942e5f056",
+    "source_clean": true,
+    "binary": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-expert-types-windows-20261002\\build\\Release\\llmx.exe",
+      "sha256": "68626a99a6480973030b850c91b1372a1e5f885a892eec20af7f7546982a205f",
+      "version": "llmx 0.1.0+g234b5a00c5b2",
+      "config_sha256": "b5de92ffb78768a726a4030c7e5961c582ab1d7876a647f82dff9aa5691583fb"
+    },
+    "native": {
+      "passed": 43,
+      "skipped": 0
+    },
+    "cpu": {
+      "initial_passed": 23,
+      "initial_failed": [
+        "cli",
+        "roundtrip"
+      ],
+      "scoped_recovery_passed": [
+        "cli",
+        "roundtrip"
+      ],
+      "effective_passed": 25,
+      "skipped_components": 0,
+      "platform_skip": "POSIX file-size-limit injection unavailable on Windows"
+    },
+    "radeon_vii": {
+      "passed": [
+        "moe",
+        "qwen35"
+      ],
+      "skipped_components": 0,
+      "uuid": "00000000-2d00-0000-0000-000000000000"
+    },
+    "environment_evidence": [
+      "access-probe-sandbox.json",
+      "access-probe-normal-access.json"
+    ],
+    "limits": [
+      "Full CPU suite was not repeated; original successful 23 plus scoped two-component recovery.",
+      "These checks apply to clean 234b5a00 before the planned rebase; parent owns subsequent refresh.",
+      "Performance and Linux identity gates are owned by the parent."
+    ]
+  },
+  "integration": {
+    "proof": {
+      "old_head": "5ccca3596f9038e3fa5292ba0e4a903dd1aa3f9e",
+      "old_base": "46f60b6491335b62785caf2d0647998864b0283b",
+      "head": "47232075dbd2216cd70a32c206e95adb23f8249e",
+      "base": "fb366b16cef410ffb0402c939fe62b3a346b3391",
+      "test_first": "5562fde74db8989d497ed281704b5d92a8c5979e",
+      "conflicts": [
+        "docs/STATUS.md"
+      ],
+      "source_test_build_range_diff": "1:  8db68602 = 1:  5562fde7 test(model): reject unsupported mixed expert projections at load\n2:  5ccca359 = 2:  47232075 fix(model): declare mixed expert projection requirements at load",
+      "code_conflict": false
+    },
+    "windows": {
+      "complete": true,
+      "head": "47232075dbd2216cd70a32c206e95adb23f8249e",
+      "binary": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-expert-types-integration-windows-20261002\\build\\Release\\llmx.exe",
+        "sha256": "7c47aba7277a1eb77e9c221ac8d97ca3061356f43a21ba7960483397e4fe3e2c",
+        "version": "llmx 0.1.0+g47232075dbd2",
+        "config_sha256": "b5de92ffb78768a726a4030c7e5961c582ab1d7876a647f82dff9aa5691583fb"
+      },
+      "native": {
+        "passed": 43,
+        "skipped": 0
+      },
+      "focused_components": [
+        [
+          "dead-code",
+          "PASS"
+        ],
+        [
+          "docs",
+          "PASS"
+        ],
+        [
+          "arch-boundary",
+          "PASS"
+        ]
+      ],
+      "device": {
+        "name": "AMD Radeon VII",
+        "selector": "vulkan:0",
+        "uuid": "00000000-2d00-0000-0000-000000000000",
+        "identity_log": "vulkan-identity.log"
+      },
+      "logs_sha256": {
+        "before-ctest-processes.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "build.log": "770281fde4519ff3c4fe069bc39865b452a0d052af1d3db1724f8b7b3903e410",
+        "configure.log": "bac5a3304135987cda9507b2d611923b4f6aaf80b106790ca2f00bebd1e30777",
+        "ctest.log": "98945fc63d8b005c8897f4ec11c0c37502c9863e89cff8fe75da70e9b7713adf",
+        "focused-checks.log": "a595a7f2f185e574638f7c84dd7b408e077c7fcec1a36a3140f03817a2b52d82",
+        "initial-processes.log": "f218b42ccf4edbb8954a35a711a564a6d30ef581f19099556790990190f72168",
+        "preflight-failed-processes.log": "f218b42ccf4edbb8954a35a711a564a6d30ef581f19099556790990190f72168",
+        "vulkan-identity.log": "eaa2b24a1121810fd249ced4fad13316ddcc9e8deb0968fb57279162d124bce6"
+      },
+      "source_clean_verified_by_runner": true,
+      "preflight_note": "Parent confirmed completed dispatch build leaves reusable MSBuild PID5912; idle-msbuild.json records zero CPU delta and no compiler/link/model/test process. That node is retained untouched.",
+      "reused_evidence": ".tmp-expert-types-run-20261002 and .tmp-expert-types-windows-20261002; original-base model suites, identity and timing unchanged"
+    },
+    "linux": {
+      "head": "47232075dbd2216cd70a32c206e95adb23f8249e",
+      "start": 1790950114.8340375,
+      "steps": [
+        {
+          "name": "fetch",
+          "command": [
+            "git",
+            "-C",
+            "/zpool1/llmx-xdev-validation/expert-types-20261002/repo",
+            "fetch",
+            "--depth",
+            "3",
+            "origin",
+            "fix/model-expert-types-20261002"
+          ],
+          "start": 1790950114.9156249,
+          "pid": 3217986,
+          "returncode": 0,
+          "end": 1790950115.2822394
+        },
+        {
+          "name": "worktree",
+          "command": [
+            "git",
+            "-C",
+            "/zpool1/llmx-xdev-validation/expert-types-20261002/repo",
+            "worktree",
+            "add",
+            "--detach",
+            "/zpool1/llmx-xdev-validation/expert-types-20261002/integration-47232075dbd2/candidate",
+            "47232075dbd2216cd70a32c206e95adb23f8249e"
+          ],
+          "start": 1790950115.2841074,
+          "pid": 3217997,
+          "returncode": 0,
+          "end": 1790950115.571495
+        },
+        {
+          "name": "container-start",
+          "command": [
+            "docker",
+            "start",
+            "llmx-xdev-expert-types-20261002"
+          ],
+          "start": 1790950115.571524,
+          "pid": 3218002,
+          "returncode": 0,
+          "end": 1790950115.7095227
+        },
+        {
+          "name": "configure",
+          "command": [
+            "docker",
+            "exec",
+            "--workdir",
+            "/zpool1/llmx-xdev-validation/expert-types-20261002/integration-47232075dbd2/candidate",
+            "llmx-xdev-expert-types-20261002",
+            "cmake",
+            "-S",
+            ".",
+            "-B",
+            "build",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DLLMX_HAS_BACKEND_VULKAN=ON"
+          ],
+          "start": 1790950115.7765677,
+          "pid": 3218137,
+          "returncode": 0,
+          "end": 1790950116.4569576
+        },
+        {
+          "name": "build",
+          "command": [
+            "docker",
+            "exec",
+            "--workdir",
+            "/zpool1/llmx-xdev-validation/expert-types-20261002/integration-47232075dbd2/candidate",
+            "llmx-xdev-expert-types-20261002",
+            "cmake",
+            "--build",
+            "build",
+            "--parallel",
+            "4"
+          ],
+          "start": 1790950116.4570007,
+          "pid": 3218247,
+          "returncode": 0,
+          "end": 1790950307.7150614
+        },
+        {
+          "name": "ctest",
+          "command": [
+            "docker",
+            "exec",
+            "--workdir",
+            "/zpool1/llmx-xdev-validation/expert-types-20261002/integration-47232075dbd2/candidate",
+            "llmx-xdev-expert-types-20261002",
+            "ctest",
+            "--test-dir",
+            "build",
+            "--parallel",
+            "2",
+            "--output-on-failure"
+          ],
+          "start": 1790950307.7150912,
+          "pid": 3223413,
+          "returncode": 0,
+          "end": 1790950434.2846467
+        }
+      ],
+      "executable": {
+        "sha256": "6637c8e8165e6a81ebd3d0a191a92111a75f816f6c58bce2757258f2e40bee6f",
+        "version": "llmx 0.1.0+g47232075dbd2"
+      },
+      "shaders": {
+        "matmul_row_k4.inc": "4689f433ccc86ab3631d4b9219ca52f9c0480425fff5af6eadb2a4f62c04dca8",
+        "gated_rms_norm.inc": "1a7b8737a4123288477c1a9595ad9e07c68a31d68d464beaae227ee91ef0d78f",
+        "attention_vec.inc": "36ca50981bc85c8565ccfa82a446e0856b434988043affbfae5c87e16cbce927",
+        "norm_rope_kv_k16.inc": "c32f29d8d6c56ca39e2e9dec2302b2037d5eb611e44f6057ce946d385b5c6dd3",
+        "attention_vec_d256_kv16_g4.inc": "84e46d63b6649a3081cfc394c3e90ab9eeb850b8b1831d13b146b3f215932c8b",
+        "matmul_row_q8w_preserve.inc": "48aa6f50810d125952db8d79af00cc5d0f7b727396bcbd6e177d3c921a316c34",
+        "copy_mxfp4.inc": "95206411ce6426f7674c1c0a52a2bb55ba4344a4c3c32ce1f8fb7a23596119be",
+        "matmul_row_k_dot_preserve.inc": "0e45c1ce99836a5eef6c7e8affea6f87adf866f5e7122501920a47667cfaf777",
+        "matmul_tile.inc": "ff0f875d2c5800e9975040ba66b322710d360d97894a69b855ef30caecdb8703",
+        "attention_tile_kv16.inc": "d2ab18ba3ec9edf137c55581f9a33abb74e7402eb42ab0a0f9f28a3e53edc3d5",
+        "attention_vec_d256_v16.inc": "f444b1351ccaa8d82a5aa0d3d5659ec769f9172bd20fd26731fab66255923002",
+        "attention_tile_v16.inc": "913aa9ea07807876b09dd14c70b28b707d4e9d810d6fc82b1b51b550a77b0bf8",
+        "matmul_reduce.inc": "cb397b35c152ae077a9a82fd046fd3561c3ab66a6877e8521d04bfb34c8e2391",
+        "matmul_row_preserve.inc": "77168f8c2fd5d76fbbbb772ce705eea1cfa057dbb3f65a7b8c044cb29a966a09",
+        "embed.inc": "d7bd49769038979c039f81bea85098fa5d44c858b4442a999eac3f151bd2696c",
+        "moe_combine.inc": "e17faceaa27dda05a3819a8a820414075a23dc16901c3b8c820a4968db1bfedb",
+        "quantize_xw.inc": "c4b909ce38e41ee07a35c4ed7daa7f66f3988cb5fb69cc1a1e6688cc24fa9a17",
+        "moe_route.inc": "d3b45c96874daa5aad108d06725d78ac2e3207d8cd50bf4ce70054df56341c3c",
+        "matmul_row_q4_dot_preserve.inc": "a6a39b00eb2a94ebee669b19b43e69a3c499c44f48ee9d307c928767f85f5746",
+        "matmul_tile_mxfp4_bf16.inc": "cd8347a75fde26641d8525404b09255f9de7bae1305e6e26aabd3551aebd2f82",
+        "attention_k16.inc": "388f8961bbb2fc1c361111f8d388ad61c46b4d5b174533a0e1bea76be94977e8",
+        "matmul_row_float_x.inc": "6210ab42782c5ca1ef6f729952f24a05820043afcb10c0574cdc0f1df8dfd66a",
+        "kv_write_k16.inc": "c277d556a5efd0d4eb0773c72e5ee2a39cb543a020b098330be2855c5f46ce34",
+        "attention_tile_d256_kv16.inc": "23d5e28b837eb9a7e381b5dfbcaf34189d6e58258a63b55816a4ced74d6e7932",
+        "matmul_row_q4_preserve.inc": "7437606edec1362764879d38258503e5d4cd20e774c369bc8ad15f11cac990d1",
+        "matmul_tile_bf16.inc": "dee3c5de040feb20aaa7c95aeefaeb5a05d72bad8dc5d01d8d4480dcc152adcf",
+        "matmul_row_k4_dot_preserve.inc": "4af10724568c7b5c08329d5cbb925983338b5bf892d61ff64c88b67fba708ac4",
+        "attention_vec_v16.inc": "c69a36d5a0f5351279e421dd6851debde7617abd82b53d9cecd39c26a55f741e",
+        "matmul_row_q4_dot.inc": "d8b9b2e36cd579b6fbf94cf818d479f66b796798965cb06665e2242c549845f3",
+        "attention_tile_d256_v16.inc": "226930f81664676c88874fc0a36265d8110bb0bf0b28f85ad7c32ee489a7848e",
+        "gather_rows.inc": "18fb48ad4171822401e69747ac3d60ec074dc1f24a8ab7ae094a93f0f9ead37a",
+        "attention_v16_g4.inc": "db55808ddea2c44e2e4ab60670ed32b1474e0b67de95ce5ddb251b2bd365ecd0",
+        "matmul_row_k5_dot_preserve.inc": "1e0694ca233d864a97f9b7d81491821366ba59c1bbb8623dfe9a58e7157e51f3",
+        "attention_vec_d256_kv16.inc": "497b558e7fea67a211fa712d408bf585c28123bd85bc27b6930e1f7929982a80",
+        "matmul_tile_q_preserve.inc": "8dca78d0a718639da64fb64cc10cdc00d5af47c98dfb63267edb85c6b3063603",
+        "attention_kv16.inc": "1ef4af9f906f670b892bf7d203bd95bc7b438180a719e50f7d8ba09774293bf5",
+        "matmul_tile_q6_preserve.inc": "9fcf40e661926175eb0292825d514e8d5d43f52e03c4ab24efed93c61fdf7822",
+        "attention_vec_g4.inc": "cd77ec2dc35b7f4a55a947f5dfaaba5ba5a03076443b709070b0f500693d92a6",
+        "matmul_row_k5.inc": "0fd2dcfb5e2a51386a8d4fdb7b265295920986342435c5b38ca2ee7943b0528d",
+        "matmul_reduce_preserve.inc": "7e8053aa5f7f3139ff8a3f53fff4bf856c21a3475413fc933fb1634d12ba1632",
+        "embed_mxfp4.inc": "171c698045284e77519db9e077a96250d371492c6697b6c02c34d1df94b471ef",
+        "matmul_row_mxfp4_float_x.inc": "26cde06a2a69839913003ee79682df2efd933c81000a88ed76369dd1f663a364",
+        "attention_vec_v16_g4.inc": "7f77ffe380ef7df3727c222f763a80d0379a70e20b1e2cc118ca1745e279938c",
+        "matmul_row_float_x_preserve.inc": "694a04994d1b6021b3dcedd5bbdc077248456af2cc4f76836f89e80fb5d1e329",
+        "attention_vec_d256_k16_g4.inc": "de17a0c07571140b277de24e4aadc9083baf4f1a79410ba8067279afc1bbb34e",
+        "attention_tile_d256.inc": "d8ecb437260a0a90e00c415d9baef9ab1436abbc5762590f364350dd3bc72a0f",
+        "matmul_tile_bf16_preserve.inc": "c740538591f4150819f6a3d03aeb97bcf784003e8b24b422b6c5dd0fe913fd2f",
+        "attention_g4.inc": "a303ef235a1dd080a566db46b6df961c175df8728cd4b49960bbcb7539e86793",
+        "attention_v16.inc": "434e31bd6355596ac015cdd985e8387c88ed7eeaf7b6f2a43a11e889c42ec5bf",
+        "attention_vec_d256_v16_g4.inc": "3dac5f26e4c03c9d2313472510eccc7db9d462f7ddc7ac432d9461d22cf5051a",
+        "kv_write_v16.inc": "4c38eb5fd5d86171002cfe34f977bb9a8acc709655aa46a5a386e671f8a1c510",
+        "attention_kv16_g4.inc": "b7127b6422d7577c9419d377abf948f8d1ec55bc59c9f65f7d56e49f37012b6d",
+        "matmul_row_k4_dot.inc": "f9c84098bf58150291524f1091adb69bf1e368690de7823485db1572e19bf751",
+        "attention_vec_k16_g4.inc": "15f93ea5a8978e91281dfb16288d5372cbc0ebeda9db6585f65f6260f1a2c971",
+        "matmul_tile_preserve.inc": "065cd76bcefc5002ebd356b24399148bdf6a6cf1dc8039262d975075f6450a18",
+        "attention_vec_d256.inc": "3e3b90765a2fd5e99b20513570a5cce0a126ea72bfb0241fde4cdc3690e5520d",
+        "attention_tile_k16.inc": "84233dc91acd6540f6d7b28eb96bb5b96fb7179520bd7d5b46e31fd824bcd125",
+        "attention_merge.inc": "f3f46896a3cd54212ebde139cab0e9d60c5b104aba5b12cc4a5fcbb2d1571c78",
+        "matmul_row_mxfp4.inc": "3ce82bd91b250c45221df840329dfb2629248011ff3fe25583a40d201c07d67d",
+        "quantize_x.inc": "1e9abc6c78f14b8a3c2f0ab45a961ca34b8983c6d3ce99885f126458769ad10c",
+        "matmul_row_mxfp4_dot.inc": "66635834d11a292a650d1cb80fd2f63dadd7bc1d8f607c1e16fae4d0e1e0c049",
+        "attention_k16_g4.inc": "6b83b9b0f1d3f3151cf97a6ae79e93605e6a3cd65ca55dbe7fee513b67d59330",
+        "matmul_row_k_dot.inc": "90d1c76633733da3922ac9aab50e96c68e55c030186c0169af155341d0840edf",
+        "kv_write.inc": "5789604e44fd11500b770aae6359b54db994e744a08afd4fba3999baa02f6f18",
+        "matmul_tile_q8mx.inc": "7dc644d5eab46fe6f3bb5e1c303de4535e83eed3b1f404bf227f66853b19d2a4",
+        "attention_vec_d256_k16.inc": "f1cb955a36f4d852de8147568fd5e537c0c374952035f42024c207679dc436d9",
+        "matmul_row.inc": "1236d88c9ed00c5143e29b15ada37b15a7469ae199c7d39ab1f2000e3cb6bfb6",
+        "matmul_reduce_mxfp4.inc": "31af6a257c20a01b7fa3616c2f80fffa828c44b18fea64d7afd1aa38ff2f2500",
+        "attention_vec_d256_g4.inc": "4ae9ae1d5b70ef0aa24d3cd8d927518d0b9e2953c6f882d3650bf96cfd9f9d77",
+        "kv_write_kv16.inc": "07c72290273234fd6a1bbd61643ccc114d9e073595145b324bdbe927e4d75ba8",
+        "norm_rope_kv_kv16.inc": "dd96b1beb9f4348074dfc10d82aeb691fafae8036e9776d14e823ff12805546f",
+        "delta_rule.inc": "41cac4d65a3c568594fb41c4a9505d96efe86ae2424cdfaa881bb96835be1e65",
+        "attention_tile.inc": "9971ec0c4385fe51fecddef9172bd2dc56cbe86d5a57530998c55a21dc74253e",
+        "matmul_row_q4.inc": "710745864c2603c0fc75edd44313562b999836a152338c8a99334bb881fe05f5",
+        "norm_rope_kv_v16.inc": "a5ef8a8e0729832142d4aa3ca79b1be024f201b7bccaeeaa322bbe2d31ab0886",
+        "add.inc": "c5fcf6022b9dd4d471666924d51762739ba7dd4b4899923dcac2867034d3889a",
+        "norm_rope_partial.inc": "6b3a0989c51ab0b10ea2793717622620ee5b10c0d8047ab7a52f33162bf4b662",
+        "matmul_tile_q8.inc": "42749dd7efc8c775dab840d70fda2fbbc923b0376632a8e19df0b91d768d98eb",
+        "rms_norm_rows.inc": "02f5ef2b90765669f28461afe01f092b1f0490008e0a74e658b256770f76fa5e",
+        "causal_conv_silu.inc": "ead149a1e347e3db6ad272034800fcd3a13fe35cb8c46c1a0a26bd53328fe980",
+        "moe_group.inc": "54d7a45d8db7202aefc70ec859c249117988f25f3c1a11cfb6114d17cd37a587",
+        "matmul_tile_q6.inc": "37f703ed0b150080d2dea0bc5a13898ea6fc783b2f7da93b2613310b899a7ba6",
+        "matmul_row_k5_preserve.inc": "8d269324e9ba57f0bba27ed1489b4e8fb9cf4eb21aca9d035ba1df3521f269db",
+        "attention_vec_kv16_g4.inc": "7770e4c5333f76e627d663f2aea0d853b7894650f4f75c2b77bcb5f2321cc07f",
+        "matmul_row_q8w.inc": "b7a65058ac297e29bbf2760ac15df81c4e78d706551e70aab3c0b538705b9085",
+        "matmul_tile_q.inc": "c2a6c50a44775a7c1c4b16152f962981b2f479af0338f35ab308397ef17a2089",
+        "matmul_tile_mxfp4.inc": "d746267b7b6fc333c63e26172c3c907637f3711279f7f96e9850fcae727e456b",
+        "attention_tile_d256_k16.inc": "48e7fc74b56a060dfa902133645d27bee11d4a7ce4233764d3bd45c156b4834f",
+        "matmul_vec_q8_preserve.inc": "39be0288dc3d3de2d1d055b331b108e31dda922ae3c04257a517292fe86c1ed2",
+        "sigmoid_mul.inc": "9a0d49c1b54eded4be2e41c3c3cbfe01225ac926592f726f2f586d6e15ab87c9",
+        "matmul_row_k.inc": "46333b6d0e65ee7f5e69083cf4c161bb72439eb0f6dda5628e585617e828c298",
+        "matmul_row_k_preserve.inc": "47f0d413b93bedef6b116a8d8cd394226dccaf5d68eefcdbf971bd127110ddf4",
+        "attention_vec_k16.inc": "0804afc17c16ede673d6230a709e3e0b1aa2bb4001832bebdb713c503bafafe0",
+        "matmul_row_k5_dot.inc": "24e7a0c89206ce0de66f1e2ae7bc8fb44bc14e50462b172348ea495caa79a335",
+        "attention.inc": "660602b9e12fe8213e3c18b1bd8fb3a3d437a2f18143a24b93566ce673d9b37d",
+        "attention_vec_kv16.inc": "ccfaae89c334ee88fc8ca705b7c5290b04643d1d42d8e75ea496f10202cc27af",
+        "norm_rope_kv.inc": "669c52250612b206b521528666a3ce935cbe817f521ba4505ca848d8946e9423",
+        "silu_mul.inc": "cd36568f7370a073fa4c64e5db8c6a4dc094388d46ba44bc4870342ed3cc2f32",
+        "matmul_vec_q8.inc": "ba2484d494f71727efaf33a48ce6433e35574ca88ad5a7d5fd939baf29fcc006"
+      },
+      "passed": true,
+      "container_before_stop": "docker-init\nsleep\nps",
+      "container_stopped": true,
+      "end": 1790950434.7523506
+    },
+    "evidence_sha256": {
+      "completion-audit.json": "163833ddc8528b14326d95187a135af48ac49c53b96c8d0d7b48c6403677c49f",
+      "integration-linux.json": "ee6a76189db2b68a575dc6a342bbd62810384cc6d19d7d615058dc0d6479d058",
+      "integration-linux-ctest.log": "ee889386d524c60552c2a87d772d8484d729a765869fb2d703571b17fc0c9de3"
+    }
+  }
+}

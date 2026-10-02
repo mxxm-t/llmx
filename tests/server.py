@@ -1263,6 +1263,35 @@ def check_reprefill(model):
     return reused, prompt
 
 
+def check_host_tier(model):
+    """Donors kept in host memory (docs/SPECULATIVE.md, section 2, Host tier): two conversations of about 500 tokens alternate on a 1024-token pool that holds one finished turn beside the next request, so each turn evicts the other conversation's donor; with the host tier each follow-up promotes its own and reuses its prefix, with the CLI's greedy text, and without it reuses nothing. Returns the tokens the follow-ups reused."""
+    with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
+        text = f.read()
+    n = 16
+    reused = {}
+    for host in ("1073741824", "0"):
+        srv = Server(model, "--ctx-size", "1024", "--host-cache-bytes", host)
+        try:
+            first = {}
+            for key, part in (("a", text[:2000]), ("b", text[4000:6000])):
+                first[key] = part + post_ok(srv, "/v1/generate", {"prompt": part, "max_tokens": n, "temperature": 0})["text"]
+            total = 0
+            for key, more in (("a", text[2000:2400]), ("b", text[6000:6400])):
+                prompt = first[key] + " " + more
+                reply = post_ok(srv, "/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
+                assert reply["text"] == cli_greedy_text(model, prompt, n), (host, key, reply["text"])
+                total += reply["reused_tokens"]
+            health = srv.get("/v1/health")
+            if host != "0":
+                assert total > 0 and health["host_hits"] >= 2 and health["host_bytes_moved"] > 0, (total, health)
+            else:
+                assert total == 0 and health["host_donors"] == 0, (total, health)
+            reused[host] = total
+        finally:
+            srv.close()
+    return reused["1073741824"]
+
+
 # A client that leaves is noticed within seconds wherever its request is, though nothing written to it fails: a whole reply while it is generated, a streamed prompt while it is read, a request waiting for the one slot, and a whole reply whose client shuts only its sending side, which then gets no answer.
 # The server runs one slot and reads prompts one token a pass, so a second request queues and a long prompt stays in its prefill; the pool is POOL tokens.
 # Every request left behind would run for thousands of passes, a whole reply of LONG tokens or a prompt of about 6400, far past the seconds its departure has to be noticed in, so a server that notices nothing fails here on any device.
@@ -1404,6 +1433,9 @@ def run():
         check_uncapped(real)
         check_paused_prefill(real)
         turns = check_conversation(real, excerpt)
+        promoted = check_host_tier(real)
+        print("server: %s, two conversations alternating on a pool that holds one, each follow-up promoting its donor from host memory (%d tokens reused) with the CLI's greedy text, none without the host tier  [ok]"
+              % (os.path.basename(real), promoted))
         reused, first = check_reprefill(real)
         print("server: %s, a chat follow-up reusing %d tokens of a %d-token first turn and its reply, read again while idle, with its reply on a fresh server  [ok]"
               % (os.path.basename(real), reused, first))

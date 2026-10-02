@@ -1,5 +1,7 @@
 #pragma once
 // What the scheduler's native tests share: the synthetic Q8_0 model and a hybrid one served over CPU backends or a device, requests and their replies, a run of waves through one scheduler, and replies compared bit for bit.
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -226,11 +228,12 @@ inline void ledger(const server::Scheduler::Stats& s, const infer::Model& model,
                 std::to_string(s.donor_blocks[p]) + ", of " + std::to_string(model.kv_pool_blocks(p)));
 }
 
-// Runs `waves` through one scheduler over `model` with `passes` passes in flight, the scheduler's own number when 0: a wave is fully queued before any pass retires, and every request is drained before the next wave starts.
+// Runs `waves` through one scheduler over `model` with `passes` passes in flight, the scheduler's own number when 0, and `host` bytes of host memory for evicted donors: a wave is fully queued before any pass retires, and every request is drained before the next wave starts.
 // The replies come in submission order; the scheduler's counters at the end go to `stats`.
 inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs,
-                         const std::vector<std::vector<Req>>& waves, server::Scheduler::Stats* stats = nullptr, size_t passes = 0) {
-    server::Scheduler sched(model, tok, max_seqs, 64, passes);
+                         const std::vector<std::vector<Req>>& waves, server::Scheduler::Stats* stats = nullptr, size_t passes = 0,
+                         size_t host = 0) {
+    server::Scheduler sched(model, tok, max_seqs, 64, passes, false, host);
     std::mutex submitting;
     // The first pass may start while a wave is queued, but cannot retire and advance its request ahead of the rest.
     sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };
@@ -303,6 +306,28 @@ inline std::vector<backend::BackendPtr> cpus(size_t n) {
     }
     return v;
 }
+
+// A CPU backend whose copies into or out of its host-visible memory throw once `fail_read` or `fail_write` is set, as a copy to or from host memory that fails does (Model::save_host, Model::restore_host); every other copy runs.
+struct FailingCopies : backend::CpuBackend {
+    std::atomic<bool> fail_read{false}, fail_write{false};
+    std::mutex m;
+    std::vector<const backend::Buffer*> host;
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+        backend::BufferPtr b = CpuBackend::alloc(bytes, where);
+        std::lock_guard<std::mutex> lock(m);
+        if (where == backend::Memory::host_visible) host.push_back(b.get());
+        return b;
+    }
+    void copy(backend::Buffer& dst, size_t dst_off, const backend::Buffer& src, size_t src_off, size_t bytes) override {
+        {
+            std::lock_guard<std::mutex> lock(m);
+            const auto in = [&](const backend::Buffer* b) { return std::find(host.begin(), host.end(), b) != host.end(); };
+            if (fail_read && in(&dst)) throw std::runtime_error("injected read failure");
+            if (fail_write && in(&src)) throw std::runtime_error("injected write failure");
+        }
+        CpuBackend::copy(dst, dst_off, src, src_off, bytes);
+    }
+};
 
 // A CPU backend that runs `hook` whenever the model submits its work, which under the scheduler happens only inside a pass's stages, so a case acts in the scheduler's own thread while that pass is in flight.
 struct Hooked : backend::CpuBackend {

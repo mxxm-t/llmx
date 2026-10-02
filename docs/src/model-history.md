@@ -30,6 +30,34 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   that fails part way, takes its entries back the same way, since a pass
   writes the live state in place. `checkpoint(sequence)`
   gives its position.
+- `save_host(sequence, length, out, limit)` and `restore_host(host)`: a
+  history's first `length` tokens, whole blocks of every storage, copied
+  into a `HostHistory` in host memory and back (`docs/SPECULATIVE.md`,
+  section 2, Host tier): each KV storage's blocks, read through
+  `BlockKVStorage`'s buffers in runs of consecutive blocks, and on a model
+  that keeps a state its checkpoint's slot, which must be at `length`, from
+  every state storage, through `Backend::copy` into the backend's
+  host-visible memory, enqueued on each device's stream behind the passes
+  that wrote the history and not waited for, since whatever writes those
+  blocks or that slot next comes after them on the same stream. The memory
+  comes in 64 MiB slabs that `release_host`, which waits for the copies
+  into and out of them, leaves to the model for the next copy, since
+  allocating and pinning host memory costs far more than copying into it;
+  the slabs alive, idle or holding a copy (`host_allocated`), stay within
+  `limit`, a copy freeing idle slabs of other devices before it allocates
+  (`detail::slabs_to_free`) and being refused where they cannot make room,
+  or where the slabs it allocates would leave the host less free memory
+  than the reserve the fit keeps on it (`detail::host_room`, over
+  `CpuBackend::host_reserve`). `caches_on_devices` says whether some KV or
+  state storage sits off the CPU, without which a copy gains nothing.
+  A copy that fails part way retires every device's stream before its slabs
+  go back, and the pools reserve room for every slab of their device, so a
+  release allocates nothing.
+  A restore makes a fresh history over new blocks and, on such a model, a
+  checkpoint slot of its own, its copies ahead of the history's first
+  pass, and only the model that wrote the copy restores it; a throw from a
+  pool, a slot or a copy leaves nothing held. `host_bytes(length)` gives
+  the slabs a copy of `length` tokens takes.
 - `mark(sequence)`: the history kept at its length while one pass runs
   past it, so a retract into that pass reaches any of its rows exactly, as
   a verify of drafts needs (`docs/SPECULATIVE.md`, section 1). On a model

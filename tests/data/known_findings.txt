@@ -29,7 +29,6 @@ linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::k(u
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::kraw(unsigned long, int) const | 1 | the const overload of kraw, which only tests call; goes with cleanup/known-findings
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::v(unsigned long, int) const | 1 | the const overload of v, which only tests call; goes with cleanup/known-findings
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::vraw(unsigned long, int) const | 1 | the const overload of vraw, which only tests call; goes with cleanup/known-findings
-linked-test-only | src/backends/kv_storage.hpp | backend::BlockKVStorage::block_tokens() const | 1 | the storage's block size, which only tests read; goes with cleanup/known-findings
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::kernel_representations() const | 1 | what vulkan_kernel_representations returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::name() const | 1 | what vulkan_device_name returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::profile() const | 1 | what vulkan_device_profile returns; goes with it

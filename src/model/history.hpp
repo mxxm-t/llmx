@@ -105,6 +105,226 @@ inline std::optional<size_t> Model::checkpoint(const Sequence& s) const {
     return s.kept_.pos();
 }
 
+// The host memory a copy of `length` tokens takes (HostHistory::held): per device, whole blocks of its KV storage's layers, K and V, and one slot of its state storage, in whole slabs.
+inline size_t Model::host_bytes(size_t length) const {
+    size_t n = 0;
+    for (const auto& d : devices_) {
+        size_t bytes = 0;
+        if (const auto* st = dynamic_cast<const backend::BlockKVStorage*>(d->storage.get()))
+            bytes += backend::blocks_for(length, st->block_tokens()) * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
+        if (d->states) bytes += d->states->layers() * d->states->shape().slot_floats() * sizeof(float);
+        n += backend::blocks_for(bytes, kHostSlab) * kHostSlab;
+    }
+    return n;
+}
+
+namespace detail {
+// Copies between device storage and a run of host slabs of `slab` bytes each, at a byte offset into the run, split where a copy crosses from one slab into the next.
+struct HostSpan {
+    backend::Backend& b;
+    std::vector<backend::BufferPtr>& slabs;
+    size_t slab;
+    bool to_host;
+    size_t at = 0;
+    void copy(backend::Buffer& device, size_t off, size_t bytes) {
+        while (bytes) {
+            backend::Buffer& host = *slabs[at / slab];
+            const size_t in = at % slab, n = std::min(bytes, slab - in);
+            if (to_host) b.copy(host, in, device, off, n);
+            else b.copy(device, off, host, in, n);
+            at += n;
+            off += n;
+            bytes -= n;
+        }
+    }
+    // A sequence's first `n` blocks of `st`, each layer's K blocks then its V blocks, a run of consecutive blocks in one copy.
+    void blocks(backend::BlockKVStorage& st, const int32_t* ids, size_t n) {
+        for (size_t l = 0; l < st.layers(); ++l)
+            for (int side = 0; side < 2; ++side) {
+                backend::Buffer& buf = side ? *st.v_buffer(l) : *st.k_buffer(l);
+                const size_t block = side ? st.v_block_bytes() : st.k_block_bytes();
+                for (size_t i = 0; i < n;) {
+                    size_t e = i + 1;
+                    while (e < n && ids[e] == ids[e - 1] + 1) ++e;
+                    copy(buf, (size_t)ids[i] * block, (e - i) * block);
+                    i = e;
+                }
+            }
+    }
+    // One slot of every layer of `states`.
+    void slot(backend::StateStorage& states, size_t slot) {
+        const size_t bytes = states.shape().slot_floats() * sizeof(float);
+        for (size_t l = 0; l < states.layers(); ++l) copy(states.layer(l), slot * bytes, bytes);
+    }
+};
+
+// The idle slabs to free on each device before a copy that needs `need` slabs on each takes them, the devices holding `idle` idle slabs and `alive` slabs in all: none where the idle slabs cover every need, since nothing is allocated then, and otherwise the idle slabs past a device's need, the latest devices first, until the slabs alive once the shortfall is allocated are within `limit` slabs; nullopt where freeing all of those leaves them past it.
+inline std::optional<std::vector<size_t>> slabs_to_free(const std::vector<size_t>& need, const std::vector<size_t>& idle, size_t alive, size_t limit) {
+    std::vector<size_t> drop(need.size(), 0);
+    size_t short_by = 0;
+    for (size_t i = 0; i < need.size(); ++i) short_by += need[i] > idle[i] ? need[i] - idle[i] : 0;
+    if (!short_by) return drop;
+    for (size_t i = need.size(); i-- > 0 && alive + short_by > limit;) {
+        const size_t spare = idle[i] > need[i] ? idle[i] - need[i] : 0;
+        drop[i] = std::min(spare, alive + short_by - limit);
+        alive -= drop[i];
+    }
+    if (alive + short_by > limit) return std::nullopt;
+    return drop;
+}
+
+// Whether `bytes` more of host memory leave the host the reserve the fit keeps on it (CpuBackend::host_reserve) out of `free`, what it has free now; an unknown figure refuses nothing.
+inline bool host_room(std::optional<size_t> free, size_t bytes) {
+    return !free || (bytes <= *free && *free - bytes >= backend::CpuBackend::host_reserve(*free));
+}
+} // namespace detail
+
+// Whether some KV or state storage sits on a device other than the CPU, so a copy to host memory frees memory a copy on the host would not.
+inline bool Model::caches_on_devices() const {
+    for (const auto& d : devices_)
+        if ((d->storage || d->states) && !d->b->is_cpu()) return true;
+    return false;
+}
+
+// The host memory the slabs for copies take, idle or holding a copy.
+inline size_t Model::host_allocated() const {
+    size_t n = 0;
+    for (size_t a : host_allocated_) n += a;
+    return n * kHostSlab;
+}
+
+// The history's first `length` tokens copied to host memory, its blocks and, on a model that keeps a state, its checkpoint's slot, which must be at `length` (docs/SPECULATIVE.md, section 2, Host tier).
+// `length` is whole blocks of every storage.
+// The copies are enqueued on each device's stream behind the passes that wrote the history, into slabs released copies left where there are, and nothing waits for them: whatever writes those blocks or that slot next, and a restore of `out`, comes after them on the same stream.
+// The slabs alive, idle or holding a copy, stay within `limit` bytes: idle slabs of other devices are freed before one is allocated, and a copy they cannot make room for is refused, as is one whose new slabs would leave the host less free memory than the reserve the fit keeps on it.
+// `out` is whole or, on a throw, released.
+inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_t limit) {
+    settle(s, "a copy to host memory");
+    release_host(out);
+    if (s.mark_.held()) throw std::logic_error("inference: a copy to host memory of a marked sequence");
+    if (length > s.length()) throw std::logic_error("inference: a copy to host memory past the history");
+    if (state_layers_ && (!s.kept_.held() || s.kept_.pos() != length))
+        throw std::logic_error("inference: a copy to host memory of a model whose layers keep a recurrent state takes its checkpoint");
+    for (const Device* d : storages_) {
+        if (!dynamic_cast<const backend::BlockKVStorage*>(d->storage.get())) throw std::runtime_error("inference: a KV storage that cannot be copied to host memory");
+        if (length % d->b->kv_layout().block_tokens) throw std::logic_error("inference: a copy to host memory takes whole blocks of the history");
+    }
+    // Each sized on its own, so one that fails to grow leaves the other's check to grow it next time.
+    if (host_allocated_.size() != devices_.size()) host_allocated_.resize(devices_.size(), 0);
+    if (host_slabs_.size() != devices_.size()) host_slabs_.resize(devices_.size());
+    std::vector<size_t> bytes(devices_.size(), 0), need(devices_.size(), 0), idle(devices_.size(), 0);
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        const Device& d = *devices_[i];
+        if (const auto* st = dynamic_cast<const backend::BlockKVStorage*>(d.storage.get()))
+            bytes[i] = length / st->block_tokens() * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
+        if (d.states) bytes[i] += d.states->layers() * d.states->shape().slot_floats() * sizeof(float);
+        need[i] = backend::blocks_for(bytes[i], kHostSlab);
+        idle[i] = host_slabs_[i].size();
+    }
+    // Idle slabs are retired (release_host), so freeing them waits for nothing.
+    const auto drop = detail::slabs_to_free(need, idle, host_allocated() / kHostSlab, limit / kHostSlab);
+    if (!drop) throw std::runtime_error("inference: no host memory for the copy within its limit");
+    size_t fresh = 0;
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        for (size_t k = 0; k < (*drop)[i]; ++k) {
+            host_slabs_[i].pop_back();
+            --host_allocated_[i];
+        }
+        fresh += need[i] > host_slabs_[i].size() ? need[i] - host_slabs_[i].size() : 0;
+    }
+    // The slabs it allocates must leave the host the reserve the fit kept on it, read once the idle slabs above are freed.
+    if (fresh && !detail::host_room(core::host_memory_available(), fresh * kHostSlab))
+        throw std::runtime_error("inference: no host memory for the copy beside the reserve the host keeps");
+    HostHistory h;
+    h.owner = this;
+    h.length = length;
+    h.slabs.resize(devices_.size());
+    h.tickets.assign(devices_.size(), 0);
+    try {
+        for (size_t i = 0; i < devices_.size(); ++i) {
+            if (!bytes[i]) continue;
+            Device& d = *devices_[i];
+            std::vector<backend::BufferPtr>& slabs = h.slabs[i];
+            while (slabs.size() < need[i]) {
+                if (host_slabs_[i].empty()) {
+                    host_slabs_[i].reserve(host_allocated_[i] + 1);
+                    slabs.push_back(d.b->alloc(kHostSlab, backend::Memory::host_visible));
+                    ++host_allocated_[i];
+                } else {
+                    slabs.push_back(std::move(host_slabs_[i].back()));
+                    host_slabs_[i].pop_back();
+                }
+                h.held += kHostSlab;
+            }
+            detail::HostSpan span{*d.b, slabs, kHostSlab, true};
+            auto* st = dynamic_cast<backend::BlockKVStorage*>(d.storage.get());
+            if (st) span.blocks(*st, s.kv_[(size_t)d.storage_index].view(nullptr).blocks, length / st->block_tokens());
+            if (d.states) span.slot(*d.states, s.kept_.slot());
+            h.tickets[i] = d.b->submit();
+            h.bytes += bytes[i];
+        }
+    } catch (...) {
+        // Copies may be enqueued past the tickets h holds, so every device retires them before the slabs go back.
+        for (auto& d : devices_) d->b->sync();
+        release_host(h);
+        throw;
+    }
+    out = std::move(h);
+}
+
+// A fresh history holding what `h` copied, copied back into blocks and, on a model that keeps a state, a checkpoint slot of this model, at h.length, so a fork or the history itself continues from it with the bits of the history it was copied from.
+// The copies are enqueued ahead of any pass of the history, whose tickets cover them, as do h's.
+// A throw, from a pool, a slot or a copy, leaves nothing held.
+inline Sequence Model::restore_host(HostHistory& h) {
+    if (h.owner != this) throw std::runtime_error("inference: a history copied to host memory by another model");
+    if (h.slabs.size() != devices_.size()) throw std::logic_error("inference: a host history of another layout");
+    Sequence s = make_sequence();
+    size_t slot = 0;
+    if (state_layers_) {
+        slot = slots_.acquire_kept();
+        s.kept_ = Checkpoint(slots_, slot, h.length);
+        std::fill(s.from_.begin(), s.from_.end(), slot);
+    }
+    try {
+        for (size_t i = 0; i < devices_.size(); ++i) {
+            Device& d = *devices_[i];
+            auto* st = dynamic_cast<backend::BlockKVStorage*>(d.storage.get());
+            if (d.storage && !st) throw std::runtime_error("inference: a KV storage that cannot be copied from host memory");
+            if ((st || d.states) && h.slabs[i].empty()) throw std::logic_error("inference: a host history of another layout");
+            detail::HostSpan span{*d.b, h.slabs[i], kHostSlab, false};
+            if (st) {
+                const size_t n = h.length / st->block_tokens();
+                KVSequence& kv = s.kv_[(size_t)d.storage_index];
+                kv.prepare(h.length);
+                const int32_t* blocks = kv.view(nullptr).blocks;
+                if (n) st->ensure((size_t)*std::max_element(blocks, blocks + n));
+                span.blocks(*st, blocks, n);
+                kv.commit();
+            }
+            if (d.states) span.slot(*d.states, slot);
+        }
+    } catch (...) {
+        // Copies out of h's slabs may be enqueued past its tickets, so they retire before h can be released.
+        for (auto& d : devices_) d->b->sync();
+        throw;
+    }
+    std::fill(s.length_.begin(), s.length_.end(), h.length);
+    for (size_t i = 0; i < devices_.size(); ++i)
+        if (!h.slabs[i].empty()) h.tickets[i] = s.last_[i] = devices_[i]->b->submit();
+    return s;
+}
+
+// The slabs `h` holds left for the next copy on their devices once every copy into or out of them has retired; the pools' capacity is reserved as slabs are allocated, so this allocates nothing.
+inline void Model::release_host(HostHistory& h) noexcept {
+    if (h.owner == this)
+        for (size_t i = 0; i < h.slabs.size() && i < devices_.size(); ++i) {
+            if (h.slabs[i].empty()) continue;
+            devices_[i]->b->wait(h.tickets[i]);
+            for (auto& b : h.slabs[i]) host_slabs_[i].push_back(std::move(b));
+        }
+    h = HostHistory{};
+}
+
 // A sequence out of flight whose passes have retired, before it gives blocks or slots back.
 inline void Model::settle(Sequence& s, const char* what) {
     if (s.owner_ != this) throw std::runtime_error("inference: sequence of another model");

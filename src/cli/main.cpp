@@ -908,6 +908,8 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
     c.dtype = loaded->dtype;
+    // Read once the model and its caches are in memory, so the default takes what they leave.
+    if (!c.host_cache_bytes) c.host_cache_bytes = server::default_host_cache(model);
     http::Listener listener(c.host, c.port);
     // A split's plan, what each device was given, so a lopsided placement shows in the log.
     std::cerr << loaded->plan;
@@ -915,6 +917,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
               << " (device " << exec.device << ", up to " << c.max_seqs << " sequences over "
               << model.kv_tokens_total() << " KV tokens" << (model.keeps_state() ? ", " + std::to_string(model.checkpoint_slots()) + " state checkpoints" : std::string())
               << (loaded->checkpoint_kv_tokens ? " taking " + std::to_string(loaded->checkpoint_kv_tokens) + " KV tokens" : std::string())
+              << ", " << (*c.host_cache_bytes >> 20) << " MiB of host memory for evicted prefixes"
               << ", queue of " << c.max_queue << ")\n";
     server::serve(model, tok, loaded->chat, c, listener);
     return 0;
@@ -1026,6 +1029,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --max-queue N           Queued request limit, paused requests not counted (default: " << cfg.max_queue << ")\n"
             << "  --passes N              Passes in flight; above 1 needs a layer split (default: its stages, else 1)\n"
             << "  --state-checkpoints N   States a recurrent model keeps for prefix reuse (default: fitted, up to --max-seqs)\n"
+            << "  --host-cache-bytes N    Host memory for prefixes the devices evict; 0 keeps none (default: a quarter of free host memory once the model is loaded, none with every cache on the CPU)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
             << "  --ctx-size N, -c        Most KV tokens in total, fitted to the devices at load (default: model context)\n";
         model_options(false);
@@ -1329,6 +1333,7 @@ int main(int argc, char** argv) {
             server::Config cfg;
             ExecOptions exec;
             GivenFlags given;
+            std::optional<uint64_t> host_bytes;
             for (int i = 3; i < argc; i++) {
                 const int at = i;
                 const std::string a = argv[i];
@@ -1339,12 +1344,14 @@ int main(int argc, char** argv) {
                 else if (f == "--max-queue") cfg.max_queue = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--passes") cfg.passes = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--state-checkpoints") cfg.state_checkpoints = int_arg(argc, argv, i, a, 0);
+                else if (f == "--host-cache-bytes") host_bytes = int_arg<uint64_t>(argc, argv, i, a, 0);
                 else if (f == "--timing") cfg.timing = true;
                 else if (f == "--ctx-size") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
                 given.take(a, i > at);
             }
+            if (host_bytes) cfg.host_cache_bytes = (size_t)*host_bytes;
             return cmd_serve(argv[2], cfg, exec);
         }
         if (cmd == "bench") {

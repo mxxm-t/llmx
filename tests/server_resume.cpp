@@ -833,6 +833,76 @@ void writing_growth(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
     same(serve(*fresh, tok, 3, {{Req{again, 32}}})[0], follow_reply, what + ", the follow-up turn");
 }
 
+// Donors kept in host memory (docs/SPECULATIVE.md, section 2, Host tier): two conversations of a 300-token prompt alternate on a pool of 4 blocks of 128, room for one finished turn's donor beside the next request, so each turn's admission evicts the other conversation's donor.
+// With a host tier the evicted donor is copied to host memory, and each follow-up turn, the turn's prompt, its reply and 30 tokens more, promotes its own conversation's donor back, evicting the other's to host memory in turn, and forks its 256 tokens, giving the reply it gives on a fresh model; without one it reuses nothing.
+// With `fail` a copy into or out of host memory throws: a write-back that fails keeps nothing in host memory, a promotion that fails keeps its host entry and takes nothing on the devices, and every reply is still its reply alone.
+enum class HostFault { none, write_back, promotion };
+
+void host_tier(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, size_t devices, size_t checkpoints, HostFault fault,
+               const std::string& what) {
+    std::shared_ptr<FailingCopies> failing;
+    const Make make = on(weights, [&] {
+        failing = std::make_shared<FailingCopies>();
+        failing->set_threads(1);
+        std::vector<backend::BackendPtr> b{failing};
+        for (size_t d = 1; d < devices; ++d) b.push_back(cpus(1)[0]);
+        return b;
+    }, 3, checkpoints);
+    const Req a{prompt_of(5, 300, vocab), 40}, b{prompt_of(7, 300, vocab), 40};
+    const auto follow = [&](const Req& first, uint32_t seed) {
+        auto model = make(512, 0);
+        std::vector<uint32_t> again = first.prompt;
+        for (uint32_t id : ids_of(serve(*model, tok, 3, {{first}})[0])) again.push_back(id);
+        const std::vector<uint32_t> more = prompt_of(seed, 30, vocab);
+        again.insert(again.end(), more.begin(), more.end());
+        return Req{again, 32};
+    };
+    const Req fa = follow(a, 6), fb = follow(b, 8);
+    std::vector<Reply> alone;
+    for (const Req& r : {a, b, fa, fb}) {
+        auto model = make(512, 0);
+        alone.push_back(serve(*model, tok, 3, {{r}})[0]);
+    }
+    for (const bool host : {false, true}) {
+        auto model = make(512, 0);
+        failing->fail_read = fault == HostFault::write_back;
+        failing->fail_write = fault == HostFault::promotion;
+        server::Scheduler::Stats stats;
+        const std::vector<Reply> got = serve(*model, tok, 3, {{a}, {b}, {fa}, {fb}}, &stats, 0, host ? (size_t)1 << 30 : 0);
+        const std::string arm = what + (host ? ", with a host tier" : ", without one");
+        for (size_t i = 0; i < got.size(); ++i) same(alone[i], got[i], arm + ", request " + std::to_string(i));
+        const bool hits = host && fault == HostFault::none;
+        require(stats.host_hits == (hits ? 2u : 0u) && stats.prefix_tokens == (hits ? 4 * kBlock : 0u),
+                arm + ": " + std::to_string(stats.host_hits) + " promotions and " + std::to_string(stats.prefix_tokens) + " tokens reused");
+        // The second follow-up evicts the first's donor too: on the dense model its 384 tokens are a third entry, and on the hybrid one its checkpoint is at the first turn's 256, whose entry it renews; a failed write-back keeps nothing.
+        const size_t held = !host || fault == HostFault::write_back ? 0 : checkpoints ? 2 : 3;
+        require(stats.host_donors == held && (stats.host_bytes == 0) == (held == 0),
+                arm + ": " + std::to_string(stats.host_donors) + " donors held in host memory, against " + std::to_string(held));
+    }
+}
+
+// A promotion that fails after evicting the device donor a request would otherwise fork (XDEV's review of step 2b): with one request at a time and host memory for one copy, a 300-token prompt's donor goes to host memory when a second request forks its first block; a third request repeating the first prompt prefers the host copy, but making room for it evicts the second's donor, whose copy takes the host memory the first copy held, so the promotion fails, and the request runs from what is left with its reply alone.
+void failed_promotion(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const Req a{prompt_of(5, 300, vocab), 40};
+    std::vector<uint32_t> fork = a.prompt;
+    fork.resize(kBlock);
+    const std::vector<uint32_t> tail = prompt_of(9, 200, vocab);
+    fork.insert(fork.end(), tail.begin(), tail.end());
+    std::vector<uint32_t> again = a.prompt;
+    const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
+    again.insert(again.end(), more.begin(), more.end());
+    const std::vector<Req> reqs = {a, Req{fork, 40}, Req{again, 32}};
+    auto model = make(1024, 0);
+    server::Scheduler::Stats stats;
+    const std::vector<Reply> got = serve(*model, tok, 1, {{reqs[0]}, {reqs[1]}, {reqs[2]}}, &stats, 0, (size_t)64 << 20);
+    for (size_t i = 0; i < reqs.size(); ++i) {
+        auto fresh = make(1024, 0);
+        same(serve(*fresh, tok, 1, {{reqs[i]}})[0], got[i], "a failed promotion, request " + std::to_string(i));
+    }
+    require(stats.host_hits == 0 && stats.host_donors == 1, "a failed promotion: " + std::to_string(stats.host_hits) + " promotions and " +
+                                                            std::to_string(stats.host_donors) + " donors in host memory");
+}
+
 void hybrid(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
     const Make one = on(weights, [] { return cpus(1); }, 3);
     const std::vector<Req> three = {{prompt_of(1, 40, vocab)}, {prompt_of(2, 9, vocab)}, {prompt_of(3, 23, vocab)}};
@@ -956,8 +1026,17 @@ int main(int argc, char** argv) {
             const gguf::GGUFModel mixed = served_hybrid(kHybrid);
             hybrid(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             hybrid_checkpoints(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
+            for (size_t devices = 1; devices <= 2; ++devices)
+                host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices, 1, HostFault::none,
+                          "a hybrid model's donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));
+            host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, 1, 1, HostFault::promotion, "a hybrid model's donors in host memory, a promotion failing");
             // The job reads 128 rows in passes of 16, so it can be cancelled at each of the seven boundaries before its last pass.
             writing_growth(one, tok, vocab);
+            for (size_t devices = 1; devices <= 2; ++devices)
+                host_tier(weights, tok, vocab, devices, 0, HostFault::none, "donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));
+            host_tier(weights, tok, vocab, 1, 0, HostFault::write_back, "donors in host memory, a write-back failing");
+            host_tier(weights, tok, vocab, 1, 0, HostFault::promotion, "donors in host memory, a promotion failing");
+            failed_promotion(one, tok, vocab);
             for (const When w : {When::idle, When::writing, When::at_once}) {
                 const std::string when = w == When::writing ? " while it is written" : w == When::at_once ? " and answered at once" : "";
                 reprefilled(one, tok, vocab, 0, w, "a reply read again" + when);

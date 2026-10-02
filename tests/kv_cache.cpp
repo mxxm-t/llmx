@@ -7,6 +7,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -728,6 +729,76 @@ void model_fork() {
     require(a.length() == 0 && b.length() == 0, "reset after fork");
 }
 
+// A history copied to host memory and back (Model::save_host, Model::restore_host, docs/SPECULATIVE.md, section 2, Host tier): two blocks of a history saved, the history reset and its blocks taken by another, then restored into other physical blocks, continue as the history never copied does, bit for bit.
+// A copy inside a block or past the history and a restore into another model are refused, the refused restore holding nothing.
+void host_round_trip() {
+    const auto weights = fixture();
+    auto cpu = std::make_shared<backend::CpuBackend>();
+    cpu->set_threads(1);
+    infer::Model model(infer::gguf_weights(weights), cpu), fresh(infer::gguf_weights(weights), cpu);
+    const size_t bt = cpu->kv_layout().block_tokens;
+    std::vector<uint32_t> history(2 * bt + 5);
+    for (size_t i = 0; i < history.size(); ++i) history[i] = (uint32_t)(1 + (i * 7) % 15);
+    const uint32_t six = 6;
+    auto run = [&](infer::Model& m, infer::Sequence& s, const uint32_t* ids, size_t n, bool want) {
+        infer::ExecContext ctx;
+        const infer::BatchEntry e{&s, ids, n, want};
+        m.forward(ctx, &e, 1);
+        return want ? std::vector<float>(ctx.logits(0), ctx.logits(0) + 16) : std::vector<float>();
+    };
+    infer::Sequence ref = fresh.make_sequence();
+    run(fresh, ref, history.data(), 2 * bt, false);
+    run(fresh, ref, history.data() + 2 * bt, 5, false);
+    const std::vector<float> want = run(fresh, ref, &six, 1, true);
+
+    infer::Sequence a = model.make_sequence();
+    run(model, a, history.data(), 2 * bt, false);
+    run(model, a, history.data() + 2 * bt, 5, false);
+    infer::HostHistory h;
+    const size_t any = std::numeric_limits<size_t>::max();
+    rejects([&] { model.save_host(a, bt + 1, h, any); }, "a copy to host memory inside a block accepted");
+    rejects([&] { model.save_host(a, 3 * bt, h, any); }, "a copy to host memory past the history accepted");
+    rejects([&] { model.save_host(a, 2 * bt, h, 0); }, "a copy to host memory past its limit accepted");
+    require(model.host_allocated() == 0, "a refused copy to host memory kept a slab");
+    model.save_host(a, 2 * bt, h, any);
+    require(h.length == 2 * bt && h.held == model.host_bytes(2 * bt) && h.bytes > 0 && h.bytes <= h.held, "a copy to host memory holds other bytes");
+    model.reset(a);
+    infer::Sequence other = model.make_sequence();
+    run(model, other, history.data(), bt, false);
+    rejects([&] { fresh.restore_host(h); }, "a history copied by another model restored");
+    require(!model.caches_on_devices(), "a model on the CPU alone counted a cache on a device");
+    infer::Sequence r = model.restore_host(h);
+    require(r.length() == 2 * bt, "a restored history's length");
+    run(model, r, history.data() + 2 * bt, 5, false);
+    require(run(model, r, &six, 1, true) == want, "a history restored from host memory differs from one never copied");
+    const size_t slabs = model.host_allocated();
+    model.release_host(h);
+    require(h.bytes == 0 && h.slabs.empty(), "a released host history holds memory");
+    // A second copy takes the slabs the first left, allocating none.
+    model.save_host(r, 2 * bt, h, slabs);
+    require(model.host_allocated() == slabs, "a second copy to host memory allocated past the slabs the first left");
+    model.release_host(h);
+    model.reset(r);
+    model.reset(other);
+    fresh.reset(ref);
+}
+
+// Which idle slabs a copy to host memory frees before it allocates (infer::detail::slabs_to_free), so the slabs alive stay within the limit across devices: none where the idle ones cover every need; on a split whose two devices each hold two idle slabs, under a limit of four, a copy needing three on the first and one on the second frees the second's spare one before allocating the first's third (the review's case, which kept five alive); and a copy whose shortfall the spare slabs cannot cover is refused.
+void host_slab_limit() {
+    const auto drop = [](std::vector<size_t> need, std::vector<size_t> idle, size_t alive, size_t limit) {
+        return infer::detail::slabs_to_free(need, idle, alive, limit);
+    };
+    require(drop({1, 1}, {2, 3}, 9, 4) == std::optional<std::vector<size_t>>(std::vector<size_t>{0, 0}), "idle slabs covering every need were freed");
+    require(drop({3, 1}, {2, 2}, 4, 4) == std::optional<std::vector<size_t>>(std::vector<size_t>{0, 1}), "the spare slab of the other device was not freed");
+    require(drop({3, 1}, {2, 2}, 4, 5) == std::optional<std::vector<size_t>>(std::vector<size_t>{0, 0}), "a slab was freed within the limit");
+    require(drop({4, 1}, {0, 3}, 5, 7) == std::optional<std::vector<size_t>>(std::vector<size_t>{0, 2}), "the second device's spare slabs were not freed");
+    require(!drop({3, 1}, {0, 0}, 2, 4), "a copy past the limit was not refused");
+    // New slabs leave the host the reserve the fit keeps, a twentieth of what it has free: 1900 bytes of 2000 do, one more does not, and an unknown figure refuses nothing.
+    require(infer::detail::host_room(2000, 1900) && !infer::detail::host_room(2000, 1901) && !infer::detail::host_room(2000, 2001),
+            "the host's reserve was not kept at its edge");
+    require(infer::detail::host_room(std::nullopt, (size_t)1 << 40), "an unknown free figure refused a copy");
+}
+
 // What a paused request's resume relies on (docs/SERVER.md, pausing): a history recomputed in the classes that first computed it gives the logits it gave, bit for bit.
 // The reference is a 40-token prompt at its extent, then 199 greedy tokens each decoded in a pass of its own; the synthetic Q8_0 model's decode rows take the 8-bit dots and its prompt rows the float path, so a class taken wrongly shows.
 // The replays: the prompt at its extent in slices of 16, then the 199 tokens as entries of extent 1 of up to 64 rows, logits only on the last; a fork at the first block of the reference history replaying the rest; and the replay beside another sequence's decode row and a third's prompt slice.
@@ -900,6 +971,8 @@ int main() {
         batched_forward();
         fork_shares_blocks();
         model_fork();
+        host_round_trip();
+        host_slab_limit();
         replay_by_class();
         std::cout << "KV cache: pool, sequence, ownership, on-demand storage, growth steps and peak, growth hooks, "
                      "reset, paged attention, failed-step transactions, retire-before-release and replay by class pass\n";

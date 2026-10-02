@@ -471,6 +471,46 @@ void checkpoints() {
     require(same(broken.prefill(tail), want), "the history after a failed step differs");
 }
 
+// A hybrid history copied to host memory and back (Model::save_host, Model::restore_host): its 128 tokens and its checkpoint's state there, restored once the one checkpoint slot is free into a slot of its own, continue the prompt with the bits of the prompt read in one; a copy where no checkpoint is refused, and a restore with no checkpoint slot free throws and holds nothing.
+void host_round_trip() {
+    const gguf::GGUFModel m = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    std::vector<uint32_t> ids(200);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = (uint32_t)((i * 7 + 3) % VOCAB);
+    const std::vector<uint32_t> head(ids.begin(), ids.begin() + 128), tail(ids.begin() + 128, ids.end());
+    infer::ModelOptions options;
+    options.state_slots = 2;
+    options.checkpoint_slots = 1;
+    infer::Model fresh(w, backend::make_cpu_backend(), options);
+    const std::vector<float> want = fresh.prefill(ids);
+    infer::Model model(w, backend::make_cpu_backend(), options);
+    infer::Sequence a = model.make_sequence();
+    infer::ExecContext ctx;
+    infer::BatchEntry keep{&a, head.data(), head.size(), false};
+    keep.extent = ids.size();
+    model.forward(ctx, &keep, 1);
+    infer::HostHistory h;
+    const size_t any = std::numeric_limits<size_t>::max();
+    refuses("a copy without a checkpoint", "takes its checkpoint", [&] { model.save_host(a, 128, h, any); });
+    model.reset(a);
+    keep.keep = true;
+    model.forward(ctx, &keep, 1);
+    model.save_host(a, 128, h, any);
+    require(h.length == 128 && h.held == model.host_bytes(128) && h.bytes > 0 && h.slabs.size() == 1 && !h.slabs[0].empty(), "a hybrid copy to host memory holds other bytes");
+    refuses("a restore with every checkpoint slot held", "every checkpoint slot is held", [&] { model.restore_host(h); });
+    require(model.checkpoints_free() == 0, "a refused restore took a slot");
+    model.reset(a);
+    infer::Sequence r = model.restore_host(h);
+    require(model.checkpoint(r) == std::optional<size_t>(128) && r.length() == 128, "a restored hybrid history's checkpoint");
+    infer::BatchEntry rest{&r, tail.data(), tail.size(), true};
+    rest.extent = ids.size();
+    model.forward(ctx, &rest, 1);
+    require(!std::memcmp(ctx.logits(0), want.data(), VOCAB * sizeof(float)), "a hybrid history restored from host memory differs from the prompt in one");
+    model.release_host(h);
+    model.reset(r);
+    require(model.checkpoints_free() == 1, "a restored history's reset kept its checkpoint slot");
+}
+
 // A device reporting `room` bytes free that keeps copies of what it adopts, so the fit charges it the weights its layers take; its first `rise_after` reads report one byte, as a card still taking back an ended process's memory does.
 // With `device` it says it is not the CPU, as a card does.
 struct Room : backend::CpuBackend {
@@ -964,6 +1004,7 @@ int main() {
         footprint();
         state_rules();
         checkpoints();
+        host_round_trip();
         checkpoint_fit();
         refused_passes_take_no_slot();
         failed_admission_takes_no_slot();

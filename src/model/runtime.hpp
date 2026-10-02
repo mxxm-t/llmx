@@ -113,6 +113,17 @@ private:
     bool in_flight_ = false;
 };
 
+class Model;
+
+// A history's first `length` tokens copied to host memory (Model::save_host), which only the model that wrote it restores (Model::restore_host) and releases (Model::release_host): per device, slabs of the backend's host-visible memory holding its KV storage's blocks, layer by layer, K then V, and on a model that keeps a state its state storage's slot at `length`, layer by layer, as the storages hold them, with the ticket of the last copy into or out of them.
+// `bytes` is what the copy holds and `held` the slabs it takes.
+struct HostHistory {
+    const Model* owner = nullptr;
+    size_t length = 0, bytes = 0, held = 0;
+    std::vector<std::vector<backend::BufferPtr>> slabs;
+    std::vector<backend::Ticket> tickets;
+};
+
 // What one sequence contributes to a pass: `n` tokens appended to `seq`, and whether the logits after its last token are wanted.
 // A prefill microbatch is one entry with many tokens, a decode batch is many entries with one, and the two mix freely.
 // A sequence appears in a batch at most once.
@@ -572,6 +583,12 @@ public:
     bool mark(Sequence& s);
     bool keep(Sequence& s);
     std::optional<size_t> checkpoint(const Sequence& s) const;
+    size_t host_bytes(size_t length) const;
+    void save_host(Sequence& s, size_t length, HostHistory& out, size_t limit);
+    size_t host_allocated() const;
+    bool caches_on_devices() const;
+    Sequence restore_host(HostHistory& h);
+    void release_host(HostHistory& h) noexcept;
     // Checkpoint slots in all, and those a keep can still take.
     size_t checkpoint_slots() const { return state_layers_ ? options_.checkpoint_slots : 0; }
     size_t checkpoints_free() const { return state_layers_ ? slots_.kept_available() : 0; }
@@ -754,6 +771,10 @@ private:
     std::vector<Device*> storages_;              // the devices whose mixer layers keep KV
     size_t kv_layers_ = 0;                       // the model's layers that keep KV
     size_t state_layers_ = 0;                    // and those that keep a state
+    // Host-visible memory for copies of histories (Model::save_host), in slabs a released copy leaves per device for the next, since allocating and pinning host memory costs far more than copying into it.
+    static constexpr size_t kHostSlab = size_t(64) << 20;
+    std::vector<std::vector<backend::BufferPtr>> host_slabs_;   // per device, the idle slabs, each vector's capacity reserved for every slab of its device so a release does not allocate
+    std::vector<size_t> host_allocated_;                        // per device, its slabs alive, idle or in a copy
     SlotPool slots_;
     std::vector<Stage> stages_;
     bool pipelined_ = false;                     // a prompt's chunks flow through the stages together (prefill)

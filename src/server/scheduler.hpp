@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 #include "core/cpus.hpp"
+#include "core/host_memory.hpp"
 #include "inference/logprobs.hpp"
 #include "inference/sampler.hpp"
 #include "model/runtime.hpp"
@@ -24,6 +25,11 @@
 #include "tokenizer/tokenizer.hpp"
 
 namespace server {
+
+// The host memory for donors the devices evict when the server is given none (--host-cache-bytes): a quarter of what the host has free once the model is loaded, or none where every cache sits on the CPU, whose copies would only move host memory into more of it.
+inline size_t default_host_cache(const infer::Model& model) {
+    return model.caches_on_devices() ? core::host_memory_available().value_or(0) / 4 : 0;
+}
 
 // A request's sampling settings, with the defaults and ranges of infer::Sampling, and what only a request has: several stop texts and no cap.
 struct SampleParams : infer::Sampling {
@@ -211,8 +217,10 @@ public:
     // A `timed` scheduler times its rounds and reads each stage's device time (Timing), over backends made to time their work.
     // Up to kSamplers threads beside the scheduler thread sample a pass's rows, fewer where the process may use fewer CPUs.
     // A model whose layers keep a recurrent state must hold a state slot for each of the `max_seqs` requests it runs at once, so admission never waits on one.
-    Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false)
-        : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), timed_(timed),
+    // Donors the device tier evicts are kept in up to `host_bytes` of host memory and promoted back on a match (docs/SPECULATIVE.md, section 2, Host tier); 0 keeps none.
+    Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false,
+              size_t host_bytes = 0)
+        : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), timed_(timed), host_cap_(host_bytes),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)), reserved_(model.kv_pools(), 0) {
         if (model_.keeps_state() && max_seqs_ > model_.state_slots())
             throw std::logic_error("server: " + std::to_string(max_seqs_) + " requests at once need as many recurrent state slots, and the model holds " +
@@ -315,6 +323,9 @@ public:
         size_t reprefills = 0;         // jobs that kept a reply's next turn as a donor
         size_t reprefill_rows = 0;     // rows jobs read
         size_t reprefill_cancels = 0;  // jobs that gave way to a request at a pass boundary
+        size_t host_donors = 0, host_bytes = 0;   // donors held in host memory now, and their bytes
+        size_t host_hits = 0;                     // donors promoted from host memory for a request
+        size_t host_bytes_moved = 0;              // bytes copied between the devices and host memory, both ways
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
@@ -325,6 +336,10 @@ public:
         s.reprefills = reprefills_;
         s.reprefill_rows = reprefill_rows_;
         s.reprefill_cancels = reprefill_cancels_;
+        s.host_donors = host_.size();
+        s.host_bytes = host_held_;
+        s.host_hits = host_hits_;
+        s.host_bytes_moved = host_moved_;
         return s;
     }
 
@@ -421,6 +436,7 @@ public:
         jobs_.clear();
         follows_.clear();
         while (!donors_.empty()) drop_donor();
+        while (!host_.empty()) drop_host(0);
         active_count_.store(0);
         paused_count_.store(0);
         in_flight_.store(0);
@@ -817,6 +833,15 @@ private:
         size_t d = own_donor(*r);
         const bool take = d < donors_.size();
         if (!take) d = best_donor(*r, shared);
+        // A donor in host memory sharing more goes back to the devices first, as a donor of its own the request then forks; promoting it may evict device donors, so the best is found again whether or not it succeeds.
+        if (!take && !host_.empty()) {
+            size_t more = 0;
+            const size_t h = best_host(*r, more);
+            if (h < host_.size() && more > shared) {
+                promote(h);
+                d = best_donor(*r, shared);
+            }
+        }
         // A running job, as far as it has read, is a source too, and a job's own request while it runs, where no pass holds them.
         const Request* from = nullptr;
         for (const auto& a : active) {
@@ -838,7 +863,7 @@ private:
         bool consume = false;
         for (size_t i : gone) {
             if (keep && i == d) { consume = true; continue; }
-            drop_donor(i);
+            drop_donor(i, true);
             if (i < d) --d;
         }
         admit(*r, d, shared, take, from);
@@ -856,7 +881,7 @@ private:
             std::vector<size_t> gone = t.donors;
             std::sort(gone.begin(), gone.end(), std::greater<size_t>());
             std::lock_guard<std::mutex> lk(m_);
-            for (size_t i : gone) drop_donor(i);
+            for (size_t i : gone) drop_donor(i, true);
         }
         std::vector<std::pair<std::shared_ptr<Request>, bool>> victims;
         for (const auto& p : t.paused) victims.push_back({active[p.first], p.second});
@@ -864,7 +889,7 @@ private:
             const size_t at = (size_t)(std::find(active.begin(), active.end(), v.first) - active.begin());
             if (pause(active, at) && v.second) {
                 std::lock_guard<std::mutex> lk(m_);
-                drop_donor(donors_.size() - 1);
+                drop_donor(donors_.size() - 1, true);
             }
         }
     }
@@ -918,6 +943,7 @@ private:
         std::vector<RowClass> classes;
         infer::Sequence seq;
         std::vector<size_t> blocks;   // per cache pool
+        uint64_t on_host = 0;         // the host donor holding the same history, which it was promoted from
     };
 
     // A resumed request's own donor, the one its pause left, when nothing has evicted it; donors_.size() when there is none.
@@ -939,6 +965,12 @@ private:
     // A free checkpoint slot for a keep beside `keeps` others the pass takes, the oldest donors that hold one giving theirs where none is free (make_room, with checkpoint slots as one more pool), but for the donor `spare` a job forked, whose slot its fork may still read; a checkpoint is never forced, so false leaves it out.
     bool checkpoint_room(size_t keeps, uint64_t spare = 0) {
         if (model_.checkpoints_free() > keeps) return true;
+        std::lock_guard<std::mutex> lk(m_);
+        return checkpoint_room_held(keeps, spare);
+    }
+    // checkpoint_room under the lock.
+    bool checkpoint_room_held(size_t keeps, uint64_t spare = 0) {
+        if (model_.checkpoints_free() > keeps) return true;
         const size_t slots = model_.checkpoint_slots();
         std::vector<std::vector<size_t>> held;
         std::vector<size_t> at;
@@ -952,8 +984,7 @@ private:
         std::vector<size_t> gone;
         for (size_t i : t.donors) gone.push_back(at[i]);
         std::sort(gone.begin(), gone.end(), std::greater<size_t>());
-        std::lock_guard<std::mutex> lk(m_);
-        for (size_t i : gone) drop_donor(i);
+        for (size_t i : gone) drop_donor(i, true);
         // A slot a fork still reads stays held after its donor goes.
         return model_.checkpoints_free() > keeps;
     }
@@ -972,19 +1003,133 @@ private:
     }
     // How much of r's history a fork of `seq`, holding the history `t` computed as `classes` record, can give it: whole blocks of the same tokens over rows computed as r's were or, at its first admission, as it would compute them (a job's at the class every longer prompt takes), within what `seq` holds; on a model that keeps a state, only as far as its checkpoint.
     size_t shareable(const Request& r, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, const infer::Sequence& seq) const {
+        return shareable(r, t, classes, seq.length(), model_.checkpoint(seq));
+    }
+    // The same for a history of `held` tokens whose state, on a model that keeps one, is kept at `kept`.
+    size_t shareable(const Request& r, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, size_t held, std::optional<size_t> kept) const {
         const size_t bt = model_.kv_block_tokens(), h = history_tokens(r);
         const std::vector<RowClass> first{RowClass{r.prompt_.size(), r.prompt_.size()}};
         const std::vector<RowClass>& own = r.classes_.empty() ? first : r.classes_;
         size_t n = 0;
-        const size_t limit = std::min({t.size(), h - 1, seq.length()});
+        const size_t limit = std::min({t.size(), h - 1, held});
         while (n < limit && t[n] == *token_ptr(r, n)) ++n;
         n = alike(own, classes, n);
         n = n / bt * bt;
+        if (model_.keeps_state()) n = kept && *kept <= n && *kept % bt == 0 ? *kept : 0;
+        return n;
+    }
+
+    // A donor the device tier evicted, its history in host memory (Model::save_host): the tokens and row classes it holds, which a request matches as it matches a device donor.
+    struct HostDonor {
+        uint64_t id = 0;
+        std::vector<uint32_t> tokens;
+        std::vector<RowClass> classes;
+        infer::HostHistory history;
+    };
+
+    // The host donor sharing the most whole blocks with r's history, by best_donor's rule; host_.size() when none shares a block.
+    size_t best_host(const Request& r, size_t& tokens) const {
+        size_t best = host_.size();
+        tokens = 0;
+        for (size_t i = 0; i < host_.size(); ++i) {
+            const size_t len = host_[i].history.length;
+            const size_t n = shareable(r, host_[i].tokens, host_[i].classes, len, model_.keeps_state() ? std::optional<size_t>(len) : std::nullopt);
+            if (n > tokens) { tokens = n; best = i; }
+        }
+        return best;
+    }
+
+    // Donor d's history copied to host memory as it leaves the devices, the copies enqueued on the devices' streams and not waited for, its whole blocks up to its checkpoint on a model that keeps a state, where the tier's cap and the host's free memory allow, the oldest host donors going first; a copy that fails keeps nothing.
+    // A donor promoted from host memory whose entry is still there, or one whose history an entry already holds, only renews that entry's age.
+    // Under the lock.
+    void write_back(Donor& d) {
+        if (!host_cap_) return;
+        const size_t bt = model_.kv_block_tokens();
+        size_t n = std::min(d.seq.length(), d.tokens.size()) / bt * bt;
         if (model_.keeps_state()) {
-            const std::optional<size_t> kept = model_.checkpoint(seq);
+            const std::optional<size_t> kept = model_.checkpoint(d.seq);
             n = kept && *kept <= n && *kept % bt == 0 ? *kept : 0;
         }
-        return n;
+        if (!n) return;
+        for (size_t i = 0; i < host_.size(); ++i) {
+            const HostDonor& h = host_[i];
+            const bool same = h.history.length == n && std::equal(h.tokens.begin(), h.tokens.end(), d.tokens.begin()) &&
+                              alike(h.classes, d.classes, n) == n;
+            if ((d.on_host && h.id == d.on_host) || same) {
+                std::rotate(host_.begin() + (std::ptrdiff_t)i, host_.begin() + (std::ptrdiff_t)i + 1, host_.end());
+                return;
+            }
+        }
+        const size_t bytes = model_.host_bytes(n);
+        if (bytes > host_cap_) return;
+        while (!host_.empty() && host_held_ + bytes > host_cap_) drop_host(0);
+        HostDonor h;
+        h.id = d.id ? d.id : ++donor_ids_;
+        h.tokens.assign(d.tokens.begin(), d.tokens.begin() + (std::ptrdiff_t)n);
+        h.classes = clip(d.classes, n);
+        const Clock::time_point start = Clock::now();
+        try {
+            model_.save_host(d.seq, n, h.history, host_cap_);
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "server: a donor of %zu tokens was not kept in host memory (%s)\n", n, e.what());
+            return;
+        }
+        host_held_ += h.history.held;
+        host_moved_ += h.history.bytes;
+        std::fprintf(stderr, "server: a donor of %zu tokens kept in host memory, %.1f MiB, its copy enqueued in %.1f ms\n", n, (double)h.history.bytes / (1 << 20),
+                     ms_since(start));
+        host_.push_back(std::move(h));
+    }
+
+    // Host donor i out of host memory.
+    // Under the lock.
+    void drop_host(size_t i) {
+        host_held_ -= host_[i].history.held;
+        model_.release_host(host_[i].history);
+        host_.erase(host_.begin() + (std::ptrdiff_t)i);
+    }
+
+    // Host donor i back on the devices as a donor of its own, its blocks and, on a model that keeps a state, its checkpoint slot taken as a first admission takes room, evicting older device donors to host memory; the host entry stays, renewed, so evicting the promoted donor again copies nothing.
+    // False, the devices as they were but for donors evicted, where the room or a slot is not there or the copy fails.
+    // Under the lock.
+    bool promote(size_t i) {
+        const uint64_t id = host_[i].id;
+        std::rotate(host_.begin() + (std::ptrdiff_t)i, host_.begin() + (std::ptrdiff_t)i + 1, host_.end());
+        const auto entry = [&]() -> HostDonor* {
+            for (HostDonor& h : host_)
+                if (h.id == id) return &h;
+            return nullptr;
+        };
+        std::vector<size_t> need = pools_.blocks_for(entry()->history.length);
+        const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), npos, false, {}, 0, false, need);
+        if (!t.enough) return false;
+        std::vector<size_t> gone = t.donors;
+        std::sort(gone.begin(), gone.end(), std::greater<size_t>());
+        for (size_t g : gone) drop_donor(g, true);
+        if (model_.keeps_state() && !checkpoint_room_held(0)) return false;
+        while (donors_.size() >= max_seqs_) drop_donor(0, true);
+        HostDonor* h = entry();
+        if (!h) return false;
+        Donor d;
+        const Clock::time_point start = Clock::now();
+        try {
+            d.seq = model_.restore_host(h->history);
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "server: a donor of %zu tokens was not promoted from host memory (%s)\n", h->history.length, e.what());
+            return false;
+        }
+        d.id = ++donor_ids_;
+        d.on_host = h->id;
+        d.tokens = h->tokens;
+        d.classes = h->classes;
+        d.blocks = std::move(need);
+        add(reserved_, d.blocks);
+        host_moved_ += h->history.bytes;
+        ++host_hits_;
+        std::fprintf(stderr, "server: a donor of %zu tokens promoted from host memory, %.1f MiB, its copy enqueued in %.1f ms\n", h->history.length,
+                     (double)h->history.bytes / (1 << 20), ms_since(start));
+        donors_.push_back(std::move(d));
+        return true;
     }
 
     // A history for an admitted request: its own donor `d` taken back whole (`take`), a fork at `shared` tokens of donor `d` or of the running request `from`, or a fresh sequence.
@@ -1031,10 +1176,11 @@ private:
         if (model_.checkpoint_slots() && at > shared) r.keep_at_ = at;
     }
 
-    // A donor's blocks back to the pool, the oldest donor's unless another is named.
+    // A donor's blocks back to the pool, the oldest donor's unless another is named; one the device tier evicts (`evicted`) is copied to host memory first.
     // Under the lock.
-    void drop_donor(size_t i = 0) {
+    void drop_donor(size_t i = 0, bool evicted = false) {
         Donor& d = donors_[i];
+        if (evicted) write_back(d);
         try { model_.reset(d.seq); } catch (const std::exception&) {}
         sub(reserved_, d.blocks);
         donors_.erase(donors_.begin() + (std::ptrdiff_t)i);
@@ -1120,7 +1266,7 @@ private:
         uint64_t id = 0;
         if (held && held >= (least ? least : model_.kv_block_tokens())) {
             std::lock_guard<std::mutex> lk(m_);
-            while (donors_.size() >= max_seqs_) drop_donor();
+            while (donors_.size() >= max_seqs_) drop_donor(0, true);
             Donor d;
             d.id = id = ++donor_ids_;
             d.tokens.assign(h.begin(), h.begin() + (std::ptrdiff_t)std::min(h.size(), held));
@@ -1276,7 +1422,7 @@ private:
                 {
                     std::lock_guard<std::mutex> lk(m_);
                     for (size_t d = 0; d < donors_.size(); ++d)
-                        if (j->source_ && donors_[d].id == j->source_) { drop_donor(d); break; }
+                        if (j->source_ && donors_[d].id == j->source_) { drop_donor(d, true); break; }
                 }
                 if (!model_.keep(j->seq_)) {
                     finish(active, i, "error");
@@ -1310,6 +1456,7 @@ private:
     const bpe::Tokenizer& tok_;
     size_t max_seqs_, ubatch_, max_queue_;
     const bool timed_;
+    const size_t host_cap_;               // the host tier's bytes at most
     Timing round_;                        // the scheduler thread's, published to timing_ each round
     Timing timing_;                       // under the lock
     std::vector<double> host_stage_ms_;   // per stage on the host, its time since the last reading
@@ -1330,6 +1477,8 @@ private:
     // Paused requests in order of first admission, the scheduler thread's; they hold nothing but a donor, and do not count against max_queue.
     std::deque<std::shared_ptr<Request>> paused_;
     std::deque<Donor> donors_;
+    std::deque<HostDonor> host_;                  // under the lock, oldest first
+    size_t host_held_ = 0, host_hits_ = 0, host_moved_ = 0;   // under the lock
     std::vector<Follow> follows_;                 // under the lock, the ids given since the last round
     std::deque<std::shared_ptr<Request>> jobs_;   // under the lock, jobs waiting for a seat, oldest first
     size_t steady_from_ = 0;                      // the least extent from which rows are one class up to the limit

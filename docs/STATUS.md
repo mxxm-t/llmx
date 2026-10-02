@@ -31,6 +31,7 @@
   - Heads per workgroup and the parts cap, swept with knobs read from the environment in an experiment build: on Qwen3-30B-A3B, Qwen3-8B and Qwen3-0.6B Q8_0 after 16384 tokens the profile's numbers (four heads of a KV head or two, 32 parts) were the fastest of 1, 2 and 4 heads by 16, 32, 64 and 128 parts.
   - The four-head build taking one token at a time rather than two: 72 registers rather than 76, still three subgroups a SIMD, and 1 to 3 percent slower.
   - Key and value rows kept as their packed halves until each value is used: 64 registers and four subgroups a SIMD, but 53.6 against 62.6 tok/s on Qwen3-30B-A3B, the unpacking repeated for each head costing more than the subgroups gained.
+  - A whole KV group's query heads in one workgroup, with a tile of 32 tokens' keys and values staged once in shared memory for all of them (`exp/attention-tile-lds`): after 16384 tokens 54.7 against 62.6 tok/s on Qwen3-30B-A3B Q4_K_M at its best (eight heads or four, 64 parts), 41.1 against 44.3 on Qwen3-8B Q8_0 and 132.3 against 161.6 on Qwen3-0.6B Q8_0; it also broke batch invariance, its tokens' lanes following the heads a workgroup took, which the dispatch chooses from the batch's longest row. The kernel is bound by its arithmetic and occupancy rather than its loads; whether the F16 policy lets attention take f16 operands with F32 sums is asked of the dtype work.
 
 ## Decode attention at depth: fewer parts on an MI50 (2026-10-01, branch perf/attention-splits, lands by fast-forward)
 

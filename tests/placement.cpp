@@ -128,7 +128,7 @@ void split_matches_single() {
     checked += 2;
 }
 
-// The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host device given only what the others cannot hold and taken back when endpoint weights leave no room, tied weights counted once and the output norm always, resident copies counted, unknown and zero budgets kept apart, shares honored and refused when wrong, and the fitted placement exact against one device.
+// Host scratch constrains the fit even though the host borrows its weights and position tables.
 void host_scratch_fits() {
     const size_t MiB = size_t(1) << 20;
     infer::Footprint fp;
@@ -158,6 +158,7 @@ void host_scratch_fits() {
     checked += 3;
 }
 
+// The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host device given only what the others cannot hold and taken back when endpoint weights leave no room, tied weights counted once and the output norm always, resident copies counted, unknown and zero budgets kept apart, shares honored and refused when wrong, and the fitted placement exact against one device.
 void layer_split_fits() {
     const auto weights = fixture();
     const infer::ModelOptions options;
@@ -397,7 +398,8 @@ void layer_split_fits() {
         return std::string();
     };
     const auto asked = infer::budgets_for(cpus(), {"cpu", "cpu"});
-    require(asked.size() == 2 && asked[0].host && asked[0].scratch == 0 && asked[0].resident, "a CPU's budget not asked of the backend");
+    require(asked.size() == 2 && asked[0].host && asked[0].scratch == asked[0].bytes.value_or(0) / 20 && asked[0].resident,
+            "a CPU's budget and scratch reserve not asked of the backend");
     infer::PlacementRequest request;
     request.names = {"cpu", "cpu"};
     request.shares = {1, 1};

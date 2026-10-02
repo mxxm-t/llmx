@@ -124,6 +124,8 @@ public:
 
     // Weights on the host read the mapped file in place, so what counts against this is caches, activations and whatever a loader materializes.
     std::optional<size_t> memory_available() const override { return core::host_memory_available(); }
+    // Page tables, allocator overhead and kernel workspaces need room beyond the fitted buffers.
+    size_t scratch_reserve(size_t free) const override { return free / 20; }
     bool reads_in_place() const override { return true; }
     bool is_cpu() const override { return true; }
     // A generated token takes the decode dots and every longer extent the prompt path, whose rows compute the same however they are batched (each_run).

@@ -147,10 +147,10 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     // A carrier's budget checks the host's needs with its own; without one they must fit the host's room.
     auto host_fits = [&](const Host& h) { return h.carrier != SIZE_MAX || !host_room || h.need <= *host_room; };
 
-    // Besides weights and caches: a pass's activations and, where weights are copied, the device's own tables and its kernels' scratch; the carrier also holds the host's needs, since its budget is the host's memory.
+    // Besides weights and caches: a pass's activations, the backend's reserve and, where weights are copied, the device's own tables; the carrier also holds the host's needs, since its budget is the host's memory.
     auto overhead = [&](size_t d, const Host& h) {
-        const size_t copies = devices[d].host ? 0 : fp.tables + devices[d].scratch;
-        return rows * fp.activations_per_row + copies + (d == h.carrier ? h.need : 0);
+        const size_t copies = devices[d].host ? 0 : fp.tables;
+        return rows * fp.activations_per_row + copies + devices[d].scratch + (d == h.carrier ? h.need : 0);
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {

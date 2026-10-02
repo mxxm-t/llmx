@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## CPU fit leaves room beyond payload buffers (2026-10-02, branch fix/cpu-fit-headroom-20261002)
+
+- Main `25549f02` has the runtime of `0bf4fcae`. Its Qwen3-0.6B Q8_0 server and the dtype qualification both fitted 36736 F32 KV tokens under a fresh 8 GiB cgroup and were killed before health. This is a preexisting fit defect, not a dtype numerical regression: the fit left no backend reserve for page tables, allocator overhead and CPU workspaces. The recorded page tables alone reached about 16.1 MiB.
+- The existing CPU `scratch_reserve` now returns one twentieth of reported free memory, and the existing layer fit counts each host backend's reserve as it already counted copying backends' reserves. Explicit buffer sizes and inference arithmetic are unchanged.
+- The host-reserve regression failed before the fix. After it, placement, host-memory, server-resume, server-passes and server-passes-cpu passed, 5/5. The same startup under the same 8 GiB limit reached healthy with 34816 KV tokens, a measured peak of 8162009088 bytes and zero cgroup OOM events; the smaller fitted pool is the capacity cost of leaving operating room.
+- Evidence: `/zpool1/llmx-xdev-validation/dtype-cpu-fit-oom-20261002`, including the failed original attempts, source hashes, build logs, 100 ms memory samples and health records. Fixed binary SHA256 `e97f62b637de5a186c7317ea2d619f73942db946a1b3b237b25773590975f9bc`, version `llmx 0.1.0+unknown`; the archived build has no Git metadata. The initial main command's unsupported `--dtype` refusal and a nonexistent build-target harness error are retained separately from the valid before/after comparison.
+- Throughput is not inferred from these startup checks. The integrated release refresh builds both performance arms alike and uses an explicit equal context budget, so a changed automatic fit cannot disguise a throughput change. Independent HF results remain applicable because no arithmetic changed.
+
 ## One row class: a generated token's row and a prompt's row the same bits (2026-10-01, investigation, no branch yet)
 
 - **Goal:** find whether a generated token and a prompt token can take one arithmetic in every op, so a reply's decode rows, a verify's rows and any checkpoint position are reusable as they are, exactly, which would make the re-read of 2c unnecessary (docs/SPECULATIVE.md, section 2); agreed with the other developer as a measured investigation, owned by the coordinator for the integer tiles and attention, float tile and dispatch work coordinated with the dtype branch.

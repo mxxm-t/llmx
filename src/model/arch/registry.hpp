@@ -18,13 +18,15 @@ namespace infer {
 struct ArchEntry {
     const char* name;
     std::shared_ptr<const Architecture> (*read)(const gguf::GGUFModel&, const std::string& prefix);
+    backend::Dtype dtype;
 };
 
+// GGUF has no source dtype; these are architecture defaults, not declarations inferred from weight storage.
 inline const ArchEntry kArchitectures[] = {
-    {"qwen3", qwen3::open_dense},
-    {"qwen3moe", qwen3::open_routed},
-    {"qwen35", qwen35::open_dense},
-    {"qwen35moe", qwen35::open_routed},
+    {"qwen3", qwen3::open_dense, backend::Dtype::bf16},
+    {"qwen3moe", qwen3::open_routed, backend::Dtype::bf16},
+    {"qwen35", qwen35::open_dense, backend::Dtype::bf16},
+    {"qwen35moe", qwen35::open_routed, backend::Dtype::bf16},
 };
 
 // The entry a file's general.architecture names; a file without the key is read as qwen3, since the tests' fixtures write none.
@@ -42,6 +44,7 @@ inline ModelWeights gguf_weights(const gguf::GGUFModel& m) {
     const ArchEntry& entry = architecture_of(m);
     ModelWeights w;
     w.arch = entry.read(m, std::string(entry.name) + ".");
+    w.declared_dtype = entry.dtype;
     if (m.offsets.size() != m.tensors.size())
         throw std::runtime_error("inference: tensor storage count mismatch");
     w.tensors.reserve(m.tensors.size());

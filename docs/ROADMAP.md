@@ -27,9 +27,10 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. Th
   because d*q - m factorises the dot into d*sum(q*x) - m*sum(x). 2.16 -> ~2.6
   tok/s. Fused Q5_K and Q6_K decode dots followed the same way; prefill is a
   different question since the batched path already reuses the dequantized row.
-- Next, planned in `docs/STATUS.md` (Quantization coverage): `F16` and `BF16`, then `MXFP4`, then `IQ4_NL` and `IQ4_XS`, then `Q3_K` and `Q2_K`, all read-only, on the CPU and on Vulkan.
+- `MXFP4` is read-only on the CPU and on Vulkan devices with its required float preservation and double arithmetic.
+- Next, planned in `docs/STATUS.md` (Quantization coverage): `F16` and `BF16` weight tensors, then `IQ4_NL` and `IQ4_XS`, then `Q3_K` and `Q2_K`, all read-only, on the CPU and on Vulkan. Activation dtype support does not implement those weight formats.
   Every type multiplies the per-backend kernel work (see #4b), so they are taken in the order of the files they open and how often those files are published, weighed against the effort.
-  The one exception is MXFP4, which goes before IQ4 by the user's decision of 2026-09-25, although IQ4 opens far more files.
+  MXFP4 preceded IQ4 by the user's decision of 2026-09-25, although IQ4 opens far more files.
   They open the BF16 and UD-Q8_K_XL files, the MXFP4_MOE files, the IQ4 and UD-Q4_K_XL files, and the Q2_K and Q3_K mixtures that Qwen3 and Qwen 3.x are published in.
   16-bit weights are widened to F32 exactly inside the kernels, since gfx906 has no BF16 arithmetic, and never through a lossy path.
   Each type must meet the six conditions listed there.
@@ -48,7 +49,7 @@ Generalize to an architecture registry keyed by `general.architecture` (done: `m
 - Done: `qwen3moe` (Qwen3-30B-A3B), routed layers on the CPU and Vulkan
   backends with experts optionally on the CPU beside a device; the gate is a
   tiny random-weight model through HF `Qwen3MoeForCausalLM` (`docs/STATUS.md`)
-- In progress: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS.md`; the dense `qwen35` runs on the CPU and on a Vulkan device against HF and is served without prefix reuse, and the chunked prompt form, MoE, serving with state checkpoints and MTP steps follow.
+- In progress: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS.md`; `qwen35` and `qwen35moe` run on the CPU and on a Vulkan device against HF and are served with prefix reuse through state checkpoints; the chunked prompt form and MTP steps follow.
   Three layers in four are gated delta-net linear attention, with a fixed-size recurrent state per sequence, and every fourth layer is gated full attention at head width 256 with partial rotary.
   The MoE form adds a shared expert with its own gate, and some files carry a multi-token-prediction block, which becomes one proposer of a single speculative decoding system for every kind of drafter.
   A recurrent state exists only at the end of what it has read, so reuse and pause work from checkpoints of it, and every reused state is one the CLI would have computed the same way.
@@ -218,10 +219,10 @@ and implemented HF coverage are recorded in STATUS.
   activity imbalance, without automatically stopping or replacing busy runs.
   Never remove only slow samples. Missing telemetry is a stated limitation,
   not proof of idleness; small differences may remain unresolved.
-- **Precision policy [planned].** Activation precision follows the model and the device, as vLLM resolves its dtype, instead of a choice per weight type.
-  - `auto` takes the model's declared dtype where the device runs it natively, else F16. A GGUF, which records no source dtype, takes its architecture's documented default (BF16 for the Qwen families).
+- **Precision policy.** Activation precision follows the model and the device, as vLLM resolves its dtype, instead of a choice per weight type.
+  - `auto` takes a non-F32 model declaration where every device supports that policy natively; otherwise it takes a common preferred policy, or F32 when there is no common 16-bit policy. A declared F32 model also takes the preferred policy under auto. A GGUF, which records no source dtype, takes its architecture's documented default (BF16 for the Qwen families). The supported AVX2 CPU, MI50 and Radeon VII paths resolve to F16.
   - A dtype flag (`auto`, `f16`, `bf16`, `f32`) overrides it. A valid value is never refused: a device without it natively takes a fast exact emulation, else F32, with a warning. F16 and BF16 never stand in for each other.
-  - Weights are read exactly and sums are F32. The F32 intermediates llmx keeps today (norms, softmax, rope, recurrent state, residual) stay until a narrower change is measured and passes the gates.
+  - Weights are read exactly and ordinary sums are F32; existing wider range repair remains. The F32 intermediates llmx keeps today (norms, softmax, rope, recurrent state, residual) stay until a narrower change is measured and passes the gates.
   - A kernel may implement a dtype in another form, such as block-scaled 16-bit integers for F16, only when it passes that dtype's calibrated budget and exact range checks, with a witness that it ran.
   - One owner resolves the policy once for a run. The requested, effective and native, emulated or fallback precision of each device is shown once, on the CLI and in `/v1/health`.
   - The tests take their tolerances from one owner keyed by the precision that ran (AGENTS.md, Merge gates).
@@ -271,7 +272,7 @@ make a model usable: its architecture and tokenizer must also be implemented.
   schema, integer-range, tensor-extent and dtype checks before exposing data.
   No new dependency; see #3.
 - **BF16 / F16 tensors**: most HF safetensors are BF16.
-  `core/fp16.hpp` covers f16 <-> f32, but there is no bf16 path and no F16 or BF16 entry in the quant registry, which `gguf::TensorInfo::data_size()` sizes tensors through.
+  `core/fp16.hpp` and `core/bf16.hpp` cover conversion to and from F32 for activations. Neither supplies an F16 or BF16 weight entry in the quant registry, which `gguf::TensorInfo::data_size()` sizes tensors through.
   Both are the first types of the quantization plan (#1), widened exactly to F32 inside the kernels on every backend, and the native safetensors path takes the same kernels.
 - **`tokenizer.json`**: the HF tokenizer format. `bpe::Tokenizer` reads only
   GGUF-embedded `tokenizer.ggml.*`, so safetensors repos have no tokenizer path

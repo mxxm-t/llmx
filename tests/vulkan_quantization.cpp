@@ -3,6 +3,7 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include "matrix_precision.hpp"
 
 namespace backend {
 namespace {
@@ -35,7 +36,7 @@ struct VulkanQuantizationTest {
     };
     static void run(VulkanBackend& b, CSlice x, CSlice y, uint32_t n, bool words) {
         if (words) b.dispatch(K_QUANTIZE_XW, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n / 4 + 255) / 256);
-        else b.dispatch(K_QUANTIZE_X, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n + 255) / 256, 1, 1);
+        else b.dispatch(K_QUANTIZE_X, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n + 255) / 256);
     }
 };
 }
@@ -188,9 +189,9 @@ size_t check_activation_range(backend::Backend& b, size_t width, bool preserves_
         }
         b.matmul(quant::GGML_TYPE_Q8_0, {w.get(), 0}, {produced ? produced.get() : x.get(), 0}, {y.get(), 0}, width, width, 1);
         b.read(*y, 0, output.data(), output.size() * sizeof(float));
-        // A tiny block needs a representable scale rounded up so its peak fits the integer range; both twins fit this 8-bit bound.
-        float representable = float(double(peak) / 127);
-        if (double(representable) * 127 < double(peak)) representable = std::nextafter(representable, std::numeric_limits<float>::max());
+        // A tiny block needs a representable scale rounded up so its peak fits the integer range; the 16-bit twin fits this reconstruction bound.
+        float representable = float(double(peak) / 32767);
+        if (double(representable) * 32767 < double(peak)) representable = std::nextafter(representable, std::numeric_limits<float>::max());
         const double step = std::max(double(representable), double(std::numeric_limits<float>::denorm_min()));
         for (size_t j = 0; j < width; ++j) {
             const double bound = .50001 * step + 3e-7 * std::abs(double(input[j]));
@@ -206,6 +207,145 @@ size_t check_activation_range(backend::Backend& b, size_t width, bool preserves_
               << failed << " failed, " << skipped << " skipped without float preservation\n";
     require(failed == 0, "finite activation reconstruction exceeds its quantization bound");
     return checked;
+}
+
+// Exact zero weights and one unit weight distinguish range repair from suppressing nonfinite outputs.
+void check_offset_range(backend::Backend& b, bool prompt = false, backend::Dtype dtype = backend::Dtype::f16) {
+    size_t checked = 0, failed = 0;
+    struct Scale { uint16_t bits; double value; };
+    const Scale scales[] = {{1, std::ldexp(1.0, -24)}, {0x3c00, 1}, {0x7bff, 65504}};
+    constexpr size_t rows = 3;
+    const size_t cols = prompt ? 65 : 3, count = rows * cols;
+    // F16 conformance covers its own finite range; F32 keeps the wider boundary cases.
+    std::vector<float> peaks;
+    if (dtype == backend::Dtype::f32) {
+        for (int e : {-130, -112, -76, -75, 0, 94, 95, 100, 120, 124, 127}) peaks.push_back(std::ldexp(1.0f, e));
+    } else {
+        for (int e : {-24, -23, -15, -14, -13, -1, 0, 14, 15}) peaks.push_back(std::ldexp(1.0f, e));
+        peaks.push_back(65504.0f);
+    }
+    for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+                          quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q8_0}) {
+        const auto* qt = quant::Registry::instance().get(type);
+        for (const Scale& scale : scales) for (int encoding : {0, 1}) for (size_t width : {size_t(256), size_t(288), size_t(4096)}) {
+            if (width % qt->block_size) continue;
+            const size_t stride = quant::row_bytes(type, width);
+            std::vector<uint8_t> weights(rows * stride, 0);
+            for (size_t offset = 0; offset < weights.size(); offset += qt->type_size) {
+                uint8_t* block = weights.data() + offset;
+                if (type == quant::GGML_TYPE_Q6_K) {
+                    std::fill(block + 128, block + 192, uint8_t(0xaa));
+                    std::fill(block + 192, block + 208, uint8_t(1));
+                    block[209] = 0x3c;
+                } else {
+                    block[1] = 0x3c;
+                    if (type == quant::GGML_TYPE_Q4_0) std::fill(block + 2, block + 18, uint8_t(0x88));
+                }
+            }
+            uint8_t* unit = weights.data() + 2 * stride - qt->type_size;
+            if (type == quant::GGML_TYPE_Q4_0) unit[2] = 0x89;
+            else if (type == quant::GGML_TYPE_Q4_1) unit[4] = 1;
+            else if (type == quant::GGML_TYPE_Q8_0) unit[2] = 1;
+            else if (type == quant::GGML_TYPE_Q6_K) unit[0] = 1;
+            else { unit[4] = 1; unit[type == quant::GGML_TYPE_Q5_K ? 48 : 16] = 1; }
+            if (encoding == 1) {
+                for (size_t offset = 0; offset < weights.size(); offset += qt->type_size) {
+                    uint8_t* block = weights.data() + offset;
+                    if (type == quant::GGML_TYPE_Q4_1) {
+                        block[3] = 0xbc;
+                        std::fill(block + 4, block + 20, uint8_t(0x11));
+                    } else if (type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K) {
+                        block[3] = 0x3c;
+                        std::fill(block + 4, block + 12, uint8_t(1));
+                        std::fill(block + 12, block + 16, uint8_t(0x11));
+                        std::fill(block + (type == quant::GGML_TYPE_Q5_K ? 48 : 16), block + qt->type_size, uint8_t(0x11));
+                    } else block[type == quant::GGML_TYPE_Q6_K ? 209 : 1] = 0xbc;
+                }
+                if (type == quant::GGML_TYPE_Q4_0) unit[2] = 0x87;
+                else if (type == quant::GGML_TYPE_Q4_1) unit[4] = 0x12;
+                else if (type == quant::GGML_TYPE_Q8_0) unit[2] = 255;
+                else if (type == quant::GGML_TYPE_Q6_K) { unit[0] = 15; unit[128] = 0xa9; }
+                else unit[type == quant::GGML_TYPE_Q5_K ? 48 : 16] = 0x12;
+            }
+            for (size_t offset = 0; offset < weights.size(); offset += qt->type_size) {
+                uint8_t* block = weights.data() + offset;
+                const size_t at = type == quant::GGML_TYPE_Q6_K ? 208 : 0;
+                block[at] = uint8_t(scale.bits);
+                block[at + 1] = uint8_t((scale.bits >> 8) | (block[at + 1] & 128));
+                if (encoding == 1 && (type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K)) {
+                    block[2] = uint8_t(scale.bits);
+                    block[3] = uint8_t((scale.bits >> 8) | (block[3] & 128));
+                }
+            }
+            std::vector<float> input(width * cols), output(2 * count + 2), ids(cols, 0), gains(cols, 0.5f);
+            const auto w = b.adopt(weights.data(), weights.size()), x = b.alloc(input.size() * sizeof(float)),
+                       y = b.alloc(output.size() * sizeof(float)), id = b.adopt(ids.data(), ids.size() * sizeof(float)),
+                       gain = b.adopt(gains.data(), gains.size() * sizeof(float));
+            const backend::Backend::Routing routing{{id.get(), 0}, {gain.get(), 0}, 1, 1};
+            const backend::RowRun runs{cols, prompt ? size_t(512) : size_t(1)};
+            for (float peak : peaks) {
+                for (size_t c = 0; c < cols; ++c)
+                    std::fill(input.begin() + c * width, input.begin() + (c + 1) * width, c == 1 ? -peak : peak);
+                b.write(*x, 0, input.data(), input.size() * sizeof(float));
+                for (int op = 0; op < 6; ++op) {
+                    const float initial = op == 3 || op == 5 ? 0.25f : 0.0f;
+                    std::fill(output.begin(), output.end(), initial);
+                    output.front() = output.back() = 19.0f;
+                    b.write(*y, 0, output.data(), output.size() * sizeof(float));
+                    testq::take_matrix_paths(b);
+                    if (prompt || dtype == backend::Dtype::f32) backend::vulkan_kernel_times(b);
+                    switch (op) {
+                    case 0: b.matmul(type, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, {&runs, 1}, dtype); break;
+                    case 1: b.matmul_logits(type, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, {&runs, 1}, dtype); break;
+                    case 2: b.matmul_group({{type, {w.get(), 0}, {y.get(), 1}, rows}, {type, {w.get(), 0}, {y.get(), count + 1}, rows}},
+                                           {x.get(), 0}, width, cols, {&runs, 1}, dtype); break;
+                    case 3: b.matmul_add(type, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, {&runs, 1}, dtype); break;
+                    case 4: b.matmul_experts({{type, {w.get(), 0}, {y.get(), 1}, rows}}, {x.get(), 0}, width, cols, routing, {&runs, 1}, dtype); break;
+                    case 5: b.matmul_experts_add(type, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, routing, {&runs, 1}, dtype); break;
+                    }
+                    b.read(*y, 0, output.data(), output.size() * sizeof(float));
+                    const auto paths = testq::take_matrix_paths(b);
+                    require(!paths.empty(), "offset range check has no matrix path witness");
+                    if (prompt) {
+                        const auto kernels = backend::vulkan_kernel_times(b);
+                        require(std::any_of(kernels.begin(), kernels.end(), [](const auto& k) {
+                            return k.first.find("matmul_tile") == 0;
+                        }), "prompt range check did not witness a tile dispatch");
+                    }
+                    if (dtype == backend::Dtype::f32) {
+                        require(paths == std::vector<std::string>{"f32"}, "explicit F32 call used rounded activations");
+                        if (!prompt) {
+                            const auto kernels = backend::vulkan_kernel_times(b);
+                            require(std::any_of(kernels.begin(), kernels.end(), [](const auto& k) {
+                                return k.first.find("matmul_row") == 0;
+                            }), "explicit F32 decode did not use a row kernel");
+                        }
+                    }
+                    const size_t values = op == 2 ? 2 * count : count;
+                    for (size_t i = 0; i < values; ++i) {
+                        const size_t c = (i % count) / rows;
+                        const bool unit_row = i % rows == 1;
+                        const double product = unit_row ? (c == 1 ? -double(peak) : double(peak)) * scale.value * (op == 5 ? 0.5 : 1.0) : 0;
+                        const float expected = float(initial + product);
+                        const double bound = unit_row ? std::abs(product) * (dtype == backend::Dtype::f32 ? 2.0 * std::numeric_limits<float>::epsilon() : 1.0 / 32767.0) + 2 * double(std::numeric_limits<float>::denorm_min()) : 0;
+                        const bool valid = std::isfinite(expected)
+                            ? std::isfinite(output[i + 1]) && std::abs(double(output[i + 1]) - expected) <= bound
+                            : output[i + 1] == expected;
+                        if (!valid) {
+                            if (failed < 12) std::fprintf(stderr, "offset range: type %u scale %u encoding %d width %zu peak %.9g op %d value %zu got %.9g expected %.9g\n",
+                                                        type, unsigned(scale.bits), encoding, width, double(peak), op, i, output[i + 1], expected);
+                            ++failed;
+                        }
+                        ++checked;
+                    }
+                    require(output.front() == 19 && output.back() == 19, "offset range output guard changed");
+                    for (size_t i = values + 1; i + 1 < output.size(); ++i) require(output[i] == initial, "offset range wrote past output");
+                }
+            }
+        }
+    }
+    std::cout << "vulkan-quantization: " << (dtype == backend::Dtype::f32 ? "F32 " : "") << checked << (prompt ? " prompt offset range values, " : " decode offset range values, ") << failed << " failed\n";
+    require(failed == 0, "quantized offset arithmetic loses a finite result");
 }
 
 // A representable scale covering the peak gives a bound independent of the device's chosen scale.
@@ -254,10 +394,10 @@ void check(backend::VulkanBackend& b) {
             input.push_back(std::ldexp((r & 1) ? peak : -peak, -int((r >> 1) % 277)));
         }
     }
-    const uint32_t n = uint32_t(input.size()), base8 = (n / 2 + n / 8 + 63) & ~63u;
+    const uint32_t n = uint32_t(input.size());
     constexpr uint32_t guard = 64, sentinel = 0x12345678u;
-    const uint32_t words8 = n / 4 + n / 16, words16 = n / 2 + n / 8;
-    std::vector<uint32_t> packed(base8 + words8 + 2 * guard, sentinel), twin16(words16 + 2 * guard, sentinel);
+    const uint32_t words16 = n / 2 + n / 16;
+    std::vector<uint32_t> packed(words16 + 2 * guard, sentinel), twin16(words16 + 2 * guard, sentinel);
     const auto x = b.adopt(input.data(), input.size() * sizeof(float));
     const auto q = b.adopt(packed.data(), packed.size() * sizeof(uint32_t));
     const auto t = b.adopt(twin16.data(), twin16.size() * sizeof(uint32_t));
@@ -269,43 +409,36 @@ void check(backend::VulkanBackend& b) {
         require(packed[i] == sentinel && packed[packed.size() - 1 - i] == sentinel, "packed activation guard changed");
         require(twin16[i] == sentinel && twin16[twin16.size() - 1 - i] == sentinel, "word activation guard changed");
     }
-    for (size_t i = n / 2 + n / 8; i < base8; ++i)
-        require(packed[guard + i] == sentinel, "packed activation alignment gap changed");
     for (size_t i = 0; i < words16; ++i)
         require(twin16[guard + i] == packed[guard + i], "16-bit word and lane writers differ");
     size_t failures = 0, sums = 0;
-    for (int twin = 0; twin < 2; ++twin) for (size_t block = 0; block < peaks.size(); ++block) {
-        const int limit = twin ? 127 : 32767;
-        const size_t tab = guard + (twin ? base8 + n / 4 : n / 2) + block * 2;
+    for (size_t block = 0; block < peaks.size(); ++block) {
+        constexpr int limit = 32767;
+        const size_t tab = guard + n / 2 + block * 2;
         const float scale = from_bits(packed[tab]);
         const double step = reconstruction_step(peaks[block], limit);
         bool bad = !std::isfinite(scale) || scale < 0 || double(scale) > step || (peaks[block] > 0 && scale == 0);
-        int halves[2] = {};
+        int sum = 0;
         for (size_t j = 0; j < 32; ++j) {
             const size_t i = block * 32 + j;
-            const uint32_t word = packed[guard + (twin ? base8 + i / 4 : block * 16 + 2 * (j / 4) + j % 2)];
-            const uint32_t code = twin ? (word >> (8 * (j % 4))) & 255u : (word >> (j % 4 >= 2 ? 16 : 0)) & 65535u;
+            const uint32_t word = packed[guard + block * 16 + 2 * (j / 4) + j % 2];
+            const uint32_t code = (word >> (j % 4 >= 2 ? 16 : 0)) & 65535u;
             const int quantized = int(code) - (code > uint32_t(limit) ? 2 * (limit + 1) : 0);
             const double actual = double(scale) * quantized;
             const double bound = .50001 * step + 3e-7 * std::abs(double(input[i]));
             bad |= std::abs(quantized) > limit || !std::isfinite(actual) || std::abs(actual - input[i]) > bound;
-            halves[j / 16] += quantized;
+            sum += quantized;
         }
-        bad |= !sum_close(from_bits(packed[tab + 1]), double(scale) * (halves[0] + halves[1]));
+        bad |= !sum_close(from_bits(packed[tab + 1]), double(scale) * sum);
         ++sums;
-        if (!twin) for (size_t half = 0; half < 2; ++half) {
-            const size_t at = guard + n / 2 + n / 16 + block * 2 + half;
-            bad |= !sum_close(from_bits(packed[at]), double(scale) * halves[half]);
-            ++sums;
-        }
         if (bad) {
-            if (failures < 8) std::cerr << "activation packing: " << (twin ? 8 : 16) << " bits, block " << block
+            if (failures < 8) std::cerr << "activation packing: " << "16 bits, block " << block
                                       << ", peak " << peaks[block] << ", scale " << scale << '\n';
             ++failures;
         }
     }
     std::cout << "vulkan-quantization: " << input.size() << " values per twin, " << sums << " packed sums, "
-              << words8 << " identical lane/word words, " << failures << " failing blocks\n";
+              << words16 << " identical lane/word words, " << failures << " failing blocks\n";
     require(failures == 0, "packed activation reconstruction or sums exceed their bounds");
 }
 }
@@ -323,6 +456,11 @@ int main() {
         std::cout << "vulkan-quantization: " << guard.modules << " modules accepted without float preservation\n";
         check_ordinary_identity(b, fallback);
         check_float_identity(b, fallback);
+        check_offset_range(b);
+        backend::VulkanBackend tiled(0, true);
+        check_offset_range(tiled, true);
+        check_offset_range(tiled, false, backend::Dtype::f32);
+        check_offset_range(tiled, true, backend::Dtype::f32);
         return 0;
     } catch (const backend::VulkanUnavailable& e) {
         std::cerr << e.what() << '\n';

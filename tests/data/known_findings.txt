@@ -21,7 +21,6 @@ shader | src/backends/vulkan/shaders/matmul_tile_q.comp | #ifndef STEP | 1 | the
 # Functions no executable keeps, from the linked build (tests/dead_code.py --linked, in the Vulkan job).
 linked-unreached | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::kh(unsigned long, int) const | 1 | the const overload of kh; only the other one is called; goes with cleanup/known-findings
 linked-unreached | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::vh(unsigned long, int) const | 1 | the const overload of vh; only the other one is called; goes with cleanup/known-findings
-linked-unreached | src/backends/cpu/q8_dots.hpp | backend::q8::Activations::prepare(unsigned int) | 1 | the one-argument wrapper, which nothing has called since every caller moved to the two-argument form; goes with cleanup/known-findings
 linked-unreached | src/core/host_memory.hpp | core::HostPages::operator=(core::HostPages&&) | 1 | a move assignment unused and untested since it was written; goes with cleanup/known-findings
 linked-unreached | src/hub/transport.hpp | hub::transport_detail::Fd::Fd(int) | 1 | a constructor nothing calls; goes with cleanup/known-findings
 

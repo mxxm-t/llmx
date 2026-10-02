@@ -33,8 +33,6 @@ struct DeviceCaps {
 // Numbers found by measuring the kernels on a device, which nothing in DeviceCaps implies.
 // Every device takes these defaults except where its row in tuned_devices below sets a number; the defaults of those numbers are a compromise between the devices measured (docs/VULKAN.md).
 struct DeviceProfile {
-    // Lanes a Q6_K row takes at most on the 8-bit twin, so a subgroup takes several rows and one row's loads hide behind another's (docs/VULKAN.md).
-    uint32_t q6k_row_lanes = 32;
     // Lanes a Q4_K or Q5_K row takes at most in the integer-dot row kernels; a short row spread over a whole subgroup leaves each lane a few bytes to read.
     uint32_t k45_row_lanes = 32;
     // Columns the widest build of the Q8_0 decode kernel on the integer dot holds, which reads a weight once for that many generated tokens: its columns a subgroup times the column groups that take the same rows, and a subgroup that keeps more columns holds more registers and runs fewer waves (docs/VULKAN.md).
@@ -65,6 +63,8 @@ struct DeviceProfile {
     uint32_t dispatch_chunk = 64;
     // Whether the matmuls take their dots through the integer dot product instructions: measured per device and driver, since the same silicon gains under Mesa and loses under the AMD proprietary driver.
     bool prefer_integer_dot = false;
+    // MXFP4 code-pair decoding and dot instructions are tuned independently of other row families.
+    bool mxfp4_integer_dot = false;
 };
 
 // A device and driver the profile was tuned on, with the numbers measured there: the table to extend when bringing up hardware, with the sweeps in docs/VULKAN.md.
@@ -83,6 +83,7 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.tile_from_other = 64;
              p.tile_from_other_narrow = 64;
              p.prefer_integer_dot = false;
+             p.mxfp4_integer_dot = true;
              p.moe_tile_from = 32;
              p.moe_tile_from_q4 = 96;
              p.moe_tile_from_q4k = 64;
@@ -96,6 +97,7 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.tile_from_other = 24;
              p.tile_from_other_narrow = 40;
              p.prefer_integer_dot = true;
+             p.mxfp4_integer_dot = true;
              p.moe_tile_from = 32;
              p.moe_tile_from_q4 = 96;
              p.moe_tile_from_q4k = 64;
@@ -122,6 +124,7 @@ inline DeviceProfile profile_for(const DeviceCaps& caps) {
         if (caps.driver.find(table[i].driver) == std::string::npos) continue;
         DeviceProfile p = defaults;
         table[i].tune(p);
+        p.mxfp4_integer_dot = p.mxfp4_integer_dot && caps.integer_dot;
         return p.prefer_integer_dot && !caps.integer_dot ? defaults : p;
     }
     return defaults;

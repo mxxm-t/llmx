@@ -142,18 +142,18 @@ struct ObservedCpu : backend::CpuBackend {
     }
 
     void matmul_group(std::initializer_list<backend::Projection> p, backend::CSlice x,
-                      size_t nin, size_t nbatch, backend::RowRuns = {}) override {
+                      size_t nin, size_t nbatch, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         if (check_graph) {
             require(inside, "model projection outside prefill scope");
             if (p.size() == 3) batches.push_back(nbatch);
         }
-        backend::CpuBackend::matmul_group(p, x, nin, nbatch);
+        backend::CpuBackend::matmul_group(p, x, nin, nbatch, runs, dtype);
     }
 
     void matmul(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y,
-                size_t nin, size_t nout, size_t nbatch, backend::RowRuns = {}) override {
+                size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         if (check_graph) require(inside, "model matmul outside prefill scope");
-        backend::CpuBackend::matmul(type, data, x, y, nin, nout, nbatch);
+        backend::CpuBackend::matmul(type, data, x, y, nin, nout, nbatch, runs, dtype);
     }
 };
 

@@ -33,6 +33,7 @@ struct TensorView {
 struct ModelWeights {
     std::shared_ptr<const Architecture> arch;
     std::vector<TensorView> tensors;
+    backend::Dtype declared_dtype = backend::Dtype::f32;
 };
 
 // The tensors a model is built from, by name, which plan_model builds once over the views for the architecture's plan and for setting each role's tensor.

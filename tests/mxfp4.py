@@ -11,16 +11,18 @@ from f32 import TEXTS, VOCAB, hf_name, weight_hash, write_model
 
 
 VARIANTS = (("dense-untied", False, False), ("dense-tied", True, False), ("moe", False, True))
+# Below, at and above the two measured narrow MXFP4 prompt crossovers.
+PROMPT_TEXTS = [("abcdefghijklmnopqrstuvwxyz" * 3)[:n] for n in (39, 40, 41, 63, 64, 65)]
 
 
-def fixture(tied, moe):
+def fixture(tied, moe, seed=12345, context=16):
     """Raw MXFP4 matrices plus F32 norms/router, and the independent spec-decoded weights for HF."""
     config = {"block_count": 2, "embedding_length": 96, "feed_forward_length": 160,
               "attention.head_count": 2, "attention.head_count_kv": 1,
-              "attention.key_length": 32, "context_length": 16}
+              "attention.key_length": 32, "context_length": context}
     if moe:
         config.update(expert_count=4, expert_used_count=2, expert_feed_forward_length=160)
-    state = 12345
+    state = seed
     weights, packed = [], []
 
     def next_value():
@@ -126,7 +128,21 @@ def run(require=False):
                                                 dict(zip(*common.parse_logits(result.stdout))), case["logits"]))
             print("mxfp4: original F32 activations vs HF, 150 cases; max error %.8f  [ok]" % control_worst)
         for name, model, golden in models:
-            error, _ = common.check_hf_fixture("MXFP4 " + name, model, golden["cases"], golden["perplexity"], TEXTS[-1], (1, 2, 3, 5, 16), precision="mxfp4")
+            error, _ = common.check_hf_fixture("MXFP4 " + name, model, golden["cases"], golden["perplexity"], TEXTS[-1], (1, 2, 3, 5, 16))
+            worst = max(worst, error)
+    with open(os.path.join(os.path.dirname(__file__), "data", "baseline_mxfp4_prompt.json"), encoding="utf-8") as f:
+        prompts = json.load(f)
+    assert prompts["transformers_version"] == "4.55.2", "MXFP4 prompt reference version changed"
+    assert [x["name"] for x in prompts["fixtures"]] == [x[0] for x in VARIANTS], "MXFP4 prompt coverage changed"
+    with tempfile.TemporaryDirectory(prefix="llmx_mxfp4_prompt_hf_") as directory:
+        for (name, tied, moe), golden in zip(VARIANTS, prompts["fixtures"]):
+            config, weights, packed = fixture(tied, moe, context=128)
+            assert config == golden["config"] and weight_hash(weights) == golden["weights_sha256"], "MXFP4 prompt weights changed"
+            assert packed_hash(packed) == golden["packed_sha256"], "MXFP4 prompt blocks changed"
+            assert [case["text"] for case in golden["cases"]] == PROMPT_TEXTS, "MXFP4 prompt threshold texts changed"
+            model = write_fixture(os.path.join(directory, name + ".gguf"), config, weights, packed, moe)
+            error, _ = common.check_hf_fixture("MXFP4 prompt " + name, model, golden["cases"], golden["perplexity"],
+                                                PROMPT_TEXTS[-1], (1, 3, 65))
             worst = max(worst, error)
     print("mxfp4: spec-decoded HF logits and NLL, dense tied/untied and MoE; max error %.8f  [ok]" % worst)
     return True

@@ -720,8 +720,8 @@ def load_tiny_weights(model, weights, torch, tied=False):
     model.load_state_dict(state, strict=True)
 
 
-def tiny_qwen3(tied):
-    """The tiny dense model of tests/f32.py as an HF Qwen3ForCausalLM with eager attention, holding the weights f32.tensors builds; returns the model and those weights."""
+def tiny_qwen3(tied, seed=12345):
+    """The tiny dense model of tests/f32.py as an HF Qwen3ForCausalLM with eager attention, holding the weights f32.tensors builds from `seed`; returns the model and those weights."""
     import torch
     from transformers import Qwen3Config, Qwen3ForCausalLM
     from f32 import CONFIG, VOCAB, tensors
@@ -734,23 +734,24 @@ def tiny_qwen3(tied):
                          rms_norm_eps=1e-6, tie_word_embeddings=tied, attention_dropout=0.0)
     config._attn_implementation = "eager"
     model = Qwen3ForCausalLM(config).float().eval()
-    weights = tensors(tied)
+    weights = tensors(tied, seed)
     load_tiny_weights(model, weights, torch, tied)
     return model, weights
 
 
-def reference_outputs(model, torch):
-    """A tiny model's goldens over the texts of tests/f32.py: all logits at each text's last position, then the mean NLL of the longest text in windows of 4 and of 16 tokens."""
+def reference_outputs(model, torch, texts=None, contexts=(4, 16)):
+    """A tiny model's full final logits and windowed NLL, using the ordinary short texts and windows unless a fixture supplies longer ones."""
     from f32 import TEXTS
+    texts = TEXTS if texts is None else texts
 
     cases, perplexity = [], []
     with torch.inference_mode():
-        for text in TEXTS:
+        for text in texts:
             ids = torch.tensor([list(text.encode("ascii"))])
             logits = model(ids, use_cache=False).logits[0, -1]
             cases.append({"text": text, "logits": logits.tolist()})
-        ids = torch.tensor([list(TEXTS[-1].encode("ascii"))])
-        for context in (4, 16):
+        ids = torch.tensor([list(texts[-1].encode("ascii"))])
+        for context in contexts:
             total, targets = 0.0, 0
             for window in ids.split(context, dim=1):
                 if window.shape[1] < 2:
@@ -783,57 +784,66 @@ def gen_f32(output_dir=OUT_DIR):
     print("wrote %s (tied/untied, full logits and windowed NLL)" % path)
 
 
+def tiny_mxfp4(tied, moe, seed=12345, context=16):
+    """A tiny MXFP4 fixture of tests/mxfp4.py as an HF model holding its spec-decoded weights; returns the model, its configuration, weights and raw blocks."""
+    import torch
+    from transformers import Qwen3Config, Qwen3ForCausalLM, Qwen3MoeConfig, Qwen3MoeForCausalLM
+    from mxfp4 import fixture
+
+    config, weights, packed = fixture(tied, moe, seed, context)
+    params = dict(vocab_size=257, hidden_size=config["embedding_length"],
+                  intermediate_size=config["feed_forward_length"], num_hidden_layers=config["block_count"],
+                  num_attention_heads=config["attention.head_count"], num_key_value_heads=config["attention.head_count_kv"],
+                  head_dim=config["attention.key_length"], max_position_embeddings=config["context_length"],
+                  rope_theta=10000.0, rms_norm_eps=1e-6, tie_word_embeddings=tied, attention_dropout=0.0)
+    if moe:
+        params.update(moe_intermediate_size=config["expert_feed_forward_length"], num_experts=config["expert_count"],
+                      num_experts_per_tok=config["expert_used_count"], norm_topk_prob=True, decoder_sparse_step=1, mlp_only_layers=[])
+    hf_config = (Qwen3MoeConfig if moe else Qwen3Config)(**params)
+    hf_config._attn_implementation = "eager"
+    model = (Qwen3MoeForCausalLM if moe else Qwen3ForCausalLM)(hf_config).float().eval()
+    load_tiny_weights(model, weights, torch, tied)
+    return model, config, weights, packed
+
+
 def gen_mxfp4(output_dir=OUT_DIR):
     import torch
     import transformers
-    from transformers import Qwen3Config, Qwen3ForCausalLM, Qwen3MoeConfig, Qwen3MoeForCausalLM
-    from mxfp4 import VARIANTS, fixture, packed_hash, weight_hash
+    from mxfp4 import VARIANTS, PROMPT_TEXTS, packed_hash, weight_hash
 
     if transformers.__version__ != "4.55.2":
         raise SystemExit("mxfp4 requires pinned transformers 4.55.2")
     torch.set_num_threads(1)
-    fixtures = []
-    for name, tied, moe in VARIANTS:
-        config, weights, packed = fixture(tied, moe)
-        params = dict(vocab_size=257, hidden_size=config["embedding_length"],
-                      intermediate_size=config["feed_forward_length"], num_hidden_layers=config["block_count"],
-                      num_attention_heads=config["attention.head_count"], num_key_value_heads=config["attention.head_count_kv"],
-                      head_dim=config["attention.key_length"], max_position_embeddings=config["context_length"],
-                      rope_theta=10000.0, rms_norm_eps=1e-6, tie_word_embeddings=tied, attention_dropout=0.0)
-        if moe:
-            params.update(moe_intermediate_size=config["expert_feed_forward_length"], num_experts=config["expert_count"],
-                          num_experts_per_tok=config["expert_used_count"], norm_topk_prob=True, decoder_sparse_step=1, mlp_only_layers=[])
-        hf_config = (Qwen3MoeConfig if moe else Qwen3Config)(**params)
-        hf_config._attn_implementation = "eager"
-        model = (Qwen3MoeForCausalLM if moe else Qwen3ForCausalLM)(hf_config).float().eval()
-        load_tiny_weights(model, weights, torch, tied)
-        gaps = []
-        if moe:
-            def watch(_, __, out):
-                probabilities = torch.softmax(out.double(), dim=-1).sort(dim=-1, descending=True).values
-                k = config["expert_used_count"]
-                gaps.append((probabilities[:, k - 1] - probabilities[:, k]).min().item())
-            for layer in model.model.layers:
-                layer.mlp.gate.register_forward_hook(watch)
-        cases, perplexity = reference_outputs(model, torch)
-        if gaps and min(gaps) < 1e-4:
-            raise SystemExit("MXFP4 MoE routing gap %.2e is too near a tie; change the fixture weights" % min(gaps))
-        fixtures.append(dict(name=name, config=config, weights_sha256=weight_hash(weights), packed_sha256=packed_hash(packed),
-                             min_routing_gap=min(gaps) if gaps else None, cases=cases, perplexity=perplexity))
-    path = os.path.join(output_dir, "baseline_mxfp4.json")
-    _write(path, {"_comment": "Generated by tools/gen_baseline.py mxfp4 from independently spec-decoded raw blocks.",
-                  "torch_version": torch.__version__, "transformers_version": transformers.__version__,
-                  "dtype": "float32", "attention": "eager", "fixtures": fixtures})
-    print("wrote %s (MXFP4 dense tied/untied and MoE, logits and windowed NLL)" % path)
+    for suffix, context, texts, windows in (("", 16, None, (4, 16)), ("_prompt", 128, PROMPT_TEXTS, (40, 64, 128))):
+        fixtures = []
+        for name, tied, moe in VARIANTS:
+            model, config, weights, packed = tiny_mxfp4(tied, moe, context=context)
+            gaps = []
+            if moe:
+                def watch(_, __, out):
+                    probabilities = torch.softmax(out.double(), dim=-1).sort(dim=-1, descending=True).values
+                    k = config["expert_used_count"]
+                    gaps.append((probabilities[:, k - 1] - probabilities[:, k]).min().item())
+                for layer in model.model.layers:
+                    layer.mlp.gate.register_forward_hook(watch)
+            cases, perplexity = reference_outputs(model, torch, texts, windows)
+            if gaps and min(gaps) < 1e-4:
+                raise SystemExit("MXFP4 MoE routing gap %.2e is too near a tie; change the fixture weights" % min(gaps))
+            fixtures.append(dict(name=name, config=config, weights_sha256=weight_hash(weights), packed_sha256=packed_hash(packed),
+                                 min_routing_gap=min(gaps) if gaps else None, cases=cases, perplexity=perplexity))
+        path = os.path.join(output_dir, "baseline_mxfp4%s.json" % suffix)
+        _write(path, {"_comment": "Generated by tools/gen_baseline.py mxfp4 from independently spec-decoded raw blocks.",
+                      "torch_version": torch.__version__, "transformers_version": transformers.__version__,
+                      "dtype": "float32", "attention": "eager", "fixtures": fixtures})
+        print("wrote %s (MXFP4 dense tied/untied and MoE, logits and windowed NLL)" % path)
 
 
-def gen_moe(output_dir=OUT_DIR):
+def tiny_moe(seed=67890):
+    """The tiny qwen3moe model of tests/moe.py as an HF Qwen3MoeForCausalLM holding the weights moe.tensors builds from `seed`; returns the model and those weights."""
     import torch
-    import transformers
     from transformers import Qwen3MoeConfig, Qwen3MoeForCausalLM
-    from moe import CONFIG, DENSE_LAYERS, tensors, weight_hash
+    from moe import CONFIG, DENSE_LAYERS, tensors
 
-    torch.set_num_threads(1)
     config = Qwen3MoeConfig(vocab_size=257, hidden_size=CONFIG["embedding_length"],
                             intermediate_size=CONFIG["feed_forward_length"],
                             moe_intermediate_size=CONFIG["expert_feed_forward_length"],
@@ -844,8 +854,18 @@ def gen_moe(output_dir=OUT_DIR):
                             norm_topk_prob=True, decoder_sparse_step=1, mlp_only_layers=list(DENSE_LAYERS))
     config._attn_implementation = "eager"
     model = Qwen3MoeForCausalLM(config).float().eval()
-    weights = tensors()
+    weights = tensors(seed)
     load_tiny_weights(model, weights, torch)
+    return model, weights
+
+
+def gen_moe(output_dir=OUT_DIR):
+    import torch
+    import transformers
+    from moe import CONFIG, DENSE_LAYERS, weight_hash
+
+    torch.set_num_threads(1)
+    model, weights = tiny_moe()
     # The smallest gap between a token's k-th and next expert probability over every forward reference_outputs runs; a near tie could route differently under other rounding.
     k, gaps = CONFIG["expert_used_count"], []
     def watch(_, __, out):

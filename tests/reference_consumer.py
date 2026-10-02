@@ -1,4 +1,5 @@
 import contextlib
+import importlib.util
 import io
 import json
 import math
@@ -15,8 +16,74 @@ import baseline
 import baseline_mxfp4
 import baseline_8b as consumer
 import baseline_qwen35
+import threads
 import baseline_layered as layered
 import common
+
+
+class LongContextConsumer(unittest.TestCase):
+    def test_hf_depth_top1_boundary_and_membership(self):
+        for gap, second in ((0.0, "accepted-tie"), (math.nextafter(0.1, 0.0), "accepted-tie"),
+                            (0.1, "accepted-tie"), (math.nextafter(0.1, math.inf), "miss"),
+                            (0.0041847229, "accepted-tie"), (0.6943979263, "miss")):
+            with self.subTest(gap=gap):
+                self.assertEqual(common.hf_depth_top1(7, [7, 8], [gap, 0.0]), ("exact", gap))
+                self.assertEqual(common.hf_depth_top1(8, [7, 8], [gap, 0.0]), (second, gap))
+                self.assertEqual(common.hf_depth_top1(9, [7, 8], [gap, 0.0]), ("miss", gap))
+        # The depth allowance neither borrows the top-five margin nor changes the short-fixture bounds.
+        with patch.object(common, "TOP5_TIE_MARGIN", 1.0):
+            self.assertEqual(common.hf_depth_top1(8, [7, 8], [0.2, 0.0]), ("miss", 0.2))
+        self.assertEqual(common.hf_bounds("f32", [["f32"]]), {"logit": 2e-5, "nll": 1e-5})
+
+    def test_hf_depth_top1_refuses_malformed_rows(self):
+        cases = [(True, [7, 8], [1.0, 0.0]), (-1, [7, 8], [1.0, 0.0]),
+                 (7, [7], [1.0]), (7, [7, 7], [1.0, 0.0]), (7, [7, 8], [1.0]),
+                 (7, [7, False], [1.0, 0.0]), (7, [7, -1], [1.0, 0.0]),
+                 (7, [7, 8], [0.0, 1.0]), (7, [7, 8], [math.nan, 0.0]),
+                 (7, [7, 8], [math.inf, 0.0]), (7, [7, 8], [1e308, -1e308])]
+        for args in cases:
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                common.hf_depth_top1(*args)
+
+    def test_dtype_reaches_generation_and_both_scoring_passes(self):
+        spec = importlib.util.spec_from_file_location("llmx_long_context", Path(common.ROOT) / "tools/long_context_check.py")
+        tool = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tool)
+        result = dict(ids=[7], prompt_tokens=16384, tokens=1, finish="length", wall_s=0, sha256="0" * 64)
+        for cli in (False, True):
+            for dtype in (None, "auto", "f16", "bf16", "f32"):
+                with self.subTest(cli=cli, dtype=dtype), contextlib.ExitStack() as stack:
+                    argv = ["long_context_check.py", "--exe", "llmx", "--model", "model.gguf",
+                            "--device", "vulkan:0", "--threads", "3"]
+                    if cli:
+                        argv.append("--cli")
+                    if dtype:
+                        argv += ["--dtype", dtype]
+                    stack.enter_context(patch.object(sys, "argv", argv))
+                    stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                    start = stack.enter_context(patch.object(tool, "serve", return_value=(None, 1234, None)))
+                    stop = stack.enter_context(patch.object(common, "stop_server"))
+                    stack.enter_context(patch.object(tool, "build_prompt", return_value=(16384, "prompt")))
+                    sizing = stack.enter_context(patch.object(tool, "build_prompt_cli", return_value=(16384, "prompt")))
+                    generate = stack.enter_context(patch.object(tool, "generate_cli", return_value=result))
+                    stack.enter_context(patch.object(tool, "run_once", return_value=result))
+                    scoring = stack.enter_context(patch.object(tool, "baseline_logits", return_value=[(16383, [(7, 2.0), (8, 1.0)])]))
+                    self.assertEqual(tool.main(), 0)
+                    expected = ["--dtype", dtype or "auto", "--threads", "3"]
+                    active = generate if cli else start
+                    self.assertEqual(active.call_count, 2)
+                    for call in active.call_args_list:
+                        self.assertEqual(call.args[-1], expected)
+                    self.assertEqual(scoring.call_count, 2)
+                    self.assertEqual([call.args[2] for call in scoring.call_args_list], ["vulkan:0", "cpu"])
+                    for call in scoring.call_args_list:
+                        self.assertEqual(call.args[-1], expected)
+                    if cli:
+                        self.assertEqual(sizing.call_args.args[-1], expected)
+                        start.assert_not_called()
+                    else:
+                        self.assertEqual(stop.call_count, 2)
+                        generate.assert_not_called()
 
 
 def logits_text(case):
@@ -714,21 +781,119 @@ class LayeredConsumer(unittest.TestCase):
 
 
 class MXFP4Consumer(unittest.TestCase):
+    def test_bounds_require_executed_paths(self):
+        tight = {"logit": 2e-5, "nll": 1e-5}
+        for dtype in ("f32", "f16", "bf16"):
+            self.assertEqual(common.hf_bounds(dtype, [["f32"]]), tight)
+        for dtype, paths in (("f16", [["f32", "block-int16"], []]), ("f16", [["f16"]]), ("bf16", [["f32"], ["bf16"]])):
+            bound = common.hf_bounds(dtype, paths)
+            self.assertGreater(bound["logit"], tight["logit"])
+            self.assertGreater(bound["nll"], tight["nll"])
+            with self.assertRaises(AssertionError):
+                common.hf_logit_error("over budget", {0: bound["logit"] * 1.01}, [0.0], dtype, paths)
+        for dtype, paths in (("f32", [["block-int16"]]), ("bf16", [["f16"]]), ("f16", [["bf16"]]),
+                             ("f16", [["block-int8"]]), ("f16", [["unknown"]]), ("f16", []), ("f16", [[]]),
+                             ("f16", {"paths": "block-int16"}), ("f16", [["f32", "f32"]])):
+            with self.subTest(dtype=dtype, paths=paths), self.assertRaises(AssertionError):
+                common.hf_bounds(dtype, paths)
+
     def test_tiny_precision_bounds_keep_f32_strict(self):
         with self.assertRaises(AssertionError):
             common.hf_logit_error("F32", {0: 0.0001}, [0.0])
-        self.assertEqual(common.hf_logit_error("MXFP4", {0: 0.0001}, [0.0], "mxfp4"), 0.0001)
-        for got in ({0: 0.000201}, {0: float("nan")}, {1: 0.0}):
+        for precision in ("mxfp4", "f16", "bf16", "unknown"):
+            with self.subTest(precision=precision), self.assertRaises(KeyError):
+                common.hf_logit_error("unwitnessed", {0: 0.0}, [0.0], precision)
+        for got in ({0: float("nan")}, {1: 0.0}):
             with self.assertRaises(AssertionError):
-                common.hf_logit_error("MXFP4", got, [0.0], "mxfp4")
-        with self.assertRaises(KeyError):
-            common.hf_logit_error("unknown", {0: 0.0}, [0.0], "unknown")
+                common.hf_logit_error("F32", got, [0.0])
 
-    def test_tiny_nll_bound_does_not_change(self):
-        with patch.object(common, "run_f32_cache", return_value=(0, "mean NLL: 0.00002\n")):
-            with self.assertRaisesRegex(AssertionError, "NLL error"):
-                common.check_hf_fixture("MXFP4", "model", [], [{"context": 16, "mean_nll": 0.0}],
-                                        "text", [1], precision="mxfp4")
+    def test_server_requires_cli_logprob_equivalence(self):
+        logits = {0: 0.0, 1: 0.0}
+        want = -math.log(2)
+        entries = [{"id": 0, "logprob": want}, {"id": 1, "logprob": want + 0.0000005}]
+        self.assertLess(common.check_logprob_row(entries, logits), 0.000001)
+        # An error inside the BF16 budget still cannot pass the server/CLI equivalence check.
+        for error in (0.00001, 0.002, float("nan"), float("inf")):
+            with self.subTest(error=error), self.assertRaises(AssertionError):
+                common.check_logprob_row([{"id": 0, "logprob": want + error}], logits)
+        for malformed in ([{"id": 2, "logprob": want}], entries + entries[:1], []):
+            with self.assertRaises(AssertionError):
+                common.check_logprob_row(malformed, logits)
+
+    def test_cli_witness_controls_fixture_bounds(self):
+        def run(dtype, paths, logit, nll):
+            record = "matrix-paths: " + json.dumps({"dtype": dtype, "devices": paths}) + "\n"
+            def command(args, **kwargs):
+                out = "0 %.9f\n" % logit if args[0] == "logits" else "mean NLL: %.9f\n" % nll
+                return subprocess.CompletedProcess(args, 0, out, record)
+            with patch.object(common, "run_process", side_effect=command):
+                return common.check_hf_fixture("fixture", "model", [{"text": "a", "logits": [0.0]}],
+                                               [{"context": 16, "mean_nll": 0.0}], "text", [1])
+        for dtype in ("f32", "f16", "bf16"):
+            with self.subTest(dtype=dtype), self.assertRaisesRegex(AssertionError, "logit error"):
+                run(dtype, [["f32"]], 0.0001, 0)
+            with self.subTest(dtype=dtype), self.assertRaisesRegex(AssertionError, "NLL error"):
+                run(dtype, [["f32"]], 0, 0.00002)
+        self.assertEqual(run("bf16", [["bf16"]], 0.0001, 0.00002)[0], 0.0001)
+        bounds = common.hf_bounds("bf16", [["bf16"]])
+        with self.assertRaisesRegex(AssertionError, "logit error"):
+            run("bf16", [["bf16"]], bounds["logit"] * 1.01, 0)
+        with self.assertRaisesRegex(AssertionError, "NLL error"):
+            run("bf16", [["bf16"]], 0, bounds["nll"] * 1.01)
+
+    def test_cli_witness_is_required_and_fail_closed(self):
+        good = 'matrix-paths: {"dtype":"bf16","devices":[["f32"]]}\n'
+        self.assertEqual(common.hf_execution(good), {"logit": 2e-5, "nll": 1e-5})
+        for text in ("", 'dtype: bf16 -> bf16; cpu emulated: bf16\n', good + good, 'matrix-paths: {}\n',
+                     'matrix-paths: {"dtype":"f16","devices":[["block-int8"]]}\n',
+                     'matrix-paths: {"dtype":"f32","devices":[["bf16"]]}\n',
+                     'matrix-paths: {"dtype":"bf16","devices":[[]]}\n', 'matrix-paths: not json\n'):
+            with self.subTest(text=text), self.assertRaises((AssertionError, ValueError)):
+                common.hf_execution(text)
+
+    def test_thread_nll_uses_executed_precision(self):
+        fixture = next(case for case in threads.f32.golden("baseline_f32.json")["fixtures"] if not case["tied"])
+        nll = fixture["perplexity"][0]["mean_nll"]
+
+        def check(dtype, paths, error, passes):
+            def invoke(args, data=None):
+                def count(flag, default):
+                    return int(args[args.index(flag) + 1]) or default if flag in args else default
+                selected = count("--threads", 8)
+                phase = "decode" if "--per-token" in args else "prefill"
+                if phase == "prefill":
+                    selected = count("--threads-batch", count("-tb", selected))
+                record = "" if paths is None else "matrix-paths: " + json.dumps({"dtype": dtype, "devices": paths}) + "\n"
+                return ("mean NLL: %.12f\n" % (nll + error)).encode(), ("threads: %s %d\n" % (phase, selected) + record).encode()
+            with patch.object(threads, "invoke", side_effect=invoke), contextlib.redirect_stdout(io.StringIO()):
+                if passes:
+                    threads.check_perplexity_threads("fixture", 8, fixture["weights_sha256"])
+                else:
+                    with self.assertRaises(AssertionError):
+                        threads.check_perplexity_threads("fixture", 8, fixture["weights_sha256"])
+
+        for dtype, paths, error, passes in (
+                ("bf16", [["bf16"]], 0.000160928, True),
+                ("f16", [["block-int16"]], 0.00002, True),
+                ("f32", [["f32"]], 0.000001, True),
+                ("f32", [["f32"]], 0.00002, False),
+                ("bf16", [["f32"]], 0.000160928, False),
+                ("bf16", [["bf16"]], 0.008, False),
+                ("bf16", [["bf16"]], float("nan"), False),
+                ("bf16", [["bf16"]], float("inf"), False),
+                ("f32", None, 0.0, False),
+                ("f16", [["block-int8"]], 0.0, False)):
+            with self.subTest(dtype=dtype, paths=paths, error=error):
+                check(dtype, paths, error, passes)
+
+    def test_dtype_test_configuration_preserves_explicit_requests(self):
+        with patch.dict(os.environ, {"LLMX_DTYPE": "bf16"}):
+            self.assertIn("--dtype", common.device_args(["logits", "model", "text"]))
+            explicit = common.device_args(["logits", "model", "text", "--dtype", "f32"])
+            self.assertEqual(explicit[explicit.index("--dtype") + 1], "f32")
+            self.assertEqual(explicit.count("--dtype"), 1)
+            self.assertNotIn("--dtype", common.device_args(["bench"]))
+            self.assertNotIn("--dtype", common.device_args(["info", "model"]))
 
     def test_top1_allowance_is_aggregate_and_opt_in(self):
         with open(baseline.GOLDEN_LOGITS, encoding="utf-8") as f:
@@ -783,7 +948,7 @@ class MXFP4Consumer(unittest.TestCase):
 
 
 def run():
-    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceConsumer, Qwen35Consumer, Qwen35QualityConsumer, LayeredConsumer, MXFP4Consumer))
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceConsumer, Qwen35Consumer, Qwen35QualityConsumer, LayeredConsumer, MXFP4Consumer, LongContextConsumer))
     result = unittest.TextTestRunner(stream=sys.stdout).run(suite)
     return result.wasSuccessful()
 

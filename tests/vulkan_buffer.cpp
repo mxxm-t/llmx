@@ -165,6 +165,30 @@ struct KernelCalls {
     static VKAPI_ATTR void VKAPI_CALL destroy_pipeline(VkDevice, VkPipeline, const VkAllocationCallbacks*) { --kernel_calls->pipelines; }
 };
 
+// A row's MXFP4 decoder can use integer dots without ever creating a tile copy.
+// Fitting must reserve that copy only when the device's tile path can reach it.
+int scratch_reserve_checks() {
+    backend::VulkanBackend b(0);
+    const auto dev = backend::VulkanLifetimeTest::device(b);
+    const auto saved = dev->profile;
+    int failures = 0;
+    for (const size_t free : {size_t(0), size_t(1) << 30, size_t(32) << 30}) {
+        for (const bool row_dot : {false, true}) {
+            dev->profile.mxfp4_integer_dot = row_dot;
+            dev->profile.prefer_integer_dot = true;
+            const size_t copied = b.scratch_reserve(free);
+            dev->profile.prefer_integer_dot = false;
+            const size_t direct = b.scratch_reserve(free);
+            const bool ok = copied >= backend::kMxCopyBytes && direct == copied - backend::kMxCopyBytes;
+            std::cout << "scratch free=" << free << " row_dot=" << row_dot
+                      << " copy=" << copied << " no_copy=" << direct << (ok ? " PASS\n" : " FAIL\n");
+            if (!ok) ++failures;
+        }
+    }
+    dev->profile = saved;
+    return failures;
+}
+
 int kernel_checks() {
     int failures = 0;
     for (int kind = 1; kind <= 5; ++kind) {
@@ -496,7 +520,7 @@ int main(int argc, char** argv) {
     try {
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
-                                 loader_weight_checks();
+                                 loader_weight_checks() + scratch_reserve_checks();
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;

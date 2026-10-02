@@ -1,6 +1,6 @@
 // A model on one device against the same model split by layers over several, compared as raw float logits: every position of a scored text through the prompt path, then a prefill in chunks of the ubatch, which a split pipelines over its stages, and greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phases 1 and 2).
 // Then the prompt and the steps replayed by class on each, as a paused request's resume recomputes them, which must give the decode's logits, and from a fork too unless the model keeps a recurrent state, which is not forked; verifies of drafts, the decode's tokens fed after a mark and retracted, which must give the same rows on both; and passes in flight through the pass API, which must give what the same passes give one after another.
-// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type]; a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default when left out.
+// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type] [dtype]; dtype is auto (the default), f16, bf16 or f32, a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default when left out.
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -250,8 +250,8 @@ static size_t verify(infer::Model& one, infer::Model& two, const std::vector<uin
 }
 
 int main(int argc, char** argv) {
-    if (argc < 3) {
-        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch] [f16|f32]\n");
+    if (argc < 3 || argc > 9) {
+        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch] [f16|f32] [auto|f16|bf16|f32]\n");
         return 2;
     }
     try {
@@ -269,8 +269,15 @@ int main(int argc, char** argv) {
         infer::PlacementRequest alone;
         alone.names = {name(single)};
         alone.ubatch = ubatch;
+        const std::string dtype = argc > 8 ? argv[8] : "auto";
+        if (dtype != "auto") {
+            for (auto d : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16})
+                if (dtype == backend::dtype_name(d)) alone.dtype = d;
+            if (!alone.dtype) throw std::runtime_error("dtype must be auto, f16, bf16 or f32");
+        }
         const auto first = infer::load_model(argv[1], backend::make_backends(alone.names), alone, options);
         infer::Model& one = *first->model;
+        std::fputs(first->dtype.describe().c_str(), stderr);
         std::ifstream in(argv[2], std::ios::binary);
         const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         const std::vector<uint32_t> ids = first->tok->encode(text);
@@ -284,8 +291,10 @@ int main(int argc, char** argv) {
             request.shares.push_back(1);
         }
         request.ubatch = ubatch;
+        request.dtype = alone.dtype;
         const auto second = infer::load_model(argv[1], backend::make_backends(request.names), request, options);
         infer::Model& two = *second->model;
+        std::fputs(second->dtype.describe().c_str(), stderr);
         std::printf("%s: %zu tokens, %s caches; single %s, split:\n%s", argv[1], ids.size(), backend::kv_type_name(options.kv_k), name(single).c_str(), second->plan.c_str());
 
         const size_t vocab = one.n_vocab();
@@ -332,6 +341,16 @@ int main(int argc, char** argv) {
         } else {
             std::printf("passes in flight: not run, the split %s\n", two.pipelined() ? "text is too short" : "takes one pass at a time");
         }
+        const auto paths = [](const char* label, infer::Model& model) {
+            const auto devices = model.take_matrix_paths();
+            for (size_t i = 0; i < devices.size(); ++i) {
+                std::printf("%s device %zu matrix paths:", label, i);
+                for (const auto& path : devices[i]) std::printf(" %s", path.c_str());
+                std::printf("\n");
+            }
+        };
+        paths("single", one);
+        paths("split", two);
         const bool same = !differ && !steps_differ && !replay_differ && !verify_differ && !mixed_differ && !flight_differ;
         std::printf("%s\n", same ? "bit-identical" : "DIFFERENT");
         return same ? 0 : 1;

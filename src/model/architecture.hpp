@@ -104,6 +104,7 @@ struct Step {
     // A state layer's views, one per entry, each reading and writing its sequence's slot, and the layer's index in its device's state storage.
     const backend::StateView* states = nullptr;
     size_t state_layer = 0;
+    backend::Dtype dtype = backend::Dtype::f16;
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
 };
 

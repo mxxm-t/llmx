@@ -14,6 +14,11 @@ void main() {
     uint lid = gl_LocalInvocationID.x;
     uint id = ids[i];
     uint out_base = i * p.nin;
+#ifdef LLMX_MXFP4
+    uint base = id * (p.nin / MXFP4_BLOCK) * MXFP4_BYTES;
+    for (uint j = lid; j < p.nin; j += 256u)
+        dst[out_base + j] = mxfp4_at(base + (j / MXFP4_BLOCK) * MXFP4_BYTES, j % MXFP4_BLOCK);
+#else
     if (p.type == TYPE_F32) {
         uint base = id * p.nin;
         for (uint j = lid; j < p.nin; j += 256u) dst[out_base + j] = table_f[base + j];
@@ -45,4 +50,5 @@ void main() {
             dst[out_base + j] = v;
         }
     }
+#endif
 }

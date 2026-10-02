@@ -14,6 +14,7 @@ import qwen35
 # The layer split against one device through llmx-split-check (tools/split_check.cpp), on CPU backends: raw logits compared bit for bit over the prompt path, the prefill a split pipelines over its stages, greedy decode steps, the recompute by class a resume runs and a decoding sequence beside a fresh prompt.
 # The tool names its own devices and cache type, so the configured device, shares and cache type do not reach it.
 # Each split runs with f16 caches, the default, and with f32 caches, since a split is exact at either.
+# LLMX_DTYPE reaches both placements through the tool's optional dtype argument; request records and completed paths are checked, including visible fallback.
 # Three decode steps after the 13-token text fill the tiny models' 16-token context.
 # The tiny qwen35 models run over two CPU backends and over four, a layer a stage, where the first and third stages hold only a linear-attention layer, which keeps a state and no KV; a model that keeps a state is not forked, so the tool recomputes it from no fork.
 UBATCHES = (1, 3, 16)
@@ -75,10 +76,19 @@ def tool_path():
 
 def run_tool(tool, model, text, split, steps, ubatch, cache, tokens):
     """One split against one device; the number of recomputes the tool ran from a fork, and of the rounds of verifies it ran."""
-    args = [tool, model, text, "cpu", split, str(steps), str(ubatch), cache]
+    dtype = os.environ.get("LLMX_DTYPE", "auto")
+    args = [tool, model, text, "cpu", split, str(steps), str(ubatch), cache, dtype]
     p = subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace", timeout=120)
     forked = re.search(r"whole and (\d+) from a fork", p.stdout)
     verifies = re.search(r"verifies: (\d+) rounds", p.stdout)
+    records = [line for line in p.stderr.splitlines() if line.startswith("dtype:")]
+    assert len(records) == 2 and all(line.startswith("dtype: %s -> " % dtype) for line in records), \
+        "split: missing or mismatched dtype request records: " + p.stderr
+    for (label, devices), record in zip((("single", 1), ("split", len(split.split(",")))), records):
+        paths = re.findall(r"^%s device (\d+) matrix paths: (.+)$" % label, p.stdout, re.MULTILINE)
+        assert [int(index) for index, _ in paths] == list(range(devices)), "split: missing execution paths: " + p.stdout
+        effective = record.split(" -> ", 1)[1].split()[0]
+        common.hf_bounds(effective, [values.split() for _, values in paths])
     assert p.returncode == 0 and ": %d tokens, %s caches;" % (tokens, cache) in p.stdout and "bit-identical" in p.stdout and forked and verifies, \
         "split differs from one device: %s\n%s%s" % (" ".join(args[1:]), p.stdout, p.stderr)
     return int(forked.group(1)), int(verifies.group(1))
@@ -90,6 +100,11 @@ def run(require=False):
         assert not require, "split: %s not found beside the executable" % tool
         print("split: SKIP - %s not found beside the executable" % tool)
         return common.SKIPPED
+    for dtype in ("half", "F16", ""):
+        p = subprocess.run([tool, "missing.gguf", "missing.txt", "cpu", "cpu,cpu", "1", "1", "f16", dtype],
+                           capture_output=True, encoding="utf-8", errors="replace", timeout=10)
+        assert p.returncode == 2 and "dtype must be auto, f16, bf16 or f32" in p.stderr, \
+            "split: invalid dtype was not refused before loading: " + p.stderr
     runs = 0
     with tempfile.TemporaryDirectory(prefix="llmx_split_") as directory:
         text = os.path.join(directory, "text.txt")

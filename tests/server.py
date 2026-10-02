@@ -31,7 +31,9 @@ class Server:
         # The device and cache flags go on the command, not the executable path, which device_args would not recognise; the server then runs where the CLI it is compared with runs.
         # Eight sequences unless the check names its own count, since a flag given twice is refused.
         args = ["serve", model] + ([] if "--max-seqs" in extra else ["--max-seqs", "8"]) + list(extra)
-        self.proc, self.port, self.log = common.start_server([common.exe_path()] + common.device_args(args, "f32"))
+        command = common.device_args(args, "f32")
+        self.requested_dtype = command[command.index("--dtype") + 1] if "--dtype" in command else "auto"
+        self.proc, self.port, self.log = common.start_server([common.exe_path()] + command)
 
     def get(self, path):
         with urllib.request.urlopen("http://127.0.0.1:%d%s" % (self.port, path), timeout=30) as r:
@@ -373,11 +375,36 @@ def check_ignore_eos_real(model):
     return k, n
 
 
+def check_dtype(model):
+    """Explicit CPU policies are reported by health and reach the same generation as the CLI."""
+    for requested, effective, how in (("f16", "f16", "native"), ("f32", "f32", "native"),
+                                     ("bf16", "bf16", "emulated"), ("auto", "f16", "native")):
+        flags = ("--device", "cpu", "--threads", "1", "--dtype", requested)
+        srv = Server(model, *flags)
+        try:
+            record = srv.get("/v1/health")["dtype"]
+            paths = common.CPU_DTYPE_PATHS[effective]
+            assert record == {"requested": requested, "declared": "bf16", "effective": effective,
+                              "devices": [{"device": "cpu", "effective": effective, "how": how, "paths": paths}]}, record
+            reply = post_ok(srv, "/v1/generate", {"prompt": "abc", "max_tokens": 3, "temperature": 0})
+            want, count = cli_reply(model, "abc", 3, flags + ("--temp", "0"))
+            assert reply["text"] == repaired(want) and len(reply["ids"]) == count, (requested, reply, want)
+        finally:
+            srv.close()
+
+
 def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
     srv = Server(model, *flags)
     try:
         health = srv.get("/v1/health")
         assert health["status"] == "ok" and health["active"] == 0, health
+        dtype = health["dtype"]
+        assert set(dtype) == {"requested", "declared", "effective", "devices"} and dtype["requested"] == srv.requested_dtype, dtype
+        assert dtype["declared"] in ("f32", "f16", "bf16") and dtype["effective"] in ("f32", "f16", "bf16"), dtype
+        assert dtype["devices"], dtype
+        for device in dtype["devices"]:
+            assert set(device) == {"device", "how", "paths", "effective"} and device["device"] and device["paths"], device
+            assert device["how"] in ("native", "emulated", "fallback"), device
         models = srv.get("/v1/models")
         assert models["object"] == "list" and models["data"][0]["object"] == "model", models
         assert models["data"][0]["context_length"] > 0, models
@@ -898,7 +925,8 @@ def check_mxfp4(directory):
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_mxfp4.json"), encoding="utf-8") as f:
         goldens = json.load(f)
     assert [x["name"] for x in goldens["fixtures"]] == [x[0] for x in mxfp4.VARIANTS]
-    worst = 0.0
+    worst = agreement = 0.0
+    used_bounds = set()
     for (name, tied, routed), golden in zip(mxfp4.VARIANTS, goldens["fixtures"]):
         config, weights, packed = mxfp4.fixture(tied, routed)
         assert config == golden["config"] and mxfp4.weight_hash(weights) == golden["weights_sha256"]
@@ -914,15 +942,20 @@ def check_mxfp4(directory):
                 body = dict(prompt=case["text"], max_tokens=3, temperature=0, ignore_eos=True, logprobs=True, top_logprobs=5)
                 reply = post_ok(srv, "/v1/generate", body)
                 scores = case["logits"]
+                out, bounds = common.run_hf(["logits", model, case["text"], "--top", str(len(scores))])
+                logits = dict(zip(*common.parse_logits(out)))
+                common.hf_logit_error("server CLI " + name, logits, scores, bound=bounds["logit"])
+                agreement = max(agreement, common.check_logprob_row(reply["top_logprobs"][0], logits))
+                used_bounds.add(2 * bounds["logit"])
                 top = sorted(range(len(scores)), key=lambda i: (-scores[i], i))
                 assert reply["ids"][0] == top[0], (name, case["text"], reply["ids"], top)
                 observed = [entry["id"] for entry in reply["top_logprobs"][0]]
-                assert common.top5_overlap(observed, top, [scores[i] for i in top], margin=2 * common.MXFP4_HF_LOGIT_BOUND) == 5, (name, observed, top[:5])
+                assert common.top5_overlap(observed, top, [scores[i] for i in top], margin=2 * bounds["logit"]) == 5, (name, observed, top[:5])
                 shift = max(scores)
                 normalizer = math.log(math.fsum(math.exp(x - shift) for x in scores))
                 for entry in reply["top_logprobs"][0]:
                     error = abs(entry["logprob"] - (scores[entry["id"]] - shift - normalizer))
-                    assert error < 2 * common.MXFP4_HF_LOGIT_BOUND, (name, case["text"], entry, error)
+                    assert error < 2 * bounds["logit"], (name, case["text"], entry, error)
                     worst = max(worst, error)
                 assert len(reply["top_logprobs"][0]) == 5 and len(reply["ids"]) == 3, reply
                 assert reply["logprobs"][0] == reply["top_logprobs"][0][0]["logprob"], reply
@@ -951,7 +984,9 @@ def check_mxfp4(directory):
             assert health["prefix_hits"] == 0 and health["pauses"] == 0, health
         finally:
             srv.close()
-    print("server: MXFP4 dense tied/untied and MoE, first-token HF logprobs (max error %.8f), concurrent and streamed replies exact, no donor hits or pauses  [ok]" % worst)
+    print("server: MXFP4 dense tied/untied and MoE, first-token HF logprobs (max error %.8f, witnessed bounds %s), "
+          "server/CLI logprob error %.9f, concurrent and streamed replies exact, no donor hits or pauses  [ok]"
+          % (worst, sorted(used_bounds), agreement))
 
 
 def check_seeded(model):
@@ -1323,6 +1358,7 @@ def run():
         name = "tiny-f32-\udcff.gguf" if sys.platform.startswith("linux") else "tiny-f32-\u00e1\u00e9\u00e0\u4e2d.gguf"
         model = os.path.join(directory, name)
         f32.write_model(model, f32.tensors(True))
+        check_dtype(model)
         # The synthetic model's context is 16 tokens: prompt plus tokens stay inside it.
         # One token a byte and no special token: text beyond ASCII splits inside its characters, a special token's text reads as its bytes, and the longest text runs past the 16-token context, which the route counts rather than refuses.
         texts = ["a", "h\u00e9llo w\u00f6rld", "\u65e5\u672c\u8a9e", "\U0001f600", "<|endoftext|>", "<|im_start|>user\nhi<|im_end|>", ""]

@@ -1,3 +1,4 @@
+import os
 import re
 from pathlib import Path
 import tempfile
@@ -105,7 +106,8 @@ def run():
             assert p.returncode == 0, p.stderr
             assert common.cli_stdout(p.stdout) == BANNER + expected
             if not verbose:
-                assert not p.stderr, p.stderr
+                requested = os.environ.get("LLMX_DTYPE", "auto").encode("ascii")
+                assert re.fullmatch(rb"dtype: " + requested + rb" -> (?:f16|bf16|f32) \(model declares bf16\); [^\r\n]+\r?\n", p.stderr), p.stderr
                 continue
             percents = [int(x) for x in re.findall(rb"Loading tensor data: (\d+)%", p.stderr)]
             assert percents[0] == 0 and percents[-1] == 100

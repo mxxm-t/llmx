@@ -34,7 +34,16 @@ def captured_rows(prefix, phase, rows, vocab):
 
 def capture_metadata(path, tokens, version):
     doc = json.loads(Path(path).read_text(encoding="utf-8"))
-    common.require(set(doc) == {"version", "architecture", "vocab", "tokens", "greedy", "storage_types"}, "unexpected capture metadata")
+    fields = {"version", "architecture", "vocab", "tokens", "greedy", "storage_types"}
+    common.require(set(doc) in (fields, fields | {"dtype", "matrix_paths"}), "unexpected capture metadata")
+    if "matrix_paths" in doc:
+        paths = doc["matrix_paths"]
+        common.require(isinstance(paths, dict) and set(paths) == {"batched", "decode", "greedy"}, "missing capture phase witness")
+        try:
+            for devices in paths.values(): common.hf_bounds(doc["dtype"], devices)
+        except (AssertionError, KeyError, TypeError) as error:
+            raise ValueError("invalid capture matrix-path witness: " + str(error)) from error
+        common.require(len({len(devices) for devices in paths.values()}) == 1, "capture witness device count changed")
     common.require(doc["version"] == version and isinstance(doc["architecture"], str), "capture build identity or architecture invalid")
     common.require(type(doc["vocab"]) is int and doc["vocab"] >= 6, "invalid capture vocabulary")
     common.require(doc["tokens"] == tokens and all(type(i) is int for i in doc["tokens"]), "capture token IDs differ")

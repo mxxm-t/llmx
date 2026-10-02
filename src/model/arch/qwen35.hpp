@@ -276,7 +276,7 @@ public:
                                h, g, u, act, s.slot(10), s.slot(11), s.slot(12));
         const backend::Slice sg = s.slot(13);
         const Weight& gate = w[ffn_gate_inp_shexp];
-        b.matmul(gate.type, gate.slice(), h, sg, E, 1, s.rows, s.runs);
+        b.matmul(gate.type, gate.slice(), h, sg, E, 1, s.rows, s.runs, s.dtype);
         blocks::swiglu(s, w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], h, g, u, act, &sg);
     }
 
@@ -302,7 +302,7 @@ private:
         const Weight* w = s.w;
         const size_t E = (size_t)cfg_.n_embd, D = (size_t)cfg_.head_dim, Hq = (size_t)cfg_.n_head, Hkv = (size_t)cfg_.n_head_kv;
         const backend::Slice r = s.slot(2), k = s.slot(3), v = s.slot(4), q = s.slot(5), o = s.slot(6);
-        b.matmul_group({blocks::projection(w[attn_q], r), blocks::projection(w[attn_k], k), blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs);
+        b.matmul_group({blocks::projection(w[attn_q], r), blocks::projection(w[attn_k], k), blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs, s.dtype);
         const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
         const size_t R = (size_t)cfg_.rope_dim;
         b.norm_rope_partial(q, r, s.rows, 2 * Hq * D, 2 * D, Hq, D, R, w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos);
@@ -310,7 +310,7 @@ private:
         b.kv_write(s.kv_layer, s.views, s.n_views, k, v);
         b.attention(q, s.kv_layer, s.views, s.n_views, o, (int)Hq, (int)Hkv, (int)D);
         b.sigmoid_mul(o, o, backend::CSlice{r.buffer, r.offset + D}, s.rows, Hq, D, 2 * Hq * D, 2 * D, s.runs);
-        b.matmul_add(w[attn_output].type, w[attn_output].slice(), o, s.x, w[attn_output].nin, w[attn_output].nout, s.rows, s.runs);
+        b.matmul_add(w[attn_output].type, w[attn_output].slice(), o, s.x, w[attn_output].nin, w[attn_output].nout, s.rows, s.runs, s.dtype);
     }
 
     // The gated delta net (docs/QWEN35.md, Linear attention): the raw q, k and v rows, z, alpha and beta; the state's update (recur), the causal conv over the raw rows and the state's carried ones and the recurrence from the sequence's state; the gated norm by z; and the output projection joining the residual.
@@ -320,12 +320,12 @@ private:
         const size_t E = (size_t)cfg_.n_embd, Hv = (size_t)cfg_.v_heads;
         const backend::Slice raw = s.slot(2), z = s.slot(4), alpha = s.slot(5), o = s.slot(6);
         const backend::Slice beta{alpha.buffer, alpha.offset + s.rows * Hv};
-        b.matmul(w[attn_qkv].type, w[attn_qkv].slice(), h, raw, E, w[attn_qkv].nout, s.rows, s.runs);
+        b.matmul(w[attn_qkv].type, w[attn_qkv].slice(), h, raw, E, w[attn_qkv].nout, s.rows, s.runs, s.dtype);
         b.matmul_group({blocks::projection(w[attn_gate], z), blocks::projection(w[ssm_alpha], alpha), blocks::projection(w[ssm_beta], beta)},
-                       h, E, s.rows, s.runs);
+                       h, E, s.rows, s.runs, s.dtype);
         recur(s);
         b.gated_rms_norm(o, o, z, w[ssm_norm].slice(), s.rows, Hv, (size_t)cfg_.v_dim, cfg_.rms_eps, s.runs);
-        b.matmul_add(w[ssm_out].type, w[ssm_out].slice(), o, s.x, w[ssm_out].nin, w[ssm_out].nout, s.rows, s.runs);
+        b.matmul_add(w[ssm_out].type, w[ssm_out].slice(), o, s.x, w[ssm_out].nin, w[ssm_out].nout, s.rows, s.runs, s.dtype);
     }
 };
 

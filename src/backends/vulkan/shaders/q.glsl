@@ -4,6 +4,11 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
 #extension GL_EXT_shader_8bit_storage : require
 
+const uint TYPE_MXFP4 = 39u;
+const uint MXFP4_FIRST_OVERFLOW_EXPONENT = 253u;
+const uint MXFP4_BLOCK = 32u;
+const uint MXFP4_BYTES = 17u;
+
 const uint TYPE_F32 = 0u;
 const uint TYPE_Q4_0 = 2u;
 const uint TYPE_Q4_1 = 3u;
@@ -40,7 +45,7 @@ float half_at(uint lo, uint hi) {
 
 // Bytes and values per block of a type.
 uint block_bytes(uint type) {
-    return type == TYPE_Q8_0 ? Q8_0_BYTES : type == TYPE_Q4_0 ? Q4_0_BYTES
+    return type == TYPE_MXFP4 ? MXFP4_BYTES : type == TYPE_Q8_0 ? Q8_0_BYTES : type == TYPE_Q4_0 ? Q4_0_BYTES
          : type == TYPE_Q4_1 ? Q4_1_BYTES : type == TYPE_Q4_K ? Q4_K_BYTES
          : type == TYPE_Q5_K ? Q5_K_BYTES : Q6_K_BYTES;
 }

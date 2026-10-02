@@ -75,10 +75,12 @@ static int capture(int argc, const char* const* argv) {
         });
         if (rows != ids.size()) throw std::runtime_error("score positions missing");
         batched.close();
+        const auto batched_paths = model.take_matrix_paths();
         model.reset();
         auto decode = output("decode");
         for (uint32_t id : ids) save(decode, model.step((int)id).data());
         decode.close();
+        const auto decode_paths = model.take_matrix_paths();
         model.reset();
         auto greedy = output("greedy");
         auto logits = model.prefill(ids);
@@ -90,6 +92,7 @@ static int capture(int argc, const char* const* argv) {
             if (i + 1 < 64) logits = model.step((int)next);
         }
         greedy.close();
+        const auto greedy_paths = model.take_matrix_paths();
         const auto* arch = loaded->file.find("general.architecture");
         std::cout << "{\"version\":" << jmini::quote(LLMX_VERSION_STRING) << ",\"architecture\":" << jmini::quote(arch ? arch->s : "") << ",\"vocab\":" << vocab << ",\"tokens\":[";
         for (size_t i = 0; i < ids.size(); ++i) std::cout << (i ? "," : "") << ids[i];
@@ -100,7 +103,20 @@ static int capture(int argc, const char* const* argv) {
         for (uint32_t type : types) { std::cout << (comma ? "," : "") << type; comma = true; }
         std::cout << "],\"greedy\":[";
         for (size_t i = 0; i < reply.size(); ++i) std::cout << (i ? "," : "") << reply[i];
-        std::cout << "]}\n";
+        std::cout << "],\"dtype\":" << jmini::quote(backend::dtype_name(loaded->dtype.effective)) << ",\"matrix_paths\":{";
+        const auto paths = [](const char* phase, const std::vector<std::vector<std::string>>& devices) {
+            std::cout << jmini::quote(phase) << ":[";
+            for (size_t i = 0; i < devices.size(); ++i) {
+                std::cout << (i ? "," : "") << "[";
+                for (size_t j = 0; j < devices[i].size(); ++j) std::cout << (j ? "," : "") << jmini::quote(devices[i][j]);
+                std::cout << "]";
+            }
+            std::cout << "]";
+        };
+        paths("batched", batched_paths); std::cout << ",";
+        paths("decode", decode_paths); std::cout << ",";
+        paths("greedy", greedy_paths);
+        std::cout << "}}\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "model-logits: " << error.what() << '\n';

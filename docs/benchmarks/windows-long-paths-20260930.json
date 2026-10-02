@@ -792,5 +792,57 @@
     "The system LongPathsEnabled policy must already be enabled. The test reads but does not change it; missing/disabled policy is an explicit case skip.",
     "The first plain-build wrapper failed to locate build.bat before compilation. The explicit absolute-path retry and later clean integration build pass; all attempts retained.",
     "Hosted validation must pass the final head before merge."
-  ]
+  ],
+  "final_landing": {
+    "base": "d81ed428c41bd6464170e18499860d1653eddde2",
+    "head": "4970a071ce373345ff4b4e12b5b6aaccddc5ae8f",
+    "gitea": "4970a071ce373345ff4b4e12b5b6aaccddc5ae8f",
+    "github": "4970a071ce373345ff4b4e12b5b6aaccddc5ae8f",
+    "hosted_run": 36672353758,
+    "jobs": [
+      {
+        "name": "HF reference (CPU)",
+        "conclusion": "success",
+        "started_at": "2026-09-30T05:12:33Z",
+        "completed_at": "2026-09-30T05:53:20Z"
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "conclusion": "success",
+        "started_at": "2026-09-30T05:12:33Z",
+        "completed_at": "2026-09-30T05:22:42Z"
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "conclusion": "success",
+        "started_at": "2026-09-30T05:12:34Z",
+        "completed_at": "2026-09-30T05:21:42Z"
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "conclusion": "success",
+        "started_at": "2026-09-30T05:12:36Z",
+        "completed_at": "2026-09-30T05:28:12Z"
+      },
+      {
+        "name": "CPU (Linux UBSan)",
+        "conclusion": "success",
+        "started_at": "2026-09-30T05:12:33Z",
+        "completed_at": "2026-09-30T05:19:50Z"
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "conclusion": "success",
+        "started_at": "2026-09-30T05:12:33Z",
+        "completed_at": "2026-09-30T05:17:31Z"
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "conclusion": "success",
+        "started_at": "2026-09-30T05:12:33Z",
+        "completed_at": "2026-09-30T05:18:02Z"
+      }
+    ],
+    "audit": "pass"
+  }
 }

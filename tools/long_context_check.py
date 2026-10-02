@@ -30,7 +30,7 @@ near-tie. The check is two parts instead:
 
 Usage:
   python tools/long_context_check.py --exe build/Release/llmx.exe \\
-      --model <model.gguf> --device vulkan:0 [--baseline cpu] [--tokens 16384] [--max-tokens 512] [--cli]
+      --model <model.gguf> --device vulkan:0 [--baseline cpu] [--dtype auto|f16|bf16|f32] [--tokens 16384] [--max-tokens 512] [--cli]
 
 It starts `llmx serve` for each device run on a port the OS chooses, sizes
 the message with /v1/tokenize, sends it to /v1/chat with temperature 0, and
@@ -46,6 +46,8 @@ temperature 0 instead, whose `--verbose` output gives the prompt's token
 count and the generated ids, for a model the server does not take, such as
 one whose layers keep a recurrent state; the message is sized with one-token
 `generate --chat` runs, since `llmx tokenize` renders no template.
+The dtype selection applies to prompt sizing, both fresh generations and both
+backends' scoring passes; each backend still reports its own resolved policy.
 """
 
 import argparse
@@ -212,6 +214,8 @@ def main():
     ap.add_argument("--model", required=True)
     ap.add_argument("--device", required=True, help="the backend under test, e.g. vulkan:0")
     ap.add_argument("--baseline", default="cpu", help="the backend that reads the device's tokens")
+    ap.add_argument("--dtype", choices=("auto", "f16", "bf16", "f32"), default="auto",
+                    help="activation dtype for generation and scoring on both backends")
     ap.add_argument("--tokens", type=int, default=16384, help="target prompt tokens")
     ap.add_argument("--max-tokens", type=int, default=512, help="tokens the device generates")
     ap.add_argument("--margin", type=float, default=0.5,
@@ -226,7 +230,9 @@ def main():
 
     global TIMEOUT
     TIMEOUT = args.timeout or None
-    extra = ["--threads", str(args.threads)] if args.threads else []
+    extra = ["--dtype", args.dtype]
+    if args.threads:
+        extra += ["--threads", str(args.threads)]
     ctx = args.ctx_size or (args.tokens + args.max_tokens + 512)
 
     # 1. The device twice, each from a fresh server, or a fresh process with --cli; the first run also sizes the message.
@@ -256,14 +262,12 @@ def main():
     if not reply:
         raise SystemExit("the device generated nothing")
     # The device reads its own tokens too, for a position past the margin, where both readings tell a near-tie from a wrong kernel; it does so now, so the device is free while the baseline reads.
-    device_rows = baseline_logits(args.exe, args.model, args.device, prompt, reply,
-                                  ["--threads", str(args.threads)] if args.threads else [])
+    device_rows = baseline_logits(args.exe, args.model, args.device, prompt, reply, extra)
     print(f"{args.device} read its own {len(reply)} tokens; the baseline reads them next", flush=True)
 
     # 2. The baseline reads the prompt and the device's tokens.
     start = time.time()
-    rows = baseline_logits(args.exe, args.model, args.baseline, prompt, reply,
-                           ["--threads", str(args.threads)] if args.threads else [])
+    rows = baseline_logits(args.exe, args.model, args.baseline, prompt, reply, extra)
     if len(rows) != len(reply):
         raise SystemExit(f"baseline gave {len(rows)} positions for {len(reply)} generated tokens")
     agree, worst, worst_at, beyond = 0, 0.0, -1, []

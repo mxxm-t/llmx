@@ -158,10 +158,12 @@ class NativeCapture(unittest.TestCase):
         for phase in ("batched", "decode"):
             rows = list(check_device.captured_rows(prefix, phase, 3, 257))
             for text, row in zip(("a", "ab", "abc"), rows):
-                common.hf_logit_error("captured " + phase, dict(enumerate(row)), expected[text])
+                common.hf_logit_error("captured " + phase, dict(enumerate(row)), expected[text], meta["dtype"], meta["matrix_paths"][phase])
         greedy = list(check_device.captured_rows(prefix, "greedy", 64, 257))
         self.assertEqual(common.check_device_greedy(greedy, greedy, meta["greedy"], meta["greedy"])["matched_prefix"], 64)
-        for key, value in [("vocab", True), ("version", "wrong"), ("tokens", [97, 98, 98]), ("greedy", [0] * 63), ("storage_types", [True])]:
+        for key, value in [("vocab", True), ("version", "wrong"), ("tokens", [97, 98, 98]), ("greedy", [0] * 63), ("storage_types", [True]),
+                           ("dtype", "unknown"), ("matrix_paths", {}),
+                           ("matrix_paths", {phase: [["block-int8"]] for phase in ("batched", "decode", "greedy")})]:
             meta_path.write_text(json.dumps(dict(meta, **{key: value})))
             with self.assertRaises(ValueError):
                 check_device.capture_metadata(meta_path, [97, 98, 99], self.version)

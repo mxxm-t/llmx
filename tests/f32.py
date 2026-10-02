@@ -38,8 +38,8 @@ def hf_name(name):
     raise ValueError("GGUF tensor %s has no HF Qwen3 parameter" % name)
 
 
-def tensors(tied):
-    state = 12345
+def tensors(tied, seed=12345):
+    state = seed
     result = []
     width, ff, hd = CONFIG["embedding_length"], CONFIG["feed_forward_length"], CONFIG["attention.key_length"]
     q, kv = CONFIG["attention.head_count"] * hd, CONFIG["attention.head_count_kv"] * hd
@@ -181,8 +181,7 @@ def check_logits_input(directory, model, cases):
     worst = 0.0
     printed = []
     for args, last in (([text], len(text) - 2), ([text, "--ubatch", "5"], len(text) - 2), ([head, "--then-ids", ids], len(tail))):
-        rc, out = cli(["logits", model] + args + ["--last", str(last), "--top", "257"])
-        assert rc == 0, "logits --last failed: " + out
+        out, bounds = common.run_hf(["logits", model] + args + ["--last", str(last), "--top", "257"])
         lines = out.splitlines()
         assert lines[0] == "tokens: %d" % len(text), out
         # Each position once and in order, so a position printed twice fails.
@@ -195,7 +194,7 @@ def check_logits_input(directory, model, cases):
         for case in checked:
             fields = rows[len(case["text"]) - 1].split()
             got = {int(i): float(v) for i, v in zip(fields[1::2], fields[2::2])}
-            worst = max(worst, common.hf_logit_error("F32 --last", got, case["logits"]))
+            worst = max(worst, common.hf_logit_error("F32 --last", got, case["logits"], bound=bounds["logit"]))
     # A position computes the same bytes however its prompt arrives: in one pass, over passes of five tokens, or as a head continued by ids, whose rows are positions 3 to 12.
     one_pass, sliced, continued = printed
     for position in one_pass:
@@ -205,8 +204,7 @@ def check_logits_input(directory, model, cases):
     # --per-token reads every token through a decode step instead: every position's row is held to HF where a case ends, the head continued by the same ids gives the same bytes, and without --last it prints the last row as a list.
     decoded = []
     for args in ([text], [head, "--then-ids", ids]):
-        rc, out = cli(["logits", model] + args + ["--per-token", "--last", str(len(text)), "--top", "257"])
-        assert rc == 0, "logits --per-token failed: " + out
+        out, bounds = common.run_hf(["logits", model] + args + ["--per-token", "--last", str(len(text)), "--top", "257"])
         lines = out.splitlines()
         assert lines[0] == "tokens: %d" % len(text), out
         positions = [int(line.split()[0]) for line in lines[1:]]
@@ -216,7 +214,7 @@ def check_logits_input(directory, model, cases):
         for case in cases:
             fields = rows[len(case["text"]) - 1].split()
             got = {int(i): float(v) for i, v in zip(fields[1::2], fields[2::2])}
-            worst = max(worst, common.hf_logit_error("F32 --per-token", got, case["logits"]))
+            worst = max(worst, common.hf_logit_error("F32 --per-token", got, case["logits"], bound=bounds["logit"]))
     assert decoded[0] == decoded[1], "--per-token rows differ between the text and its head continued by --then-ids"
     rc, out = cli(["logits", model, text, "--per-token", "--top", "257"])
     assert rc == 0 and out.startswith("tokens: %d\n" % len(text)), "logits --per-token failed: " + out

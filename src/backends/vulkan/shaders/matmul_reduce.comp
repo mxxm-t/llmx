@@ -1,10 +1,21 @@
 #version 450
 // y[i] = the parts of a split tile call (matmul_tile_q.comp) added in part order, plus y[i] when accumulating.
 // Up to three projections: projection q's parts start at parts * (the outputs before q), part z at z * n_q after that; each projection has whole workgroups from start_q on, so a workgroup's output buffer is uniform.
+#ifdef LLMX_MXFP4
+#extension GL_ARB_gpu_shader_fp64 : require
+#extension GL_EXT_spirv_intrinsics : require
+spirv_execution_mode(capabilities = [4466], 4461, 64);
+#endif
+#include "float_controls.glsl"
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint n0; uint n1; uint n2; uint parts; uint accum; uint start1; uint start2; } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
+#ifdef LLMX_MXFP4
+// The MXFP4 tile keeps exceptional partials wide until they are summed here.
+layout(set = 0, binding = 1) readonly buffer S { double part[]; };
+#else
 layout(set = 0, binding = 1) readonly buffer S { float part[]; };
+#endif
 void main() {
     uint wg = gl_WorkGroupID.x;
     uint q = wg >= p.start2 ? 2u : (wg >= p.start1 ? 1u : 0u);
@@ -13,7 +24,15 @@ void main() {
     if (local >= n) return;
     uint before = (q > 0u ? p.n0 : 0u) + (q > 1u ? p.n1 : 0u);
     uint base = p.parts * before + local;
+#ifdef LLMX_MXFP4
+    double s = 0.0;
+    for (uint z = 0u; z < p.parts; ++z) s += part[base + z * n];
+    float result = float(s);
+    if (p.accum != 0u) result += ys[q].y[local];
+    ys[q].y[local] = result;
+#else
     float s = p.accum != 0u ? ys[q].y[local] : 0.0;
     for (uint z = 0u; z < p.parts; ++z) s += part[base + z * n];
     ys[q].y[local] = s;
+#endif
 }

@@ -1,5 +1,13 @@
 # `src/backends/vulkan/` - the Vulkan backend
 
+`dtype_path` describes possible matrix families for the placement record. F16 names packed quantized rows and, where the device profile prefers integer dots, eligible integer tiles; the other products and routers retain F32 inputs. Without that preference the tiles retain F32 inputs. BF16 names rounded matrix inputs and retained F32 routers. The catalog neither changes native capabilities nor records a dispatch. MXFP4 range repair retains the same reconstructed integer inputs, so its wider accumulation remains part of the packed activation class.
+
+Dense and routed tile dispatches and the shared row-dispatch owner record their actual activation forms. The row witness uses the selected kernel's twin, not merely the requested dtype. The BF16 float tile records BF16 after rounding its inputs; the ordinary float tile records F32. The shared `MatrixPaths` evidence is retained by each model stage and consumed through `Model::take_matrix_paths`, without enabling timestamps or shader diagnostics.
+
+The matrix-call dtype is forwarded through dense, grouped, routed, additive and recursive projection dispatch. `native_dtypes` prefers F16, then F32; the F16 policy uses the packed or wider F32 families described above. An explicit F32 request uses the shared row shader with F32 inputs for narrow batches and the float tile for wide batches, bypassing quantized activation twins. A BF16 request takes the float tile's `LLMX_BF16` build, rounding each input once as it enters shared memory with ties to even and NaNs preserved. Weights are unchanged; ordinary products accumulate in F32, while MXFP4 retains its double range repair and split partials; no conversion buffer or extra dispatch is needed. Dense and routed calls choose that build through `float_tile_kernel`, with the existing tile heights and optional float preservation. `emulates_dtype` reports BF16 only when the device preserves F32 denormals, signed zero, infinities and NaNs; placement otherwise selects and reports F32 fallback for that device. BF16 emulation does not add an auto preference.
+
+MXFP4 uses exact packed-weight decoding in the embedding and float tile. Separate shader builds keep other quantized types on their existing modules. The type requires F64 arithmetic, F32 denormal and signed-zero/infinity/NaN preservation, and F64 signed-zero/infinity/NaN preservation before adoption; other types keep their existing device requirements. Unsafe products are recomputed from decoded weights in double, and split partials stay double through reduction. BF16 rounds inputs through the same `matrix_input` function in the tile and recomputation. F32 short calls use the dedicated packed-weight row build. F16 calls use block-int16 rows; on integer-tile profiles, dense prompts copy each eligible projection into a queue-ordered 256 MiB scratch buffer as an exact F32 scale and 32 signed codes per block. Grouped copies retain their original type and packed weight binding. Projections beyond the copy budget and routed prompts take the F32 tile. Both row and tile range repair read exact weights and the same reconstructed int16 inputs as their normal paths; integer split partials remain double through reduction. MXFP4 row dot selection has its own measured profile preference.
+
 The `Backend` of `backend.hpp` over a Vulkan 1.2 compute queue, in one
 translation unit (`vulkan_backend.cpp`, built only with
 `LLMX_HAS_BACKEND_VULKAN=ON`) and the GLSL kernels under `shaders/`, which
@@ -7,9 +15,9 @@ translation unit (`vulkan_backend.cpp`, built only with
 opened at run time, so a build carries no link dependency; the design,
 kernel notes and measurements are `docs/VULKAN.md`.
 
-The lifetime and packed-quantization tests include the implementation and use test-only friends to inspect private storage and dispatch kernels; there is no runtime probe API. The kernel registry keeps F32 rows on the ordinary row module while selecting optional float-preserving modules for Q8 consumers. Both entries reuse the row shader source.
+The lifetime and packed-quantization tests include the implementation and use test-only friends to inspect private storage and dispatch kernels; there is no runtime probe API. The kernel registry keeps F32 rows on the ordinary row module while selecting optional float-preserving modules for Q8 row consumers. The Q8 integer tile uses its ordinary module: F16-range inputs and binary16 weight scales keep its products above the F32 denormal range. The separate MXFP4 integer tile retains preservation for its wider weight scales. Both entries reuse the row shader source. The ordinary K4 row uses the unpreserved module: its selected F16 input range and binary16 weight scales do not need F32 denormal preservation. Its unused preserving build is removed; the integer-dot K4 variant keeps its separate selection. Quantized weights with an explicit F32 policy use its `LLMX_FLOAT_X` build, optionally float-preserving on a supporting device. It reads one exact decoded weight through `quantized_at` in `shaders/qdecode.glsl`, then uses F32 FMA and the existing row reduction. Dense, grouped and routed calls share this path; the F32 policy binds the original input instead of preparing an integer twin.
 
-- `supports_type(type)` accepts F32 and the block types of `decoded_blocks`;
+- `supports_type(type)` accepts F32 and the block types of `decoded_blocks`, with MXFP4 additionally requiring optional double arithmetic and float preservation;
   the model's pre-adoption check and the backend's matrix checks use this
   same query, so they cannot disagree about a weight type.
   `implements` answers true for every `Op`, so the qwen35 layer ops pass
@@ -94,20 +102,17 @@ The lifetime and packed-quantization tests include the implementation and use te
   module per family of types, reading quantized rows against an integer
   twin of the activations (`shaders/xquant.glsl`) that the producing
   kernel, the norm, the SiLU or the attention, writes beside its output
-  and tags. The twin is 16-bit, which the integer-dot tile reads too, and on a device whose profile prefers the
-  integer dot the row families but Q8_0 read an 8-bit twin beside it, except the Q4_0, Q4_1 and
-  Q6_K rows of the output head (`matmul_logits`). Each row kernel but the
+  and tags. Under the F16 policy every quantized row and the integer-dot tile read the same
+  16-bit twin; explicit F32 rows read the original floats. Each row kernel but the
   Q8_0 decode kernel is built for eight columns and for one
   (specialization constant 0), the one-column build taken when a chunk is
   one wide, except the wide Q8_0 kernel, the Q4 and K-quant families also
   for two rows (below), and a third pipeline is the
   eight-column build grouped by expert (specialization constant 8,
-  Mixture of experts below). For integer-dot
-  devices the Q4 (Q4_0 and Q4_1) and Q6_K families are built again with
-  `LLMX_DOT` over the 16-bit twin, which only their output head takes, and
-  with `LLMX_DOT` and `LLMX_X8` over the 8-bit twin, whose rows take at
-  most `q6k_row_lanes` lanes; the Q4_K and Q5_K families have only the
-  8-bit dot build, whose rows take at most `k45_row_lanes`. There Q8_0 rows
+  Mixture of experts below). Integer-dot devices take the Q4 and K-quant
+  families' `LLMX_DOT` builds over the same 16-bit twin.
+  Q6_K centers its weights with a 16-bit offset so the dot operands stay 16-bit.
+  Q4_K and Q5_K rows take at most `k45_row_lanes`. There Q8_0 rows
   take `shaders/matmul_vec_q8.comp`, the four-wide dot over the 16-bit twin split into high and low bytes (`shaders/dot16.glsl`),
   and F32 rows the plain build.
   The Q8_0 decode kernel is built for 1, 2, 4, 8, 16 and 32 columns (`kVecBuilds`), with the rows a subgroup takes, the steps of weights a lane loads ahead, its two forms and its column groups as specialization constants 9 to 13; `sg_rows` gives the rows a subgroup takes in any row kernel build, which a dispatch's rows per workgroup follow.
@@ -125,13 +130,14 @@ The lifetime and packed-quantization tests include the implementation and use te
   `matmul_tile_q6` and Q8_0 in `matmul_tile_q8`) over the row kernels'
   16-bit twin, its quants widened to signed 16-bit pairs. When one tile call reads a whole batch next (`tile_reads`),
   the norm, the SiLU or the wide attention that wrote the batch writes
-  the twin four values a lane (`xquant_word` in `shaders/xquant.glsl`),
-  without the 8-bit twin; otherwise `tile_twin` makes it with
+  the twin four values a lane (`xquant_word` in `shaders/xquant.glsl`);
+  otherwise `tile_twin` makes it with
   `shaders/quantize_xw.comp` before the call. A layer's projections of one type share one
   dispatch, and a call too small to fill the device splits its inner
   dimension into parts that `shaders/matmul_reduce.comp` adds in order.
-  F32, and every type on other devices, take the float tile
+  F32 weights, explicit F32 requests, BF16 round/widen requests, and every type on other devices take the float tile
   (`shaders/matmul_tile.comp`).
+  Dense BF16 caps the 32-value stages per K part at `ceil(stages / 4)`, retaining a finer occupancy split, so its F32 sums remain shorter. The float tile's partial buffer has a `kFloatPartBytes` target of 256 MiB: `matmul_group_impl` slices columns into aligned spans, keeping full 64-column tiles where the target holds them, and runs each span's reduction before reusing the buffer. A minimum aligned span can exceed the target. Each output keeps its K parts, order and tile height, and MXFP4 partials stay double. This is a bound on these float partials, not on every temporary buffer or total device memory.
   The row count where the tile starts winning is one of four measured thresholds in `backends/device_profile.hpp` (8-bit or other types, narrower or at least 4096 wide), which `tile_from` takes once per call from the types of the projections that have rows, Q8_0 grouped with F32 and the width split at the profile's `tile_narrow_nin` (4096).
   A mixed-type group on the row kernel becomes a dispatch per type, each kept on the row kernel.
   `tile_rows_for` picks a height of 128, 64 or 32 rows from the workgroups each height gives, the output rows over the height times the column groups, against the profile's workgroups per compute unit and the device's compute units, by the projection's width.
@@ -141,7 +147,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   and each row's length for its history splits. Grouped-head variants
   also depend on the dispatch's longest history while preserving each
   row's arithmetic, so batching must not change a sequence's output.
-  `matmul_runs` and `expert_runs` read the runs through `for_each_run`, keyed by kernel and split and by kernel alone.
+  `matmul_runs` and `expert_runs` read the runs through `for_each_run`, keyed by kernel and split and by kernel alone. BF16 forces a tile even below the ordinary crossover, so `matmul_runs` also gives those rows the split of their logical extent; collecting more than 64 decode rows cannot change their reduction.
 - `rms_norm_rows` spreads a row over several workgroups when the output
   does not overlap the input, with the same tree reduction as one, up to
   four workgroups per compute unit over the pass: each reads the whole row
@@ -164,11 +170,12 @@ The lifetime and packed-quantization tests include the implementation and use te
   It derives from `BlockKVStorage` (`backends-kv_storage.md`), which grows it, keeps its accounting and checks each view as the table is built; its `retire` hands the buffers a growth copied from to `keep_until_retired`, and `kv_alloc` refuses a head `attention_head_fits` does not take.
   Attention can dispatch tiled and row kernels plus a history-split merge in one layer.
   It gives views of 128- or 256-wide heads whose prompt reaches the profile's `attention_tile_rows` to the tiled kernel (`shaders/attention_tile.comp`, 32 query rows a tile as the shader fixes them, its `_d256` builds staging 8 keys a tile where the 128-wide ones stage 16) and the rest to the per-row kernel, which splits a row's history into parts from the row's own length and merges them (`shaders/attention_merge.comp`); once the longest row fills every split, a workgroup takes up to four query heads of one KV head (the `_g4` builds), loading the history once for them with each head's arithmetic unchanged.
+  The merge reads each part's maximum and sum once into shared memory, forms its weight once, and loads eight parts' column values before summing them in part order. The profile keeps the number of parts at most 256, the merge's workgroup width.
   Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one 16-byte load a lane for an f16 side and two for f32, and several tokens a subgroup, and heads 256 wide its `_d256` builds, 32 lanes a token; other widths keep `attention.comp`.
 - `kv_variant` picks the shader module for a storage's K and V types.
 - `norm_rope_partial`: one workgroup per (row, head) (`shaders/norm_rope_partial.comp`), the head's sum of squares a tree through shared memory, reading the heads at their strides and writing them contiguously; Qwen3 does not reach it on this backend, whose fused `norm_rope_kv` has the same arithmetic per head at the full width.
 - The qwen35 layers' ops (docs/QWEN35.md), each checked against the CPU and for its own bit-for-bit rules by `backend-vulkan`:
-  - `sigmoid_mul` (`shaders/sigmoid_mul.comp`) and `gated_rms_norm` (`shaders/gated_rms_norm.comp`, one workgroup per (row, head)) write the copy of their output that the matmul reading it next takes, by its row runs, as `silu_mul` and `rms_norm_rows` do: the 16-bit twin, four values a lane without the 8-bit twin where `tile_reads` says one tile call reads the batch.
+  - `sigmoid_mul` (`shaders/sigmoid_mul.comp`) and `gated_rms_norm` (`shaders/gated_rms_norm.comp`, one workgroup per (row, head)) write the copy of their output that the matmul reading it next takes, by its row runs, as `silu_mul` and `rms_norm_rows` do: the 16-bit twin, four values a lane where `tile_reads` says one tile call reads the batch.
     So the output gate replaces the copy attention wrote of the ungated output, which its dispatch dropped the tag of.
   - `causal_conv_silu` (`shaders/causal_conv_silu.comp`): one dispatch, an invocation per (chunk of `kConvChunk` rows of a view, channel) walking its rows through a window of the last three raw values; a view's first chunk alone reads the rows it carries in and writes the rows it leaves, after reading them, so no other invocation touches them.
     Each output is the CPU's multiply-add chain in tap order, so it is the same however the view is cut into chunks.
@@ -180,7 +187,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   - `state_table` lays a call's state views out for the kernels, the conv appending its chunks, and refuses views of two storages in one call; the slots' floats must be addressable in 32 bits.
   - `state_alloc` and `state_copy` are `Backend`'s own, built on this backend's `alloc` and `copy`; `backend-vulkan` checks their zeroed slots and copies.
   - `implements` answers true for every op.
-- `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`), both reading the shape from one rule, `pads_f32`; routed stacks and gathered tables are bound as they are. `host_resident()`: the upload staging buffer and the ring of host-visible arenas, which live in host memory. `scratch_reserve(free)`: 256 MiB plus a twentieth of what is free, for tile split partials and attention merge state.
+- `memory_available()`: the device-local heap's budget less its usage from `VK_EXT_memory_budget`, enabled where the device offers it, or the heap's size without it; the small host-mappable device window is skipped. `resident_bytes` adds the padded copy an F32 product matrix whose rows are a multiple of 256 floats gets once a float tile reads it (`padded_f32`), both reading the shape from one rule, `pads_f32`; routed stacks and gathered tables are bound as they are. `host_resident()`: the upload staging buffer and the ring of host-visible arenas, which live in host memory. `scratch_reserve(free)`: 256 MiB plus a twentieth of what is free, with another 256 MiB for the bounded MXFP4 copy on profiles that prefer integer dots. That extra reserve is profile-based even when the model has no MXFP4 weights; float partials and attention merge state use the existing base reserve.
 - `row_class(extent)`: a generated token is a class of its own; a longer extent's class is which of the profile's crossovers it has reached (the matmul tile of both type families at both row widths, the routed tile of every family and the attention tile) and, once it can take the tile, its split (`split_tiles_of`), so every extent from 449 on is one class.
 
 ## Finite activation range repair
@@ -190,3 +197,9 @@ The lifetime and packed-quantization tests include the implementation and use te
 Ordinary blocks keep their existing scale, reciprocal and rounding expressions. A packed table's values and the word-wise input share one ordinary-block check before their vector overload calls the scalar bit-shift routine; the scalar range arithmetic has one implementation.
 The packed-twin probe passes on the MI50. `shaders/float_controls.glsl` gives the Q8 row and integer-dot consumer modules 32-bit denormal and signed-zero/infinity/NaN preservation. Device creation queries both properties; only devices reporting both select these modules, and other devices keep their existing modules. The selection changes no kernel layout, column build or decode-order specialization. The preserved Q8 row variants request their fused products explicitly into a precise accumulator, since enabling the modes can disable the driver's implicit contraction and change ordinary logits. The preserved Q8 integer-dot vector variant keeps a precise accumulator and separate scale product, integer-dot product and addition; explicitly fusing those operations failed ordinary-input identity on the MI50. The native packed-activation test also holds these consumers to the ordinary modules' bits on normal inputs across row and column tails; any disagreement fails the gate on a tested driver. The integrated native regression passes on Radeon, including fallback execution with unsupported modes explicitly refused. Radeon and MI50 whole-model identity pass on the pinned four small quants in both cache types, and STATUS records the timing gate. Preserving the packed producer does not imply that every consumer on every device preserves tiny results.
 Native tests pass on Windows and Linux, and identity against main holds on the CPU, the Radeon VII and the MI50s for the four small quants and for 8B Q8_0 in both cache types, and for 30B-A3B Q4_K_M once F32 rows kept the ordinary module; STATUS records the gates and the cost.
+
+### Dtype range checks
+
+The F16 implementation is held to binary16's finite input range, including subnormal and normal boundaries and the largest finite input, following PRECISION section 9. Its row and tile kernels carry no branches, extra integer sums or scale-order choices solely for preserving original F32 input range. Q4_0's scaled dot and offset subtraction use an explicit rounding order so zero weights cancel and decode batch widths agree. Q6_K still centers integer weights before its dot. The 16-bit twin holds two bytes per activation and eight bytes per block of 32 for its scale and whole scaled sum, 2.25 bytes per activation in total.
+
+Explicit F32 retains the original extreme-input checks on both rows and prompts, independent unit-weight and zero-row fixtures, all six matrix calls, negative scales and cancelling minima, three half weight scales and dispatch witnesses. The optional float-preservation modules remain selected through the existing owner; unsupported devices take their ordinary modules. Tests of the activation representation itself still cover its wider input range. These unit checks complement the independent HF comparisons and matched performance gates described in [PRECISION](../PRECISION.md).

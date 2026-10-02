@@ -1,5 +1,9 @@
 # `src/backends/backend.hpp` - compute backend interface
 
+`MatrixPaths` records the actual matrix activation forms selected by dispatch: F32, F16, BF16 or block-int16. Direct backend conformance tests wait for their work and consume the evidence with the reader in `tests/matrix_precision.hpp`, using `swap_matrix_paths`. Model stages swap in their own evidence and restore the direct caller's set on every exit; model callers read the retained set through `Model::take_matrix_paths` ([runtime](model-runtime.md)). The records are independent of the capability catalog and have no runtime switch.
+
+The six matrix entry points take an explicit activation `Dtype` after their `RowRuns`, defaulting to F16 for direct calls. Base grouped and output-head forwarding preserve it. The value belongs to a call, so models used in turn can share a backend without a mutable backend-wide dtype selection. `native_dtypes` lists complete policies in preference order: the base offers F32, while the CPU and Vulkan implementations offer F16 then F32. This names the available execution policy; its kernels may use packed integer activations or wider F32 inputs. `dtype_path` describes those implementation families, and `emulates_dtype` reports round/widen support without adding it to auto preferences. Placement consumes these capabilities once before constructing a model.
+
 Device-agnostic compute abstraction in namespace `backend`. The inference graph
 runs its primitive ops through a `Backend` so the same model code targets the CPU
 and the Vulkan backend. Operands are a `Buffer` and a float offset (`Slice` / `CSlice`), so the

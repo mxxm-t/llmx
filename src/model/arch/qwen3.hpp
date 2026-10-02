@@ -210,7 +210,7 @@ public:
 
         b.matmul_group({blocks::projection(w[attn_q], q),
                         blocks::projection(w[attn_k], k),
-                        blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs);
+                        blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs, s.dtype);
 
         const backend::Backend::RopeArgs rope{{s.tables[0].get(), 0}, {s.tables[1].get(), 0},
                                               half, s.pos, cfg_.rms_eps};
@@ -221,7 +221,7 @@ public:
                     cfg_.n_head, cfg_.n_head_kv, cfg_.head_dim);
 
         b.matmul_add(w[attn_output].type, w[attn_output].slice(), attn, x,
-                     w[attn_output].nin, w[attn_output].nout, s.rows, s.runs);
+                     w[attn_output].nin, w[attn_output].nout, s.rows, s.runs, s.dtype);
     }
 
     // The rows of the residual from s.x, through the scratch slots from their start, reading whichever row of weights the runtime hands it: the layer's own, or on its mixer device a streamed layer's copies and windows.

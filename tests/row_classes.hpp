@@ -1,6 +1,7 @@
 #pragma once
 // Every pair of extents a backend puts in one class (Backend::row_class) gives the same bits through each op that chooses its arithmetic by extent: a matmul, the routed products and attention after a history (docs/SPECULATIVE.md, section 1).
 // backend-group runs it on the CPU and backend-vulkan on a device, at extents on each side of every crossover and tile split.
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -45,15 +46,17 @@ inline size_t same_within_classes(const backend::Backend& b, const std::vector<s
 inline std::vector<float> read(backend::Backend& b, const backend::Buffer& buf, size_t n) {
     std::vector<float> v(n);
     b.read(buf, 0, v.data(), n * sizeof(float));
+    for (float x : v) if (!std::isfinite(x)) throw std::runtime_error("row-class output is not finite");
     return v;
 }
 
-// Four rows of one prompt at each extent through a matmul of each type at rows 256 and 4096 wide, the routed gate and down projections of 8 experts taking 2 a row, and attention of 4 query rows over 128-wide heads after a 70-token history; the pairs found the same.
+// Four rows at each extent through each type and dtype: matmul at widths 256 and 4096, routed gate and down projections of 8 experts taking 2 a row, then dtype-independent attention of 4 query rows over 128-wide heads after a 70-token history; the pairs found the same.
 inline size_t check(backend::Backend& b, const std::vector<uint32_t>& types, const Matrix& matrix) {
     if (b.row_class(1) == b.row_class(2)) throw std::runtime_error("a generated token shares a class with a prompt");
     const size_t rows = 4, nout = 64;
     size_t pairs = 0;
-    for (uint32_t type : types)
+    for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16})
+      for (uint32_t type : types)
         for (size_t nin : {size_t(256), size_t(4096)}) {
             const std::vector<uint8_t> w = matrix(type, nin, nout, 71);
             const std::vector<float> x = values(rows * nin, 72);
@@ -62,10 +65,10 @@ inline size_t check(backend::Backend& b, const std::vector<uint32_t>& types, con
             std::vector<std::vector<float>> out;
             for (size_t e : kExtents) {
                 const backend::RowRun run[1] = {{rows, e}};
-                b.matmul(type, {wb.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, rows, {run, 1});
+                b.matmul(type, {wb.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, rows, {run, 1}, dtype);
                 out.push_back(read(b, *y, rows * nout));
             }
-            pairs += same_within_classes(b, out, "a matmul of type " + std::to_string(type) + ", rows " + std::to_string(nin) + " wide");
+            pairs += same_within_classes(b, out, std::string(backend::dtype_name(dtype)) + " matmul of type " + std::to_string(type) + ", rows " + std::to_string(nin) + " wide");
         }
 
     const size_t n_expert = 8, k = 2, nin = 256;
@@ -75,21 +78,22 @@ inline size_t check(backend::Backend& b, const std::vector<uint32_t>& types, con
     const backend::BufferPtr ids = b.alloc(rows * k * sizeof(float)), wts = b.alloc(rows * k * sizeof(float));
     b.route_experts({sb.get(), 0}, rows, n_expert, k, true, {ids.get(), 0}, {wts.get(), 0});
     const backend::Backend::Routing routing{{ids.get(), 0}, {wts.get(), 0}, k, n_expert};
-    for (uint32_t type : types) {
+    for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16})
+      for (uint32_t type : types) {
         const std::vector<uint8_t> g = matrix(type, nin, n_expert * nout, 77), d = matrix(type, nin, n_expert * nout, 78);
         const backend::BufferPtr gb = b.adopt(g.data(), g.size()), db = b.adopt(d.data(), d.size());
         const backend::BufferPtr go = b.alloc(rows * k * nout * sizeof(float)), yo = b.alloc(rows * nout * sizeof(float));
         std::vector<std::vector<float>> gate, down;
         for (size_t e : kExtents) {
             const backend::RowRun run[1] = {{rows, e}};
-            b.matmul_experts({{type, {gb.get(), 0}, {go.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {run, 1});
+            b.matmul_experts({{type, {gb.get(), 0}, {go.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {run, 1}, dtype);
             gate.push_back(read(b, *go, rows * k * nout));
             b.write(*yo, 0, base.data(), base.size() * sizeof(float));
-            b.matmul_experts_add(type, {db.get(), 0}, {x2b.get(), 0}, {yo.get(), 0}, nin, nout, rows, routing, {run, 1});
+            b.matmul_experts_add(type, {db.get(), 0}, {x2b.get(), 0}, {yo.get(), 0}, nin, nout, rows, routing, {run, 1}, dtype);
             down.push_back(read(b, *yo, rows * nout));
         }
-        pairs += same_within_classes(b, gate, "a routed projection of type " + std::to_string(type));
-        pairs += same_within_classes(b, down, "a routed projection added of type " + std::to_string(type));
+        pairs += same_within_classes(b, gate, std::string(backend::dtype_name(dtype)) + " a routed projection of type " + std::to_string(type));
+        pairs += same_within_classes(b, down, std::string(backend::dtype_name(dtype)) + " a routed projection added of type " + std::to_string(type));
     }
 
     const int n_head = 4, n_head_kv = 2, head_dim = 128;

@@ -70,6 +70,8 @@ struct ModelOptions {
     size_t checkpoint_slots = 0;
     // Marks (Model::mark), each a slot more in every state storage and room for the recurrent inputs of `mark_rows` rows of every state layer, the most a pass after a mark may take.
     size_t mark_slots = 0, mark_rows = 0;
+    backend::Dtype dtype = backend::Dtype::f16;
+    std::vector<backend::Dtype> device_dtypes; // empty applies dtype to every device
     // The whole KV budget backed as the model is made rather than as passes write it, so no pass grows the cache (a server's fitted budget, PlacementRequest::fit_kv).
     bool kv_backed = false;
 };
@@ -215,6 +217,8 @@ public:
         if (backends.empty()) throw std::runtime_error("inference: missing backend");
         for (const auto& b : backends)
             if (!b) throw std::runtime_error("inference: missing backend");
+        if (!options_.device_dtypes.empty() && options_.device_dtypes.size() != backends.size())
+            throw std::runtime_error("inference: dtype policy does not cover every device");
         const size_t n_layer = plan_.layers.size();
 
         if (place_.mixer_device.empty() && place_.ffn_device.empty()) {
@@ -466,6 +470,14 @@ public:
     // The backend stage s runs on, which a caller timing the stages reads its host and device times from.
     backend::Backend& stage_backend(size_t s) { return *devices_[stages_.at(s).device]->b; }
 
+    // Consume this model's completed matrix-path evidence, expert hosts included, in placement order.
+    std::vector<std::vector<std::string>> take_matrix_paths() {
+        std::vector<std::vector<std::string>> paths;
+        for (auto& device : devices_) paths.push_back(device->matrix_paths.take());
+        return paths;
+    }
+
+
     // Size a fresh context once, before any pass, for `slots` passes in flight, which above one need a pipelined placement, of up to `rows` rows each, with their handoff buffers and `logit_rows` rows of logits the caller hands out (begin_pass's logits_base); a reservation that fails leaves the context fresh, so a smaller one may follow.
     // The context is frozen from then on: begin_pass refuses a pass that needs more before any work, nothing is replaced while passes are in flight, and forward refuses it.
     void reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows) {
@@ -692,6 +704,7 @@ private:
     // A pool is not movable, because sequences hold its address, so devices live behind pointers.
     struct Device {
         backend::BackendPtr b;
+        backend::MatrixPaths matrix_paths;
         bool used = false;
         bool sends = false;                      // the residual leaves it, so it keeps handoff buffers
         int mixer_layers = 0;
@@ -944,6 +957,17 @@ private:
     // Stage s of a pass: its storage's blocks reserved, the residual embedded or received from the stage before, its layers, then the head after the last stage or the residual sent on, its submissions, and the commit of its length and its storage.
     void run_stage(ExecContext& ctx, Pass& p, size_t s) {
         const Stage& st = stages_[s];
+        // Backends may be shared by models used in turn.
+        // Keep each stage's evidence with its model, including failures, while preserving direct backend evidence.
+        struct Paths {
+            const std::vector<std::unique_ptr<Device>>& devices;
+            const std::vector<size_t>& touches;
+            void swap() const noexcept {
+                for (size_t d : touches) devices[d]->b->swap_matrix_paths(devices[d]->matrix_paths);
+            }
+            ~Paths() { swap(); }
+        } paths{devices_, st.touches};
+        paths.swap();
         Device& home = *devices_[st.device];
         const int storage = home.storage_index;
         for (size_t e = 0; storage >= 0 && e < p.entries.size(); ++e) {
@@ -1187,7 +1211,7 @@ private:
         const ExecContext::Scratch& sc = ctx.scratch[dev];
         const Device& d = *devices_[dev];
         return Step{*d.b, sc.arena.get(), sc.offset.data(), {sc.arena.get(), sc.offset[0] / sizeof(float) + base * plan_.residual},
-                    rows, runs, w, kind, nullptr, 0, 0, nullptr, d.tables.data(), &ctx.entry_runs};
+                    rows, runs, w, kind, nullptr, 0, 0, nullptr, d.tables.data(), &ctx.entry_runs, nullptr, 0, options_.device_dtypes.empty() ? options_.dtype : options_.device_dtypes[dev]};
     }
 
     // Layer l's mixer over every row of the pass, with the cache views of its device's storage when the layer keeps KV, and the rows' positions.

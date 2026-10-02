@@ -1,0 +1,27 @@
+#version 450
+// Write an MXFP4 matrix as the integer tile's blocks, nine words a block of 32: the float scale 2^(e - 128), exact at every scale byte, then the doubled E2M1 codes, integers in [-12, 12], a byte each.
+// Each weight is a code times the scale exactly as mxfp4_at gives it; a thread writes one word.
+#include "q.glsl"
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint blocks; } p;
+layout(set = 0, binding = 0) readonly buffer W { uint8_t weights[]; };
+layout(set = 0, binding = 1) writeonly buffer D { uint words[]; };
+#define QBYTE(i) uint(weights[i])
+#include "qdecode.glsl"
+void main() {
+    uint index = gl_GlobalInvocationID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x * 256u;
+    uint block = index / 9u, word = index % 9u;
+    if (block >= p.blocks) return;
+    uint o = block * MXFP4_BYTES;
+    if (word == 0u) {
+        words[index] = floatBitsToUint(mxfp4_scale(QBYTE(o)));
+        return;
+    }
+    // Value j of a block is the low nibble of byte j & 15 for j < 16 and the high one after.
+    uint packed = 0u;
+    for (uint b = 0u; b < 4u; ++b) {
+        uint j = 4u * (word - 1u) + b;
+        packed |= (uint(mxfp4_value(QBYTE(o + 1u + (j & 15u)) >> (j < 16u ? 0u : 4u))) & 255u) << (8u * b);
+    }
+    words[index] = packed;
+}

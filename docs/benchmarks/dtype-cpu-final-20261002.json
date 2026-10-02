@@ -1,0 +1,983 @@
+{
+  "complete": true,
+  "calls": 32,
+  "threads": 4,
+  "affinity": "0-3",
+  "median_rates": {
+    "q4-8": {
+      "pp": {
+        "main": 13.55,
+        "candidate": 16.555,
+        "control": 16.215,
+        "reference": 20.39
+      },
+      "tg": {
+        "main": 5.345,
+        "candidate": 5.84,
+        "control": 5.085,
+        "reference": 6.16
+      }
+    },
+    "q5-06": {
+      "pp": {
+        "main": 186.735,
+        "candidate": 191.43,
+        "control": 177.145,
+        "reference": 111.33
+      },
+      "tg": {
+        "main": 44.175,
+        "candidate": 46.82,
+        "control": 44.33,
+        "reference": 48.47
+      }
+    }
+  },
+  "paired": {
+    "q4-8": {
+      "pp": {
+        "candidate_vs_main": {
+          "each_block_percent": [
+            11.96236559139785,
+            11.76470588235292,
+            56.666666666666664,
+            26.268412438625187
+          ],
+          "median_paired_percent": 19.11538901501152
+        },
+        "candidate_vs_reference": {
+          "each_block_percent": [
+            -22.294776119402993,
+            -18.558207501217737,
+            -18.765432098765434,
+            55.23138832997989
+          ],
+          "median_paired_percent": -18.661819799991584
+        },
+        "control_vs_main": {
+          "each_block_percent": [
+            11.693548387096776,
+            6.483957219251324,
+            57.14285714285714,
+            24.549918166939435
+          ],
+          "median_paired_percent": 18.121733277018105
+        },
+        "candidate_vs_control": {
+          "each_block_percent": [
+            0.24067388688326918,
+            4.959196484620199,
+            -0.303030303030305,
+            1.379763469119566
+          ],
+          "median_paired_percent": 0.8102186780014176
+        }
+      },
+      "tg": {
+        "candidate_vs_main": {
+          "each_block_percent": [
+            4.401408450704225,
+            -1.5410958904109595,
+            67.69662921348313,
+            -18.962075848303396
+          ],
+          "median_paired_percent": 1.4301562801466328
+        },
+        "candidate_vs_reference": {
+          "each_block_percent": [
+            -10.692771084337348,
+            -13.66366366366366,
+            6.797853309481217,
+            -28.521126760563387
+          ],
+          "median_paired_percent": -12.178217374000504
+        },
+        "control_vs_main": {
+          "each_block_percent": [
+            -14.612676056338024,
+            -15.582191780821919,
+            67.41573033707864,
+            4.590818363273463
+          ],
+          "median_paired_percent": -5.0109288465322805
+        },
+        "candidate_vs_control": {
+          "each_block_percent": [
+            22.26804123711341,
+            16.632860040567966,
+            0.1677852348993314,
+            -22.519083969465658
+          ],
+          "median_paired_percent": 8.400322637733648
+        }
+      }
+    },
+    "q5-06": {
+      "pp": {
+        "candidate_vs_main": {
+          "each_block_percent": [
+            -2.6219539064909925,
+            13.707086930335265,
+            -7.088331515812429,
+            -6.158651579443664
+          ],
+          "median_paired_percent": -4.390302742967328
+        },
+        "candidate_vs_reference": {
+          "each_block_percent": [
+            64.3462739848282,
+            73.19012307927528,
+            76.37829592503813,
+            73.35873707131194
+          ],
+          "median_paired_percent": 73.27443007529361
+        },
+        "control_vs_main": {
+          "each_block_percent": [
+            -1.0267483364914343,
+            -2.4643645854246166,
+            -8.190323136084476,
+            -6.600660066006614
+          ],
+          "median_paired_percent": -4.532512325715615
+        },
+        "candidate_vs_control": {
+          "each_block_percent": [
+            -1.6117542297417686,
+            16.580044254618432,
+            1.2003000750187454,
+            0.473245835436642
+          ],
+          "median_paired_percent": 0.8367729552276937
+        }
+      },
+      "tg": {
+        "candidate_vs_main": {
+          "each_block_percent": [
+            2.659050620445136,
+            0.6007208650380624,
+            12.991408487373079,
+            8.7248322147651
+          ],
+          "median_paired_percent": 5.6919414176051175
+        },
+        "candidate_vs_reference": {
+          "each_block_percent": [
+            1.5984405458089768,
+            -3.625551505850755,
+            -4.151943462897534,
+            -11.262050832602977
+          ],
+          "median_paired_percent": -3.8887474843741443
+        },
+        "control_vs_main": {
+          "each_block_percent": [
+            2.1075438250935496,
+            -9.551461754104917,
+            13.225722468107271,
+            8.751677852348983
+          ],
+          "median_paired_percent": 5.429610838721267
+        },
+        "candidate_vs_control": {
+          "each_block_percent": [
+            0.5401234567901092,
+            11.224263891963693,
+            -0.20694412508623916,
+            -0.024685262898049842
+          ],
+          "median_paired_percent": 0.2577190969460297
+        }
+      }
+    }
+  },
+  "activity_by_arm": {
+    "main": {
+      "calls": 8,
+      "intervals": 620,
+      "flag_counts": {
+        "cpu_busy": 82,
+        "iowait": 55,
+        "unrelated_cpu": 260,
+        "disk_flags": 135,
+        "gap": 0
+      },
+      "flag_percent": {
+        "cpu_busy": 13.225806451612904,
+        "iowait": 8.870967741935484,
+        "unrelated_cpu": 41.935483870967744,
+        "disk_flags": 21.774193548387096,
+        "gap": 0.0
+      },
+      "unknown_cpu_intervals": 0,
+      "missed_process_observations": 307
+    },
+    "candidate": {
+      "calls": 8,
+      "intervals": 534,
+      "flag_counts": {
+        "cpu_busy": 2,
+        "iowait": 16,
+        "unrelated_cpu": 203,
+        "disk_flags": 124,
+        "gap": 0
+      },
+      "flag_percent": {
+        "cpu_busy": 0.37453183520599254,
+        "iowait": 2.9962546816479403,
+        "unrelated_cpu": 38.01498127340824,
+        "disk_flags": 23.220973782771537,
+        "gap": 0.0
+      },
+      "unknown_cpu_intervals": 0,
+      "missed_process_observations": 246
+    },
+    "control": {
+      "calls": 8,
+      "intervals": 517,
+      "flag_counts": {
+        "cpu_busy": 0,
+        "iowait": 22,
+        "unrelated_cpu": 83,
+        "disk_flags": 95,
+        "gap": 0
+      },
+      "flag_percent": {
+        "cpu_busy": 0.0,
+        "iowait": 4.25531914893617,
+        "unrelated_cpu": 16.054158607350097,
+        "disk_flags": 18.3752417794971,
+        "gap": 0.0
+      },
+      "unknown_cpu_intervals": 0,
+      "missed_process_observations": 245
+    },
+    "reference": {
+      "calls": 8,
+      "intervals": 535,
+      "flag_counts": {
+        "cpu_busy": 0,
+        "iowait": 29,
+        "unrelated_cpu": 115,
+        "disk_flags": 143,
+        "gap": 0
+      },
+      "flag_percent": {
+        "cpu_busy": 0.0,
+        "iowait": 5.420560747663552,
+        "unrelated_cpu": 21.49532710280374,
+        "disk_flags": 26.72897196261682,
+        "gap": 0.0
+      },
+      "unknown_cpu_intervals": 0,
+      "missed_process_observations": 209
+    }
+  },
+  "activity_by_call": [
+    {
+      "round": 0,
+      "model": "q4-8",
+      "arm": "main",
+      "intervals": 121,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 5,
+        "unrelated_cpu": 0,
+        "disk_flags": 10,
+        "gap": 0
+      }
+    },
+    {
+      "round": 0,
+      "model": "q4-8",
+      "arm": "candidate",
+      "intervals": 106,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 0,
+        "disk_flags": 0,
+        "gap": 0
+      }
+    },
+    {
+      "round": 0,
+      "model": "q4-8",
+      "arm": "reference",
+      "intervals": 94,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 0,
+        "disk_flags": 0,
+        "gap": 0
+      }
+    },
+    {
+      "round": 0,
+      "model": "q4-8",
+      "arm": "control",
+      "intervals": 112,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 11,
+        "unrelated_cpu": 4,
+        "disk_flags": 20,
+        "gap": 0
+      }
+    },
+    {
+      "round": 0,
+      "model": "q5-06",
+      "arm": "main",
+      "intervals": 12,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 1,
+        "disk_flags": 12,
+        "gap": 0
+      }
+    },
+    {
+      "round": 0,
+      "model": "q5-06",
+      "arm": "candidate",
+      "intervals": 11,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 1,
+        "disk_flags": 11,
+        "gap": 0
+      }
+    },
+    {
+      "round": 0,
+      "model": "q5-06",
+      "arm": "reference",
+      "intervals": 14,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 0,
+        "disk_flags": 14,
+        "gap": 0
+      }
+    },
+    {
+      "round": 0,
+      "model": "q5-06",
+      "arm": "control",
+      "intervals": 11,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 0,
+        "disk_flags": 11,
+        "gap": 0
+      }
+    },
+    {
+      "round": 1,
+      "model": "q5-06",
+      "arm": "candidate",
+      "intervals": 11,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 2,
+        "disk_flags": 10,
+        "gap": 0
+      }
+    },
+    {
+      "round": 1,
+      "model": "q5-06",
+      "arm": "control",
+      "intervals": 13,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 9,
+        "disk_flags": 0,
+        "gap": 0
+      }
+    },
+    {
+      "round": 1,
+      "model": "q5-06",
+      "arm": "main",
+      "intervals": 12,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 12,
+        "disk_flags": 0,
+        "gap": 0
+      }
+    },
+    {
+      "round": 1,
+      "model": "q5-06",
+      "arm": "reference",
+      "intervals": 15,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 14,
+        "disk_flags": 1,
+        "gap": 0
+      }
+    },
+    {
+      "round": 1,
+      "model": "q4-8",
+      "arm": "candidate",
+      "intervals": 123,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 118,
+        "disk_flags": 14,
+        "gap": 0
+      }
+    },
+    {
+      "round": 1,
+      "model": "q4-8",
+      "arm": "control",
+      "intervals": 113,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 41,
+        "disk_flags": 20,
+        "gap": 0
+      }
+    },
+    {
+      "round": 1,
+      "model": "q4-8",
+      "arm": "main",
+      "intervals": 122,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 35,
+        "unrelated_cpu": 24,
+        "disk_flags": 62,
+        "gap": 0
+      }
+    },
+    {
+      "round": 1,
+      "model": "q4-8",
+      "arm": "reference",
+      "intervals": 97,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 13,
+        "unrelated_cpu": 2,
+        "disk_flags": 21,
+        "gap": 0
+      }
+    },
+    {
+      "round": 2,
+      "model": "q4-8",
+      "arm": "control",
+      "intervals": 118,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 11,
+        "unrelated_cpu": 11,
+        "disk_flags": 27,
+        "gap": 0
+      }
+    },
+    {
+      "round": 2,
+      "model": "q4-8",
+      "arm": "reference",
+      "intervals": 101,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 13,
+        "unrelated_cpu": 13,
+        "disk_flags": 36,
+        "gap": 0
+      }
+    },
+    {
+      "round": 2,
+      "model": "q4-8",
+      "arm": "candidate",
+      "intervals": 115,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 16,
+        "unrelated_cpu": 1,
+        "disk_flags": 19,
+        "gap": 0
+      }
+    },
+    {
+      "round": 2,
+      "model": "q4-8",
+      "arm": "main",
+      "intervals": 155,
+      "flags": {
+        "cpu_busy": 81,
+        "iowait": 15,
+        "unrelated_cpu": 75,
+        "disk_flags": 21,
+        "gap": 0
+      }
+    },
+    {
+      "round": 2,
+      "model": "q5-06",
+      "arm": "control",
+      "intervals": 16,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 12,
+        "disk_flags": 2,
+        "gap": 0
+      }
+    },
+    {
+      "round": 2,
+      "model": "q5-06",
+      "arm": "reference",
+      "intervals": 26,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 6,
+        "disk_flags": 0,
+        "gap": 0
+      }
+    },
+    {
+      "round": 2,
+      "model": "q5-06",
+      "arm": "candidate",
+      "intervals": 14,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 3,
+        "disk_flags": 0,
+        "gap": 0
+      }
+    },
+    {
+      "round": 2,
+      "model": "q5-06",
+      "arm": "main",
+      "intervals": 14,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 1,
+        "disk_flags": 0,
+        "gap": 0
+      }
+    },
+    {
+      "round": 3,
+      "model": "q5-06",
+      "arm": "reference",
+      "intervals": 21,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 3,
+        "unrelated_cpu": 3,
+        "disk_flags": 9,
+        "gap": 0
+      }
+    },
+    {
+      "round": 3,
+      "model": "q5-06",
+      "arm": "main",
+      "intervals": 15,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 1,
+        "disk_flags": 0,
+        "gap": 0
+      }
+    },
+    {
+      "round": 3,
+      "model": "q5-06",
+      "arm": "control",
+      "intervals": 14,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 2,
+        "disk_flags": 9,
+        "gap": 0
+      }
+    },
+    {
+      "round": 3,
+      "model": "q5-06",
+      "arm": "candidate",
+      "intervals": 15,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 2,
+        "disk_flags": 15,
+        "gap": 0
+      }
+    },
+    {
+      "round": 3,
+      "model": "q4-8",
+      "arm": "reference",
+      "intervals": 167,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 77,
+        "disk_flags": 62,
+        "gap": 0
+      }
+    },
+    {
+      "round": 3,
+      "model": "q4-8",
+      "arm": "main",
+      "intervals": 169,
+      "flags": {
+        "cpu_busy": 1,
+        "iowait": 0,
+        "unrelated_cpu": 146,
+        "disk_flags": 30,
+        "gap": 0
+      }
+    },
+    {
+      "round": 3,
+      "model": "q4-8",
+      "arm": "control",
+      "intervals": 120,
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 4,
+        "disk_flags": 6,
+        "gap": 0
+      }
+    },
+    {
+      "round": 3,
+      "model": "q4-8",
+      "arm": "candidate",
+      "intervals": 139,
+      "flags": {
+        "cpu_busy": 2,
+        "iowait": 0,
+        "unrelated_cpu": 76,
+        "disk_flags": 55,
+        "gap": 0
+      }
+    }
+  ],
+  "activity_coverage": {
+    "missed_process_observations": 1002,
+    "new_process_observations": 11018,
+    "gpu_samples_with_missing_busy": 0
+  },
+  "activity_counts": {
+    "cpu_busy": 84,
+    "iowait": 121,
+    "unrelated_cpu": 654,
+    "disk_flags": 486,
+    "gap": 0
+  },
+  "comparison_assessment": [
+    {
+      "model": "q4-8",
+      "phase": "pp",
+      "candidate_vs_main_median_paired_percent": 19.11538901501152,
+      "candidate_vs_mx_median_paired_percent": -18.661819799991584,
+      "candidate_vs_control_median_paired_percent": 0.8102186780014176,
+      "candidate_above_main_blocks": 4,
+      "candidate_above_mx_blocks": 1
+    },
+    {
+      "model": "q4-8",
+      "phase": "tg",
+      "candidate_vs_main_median_paired_percent": 1.4301562801466328,
+      "candidate_vs_mx_median_paired_percent": -12.178217374000504,
+      "candidate_vs_control_median_paired_percent": 8.400322637733648,
+      "candidate_above_main_blocks": 2,
+      "candidate_above_mx_blocks": 1
+    },
+    {
+      "model": "q5-06",
+      "phase": "pp",
+      "candidate_vs_main_median_paired_percent": -4.390302742967328,
+      "candidate_vs_mx_median_paired_percent": 73.27443007529361,
+      "candidate_vs_control_median_paired_percent": 0.8367729552276937,
+      "candidate_above_main_blocks": 1,
+      "candidate_above_mx_blocks": 4
+    },
+    {
+      "model": "q5-06",
+      "phase": "tg",
+      "candidate_vs_main_median_paired_percent": 5.6919414176051175,
+      "candidate_vs_mx_median_paired_percent": -3.8887474843741443,
+      "candidate_vs_control_median_paired_percent": 0.2577190969460297,
+      "candidate_above_main_blocks": 4,
+      "candidate_above_mx_blocks": 1
+    }
+  ],
+  "limits": [
+    "Four threads on CPUs 0-3 with an explicit four-CPU quota; no subtraction from historical six-thread rates.",
+    "All 32 valid planned calls retained. Activity flags identify possible disturbance, not its causal effect.",
+    "Block 2 main Q4 slowed sharply and subsequent Q5 arms also slowed. Its paired candidate/main gain is not evidence of a clean kernel effect; block deltas and activity alignment remain visible.",
+    "Monitoring windows cover each complete invocation, including load, warm-up and timed phases. They do not provide phase-specific causal attribution. System CPU reads were complete, but missed process observations remain unknown.",
+    "Reporter control perturbs only the CLI reporting site; it is not a universal kernel-layout bound. It deliberately has no completed matrix-path record.",
+    "All llmx arms: fit_kv=false, identical GGUF logical context budget, KV backed on demand, identical fixed 512-token prompt and fresh 128-token decode. Warm-up backs 512 tokens before timing; strides/work follow touched blocks and actual history, not logical context. mx reserves 512 in its own cache layout. This capacity difference is disclosed and is not an effect of the CPU reserve fix.",
+    "Stopped invalid quota1 attempt retained separately; it is an orchestration/configuration failure, not a discarded slow performance sample.",
+    "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero. GPU busy/VRAM counters are retained per device, without per-process attribution; no causal contention claim. Benchmark container and known docker launchers excluded from unrelated CPU."
+  ],
+  "archive_sha256": "e66d21c7cdbdc6fc332dca878d4fcc8a48aab7f06a57d63ca36c7a61ec6fbf4f",
+  "executables": {
+    "main": "91ac53658c04bb170edc7a46cedfb56d6add7ea3c00cd3348eb523b258f37691",
+    "candidate": "714d5ab7e8b440e31256149e2589daa0376f8ccbe794d0c96390062c11444850",
+    "control": "d80b615a5de82a88bbbd60e9ac1c39d2b5798b787cb6382c6b3b4846a88415bb"
+  },
+  "reference_sha256": "c2c3bff9f0181b8f7010bf75816cf083c47901a21a9cc7cb00dd868ce7c5159e",
+  "reference_head": "eefc4e7321c869496146697d63362f073941aed6",
+  "invalid_attempt": {
+    "path": "/zpool1/llmx-xdev-validation/dtype-main0bf-20261002/model-screen-reporter-control-v6",
+    "done": {
+      "complete": false,
+      "calls": 1,
+      "end": 1790926600.9545803,
+      "error": "AssertionError('0-q4-8-main')"
+    },
+    "samples": [
+      {
+        "round": 0,
+        "model": "q4-8",
+        "arm": "main",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-dtype-main0bf-20261002",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/probe/build-main/llmx",
+          "bench",
+          "--model",
+          "/legacy/models--lmstudio-community--Qwen3-8B-GGUF/snapshots/07ebe812301319d9947477e3a94ab8aa587bb3af/Qwen3-8B-Q4_K_M.gguf",
+          "--device",
+          "cpu",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16"
+        ],
+        "start": 1790926516.8108833,
+        "start_monotonic": 1112718.126447344,
+        "stdout": "0-q4-8-main.stdout",
+        "stderr": "0-q4-8-main.stderr",
+        "launcher_pid": 2340800,
+        "returncode": 137,
+        "end": 1790926600.2895622,
+        "end_monotonic": 1112801.605124808
+      }
+    ],
+    "incident": {
+      "path": "/zpool1/llmx-xdev-validation/dtype-main0bf-20261002/model-screen-reporter-control-v6",
+      "reason": "Build quota remained at one CPU. Failed resource preflight was not respected by outer orchestration; first main Q4 call launched, then owned container was stopped before any second call.",
+      "retained": true,
+      "eligible_for_performance_comparison": false,
+      "correction": "Parent explicitly assigns --cpus 4 and cores 0-3. Existing runner now executes resource/memory preflight with subprocess.run(check=True) before any benchmark."
+    },
+    "build_quota_proof": "/zpool1/llmx-xdev-validation/dtype-main0bf-20261002/perf-prepared-v6/container-build-limits.json"
+  },
+  "corrected_preflight": {
+    "time": 1790926829.372891,
+    "release_done_sha256": "a0c8bcc9ae0aea1cdab402d1b125c3f696ccfddca5ded7410946f0c030d13374",
+    "mem_available_bytes": 15836913664,
+    "required_available_bytes": 12884901888,
+    "container_id": "dd1646919198efdaf49e65e817ed17859be4389531f75b25e069d5edb34e532a",
+    "container_limits": {
+      "Binds": [
+        "/zpool1/llmx-xdev-validation/dtype-main0bf-20261002:/probe:rw",
+        "/opt/claude-work/llmx-p2-x-mxfp4-cpu:/work:ro",
+        "/opt/claude-work/llmx-vulkan-mi50/models:/legacy:ro"
+      ],
+      "ContainerIDFile": "",
+      "LogConfig": {
+        "Type": "json-file",
+        "Config": {}
+      },
+      "NetworkMode": "none",
+      "PortBindings": {},
+      "RestartPolicy": {
+        "Name": "no",
+        "MaximumRetryCount": 0
+      },
+      "AutoRemove": false,
+      "VolumeDriver": "",
+      "VolumesFrom": null,
+      "ConsoleSize": [
+        0,
+        0
+      ],
+      "CapAdd": null,
+      "CapDrop": null,
+      "CgroupnsMode": "private",
+      "Dns": null,
+      "DnsOptions": [],
+      "DnsSearch": [],
+      "ExtraHosts": null,
+      "GroupAdd": null,
+      "IpcMode": "private",
+      "Cgroup": "",
+      "Links": null,
+      "OomScoreAdj": 0,
+      "PidMode": "",
+      "Privileged": false,
+      "PublishAllPorts": false,
+      "ReadonlyRootfs": false,
+      "SecurityOpt": null,
+      "UTSMode": "",
+      "UsernsMode": "",
+      "ShmSize": 67108864,
+      "Runtime": "runc",
+      "Isolation": "",
+      "CpuShares": 0,
+      "Memory": 0,
+      "NanoCpus": 4000000000,
+      "CgroupParent": "",
+      "BlkioWeight": 0,
+      "BlkioWeightDevice": [],
+      "BlkioDeviceReadBps": [],
+      "BlkioDeviceWriteBps": [],
+      "BlkioDeviceReadIOps": [],
+      "BlkioDeviceWriteIOps": [],
+      "CpuPeriod": 0,
+      "CpuQuota": -1,
+      "CpuRealtimePeriod": 0,
+      "CpuRealtimeRuntime": 0,
+      "CpusetCpus": "0-3",
+      "CpusetMems": "",
+      "Devices": [],
+      "DeviceCgroupRules": null,
+      "DeviceRequests": null,
+      "MemoryReservation": 0,
+      "MemorySwap": 0,
+      "MemorySwappiness": null,
+      "OomKillDisable": null,
+      "PidsLimit": null,
+      "Ulimits": [
+        {
+          "Name": "core",
+          "Hard": 0,
+          "Soft": 0
+        }
+      ],
+      "CpuCount": 0,
+      "CpuPercent": 0,
+      "IOMaximumIOps": 0,
+      "IOMaximumBandwidth": 0,
+      "MaskedPaths": [
+        "/proc/acpi",
+        "/proc/asound",
+        "/proc/interrupts",
+        "/proc/kcore",
+        "/proc/keys",
+        "/proc/latency_stats",
+        "/proc/sched_debug",
+        "/proc/scsi",
+        "/proc/timer_list",
+        "/proc/timer_stats",
+        "/sys/devices/virtual/powercap",
+        "/sys/firmware"
+      ],
+      "ReadonlyPaths": [
+        "/proc/bus",
+        "/proc/fs",
+        "/proc/irq",
+        "/proc/sys",
+        "/proc/sysrq-trigger"
+      ],
+      "Init": true
+    },
+    "cpu_max": "400000 100000",
+    "threads": 4,
+    "affinity": "0-3",
+    "admitted": true
+  },
+  "end_verification": {
+    "time": 1790929228.789634,
+    "binary_sha256": {
+      "main": "91ac53658c04bb170edc7a46cedfb56d6add7ea3c00cd3348eb523b258f37691",
+      "candidate": "714d5ab7e8b440e31256149e2589daa0376f8ccbe794d0c96390062c11444850",
+      "control": "d80b615a5de82a88bbbd60e9ac1c39d2b5798b787cb6382c6b3b4846a88415bb",
+      "reference": "c2c3bff9f0181b8f7010bf75816cf083c47901a21a9cc7cb00dd868ce7c5159e"
+    },
+    "cpu_max": "400000 100000",
+    "NanoCpus": 4000000000,
+    "CpusetCpus": "0-3",
+    "CpuQuota": -1,
+    "CpuPeriod": 0
+  },
+  "model_manifest": {
+    "q4-8": {
+      "path": "/legacy/models--lmstudio-community--Qwen3-8B-GGUF/snapshots/07ebe812301319d9947477e3a94ab8aa587bb3af/Qwen3-8B-Q4_K_M.gguf",
+      "sha256": "a7676d257b10f3ce23aedba45e64ba61a5aa295f0009d87c5627f6c026a8f35f",
+      "bytes": 5027783968,
+      "cpu_placements": 37,
+      "purpose": "Required timing comparison against current main; established pp512/tg128 dtype Q4 cell"
+    },
+    "q5-06": {
+      "path": "/legacy/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+      "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "bytes": 444415680,
+      "cpu_placements": 29,
+      "purpose": "Proposed narrow regression screen for the changed shared dot_q45_K; existing pinned fixture, not an added release gate",
+      "workload_note": "Prior Windows dtype Q5 cell exists with these pp512/tg128/r1/ubatch512/F16 KV/six-thread flags. Its native mx benchmark used different tokens. This new Linux matched-token screen is narrow shared-function regression evidence, not an added release gate."
+    }
+  },
+  "main_runtime_commit": "0bf4fcae8f7737a2a89f6bca1800262948487120",
+  "main_integration_commit": "25549f02433d74014fe75b9c0b681550f09299b9",
+  "original_summary_sha256": "68ab9150e91013b9adf119bf909ba392f1aa21445a7fe705c8da3577313bd8b0",
+  "original_report_sha256": "7d2c31a014c48fecb5ca491d49eed0c487171ce432090ddbea2846af36a7ecd1",
+  "assessment": {
+    "decision": "Advance to exact-head hosted CI under the documented workload-tradeoff rule; this is not a claim of mx parity or universal nonregression.",
+    "existing_path_tradeoff": "Q4 prefill is faster in all four blocks; Q5 decode is faster in all four. Q5 prefill is slower in three, median paired -4.39 percent, retained and accepted beside those gains.",
+    "activity_limit": "Uneven activity prevents treating aggregate changes as clean kernel effects. All planned blocks and unknown process observations remain included.",
+    "next_work": "Remaining CPU matrix speed gaps: direct activation packing and reference-informed tiling. Vulkan MXFP4 prompt speed remains open. Host mapped-weight working-set accounting is a separate placement follow-up."
+  }
+}

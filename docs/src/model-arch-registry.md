@@ -1,5 +1,7 @@
 # `src/model/arch/registry.hpp` - the architectures, by the name a file gives
 
+Each entry also declares the GGUF architecture default activation dtype, BF16 for the current Qwen entries. `gguf_weights` carries it into `ModelWeights`; the registry does not infer it from tensor quantization or claim a source-checkpoint dtype absent from the file.
+
 The one place an architecture's name is read and accepted, in namespace
 `infer`, and the one step from a file's metadata to its architecture. It
 includes every module under `model/arch/`; the loader

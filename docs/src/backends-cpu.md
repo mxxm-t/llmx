@@ -1,5 +1,15 @@
 # `src/backends/cpu/cpu_backend.hpp` - CPU backend (AVX2)
 
+`dtype_path` describes possible matrix families for the placement record. F16 names packed Q4/Q5/Q6/MXFP4 decode, K-quant dense prompts at widths of at least 4096 and routed Q4/Q5/Q6 prompts, with other products retaining F32 inputs. BF16 names rounded matrix inputs and retained F32 routers. This catalog neither advertises a native policy nor records execution; the dispatch witnesses below remain the evidence for numerical bounds. MXFP4 range repair keeps the reconstructed packed inputs, so wider accumulation does not turn its activation class into F32.
+
+Matrix dispatch records the activation form where it enters float or packed dots. Every packed CPU dot now reads the shared 16-bit activation rows, so the dispatch records `block-int16` directly without another type catalog. Dense, grouped and routed paths all contribute to the shared `MatrixPaths` evidence, which the model retains per stage.
+
+Matrix calls consume their activation dtype in the existing dispatch owner. `native_dtypes` prefers F16, then F32. On AVX2, the F16 policy uses block-int16 activations in eligible Q4/Q5/Q6/MXFP4 products and wider F32 inputs elsewhere; the weights retain their stored interpretation. Explicit F32 bypasses the block-integer dots. BF16 inputs are rounded once per dense or routed call by `dtype_input`, then widened for the same F32 dot kernels. Grouped fallbacks forward the policy to each projection. BF16 is reported as emulated by `emulates_dtype` and is selected only by an explicit request; it is not an auto preference.
+
+Q4_K/Q5_K decode reduces each group of 32 integer products exactly before converting to F32, using the same `sum8` reduction as the prompt dots. It accumulates one float lane per group across blocks, with separate weight and minimum terms; the minimum meets its activation scale before its integer sum. Scale/minimum metadata is unpacked into the eight lanes together.
+
+Dense Q4_K/Q5_K packed prompts at widths of at least 4096 and eight or more columns use `PromptPairs` in the existing CPU dot owner. It repacks the already quantized 16-bit activations, pairing adjacent features across eight columns. The dot takes two such groups across two output rows, reusing each weight broadcast for sixteen columns; a final group uses four output rows. A compiler-guarded loop hint keeps GCC-compatible builds from expanding the inner pair loop eightfold. Complete tiles transpose eight-by-eight 32-bit lanes with AVX2, each lane holding two adjacent 16-bit features; a partial tile keeps the scalar copy and zero padding. Each integer lane sums one group of 32 products; its magnitude is bounded by 32 * 31 * 32767, so the reassociation is exact in int32. Integer group sums, the order of the per-group float FMAs and the final reduction are unchanged. Smaller prompts, routed products and decode keep their existing dots. The reusable packing scratch retains about two bytes per input value plus eight bytes per group of 32 values, with columns rounded up to eight, alongside the original activation rows; packing is included in measured matmul time.
+
 CPU implementation of the `Backend` interface, in namespace `backend`.
 `supports_type` reads the quant registry, including its F32 entry, and `implements(op)` is true for every `Op`.
 The build requires x86-64 AVX2, FMA and F16C (`docs/BUILD.md`), and the kernels use them with no runtime check and no scalar fallback; their scalar loops cover the tails of lengths that are not a multiple of 8.
@@ -27,7 +37,7 @@ A compile without them stops at one `#error` at the top of the header.
 - `row_dot`: one weight row against one activation row in float, the one float decode row dot.
   F32 takes `dot_f32`, Q8_0 `dot_row_impl`, and Q4_K, Q5_K and Q6_K their fused dequant+FMA dots, falling back to `dot_row_dequant` when a fused sum overflows.
   A decode run of those types calls it in one pooled loop over weight rows, walking all activation columns against each row before moving on; a routed decode entry calls it for every type.
-  Q8_0 always takes this float path; the other supported quantized types take `q8_dots.hpp` unless `set_decode_activations8(false)` selects their float reference path.
+  Q8_0 always takes this float path. The other supported quantized types take `q8_dots.hpp` under F16; an explicit F32 request selects the original float path, and BF16 rounds its inputs before the float dots.
   Other types, routed Q4_0 and Q4_1 decode among them, take `dot_row_dequant`, which dequantizes and sums in double, while a dense Q4_0 or Q4_1 decode keeps the batched float path, so the two differ in rounding.
   The Q6_K dot rounds each scaled group sum before accumulating it, through separate intrinsics, because compilers fused the two into one FMA or not by the code around them and by their contraction rules.
   GCC and MSVC builds round this dot as they did before the intrinsics, and a Clang build, which fused the plain expression at its default contraction, now rounds as they do; a Clang build with `-ffp-contract=fast` would still fuse the intrinsics.
@@ -117,10 +127,13 @@ A compile without them stops at one `#error` at the top of the header.
   `kPromptDotsFrom` (4096) wide, where the float path's dequantized row
   blocks no longer stay in the first-level cache, so a row computes the same alone
   or beside others; without runs a one-column call is decode. The decode dots (`q8_dots.hpp`) quantize a call's activations once
-  per block of 32, 8-bit for Q4_K and Q5_K and 16-bit for Q4_0, Q4_1
-  and Q6_K, plus MXFP4, and meet the packed
-  weights in integers (`maddubs` and `madd`), one scale per block; the float
+  per block of 32, 16-bit for Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and MXFP4, and meet the packed
+  weights in integers (`madd`), one scale per block; the float
   dots they replaced converted every weight and were bound by arithmetic.
+  Routed and smaller dense Q4_K/Q5_K prompt scratch keeps weight codes as bytes
+  until the shared 16-bit dot widens them. Dense prompts with at least eight
+  columns expand two weight rows for sixteen columns, or four rows for the
+  eight-column remainder; activations remain 16-bit in both paths.
   If a tiny finite block overflows the float reciprocal, an exceptional scalar
   path uses the smallest positive representable scale covering its magnitude
   range, then rounds double-precision ratios to nearest, ties to even. This
@@ -134,8 +147,7 @@ A compile without them stops at one `#error` at the top of the header.
   Gradual underflow is assumed; flush-to-zero and nonfinite input handling are
   not established by this check.
   Q8_0 always reads the original F32 activations through the existing float dots, including grouped and routed calls; its integer consumers are removed.
-  `set_decode_activations8(false)` keeps the float dots for the other types, which the device
-  comparison test's reference and the float-kernel checks use.
+  The device comparison references and float-kernel checks request F32 on each matrix call; no mutable backend precision switch is needed.
   `each_run` reads the runs through `backend.hpp` `for_each_run`, keyed by whether a run is a generated token's.
 - `route_experts`, `matmul_experts`, `matmul_experts_add`: routing in
   float, then the entries grouped by expert. For types with integer dots, a generated token's entries take
@@ -148,8 +160,7 @@ A compile without them stops at one `#error` at the top of the header.
   meets eight groups' scales in one vector multiply-add, so a (row, entry)
   pair accumulates in the same order whatever else is in the block. The
   activations are quantized once per call, split across the pool, and gate
-  and up share them. For MXFP4, whose prompt retains original F32 activations, or where a type has no quantized dots, including Q8_0, or with
-  `set_decode_activations8(false)`, a prompt's entries take one batched float
+  and up share them. For MXFP4, whose prompt uses float products over the selected policy's inputs, or where a type has no quantized dots, including Q8_0, or with an F32 or BF16 request, a prompt's entries take one batched float
   matmul per expert over its gathered rows (`matmul_raw`, the matmul on host
   addresses, reaches an expert's matrix inside the stacked tensor).
 - `memory_available()`: the host memory the process can still take, the host's available physical memory or less where a cgroup or job object memory limit leaves less (`core/host_memory.hpp`). Weights on the CPU read the mapped file in place, so what counts against it is caches, activations and what a loader materializes. `scratch_reserve(free)` keeps a twentieth of that reported room for page tables, allocator overhead and kernel workspaces; the fit counts this beside its explicit buffers. `reads_in_place()` is true: `adopt` aliases the caller's bytes. `is_cpu()` is true, so experts on the CPU beside it stay on it.
@@ -173,4 +184,4 @@ and restoration rules. Nested scopes and effective thread-count changes inside
 a scope are rejected. Same-count configuration remains a no-op; the guard is
 for synchronous reentrancy and does not make concurrent calls safe.
 
-MXFP4 decode reuses this activation owner with 16-bit packed inputs. Its nibble lookup widens weights directly into integer products; exceptional scale products or nonfinite fast sums use decoded F32 weights and double products over those same activations. The format interpretation and boundary coverage live in [quant-mxfp4](quant-mxfp4.md).
+Under F16 execution, MXFP4 decode reuses this activation owner with 16-bit packed inputs. Its nibble lookup widens weights directly into integer products; exceptional scale products or nonfinite fast sums use decoded F32 weights and double products over those same activations. The format interpretation and boundary coverage live in [quant-mxfp4](quant-mxfp4.md).

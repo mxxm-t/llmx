@@ -1,5 +1,7 @@
 # `src/model/arch/blocks.hpp` - graph pieces the architectures share
 
+The shared feed-forward and output-head matrix calls forward `Step::dtype`; the routed router explicitly keeps F32. These graph pieces do not resolve a dtype or implement its arithmetic.
+
 The pieces of a pass that more than one architecture runs, in namespace
 `infer::blocks`, each as backend ops over the weights and arena slots it is
 handed. None names a tensor, a metadata key or an architecture, and

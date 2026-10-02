@@ -1,5 +1,9 @@
 # `src/model/runtime.hpp` - the model runtime
 
+`take_matrix_paths` drains this model's retained dispatch evidence in placement order, including an expert host that runs no whole model stage. `run_stage` swaps the model's evidence into every touched backend and restores the caller's previous set on both normal and error exits. Models used in turn therefore keep separate evidence even if a caller reads it after another model ran on the shared backend; direct backend calls retain their own set. Callers wait for the measured work before consuming the model's records. This lifetime handling does not permit concurrent execution on a shared backend.
+
+`ModelOptions::dtype` is copied at construction and passed into every architecture `Step`, including split and streamed parts. It is independent of KV storage precision. A model never changes a shared backend dtype setting. Placement supplies resolution before construction, including `ModelOptions::device_dtypes` for per-device emulation or wider fallback. An empty vector applies `dtype` everywhere; a nonempty vector must cover every device before allocation. The existing `part` owner selects the device's policy for each step. Direct model construction can still select the scalar policy.
+
 The runtime, in namespace `infer`: sequences, passes over batches of them,
 stages over devices, the activation arena and the crossings between
 devices. It runs an architecture's plan and parts

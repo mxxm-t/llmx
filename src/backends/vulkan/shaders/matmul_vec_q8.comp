@@ -11,6 +11,7 @@
 #extension GL_EXT_integer_dot_product : require
 #extension GL_EXT_control_flow_attributes : require
 #include "dot16.glsl"
+#include "q.glsl"
 #include "float_controls.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint MAX_COLS = 8;
@@ -134,7 +135,8 @@ void main() {
 #define HALF_PRODUCTS(J) [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
             int s = dot16(wq[r][0], dot16_parts(xa[J].xy)) + dot16(wq[r][1], dot16_parts(xa[J].zw)) + \
                     dot16(wq[r][2], dot16_parts(xb[J].xy)) + dot16(wq[r][3], dot16_parts(xb[J].zw)); \
-            acc[r][g + (J)] += dw[r] * dx[J] * float(s); \
+            precise float product = dw[r] * dx[J] * float(s); \
+            acc[r][g + (J)] += product; \
         }
         for (uint bb = bh; bb < nblk; bb += 32u) {
             uint wq[ROWS][4];
@@ -177,7 +179,8 @@ void main() {
 // Column g + J's products of step d, one for each row, added to its accumulators.
 #define COLUMN_PRODUCTS(J) [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
         int s = dot16(w0[d][r], dot16_parts(xa[J].xy)) + dot16(w1[d][r], dot16_parts(xa[J].zw)); \
-        acc[r][g + (J)] += dw[d][r] * dx[J] * float(s); \
+        precise float product = dw[d][r] * dx[J] * float(s); \
+            acc[r][g + (J)] += product; \
     }
 // NS steps of a lane from block b: every row's words for all NS steps first, then per group of columns the NS steps in order, so each column still adds its blocks in order.
 // No branch separates the loads, so every weight load of the batch is issued before the first product.

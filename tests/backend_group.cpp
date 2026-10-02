@@ -138,7 +138,7 @@ static size_t check_q8_scales(backend::CpuBackend& cpu) {
             const float expected = f16_to_f32(uint16_t(h)) * float(q);
             actual = 0.0f;
             cpu.matmul(quant::GGML_TYPE_Q8_0, {row_buf.get(), 0}, {x_buf.get(), 0},
-                       {out_buf.get(), 0}, quant::Q8_0_BLOCK, 1, 1);
+                       {out_buf.get(), 0}, quant::Q8_0_BLOCK, 1, 1, {}, backend::Dtype::f32);
             require(std::isfinite(actual) && actual == expected, "Q8 scale or signed weight differs");
             ++count;
         }
@@ -171,6 +171,7 @@ struct Matrix {
             const size_t blocks = weights.size() / q->block_size;
             packed.resize(blocks * q->type_size);
             if (const auto quantize = testq::quantizer(type)) quantize(weights.data(), packed.data(), blocks);
+            else if (type == quant::GGML_TYPE_MXFP4) packed = testq::mxfp4_matrix(weights.size(), 71);
             else {
                 for (size_t i = 0; i < packed.size(); ++i)
                     packed[i] = uint8_t(i * 73 + 19);
@@ -223,9 +224,9 @@ static size_t check(backend::CpuBackend& cpu, std::array<uint32_t, 3> types,
     const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
     for (auto& m : matrices)
         cpu.matmul(m.type, {m.buffer(cpu).get(), 0}, {x_buf.get(), 0},
-                   {m.sep_buffer(cpu).get(), 1}, width, m.rows, batch);
+                   {m.sep_buffer(cpu).get(), 1}, width, m.rows, batch, {}, backend::Dtype::f32);
     cpu.matmul_group({matrices[0].projection(cpu), matrices[1].projection(cpu),
-                      matrices[2].projection(cpu)}, {x_buf.get(), 0}, width, batch);
+                      matrices[2].projection(cpu)}, {x_buf.get(), 0}, width, batch, {}, backend::Dtype::f32);
     require(x == original, "grouped matmul modified activations");
     size_t count = 0;
     for (const auto& m : matrices) {
@@ -250,7 +251,7 @@ static size_t check(backend::CpuBackend& cpu, std::array<uint32_t, 3> types,
     }
     auto& first = matrices[0];
     std::fill(first.grouped.begin() + 1, first.grouped.end() - 1, 123456.0f);
-    cpu.matmul_group({first.projection(cpu)}, {x_buf.get(), 0}, width, batch);
+    cpu.matmul_group({first.projection(cpu)}, {x_buf.get(), 0}, width, batch, {}, backend::Dtype::f32);
     require(first.grouped == first.separate, "single-projection fallback differs");
     return count;
 }
@@ -276,7 +277,7 @@ static size_t check_magnitudes(backend::CpuBackend& cpu) {
                 x[i] = mag >= 1e30f ? mag
                      : mag * float(int((i * 19 + 7) % 101) - 50) / 50.0f;
             cpu.matmul(m.type, {m.buffer(cpu).get(), 0}, {x_buf.get(), 0},
-                   {m.sep_buffer(cpu).get(), 1}, width, m.rows, 1);
+                   {m.sep_buffer(cpu).get(), 1}, width, m.rows, 1, {}, backend::Dtype::f32);
             for (size_t o = 0; o < m.rows; ++o) {
                 double expected = 0, magnitude = 0;
                 for (size_t i = 0; i < width; ++i) {
@@ -372,11 +373,11 @@ static size_t check_gather(backend::CpuBackend& cpu) {
     return count;
 }
 
-// Every pair of extents of one class gives the same bits through a matmul, the routed products and attention (row_classes::check), with the decode dots as they run by default.
+// Every pair of extents of one class gives the same bits through each dtype's matrix products and shared attention (row_classes::check).
 static size_t check_row_classes(backend::CpuBackend& cpu) {
     return row_classes::check(cpu,
                               {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
-                               quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K},
+                               quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4},
                               [](uint32_t type, size_t nin, size_t rows, uint32_t) {
                                   const Matrix m(type, rows, nin, 1);
                                   return std::vector<uint8_t>(m.data(), m.data() + m.bytes());
@@ -389,8 +390,7 @@ int main() {
         cpu.set_threads(1);
         const size_t inputs = check_q8_inputs(cpu);
         const size_t classes = check_row_classes(cpu);
-        // These checks pin the float decode dots exactly; the 8-bit ones have tests/q8_dots.cpp.
-        cpu.set_decode_activations8(false);
+        // These checks request F32 for exact float dots; tests/q8_dots.cpp covers quantized activations.
         const size_t gathered = check_gather(cpu);
         const size_t positions = check_row_positions(cpu);
         const size_t scales = check_q8_scales(cpu);
@@ -399,7 +399,7 @@ int main() {
         size_t values = 0, cases = 0;
         for (int threads : {1, 2, 6}) {
             cpu.set_threads(threads);
-            cpu.matmul_group({}, {}, 0, 1);
+            cpu.matmul_group({}, {}, 0, 1, {}, backend::Dtype::f32);
             for (size_t rows : {size_t(7), size_t(47), size_t(48), size_t(65)}) {
                 for (size_t batch : {size_t(0), size_t(1), size_t(2), size_t(3), size_t(4)}) {
                     for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0,
@@ -427,7 +427,7 @@ int main() {
             const auto sink_buf = cpu.adopt(sink.data(), sink.size() * sizeof(float));
             cpu.matmul_group({{9999, {storage.get(), 0}, {sink_buf.get(), 0}, 65},
                               {9999, {storage.get(), 0}, {sink_buf.get(), 0}, 67}},
-                             {}, 256, 1);
+                             {}, 256, 1, {}, backend::Dtype::f32);
         } catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "invalid quant type was not rejected on caller");
         // A projection without storage is rejected before anything reads it.
@@ -436,7 +436,7 @@ int main() {
             const auto sink2 = cpu.adopt(sink.data(), sink.size() * sizeof(float));
             cpu.matmul_group({{quant::GGML_TYPE_Q8_0, {}, {sink2.get(), 0}, 65},
                               {quant::GGML_TYPE_Q8_0, {}, {sink2.get(), 0}, 67}},
-                             {}, 256, 1);
+                             {}, 256, 1, {}, backend::Dtype::f32);
         } catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "projection without storage was accepted");
         std::cout << "grouped projections: " << cases << " cases, " << values

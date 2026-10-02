@@ -45,6 +45,6 @@ void main() {
     for (uint i = lid; i < p.dim; i += 256u) {
         float v = gated(o, i, r);
         dst[o + i] = v;
-        if (p.quant != 0u) xquant_twin(o + i, v, p.n);
+        if (p.quant != 0u) xquant_block(o + i, v, p.n);
     }
 }

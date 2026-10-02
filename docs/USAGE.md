@@ -35,6 +35,14 @@ without reconfiguration. A source archive or unavailable Git reports `+unknown`.
 The usage banner shows the same version. Builds do not create commits/tags,
 change the release number, or embed timestamps.
 
+## Precision
+
+Commands that load a model accept `--dtype auto|f16|bf16|f32` (default `auto`) and print one `dtype:` record to stderr. It gives the request, resolved policy, architecture default and each device's native, emulated or wider fallback implementation, with a warning for emulation or fallback. The same record appears in `/v1/health` as `dtype`, with `requested`, `declared`, `effective` and `devices`; each device has `device`, `how`, `paths` and its own `effective` dtype. `paths` groups possible matrix families by activation form, including retained F32 operations; it describes the implementation, not which paths a particular request executed. A mixed run retains the requested policy at the top level and lists F32 for the devices that fall back; when all devices fall back, the top-level effective dtype is F32.
+
+On the supported AVX2 CPU, MI50 and Radeon VII paths, `auto` selects F16. The Qwen architectures declare BF16, but these backends prefer their supported F16 policy because they do not implement BF16 natively. Explicit `f32` keeps original F32 matrix inputs. Explicit `bf16` rounds inputs to BF16 and widens for F32 arithmetic on the CPU and on Vulkan devices that preserve F32 denormals, signed zeros, infinities and NaNs; otherwise it reports F32 fallback. F16 uses qualifying block-int16 kernels or documented wider F32 products, not a conversion of the whole model to half precision. Weights remain exact, and norms, softmax, rope, recurrent state, residuals and routers retain their F32 operations. Dtype is independent of the KV cache storage flags and does not add support for F16 or BF16 weight tensors.
+
+`logits`, `perplexity` and model `bench` also write one `matrix-paths:` JSON record to stderr after computation, containing the effective `dtype` and a `devices` list of the matrix paths actually dispatched. The correctness tools use it to select their precision bound; the startup capability description is not execution evidence. Numerical stdout is unchanged.
+
 ## Global conventions
 
 - A model file is a GGUF v3 container (see `docs/src/format-gguf.md`).
@@ -187,7 +195,9 @@ comma-separated list on one line.
 
 Decode a comma- or whitespace-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> ("<text>" | --file <path>) [--chat] [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
+## `llmx logits <in.gguf> ("<text>" | --file <path>) [--chat] [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
+
+`--dtype` selects activation precision (Precision, above).
 
 Print the top-N next-token logits for `text`, one `id value` pair per line after a `tokens:` header.
 The list is most likely first, a tie going to the lower id.
@@ -196,6 +206,7 @@ The list is most likely first, a tie going to the lower id.
 `--chat` reads the text as `generate --chat` reads its prompt, one user message through the model's chat template.
 `--then-ids F` appends the token ids in `F`, separated by commas or whitespace, after the text's tokens, so a generated reply is read as the tokens it was.
 `--last N` prints each of the last `N` positions instead, one line of its position followed by its top-N `id value` pairs, from the batched passes a prompt takes; `tools/long_context_check.py` reads a device's reply this way.
+That tool takes `--dtype auto|f16|bf16|f32` to select the same request for prompt sizing, both fresh generations and both backends' scoring passes.
 `--per-token` reads every token one at a time through decode steps, the path a generated token takes, instead of the batched passes a prompt takes, as `perplexity --per-token` does; on a device the two paths run different kernels, so a reply's `--then-ids` read this way gives the logits its decode steps gave.
 `--top` and `--last` are at least 1.
 
@@ -210,6 +221,8 @@ bounds on values and NLL as well as rankings. Close rankings can change;
 matching the top token alone does not establish numerical correctness.
 
 ## `llmx perplexity <in.gguf> "<text>" [flags...]`
+
+`--dtype` selects activation precision (Precision, above).
 
 Compute the loss-based perplexity of `text` under the model.
 
@@ -443,6 +456,8 @@ The server reserves its pass capacity at startup, including decode rows.
 
 ## `llmx generate <in.gguf> ("<prompt>" | --file <path>) [flags...]`
 
+`--dtype` selects activation precision (Precision, above).
+
 Prompt-process `prompt`, then autoregressively generate tokens until eos or
 `--max-tokens`. Streams generated text as tokens arrive, reasoning included.
 `--file <path>` (`-f`) in place of the prompt reads it from a UTF-8 file, as `logits` and `perplexity` read their text, for a prompt longer than a command line holds.
@@ -458,8 +473,8 @@ straight from 0 to complete. In `auto` and `direct`, progress starts after
 construction and counts streamed tensors and any host-weight warming.
 The processing message reports the prompt token count before prefill begins,
 not a token-by-token completion percentage.
-Redirected stderr stays quiet by default. Text continues to stream when stdout
-is redirected.
+Redirected stderr still carries the dtype report; progress is hidden unless
+`--verbose` is set. Text continues to stream when stdout is redirected.
 
 Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 `N tok, <ms>, <tok/s>`.
@@ -504,6 +519,8 @@ A verify costs more than a step, and on a device its cost rises sharply past eig
 
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`
 
+`--dtype` selects activation precision (Precision, above).
+
 Interactive chat loop reading lines from stdin.
 Uses the model's `tokenizer.chat_template` to format the conversation, rendered byte for byte as the Jinja template language defines it (`docs/src/inference-chat.md` lists what the renderer takes).
 Supports the same sampling and drafting flags as `generate`, plus `--system` to set the system message (default: `You are a helpful assistant.`).
@@ -531,7 +548,9 @@ Enter `My name is Marko. Remember it.`, wait for the reply, then enter
 `What is my name?`. Each line continues the same conversation; starting a new
 process starts a new history. Press Ctrl+C to exit.
 
-## `llmx bench [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D]`
+## `llmx bench [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D] [--model PATH] [--dtype T]`
+
+`--dtype` selects activation precision only with `--model` (Precision, above); the synthetic benchmark refuses it.
 
 Micro-benchmark of the backend hot paths, plus end-to-end TPS:
 
@@ -557,7 +576,9 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--state-checkpoints N] [--timing] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M]`
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--state-checkpoints N] [--timing] [--ctx-size N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
+
+`--dtype` selects activation precision (Precision, above).
 
 The multi-user server (`docs/SERVER.md`): one model, a sequence per
 request, selected ready decoding requests advanced by one token in a pass
@@ -597,7 +618,7 @@ The server draws a pass's tokens on its scheduler thread and up to four sampling
 | `POST /v1/chat` | `{"messages": [{"role": "user", "content": "...", "reasoning_content": "..."}], ...}` (the same sampling fields; `reasoning_content` is optional) | as above; the prompt is the model's chat template over the messages |
 | `POST /v1/tokenize` | `{"text": "..."}`, or `{"messages": [...]}` in place of the text | `{"tokens": [ids], "count": n}` |
 | `POST /v1/detokenize` | `{"tokens": [ids]}` | `{"text": "..."}` |
-| `GET /v1/health` | | `{"status": "ok", "model", "active", "queued", "donors", "prefix_hits", "prefix_tokens", "pauses", "paused", "stalls", "waits", "recomputed", "taken_back", "checkpoints", "reprefills", "reprefill_rows", "reprefill_cancels", "passes", "in_flight"}`: `pauses` counts every pause, `paused` the requests paused now, `stalls` the passes requests sat out unable to grow, `waits` those of them whose room waited on a request in flight, `recomputed` the tokens resumes computed again, `taken_back` the resumes that took their paused cache back whole, `checkpoints` the states a model with a recurrent state keeps now, `reprefills` the chat replies read again as prompt rows and kept for the next turn, `reprefill_rows` the rows that took and `reprefill_cancels` the times that work gave way to a request, `passes` the passes kept in flight at most and `in_flight` those in flight now; with `--timing` also `"timing": {"rounds", "round_ms", "recording_ms", "relaying_ms", "sampling_ms", "assembly_ms", "receive_wait_ms", "staging_wait_ms", "open_wait_ms", "logits_wait_ms", "stage_idle", "device_bound_rows_per_s"}`, each time in milliseconds a mean over the rounds, `stage_idle` each stage's idle share and `device_bound_rows_per_s` the rows the passes carried over the busiest stage's device time |
+| `GET /v1/health` | | `{"status": "ok", "model", "dtype", "active", "queued", "donors", "prefix_hits", "prefix_tokens", "pauses", "paused", "stalls", "waits", "recomputed", "taken_back", "checkpoints", "reprefills", "reprefill_rows", "reprefill_cancels", "passes", "in_flight"}`: `pauses` counts every pause, `paused` the requests paused now, `stalls` the passes requests sat out unable to grow, `waits` those of them whose room waited on a request in flight, `recomputed` the tokens resumes computed again, `taken_back` the resumes that took their paused cache back whole, `checkpoints` the states a model with a recurrent state keeps now, `reprefills` the chat replies read again as prompt rows and kept for the next turn, `reprefill_rows` the rows that took and `reprefill_cancels` the times that work gave way to a request, `passes` the passes kept in flight at most and `in_flight` those in flight now; with `--timing` also `"timing": {"rounds", "round_ms", "recording_ms", "relaying_ms", "sampling_ms", "assembly_ms", "receive_wait_ms", "staging_wait_ms", "open_wait_ms", "logits_wait_ms", "stage_idle", "device_bound_rows_per_s"}`, each time in milliseconds a mean over the rounds, `stage_idle` each stage's idle share and `device_bound_rows_per_s` the rows the passes carried over the busiest stage's device time |
 | `GET /v1/models` | | `{"object": "list", "data": [{"id", "object": "model", "created", "owned_by", "context_length", "vocab"}]}` |
 | `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "seed", "stop", "stream", "stream_options": {"include_usage"}, "logprobs", "top_logprobs"}`, plus `top_k`, `penalty` or `repetition_penalty`, and `ignore_eos` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "reasoning_content", "content"}, "logprobs", "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens"}}`, `reasoning_content` only for a reply that reasons, `logprobs` only when asked |
 | `POST /v1/completions` | `{"prompt": "...", ...}` (the same fields, with `logprobs` a count) | as above with `"object": "text_completion"` and `choices[0].text` |
@@ -760,4 +781,4 @@ These are validation-tool options; the runtime itself selects sides with `--cach
 
 ## MXFP4 files
 
-MXFP4 GGUF matrices are read-only and execute on the CPU. Use `--device cpu` with the ordinary model commands. `quantize` still writes only Q8_0 and Q4_0. Vulkan refuses an MXFP4 weight at loading until its separate kernel support lands; format support does not select a GPU fallback silently.
+MXFP4 GGUF matrices are read-only and execute through the ordinary model commands on the CPU or on Vulkan devices with the required float-preservation and double support. `quantize` still writes only Q8_0 and Q4_0. On Vulkan, F16 uses integer rows and, on integer-tile device profiles, eligible dense integer prompts. Other products use the documented wider F32 path; explicit F32 uses F32 inputs, and BF16 uses rounded inputs. Existing range repair remains. A device missing the required properties refuses the type before loading; format support does not silently select another device. [PRECISION](PRECISION.md) describes the arithmetic contract, and [STATUS](STATUS.md) records the measured performance and any open reference-speed cells.

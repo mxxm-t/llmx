@@ -1,5 +1,7 @@
 # `src/server/` - the multi-user server
 
+The API configuration carries placement's `DtypePlan`; `/v1/health` serializes its requested, declared and effective dtype plus each device's name, effective dtype, implementation mode and paths. The server does not choose precision. This capability record does not establish which kernel a request executed.
+
 `llmx serve`, in five headers above the inference layer, designed in
 `docs/SERVER.md`. No external libraries: sockets, HTTP/1.1, JSON and the
 scheduler are the runtime's own.
@@ -90,6 +92,7 @@ scheduler are the runtime's own.
   `Api` holds the `chat::ChatFormat` that `serve()` is given, the opened model's, whose refusal `cmd_serve` raises before the listener opens.
   `messages_of` reads a chat request's messages as `chat` records its turns: a message's `reasoning_content` as given when it is a string, and otherwise, absent or null, an assistant message through `chat::ChatFormat::assistant`, the owner `chat` records its replies through; a `reasoning_content` of another type is refused with 400.
   A render the template itself fails, its `raise_exception` included, is refused with 400 and the template's message.
+  `chat_template_kwargs` supplies scalar variables to the chat template on chat and tokenize requests; reserved names and nested values are refused with 400. Compatible chat replies use `chat::ReplySplit` to return reasoning separately as `reasoning_content`, both whole and streamed, while native chat keeps the whole text.
   Log-probabilities come in each route's shape (`docs/SERVER.md`, Log-probabilities): the completions route reads `logprobs` as the count of most likely tokens to list, from 0 to 20 (`kTopLogprobs`), and the other routes read `logprobs` true or false and `top_logprobs` from 0 to 20, refusing a `top_logprobs` above 0 without `logprobs`; `given` treats a null field as absent and `boolean` refuses a field that is neither true nor false.
   A token's text in those shapes is `token_text`: its bytes when they are whole UTF-8, else `bytes:` and each byte as `\xNN`.
   Every value is written by `jmini::number`, the shortest decimal that reads back as the same float, and a reply that does not ask carries no byte of them.

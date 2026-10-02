@@ -3,6 +3,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string_view>
+#include <vector>
 #include "backends/cpu/cpu_backend.hpp"
 #include "inference/load.hpp"
 
@@ -23,16 +24,18 @@ int main(int argc, char** argv) {
         };
         const int threads = positive(argv[3], 64), ubatch = positive(argv[4], 4096);
         auto cpu = std::make_shared<backend::CpuBackend>();
-        cpu->set_decode_activations8(false);
         cpu->set_threads(threads);
         infer::PlacementRequest request;
         request.names = {"cpu"};
+        request.dtype = backend::Dtype::f32;
         request.ubatch = ubatch;
         infer::ModelOptions options;
         options.kv_k = options.kv_v = backend::KVType::f32;
         const auto loaded = infer::load_model(argv[1], {cpu}, request, options);
         loaded->model->set_threads(threads);
         const auto logits = loaded->model->prefill(loaded->tok->encode(argv[2]));
+        if (loaded->model->take_matrix_paths() != std::vector<std::vector<std::string>>{{"f32"}})
+            throw std::runtime_error("F32 control did not execute only F32 matrix paths");
         std::cout << std::setprecision(9);
         for (size_t i = 0; i < logits.size(); ++i) std::cout << i << " " << logits[i] << '\n';
         return 0;

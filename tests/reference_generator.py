@@ -887,8 +887,71 @@ class LayeredReference(unittest.TestCase):
                     self.assertEqual(doc["layered"].get("experts_implementation"), "grouped_mm" if golden["name"].startswith("Qwen3.6-35B-A3B") else None)
 
 
+class DtypeCalibration(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("llmx_calibrate_dtype", SCRIPT.with_name("calibrate_dtype.py"))
+        cls.calibration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.calibration)
+
+    def test_rounds_matrix_inputs_but_not_router_or_norm(self):
+        class Linear:
+            def __init__(self):
+                self.register_forward_pre_hook = MagicMock()
+        query, gate, router, expert, head = [Linear() for _ in range(5)]
+        norm = SimpleNamespace(register_forward_pre_hook=MagicMock())
+        model = SimpleNamespace(named_modules=lambda: [("layer.self_attn.q_proj", query), ("layer.mlp.gate_proj", gate),
+            ("layer.mlp.gate", router), ("layer.mlp.experts.0.up_proj", expert), ("lm_head", head), ("layer.norm", norm)])
+        torch = SimpleNamespace(nn=SimpleNamespace(Linear=Linear), float16="f16", bfloat16="bf16", float32="f32")
+        for dtype in ("f16", "bf16"):
+            handles = self.calibration.rounding(model, torch, dtype)
+            self.assertEqual(len(handles), 4)
+            for module in (query, gate, expert, head):
+                hook = module.register_forward_pre_hook.call_args.args[0]
+                value, extra = MagicMock(), object()
+                result = hook(module, (value, extra))
+                value.to.assert_called_once_with(dtype)
+                value.to.return_value.to.assert_called_once_with("f32")
+                self.assertIs(result[0], value.to.return_value.to.return_value)
+                self.assertIs(result[1], extra)
+        router.register_forward_pre_hook.assert_not_called()
+        norm.register_forward_pre_hook.assert_not_called()
+
+    def test_failed_reference_removes_rounding_hooks(self):
+        handles = [MagicMock(), MagicMock()]
+        reference = SimpleNamespace(reference_outputs=MagicMock(side_effect=[([], []), RuntimeError("reference failed")]))
+        with patch.dict(sys.modules, {"gen_baseline": reference}), patch.object(self.calibration, "rounding", return_value=handles):
+            with self.assertRaisesRegex(RuntimeError, "reference failed"):
+                self.calibration.errors(object(), object(), "f16")
+        for handle in handles:
+            handle.remove.assert_called_once_with()
+
+    def test_pinned_environment_and_frozen_output(self):
+        torch = SimpleNamespace(__version__="2.5.1+cpu", set_num_threads=MagicMock(), get_num_threads=lambda: 1)
+        transformers = SimpleNamespace(__version__="4.55.2")
+        with tempfile.TemporaryDirectory() as directory, patch.dict(sys.modules, {"torch": torch, "transformers": transformers}):
+            path = Path(directory) / "budget.json"
+            with patch.object(self.calibration, "models", return_value=[("test", 7, object(), [])]), patch.object(self.calibration, "errors", return_value=(0.25, 0.125)), contextlib.redirect_stdout(io.StringIO()):
+                self.calibration.main(["--output", str(path)])
+                torch.set_num_threads.assert_called_once_with(1)
+                doc = json.loads(path.read_text())
+                self.assertEqual(doc["threads"], 1)
+                for dtype in ("f16", "bf16"):
+                    self.assertEqual((doc["dtypes"][dtype]["logit_budget"], doc["dtypes"][dtype]["nll_budget"]), (0.5, 0.25))
+                original = path.read_bytes()
+                with self.assertRaises(FileExistsError):
+                    self.calibration.main(["--output", str(path)])
+                self.assertEqual(path.read_bytes(), original)
+            for module in (torch, transformers):
+                with patch.object(module, "__version__", "wrong"), patch.object(self.calibration, "models") as models:
+                    with self.assertRaisesRegex(SystemExit, "requires torch"):
+                        self.calibration.main(["--output", str(path)])
+                    models.assert_not_called()
+                self.assertEqual(path.read_bytes(), original)
+
+
 def run():
-    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceGenerator, LayeredReference))
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceGenerator, LayeredReference, DtypeCalibration))
     result = unittest.TextTestRunner(stream=sys.stdout).run(suite)
     return result.wasSuccessful()
 

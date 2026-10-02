@@ -2,8 +2,8 @@
 #include <algorithm>
 #include <chrono>
 #include <exception>
-#include <optional>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -88,6 +88,7 @@ inline Placement placement_for(const LayerSplit& split) {
 
 // How a caller wants a model placed over the backends it made (docs/MULTI-DEVICE.md).
 struct PlacementRequest {
+    std::optional<backend::Dtype> dtype; // empty selects auto
     std::vector<std::string> names;   // each backend's name, for the fit's messages and its description
     std::vector<int> shares;          // each backend's proportion of the layers; empty to fit them to the devices' free memory
     int cpu_moe = 0;                  // with one backend, the routed layers whose experts run on the CPU beside it, -1 for every one
@@ -105,10 +106,66 @@ struct PlacementRequest {
     bool fit_checkpoints = false;
 };
 
-// A placed model and, when it was split, what each device was given (LayerSplit::describe).
+// The run's activation policy and each device's implementation, resolved once before model construction.
+struct DtypePlan {
+    std::optional<backend::Dtype> requested;
+    backend::Dtype declared = backend::Dtype::bf16, effective = backend::Dtype::f32;
+    struct Device {
+        std::string name, how, paths;
+        backend::Dtype effective = backend::Dtype::f32;
+    };
+    std::vector<Device> devices;
+    const char* requested_name() const { return requested ? backend::dtype_name(*requested) : "auto"; }
+    // The one line the CLI shows, including a warning when any device emulates or widens the request.
+    std::string describe() const {
+        std::string s = std::string("dtype: ") + requested_name() + " -> " + backend::dtype_name(effective) + " (model declares " + backend::dtype_name(declared) + ")";
+        for (const Device& d : devices) s += "; " + d.name + " " + d.how + ": " + d.paths;
+        if (std::any_of(devices.begin(), devices.end(), [](const Device& d) { return d.how != "native"; }))
+            s += " (warning: emulated or wider fallback)";
+        return s + "\n";
+    }
+};
+inline DtypePlan resolve_dtype(backend::Dtype declared, const std::vector<backend::BackendPtr>& backends, const std::vector<std::string>& names,
+                               std::optional<backend::Dtype> requested = {}) {
+    if (backends.empty()) throw std::runtime_error("dtype: no device");
+    std::vector<std::vector<backend::Dtype>> supported;
+    for (const auto& b : backends) {
+        if (!b) throw std::runtime_error("dtype: missing backend");
+        supported.push_back(b->native_dtypes());
+    }
+    const auto native = [&](backend::Dtype d) {
+        return std::all_of(supported.begin(), supported.end(), [d](const std::vector<backend::Dtype>& n) {
+            return std::find(n.begin(), n.end(), d) != n.end();
+        });
+    };
+    DtypePlan plan;
+    plan.declared = declared;
+    plan.requested = requested;
+    plan.effective = backend::Dtype::f32;
+    if (requested) plan.effective = *requested;
+    else if (declared != backend::Dtype::f32 && native(declared)) plan.effective = declared;
+    else
+        for (backend::Dtype d : supported.front())
+            if (native(d)) { plan.effective = d; break; }
+    for (size_t i = 0; i < backends.size(); ++i) {
+        backend::Dtype d = plan.effective;
+        std::string how = "native";
+        if (std::find(supported[i].begin(), supported[i].end(), d) == supported[i].end()) {
+            if (backends[i]->emulates_dtype(d)) how = "emulated";
+            else { d = backend::Dtype::f32; how = "fallback"; }
+        }
+        plan.devices.push_back({i < names.size() ? names[i] : "device " + std::to_string(i), how, backends[i]->dtype_path(d), d});
+    }
+    if (std::all_of(plan.devices.begin(), plan.devices.end(), [](const DtypePlan::Device& d) { return d.effective == backend::Dtype::f32; }))
+        plan.effective = backend::Dtype::f32;
+    return plan;
+}
+
+// A placed model and its resolved execution policy and placement description.
 struct PlacedModel {
     std::unique_ptr<Model> model;
     std::string plan;
+    DtypePlan dtype;
     size_t checkpoint_kv_tokens = 0;   // the KV tokens the fitted checkpoint slots took from the budget (fitted_kv)
 };
 
@@ -275,6 +332,18 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
     // A fitted budget's reading of the devices is the one the split places its layers by, so both see the same settled memory.
     std::vector<DeviceBudget> budgets;
     if (request.fit_kv) options = fitted_kv(weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets);
+    backend::BackendPtr host;
+    std::vector<backend::BackendPtr> all = backends;
+    std::vector<std::string> names = request.names;
+    if (adds_host_for_experts(backends, request)) {
+        host = backend::make_cpu_backend();
+        all.insert(all.begin(), host);
+        names.insert(names.begin(), "cpu");
+    }
+    DtypePlan dtype = resolve_dtype(weights.declared_dtype, all, names, request.dtype);
+    options.dtype = dtype.effective;
+    options.device_dtypes.clear();
+    for (const auto& d : dtype.devices) options.device_dtypes.push_back(d.effective);
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)
             throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
@@ -312,10 +381,11 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
         place.stream_from = request.stream_from;
         for (size_t l = 0; l < n_layer; ++l)
             if (ffn_on_host(request, plan.layers, l)) place.ffn_device[l] = 0;
-        std::vector<backend::BackendPtr> both{backend::make_cpu_backend(), std::move(backends[0])};
+        std::vector<backend::BackendPtr> both{std::move(host), std::move(backends[0])};
         placed.model = std::make_unique<Model>(weights, plan, std::move(both), place, options, adopt);
     }
     placed.model->set_ubatch(request.ubatch);
+    placed.dtype = std::move(dtype);
     return placed;
 }
 

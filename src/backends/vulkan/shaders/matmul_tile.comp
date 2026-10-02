@@ -1,36 +1,89 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b) for wide batches: a workgroup computes a TILE_ROWS x 64 output tile, walking the inner dimension 32 at a time.
-// Each step stages the dequantized W tile and the X tile in shared memory, and every thread accumulates a (TILE_ROWS/16) x 4 micro-tile in registers.
+// Y[b*nout + o] = dot(row o, X column b) for wide batches: a workgroup computes a TILE_ROWS x TILE_COLS output tile, walking the inner dimension one stage at a time.
+// Each step stages the dequantized W tile and the X tile in shared memory, and every thread accumulates a MROWS x 4 micro-tile in registers.
 // TILE_ROWS is a specialization constant: a taller tile reads less shared memory per product but yields fewer workgroups, so the backend picks it per call.
 // Rows past nout and columns past nbatch read as zero and are not stored.
 // A call of few workgroups splits the inner dimension: workgroup row y is part y / ctiles of column tile y % ctiles, summing `kper` values from the part's start into its own slice of Y, which matmul_reduce.comp then adds in part order.
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #include "q.glsl"
+#ifdef LLMX_MXFP4
+#extension GL_ARB_gpu_shader_fp64 : require
+#extension GL_EXT_spirv_intrinsics : require
+spirv_execution_mode(capabilities = [4466], 4461, 64);
+#endif
+#include "float_controls.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
+#define TILE_COLS 64u
 // `wstride` is an F32 row's stride in floats: nin, or more for the padded copy the backend keeps of a matrix whose rows are a power of two wide.
 layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint per; uint order0; uint kper; uint ctiles; uint wstride; } p;
+#ifdef LLMX_MXFP4
+// Split calls store double partials as two words; unsplit calls store f32 bits.
+layout(set = 0, binding = 0) buffer Y { uint ybits[]; };
+#else
 layout(set = 0, binding = 0) buffer Y { float y[]; };
+#endif
 layout(set = 0, binding = 1) readonly buffer W16 { uint16_t w16[]; };
 layout(set = 0, binding = 2) readonly buffer WF { float wf[]; };
 layout(set = 0, binding = 3) readonly buffer X { float x[]; };
 // The weights as words, since this driver issues one load per byte: a K-quant run is 2 or 4 aligned words, and scattered bytes are extracted from the word holding them.
 layout(set = 0, binding = 4) readonly buffer W32 { uint w32[]; };
-// A routed call (per != 0, backend.hpp matmul_experts) runs workgroup row y as tile y of the grouping (moe_group.comp): up to 64 entries of one expert, column c being entry
-// tab[order0 + first + c], which reads X column entry / per through the expert's rows and writes output row entry. A routed call is never split.
+// A routed call (per != 0, backend.hpp matmul_experts) runs workgroup row y as tile y of the grouping (moe_group.comp): up to TILE_COLS entries of one expert, column c being entry tab[order0 + first + c], which reads X column entry / per through the expert's rows and writes output row entry.
+// A routed call is never split.
 layout(set = 0, binding = 5) readonly buffer T { uint tab[]; };
 #define QBYTE(i) ((w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #include "qdecode.glsl"
 
-// Rows a thread accumulates, threads sharing one W-tile row, and the values each loads; 256 threads cover TILE_ROWS rows of 32 values either way.
-#define MROWS (TILE_ROWS / 16u)
-#define WPR (256u / TILE_ROWS)
-#define WVALS (32u / WPR)
+float matrix_input(float value) {
+#ifdef LLMX_BF16
+    uint bits = floatBitsToUint(value);
+    bits = (bits & 0x7fffffffu) > 0x7f800000u ? bits | 0x00400000u
+                                            : bits + 0x7fffu + ((bits >> 16u) & 1u);
+    value = uintBitsToFloat(bits & 0xffff0000u);
+#endif
+    return value;
+}
 
-// k-major tiles, [k][row] and [k][column], so a thread's four rows and four columns for one k are adjacent and load as one wide read each.
-shared float ws[32][TILE_ROWS];
-shared float xs[32][64];
+// Rows a thread accumulates, threads sharing one W-tile row, and the values each loads; 256 threads cover one stage of TILE_ROWS rows.
+#define THREAD_COLS (TILE_COLS / 4u)
+#define MROWS (TILE_ROWS / (256u / THREAD_COLS))
+#define XPR (256u / TILE_COLS)
+#define WPR (256u / TILE_ROWS)
+#ifdef LLMX_MXFP4
+#define STAGE_K 16u
+#else
+#define STAGE_K 32u
+#endif
+#define WVALS (STAGE_K / WPR)
+
+// k-major tiles, [k][row] and [k][column], so a thread's rows and four columns for one k are adjacent and load as wide reads.
+shared float ws[STAGE_K][TILE_ROWS];
+shared float xs[STAGE_K][TILE_COLS];
+#ifdef LLMX_MXFP4
+shared uint wrange[TILE_ROWS];
+shared uint xrange[XPR][TILE_COLS];
+// A weight of scale byte e and an input of exponent field f multiply to at least 2^(e + f - 255) and less than 2^(e + f - 250) in magnitude.
+// Where e + f < 129 the product can fall below the smallest normal float before the sum, and where e + f > 378 it can overflow.
+// A row whose scale lies outside [65, 188] is summed wide whatever its inputs.
+bool wide_row(uint e) {
+    return e < 65u || e > 188u;
+}
+// So an input needs the wide sum when its exponent field is below `lo` or above `hi`, which pair it with the tile's other scales.
+bool needs_wide_product(float v, uint lo, uint hi) {
+    uint a = floatBitsToUint(v) & 0x7fffffffu;
+    uint e = a >> 23u;
+    return a != 0u && (e < lo || e > hi);
+}
+double mxfp4_wide(uint row, uint col, uint begin, uint end) {
+    double sum = 0.0;
+    for (uint k = begin; k < end; ++k) {
+        uint o = (row * (p.nin / MXFP4_BLOCK) + k / MXFP4_BLOCK) * MXFP4_BYTES;
+        sum += double(mxfp4_at(o, k % MXFP4_BLOCK)) * double(matrix_input(x[col * p.nin + k]));
+    }
+    return sum;
+}
+#endif
 
 int lo8(uint w) { return (int(w << 24u)) >> 24; }
 int hi8(uint w) { return (int(w << 16u)) >> 24; }
@@ -39,10 +92,10 @@ void main() {
     uint tid = gl_LocalInvocationID.x;
     uint row_base = gl_WorkGroupID.x * TILE_ROWS;
     uint part = gl_WorkGroupID.y / p.ctiles;
-    uint col_base = (gl_WorkGroupID.y - part * p.ctiles) * 64u;
+    uint col_base = (gl_WorkGroupID.y - part * p.ctiles) * TILE_COLS;
     uint kbeg = part * p.kper, kend = min(p.nin, kbeg + p.kper);
     uint yoff = part * p.nbatch * p.nout;   // an unsplit call's one part writes Y itself
-    uint expert = 0u, first = 0u, ncols = 64u;
+    uint expert = 0u, first = 0u, ncols = TILE_COLS;
     if (p.per != 0u) {
         uint y = gl_WorkGroupID.y;
         expert = tab[4u * y];
@@ -51,9 +104,9 @@ void main() {
         if (ncols == 0u) return;
         col_base = 0u;
     }
-    uint tr = tid / 16u, tc = tid - tr * 16u;   // micro-tile at rows tr*MROWS.., cols tc*4..
+    uint tr = tid / THREAD_COLS, tc = tid - tr * THREAD_COLS;   // micro-tile at rows tr*MROWS.., cols tc*4..
     uint wrow = tid / WPR, wseg = tid - wrow * WPR;   // W loader: row wrow, k segment wseg*WVALS
-    uint xcol = tid / 4u, xseg = tid - xcol * 4u;     // X loader: column xcol, k segment xseg*8..+8
+    uint xcol = tid / XPR, xseg = tid - xcol * XPR;     // X loader: XPR segments per column
     // The X column this thread loads.
     uint xc = col_base + xcol;
     bool xin = xc < p.nbatch;
@@ -61,12 +114,58 @@ void main() {
         xin = xcol < ncols;
         xc = xin ? tab[p.order0 + first + xcol] / p.per : 0u;
     }
+#ifdef LLMX_PRESERVE_F32
+    precise float acc[MROWS][4];
+#else
     float acc[MROWS][4];
+#endif
     for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
-    uint nblocks = p.nin / 32u;   // Q8_0 and Q4_0 both have 32-value blocks
-    for (uint k0 = kbeg; k0 < kend; k0 += 32u) {
-        // W tile: TILE_ROWS rows x 32 values.
+#ifdef LLMX_MXFP4
+    uint wide_rows[MROWS], wide_cols[4];
+    for (uint i = 0u; i < MROWS; ++i) wide_rows[i] = 0u;
+    for (uint j = 0u; j < 4u; ++j) wide_cols[j] = 0u;
+#endif
+    uint nblocks = p.nin / 32u;   // the small-block types have 32-value blocks
+#ifdef LLMX_MXFP4
+    // The inputs' bounds come from the least and greatest scale of the rows not summed wide, read once for the tile's part into wrange[0] and wrange[1] before the stages use it.
+    // Shared scalars of their own would shift the tiles off the alignment their wide reads need.
+    if (tid == 0u) { wrange[0] = 256u; wrange[1] = 0u; }
+    barrier();
+    {
+        uint lo = 256u, hi = 0u;
+        // Adjacent threads read adjacent blocks of one row, so the reads share cache lines.
+        uint blocks = (kend - kbeg) / MXFP4_BLOCK;
+        for (uint at = tid; at < TILE_ROWS * blocks; at += 256u) {
+            uint row = row_base + at / blocks;
+            if (row >= p.nout) continue;
+            uint e = QBYTE(((expert * p.nout + row) * nblocks + kbeg / MXFP4_BLOCK + at % blocks) * MXFP4_BYTES);
+            if (!wide_row(e)) { lo = min(lo, e); hi = max(hi, e); }
+        }
+        if (lo <= hi) { atomicMin(wrange[0], lo); atomicMax(wrange[1], hi); }
+    }
+    barrier();
+    uint xlo = wrange[0] >= 129u ? 0u : 129u - wrange[0];
+    uint xhi = wrange[1] == 0u ? 255u : 378u - wrange[1];
+    barrier();
+#endif
+    for (uint k0 = kbeg; k0 < kend; k0 += STAGE_K) {
+        // MXFP4 reads both tiles before storing them, so independent loads can be issued together.
         uint row = row_base + wrow, wr = expert * p.nout + row;
+#ifdef LLMX_MXFP4
+        float xv[STAGE_K / XPR];
+        for (uint i = 0u; i < STAGE_K / XPR; ++i) {
+            uint k = k0 + xseg * (STAGE_K / XPR) + i;
+            xv[i] = matrix_input(x[xin && k < p.nin ? xc * p.nin + k : 0u]);
+        }
+        uint o = ((row < p.nout ? wr : 0u) * nblocks + k0 / MXFP4_BLOCK) * MXFP4_BYTES;
+        uint e = QBYTE(o);
+        float wv[WVALS];
+        for (uint i = 0u; i < WVALS; ++i)
+            wv[i] = mxfp4_at(o, (k0 % MXFP4_BLOCK) + wseg * WVALS + i);
+        if (wseg == 0u) wrange[wrow] = row < p.nout && wide_row(e) ? 1u : 0u;
+        for (uint i = 0u; i < WVALS; ++i)
+            ws[wseg * WVALS + i][wrow] = row < p.nout ? wv[i] : 0.0;
+#else
         if (row < p.nout) {
             if (p.type == TYPE_Q8_0) {
                 uint o = (wr * nblocks + k0 / Q8_0_BLOCK) * 17u;
@@ -149,24 +248,52 @@ void main() {
         } else {
             for (uint i = 0u; i < WVALS; ++i) ws[wseg * WVALS + i][wrow] = 0.0;
         }
-        // X tile: 64 columns x 32 values, four threads to a column.
-        for (uint i = 0u; i < 8u; ++i) {
-            uint k = k0 + xseg * 8u + i;
-            xs[xseg * 8u + i][xcol] = (xin && k < p.nin) ? x[xc * p.nin + k] : 0.0;
+#endif
+        // X tile: one stage of TILE_COLS columns, XPR threads to a column.
+#ifdef LLMX_MXFP4
+        uint xr = 0u;
+#endif
+        for (uint i = 0u; i < STAGE_K / XPR; ++i) {
+            uint k = k0 + xseg * (STAGE_K / XPR) + i;
+#ifdef LLMX_MXFP4
+            float v = (xin && k < p.nin) ? xv[i] : 0.0;
+            xs[xseg * (STAGE_K / XPR) + i][xcol] = v;
+            if (needs_wide_product(v, xlo, xhi)) xr = 1u;
+#else
+            xs[xseg * (STAGE_K / XPR) + i][xcol] = (xin && k < p.nin) ? matrix_input(x[xc * p.nin + k]) : 0.0;
+#endif
         }
+#ifdef LLMX_MXFP4
+        xrange[xseg][xcol] = xr;
+#endif
         barrier();
+#ifdef LLMX_MXFP4
+        // Each output needs a wide sum if any block flagged its weight row or activation column.
+        for (uint i = 0u; i < MROWS; ++i) wide_rows[i] |= wrange[tr * MROWS + i];
+        for (uint j = 0u; j < 4u; ++j) {
+            uint c = tc * 4u + j;
+            for (uint segment = 0u; segment < XPR; ++segment) wide_cols[j] |= xrange[segment][c];
+        }
+#endif
         // Unrolled by eight so the steps' shared-memory reads carry immediate offsets rather than recomputed addresses.
-        for (uint kb = 0u; kb < 32u; kb += 8u) {
+        for (uint kb = 0u; kb < STAGE_K; kb += 8u) {
             for (uint u = 0u; u < 8u; ++u) {
                 uint k = kb + u;
                 float b0 = xs[k][tc * 4u], b1 = xs[k][tc * 4u + 1u];
                 float b2 = xs[k][tc * 4u + 2u], b3 = xs[k][tc * 4u + 3u];
                 for (uint i = 0u; i < MROWS; ++i) {
                     float a = ws[k][tr * MROWS + i];
+#ifdef LLMX_PRESERVE_F32
+                    acc[i][0] = fma(a, b0, acc[i][0]);
+                    acc[i][1] = fma(a, b1, acc[i][1]);
+                    acc[i][2] = fma(a, b2, acc[i][2]);
+                    acc[i][3] = fma(a, b3, acc[i][3]);
+#else
                     acc[i][0] += a * b0;
                     acc[i][1] += a * b1;
                     acc[i][2] += a * b2;
                     acc[i][3] += a * b3;
+#endif
                 }
             }
         }
@@ -183,8 +310,24 @@ void main() {
                 col = cv ? tab[p.order0 + first + tc * 4u + j] : 0u;
             }
             if (cv) {
+#ifdef LLMX_MXFP4
+                bool recompute = (wide_rows[i] | wide_cols[j]) != 0u || isnan(acc[i][j]) || isinf(acc[i][j]);
+                uint index = yoff + col * p.nout + row;
+                if (p.per == 0u && p.kper < p.nin) {
+                    // A partial may exceed f32, or lie below its smallest value, while the sum of the parts is finite and representable.
+                    double s = recompute ? mxfp4_wide(row, col, kbeg, kend) : double(acc[i][j]);
+                    uvec2 words = unpackDouble2x32(s);
+                    ybits[2u * index] = words.x;
+                    ybits[2u * index + 1u] = words.y;
+                } else {
+                    float s = recompute ? float(mxfp4_wide(expert * p.nout + row, p.per != 0u ? col / p.per : col, kbeg, kend)) : acc[i][j];
+                    if (p.accum != 0u) s += uintBitsToFloat(ybits[index]);
+                    ybits[index] = floatBitsToUint(s);
+                }
+#else
                 if (p.accum != 0u) y[yoff + col * p.nout + row] += acc[i][j];
                 else y[yoff + col * p.nout + row] = acc[i][j];
+#endif
             }
         }
     }

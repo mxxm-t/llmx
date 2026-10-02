@@ -3,7 +3,7 @@
 // Workgroups go to projections in order, so a workgroup's projection and buffers are uniform.
 // A subgroup takes `rows_per_sg` clusters of `cluster` lanes, each a row (ROWS rows in a two-row build) whose work units its lanes stride over, reducing with xor shuffles; a lane keeps up to MAX_COLS batch columns in registers.
 //
-// Quantized rows meet the activations as a signed 16-bit twin in blocks of 32 (xquant.glsl) with the block's scale and scaled sums; a type's offset (Q4_0's -8, Q4_1's min, the K-quant mins, Q6_K's -32) is folded through the block sum. F32 rows keep float activations.
+// Quantized rows meet the activations as a signed 16-bit twin in blocks of 32 (xquant.glsl) with the block's scale and scaled sums; Q4 offsets and K-quant minima use the block sum; Q6_K's -32 is applied before its integer dot. F32 rows keep float activations. LLMX_FLOAT_X also reads quantized weights against the original F32 activations, using the shared qdecode.glsl values and this kernel's reduction.
 //
 // One module per family of types, since one module for all of them raised every path's registers: as is for F32 and narrow Q8_0, LLMX_Q8W wide Q8_0, LLMX_Q4 Q4_0 and Q4_1, LLMX_K4 Q4_K, LLMX_K5 Q5_K, LLMX_KQUANT Q6_K.
 //
@@ -14,19 +14,24 @@
 // Measurements behind these layouts are in docs/VULKAN.md.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
+#ifdef LLMX_MXFP4
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#endif
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_control_flow_attributes : require
 #ifdef LLMX_DOT
 #extension GL_EXT_integer_dot_product : require
 #endif
-#if defined(LLMX_X8) && !defined(LLMX_DOT)
-#error "the 8-bit twin is read only through the integer dot"
-#endif
-#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT))
+#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4))
 #error "Q8_0 and F32 rows take matmul_vec_q8.comp and the plain build on integer-dot devices"
 #endif
 #include "q.glsl"
+#ifdef LLMX_MXFP4
+#extension GL_ARB_gpu_shader_fp64 : require
+#extension GL_EXT_spirv_intrinsics : require
+spirv_execution_mode(capabilities = [4466], 4461, 64);
+#endif
 #include "float_controls.glsl"
 layout(local_size_x = 256) in;
 // Batch columns a lane keeps in registers, specialization constant 0; the backend takes the one-column build for a one-column chunk, which frees the registers seven unused accumulators would hold.
@@ -48,24 +53,14 @@ layout(set = 0, binding = 4) readonly buffer X { float x[]; };
 // The weights as 16-byte vectors, for the K-quant blocks whose sizes are multiples of 16.
 layout(set = 0, binding = 5) readonly buffer W128 { uvec4 w128[]; } w128s[3];
 // The quantized activations (xquant.glsl), one buffer bound four ways: four values, eight, a table entry or a pair of entries per load.
-// The default build reads the 16-bit twin: per column nin / 2 words of pairs, then per block the scale and scaled sum, then per block the scaled half sums.
-// LLMX_X8 reads the 8-bit twin: per column nin / 4 words of bytes in position order, then per block the scale and scaled sum (vulkan_backend.cpp, reads_x8).
-// Four values are one xq2 element and eight one xq4 element in both, so indices are the same; XA and XB take an xq4 element's first and second four values.
-#ifdef LLMX_X8
-layout(set = 0, binding = 6) readonly buffer XQ2 { uint xq2[]; };
-layout(set = 0, binding = 7) readonly buffer XQ4 { uvec2 xq4[]; };
-#define XQ4T uvec2
-#define XWT uint
-#define XA(v) (v).x
-#define XB(v) (v).y
-#else
+// The 16-bit twin: per column nin / 2 words of pairs, then per block the scale and scaled sum.
+// Four values are one xq2 element and eight one xq4 element; XA and XB take an xq4 element's first and second four values.
 layout(set = 0, binding = 6) readonly buffer XQ2 { uvec2 xq2[]; };
 layout(set = 0, binding = 7) readonly buffer XQ4 { uvec4 xq4[]; };
 #define XQ4T uvec4
 #define XWT uvec2
 #define XA(v) (v).xy
 #define XB(v) (v).zw
-#endif
 layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
 layout(set = 0, binding = 9) readonly buffer XT4 { vec4 xt4[]; };
 // A routed call (per != 0, backend.hpp matmul_experts) runs one entry per workgroup row y: entry e reads X column e / per through the rows of expert ids[e] and writes output row e.
@@ -79,45 +74,50 @@ layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 layout(constant_id = 9) const uint ROWS = 1;
 
 uint pi = 0u;
+#if defined(LLMX_FLOAT_X) || defined(LLMX_MXFP4)
+#define QBYTE(i) ((w32s[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
+#include "qdecode.glsl"
+#if defined(LLMX_MXFP4) && defined(LLMX_DOT)
+shared uint mxfp4_pairs[256];
+#endif
+#endif
 
 // Offset in pair words into the quantized activations of column c.
 uint xa_col(uint c) { return c * p.nin / 2u; }
 // A block's scale d and d times its integer sum.
-#ifdef LLMX_X8
-#define XTAB2 (p.nbatch * p.nin / 8u)
-#else
 #define XTAB2 (p.nbatch * p.nin / 4u)
-#endif
 vec2 xq_block(uint c, uint b) { return xt2[XTAB2 + c * (p.nin / 32u) + b]; }
-// The scale entries of blocks 2j and 2j + 1 in one load, and likewise their scaled half sums.
+// The scale entries of blocks 2j and 2j + 1 in one load.
 vec4 xq_pair(uint c, uint j) { return xt4[XTAB2 / 2u + c * (p.nin / 64u) + j]; }
-#ifndef LLMX_X8
-vec4 xq_halves_pair(uint c, uint j) {
-    return xt4[(p.nbatch * p.nin / 4u + p.nbatch * p.nin / 32u) / 2u + c * (p.nin / 64u) + j];
-}
-#endif
+// The signed halves of a word.
+int lo16(uint w) { return int(int16_t(w)); }
+int hi16(uint w) { return int(int16_t(w >> 16u)); }
 // The dots in two forms, picked per device (backends/device_profile.hpp): LLMX_DOT through the integer dot product extension, otherwise plain multiplies.
-#ifdef LLMX_X8
-#define QDOT int
-// Four signed bytes against four 8-bit activations, the four-wide dot.
-int dot4(uint a, uint b) { return dotPacked4x8EXT(int(a), int(b)); }
-#elif defined(LLMX_DOT)
+#if defined(LLMX_DOT)
 #define QDOT int
 // Two pairs of 16-bit values against two activation pair words.
 int pair_dot(uint a, uint b, uvec2 xw) {
+#ifdef LLMX_KQUANT
+    // A 32-bit offset would widen the dot operands and lose the native instruction.
+    return dotEXT(unpack16(int(a)) - i16vec2(32), unpack16(int(xw.x))) + dotEXT(unpack16(int(b)) - i16vec2(32), unpack16(int(xw.y)));
+#else
     return dotEXT(unpack16(int(a)), unpack16(int(xw.x))) + dotEXT(unpack16(int(b)), unpack16(int(xw.y)));
+#endif
 }
 #else
 #define QDOT float
-// The signed halves of a word, and one signed byte of it.
-int lo16(uint w) { return int(int16_t(w)); }
-int hi16(uint w) { return int(int16_t(w >> 16u)); }
+// One signed byte of a word.
 int byte_at(uint w, uint s) { return int(int8_t(w >> s)); }
 // The nibble and K-quant dots multiply as floats, because the chip's 32-bit integer multiply is quarter rate.
-// Every caller passes non-negative quants of at most six bits against 16-bit activations, so the sums stay below 2^24 and are exact (the bound per type is in docs/VULKAN.md).
+// Callers pass at most six-bit quants against 16-bit activations, Q6_K centered before the dot, so the sums stay below 2^24 and are exact (the bound per type is in docs/VULKAN.md).
 float pair_dot(uint a, uint b, uvec2 xw) {
-    return float(a & 0xFFFFu) * float(lo16(xw.x)) + float(a >> 16u) * float(hi16(xw.x))
-         + float(b & 0xFFFFu) * float(lo16(xw.y)) + float(b >> 16u) * float(hi16(xw.y));
+#ifdef LLMX_KQUANT
+    const float offset = 32.0;
+#else
+    const float offset = 0.0;
+#endif
+    return (float(a & 0xFFFFu) - offset) * float(lo16(xw.x)) + (float(a >> 16u) - offset) * float(hi16(xw.x))
+         + (float(b & 0xFFFFu) - offset) * float(lo16(xw.y)) + (float(b >> 16u) - offset) * float(hi16(xw.y));
 }
 // Q8_0's weights are signed and its sums can exceed 2^24, so it keeps the integer multiply.
 int byte_dot(uint w, uvec2 xw) {
@@ -142,25 +142,13 @@ void q8_word(uint w, uint d, uint a2, inout int p0, inout int p1) {
 // The eight nibbles of a word: byte i's low nibble is position 4k + i of a group, its high nibble the same position 16 (Q4_0, Q4_1) or 32 (Q4_K, Q5_K) on.
 // Low and high go to separate dots since the K-quants scale them apart; `hb` carries Q5_K's fifth bit in bit 4 of each pair word, zero otherwise.
 void nibble_dots(uint w, uint hl0, uint hl1, uint hh0, uint hh1, XWT xl, XWT xh, inout QDOT pl, inout QDOT ph) {
-#ifdef LLMX_X8
-    pl += dot4((w & 0x0F0F0F0Fu) | hl0 | (hl1 << 8u), xl);
-    ph += dot4(((w >> 4u) & 0x0F0F0F0Fu) | hh0 | (hh1 << 8u), xh);
-#else
     pl += pair_dot((w & 0x000F000Fu) | hl0, ((w >> 8u) & 0x000F000Fu) | hl1, xl);
     ph += pair_dot(((w >> 4u) & 0x000F000Fu) | hh0, ((w >> 12u) & 0x000F000Fu) | hh1, xh);
-#endif
 }
 // Q5_K's fifth bits for one nibble word: bit s of each byte of `hb`, placed in bit 4 of each 16-bit lane.
 uint fifth(uint hb, uint s) { return ((hb >> s) & 0x00010001u) << 4u; }
 #endif
 
-#if defined(LLMX_KQUANT) && defined(LLMX_X8)
-// Four 6-bit values, a byte each, as the signed bytes value - 32: flipping bit 5 gives value - 32 or value + 32, and a set bit 5 then means negative, so it is copied into bits 6 and 7.
-uint signed6(uint q) {
-    uint t = q ^ 0x20202020u, neg = t & 0x20202020u;
-    return t | (neg << 1u) | (neg << 2u);
-}
-#endif
 
 #if defined(LLMX_KQUANT) || defined(LLMX_K4) || defined(LLMX_K5)
 // A word at any even byte offset: aligned, or the high half of one word and the low half of the next.
@@ -192,6 +180,79 @@ void scale_min_pair(uint s0, uint s1, uint s2, uint c, out float scl, out float 
     sch = float(low ? (a0 >> 8u) & 63u : ((a2 >> 8u) & 15u) | (((a0 >> 14u) & 3u) << 4u));
     mnh = float(low ? (a1 >> 8u) & 63u : ((a2 >> 12u) & 15u) | (((a1 >> 14u) & 3u) << 4u));
 }
+#endif
+
+#ifdef LLMX_Q4
+float q40_term(float d, vec2 xb, float dot) {
+    precise float term = d * (xb.x * dot - 8.0 * xb.y);
+    return term;
+}
+#endif
+#if defined(LLMX_K4) || defined(LLMX_K5)
+float k45_term(float dl, float dh, float ml, float mh, vec4 xt, float pl, float ph, uint part) {
+    ml = part == 0u ? ml : 0.0;
+    mh = part == 0u ? mh : 0.0;
+    return dl * (xt.x * pl) + dh * (xt.z * ph) - (ml * xt.y + mh * xt.w);
+}
+#endif
+#ifdef LLMX_MXFP4
+// The same row/column recomputed from decoded f32 weights, in block/value order.
+// Double keeps each product in range before the final conversion to f32.
+float mxfp4_wide(uint row, uint col) {
+    uint nblocks = p.nin / MXFP4_BLOCK;
+    uint base = row * nblocks * MXFP4_BYTES;
+    precise double sum = 0.0;
+    for (uint block = 0u; block < nblocks; ++block) {
+        uint o = base + block * MXFP4_BYTES;
+#ifndef LLMX_FLOAT_X
+        uint a2 = xa_col(col) / 2u + block * 8u;
+        double dx = double(xq_block(col, block).x);
+#endif
+        for (uint j = 0u; j < 32u; ++j) {
+#ifdef LLMX_FLOAT_X
+            sum += double(mxfp4_at(o, j)) * double(x[col * p.nin + block * 32u + j]);
+#else
+            uvec2 pair = xq2[a2 + j / 4u];
+            uint word = (j & 1u) == 0u ? pair.x : pair.y;
+            int q = (j & 2u) == 0u ? lo16(word) : hi16(word);
+            sum += double(mxfp4_at(o, j)) * (double(q) * dx);
+#endif
+        }
+    }
+    return float(sum);
+}
+
+// The 17-byte block at byte o, read as five words: returns its scale byte and sets its 16 code bytes; the last block's fifth word lies in whole-word padded storage.
+uint mxfp4_block(uint o, out uvec4 quants) {
+    uint word = o >> 2u, shift = (o & 3u) * 8u;
+    uvec4 lo = uvec4(w32s[pi].w32[word], w32s[pi].w32[word + 1u], w32s[pi].w32[word + 2u], w32s[pi].w32[word + 3u]);
+    uvec4 hi = uvec4(lo.yzw, w32s[pi].w32[word + 4u]);
+    quants = shift == 24u ? hi : (lo >> ((shift + 8u) & 31u)) | (hi << ((24u - shift) & 31u));
+    return (lo.x >> shift) & 255u;
+}
+
+#ifdef LLMX_DOT
+// Codes j and j + 2 as one pair from the table, in the twin's pair order; byte b of word k holds code 4k + b in its low nibble and code 4k + b + 16 in its high one.
+void mxfp4_pairs_of(uvec4 quants, out uint pairs[16]) {
+    for (uint k = 0u; k < 4u; ++k) {
+        uint q = quants[k];
+        pairs[4u * k] = mxfp4_pairs[(q & 15u) | ((q >> 12u) & 240u)];
+        pairs[4u * k + 1u] = mxfp4_pairs[((q >> 8u) & 15u) | ((q >> 20u) & 240u)];
+        pairs[4u * k + 2u] = mxfp4_pairs[((q >> 4u) & 15u) | ((q >> 16u) & 240u)];
+        pairs[4u * k + 3u] = mxfp4_pairs[((q >> 12u) & 15u) | ((q >> 24u) & 240u)];
+    }
+}
+
+// A block's integer sum against the twin's words from a2, the same exact value as the float sum.
+int mxfp4_dot(uint pairs[16], uint a2) {
+    int isum = 0;
+    for (uint k = 0u; k < 4u; ++k) {
+        isum += pair_dot(pairs[4u * k], pairs[4u * k + 1u], xq2[a2 + k]);
+        isum += pair_dot(pairs[4u * k + 2u], pairs[4u * k + 3u], xq2[a2 + 4u + k]);
+    }
+    return isum;
+}
+#endif
 #endif
 
 // Each family's block pieces, which the one-row and two-row builds share: a lane's weights at offset o, and a block's float terms over its dots pl and ph (or p0 to p3).
@@ -229,7 +290,7 @@ void scale_min_pair(uint s0, uint s1, uint s2, uint c, out float scl, out float 
     nibble_dots(n2, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph); \
     nibble_dots(n3, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
 // Q4_0's term: the scaled dot less the offset of 8 through the block sum.
-#define Q40_TERM(d, xb) ((d) * ((xb).x * float(pl + ph) - 8.0 * (xb).y))
+#define Q40_TERM(d, xb) q40_term(d, xb, float(pl + ph))
 #ifdef LLMX_DOT
 #define Q41_ADD(acc, dm, xb) acc += (dm).x * ((xb).x * float(pl + ph)) + (dm).y * (xb).y
 #else
@@ -238,7 +299,7 @@ void scale_min_pair(uint s0, uint s1, uint s2, uint c, out float scl, out float 
 #endif
 #endif
 #if defined(LLMX_K4) || defined(LLMX_K5)
-// A Q4_K or Q5_K lane's words of the block at word o: the scale and three sub-scale words, its 16 nibble bytes and Q5_K's fifth bits, and its two groups' scales folded once; the mins multiply the whole group's sum, so only one of the group's two lanes applies them.
+// A Q4_K or Q5_K lane's words of the block at word o: the scale and three sub-scale words, its 16 nibble bytes and Q5_K's fifth bits, and its two groups' scales folded once; each min uses the whole group sum in one lane.
 #define K45_WEIGHTS(o) \
     uvec4 hd = w128s[pi].w128[(o) / 4u]; \
     vec2 dd = unpackHalf2x16(hd.x); \
@@ -249,17 +310,12 @@ void scale_min_pair(uint s0, uint s1, uint s2, uint c, out float scl, out float 
     float scl, mnl, sch, mnh; \
     scale_min_pair(s0, s1, s2, c, scl, mnl, sch, mnh); \
     float dl = dd.x * scl, dh = dd.x * sch; \
-    float ml = h == 0u ? dd.y * mnl : 0.0, mh = h == 0u ? dd.y * mnh : 0.0;
+    float ml = dd.y * mnl, mh = dd.y * mnh;
 // The low and high groups' dots, each scaled once, less the mins through the group sums.
-#define K45_TERM(dl, dh, ml, mh, xt) ((dl) * ((xt).x * float(pl)) + (dh) * ((xt).z * float(ph)) - ((ml) * (xt).y + (mh) * (xt).w))
+#define K45_TERM(dl, dh, ml, mh, xt) k45_term(dl, dh, ml, mh, xt, float(pl), float(ph), h)
 #endif
 #ifdef LLMX_KQUANT
-// A Q6_K lane's words of the block at byte o: its six quant words unpacked to a byte a value, groups 0 to 3's sub-scales and the block's scale; on the 8-bit twin the -32 goes into each byte.
-#ifdef LLMX_X8
-#define Q6K_SIGNED \
-    q0a = signed6(q0a); q0b = signed6(q0b); q1a = signed6(q1a); q1b = signed6(q1b); \
-    q2a = signed6(q2a); q2b = signed6(q2b); q3a = signed6(q3a); q3b = signed6(q3b);
-#endif
+// A Q6_K lane's words of the block at byte o: its six quant words unpacked to a byte a value, groups 0 to 3's sub-scales and the block's scale.
 #define Q6K_WEIGHTS(o) \
     uint lo0, lo1, hi0, hi1, qh0, qh1, sc_a, sc_b; \
     words_at((o) + n * 64u + l0, lo0, lo1); \
@@ -278,13 +334,17 @@ void scale_min_pair(uint s0, uint s1, uint s2, uint c, out float scl, out float 
     uint q3a = ((hi0 >> 4u) & 0x0F0F0F0Fu) | (((qh0 >> 6u) & 0x03030303u) << 4u), q3b = ((hi1 >> 4u) & 0x0F0F0F0Fu) | (((qh1 >> 6u) & 0x03030303u) << 4u); \
 // The four groups' dots, each under its sub-scale and the activation block's scale, under the block's scale.
 #define Q6K_TERM(d, s0, s1, s2, s3, xa, xb) ((d) * ((s0) * ((xa).x * float(p0)) + (s1) * ((xa).z * float(p1)) + \
-                                                    (s2) * ((xb).x * float(p2)) + (s3) * ((xb).z * float(p3))))
-// On the 16-bit twin, the -32 offset times each half-group's sum under its sub-scale, which the first lane of each half applies.
-#define Q6K_HALVES(d, s0, s1, s2, s3, ha, hb) ((d) * 32.0 * (l0 == 0u ? (s0) * (ha).x + (s1) * (ha).z + (s2) * (hb).x + (s3) * (hb).z \
-                                                                   : (s0) * (ha).y + (s1) * (ha).w + (s2) * (hb).y + (s3) * (hb).w))
+                                                        (s2) * ((xb).x * float(p2)) + (s3) * ((xb).z * float(p3))))
 #endif
 
 void main() {
+#if defined(LLMX_MXFP4) && defined(LLMX_DOT)
+    {
+        uint i = gl_LocalInvocationIndex;
+        mxfp4_pairs[i] = (uint(mxfp4_value(i & 15u)) & 0xFFFFu) | (uint(mxfp4_value(i >> 4u)) << 16u);
+        barrier();
+    }
+#endif
     // Which projection this workgroup belongs to, uniform across it.
     uint wg = gl_WorkGroupID.x;
     if (p.nproj > 1u && wg >= p.start1) pi = 1u;
@@ -463,9 +523,6 @@ void main() {
                 [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
                     uint o = wbr[r] + b * Q6_K_BYTES;
                     Q6K_WEIGHTS(o)
-#ifdef LLMX_X8
-                    Q6K_SIGNED
-#endif
                     dr[r] = d; s0r[r] = s0; s1r[r] = s1; s2r[r] = s2; s3r[r] = s3;
                     q0ar[r] = q0a; q0br[r] = q0b; q1ar[r] = q1a; q1br[r] = q1b; q2ar[r] = q2a; q2br[r] = q2b; q3ar[r] = q3a; q3br[r] = q3b;
                 }
@@ -475,23 +532,12 @@ void main() {
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
                     XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
                     vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
-#ifndef LLMX_X8
-                    vec4 ha = vec4(0.0), hb = vec4(0.0);
-                    if (l0 == 0u || l0 == 16u) { ha = xq_halves_pair(col, bg / 2u); hb = xq_halves_pair(col, bg / 2u + 1u); }
-#endif
                     [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
-#ifdef LLMX_X8
-                        int p0 = dot4(q0ar[r], x0v.x) + dot4(q0br[r], x0v.y), p1 = dot4(q1ar[r], x1v.x) + dot4(q1br[r], x1v.y);
-                        int p2 = dot4(q2ar[r], x2v.x) + dot4(q2br[r], x2v.y), p3 = dot4(q3ar[r], x3v.x) + dot4(q3br[r], x3v.y);
-                        accr[r][c] += Q6K_TERM(dr[r], s0r[r], s1r[r], s2r[r], s3r[r], xa, xb);
-#else
                         QDOT p0 = pair_dot(q0ar[r] & 0x00FF00FFu, (q0ar[r] >> 8u) & 0x00FF00FFu, x0v.xy) + pair_dot(q0br[r] & 0x00FF00FFu, (q0br[r] >> 8u) & 0x00FF00FFu, x0v.zw);
                         QDOT p1 = pair_dot(q1ar[r] & 0x00FF00FFu, (q1ar[r] >> 8u) & 0x00FF00FFu, x1v.xy) + pair_dot(q1br[r] & 0x00FF00FFu, (q1br[r] >> 8u) & 0x00FF00FFu, x1v.zw);
                         QDOT p2 = pair_dot(q2ar[r] & 0x00FF00FFu, (q2ar[r] >> 8u) & 0x00FF00FFu, x2v.xy) + pair_dot(q2br[r] & 0x00FF00FFu, (q2br[r] >> 8u) & 0x00FF00FFu, x2v.zw);
                         QDOT p3 = pair_dot(q3ar[r] & 0x00FF00FFu, (q3ar[r] >> 8u) & 0x00FF00FFu, x3v.xy) + pair_dot(q3br[r] & 0x00FF00FFu, (q3br[r] >> 8u) & 0x00FF00FFu, x3v.zw);
                         accr[r][c] += Q6K_TERM(dr[r], s0r[r], s1r[r], s2r[r], s3r[r], xa, xb);
-                        if (l0 == 0u || l0 == 16u) accr[r][c] -= Q6K_HALVES(dr[r], s0r[r], s1r[r], s2r[r], s3r[r], ha, hb);
-#endif
                     }
                 }
             }
@@ -512,13 +558,73 @@ void main() {
         return;
     }
 #endif
-#ifdef LLMX_PRESERVE_F32
+#ifdef LLMX_MXFP4
+    uint wide_range[MAX_COLS];
+    for (uint c = 0u; c < MAX_COLS; ++c) wide_range[c] = 0u;
+#endif
+#if defined(LLMX_PRESERVE_F32) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT))
     precise float acc[MAX_COLS];
 #else
     float acc[MAX_COLS];
 #endif
     for (uint c = 0u; c < MAX_COLS; ++c) acc[c] = 0.0;
     if (row < nout) {
+#ifdef LLMX_FLOAT_X
+        for (uint j = l; j < p.nin; j += p.cluster) {
+            float weight = quantized_at(type, wrow, p.nin, j);
+            for (uint c = 0u; c < ncols; ++c) {
+                float value = x[XCOL(c) * p.nin + j];
+#ifdef LLMX_MXFP4
+                uint wbits = floatBitsToUint(weight) & 0x7fffffffu, xbits = floatBitsToUint(value) & 0x7fffffffu;
+                uint exponent = (wbits >> 23u) + (xbits >> 23u);
+                if (wbits != 0u && xbits != 0u && (exponent < 129u || exponent > 380u)) wide_range[c] = 1u;
+#endif
+                acc[c] = fma(weight, value, acc[c]);
+            }
+        }
+#else
+#ifdef LLMX_MXFP4
+        // One lane per 32-value block, signed E2M1 codes against the 16-bit twin.
+        // A block's sum is an integer below 2^24 in magnitude (32 * 12 * 32767), so the float sum and the integer dot both give it exactly.
+        uint nblocks = p.nin / MXFP4_BLOCK;
+        uint base = wrow * nblocks * MXFP4_BYTES;
+        for (uint block = l; block < nblocks; block += p.cluster) {
+            uvec4 quants;
+            uint e = mxfp4_block(base + block * MXFP4_BYTES, quants);
+            float dw = mxfp4_scale(e);
+#ifdef LLMX_DOT
+            uint pairs[16];
+            mxfp4_pairs_of(quants, pairs);
+#else
+            int weights[32];
+            for (uint j = 0u; j < 16u; ++j) {
+                uint packed = (quants[j / 4u] >> ((j & 3u) * 8u)) & 255u;
+                weights[j] = mxfp4_value(packed & 15u);
+                weights[j + 16u] = mxfp4_value(packed >> 4u);
+            }
+#endif
+            for (uint c = 0u; c < ncols; ++c) {
+                uint col = XCOL(c), a2 = xa_col(col) / 2u + block * 8u;
+#ifdef LLMX_DOT
+                float sum = float(mxfp4_dot(pairs, a2));
+#else
+                precise float sum = 0.0;
+                for (uint j = 0u; j < 32u; j += 4u) {
+                    uvec2 q = xq2[a2 + j / 4u];
+                    sum += float(weights[j]) * float(lo16(q.x));
+                    sum += float(weights[j + 1u]) * float(lo16(q.y));
+                    sum += float(weights[j + 2u]) * float(hi16(q.x));
+                    sum += float(weights[j + 3u]) * float(hi16(q.y));
+                }
+#endif
+                float scale = dw * xq_block(col, block).x;
+                uint exponent = (floatBitsToUint(scale) >> 23u) & 255u;
+                // At 253 the largest decoded weight overflows f32; a combined scale must be normal.
+                if (e >= MXFP4_FIRST_OVERFLOW_EXPONENT || exponent == 0u || exponent == 255u) wide_range[c] = 1u;
+                else acc[c] = fma(scale, sum, acc[c]);
+            }
+        }
+#endif
 #ifdef LLMX_Q8W
         {
             uint nblocks = p.nin / Q8_0_BLOCK;
@@ -560,7 +666,7 @@ void main() {
             }
         }
 #endif
-#if !defined(LLMX_Q8W) && !defined(LLMX_Q4) && !defined(LLMX_KQUANT) && !(defined(LLMX_K4) || defined(LLMX_K5))
+#if !defined(LLMX_MXFP4) && !defined(LLMX_Q8W) && !defined(LLMX_Q4) && !defined(LLMX_KQUANT) && !(defined(LLMX_K4) || defined(LLMX_K5))
         if (type == TYPE_Q8_0) {
             uint nblocks = p.nin / Q8_0_BLOCK;
             uint bbase = wrow * nblocks * Q8_0_BYTES;   // bytes
@@ -717,7 +823,7 @@ void main() {
         {
             // Q6_K: eight lanes per block, lane t taking positions l0..l0+7 of half n.
             // Position l0 + i has one value per 32-group: low nibble of ql[l0 + i] with qh bits 0..1, low nibble of ql[l0 + 32 + i] with bits 2..3, the high nibbles with bits 4..5 and 6..7.
-            // Each group has its own sub-scale, index l0 / 16 for all eight; values are packed as unsigned bytes 0..63 and the -32 offset folded through the block sum.
+            // Each group has its own sub-scale, index l0 / 16 for all eight; values are packed as unsigned bytes 0..63 and centered by pair_dot before multiplication.
             uint nblocks = p.nin / Q6_K_BLOCK;
             uint bbase = wrow * nblocks * Q6_K_BYTES;   // bytes
             uint group = l / 8u, t = l - group * 8u;
@@ -727,18 +833,6 @@ void main() {
                 uint o = bbase + b * Q6_K_BYTES;
                 Q6K_WEIGHTS(o)
                 uint bg = b * 8u + n * 4u;   // the 32-block of group 0
-#ifdef LLMX_X8
-                Q6K_SIGNED
-                for (uint c = 0u; c < ncols; ++c) {
-                    uint col = XCOL(c);
-                    uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
-                    XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
-                    int p0 = dot4(q0a, x0v.x) + dot4(q0b, x0v.y), p1 = dot4(q1a, x1v.x) + dot4(q1b, x1v.y);
-                    int p2 = dot4(q2a, x2v.x) + dot4(q2b, x2v.y), p3 = dot4(q3a, x3v.x) + dot4(q3b, x3v.y);
-                    vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
-                    acc[c] += Q6K_TERM(d, s0, s1, s2, s3, xa, xb);
-                }
-#else
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = XCOL(c);
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
@@ -749,21 +843,35 @@ void main() {
                     QDOT p3 = pair_dot(q3a & 0x00FF00FFu, (q3a >> 8u) & 0x00FF00FFu, x3v.xy) + pair_dot(q3b & 0x00FF00FFu, (q3b >> 8u) & 0x00FF00FFu, x3v.zw);
                     vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
                     acc[c] += Q6K_TERM(d, s0, s1, s2, s3, xa, xb);
-                    // The -32 offset times each half-group's sum under its sub-scale, applied by the first lane of each half.
-                    if (l0 == 0u || l0 == 16u) {
-                        vec4 ha = xq_halves_pair(col, bg / 2u), hb = xq_halves_pair(col, bg / 2u + 1u);
-                        acc[c] -= Q6K_HALVES(d, s0, s1, s2, s3, ha, hb);
-                    }
                 }
-#endif
             }
         }
+#endif
 #endif
     }
     // Reduce within each cluster; every lane joins every shuffle and lanes past the last row add zero.
     for (uint c = 0u; c < ncols; ++c) {
         float s = acc[c];
+#ifdef LLMX_MXFP4
+        // The same butterfly with constant offsets for a 64-lane cluster, which every MXFP4 row from 2048 values takes.
+        if (p.cluster == 64u) {
+            s += subgroupShuffleXor(s, 32u);
+            s += subgroupShuffleXor(s, 16u);
+            s += subgroupShuffleXor(s, 8u);
+            s += subgroupShuffleXor(s, 4u);
+            s += subgroupShuffleXor(s, 2u);
+            s += subgroupShuffleXor(s, 1u);
+        } else {
+            for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
+        }
+        // Clusters reduce their range flags only where some lane of the subgroup holds one; otherwise every cluster's is zero.
+        uint wide = wide_range[c];
+        if (subgroupOr(wide) != 0u)
+            for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) wide |= subgroupShuffleXor(wide, off);
+        if (l == 0u && row < nout && (wide != 0u || isnan(s) || isinf(s))) s = mxfp4_wide(wrow, XCOL(c));
+#else
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
+#endif
         if (l == 0u && row < nout && c < ncols) {
             if (p.accum != 0u) ys[pi].y[OCOL(c) * nout + row] += s;
             else ys[pi].y[OCOL(c) * nout + row] = s;

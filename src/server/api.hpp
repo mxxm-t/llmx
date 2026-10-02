@@ -15,6 +15,7 @@
 #include "core/json.hpp"
 #include "core/utf8.hpp"
 #include "inference/chat.hpp"
+#include "model/place.hpp"
 #include "server/http.hpp"
 #include "server/scheduler.hpp"
 
@@ -29,6 +30,7 @@ struct Config {
     int state_checkpoints = -1;   // on a model that keeps a state, the states kept for prefix reuse; -1 for the most the fit gives up to max_seqs
     bool timing = false;     // time the rounds and the stages for /v1/health, over backends made to time their work
     std::string model_name;
+    infer::DtypePlan dtype;
 };
 
 // The longest prefix of `bytes` that ends on a complete UTF-8 character, so a token whose text ends mid-character is held until the rest comes.
@@ -138,7 +140,7 @@ private:
     void health(http::Connection& c) {
         const Scheduler::Stats s = sched_.stats();
         c.respond(200, "application/json",
-                  "{\"status\":\"ok\",\"model\":" + jmini::quote(cfg_.model_name) +
+                  "{\"status\":\"ok\",\"model\":" + jmini::quote(cfg_.model_name) + ",\"dtype\":" + dtype_json(cfg_.dtype) +
                   ",\"active\":" + std::to_string(s.active) + ",\"queued\":" + std::to_string(s.queued) +
                   ",\"donors\":" + std::to_string(s.donors) + ",\"prefix_hits\":" + std::to_string(s.prefix_hits) +
                   ",\"prefix_tokens\":" + std::to_string(s.prefix_tokens) + ",\"pauses\":" + std::to_string(s.pauses) +
@@ -148,6 +150,14 @@ private:
                   ",\"reprefill_rows\":" + std::to_string(s.reprefill_rows) + ",\"reprefill_cancels\":" + std::to_string(s.reprefill_cancels) +
                   ",\"passes\":" + std::to_string(s.passes) + ",\"in_flight\":" + std::to_string(s.in_flight) +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
+    }
+    // The run's request and resolved dtype, including each device's emulation or wider fallback.
+    static std::string dtype_json(const infer::DtypePlan& d) {
+        std::string devices;
+        for (const auto& dev : d.devices)
+            devices += (devices.empty() ? "" : ",") + std::string("{\"device\":") + jmini::quote(dev.name) + ",\"how\":" + jmini::quote(dev.how) + ",\"paths\":" + jmini::quote(dev.paths) + ",\"effective\":\"" + backend::dtype_name(dev.effective) + "\"}";
+        return std::string("{\"requested\":\"") + d.requested_name() + "\",\"declared\":\"" + backend::dtype_name(d.declared) + "\",\"effective\":\"" +
+               backend::dtype_name(d.effective) + "\",\"devices\":[" + devices + "]}";
     }
     // A timed scheduler's figures (--timing): each of the thread's times as a mean over the rounds, each stage's idle share over the span its device time was read in, and the device-bound rate, the rows the passes in that span carried over the busiest stage's device time.
     static std::string timing_json(const Scheduler::Timing& t) {

@@ -1,5 +1,9 @@
 # `src/cli/main.cpp` - CLI dispatcher
 
+`open_model` writes the resolved dtype record once to stderr, and serving passes that same record to its configuration for health reporting. Selection stays in placement. Shared execution options parse `--dtype auto|f16|bf16|f32` once for all model commands and pass it to placement. Missing, invalid and repeated values are usage errors. Auto selects the preferred common native policy, F16 on the current CPU and Vulkan backends. Explicit BF16 uses emulation where supported and reports F32 fallback on a device that cannot emulate it; the CLI does not implement either conversion or fallback.
+
+`matrix_record` writes a completed execution witness once for `logits`, `perplexity` and a `bench` that loads a model, with the effective dtype and the model's dispatched matrix paths per device. It drains the existing counters after work completes; no new profiler or tuning flag is involved.
+
 Thin command-line entry point. Only argument parsing and glue live here; format
 logic is in `format/`, quantization in `quant/`, inference in `inference/`, and
 the model in `model/`.
@@ -58,7 +62,7 @@ Commands and their entry points:
 - `chat`: `cmd_chat` (interactive loop using the opened model's chat format, whose refusal it raises before the first turn, each turn a `prefill_turn` of what the cache does not hold, then `infer::generate`, the reply recorded through `chat::ChatFormat::assistant`).
   On a model that keeps a recurrent state it opens two checkpoint slots, keeps each turn's state at the last whole block of the conversation rendered without the generation prompt, and where the next prompt does not continue the history retracts to that checkpoint (`Model::retract`) when its rows took the class the new prompt computes them in, resetting otherwise.
   Tracks the exact IDs fed into the model separately from message text.
-  Prefills only an exact-prefix extension; resets and refills changed, shortened or identical prompts to obtain valid next-token logits.
+  Prefills an exact-prefix extension; a changed, shortened or identical prompt retracts to a compatible recurrent-state checkpoint within its shared prefix, resetting where none can be reused, then prefills the remaining rows to obtain valid next-token logits.
   A returned stop token may not yet be cached, and EOS is supplied by the next rendered transcript rather than appended unconditionally.
   These are single-sequence semantics.
 - `bench`: `cmd_bench` (hot-path micro-benchmark, timed after one untimed matmul so that one-time setup such as the CPU pool's start stays out, then synthetic end-to-end TPS),

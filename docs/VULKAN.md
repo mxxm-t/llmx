@@ -14,6 +14,14 @@ gfx906 silicon, the Windows HIP SDK does not support it, and the Vulkan
 runtime is already present on the workstation. ROCm stays the first-class
 target on Linux; it comes after this and reuses the structure.
 
+## Private MXFP4 integration (2026-09-30, in development)
+
+The dtype branch reads MXFP4 through exact embedding, row and tile decoders. F32 uses original activations; BF16 tiles round inputs explicitly. Direct F16 backend calls use block-int16 rows and, on integer-tile profiles, dense prompts with an exact float-scale copy. Routed prompts and projections beyond the bounded 256 MiB copy scratch take the wider F32 tile. Unsafe sums are recomputed in double from exact weights and the selected path's inputs; split partials stay double until reduction. Optional float preservation and double properties gate the type without raising other types' requirements. Native F16 is not yet advertised; release and quant merge holds remain.
+
+Focused tests cover actual row/copy/tile paths and mixed prompt/decode microbatches. BF16 tiles use the logical row extent for their inner split even below ordinary tile thresholds, and the native batch regression crosses physical widths 64 and 128 with short, long and mixed logical runs. Isolated range fixtures require the integer tile and its reduction together. Mutations forcing intermediate F32 storage fail on both overflow cancellation and subnormal sums; restored wide storage passes. A same-binary MI50 F32/F16 screen shows 2.99x/3.68x decode and 1.74x/1.64x prompt matrix-call speedups for 4096/14336 output rows at inner width 4096. These are kernel screens, not main/mx or end-to-end gates; STATUS records retained evidence and limitations. Full F16 HF, routed and physical split conformance, long context, capacity and matched reference performance remain open.
+
+The private dense BF16 float dispatch now caps stages per K part at `ceil(stages / 4)` while preserving any finer occupancy split. Column slices bound its partial-buffer target to 256 MiB without changing an output's arithmetic; details and the minimum-aligned-span exception belong to [the Vulkan owner](src/backends-vulkan.md). The native workspace regression checks exact sparse F32-weight products under BF16 through dense, head, residual and grouped calls across that boundary, with odd rows, a partial column tile and guarded output gaps. The independent HF/depth and measured before/mx comparisons remain in STATUS; this is not a completed dtype release.
+
 ## The device this is designed against
 
 From `vulkaninfo` on the workstation, 2026-09-21: AMD Radeon VII, vendor
@@ -151,10 +159,8 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
 All in GLSL, compute stage, subgroup operations enabled, one workgroup
 size per kernel chosen for wave64. Activations are F32 everywhere except
 where a quantized matmul reads them.
-The decode row kernels read signed 16-bit integers in blocks of 32 (`xquant.glsl`, below), or signed 8-bit integers on a device whose profile prefers the integer dot, for every quantized row but Q8_0 and a Q4_0, Q4_1 or Q6_K output head.
-The integer-dot prefill tile reads the same 16-bit integers (The 16-bit twin in the tile, below): where 8-bit ones are read the arithmetic differs
-from the CPU by that quantization, elsewhere only in reduction order. The
-HF gate measures the cost of it.
+The decode row kernels and integer-dot prefill tile read signed 16-bit integers in blocks of 32 (`xquant.glsl`, below).
+Their reference inputs use the same rounding; independent HF gates measure the resulting model error.
 
 - **Dequantization** is one GLSL include (`qdecode.glsl`) with a per-value
   decoder for each block type but Q8_0, which `embed` uses.
@@ -166,7 +172,7 @@ HF gate measures the cost of it.
   A model holding a type without a kernel is refused before any weight is adopted, naming the tensor and its type (`Backend::supports_type`).
   A direct matmul, routed product or embed of such a type is refused before it records a dispatch, naming the type by its numeric id.
   Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, every type the CPU reads.
-- **matmul, decode** (`nbatch` small): each row takes a cluster of lanes, the subgroup's width or fewer for a short row and at most `q6k_row_lanes` or `k45_row_lanes` in the 8-bit integer-dot families, each lane accumulating a stride of blocks and the cluster meeting in an xor-shuffle reduction at the end. Rows
+- **matmul, decode** (`nbatch` small): each row takes a cluster of lanes, the subgroup's width or fewer for a short row and at most `k45_row_lanes` in the Q4_K/Q5_K integer-dot families, each lane accumulating a stride of blocks and the cluster meeting in an xor-shuffle reduction at the end. Rows
   are the outer loop and the batch the inner, as on the CPU, so a weight
   block is read once per chunk of a build's columns, eight, or on the MI50
   up to 32 in the Q8_0 decode kernel and 16 in the two-row builds below. Q8_0 rows are read as
@@ -208,11 +214,11 @@ HF gate measures the cost of it.
   **Integer activations.** On a device whose profile does not prefer the integer dot, every quantized row meets the activations as
   signed 16-bit values in blocks of 32, each block scaled so its largest
   magnitude is 32767, with the block's scale `d` and `d` times its sum
-  (whole and per half of 16) in a table: a weight word's values pair off
-  with activation words through 16-bit integer multiplies, a
-  block's integer sum is scaled once, and a type's offset (Q4_0's -8,
-  Q4_1's min, the K-quant mins, Q6_K's -32) is folded through the block
-  sum. Values are stored in the order nibble and byte words unpack in,
+  in a table: a weight word's values pair off with activation words,
+  a block's integer sum is scaled once, and the Q4 offsets and K-quant
+  minima use the block sum. Q6_K subtracts 32 from each weight before
+  its dot, keeping the offset and operands 16-bit in the native-dot
+  build; it needs no half-sum table. Values are stored in the order nibble and byte words unpack in,
   pairs of positions (4m, 4m + 2) and (4m + 1, 4m + 3), and read 8 or 16
   bytes at a time. Q8_0's first block starts two bytes into its words,
   so each lane shifts its two first-block words by a half word with the
@@ -291,20 +297,21 @@ HF gate measures the cost of it.
 
   So the nibble and K-quant dots multiply as floats in the default build
   of the row kernels. Each product is a
-  non-negative quant of at most six bits against a 16-bit activation, and
-  the accumulators stay inside the 16,777,216 a float counts exactly, so
+  non-negative quant of at most five bits, or a centered Q6_K value from
+  -32 through 31, against a 16-bit activation. The accumulators stay
+  inside the 16,777,216 a float counts exactly, so
   the float dot returns the same integer:
 
-  | Accumulator | Products | Largest quant | Largest partial sum |
+  | Accumulator | Products | Largest quant magnitude | Largest partial sum |
   |-------------|---------:|--------------:|--------------------:|
   | Q4_0, Q4_1, Q4_K | 16 | 15 | 7,864,080 |
   | Q5_K | 16 | 31 | 16,252,432 |
-  | Q6_K | 8 | 63 | 16,514,568 |
-  | Q8_0, narrow | 32 | 127 | 133,165,088 |
-  | Q8_0, wide | 16 | 127 | 66,582,544 |
+  | Q6_K | 8 | 32 | 8,388,352 |
+  | Q8_0, narrow | 32 | 128 | 134,213,632 |
+  | Q8_0, wide | 16 | 128 | 67,106,816 |
 
-  Q8_0 is the exception on both counts, its weights signed and its blocks
-  summing past the exact range, so that path keeps the integer multiply.
+  Q8_0's blocks sum past the exact float range, so that path keeps the
+  integer multiply. The bounds include its valid -128 weight code.
   For the rest every `v_mad_u64_u32` is gone; the conversions do not fold
   into the operand select, so the Q4_K kernel is 265 vector instructions
   rather than 249, but all of them issue at full rate against 345
@@ -440,7 +447,7 @@ HF gate measures the cost of it.
   | Q8_0 | 4.87 TFLOPS | 7.72 |
   | Q4_K | 4.65 | 11.48 |
 
-  Decode has the same lever at a smaller scale. On a device whose integer dot is native the activation producers write an 8-bit twin beside the 16-bit one, 8-bit values per block of 32 with each block's scale and scaled sum, and the Q4_K and Q5_K row families, built with `LLMX_X8`, read it through the four-wide dot: the Q4_K matvec at an 8B down projection goes from 123.4 to 92.8 us on an MI50 and 8B Q4_K_M decode from 78.3 to 85.5 tok/s. Q4_0, Q4_1 and Q6_K first stayed on the 16-bit twin because the HF gate's Q4_0 fixture failed its top-5 bound with them on it (STATUS, thirty-ninth paragraph). The failure was that file's Q6_K output head: the model now names its head (`Backend::matmul_logits`), which keeps the 16-bit twin for those three types, and every other Q4_0, Q4_1 and Q6_K row reads the 8-bit one, the Q6_K offset folded into each weight byte. On Qwen3-30B-A3B that took an MI50's decode from 82.0 to 88.6 tok/s on the Q6_K file, and from 101.8 to 131.8 on Q4_0 and 101.4 to 128.8 on Q4_1. A Q6_K row on the 8-bit twin takes at most 32 lanes (`q6k_row_lanes`, which the 8-bit Q4 rows take too), so a subgroup takes two rows and one row's loads hide behind the other's: 88.6 to 92.2 tok/s, where 16 lanes was slower again. The producer that writes both is a second build, specialization constant 7, dispatched only after a matmul that reads the 8-bit twin has run, so a model with none of those families runs the producers it ran before.
+  The dtype implementation removes the former 8-bit activation twin and its producer specialization. Every quantized row now uses the 16-bit twin, including the output head. The earlier 8-bit measurements remain in STATUS (GPU activation history, 2026-09-30); they are not performance evidence for this implementation.
 
   Q8_0 was slower on the 8-bit twin in the row kernel's wide path, 167.0 against 176.8 us, since that path spreads a load instruction over 16-byte pieces of every block pair. So on such a device Q8_0 takes a kernel of its own (`matmul_vec_q8.comp`). A subgroup takes two rows; lane l covers quarter l % 4 of every (S / 4)-th block, so a step reads a contiguous run of a row; its eight 8-bit activation values are loaded once per column and serve both rows, through two four-wide dots per quarter. On an MI50 the 14336 x 4096 Q8_0 matvec goes from 167 to 135 us, and decode from 45.5 to 60.6 tok/s on 8B Q8_0 and from 259 to 311 on 0.6B Q8_0. One row per subgroup read 322 tok/s on the 0.6B file and 53 on the 8B, four rows 283 and 53.
   Since 2026-09-29 it reads the 16-bit twin instead, each value split into a signed high byte and a biased low byte and taken through two four-wide dots with a correction by the weights' sum (`dot16.glsl`), which gives the 16-bit products exactly (The 16-bit twin in the tile, below).

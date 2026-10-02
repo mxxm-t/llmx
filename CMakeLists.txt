@@ -47,22 +47,41 @@ if(LLMX_HAS_BACKEND_VULKAN)
     endif()
     # Shaders are GLSL in the tree, compiled to SPIR-V at build time and embedded as uint32_t arrays, so the binary carries its kernels.
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
-    set(LLMX_VK_SHADERS add silu_mul gather_rows rms_norm_rows norm_rope_partial embed matmul_row
+    set(LLMX_VK_SHADERS copy_mxfp4 add silu_mul gather_rows rms_norm_rows norm_rope_partial embed matmul_row
         kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile quantize_x
         quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group attention_vec
         sigmoid_mul gated_rms_norm causal_conv_silu delta_rule)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
-    set(LLMX_VK_VARIANTS matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
+    set(LLMX_VK_VARIANTS matmul_row_mxfp4=matmul_row=LLMX_MXFP4+LLMX_PRESERVE_F32
+        matmul_row_mxfp4_dot=matmul_row=LLMX_MXFP4+LLMX_DOT+LLMX_PRESERVE_F32
+        matmul_row_mxfp4_float_x=matmul_row=LLMX_MXFP4+LLMX_FLOAT_X+LLMX_PRESERVE_F32
+        matmul_tile_q8mx=matmul_tile_q=LLMX_Q8+LLMX_Q8MX+LLMX_PRESERVE_F32
+        embed_mxfp4=embed=LLMX_MXFP4 matmul_tile_mxfp4=matmul_tile=LLMX_MXFP4+LLMX_PRESERVE_F32
+        matmul_tile_mxfp4_bf16=matmul_tile=LLMX_MXFP4+LLMX_PRESERVE_F32+LLMX_BF16 matmul_reduce_mxfp4=matmul_reduce=LLMX_MXFP4+LLMX_PRESERVE_F32
+        matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
+        matmul_row_float_x=matmul_row=LLMX_FLOAT_X
+        matmul_row_float_x_preserve=matmul_row=LLMX_FLOAT_X+LLMX_PRESERVE_F32
         matmul_row_preserve=matmul_row=LLMX_PRESERVE_F32
+        matmul_tile_preserve=matmul_tile=LLMX_PRESERVE_F32
+        matmul_tile_bf16=matmul_tile=LLMX_BF16
+        matmul_tile_bf16_preserve=matmul_tile=LLMX_BF16+LLMX_PRESERVE_F32
+        matmul_tile_q_preserve=matmul_tile_q=LLMX_PRESERVE_F32
+        matmul_tile_q6_preserve=matmul_tile_q=LLMX_Q6+LLMX_PRESERVE_F32
+        matmul_reduce_preserve=matmul_reduce=LLMX_PRESERVE_F32
         matmul_row_q8w_preserve=matmul_row=LLMX_Q8W+LLMX_PRESERVE_F32
         matmul_vec_q8_preserve=matmul_vec_q8=LLMX_PRESERVE_F32
+        matmul_row_q4_preserve=matmul_row=LLMX_Q4+LLMX_PRESERVE_F32
+        matmul_row_q4_dot_preserve=matmul_row=LLMX_Q4+LLMX_DOT+LLMX_PRESERVE_F32
+        matmul_row_k4_dot_preserve=matmul_row=LLMX_K4+LLMX_DOT+LLMX_PRESERVE_F32
+        matmul_row_k5_preserve=matmul_row=LLMX_K5+LLMX_PRESERVE_F32
+        matmul_row_k5_dot_preserve=matmul_row=LLMX_K5+LLMX_DOT+LLMX_PRESERVE_F32
+        matmul_row_k_preserve=matmul_row=LLMX_KQUANT+LLMX_PRESERVE_F32
+        matmul_row_k_dot_preserve=matmul_row=LLMX_KQUANT+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_k=matmul_row=LLMX_KQUANT
         matmul_row_q4_dot=matmul_row=LLMX_Q4+LLMX_DOT
-        matmul_row_q4_dot8=matmul_row=LLMX_Q4+LLMX_DOT+LLMX_X8
-        matmul_row_k4_dot=matmul_row=LLMX_K4+LLMX_DOT+LLMX_X8
-        matmul_row_k5_dot=matmul_row=LLMX_K5+LLMX_DOT+LLMX_X8
+        matmul_row_k4_dot=matmul_row=LLMX_K4+LLMX_DOT
+        matmul_row_k5_dot=matmul_row=LLMX_K5+LLMX_DOT
         matmul_row_k_dot=matmul_row=LLMX_KQUANT+LLMX_DOT
-        matmul_row_k_dot8=matmul_row=LLMX_KQUANT+LLMX_DOT+LLMX_X8
         kv_write_k16=kv_write=LLMX_K16 kv_write_v16=kv_write=LLMX_V16 kv_write_kv16=kv_write=LLMX_K16+LLMX_V16
         attention_k16=attention=LLMX_K16 attention_v16=attention=LLMX_V16 attention_kv16=attention=LLMX_K16+LLMX_V16
         attention_g4=attention=LLMX_G4 attention_k16_g4=attention=LLMX_K16+LLMX_G4 attention_v16_g4=attention=LLMX_V16+LLMX_G4
@@ -245,6 +264,11 @@ if(BUILD_TESTING)
     list(APPEND LLMX_TARGETS llmx-mxfp4-test)
     add_test(NAME mxfp4 COMMAND llmx-mxfp4-test)
     set_tests_properties(mxfp4 PROPERTIES TIMEOUT 60)
+    add_executable(llmx-dtype-test tests/dtype.cpp)
+    target_include_directories(llmx-dtype-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    list(APPEND LLMX_TARGETS llmx-dtype-test)
+    add_test(NAME dtype COMMAND llmx-dtype-test)
+
     add_executable(llmx-fp16-test tests/fp16.cpp)
     target_include_directories(llmx-fp16-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-fp16-test)
@@ -373,6 +397,11 @@ if(BUILD_TESTING)
 
     if(LLMX_HAS_BACKEND_VULKAN)
         # Exits 77 when there is no loader or no device, which CTest reports as skipped rather than passed.
+        add_executable(llmx-mxfp4-vulkan-test tests/mxfp4_vulkan.cpp)
+        target_link_libraries(llmx-mxfp4-vulkan-test PRIVATE llmx-vulkan)
+        list(APPEND LLMX_TARGETS llmx-mxfp4-vulkan-test)
+        add_test(NAME mxfp4-vulkan COMMAND llmx-mxfp4-vulkan-test)
+        set_tests_properties(mxfp4-vulkan PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
         add_executable(llmx-backend-vulkan-test tests/backend_vulkan.cpp)
         target_link_libraries(llmx-backend-vulkan-test PRIVATE llmx-vulkan)
         list(APPEND LLMX_TARGETS llmx-backend-vulkan-test)

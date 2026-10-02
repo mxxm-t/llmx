@@ -17,6 +17,12 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXE = os.path.join(ROOT, "llmx.exe" if os.name == "nt" else "llmx")
 
+CPU_DTYPE_PATHS = {
+    "f32": "f32",
+    "bf16": "bf16 (matrix inputs), f32 (routers)",
+    "f16": "block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)",
+}
+
 
 # What a component returns when it compared nothing, which tests/run_tests.py reports as SKIP, neither a pass nor a failure.
 SKIPPED = "skipped"
@@ -51,6 +57,9 @@ def device_args(args, cache=None):
             args += ["--layer-shares", shares]
     # LLMX_CACHE_TYPE, set by run_tests.py --cache-type, runs the same commands with both cache sides stored as that type; test configuration like LLMX_DEVICE, reaching the binary only as flags.
     # `cache` is a component asking for a type because its fixtures need it, which an explicit LLMX_CACHE_TYPE overrides.
+    dtype = os.environ.get("LLMX_DTYPE")
+    if dtype and "--dtype" not in args and not synthetic:
+        args += ["--dtype", dtype]
     want = os.environ.get("LLMX_CACHE_TYPE") or cache
     if want and "--cache-type-k" not in args and not synthetic:
         args += ["--cache-type-k", want, "--cache-type-v", want]
@@ -64,6 +73,22 @@ def device_args(args, cache=None):
 # How far from the reference's 5th logit two tokens may sit and still trade places at the top-5 boundary: near ties there reorder with the rounding of any backend that sums in another order.
 # It also bounds llmx's own gap between the reference's 5th and 6th tokens when those two trade places.
 TOP5_TIE_MARGIN = 0.1
+
+# Independent HF depth only; short-model rankings and the CPU/device checks keep their own rules.
+HF_DEPTH_TOP1_MARGIN = 0.1
+
+
+def hf_depth_top1(token, ref_ids, ref_logits):
+    """Classify one fixed-history depth row as exact, accepted-tie or miss, returning its HF top-two gap too."""
+    require(type(token) is int and token >= 0, "invalid depth token")
+    require(len(ref_ids) == len(ref_logits) == 2, "depth comparison needs the HF top two")
+    require(all(type(i) is int and i >= 0 for i in ref_ids) and ref_ids[0] != ref_ids[1], "invalid HF depth token IDs")
+    require(all(math.isfinite(v) for v in ref_logits) and ref_logits[0] >= ref_logits[1], "invalid HF depth logits")
+    gap = ref_logits[0] - ref_logits[1]
+    require(math.isfinite(gap), "nonfinite HF depth gap")
+    if token == ref_ids[0]:
+        return "exact", gap
+    return ("accepted-tie" if token == ref_ids[1] and gap <= HF_DEPTH_TOP1_MARGIN else "miss"), gap
 
 
 def top5_overlap(ids, ref_ids, ref_logits, logits=(), margin=TOP5_TIE_MARGIN):
@@ -351,18 +376,55 @@ def perplexity_fields(out):
 
 
 F32_HF_LOGIT_BOUND = 2e-5
-# BOSS approved 2026-09-27: MXFP4's 16-bit activations, measured beside Q4_0 on identical weights (STATUS).
-MXFP4_HF_LOGIT_BOUND = 2e-4
 
 
-def hf_logit_error(name, got, expected, precision="f32"):
+def hf_bounds(dtype, devices):
+    """Tiny-fixture bounds from the matrix paths the completed measurement dispatched, one list per device; a capability record is not a witness."""
+    assert dtype in ("f32", "f16", "bf16"), "unknown execution dtype"
+    assert isinstance(devices, list) and devices, "missing matrix-path witness"
+    paths = set()
+    for device in devices:
+        assert isinstance(device, list) and all(isinstance(p, str) for p in device), "malformed matrix-path witness"
+        assert len(device) == len(set(device)), "duplicate matrix-path witness"
+        paths.update(device)
+    assert paths and paths <= {"f32", "f16", "bf16", "block-int16"}, "missing, unknown or unqualified matrix path"
+    allowed = {"f32": {"f32"}, "f16": {"f32", "f16", "block-int16"}, "bf16": {"f32", "bf16"}}
+    assert paths <= allowed[dtype], "matrix paths disagree with the execution dtype"
+    if paths == {"f32"}:
+        return {"logit": F32_HF_LOGIT_BOUND, "nll": 1e-5}
+    with open(os.path.join(ROOT, "tests", "data", "dtype_budget.json"), encoding="utf-8") as f:
+        budget = json.load(f)["dtypes"][dtype]
+    bounds = {"logit": budget["logit_budget"], "nll": budget["nll_budget"]}
+    assert all(math.isfinite(v) and v > 0 for v in bounds.values()), "invalid frozen dtype budget"
+    return bounds
+
+
+def hf_logit_error(name, got, expected, precision="f32", paths=None, bound=None):
     """The largest full-vocabulary logit error against a tiny HF fixture, at its approved precision's bound."""
-    bound = {"f32": F32_HF_LOGIT_BOUND, "mxfp4": MXFP4_HF_LOGIT_BOUND}[precision]
+    if bound is None:
+        bound = hf_bounds(precision, paths)["logit"] if paths is not None else {"f32": F32_HF_LOGIT_BOUND}[precision]
     assert set(got) == set(range(len(expected))), "missing %s logits" % name
     assert all(math.isfinite(v) for v in got.values()), "non-finite %s logits" % name
     error = max(abs(got[i] - value) for i, value in enumerate(expected))
     assert error < bound, "%s/HF logit error: %.8f" % (name, error)
     return error
+
+
+def check_logprob_row(entries, logits):
+    """Server values must equal the witnessed CLI row's log-softmax, within decimal output and F32 rounding alone."""
+    ids = [entry["id"] for entry in entries]
+    assert ids and len(set(ids)) == len(ids) and all(i in logits for i in ids), "invalid server logprob ids"
+    shift = max(logits.values())
+    normalizer = math.log(math.fsum(math.exp(x - shift) for x in logits.values()))
+    worst = 0.0
+    for entry in entries:
+        want = logits[entry["id"]] - shift - normalizer
+        error = abs(entry["logprob"] - want)
+        # CLI logits have six decimal places: their error changes log-softmax by at most 1e-6, plus the server's one F32 rounding.
+        limit = 1e-6 + abs(want) * 2**-23
+        assert error <= limit, "server/CLI logprob mismatch: %.9g > %.9g" % (error, limit)
+        worst = max(worst, error)
+    return worst
 
 
 def parse_ids(out):
@@ -484,24 +546,44 @@ def ppl_command(model, path, case, mode, ubatch=None):
     return args
 
 
-def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=((),), precision="f32"):
+def hf_execution(stderr):
+    """Exactly one completed CLI diagnostic witness; only actual paths choose the frozen bound."""
+    records = [line[len("matrix-paths: "):] for line in stderr.splitlines() if line.startswith("matrix-paths: ")]
+    assert len(records) == 1, "missing or repeated matrix-path witness"
+    record = json.loads(records[0])
+    assert isinstance(record, dict) and set(record) == {"dtype", "devices"}, "malformed matrix-path record"
+    return hf_bounds(record["dtype"], record["devices"])
+
+
+def run_hf(args):
+    """A successful diagnostic command with f32 caches, its stdout and witnessed logit/NLL bounds."""
+    p = run_process(args, cache="f32", text=True)
+    assert p.returncode == 0, "HF diagnostic failed: " + p.stdout + p.stderr
+    return p.stdout, hf_execution(p.stderr)
+
+
+def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=((),)):
     """A tiny model against its HF fixture at 1 and 4 threads, with f32 caches.
-    Every case's 257 logits at every ubatch and placement must be within the fixture bound (a placement other than the empty one runs at 4 threads only), then the windowed NLL of `text` for every perplexity case within 1e-5.
+    Every case's 257 logits and windowed NLL must stay within the bounds of the actual execution paths (a placement other than the empty one runs at 4 threads only).
     Returns the largest logit error and the number of logit comparisons."""
-    worst, count = 0.0, 0
+    worst, worst_nll, count = 0.0, 0.0, 0
+    logit_bounds, nll_bounds = set(), set()
     for threads in (1, 4):
         for ubatch in ubatches:
             for case, placement in ((c, p) for c in cases for p in placements if threads == 4 or not p):
-                rc, out = run_f32_cache(["logits", model, case["text"], "--top", "257",
-                                         "--threads", str(threads), "--ubatch", str(ubatch)] + list(placement))
-                assert rc == 0, "%s logits failed: %s" % (name, out)
-                worst = max(worst, hf_logit_error(name, dict(zip(*parse_logits(out))), case["logits"], precision))
+                out, bounds = run_hf(["logits", model, case["text"], "--top", "257",
+                                      "--threads", str(threads), "--ubatch", str(ubatch)] + list(placement))
+                worst = max(worst, hf_logit_error(name, dict(zip(*parse_logits(out))), case["logits"], bound=bounds["logit"]))
+                logit_bounds.add(bounds["logit"])
                 count += 1
         for case in perplexity:
-            rc, out = run_f32_cache(["perplexity", model, text, "--threads", str(threads), "-c", str(case["context"])])
-            assert rc == 0, "%s PPL failed: %s" % (name, out)
+            out, bounds = run_hf(["perplexity", model, text, "--threads", str(threads), "-c", str(case["context"])])
             error = abs(float(perplexity_fields(out)["mean NLL"]) - case["mean_nll"])
-            assert math.isfinite(error) and error < 1e-5, "%s/HF NLL error: %.8f" % (name, error)
+            assert math.isfinite(error) and error < bounds["nll"], "%s/HF NLL error: %.8f (bound %.8f)" % (name, error, bounds["nll"])
+            worst_nll = max(worst_nll, error)
+            nll_bounds.add(bounds["nll"])
+    print("%s HF: max logit error %.8f, bounds %s; max NLL error %.8f, bounds %s" %
+          (name, worst, sorted(logit_bounds), worst_nll, sorted(nll_bounds)))
     return worst, count
 
 

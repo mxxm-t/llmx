@@ -168,7 +168,7 @@ void main() {
             if (p.nsplit == 1u) {
                 float r = A / L;
                 o[qbase + lid] = r;
-                if (p.quant != 0u) xquant_twin(qbase + lid, r, p.rows * qstride);
+                if (p.quant != 0u) xquant_block(qbase + lid, r, p.rows * qstride);
             } else {
                 uint sbase = (rh * p.nsplit + split) * (p.dim + 2u);
                 scratch[sbase + 2u + lid] = A;

@@ -37,6 +37,6 @@ void main() {
     if (i < p.n) {
         float v = gated(i);
         dst[i] = v;
-        if (p.quant != 0u) xquant_twin(i, v, p.n);
+        if (p.quant != 0u) xquant_block(i, v, p.n);
     }
 }

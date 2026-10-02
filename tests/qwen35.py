@@ -317,14 +317,13 @@ def check_serve(directory):
 
 
 def check_scores(name, model, perplexity):
-    """The windowed NLL of the longest text within 1e-5 of HF's, scored in batched passes of three tokens and one token at a time, the decode path, at 1 and 4 threads."""
+    """The windowed NLL of the longest text within its witnessed precision bound of HF's, scored in batched passes of three tokens and one token at a time, the decode path, at 1 and 4 threads."""
     for threads in (1, 4):
         for flags in (["--ubatch", "3"], ["--per-token"]):
             for case in perplexity:
-                rc, out = cli(["perplexity", model, TEXTS[-1], "--threads", str(threads), "-c", str(case["context"])] + flags)
-                assert rc == 0, "%s PPL %s failed: %s" % (name, flags, out)
+                out, bounds = common.run_hf(["perplexity", model, TEXTS[-1], "--threads", str(threads), "-c", str(case["context"])] + flags)
                 error = abs(float(common.perplexity_fields(out)["mean NLL"]) - case["mean_nll"])
-                assert math.isfinite(error) and error < 1e-5, "%s/HF NLL error %s: %.8f" % (name, flags, error)
+                assert math.isfinite(error) and error < bounds["nll"], "%s/HF NLL error %s: %.8f" % (name, flags, error)
 
 
 def check_greedy(name, model, greedy):

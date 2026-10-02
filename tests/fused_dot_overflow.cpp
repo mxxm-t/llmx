@@ -73,12 +73,12 @@ std::vector<uint8_t> block_q6_K(uint16_t half) {
 
 struct Case { const char* name; uint16_t half; bool huge; };
 
-// `eight` enables quantized activation dots for the K-quants, scaled per block and bounded by the sum of magnitudes; Q8_0 keeps F32 inputs in both settings.
-int run_type(uint32_t type, const char* tname, bool eight) {
+// `quantized` enables quantized activation dots for the K-quants, scaled per block and bounded by the sum of magnitudes; Q8_0 keeps F32 inputs in both settings.
+int run_type(uint32_t type, const char* tname, bool quantized) {
     const size_t nin = 256;
     backend::CpuBackend cpu;
     cpu.set_threads(1);
-    cpu.set_decode_activations8(eight);
+    const auto dtype = quantized ? backend::Dtype::f16 : backend::Dtype::f32;
 
     const Case cases[] = {
         {"tiny scale, huge input", 0x0001, true},
@@ -110,13 +110,13 @@ int run_type(uint32_t type, const char* tname, bool eight) {
         const auto w_buf = cpu.adopt(w.data(), w.size());
         const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
         const auto y_buf = cpu.adopt(y.data(), y.size() * sizeof(float));
-        cpu.matmul(type, {w_buf.get(), 0}, {x_buf.get(), 0}, {y_buf.get(), 0}, nin, 1, 1);
+        cpu.matmul(type, {w_buf.get(), 0}, {x_buf.get(), 0}, {y_buf.get(), 0}, nin, 1, 1, {}, dtype);
 
         require(std::isfinite(y[0]),
                 std::string(tname) + " / " + c.name + ": produced a nonfinite result");
         const long double err = std::fabs((long double)y[0] - exact);
-        const long double tol = eight && type != quant::GGML_TYPE_Q8_0 ? magnitude * 1e-2L + 1e-30L : std::fabs(exact) * 1e-5L + 1e-30L;
-        require(err <= tol, std::string(tname) + (eight ? " default dots" : " float dots") + " / " + c.name +
+        const long double tol = quantized && type != quant::GGML_TYPE_Q8_0 ? magnitude * 1e-2L + 1e-30L : std::fabs(exact) * 1e-5L + 1e-30L;
+        require(err <= tol, std::string(tname) + (quantized ? " default dots" : " float dots") + " / " + c.name +
                             ": " + std::to_string((double)y[0]) +
                             " differs from " + std::to_string((double)exact));
         checked++;
@@ -129,11 +129,11 @@ int run_type(uint32_t type, const char* tname, bool eight) {
 int main() {
     try {
         int n = 0;
-        for (bool eight : {false, true}) {
-            n += run_type(quant::GGML_TYPE_Q8_0, "Q8_0", eight);
-            n += run_type(quant::GGML_TYPE_Q4_K, "Q4_K", eight);
-            n += run_type(quant::GGML_TYPE_Q5_K, "Q5_K", eight);
-            n += run_type(quant::GGML_TYPE_Q6_K, "Q6_K", eight);
+        for (bool quantized : {false, true}) {
+            n += run_type(quant::GGML_TYPE_Q8_0, "Q8_0", quantized);
+            n += run_type(quant::GGML_TYPE_Q4_K, "Q4_K", quantized);
+            n += run_type(quant::GGML_TYPE_Q5_K, "Q5_K", quantized);
+            n += run_type(quant::GGML_TYPE_Q6_K, "Q6_K", quantized);
         }
         printf("fused dot overflow: %d cases finite and exact\n", n);
         return 0;

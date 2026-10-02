@@ -16,6 +16,7 @@
 #include <charconv>
 #include <functional>
 #include <limits>
+#include <optional>
 
 #if defined(_WIN32)
 #define NOMINMAX
@@ -73,6 +74,7 @@ struct BenchNumbers {
 // exec_flag fills them, and a flag the command line does not give keeps the default here, which the help prints.
 struct ExecOptions {
     std::string device = "cpu";   // cpu, or vulkan:N when built with it; several, comma separated, split the model by layers over them
+    std::optional<backend::Dtype> dtype; // empty selects auto
     std::string layer_shares;     // with several devices, their proportions of the layers, comma separated; empty fits them to the devices' free memory
     int threads = 0;              // CPU workers, decode's where a command tells the phases apart; 0 selects automatically
     int threads_batch = 0;        // CPU workers for a prompt's batched passes; 0 takes the decode count
@@ -403,6 +405,14 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
     else if (f == "--cache-type-k") exec.cache_type_k = cache_type_arg(argc, argv, i, a);
     else if (f == "--cache-type-v") exec.cache_type_v = cache_type_arg(argc, argv, i, a);
     else if (f == "--load-mode") exec.load_mode = load_mode_arg(argc, argv, i, a);
+    else if (f == "--dtype") {
+        const std::string value = flag_value(argc, argv, i, a);
+        if (value == "auto") exec.dtype.reset();
+        else if (value == "f32") exec.dtype = backend::Dtype::f32;
+        else if (value == "f16") exec.dtype = backend::Dtype::f16;
+        else if (value == "bf16") exec.dtype = backend::Dtype::bf16;
+        else throw UsageError("--dtype: expected auto, f16, bf16 or f32");
+    }
     else return false;
     return true;
 }
@@ -439,6 +449,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     if (profiled) *profiled = backends.front().get();
     infer::PlacementRequest request;
     request.names = specs;
+    request.dtype = exec.dtype;
     request.shares = layer_shares(exec.layer_shares);
     request.cpu_moe = exec.cpu_moe;
     request.stream_from = (size_t)exec.moe_stream_from;
@@ -468,6 +479,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         shown = progress_bar();
     }
     auto loaded = infer::load_model(path, std::move(backends), request, options, shown, exec.load_mode);
+    std::cerr << loaded->dtype.describe();
     if (show_plan) std::cerr << loaded->plan << load_timing(loaded->times);
     if (threads > 0) loaded->model->set_threads(threads);
     return loaded;
@@ -550,6 +562,18 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
     return 0;
 }
 
+// Completed diagnostic work, for the HF checker: the selected policy and paths actually dispatched, never the capability catalog.
+void matrix_record(infer::LoadedModel& loaded) {
+    const auto devices = loaded.model->take_matrix_paths();
+    std::cerr << "matrix-paths: {\"dtype\":\"" << backend::dtype_name(loaded.dtype.effective) << "\",\"devices\":[";
+    for (size_t i = 0; i < devices.size(); ++i) {
+        std::cerr << (i ? "," : "") << "[";
+        for (size_t j = 0; j < devices[i].size(); ++j) std::cerr << (j ? "," : "") << jmini::quote(devices[i][j]);
+        std::cerr << "]";
+    }
+    std::cerr << "]}\n";
+}
+
 // `then_ids` appends exact generated IDs without re-tokenizing their text; `last` reports the final positions.
 // Positions go through the batched passes a prompt takes, or with `per_token` one at a time through step, the decode path a generated token takes.
 // These logits support the external correctness gate in docs/ROADMAP.md #8.
@@ -589,6 +613,7 @@ int cmd_logits(const std::string& model_path, const std::string& text, bool as_c
     }
     if (!last)
         for (const auto& t : top(logits.data())) printf("%u %.6f\n", t.id, logits[t.id]);
+    matrix_record(*loaded);
     return 0;
 }
 
@@ -615,6 +640,7 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     std::cout << "context size: " << result.context << "\n";
     std::cout << "mean NLL: " << mean_nll << "\n";
     std::cout << "perplexity: " << ppl << "\n";
+    matrix_record(*loaded);
     return 0;
 }
 
@@ -865,6 +891,7 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
         (void)b;   // main refuses --profile unless the device is a Vulkan one, which this build cannot open
 #endif
     }
+    matrix_record(*loaded);
     return 0;
 }
 
@@ -880,6 +907,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     server::Config c = cfg;
     // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
+    c.dtype = loaded->dtype;
     http::Listener listener(c.host, c.port);
     // A split's plan, what each device was given, so a lopsided placement shows in the log.
     std::cerr << loaded->plan;
@@ -938,6 +966,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --device D              " << defaults.device << " (default), or vulkan:N when built with Vulkan;\n"
             << "                          several, comma separated, split the model by layers\n"
             << "                          over them in that order, fitted to their free memory\n"
+            << "  --dtype T               Matmul inputs: auto (default), f16, bf16 or f32;\n"
+            << "                          emulation or F32 fallback is reported per device\n"
             << "  --layer-shares A,B      With several devices, their proportions of the layers\n"
             << "  --threads N             CPU workers; 0 takes the fewest of the hardware threads\n"
             << "                          and the CPUs the affinity and the CPU quota allow,\n"

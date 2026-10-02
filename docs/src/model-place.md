@@ -1,5 +1,7 @@
 # `src/model/place.hpp` - placing a model over its devices
 
+`resolve_dtype` chooses one automatic activation policy from the declared dtype and the common native policies of all participating backends. A declared F32 model takes the preferred common policy rather than pinning F32. The CPU and Vulkan backends prefer F16 then F32, so their common auto choice is F16, including for the current Qwen models that declare BF16. Emulated policies do not enter that choice. `place_model` applies the result to `ModelOptions` before construction and returns its `DtypePlan`; an added expert host is created once and included in the same resolution. The plan describes device implementations, not an executed-path witness. An optional `PlacementRequest::dtype` overrides auto. Each device keeps the requested dtype natively, emulates it when supported, or falls back to F32; one fallback does not change another device. `DtypePlan` records each effective dtype and `ModelOptions::device_dtypes` carries those choices into execution. Emulation and fallback produce a warning in the one CLI record.
+
 Where a model runs, in namespace `infer`: what it asks of each device's
 memory, counted from its plan, and the one place a model is placed over the
 backends its caller made. It reads the plan
@@ -16,7 +18,7 @@ backends its caller made. It reads the plan
   fitted to the devices, and `fit_checkpoints`, its checkpoint slots
   fitted too), and the placed model with its split's description and the
   KV tokens its fitted checkpoint slots took from the budget.
-- `settle(budgets, backends, names, settled)`: a fit the devices' free
+- `settle(budgets, backends, names, settled, level = false)`: a fit the devices' free
   memory falls short of, a split's placement or a server's KV budget, tried
   again every `kSettleWait` (250 ms), up to `kSettleReads` (120) reads, each
   time that memory rises, until `kSettleQuiet` (20) reads in a row, five
@@ -51,4 +53,4 @@ backends its caller made. It reads the plan
   roles of the layers whose block runs on the CPU (`ffn_on_host`, which
   `place_model` also places them by), since the device holds neither those
   weights nor their experts. It sets `ModelOptions::kv_backed`, so the
-  storages back the whole budget as the model is made.
+  storages back the whole budget as the model is made. Dtype resolution follows the fit and preserves that backing option; an added expert host is created once and used both to resolve its dtype and to construct the model.

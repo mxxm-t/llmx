@@ -1,5 +1,7 @@
 # `src/model/weights.hpp` - what a model is built from
 
+`ModelWeights::declared_dtype` carries source precision independently of tensor storage, defaulting to F32 for an unspecified in-memory model. The GGUF architecture registry assigns its documented architecture default when reading a file; the placement owner resolves its execution policy.
+
 The part of the architecture contract that the loader and a file's reader use as well, in namespace `infer`.
 
 - `TensorView`: one tensor as a reader hands it to the model: its `name`,

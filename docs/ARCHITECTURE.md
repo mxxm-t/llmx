@@ -2,7 +2,7 @@
 
 **llmx** is a ground-up, dependency-free LLM inference runtime. It reads and
 writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers
-on x86 CPU with AVX2/FMA/F16C or on a Vulkan device, with read-only MXFP4 additionally on the CPU, and
+on x86 CPU with AVX2/FMA/F16C or on a Vulkan device, including read-only MXFP4 where the device provides its required float preservation and double arithmetic, and
 is structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added without touching the core.
 
@@ -43,7 +43,7 @@ quant/         type ids and block sizes, QuantType registry;
                Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / MXFP4 kernels
    |
    v
-core/          fp16 <-> f32, minimal JSON parser, UTF-8, file hashes, available
+core/          fp16 and bf16 <-> f32, minimal JSON parser, UTF-8, file hashes, available
                host memory and owned pages, comma-separated lists, the CPUs a
                process may use
 ```
@@ -93,7 +93,7 @@ The model layer is one runtime that names no architecture and one module per arc
   on its host when its destination lacks a weight type or an op of its
   feed-forward part; the backend owns the type and op queries over its
   existing kernel support.
-- A module (`model/arch/qwen3.hpp` for qwen3 and qwen3moe, `model/arch/qwen35.hpp` for qwen35) reads its configuration from the file's metadata and declares a plan: its layers, each layer's kind, cache (KV, a recurrent state or none), tensor roles and the ops some backends lack, the arena slots, the residual width, the context length, the K and V geometry, the state's shape and the position tables.
+- A module (`model/arch/qwen3.hpp` for qwen3 and qwen3moe, `model/arch/qwen35.hpp` for qwen35 and qwen35moe) reads its configuration from the file's metadata and declares a plan: its layers, each layer's kind, cache (KV, a recurrent state or none), tensor roles and the ops some backends lack, the arena slots, the residual width, the context length, the K and V geometry, the state's shape and the position tables.
   The graph pieces more than one module runs are in `model/arch/blocks.hpp`.
   It supplies its math as backend ops, which the runtime calls once per layer part: `embed`, `mixer`, `ffn` and `head`.
 - The registry (`model/arch/registry.hpp`) maps each `general.architecture` value to its module and is the only place such a name is accepted.
@@ -112,7 +112,7 @@ A new architecture is added as [ADDING-AN-ARCHITECTURE](ADDING-AN-ARCHITECTURE.m
 | Directory       | Contents                                                              |
 |-----------------|-----------------------------------------------------------------------|
 | `src/` root     | `config.hpp` (build configuration: version and the `LLMX_HAS_BACKEND_*` switches) |
-| `core/`         | `fp16.hpp` (half <-> float), `json.hpp` (recursive-descent parser), `utf8.hpp` (UTF-8 encoding and validation), `sha.hpp` (Hub file hashes), `host_memory.hpp` (the host memory a process can still take, within its cgroup or job object memory limits, the page size, `HostPages`: owned page-aligned memory, and address space reserved and committed by range), `list.hpp` (comma-separated values), `cpus.hpp` (the CPUs a process may use, by its affinity and its CPU quota, and `automatic_threads`, the worker count a pool takes when given none), `cgroup.hpp` (the directories of the Linux cgroups over a process, where its limits are read) |
+| `core/`         | `fp16.hpp` (half <-> float), `bf16.hpp` (BF16 <-> float), `json.hpp` (recursive-descent parser), `utf8.hpp` (UTF-8 encoding and validation), `sha.hpp` (Hub file hashes), `host_memory.hpp` (the host memory a process can still take, within its cgroup or job object memory limits, the page size, `HostPages`: owned page-aligned memory, and address space reserved and committed by range), `list.hpp` (comma-separated values), `cpus.hpp` (the CPUs a process may use, by its affinity and its CPU quota, and `automatic_threads`, the worker count a pool takes when given none), `cgroup.hpp` (the directories of the Linux cgroups over a process, where its limits are read) |
 | `hub/`          | `manifest.hpp` (Hub metadata/quant selection), `transport.hpp` (curl HTTPS transport), `pull.hpp` (verified download cache) |
 | `quant/`        | `types.hpp` (the type ids and block sizes), `quant.hpp` (registry + block quants, `row_bytes`), `k_quants.hpp` (K-quants) |
 | `format/`       | `format.hpp` (`FileSpan`, where a tensor lies in its file, and `LoadProgress`), `file_reader.hpp` (a file read at given offsets by several threads, through the file cache or around it, which the loader streams weights through), `gguf.hpp` (GGUF v3: `read_gguf` reads the headers, `map_payload` maps the payload, `warm` reads it in), `mapped_file.hpp` (read-only mapping), `output_file.hpp` (checked staging and publication of conversion outputs), `raw_convert.hpp` (raw F32 tensors to and from GGUF, for `quantize` and `dequantize`) |
@@ -143,7 +143,7 @@ belongs to `format/`, so locally supplied and downloaded shards load identically
   backend, the only optional backend today; ROCm, CUDA and SYCL are planned and
   each gets its option with its implementation.
 - **Model architectures** are compiled in and selected from metadata by
-  `model/arch/registry.hpp`; today qwen3, qwen3moe and qwen35.
+  `model/arch/registry.hpp`; today qwen3, qwen3moe, qwen35 and qwen35moe.
 - **Split mode** is a runtime parameter: `--device` with several devices
   runs the model as a layer split over them (`MULTI-DEVICE.md`); the tensor
   split and node count are planned. See `ROADMAP.md`.

@@ -126,6 +126,11 @@ def check_usage_errors():
                                (["generate", model, "a", "--cpu-moe", "--n-cpu-moe", "2"], "generate", "--cpu-moe and --n-cpu-moe set the same thing"),
                                (["serve", model, "--n-cpu-moe", "1", "--cpu-moe"], "serve", "--n-cpu-moe and --cpu-moe set the same thing")):
         usage_error(args, page, reason)
+    for command in (["generate", model, "a"], ["chat", model], ["logits", model, "a"], ["perplexity", model, "a"],
+                    ["bench", "--model", model], ["serve", model]):
+        usage_error(command + ["--dtype", "bad"], command[0], "--dtype: expected auto, f16, bf16 or f32")
+        usage_error(command + ["--dtype"], command[0])
+        usage_error(command + ["--dtype", "auto", "--dtype", "f32"], command[0], "--dtype is given twice")
     # --ignore-eos is a switch, so a value written after it is refused rather than read as true or false: generate reads it as a second prompt and chat as a message.
     # The reasons are checked, since a parser without the switch would refuse these lines as an unknown flag.
     for args, page, reason in ((["generate", model, "a", "--ignore-eos", "true"], "generate", "a second prompt, 'true'"),
@@ -137,7 +142,7 @@ def check_usage_errors():
                ("-tb", ["-1"]), ("--ubatch", ["0", "-5"]), ("--topk", ["-1"]), ("--seed", ["-1", "0x10", "18446744073709551616"]),
                ("--temp", ["-0.5", "x", "nan", "inf", "1e39", "0x1p1", "1,5"]), ("--topp", ["1.5", "-0.1"]), ("--penalty", ["0.5"]),
                ("--n-cpu-moe", ["-2"]), ("--moe-stream-from", ["-1"]), ("--layer-shares", ["1,x", "-1", "1000000"]),
-               ("--cache-type-k", ["q8_0", "F16", ""]), ("-ctv", ["bf16"]), ("--load-mode", ["x", "Auto", "mmap", ""])]
+               ("--cache-type-k", ["q8_0", "F16", ""]), ("-ctv", ["bf16"]), ("--load-mode", ["x", "Auto", "mmap", ""]), ("--dtype", ["x", "F16", "half", ""])]
     for flag, values in numbers:
         for value in values:
             usage_error(["generate", model, "a", flag, value], "generate")
@@ -252,10 +257,28 @@ def check_help():
     return len(take) + len(switches), len(switches), len(refuse), len(twice)
 
 
+def check_dtype(model):
+    """Every model command accepts each dtype and writes exactly one request record, even when the policy falls back."""
+    commands = (["generate", model, "a", "-n", "1"], ["chat", model], ["logits", model, "a"],
+                ["perplexity", model, "abcd"], ["bench", "--model", model, "--p", "2", "--n", "1", "--r", "1"])
+    for requested, effective, how in (("f16", "f16", "native"), ("f32", "f32", "native"),
+                                     ("bf16", "bf16", "emulated"), ("auto", "f16", "native")):
+        for command in commands:
+            p = common.run_process(command + ["--device", "cpu", "--threads", "1", "--dtype", requested], input="", text=True, timeout=120)
+            records = [line for line in p.stderr.splitlines() if line.startswith("dtype:")]
+            expected = "dtype: %s -> %s (model declares bf16); cpu %s: %s" % (requested, effective, how, common.CPU_DTYPE_PATHS[effective])
+            if how != "native":
+                expected += " (warning: emulated or wider fallback)"
+            assert p.returncode == 0 and records == [expected], (command, requested, p.returncode, p.stderr)
+            if command[0] == "bench":
+                common.hf_execution(p.stderr)
+
+
 def run():
     with tempfile.TemporaryDirectory(prefix="llmx_cli_") as directory:
         model = f32.write_model(os.path.join(directory, "tiny-f32.gguf"), f32.tensors(False))
         check_device(model)
+        check_dtype(model)
         devices = check_expert_flags(model)
         check_info(directory)
     check_usage_errors()

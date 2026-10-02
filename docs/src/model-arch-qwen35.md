@@ -1,5 +1,7 @@
 # `src/model/arch/qwen35.hpp` - the qwen35 and qwen35moe architectures
 
+Attention, recurrent-input, output and shared-expert gate projections forward `Step::dtype`. The shared routed block keeps the router F32 and forwards the policy to the experts. The architecture does not implement dtype selection or conversion; its existing non-matrix F32 operations are unchanged.
+
 Qwen 3.5, 3.6 and 3.8, in namespace `infer::qwen35`: the dense `qwen35`
 architecture and its mixture-of-experts form `qwen35moe`, which the
 registry ([registry](model-arch-registry.md)) reaches through `open_dense`

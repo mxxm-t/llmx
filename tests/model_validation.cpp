@@ -723,10 +723,10 @@ struct TypeBackend : backend::CpuBackend {
     bool device = false;
     bool reads_in_place() const override { return !device; }
     void matmul_experts(std::initializer_list<backend::Projection> projections, backend::CSlice x, size_t nin,
-                        size_t rows, const Routing& routing, backend::RowRuns runs = {}) override {
+                        size_t rows, const Routing& routing, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         for (const auto& p : projections) require(supports_type(p.type), "a routed product reached an unsupported backend");
         ++routed_calls;
-        backend::CpuBackend::matmul_experts(projections, x, nin, rows, routing, runs);
+        backend::CpuBackend::matmul_experts(projections, x, nin, rows, routing, runs, dtype);
     }
     bool supports_type(uint32_t type) const override { return type != refused && quant::Registry::instance().get(type); }
     backend::BufferPtr adopt(const void* data, size_t bytes) override {

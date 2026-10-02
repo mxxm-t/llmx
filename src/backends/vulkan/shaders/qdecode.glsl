@@ -3,6 +3,30 @@
 #ifndef LLMX_QDECODE_GLSL
 #define LLMX_QDECODE_GLSL
 
+int mxfp4_value(uint code) {
+    int magnitude = int(code & 7u);
+    int value = (2 | (magnitude & 1)) << max((magnitude >> 1) - 1, 0);
+    value = magnitude < 2 ? magnitude : value;
+    return (code & 8u) != 0u ? -value : value;
+}
+float mxfp4_scale(uint e) {
+    return uintBitsToFloat(e <= 1u ? 0x00200000u << e : (e - 1u) << 23u);
+}
+// MXFP4's doubled E2M1 magnitudes scaled by 2^(e - 128), assembled as bits.
+// This keeps subnormals without float arithmetic; both zero codes give +0 and overflow gives infinity.
+float mxfp4_at(uint o, uint j) {
+    uint packed = QBYTE(o + 1u + (j & 15u));
+    uint code = j < 16u ? packed & 15u : packed >> 4u;
+    uint magnitude = code & 7u;
+    int exponent = int(QBYTE(o)) + int(magnitude >> 1u) - 1;
+    uint fraction = magnitude > 1u ? (magnitude & 1u) << 22u : 0u;
+    uint bits = (uint(exponent) << 23u) | fraction;
+    uint subnormal = (fraction | 0x00800000u) >> uint(max(1 - exponent, 0));
+    bits = exponent <= 0 ? subnormal : bits;
+    bits = exponent >= 255 ? 0x7f800000u : bits;
+    return uintBitsToFloat(magnitude == 0u ? 0u : bits | ((code & 8u) << 28u));
+}
+
 // Q4_0: (nibble - 8) * d as nibble * d - 8 * d, the same value under a finite scale except +0 for the -0 that nibble 8 gives under a negative scale, which the tile's sums never see.
 float q4_0_at(uint o, uint j, float d) {
     uint byte = QBYTE(o + 2u + (j & 15u));
@@ -69,5 +93,23 @@ float q5_k_at(uint o, uint j, float d, float dmin) {
     uint sc, mn;
     scale_min_k4(o + 4u, j / 32u, sc, mn);
     return d * float(sc) * float(q) - dmin * float(mn);
+}
+// One decoded value of a quantized matrix row, for F32-activation dots.
+float quantized_at(uint type, uint row, uint width, uint column) {
+    if (type == TYPE_MXFP4) {
+        uint o = (row * (width / MXFP4_BLOCK) + column / MXFP4_BLOCK) * MXFP4_BYTES;
+        return mxfp4_at(o, column % MXFP4_BLOCK);
+    }
+    uint block = block_values(type), j = column % block;
+    uint o = (row * (width / block) + column / block) * block_bytes(type);
+    uint scale = o + (type == TYPE_Q6_K ? 208u : 0u);
+    float d = half_at(QBYTE(scale), QBYTE(scale + 1u));
+    if (type == TYPE_Q8_0) return d * float(int(QBYTE(o + 2u + j) << 24u) >> 24);
+    if (type == TYPE_Q4_0) return q4_0_exact(o, j, d);
+    if (type == TYPE_Q6_K) return q6_k_at(o, j, d);
+    float m = half_at(QBYTE(o + 2u), QBYTE(o + 3u));
+    if (type == TYPE_Q4_1) return q4_1_at(o, j, d, m);
+    if (type == TYPE_Q4_K) return q4_k_at(o, j, d, m);
+    return q5_k_at(o, j, d, m);
 }
 #endif

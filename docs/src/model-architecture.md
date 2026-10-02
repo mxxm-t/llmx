@@ -1,5 +1,7 @@
 # `src/model/architecture.hpp` - the architecture contract
 
+`Step::dtype` carries the model's activation policy to its matrix calls; `HeadStep` inherits it. An architecture forwards it for ordinary projections and explicitly requests F32 for an operation whose arithmetic must remain F32, such as the Qwen3 MoE router. Row grouping itself carries no precision policy.
+
 What an architecture gives the runtime ([runtime](model-runtime.md)), in
 namespace `infer`: a plan, which is data the runtime resolves, validates,
 adopts, fits, places and streams from, and the math of each part of a pass,

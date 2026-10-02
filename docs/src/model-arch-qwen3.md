@@ -1,5 +1,7 @@
 # `src/model/arch/qwen3.hpp` - the Qwen3 architecture
 
+Every ordinary projection forwards `Step::dtype`, including routed experts and their residual add. The shared routed block explicitly requests F32 for the MoE router independently of the storage type of its weights. Selection and conversion remain backend responsibilities.
+
 Qwen3's architecture, in namespace `infer::qwen3`: dense Qwen3 and its
 mixture-of-experts form, `qwen3moe`, which the registry
 ([registry](model-arch-registry.md)) reaches through `open_dense` and

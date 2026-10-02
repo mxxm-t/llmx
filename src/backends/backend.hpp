@@ -67,6 +67,33 @@ struct CSlice {
     CSlice(const Slice& s) : buffer(s.buffer), offset(s.offset) {}
 };
 
+enum class Dtype { f32, f16, bf16 };
+enum class MatrixPath { f32, f16, bf16, block_int16 };
+
+// The dispatched matrix forms, accumulated without allocating; read after the work has completed.
+class MatrixPaths {
+public:
+    void record(MatrixPath path) { bits_ |= 1u << unsigned(path); }
+    std::vector<std::string> take() {
+        static const char* const names[] = {"f32", "f16", "bf16", "block-int16"};
+        std::vector<std::string> paths;
+        for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
+            if (bits_ & (1u << i)) paths.emplace_back(names[i]);
+        bits_ = 0;
+        return paths;
+    }
+private:
+    uint32_t bits_ = 0;
+};
+inline const char* dtype_name(Dtype dtype) {
+    switch (dtype) {
+        case Dtype::f32: return "f32";
+        case Dtype::f16: return "f16";
+        case Dtype::bf16: return "bf16";
+    }
+    return "unknown";
+}
+
 struct Projection {
     uint32_t type;
     CSlice data;
@@ -252,6 +279,15 @@ class Backend {
 public:
     virtual ~Backend() = default;
 
+    // Complete native policies, preferred first; emulation alone does not add a policy to auto's choices.
+    virtual std::vector<Dtype> native_dtypes() const { return {Dtype::f32}; }
+    virtual bool emulates_dtype(Dtype) const { return false; }
+    virtual std::string dtype_path(Dtype dtype) const { return dtype_name(dtype); }
+
+    // A model's stage swaps in its own evidence, then restores the caller's on every exit.
+    void swap_matrix_paths(MatrixPaths& paths) noexcept { std::swap(matrix_paths_, paths); }
+
+
     // Whether the implemented weight-reading ops support this storage type on this device, checked before a model adopts its weights.
     virtual bool supports_type(uint32_t type) const { (void)type; return false; }
     // Whether this backend runs `op`; one that does not refuses it by name when it is called anyway.
@@ -345,18 +381,18 @@ public:
     // Y[b*nout + o] = dot(row_o, X + b*nin) for all b in [0,nbatch) and o in [0,nout); X and Y are row-major with nbatch rows.
     // `type` is the quant type the registry is keyed by (the GGUF id), so every block format gets the batched path.
     virtual void matmul(uint32_t type, CSlice data, CSlice X,
-                        Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}) = 0;
+                        Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
 
     // The output head: its results are the logits a caller reads directly, so a backend may keep more precise activations for it than for the projections inside the layers.
     virtual void matmul_logits(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch,
-                               RowRuns runs = {}) {
-        matmul(type, data, X, Y, nin, nout, nbatch, runs);
+                               RowRuns runs = {}, Dtype dtype = Dtype::f16) {
+        matmul(type, data, X, Y, nin, nout, nbatch, runs, dtype);
     }
 
     // Y += W X, the projection whose output joins the residual stream: the model asks for the sum and each backend produces it its own way.
     // The CPU computes the product into scratch and adds; a device folds the add into the matmul's store, one dispatch fewer per projection.
     virtual void matmul_add(uint32_t type, CSlice data, CSlice X,
-                            Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}) = 0;
+                            Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
 
     // Gather `count` rows of an embedding table into `dst`, row-major, `nin` floats each.
     // This is an op rather than a model-side read because the table is a Buffer: a device backend holds it in its own memory and the model cannot address it.
@@ -367,10 +403,10 @@ public:
     // Independent projections of the same X; outputs must not overlap each other, X, or any weights.
     // Outputs are observable after wait(), sync() or read(), as for matmul.
     virtual void matmul_group(std::initializer_list<Projection> projections,
-                              CSlice X, size_t nin, size_t nbatch, RowRuns runs = {}) {
+                              CSlice X, size_t nin, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) {
         for (const auto& p : projections) {
             if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
-            matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch, runs);
+            matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch, runs, dtype);
         }
     }
 
@@ -463,12 +499,12 @@ public:
     // Routed projections of one X: entry e = r*k + j of projection p is out[e*rows_p + o] = dot(row o of expert ids[e], X row r), for up to three projections.
     // A projection's data holds its n_expert matrices of `rows` rows each back to back; `runs` are matmul's, over the `nrows` token rows.
     virtual void matmul_experts(std::initializer_list<Projection> projections, CSlice X, size_t nin,
-                                size_t nrows, const Routing& routing, RowRuns runs = {}) = 0;
+                                size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
 
     // The routed projection whose output joins the residual stream: Y row r += sum over j in order of weights[e] * dot(expert ids[e], X row e), e = r*k + j.
     // The weighted sum is formed first and then added, so a row's result does not depend on how its slots were computed.
     virtual void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout,
-                                    size_t nrows, const Routing& routing, RowRuns runs = {}) = 0;
+                                    size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
 
     // The ops of the qwen35 layers (docs/QWEN35.md, The forward pass), with norm_rope_partial above.
 
@@ -510,6 +546,11 @@ public:
     // dst may alias x only if identical; `runs` as for silu_mul.
     virtual void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim,
                              size_t gate_stride, size_t gate_head_stride, RowRuns runs = {}) = 0;
+protected:
+    void record_matrix_path(MatrixPath path) { matrix_paths_.record(path); }
+
+private:
+    MatrixPaths matrix_paths_;
 };
 
 using BackendPtr = std::shared_ptr<Backend>;

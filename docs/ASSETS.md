@@ -790,6 +790,7 @@ pre-checkpoint build (`ea1e727.dirty`). No runtime path changed in this consumer
 feature, and these correctness runs are not throughput measurements.
 
 `tests/reference_consumer.py` checks fixture tampering, token mismatch, malformed/nonfinite/duplicate/unsorted logits, damaged PPL counters/bounds and failed launches using the standard library.
+The independent depth-only top-one classification (`common.hf_depth_top1`) is held to its separately named margin and top-two membership, with boundary and malformed-row checks. Its reference policy and reporting contract are in [PRECISION](PRECISION.md); these do not change the short-model or NLL rules here.
 It also runs the consumer over simulated passing outputs and requires 41 checks, each NLL case scored in both modes.
 It was the eleventh ordinary suite component when it was added.
 The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` cover the six gate models, the four Qwen3-0.6B files and the two Qwen3.5-0.8B files, and `tools/fetch_test_models.py --all` every file `tests/data/fixtures.json` pins, never the 8B.
@@ -3957,7 +3958,7 @@ paired statistics and all 12 loaded-model fingerprint comparisons.
 
 ## MXFP4 CPU fixtures
 
-`tests/data/baseline_mxfp4.json` pins tiny dense tied/untied and routed raw-block models. `tools/gen_baseline.py mxfp4` independently decodes their packed weights with the spec decoder before pinned HF computes the logits and NLL. Packed and decoded hashes are checked by the consumer. The original-F32 CPU control keeps the 2e-5 logit bound; production MXFP4 uses the previously approved 2e-4 bound and the unchanged 1e-5 tiny-model NLL bound.
+`tests/data/baseline_mxfp4.json` pins tiny dense tied/untied and routed raw-block models. `baseline_mxfp4_prompt.json` keeps the same weights with a 128-token context and 39/40/41- and 63/64/65-token texts, covering both measured narrow GPU tile thresholds. The same generator command writes both files; the old short reference must reproduce unchanged. The prompt checks use microbatches 1/3/65 and NLL windows 40/64/128, with the same completed-path bounds. `tools/gen_baseline.py mxfp4` independently decodes their packed weights with the spec decoder before pinned HF computes the logits and NLL. Packed and decoded hashes are checked by the consumer. The original-F32 CPU control keeps the 2e-5 logit bound. Production MXFP4 logits and NLL use the completed execution paths and frozen dtype budgets in `tests/common.py`; all-F32 paths keep 2e-5 logits and 1e-5 NLL. The former 2e-4 weight-based allowance is historical. The server checks its first-token values by strict agreement with a witnessed CLI row independently checked against HF, then compares those logprobs with HF at twice the witnessed logit bound.
 
 `tests/baseline_mxfp4.py --model FILE` checks the pinned 0.6B writer output (SHA-256 `84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45`) first against file-exact HF, then against original-fp32 model quality: 5/6 top-1, at least 2/5 top-five overlap, mean-NLL differences at most 0.21 continuous and 0.35 windowed. These are the existing file-specific approvals, not relaxed runtime correctness: [approval record](benchmarks/mxfp4-approved-gates-20260927.json). Other models do not inherit them.
 

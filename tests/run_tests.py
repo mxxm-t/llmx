@@ -50,6 +50,7 @@ def main():
     parser.add_argument("--require-device-types", default=None, metavar="NAMES",
                         help="fail instead of skipping unsupported weight types named here, comma separated, e.g. Q8_0,Q4_K; does not require a component to exercise them")
     parser.add_argument("--device", default=None, help="run every command that takes --device on this backend, e.g. vulkan:0")
+    parser.add_argument("--dtype", choices=["auto", "f32", "f16", "bf16"], help="request this activation dtype on every model command")
     parser.add_argument("--layer-shares", default=None,
                         help="with several devices in --device, their proportions of the layers, e.g. 1,1")
     parser.add_argument("--cache-type", default=None, choices=["f32", "f16"],
@@ -73,6 +74,8 @@ def main():
     common.exe_path()
     if args.device:
         os.environ["LLMX_DEVICE"] = args.device
+    if args.dtype:
+        os.environ["LLMX_DTYPE"] = args.dtype
     if args.cache_type:
         os.environ["LLMX_CACHE_TYPE"] = args.cache_type
     if args.layer_shares:

@@ -23,6 +23,12 @@ int dot_pairs(uvec2 w, uvec2 x, int acc) {
     return acc + dotEXT(unpack16(int(w.x)), unpack16(int(x.x))) + dotEXT(unpack16(int(w.y)), unpack16(int(x.y)));
 }
 #include "q.glsl"
+#ifdef LLMX_Q8MX
+#extension GL_ARB_gpu_shader_fp64 : require
+#extension GL_EXT_spirv_intrinsics : require
+spirv_execution_mode(capabilities = [4466], 4461, 64);
+#endif
+#include "float_controls.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
 // Up to three projections of one X and one type per dispatch; workgroups start0, start1 and start2 on begin each projection's row tiles. kper is the quant blocks a workgroup sums, a multiple of two when the call is split; blocks of a step past its part read as zero.
@@ -33,7 +39,11 @@ layout(push_constant) uniform P {
     uint nout0; uint start0; uint nout1; uint start1; uint nout2; uint start2;
     uint per; uint order0; uint xcols;
 } p;
+#ifdef LLMX_Q8MX
+layout(set = 0, binding = 0) buffer Y { uint ybits[]; } ys[3];
+#else
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
+#endif
 layout(set = 0, binding = 1) readonly buffer W32 { uint w32[]; } ws[3];
 // The twin bound twice: as words for the pairs and as pairs of floats for the per-block scale table after them.
 layout(set = 0, binding = 2) readonly buffer XQ { uint xq[]; };
@@ -42,6 +52,37 @@ layout(set = 0, binding = 3) readonly buffer XS { vec2 xs[]; };
 // A routed call is never split.
 layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
 uint pi = 0u;   // this workgroup's projection, uniform across it
+#ifdef LLMX_Q8MX
+// MXFP4 uses exact float-scale copies and retains packed weights for range repair.
+layout(set = 0, binding = 5) readonly buffer WM { uint w[]; } wm[3];
+#define QBYTE(i) ((wm[pi].w[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
+#endif
+#ifdef LLMX_Q8MX
+#include "qdecode.glsl"
+// Range repair uses exact decoded weights and the same reconstructed 16-bit inputs as the integer dot.
+double mxfp4_wide_q(uint row, uint col, uint begin, uint end) {
+    double sum = 0.0;
+    for (uint k = begin; k < end; ++k) {
+        uint o = (row * (p.nin / MXFP4_BLOCK) + k / MXFP4_BLOCK) * MXFP4_BYTES;
+        uint word = xq[col * (p.nin / 2u) + (k / 4u) * 2u + (k & 1u)];
+        int q = int(int16_t(word >> ((k & 2u) * 8u)));
+        double dx = double(xs[p.xcols * p.nin / 4u + col * (p.nin / 32u) + k / 32u].x);
+        sum += double(mxfp4_at(o, k % MXFP4_BLOCK)) * (double(q) * dx);
+    }
+    return sum;
+}
+// With a weight scale d in [2^-24, 2^15] and |sum| < 2^24, an activation scale c in [2^-102, 2^89) keeps d * c and its product with the sum inside the normal floats; zero is exact.
+// A row's block with d outside that range, and a column's with c outside it, take the wide sum.
+bool wide_weight(float d) {
+    uint a = floatBitsToUint(d) & 0x7fffffffu, e = a >> 23u;
+    return a != 0u && (e < 103u || e > 142u);   // exponent fields of 2^-24 and 2^15; a zero scale is a block past the part
+}
+bool wide_scale(float c) {
+    uint a = floatBitsToUint(c) & 0x7fffffffu, e = a >> 23u;
+    return a != 0u && (e < 25u || e >= 216u);   // exponent fields of 2^-102 and 2^89
+}
+#endif
+
 
 #define MROWS (TILE_ROWS / 16u)
 #define WPR (256u / TILE_ROWS)   // threads that stage one row's 8 words
@@ -62,6 +103,12 @@ shared float xsc[4u * 64u];
 // Per row and block: the scale of each half and the minimum it subtracts; only Q6_K scales its halves apart.
 shared vec4 wsc[STEP * TILE_ROWS];
 shared vec2 xsc[STEP * 64u];     // per column and block: the activation scale and scale times integer sum
+#endif
+
+#if !defined(LLMX_Q8) && !defined(LLMX_Q6)
+float tile_term(float scale, float minimum, vec2 activation, int dot) {
+    return scale * activation.x * float(dot) - minimum * activation.y;
+}
 #endif
 
 // scale_min_k4 (qdecode.glsl) over the twelve packed sub-scale bytes held in three words, without a branch.
@@ -144,6 +191,9 @@ void main() {
     }
     float acc[MROWS][4];
     for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) acc[i][j] = 0.0;
+#ifdef LLMX_Q8MX
+    uint wide = 0u;
+#endif
     for (uint k0 = kbeg; k0 < kend; k0 += STEP) {
         // Every global load of a step goes out before the first is waited for.
         // The compiler waits for a load under a branch it cannot prove uniform inside that branch, and moves a load down into the block that first uses it.
@@ -208,6 +258,24 @@ void main() {
             uint sb = sw >> (8u * (si & 3u));
             float s0 = float(int(sb << 24u) >> 24), s1 = float(int((sb >> 8u) << 24u) >> 24);
             store_scales(wrow, wseg, oks, vec4(d * s0, d * s1, 0.0, 0.0));
+            store_x(k0, kend, xin, xcol, xseg, xv, xf);
+        }
+#elif defined(LLMX_Q8MX)
+        {
+            // An MXFP4 copy's blocks (copy_mxfp4.comp), nine aligned words: the float scale, then the 32 codes a byte each, so a thread loads its words and the scale word.
+            uint qv[STEP][WW + 1u];
+            bool okw[STEP];
+            for (uint s = 0u; s < STEP; ++s) {
+                uint kb = k0 + s;
+                okw[s] = row < nout && kb < kend;
+                uint ob = okw[s] ? (wr * nblk + kb) * 9u : 0u;
+                for (uint m = 0u; m < WW; ++m) qv[s][m] = ws[pi].w32[ob + 1u + wseg * WW + m];
+                qv[s][WW] = ws[pi].w32[ob];
+            }
+            for (uint s = 0u; s < STEP; ++s)
+                for (uint m = 0u; m < WW; ++m) wq[s * 8u + wseg * WW + m][wrow] = weight16(okw[s] ? qv[s][m] : 0u);
+            if (wseg == 0u)
+                for (uint s = 0u; s < STEP; ++s) wsc[s * TILE_ROWS + wrow] = okw[s] ? uintBitsToFloat(qv[s][WW]) : 0.0;
             store_x(k0, kend, xin, xcol, xseg, xv, xf);
         }
 #elif defined(LLMX_Q8)
@@ -326,6 +394,12 @@ void main() {
         vec2 c0 = xsc[s * 64u + tc * 4u], c1 = xsc[s * 64u + tc * 4u + 1u];
         vec2 c2 = xsc[s * 64u + tc * 4u + 2u], c3 = xsc[s * 64u + tc * 4u + 3u];
 #endif
+#ifdef LLMX_Q8MX
+        if (wide_scale(c0)) wide |= 1u;
+        if (wide_scale(c1)) wide |= 2u;
+        if (wide_scale(c2)) wide |= 4u;
+        if (wide_scale(c3)) wide |= 8u;
+#endif
         int t[MROWS][4];
         for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) t[i][j] = 0;
 #ifdef LLMX_Q8
@@ -347,6 +421,9 @@ void main() {
             // The scales' product, then its product with the sum, each rounded before the add.
             // The general build rounds them so too, since its minimum term, zero for Q8_0, stands between the last product and the add.
             float d = wsc[s * TILE_ROWS + tr * MROWS + i];
+#ifdef LLMX_Q8MX
+            if (wide_weight(d)) wide |= 1u << (4u + i);
+#endif
             precise float p0 = d * c0 * float(t[i][0]), p1 = d * c1 * float(t[i][1]);
             precise float p2 = d * c2 * float(t[i][2]), p3 = d * c3 * float(t[i][3]);
             acc[i][0] += p0;
@@ -355,10 +432,10 @@ void main() {
             acc[i][3] += p3;
 #else
             vec4 ws = wsc[s * TILE_ROWS + tr * MROWS + i];
-            acc[i][0] += ws.x * c0.x * float(t[i][0]) - ws.z * c0.y;
-            acc[i][1] += ws.x * c1.x * float(t[i][1]) - ws.z * c1.y;
-            acc[i][2] += ws.x * c2.x * float(t[i][2]) - ws.z * c2.y;
-            acc[i][3] += ws.x * c3.x * float(t[i][3]) - ws.z * c3.y;
+            acc[i][0] += tile_term(ws.x, ws.z, c0, t[i][0]);
+            acc[i][1] += tile_term(ws.x, ws.z, c1, t[i][1]);
+            acc[i][2] += tile_term(ws.x, ws.z, c2, t[i][2]);
+            acc[i][3] += tile_term(ws.x, ws.z, c3, t[i][3]);
 #endif
         }
 #else
@@ -404,8 +481,23 @@ void main() {
                 col = cv ? tab[p.order0 + first + tc * 4u + j] : 0u;
             }
             if (cv) {
+#ifdef LLMX_Q8MX
+                bool repair = ((wide >> j) & 1u) != 0u || ((wide >> (4u + i)) & 1u) != 0u || isnan(acc[i][j]) || isinf(acc[i][j]);
+                double value = repair ? mxfp4_wide_q(row, col, kbeg * 32u, kend * 32u) : double(acc[i][j]);
+                uint index = yo + col * nout + row;
+                if (parts > 1u) {
+                    uvec2 words = unpackDouble2x32(value);
+                    ys[pi].ybits[2u * index] = words.x;
+                    ys[pi].ybits[2u * index + 1u] = words.y;
+                } else {
+                    float result = float(value);
+                    if (p.accum != 0u) result += uintBitsToFloat(ys[pi].ybits[index]);
+                    ys[pi].ybits[index] = floatBitsToUint(result);
+                }
+#else
                 if (p.accum != 0u) ys[pi].y[yo + col * nout + row] += acc[i][j];
                 else ys[pi].y[yo + col * nout + row] = acc[i][j];
+#endif
             }
         }
     }

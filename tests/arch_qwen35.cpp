@@ -344,12 +344,12 @@ struct Lacking : backend::CpuBackend {
 struct FailingHead : backend::CpuBackend {
     bool fail = false;
     void matmul_logits(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t nbatch,
-                       backend::RowRuns runs = {}) override {
+                       backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         if (fail) {
             fail = false;
             throw std::runtime_error("injected");
         }
-        backend::CpuBackend::matmul_logits(type, data, x, y, nin, nout, nbatch, runs);
+        backend::CpuBackend::matmul_logits(type, data, x, y, nin, nout, nbatch, runs, dtype);
     }
 };
 
@@ -779,12 +779,14 @@ void marks() {
 }
 
 // A prompt in slices of 1, 3 and 16, and its decode, give the bytes of the prompt in one pass; two sequences in one pass give each one's bytes alone.
-void slices(const gguf::GGUFModel& m) {
+void slices(const gguf::GGUFModel& m, backend::Dtype dtype = backend::Dtype::f32) {
     const infer::ModelWeights w = infer::gguf_weights(m);
     const std::vector<uint32_t> ids = {7, 3, 11, 30, 2, 19, 5, 8, 13, 21, 1, 17, 4};
     std::vector<std::vector<float>> runs;
     for (int ubatch : {16, 1, 3}) {
-        infer::Model model(w);
+        infer::ModelOptions options;
+        options.dtype = dtype;
+        infer::Model model(w, backend::make_cpu_backend(), options);
         model.set_ubatch(ubatch);
         std::vector<float> out = model.prefill(ids);
         for (uint32_t t : {9u, 14u, 27u}) {
@@ -796,6 +798,7 @@ void slices(const gguf::GGUFModel& m) {
     require(same(runs[1], runs[0]) && same(runs[2], runs[0]), "a prompt's slices or its decode differ from one pass");
 
     infer::ModelOptions options;
+    options.dtype = dtype;
     options.state_slots = 2;
     options.kv_tokens = 2 * 128;
     infer::Model model(w, backend::make_cpu_backend(), options);
@@ -815,9 +818,10 @@ void slices(const gguf::GGUFModel& m) {
 
 // Two CPU backends, the first stage holding only a linear-attention layer, which keeps a state and no KV, give one CPU's bytes: a prompt, decode steps and two sequences in one pass.
 // With `ffn_apart` every layer's feed-forward part runs on the second backend and its mixer on the first, as experts on the CPU beside a device run.
-void split_with_a_stage_of_states(const gguf::GGUFModel& m, bool ffn_apart = false) {
+void split_with_a_stage_of_states(const gguf::GGUFModel& m, bool ffn_apart = false, backend::Dtype dtype = backend::Dtype::f32) {
     const infer::ModelWeights w = infer::gguf_weights(m);
     infer::ModelOptions options;
+    options.dtype = dtype;
     options.state_slots = 2;
     options.kv_tokens = 2 * 128;
     infer::Model one(w, backend::make_cpu_backend(), options);
@@ -860,6 +864,25 @@ void split_with_a_stage_of_states(const gguf::GGUFModel& m, bool ffn_apart = fal
     two.reset(d);
 }
 
+// In this fixture only the router projects E to X and only the shared gate E to 1.
+// Hold their policy separately: a whole-model witness cannot show one projection silently using the default.
+struct GatePolicy : backend::CpuBackend {
+    backend::Dtype selected;
+    size_t routers = 0, shared = 0;
+    explicit GatePolicy(backend::Dtype dtype) : selected(dtype) { set_threads(1); }
+    void matmul(uint32_t type, backend::CSlice weights, backend::CSlice x, backend::Slice y,
+                size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
+        if (nin == E && nout == X) {
+            require(dtype == backend::Dtype::f32, "router did not keep F32 inputs");
+            ++routers;
+        } else if (nin == E && nout == 1) {
+            require(dtype == selected, "shared expert gate lost the selected dtype");
+            ++shared;
+        }
+        backend::CpuBackend::matmul(type, weights, x, y, nin, nout, rows, runs, dtype);
+    }
+};
+
 // qwen35moe: its refused keys, a routed layer's plan, and a prompt, its slices, two sequences and splits giving one pass's and one backend's bytes.
 void experts() {
     auto read = [](const gguf::GGUFModel& m) { infer::gguf_weights(m); };
@@ -901,9 +924,19 @@ void experts() {
         }
     }
     require(p.slots.size() == 14 && p.slots[9] == std::max(K * FE, FS) && p.slots[10] == X && p.slots[11] == K && p.slots[13] == 1, "a routed model's slots");
-    slices(m);
-    split_with_a_stage_of_states(m);
-    split_with_a_stage_of_states(m, true);
+    require(infer::gguf_weights(m).declared_dtype == backend::Dtype::bf16, "routed architecture dtype default");
+    for (auto dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16}) {
+        auto backend = std::make_shared<GatePolicy>(dtype);
+        infer::ModelOptions options;
+        options.dtype = dtype;
+        infer::Model model(infer::gguf_weights(m), backend, options);
+        model.prefill({7, 3, 11});
+        model.step(9);
+        require(backend->routers == 8 && backend->shared == 8, "gate policy check missed a layer or phase");
+        slices(m, dtype);
+        split_with_a_stage_of_states(m, false, dtype);
+        split_with_a_stage_of_states(m, true, dtype);
+    }
 }
 
 } // namespace

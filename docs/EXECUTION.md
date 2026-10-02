@@ -376,8 +376,10 @@ a small released member of the family when one exists.
 - **`adopt` alignment (carried from DEVICE-EXECUTION).** GGUF tensor
   offsets are float-aligned. Whether a device backend re-aligns on adopt is
   the Vulkan backend's decision and is recorded on its page.
-- **Quant dispatch on device (carried).** `quant::Registry` names the types;
-  each backend owns its per-type kernel table keyed by the same ids.
+- **Quant dispatch on device (carried).** `quant/types.hpp` names storage
+  layouts independently of execution support; `quant::Registry` contains
+  implemented C++ decoders. Each backend owns its kernels keyed by those
+  storage IDs and refuses types it cannot execute.
 - **Block size per device.** The CPU block is 128 tokens by measurement. A
   device backend chooses its own, and `Sequence` holding one table per
   device is what allows them to differ. Settled with #7: a shared prefix

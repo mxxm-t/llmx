@@ -235,15 +235,19 @@ public:
         };
         device_index(place_.embed_device);
         device_index(place_.output_device);
+        std::vector<bool> used(weights.tensors.size(), false);
+        auto type_name = [](uint32_t id) {
+            const quant::StorageType* type = quant::storage_type(id);
+            return type ? std::string(type->name) + " (" + std::to_string(id) + ")" : std::to_string(id);
+        };
         auto accepts = [&](const Role& role, size_t device) {
             return !role.tensor || backends[device]->supports_type(weights.tensors[*role.tensor].type);
         };
         auto require_type = [&](const Role& role, size_t device, const std::string& part) {
+            if (role.tensor) used[*role.tensor] = true;
             if (!accepts(role, device)) {
                 const TensorView& t = weights.tensors[*role.tensor];
-                const quant::QuantType* q = quant::Registry::instance().get(t.type);
-                const std::string type = q ? std::string(q->name) + " (" + std::to_string(t.type) + ")" : std::to_string(t.type);
-                throw std::runtime_error("inference: " + part + " needs tensor " + t.name + " of type " + type +
+                throw std::runtime_error("inference: " + part + " needs tensor " + t.name + " of type " + type_name(t.type) +
                                          ", which the backend of device " + std::to_string(device) + " does not support");
             }
         };
@@ -271,6 +275,12 @@ public:
                 if (!backends[a]->implements(u.op)) streamed = false;
             }
             if (streamed) stream_device_[l] = (int)a;
+        }
+        // Metadata-only file access admits known storage layouts; model construction still refuses an unreadable unused tensor.
+        for (size_t i = 0; i < weights.tensors.size(); ++i) {
+            const TensorView& t = weights.tensors[i];
+            if (!used[i] && std::none_of(backends.begin(), backends.end(), [&](const backend::BackendPtr& b) { return b->supports_type(t.type); }))
+                throw std::runtime_error("inference: unused tensor " + t.name + " of type " + type_name(t.type) + " is not supported by any model backend");
         }
         devices_.reserve(backends.size());
         for (auto& b : backends) {

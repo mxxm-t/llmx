@@ -1,5 +1,21 @@
 # llmx - Development Status
 
+## Storage metadata independent of execution support (2026-10-02, branch refactor/storage-types-20261002)
+
+- **Goal:** complete the storage-description part of the quantization plan's step 0 before adding F16/BF16 weight kernels. A known GGUF storage type can be sized and inspected without a decoder; inference and conversion still require their own implemented support.
+- **Done:** `quant/types.hpp` owns the names, block layouts and checked row sizing of 35 active GGML storage types. Unknown and retired IDs are refused with the tensor's name. The decoder registry reads that table and still implements the same eight types. GGUF metadata and CLI inspection no longer need a decoder. Model construction still refuses a weight its assigned backend cannot run and an unused tensor no model backend supports, before adoption; raw conversion checks every decoder before mapping or allocating decoded payloads.
+- **Done:** the layouts were checked against declarations in mx-llama.cpp `eefc4e7321c869496146697d63362f073941aed6` (`ggml.h`, `ggml.c` and `ggml-common.h`), without copying implementations. The native GGUF test covers 345 independent binary cases and compares all eight type IDs and eleven declared block constants in `q.glsl` with the C++ owner. CLI fixtures inspect and tokenize Q2_K files while inference and conversion refuse the unsupported tensor and preserve existing output files. Shader expressions and inference arithmetic are unchanged.
+- **Checkpoint checks:** fresh MSVC CPU build; GGUF validation, backend errors and model validation pass, 3/3 (the last includes 484 checks and 385 recorded refusals). The `cli`, `roundtrip`, `f32`, `docs` and `dead-code` components pass. Tiny F32 HF maximum logit error is 0.00000072 at the 2e-5 bound; maximum NLL error is 0.00000290 at 1e-5. Qwen3-0.6B Q8_0 gives the published `8af97e88` executable's three complete top-32 logit outputs and 32 greedy IDs and text on the CPU. This functional comparison uses different build configurations and is not timing evidence.
+- **Evidence:** local `.tmp-storage-types-run-20261002/` holds the clean compile log and commands under `final-focused/`, and pinned-model/binary hashes, commands and stdout under `identity/`; the native log is the branch build's `Testing/Temporary/LastTest.log`. The first greedy harness compared timing lines too and reported failure; its preserved generated text already matched, and the corrected check uses the suite's parser and explicit token IDs. A sandbox filesystem refusal in the initial CLI run was followed by the passing run with normal filesystem access; neither attempt is presented as a runtime regression.
+- **Markdown review:** all 85 tracked Markdown paths were checked for the changed storage, decoder and backend ownership claims. The affected live pages and this plan are reconciled; unchanged, unaffected material carries the preceding main review. This is a change-focused review, not a new full-source audit. Preexisting dtype release-status corrections are separated onto a docs-only follow-up, as the branch rule requires.
+- **Completed-branch correctness:** rebased cleanly onto main `46f60b64`. At `8923c376`, the clean Windows CPU build passes 38 native tests and all 25 Python components, requiring the pinned models and tools. The Linux Vulkan build passes 42 native tests and all 25 MI50 components without a reported skip. Six pinned models on both CPU and MI50 give main's exact full-F32 batched, per-token and 64-token greedy captures: 12 cases and 36 binary comparisons. All 99 compiled shader modules are byte-identical between the two arms. The Linux records are under `/zpool1/llmx-xdev-validation/storage-types-20261002/`; the Windows records remain in the local evidence directory above.
+- **Timing assessment:** all eight initial calls and six CPU control calls are retained, with activity monitoring. Qwen3-0.6B Q8_0 CPU prefill is below main in all four paired comparisons: -1.11, -3.81, -3.60 and -1.23 percent. GPU prefill's initial paired median is +0.02 percent, GPU decode -1.76 percent. Full emitted-code inspection shows the candidate and info-only control have identical benchmark, model and backend function bytes, yet candidate/control prefill differs by -6.01 and -0.52 percent and decode by +6.21 and +8.04 percent. Accept the timing screen at this limited repeatability: it cannot distinguish the approximately 2.4 percent main comparison from run/initial-state variation. This establishes no hot-code layout band, exact nonregression or speed gain; all negative measurements remain in the report.
+- **Gate evidence:** [the report](benchmarks/storage-types-20261002.md) and its companion JSON preserve every timing call, source and binary identities, independent correctness results, activity observations and diagnostic limitations.
+- **Landing:** this feature lands by fast-forward after hosted CI passes at its exact head and main is verified unchanged. The local and rig correctness results above are complete; the final record changes only documentation from the measured candidate. F16/BF16 weight execution is still separate, and the dispatch/kernel-class parts of quantization step 0 remain open.
+- **Gotchas:** metadata recognition does not claim a decoder, a writer or backend support. F16/BF16 weight execution remains a separate feature with the quantization plan's exact widened-F32 identity requirement. This branch does not mark all of step 0 complete: its older dispatch-table and kernel-class requirements must be reconciled with the already landed precision, load-time refusal and exact-resume owners. No arithmetic or shader expression changes are intended here.
+- **Integration refresh:** rebased onto the independently gated split-hold main `58a696ce`. Code merged automatically; this status file retained both new entries. The source/test/build patch is unchanged. Fresh builds at `ae20c5d6` pass 38/38 Windows native tests and 42/42 Linux/MI50 native tests; all 99 shaders match the prior candidate. The final amendment changes only this record and its evidence. Exact-head hosted CI remains required before fast-forward; the completed numerical and timing campaigns above retain their original source identities, as the conflict-free code rebase rule permits.
+
+
 ## Split decode at one card's speed (2026-10-02, branch perf/split-hold, lands by fast-forward)
 
 - **Goal:** one request on a layer split decoding at about one card's speed at automatic clocks, phase 2's decode target (`docs/MULTI-DEVICE.md`), which the MTP comparison showed missed: llmx 12 to 18 percent below the reference on two MI50s with drafts off while level with it on one.
@@ -22,6 +38,7 @@
   - Rebased onto main `46f60b64` without a conflict, so the builds, CTest, `docs`, `dead-code` and the hosted run ran again at the head.
   - The other developer's review found three lifecycle defects, each checked against the code and fixed: the test's last copy freed its buffers before it retired, a hold setup failing part way left its resources and a retry overwrote them, and a model enabled holds for good before its construction could still fail. The fixes reran CTest on an MI50 and the Radeon VII, the split timing and the hosted run. The watchdog's release is held by the clocks above, not by a test, since every submission also releases a hold.
 - **Left:** nothing.
+
 
 ## Activation dtype across CPU and Vulkan (2026-10-02, lands by fast-forward)
 
@@ -1709,7 +1726,7 @@ This separate merge-record change reviews STATUS against the completed landing e
 - **Left:** nothing; the branch merged on the merge gates above, its Radeon VII outputs and its speed on both cards among them.
 - **Gotchas:**
   - A branch that still names `gguf::GGML_TYPE_*`, `gguf::Q*_BLOCK` or `gguf::Q*_TYPESIZE`, or includes `quant/convert.hpp`, needs the same renames when it rebases onto this: `sed 's/gguf::\(GGML_TYPE_\|Q[0-9]_[0-9K]_\(BLOCK\|TYPESIZE\)\)/quant::\1/g'` for the ids, and `format/raw_convert.hpp` with `format::` for the conversion.
-  - The quantization plan's step 0 (`refactor/storage-types`, below) puts its table over every type id in `core/storage.hpp`; the ids and sizes now sit in `quant/types.hpp`, which the format layer already reads, so whether that step grows its table there instead is that plan's to settle, and ROADMAP #1 and the loader's follow-ups point here.
+  - At this checkpoint the quantization plan's step 0 (`refactor/storage-types`, below) still proposed `core/storage.hpp`. The storage-metadata branch of 2026-10-02 resolves that owner in `quant/types.hpp`, which the format layer already reads, without adding a second table.
 
 ## Usage errors for what a command would ignore or overwrite (2026-09-26, branch fix/cli-usage-refusals, merged at `a45782c`)
 
@@ -3725,8 +3742,8 @@ This separate merge-record change reviews STATUS against the completed landing e
     DeepSeek 4.x follows Qwen 3.x.
 - **Design:**
   - **One owner per rule:**
-    - **Storage table.** `core/storage.hpp` holds one table over every GGML type id: name, values per block and bytes per block, with F32 at a block size of 1.
-      - `gguf::data_size`, the registry, `quant::row_bytes` and the safetensors reader all read it.
+    - **Storage table.** `quant/types.hpp` holds `storage_type`: name, values per block and bytes per block for each known active GGML type id, with F32 at a block size of 1; removed and unknown IDs have no entry.
+      - `TensorInfo::data_size` and the decoder registry read it; checked `quant::row_bytes` lives beside it. A future safetensors reader uses this owner too.
       - Support is a separate predicate for each backend, not part of the table.
       - A CTest asserts that `q.glsl`'s type ids and sizes equal the table's.
     - **Decoders.** Each type has one C++ decoder in `quant/` and one GLSL decoder in `qdecode.glsl`, with its sizes in `q.glsl`.
@@ -3863,9 +3880,10 @@ This separate merge-record change reviews STATUS against the completed landing e
     - **Docs:** a `docs/src` page for each new source file, the USAGE and VULKAN type lists, and ASSETS rows with sha256.
       Local requantizations are marked as local and not reproducible.
   0. **`refactor/storage-types`** (medium, no behaviour change except `info`, `tokenize` and `detokenize` now opening files that hold unsupported types):
+     - **Scope update, 2026-10-02:** the separate storage-metadata branch at the top of this page implements the table, checked sizing, unknown-ID and unsupported execution/conversion refusals, and `q.glsl` declaration checks. It does not mark all of step 0 complete. Reconcile the existing precision, placement and exact-resume owners before implementing the remaining dispatch, mixed-expert refusal, kernel-list/class and gate-helper work below.
      - **What changes:**
-       - The storage table in `core/storage.hpp` over every GGML id.
-         `data_size`, the registry and `quant::row_bytes` read it, with F32's block size 1 there.
+       - The storage table and checked `row_bytes` in `quant/types.hpp` over known active GGML ids.
+         `data_size` and the decoder registry read it, with F32's block size 1 there.
          The native HF branch rebases onto it.
        - An id outside the table is refused at open, naming the id and the tensor.
        - The CPU refuses at construction a tensor whose type it cannot run.

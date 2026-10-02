@@ -26,8 +26,8 @@ Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS
 | MXFP4 | Supported | Supported on devices with the required float preservation and double arithmetic | No |
 | F16, BF16, IQ4_NL, IQ4_XS, Q3_K, Q2_K | Planned | Planned | No |
 
-A file loads when every tensor type in it is supported on its device; a device never falls back to the CPU on its own.
-Activation precision is selected with `--dtype auto|f16|bf16|f32`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices. This does not add F16 or BF16 weight-file support; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.
+Inference requires each used tensor's type to be supported by its assigned backend; a device never falls back to the CPU on its own. `info`, `tokenize` and `detokenize` also accept known storage layouts without execution support, including F16 and BF16. Recognizing a layout does not add a decoder or kernel; [storage metadata](docs/src/quant-types.md) lists that boundary.
+Activation precision is selected with `--dtype auto|f16|bf16|f32`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices. This does not add F16 or BF16 weight execution; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.
 The KV cache is stored as `f16` (default) or `f32` on every backend, independently of activation precision.
 
 ## File formats

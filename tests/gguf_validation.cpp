@@ -1,8 +1,10 @@
 #include <filesystem>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <new>
 #include <numeric>
+#include <sstream>
 #include "format/gguf.hpp"
 
 using Bytes = std::vector<uint8_t>;
@@ -123,10 +125,49 @@ static Bytes nested(size_t depth, bool empty_leaf = false) {
     return out;
 }
 
+// Check the declarations the shaders share without changing or duplicating their decoding expressions.
+static void shader_storage(const std::string& path) {
+    std::ifstream input(path);
+    require(bool(input), "cannot open shader storage constants: " + path);
+    std::map<std::string, uint64_t> constants;
+    for (std::string line; std::getline(input, line);) {
+        std::istringstream words(line);
+        std::string decl, type, name, equals, value;
+        if (!(words >> decl >> type >> name) || decl != "const" || type != "uint") continue;
+        require(bool(words >> equals >> value) && equals == "=", "malformed shader constant " + name);
+        size_t used = 0;
+        const uint64_t number = std::stoull(value, &used);
+        require(value.substr(used) == "u;", "shader constant is not an unsigned literal: " + name);
+        require(constants.emplace(name, number).second, "duplicate shader constant " + name);
+    }
+    require(input.eof(), "could not read shader storage constants");
+    size_t types = 0, sizes = 0;
+    for (const auto& constant : constants) {
+        const std::string& name = constant.first;
+        if (name.compare(0, 5, "TYPE_") == 0) {
+            require(constant.second <= std::numeric_limits<uint32_t>::max(), "shader type id overflows: " + name);
+            const auto* storage = quant::storage_type(uint32_t(constant.second));
+            require(storage && name.substr(5) == storage->name, "shader type differs from storage metadata: " + name);
+            ++types;
+        } else if (name.size() > 6 && (name.compare(name.size() - 6, 6, "_BLOCK") == 0 ||
+                                     name.compare(name.size() - 6, 6, "_BYTES") == 0)) {
+            const auto id = constants.find("TYPE_" + name.substr(0, name.size() - 6));
+            require(id != constants.end() && id->second <= std::numeric_limits<uint32_t>::max(), "shader block has no type: " + name);
+            const auto* storage = quant::storage_type(uint32_t(id->second));
+            require(storage && constant.second == (name.back() == 'K' ? storage->block_size : storage->type_size),
+                    "shader block differs from storage metadata: " + name);
+            ++sizes;
+        }
+    }
+    require(types != 0 && sizes != 0, "shader storage declarations were not checked");
+    std::cout << "shader storage: " << types << " ids, " << sizes << " block declarations agree\n";
+}
+
 int main(int argc, char** argv) {
-    if (argc != 2) return 2;
+    if (argc != 3) return 2;
     const std::string path = argv[1];
     try {
+        shader_storage(argv[2]);
         const uint64_t maximum = std::numeric_limits<uint64_t>::max();
         for (uint32_t version : {0u, 1u, 2u, 4u, std::numeric_limits<uint32_t>::max()}) {
             auto bytes = header(0, 0, version);
@@ -211,12 +252,25 @@ int main(int argc, char** argv) {
         rejected(path, "Q8 byte count overflow across rows", one({32, (uint64_t(1) << 59) - 1}, 8, 0, 0), "overflow");
         rejected(path, "large valid size absent payload", one({uint64_t(1) << 40}, 0, 0, 0));
         rejected(path, "unknown tensor type", one({32}, 99, 0, 128));
-        // A type llmx does not read and a row that ends inside a block are refused as such, even when the element count also overflows.
+        // An unknown storage type and a row that ends inside a block are refused as such, even when the element count also overflows.
         rejected(path, "unknown tensor type with an overflowing element count", one({maximum, 2}, 99, 0, 0), "tensor type");
         rejected(path, "Q8 partial row with an overflowing element count", one({maximum, 2}, 8, 0, 0), "whole");
+        rejected(path, "Q2_K partial row with an overflowing element count", one({maximum, 2}, 10, 0, 0), "whole");
+        rejected(path, "F16 byte count overflow", one({uint64_t(1) << 63}, 1, 0, 0), "overflow");
+        rejected(path, "Q8_K byte count overflow across rows", one({256, maximum / 256}, 15, 0, 0), "overflow");
+        for (uint32_t id : {4u, 5u, 31u, 32u, 33u, 36u, 37u, 38u, 43u}) {
+            rejected(path, "removed or unknown storage " + std::to_string(id), one({32}, id, 0, 128), "tensor type");
+            rejected(path, "removed or unknown empty storage " + std::to_string(id), one({maximum, 2, 0}, id, 0, 0), "tensor type");
+        }
+        // Independent GGUF layouts, including types whose metadata can be read but whose weights llmx cannot execute.
         struct Type { uint32_t id; uint64_t block; size_t bytes; };
-        const Type types[] = {{0, 1, 4}, {2, 32, 18}, {3, 32, 20}, {8, 32, 34},
-                              {12, 256, 144}, {13, 256, 176}, {14, 256, 210}, {39, 32, 17}};
+        const Type types[] = {{0, 1, 4}, {1, 1, 2}, {2, 32, 18}, {3, 32, 20}, {6, 32, 22}, {7, 32, 24},
+                              {8, 32, 34}, {9, 32, 36}, {10, 256, 84}, {11, 256, 110}, {12, 256, 144},
+                              {13, 256, 176}, {14, 256, 210}, {15, 256, 292}, {16, 256, 66}, {17, 256, 74},
+                              {18, 256, 98}, {19, 256, 50}, {20, 32, 18}, {21, 256, 110}, {22, 256, 82},
+                              {23, 256, 136}, {24, 1, 1}, {25, 1, 2}, {26, 1, 4}, {27, 1, 8}, {28, 1, 8},
+                              {29, 256, 56}, {30, 1, 2}, {34, 256, 54}, {35, 256, 66}, {39, 32, 17},
+                              {40, 64, 36}, {41, 128, 18}, {42, 64, 18}};
         for (const auto& type : types) {
             const auto name = "type " + std::to_string(type.id);
             accepted(path, name, one({type.block, 2}, type.id, 0, 2 * type.bytes), {Bytes(2 * type.bytes, 23)});

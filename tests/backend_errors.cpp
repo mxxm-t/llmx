@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <new>
 #include <stdexcept>
@@ -103,6 +104,32 @@ static void check_contracts(backend::CpuBackend& cpu) {
         require(rejected, label);
         ++refused;
     };
+    for (uint32_t id = 0; id <= 43; ++id) {
+        const auto* storage = quant::storage_type(id);
+        const auto* kernel = quant::Registry::instance().get(id);
+        const bool implemented = id == 0 || id == 2 || id == 3 || id == 8 || id == 12 || id == 13 || id == 14 || id == 39;
+        require(bool(kernel) == implemented && cpu.supports_type(id) == implemented,
+                "storage metadata changed execution support");
+        if (kernel) {
+            require(storage && std::strcmp(kernel->name, storage->name) == 0 && kernel->block_size == storage->block_size &&
+                    kernel->type_size == storage->type_size, "decoder metadata differs from storage metadata");
+        }
+    }
+    auto refusal = [&](uint32_t id, size_t width, size_t rows, const char* expected) {
+        std::string error;
+        try { quant::row_bytes(id, width, rows); }
+        catch (const std::runtime_error& e) { error = e.what(); }
+        require(error == expected, "row sizing refusal text or ordering changed");
+        ++refused;
+    };
+    refusal(9999, std::numeric_limits<size_t>::max(), 2, "quant: unsupported tensor type 9999");
+    refusal(4, std::numeric_limits<size_t>::max(), 0, "quant: unsupported tensor type 4");
+    refusal(quant::GGML_TYPE_Q8_0, 48, 0, "quant: a row of 48 values is not whole Q8_0 blocks");
+    refusal(10, 128, std::numeric_limits<size_t>::max(), "quant: a row of 128 values is not whole Q2_K blocks");
+    refusal(1, size_t(1) << 63, 1, "quant: row size overflows");
+    require(quant::row_bytes(1, 37) == 74 && quant::row_bytes(30, 37, 2) == 148 && quant::row_bytes(10, 512, 3) == 504 &&
+            quant::row_bytes(1, std::numeric_limits<size_t>::max(), 0) == 0,
+            "known unsupported storage was not sized by its layout");
     require(quant::row_bytes(quant::GGML_TYPE_F32, 37) == 148 && quant::row_bytes(quant::GGML_TYPE_Q8_0, 64) == 68 &&
             quant::row_bytes(quant::GGML_TYPE_Q6_K, 512) == 420, "row bytes differ from the block layout");
     rejects([] { quant::row_bytes(quant::GGML_TYPE_Q4_K, 128); }, "a row inside one K-quant block was sized");

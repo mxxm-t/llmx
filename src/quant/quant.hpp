@@ -3,9 +3,6 @@
 #include <cstdint>
 #include <cstddef>
 #include <cmath>
-#include <limits>
-#include <stdexcept>
-#include <string>
 #include <unordered_map>
 
 #include "core/fp16.hpp"
@@ -13,7 +10,7 @@
 #include "quant/mxfp4.hpp"
 #include "quant/types.hpp"
 
-// Block quantization: the Q8_0 and Q4_0 quantizers, the Q8_0, Q4_0 and Q4_1 dequantizers, and the registry pairing each type llmx reads (types.hpp) with its block size and kernels (the K-quants' are in k_quants.hpp).
+// Block quantization: the Q8_0 and Q4_0 quantizers, the Q8_0, Q4_0 and Q4_1 dequantizers, and the registry pairing implemented types with their storage metadata (types.hpp) and kernels (the K-quants' are in k_quants.hpp).
 // A Q8_0 block holds 32 float values as a 2-byte f16 scale and 32 int8 values (Q8_0_TYPESIZE bytes per block).
 // The kernels serve the quantize command (float -> block) and the dequantize command and CPU inference path (block -> float).
 
@@ -123,12 +120,8 @@ inline void dequantize_row_q4_1(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
-// A quantized storage type: block size, bytes per block, and block-wise (de)quantize routines.
-// quant::Registry holds one for each type llmx reads, so consumers look a type up by its GGML id.
-struct QuantType {
-    const char* name = "?";
-    size_t block_size = 0;   // values per block
-    size_t type_size  = 0;   // bytes per block
+// An implemented type: its storage metadata and block-wise (de)quantize routines; F32 is copied directly.
+struct QuantType : StorageType {
     void (*quantize)(const float*, uint8_t*, size_t) = nullptr;
     void (*dequantize)(const uint8_t*, float*, size_t) = nullptr;
 };
@@ -149,36 +142,24 @@ public:
 private:
     Registry() : types_{
         { GGML_TYPE_Q8_0,
-          { "Q8_0", Q8_0_BLOCK, Q8_0_TYPESIZE, quantize_row_q8_0, dequantize_row_q8_0 } },
+          { *storage_type(GGML_TYPE_Q8_0), quantize_row_q8_0, dequantize_row_q8_0 } },
         { GGML_TYPE_Q4_0,
-          { "Q4_0", Q4_0_BLOCK, Q4_0_TYPESIZE, quantize_row_q4_0, dequantize_row_q4_0 } },
+          { *storage_type(GGML_TYPE_Q4_0), quantize_row_q4_0, dequantize_row_q4_0 } },
         // Q4_1 and the K-quants are read-only: llmx loads files that carry them, including a few Q6_K tensors inside an otherwise Q4_0 file, but produces none, so a quantizer would be unused code; the tests pack Q4_1 with their own (tests/quantizers.hpp).
         { GGML_TYPE_Q4_1,
-          { "Q4_1", Q4_1_BLOCK, Q4_1_TYPESIZE, nullptr, dequantize_row_q4_1 } },
+          { *storage_type(GGML_TYPE_Q4_1), nullptr, dequantize_row_q4_1 } },
         { GGML_TYPE_Q4_K,
-          { "Q4_K", Q4_K_BLOCK, Q4_K_TYPESIZE, nullptr, dequantize_row_q4_K } },
+          { *storage_type(GGML_TYPE_Q4_K), nullptr, dequantize_row_q4_K } },
         { GGML_TYPE_Q5_K,
-          { "Q5_K", Q5_K_BLOCK, Q5_K_TYPESIZE, nullptr, dequantize_row_q5_K } },
+          { *storage_type(GGML_TYPE_Q5_K), nullptr, dequantize_row_q5_K } },
         { GGML_TYPE_Q6_K,
-          { "Q6_K", Q6_K_BLOCK, Q6_K_TYPESIZE, nullptr, dequantize_row_q6_K } },
+          { *storage_type(GGML_TYPE_Q6_K), nullptr, dequantize_row_q6_K } },
         { GGML_TYPE_MXFP4,
-          { "MXFP4", MXFP4_BLOCK, MXFP4_TYPESIZE, nullptr, dequantize_row_mxfp4 } },
+          { *storage_type(GGML_TYPE_MXFP4), nullptr, dequantize_row_mxfp4 } },
         { GGML_TYPE_F32,
-          { "F32", 1, 4, nullptr, nullptr } },
+          { *storage_type(GGML_TYPE_F32), nullptr, nullptr } },
     } {}
     const std::unordered_map<uint32_t, QuantType> types_;
 };
-
-// Bytes in `rows` rows of `nin` values of a registered type.
-// Throws for a type the registry does not name, a row that ends inside a block, or a size that would wrap; zero rows take zero bytes, however wide a row.
-inline size_t row_bytes(uint32_t type, size_t nin, size_t rows = 1) {
-    const QuantType* qt = Registry::instance().get(type);
-    if (!qt) throw std::runtime_error("quant: unsupported tensor type " + std::to_string(type));
-    if (nin % qt->block_size)
-        throw std::runtime_error("quant: a row of " + std::to_string(nin) + " values is not whole " + qt->name + " blocks");
-    const size_t blocks = nin / qt->block_size;
-    if (rows && blocks > std::numeric_limits<size_t>::max() / rows / qt->type_size) throw std::runtime_error("quant: row size overflows");
-    return blocks * rows * qt->type_size;
-}
 
 } // namespace quant

@@ -296,9 +296,9 @@ int cmd_dequantize(const std::string& in_path, const std::string& out_json,
     return 0;
 }
 
-// Type names come from the quant registry, so a new quant type shows up in `info` without touching the CLI.
+// File type names come from storage metadata, including types whose kernels are not implemented.
 const char* type_name(uint32_t t) {
-    const quant::QuantType* qt = quant::Registry::instance().get(t);
+    const quant::StorageType* qt = quant::storage_type(t);
     return qt ? qt->name : "?";
 }
 

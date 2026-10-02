@@ -39,7 +39,7 @@ format/        GGUF reader/writer (headers read, payload mapped and read
                built from ModelWeights, the CLI still consumes GGUFModel
    |
    v
-quant/         type ids and block sizes, QuantType registry;
+quant/         storage metadata and checked row sizes, decoder registry;
                Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / MXFP4 kernels
    |
    v
@@ -75,11 +75,14 @@ model asks the loader for each weight's storage, and the commands and tools
 turn flags into a request. Code that nothing reaches any more is removed in
 the change that leaves it unreached.
 
-The quant layer names the storage types and sizes their rows
-(`quant/types.hpp`, `quant::row_bytes`), and the format layer reads both: a
-GGUF tensor's bytes are `row_bytes` of its rows, and converting raw F32
-tensors to and from GGUF (`format/raw_convert.hpp`) opens files in the
-format layer and reaches the blocks through the registry. Dense F32 and
+The quant layer names storage layouts and sizes their rows in one owner,
+`quant/types.hpp` (`storage_type`, `row_bytes`). The format layer uses that
+metadata to validate GGUF tensor spans without requiring a decoder. The
+decoder registry in `quant/quant.hpp` takes its sizes from the same table;
+it contains only implemented types. Raw F32 conversion
+(`format/raw_convert.hpp`) opens files in the format layer and reaches the
+blocks through that registry, checking every decoder before mapping a GGUF
+payload or allocating decoded buffers. Dense F32 and
 supported block-quant matrices share the CPU float dot kernels; F32 rows
 need no dequantization buffer.
 
@@ -88,7 +91,7 @@ need no dequantization buffer.
 The model layer is one runtime that names no architecture and one module per architecture.
 - The runtime (`model/runtime.hpp`, `model/history.hpp` and `model/place.hpp`) owns sequences and the operations on their histories (`model/history.hpp`), passes, stages, the arena, the crossings between devices, placement and the fit, experts on the host and streamed to a device, and the cache storages.
   It indexes a file's tensors by name once and finds each role's tensor there, reads the plan a module declares, and calls the module's parts.
-  Before adopting weights it checks each assigned backend's type support and the ops the plan names.
+  Before adopting weights it checks each assigned backend's type support and the ops the plan names. A tensor no role uses is refused if none of the model's backends supports its type; metadata-only file access remains independent of these execution checks.
   It decides each host layer's streaming eligibility once, keeping a layer
   on its host when its destination lacks a weight type or an op of its
   feed-forward part; the backend owns the type and op queries over its
@@ -114,7 +117,7 @@ A new architecture is added as [ADDING-AN-ARCHITECTURE](ADDING-AN-ARCHITECTURE.m
 | `src/` root     | `config.hpp` (build configuration: version and the `LLMX_HAS_BACKEND_*` switches) |
 | `core/`         | `fp16.hpp` (half <-> float), `bf16.hpp` (BF16 <-> float), `json.hpp` (recursive-descent parser), `utf8.hpp` (UTF-8 encoding and validation), `sha.hpp` (Hub file hashes), `host_memory.hpp` (the host memory a process can still take, within its cgroup or job object memory limits, the page size, `HostPages`: owned page-aligned memory, and address space reserved and committed by range), `list.hpp` (comma-separated values), `cpus.hpp` (the CPUs a process may use, by its affinity and its CPU quota, and `automatic_threads`, the worker count a pool takes when given none), `cgroup.hpp` (the directories of the Linux cgroups over a process, where its limits are read) |
 | `hub/`          | `manifest.hpp` (Hub metadata/quant selection), `transport.hpp` (curl HTTPS transport), `pull.hpp` (verified download cache) |
-| `quant/`        | `types.hpp` (the type ids and block sizes), `quant.hpp` (registry + block quants, `row_bytes`), `k_quants.hpp` (K-quants) |
+| `quant/`        | `types.hpp` (storage metadata and checked `row_bytes`), `quant.hpp` (decoder registry + block quants), `k_quants.hpp` (K-quants) |
 | `format/`       | `format.hpp` (`FileSpan`, where a tensor lies in its file, and `LoadProgress`), `file_reader.hpp` (a file read at given offsets by several threads, through the file cache or around it, which the loader streams weights through), `gguf.hpp` (GGUF v3: `read_gguf` reads the headers, `map_payload` maps the payload, `warm` reads it in), `mapped_file.hpp` (read-only mapping), `output_file.hpp` (checked staging and publication of conversion outputs), `raw_convert.hpp` (raw F32 tensors to and from GGUF, for `quantize` and `dequantize`) |
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer)     |
 | `model/`        | `weights.hpp` (the format-neutral weights a model is built from, `ModelWeights`, and the resolved `Weight`), `architecture.hpp` (the contract an architecture implements: its plan and its parts), `runtime.hpp` (the runtime that runs a plan and its parts: sequences, passes, stages, the arena, crossings, `Placement` of each tensor role), `history.hpp` (the operations on a sequence's history, members of the runtime's `Model`: fork, reset, retract, mark, keep and checkpoint), `place.hpp` (the memory footprint from the plan, and `place_model`, which places a model over its backends), `arch/registry.hpp` (the architectures by `general.architecture`, and `gguf_weights`), `arch/metadata.hpp` (typed metadata reads), `arch/blocks.hpp` (the graph pieces modules share), `arch/qwen3.hpp` (Qwen3 and qwen3moe), `arch/qwen35.hpp` (Qwen 3.5, 3.6 and 3.8), `kv_cache.hpp` (logical KV: block pool, sequence; the recurrent state's slots, `SlotPool` and `StateSlot`), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral) |

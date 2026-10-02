@@ -319,18 +319,20 @@ Models are kept in the LM Studio model directory:
 C:\Users\Marko\.lmstudio\models\
 ```
 
-llmx reads **Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32** tensors (see
-`docs/src/format-gguf.md`). Dense Qwen3 Q4_K_M and Q5_K_M mixtures are supported;
+llmx decodes **Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / MXFP4 / F32** tensors (see
+`docs/src/quant-quant.md`). GGUF metadata inspection recognizes 35 storage layouts
+independently of these decoders; this does not make the other types executable.
+Dense Qwen3 Q4_K_M and Q5_K_M mixtures are supported;
 support for their tensor encodings does not add new architectures. Dense F32
 embeddings, matrices and norms are supported, including tied output weights.
 
 | Model                                            | Format | Status                       |
 |--------------------------------------------------|--------|------------------------------|
 | `Qwen\Qwen3-8B-GGUF\Qwen3-8B-Q8_0.gguf` (8.11 GiB)| Q8_0   | **Usable** - optional independent HF checks pass on Windows and Linux |
-| `Qwen\Qwen2-0.5B-Instruct-GGUF\...fp16.gguf`     | FP16   | Not yet supported            |
+| `Qwen\Qwen2-0.5B-Instruct-GGUF\...fp16.gguf`     | FP16   | Storage metadata recognized; inference not supported |
 | `lmstudio-community\...\Qwen3-30B...Q4_K_M.gguf` | Q4_K_M | `qwen3moe` implemented; this local file needs its own validation |
 | `lmstudio-community\...\Qwen3-Coder...Q4_K_M.gguf`| Q4_K_M | `qwen3moe` implemented; this local file needs its own validation |
-| `unsloth\...\Qwen3.5-4B-BF16.gguf`               | BF16   | Not yet supported            |
+| `unsloth\...\Qwen3.5-4B-BF16.gguf`               | BF16   | Storage metadata recognized; inference not supported |
 | `unsloth\...\mmproj-F32.gguf`                    | F32    | Multimodal projector (not a main model) |
 
 These assets exercise both tensor-format coverage and architecture support

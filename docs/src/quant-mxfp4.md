@@ -18,7 +18,8 @@ The native `mxfp4` test checks every exponent and code in every position against
 an independent sign/exponent/mantissa oracle, including output guards and unaligned input.
 It also checks every scale against a mathematical power of two and the decode scale's acceptance and exact product over all weight exponents and representative F32 exponent, mantissa and sign boundaries (524,288 combinations).
 
-The registry offers this decoder to GGUF reads, raw conversion, embedding and CPU prefill.
+The registry offers this decoder to raw conversion, embedding and CPU prefill.
+GGUF metadata reads use the layout in `quant/types.hpp` without a decoder.
 Under F16 execution, CPU MXFP4 decode uses the packed dots below; dense and routed prompts retain F32 inputs. BF16 rounds matrix inputs before float products, while F32 uses the original inputs.
 The Vulkan backend supports MXFP4 only when the device supplies F64 arithmetic, F32 denormal and signed-zero/infinity/NaN preservation, and F64 signed-zero/infinity/NaN preservation. It checks those capabilities before adopting weights. Dense and routed products keep the format's exact decoding and the selected activation policy; their dispatch and range repair live in [backends-vulkan](backends-vulkan.md).
 The CPU implementation in `backends/cpu/q8_dots.hpp` uses an AVX2

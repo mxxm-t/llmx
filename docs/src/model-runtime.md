@@ -236,6 +236,9 @@ delegated to a `backend::Backend`.
     role's type must be supported by its assigned backend (`supports_type`),
     including a tied head placed apart from the embedding. A refusal names
     the pass role or layer part, tensor, type and device index.
+    A tensor no role uses is also refused when none of the model's backends
+    supports its type. Metadata-only file access remains independent of this
+    execution check.
     A routed layer's streaming eligibility is computed here once: its host
     reads in place, its distinct mixer device copies weights, and that
     destination supports every copied or windowed role. If a streamed type

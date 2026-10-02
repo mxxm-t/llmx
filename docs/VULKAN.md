@@ -165,13 +165,14 @@ Their reference inputs use the same rounding; independent HF gates measure the r
 - **Dequantization** is one GLSL include (`qdecode.glsl`) with a per-value
   decoder for each block type but Q8_0, which `embed` uses.
   The float tile takes its Q4_0 and Q4_1 decoders and the K-quant sub-scale reader, and decodes Q8_0 and the K-quant runs itself; the row kernels decode words in place. Types are
-  keyed by the same ids `quant::Registry` uses; the registry says which
-  types exist, the shader include says how the device decodes them.
+  keyed by the storage IDs in `quant/types.hpp`; `quant::Registry` names
+  implemented C++ decoders, and the shader include supplies device decoders.
+  Recognized storage metadata alone does not enable a Vulkan kernel.
   Q4_0 has a second decoder for `embed`, `q4_0_exact`, which computes the CPU's `(nibble - 8) * d` and sets a zero's sign as bits: `embed` matches the CPU bit for bit under every finite scale, and a driver need not keep a zero's sign.
   Every other type's `embed` decode takes a zero's sign from the driver's arithmetic, which the drivers tested keep today; of backend-vulkan's exact embed checks only the Q6_K rows decode a -0, so for Q8_0, Q4_1, Q4_K and Q5_K nothing checks it.
   A model holding a type without a kernel is refused before any weight is adopted, naming the tensor and its type (`Backend::supports_type`).
   A direct matmul, routed product or embed of such a type is refused before it records a dispatch, naming the type by its numeric id.
-  Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, every type the CPU reads.
+  Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, plus MXFP4 on devices with its required properties. Other known storage layouts remain metadata-only.
 - **matmul, decode** (`nbatch` small): each row takes a cluster of lanes, the subgroup's width or fewer for a short row and at most `k45_row_lanes` in the Q4_K/Q5_K integer-dot families, each lane accumulating a stride of blocks and the cluster meeting in an xor-shuffle reduction at the end. Rows
   are the outer loop and the batch the inner, as on the CPU, so a weight
   block is read once per chunk of a build's columns, eight, or on the MI50

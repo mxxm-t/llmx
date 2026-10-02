@@ -17,10 +17,10 @@
 #include "format/mapped_file.hpp"
 #include "format/output_file.hpp"
 #include "core/host_memory.hpp"
-#include "quant/quant.hpp"
+#include "quant/types.hpp"
 
 // GGUF file format reader/writer, implemented from scratch.
-// Implements GGUF v3 and the tensor types quant::Registry registers (quant/quant.hpp).
+// Implements GGUF v3 over the storage layouts described by quant/types.hpp, independently of execution support.
 // File layout:
 //   header: magic(u32) version(u32) tensor_count(u64) metadata_kv_count(u64)
 //   metadata KVs: key(string) type(u32) value
@@ -84,9 +84,11 @@ struct TensorInfo {
         return n;
     }
     // The tensor's bytes: rows of ne[0] values, or one value for rank zero, sized by the quant layer.
-    // A tensor of no values holds no bytes however wide its rows, but its type must still be one llmx reads and its rows whole blocks.
+    // A tensor of no values holds no bytes however wide its rows, but its storage type must still be known and its rows whole blocks.
     // The type and the row are checked, as zero rows, before the elements are counted, so a file refused for either is refused for it even when its dimensions also overflow.
     uint64_t data_size() const {
+        if (!quant::storage_type(type))
+            throw std::runtime_error("GGUF: tensor " + name + " has unsupported tensor type " + std::to_string(type));
         const uint64_t width = ne.empty() ? 1 : ne[0];
         quant::row_bytes(type, width, 0);
         const uint64_t n = n_elements();

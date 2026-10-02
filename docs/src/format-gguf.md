@@ -1,9 +1,9 @@
 # `src/format/gguf.hpp` - GGUF v3 reader/writer
 
-From-scratch implementation of the GGUF file format (v3) for `Q8_0`, `Q4_0`,
-`Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `MXFP4` and `F32` tensors, in namespace `gguf`. Those are not an
-arbitrary set: real GGUF files mix types. The pinned Q4_0 fixture requires
-Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
+From-scratch implementation of GGUF v3, in namespace `gguf`, over the storage
+layouts described by `quant/types.hpp`. Reading metadata and validating byte
+spans do not require an implemented decoder. Model execution and raw conversion
+check their own type support; unknown and retired storage IDs are refused.
 
 - Constants: `MAGIC` (`'GGUF'`), `VERSION=3`, `ALIGNMENT=32`. The type ids a
   tensor's `type` holds and their block sizes are the quant layer's
@@ -11,8 +11,9 @@ Q4_0, Q4_1, Q6_K and F32; other mixtures use the other supported types.
 - `MetaValue`: typed metadata value (all GGUF value types incl. arrays).
 - `TensorInfo`: name, dims (`ne[0]` fastest), type, offset; `n_elements()` and
   `data_size()` use checked arithmetic. `data_size()` sizes the tensor's rows
-  of `ne[0]` values through `quant::row_bytes`, so a type the registry names
-  is read with no change here and any other type is refused. Quantized rows
+  of `ne[0]` values through `quant::row_bytes`, so a known storage layout
+  is read with no change here. An unknown or retired type is refused with
+  its ID and tensor name. Quantized rows
   must contain a whole number of blocks, even when the total element count
   would be divisible; a tensor with a zero dimension holds no bytes, however
   wide its rows. The type and the row are checked before the element count,

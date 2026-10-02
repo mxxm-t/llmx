@@ -159,12 +159,16 @@ across power loss.
 
 ## `llmx dequantize <in.gguf> <out.json> <out.bin>`
 
-Read a GGUF containing any supported tensor types and write the tensors as
+Read a GGUF containing F32 or types with an implemented decoder and write the tensors as
 raw float32. Produces tensor descriptions in `out.json` plus the concatenated
 float32 data in `out.bin`. JSON output escapes path and tensor-name quotes,
 backslashes and control characters, preserving UTF-8 tensor names. Reusing this
 output with `quantize` requires the shape rules above: GGUF can also hold scalar,
 zero-sized or F32 tensors whose rows do not contain whole quantization blocks.
+The decoder types are F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and MXFP4.
+A known storage layout without a decoder, including F16 and BF16, is refused
+by tensor name before mapping the payload or allocating decoded buffers;
+existing output files remain unchanged.
 
 Both raw outputs are prepared and closed successfully before either is published.
 Their paths must name different files, each absent or regular. Publication replaces
@@ -183,7 +187,9 @@ Inspect a GGUF file without running inference. Prints:
 The reader validates field lengths, tensor sizes, alignment, file extents
 and unique tensor names from the file's headers alone: `info`, `tokenize` and
 `detokenize` never read or map the tensor data, and do not hold the file
-while they run. Successful `info` output does not establish valid
+while they run. These commands accept all 35 known storage layouts, including
+types without inference kernels; unknown and removed type IDs are refused.
+Successful `info` output does not establish decoder or backend support, valid
 model configuration, required tensor shapes/names or metadata string encoding.
 
 ## `llmx tokenize <in.gguf> "<text>"`
@@ -389,7 +395,9 @@ instead for a prompt of at least `N` tokens, its experts copied there
 once per pass of up to `--ubatch` tokens, 512 by default. A layer whose streamed weights include a
 type the device cannot execute stays on the CPU; eligible layers still stream.
 A weight type unsupported by its assigned home backend is refused at load,
-before weight adoption or model buffer allocation. The copy is a fixed cost per pass,
+before weight adoption or model buffer allocation. A tensor no model role uses
+is also refused if none of the selected backends supports its type.
+The copy is a fixed cost per pass,
 about 0.9 s for twelve Q8_0 layers over the MI50's link and 3 s for thirty
 over the Radeon VII's, so it pays only for long prompts: on the MI50 with
 twelve Q8_0 layers on the CPU, 512 tokens prefill at 411 tok/s streamed

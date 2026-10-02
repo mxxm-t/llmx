@@ -38,11 +38,11 @@ def hf_name(name):
     raise ValueError("GGUF tensor %s has no HF Qwen3 parameter" % name)
 
 
-def tensors(tied, seed=12345):
+def tensors(tied, seed=12345, config=CONFIG):
     state = seed
     result = []
-    width, ff, hd = CONFIG["embedding_length"], CONFIG["feed_forward_length"], CONFIG["attention.key_length"]
-    q, kv = CONFIG["attention.head_count"] * hd, CONFIG["attention.head_count_kv"] * hd
+    width, ff, hd = config["embedding_length"], config["feed_forward_length"], config["attention.key_length"]
+    q, kv = config["attention.head_count"] * hd, config["attention.head_count_kv"] * hd
 
     def add(name, shape, norm=False):
         nonlocal state
@@ -55,7 +55,7 @@ def tensors(tied, seed=12345):
 
     add("token_embd.weight", [width, VOCAB])
     add("output_norm.weight", [width], True)
-    for layer in range(CONFIG["block_count"]):
+    for layer in range(config["block_count"]):
         name = "blk.%d." % layer
         for norm, size in (("attn_norm", width), ("ffn_norm", width), ("attn_q_norm", hd), ("attn_k_norm", hd)):
             add(name + norm + ".weight", [size], True)

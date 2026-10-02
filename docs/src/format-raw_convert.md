@@ -17,6 +17,9 @@ themselves are the quant layer's, reached through `quant::Registry`.
 - `dequantize_to_raw(in, json, bin)`: a GGUF file's tensors as raw F32, F32
   tensors copied and quantized ones decoded through the registry, from the
   file's payload mapped in place (`gguf::map_payload`).
+  Every tensor's decoder support is checked before mapping the payload or
+  allocating decoded buffers; a known layout without a decoder is refused
+  by tensor name, with existing destinations preserved.
 
 Both writers use checked staging and publication ([output_file](format-output_file.md)). Raw output paths must name different files. Both outputs finish before either is published; JSON is renamed first. A later binary publication failure names that path and may leave the complete JSON replacement published.
 

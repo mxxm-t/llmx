@@ -150,6 +150,11 @@ inline void dequantize_to_raw(const std::string& in_path, const std::string& out
     if (same_name || std::filesystem::equivalent(json_path, bin_path, ec))
         throw std::runtime_error("raw outputs must be different files: " + out_json + " and " + out_bin);
     gguf::GGUFModel m = gguf::read_gguf(in_path);
+    for (const auto& t : m.tensors) {
+        const quant::QuantType* qt = quant::Registry::instance().get(t.type);
+        if (t.type != quant::GGML_TYPE_F32 && (!qt || !qt->dequantize))
+            throw std::runtime_error("unsupported tensor type in dequantize: " + t.name);
+    }
     gguf::map_payload(m);
     std::stringstream js;
     js << "{\n";
@@ -178,8 +183,6 @@ inline void dequantize_to_raw(const std::string& in_path, const std::string& out
             std::memcpy(f.data(), raw, n * 4);
         } else {
             const quant::QuantType* qt = quant::Registry::instance().get(t.type);
-            if (!qt || !qt->dequantize)
-                throw std::runtime_error("unsupported tensor type in dequantize: " + t.name);
             qt->dequantize(raw, f.data(), n / qt->block_size);
         }
         out.resize(out.size() + n * 4);

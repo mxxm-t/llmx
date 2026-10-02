@@ -1,0 +1,5508 @@
+{
+  "date": "2026-10-02",
+  "scope": "Storage metadata separated from decoder support; no numerical kernel change.",
+  "verdict": {
+    "correctness": "passed",
+    "performance": "accepted with limited measurement precision",
+    "reason": "All negative main comparisons are retained. Identical benchmark, model and backend function bytes in candidate and control still give larger timing differences than the approximately 2.4 percent CPU prefill comparison to main. This screen cannot establish a branch regression at that repeatability; it proves neither a hot-code layout band nor exact nonregression. Startup and initial-state effects remain possible.",
+    "hosted_ci": "Not established by these local/rig records."
+  },
+  "environment": {
+    "root": "/zpool1/llmx-xdev-validation/storage-types-20261002",
+    "base": "46f60b6491335b62785caf2d0647998864b0283b",
+    "candidate": "8923c3762af9cb4befaf4a7eda00365f4b23da62",
+    "container": "llmx-xdev-storage-types-20261002",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "device": "/dev/dri/renderD136",
+    "cpu_set": "0-3",
+    "memory_gib": 16,
+    "quota_cpus": 4,
+    "device_pci": "0000:03:00.0",
+    "device_uuid": "00000000-0300-0000-0000-000000000000",
+    "device_name": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+    "driver": "Mesa 25.0.7-2+deb13u1",
+    "build": "CMake Release, Vulkan ON; matched clean detached source trees"
+  },
+  "linux_binaries": {
+    "base": {
+      "version": "llmx 0.1.0+g46f60b649133",
+      "sha256": "870b994c30c7e8593fa1911e4897158b51dd5b6f476371d5f95971a1c2a7ced0",
+      "commit": "46f60b6491335b62785caf2d0647998864b0283b"
+    },
+    "candidate": {
+      "version": "llmx 0.1.0+g8923c3762af9",
+      "sha256": "be11f0a844d1459d18c2848c2a528e7b573aac20dc1504fc82acfa5a8056f798",
+      "commit": "8923c3762af9cb4befaf4a7eda00365f4b23da62"
+    },
+    "control": {
+      "sha256": "7ace0daf963d0563aeae9015145fa46bed8d3e8d94a8de8e4972bf1e1260c475",
+      "version": "llmx 0.1.0+gdc72bbd108d5",
+      "commit": "dc72bbd108d59fea1103738e9078aacdea414e42"
+    }
+  },
+  "logit_tools": {
+    "base": {
+      "sha256": "bf10d1e48faee440c564f737fe1ce86b4d16c4e65f40924d9d45d5a6118245f8",
+      "commit": "46f60b6491335b62785caf2d0647998864b0283b"
+    },
+    "candidate": {
+      "sha256": "60ceefec95e023e7da5c3d35689ced232b91023a077e1b954aed33687e9d36ff",
+      "commit": "8923c3762af9cb4befaf4a7eda00365f4b23da62"
+    }
+  },
+  "windows_suite": {
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "-X",
+      "utf8",
+      "tests/run_tests.py",
+      "--exe",
+      "build/Release/llmx.exe",
+      "--device",
+      "cpu",
+      "--dtype",
+      "auto",
+      "--require-tools",
+      "--require-baseline",
+      "--require-device-types",
+      "F32,Q8_0,Q4_0,Q4_1,Q4_K,Q5_K,Q6_K,MXFP4",
+      "--no-perf-floor"
+    ],
+    "start": 1790939499.1918225,
+    "returncode": 0,
+    "end": 1790940478.6676214,
+    "native_passed": 38,
+    "component_names": [
+      "dead-code",
+      "docs",
+      "arch-boundary",
+      "version",
+      "cli",
+      "reference-generator",
+      "reference-consumer",
+      "device-reference",
+      "roundtrip",
+      "raw-blocks",
+      "perf",
+      "tokenizer",
+      "perplexity",
+      "f32",
+      "moe",
+      "mxfp4",
+      "qwen35",
+      "split",
+      "decode-probe",
+      "shards",
+      "server",
+      "server-load",
+      "chat",
+      "threads",
+      "baseline"
+    ],
+    "executable_observation": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-storage-types-20261002\\build\\Release\\llmx.exe",
+      "sha256": "994e113f2ab44e5e042c1b63a74ef49f8de92bf0a5a9d30262f30ee3c40e3248",
+      "observed_utc": "2026-10-02T11:57:11.122414+00:00",
+      "mtime_utc": "2026-10-02T10:54:59.928916+00:00",
+      "scope": "Post-run filesystem observation; the suite result itself did not record an executable hash."
+    }
+  },
+  "linux_correctness": {
+    "native_passed": 42,
+    "component_names": [
+      "dead-code",
+      "docs",
+      "arch-boundary",
+      "version",
+      "cli",
+      "reference-generator",
+      "reference-consumer",
+      "device-reference",
+      "roundtrip",
+      "raw-blocks",
+      "perf",
+      "tokenizer",
+      "perplexity",
+      "f32",
+      "moe",
+      "mxfp4",
+      "qwen35",
+      "split",
+      "decode-probe",
+      "shards",
+      "server",
+      "server-load",
+      "chat",
+      "threads",
+      "baseline"
+    ],
+    "command": [
+      "python3",
+      "-X",
+      "utf8",
+      "tests/run_tests.py",
+      "--exe",
+      "build/llmx",
+      "--device",
+      "vulkan:0",
+      "--dtype",
+      "auto",
+      "--no-perf-floor",
+      "--require-baseline",
+      "--require-tools",
+      "--require-device-types",
+      "F32,Q8_0,Q4_0,Q4_1,Q4_K,Q5_K,Q6_K,MXFP4"
+    ]
+  },
+  "fixtures": [
+    {
+      "file": "Qwen3-0.6B-Q8_0.gguf",
+      "source": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "snapshot": "/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf"
+    },
+    {
+      "file": "Qwen3-0.6B-Q4_0.gguf",
+      "source": "/fixtures/fixtures/Qwen3-0.6B-Q4_0.gguf",
+      "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "snapshot": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf"
+    },
+    {
+      "file": "Qwen3-0.6B-Q5_K_M.gguf",
+      "source": "/fixtures/fixtures/Qwen3-0.6B-Q5_K_M.gguf",
+      "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "snapshot": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf"
+    },
+    {
+      "file": "Qwen3-0.6B-Q4_K_M.gguf",
+      "source": "/fixtures/fixtures/Qwen3-0.6B-Q4_K_M.gguf",
+      "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+      "snapshot": "/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf"
+    },
+    {
+      "file": "Qwen3.5-0.8B-Q8_0.gguf",
+      "source": "/fixtures/fixtures/Qwen3.5-0.8B-Q8_0.gguf",
+      "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+      "snapshot": "/root/.cache/huggingface/hub/models--unsloth--Qwen3.5-0.8B-GGUF/snapshots/6ab461498e2023f6e3c1baea90a8f0fe38ab64d0/Qwen3.5-0.8B-Q8_0.gguf"
+    },
+    {
+      "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+      "source": "/fixtures/fixtures/Qwen3.5-0.8B-Q4_K_M.gguf",
+      "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+      "snapshot": "/root/.cache/huggingface/hub/models--unsloth--Qwen3.5-0.8B-GGUF/snapshots/6ab461498e2023f6e3c1baea90a8f0fe38ab64d0/Qwen3.5-0.8B-Q4_K_M.gguf"
+    }
+  ],
+  "identity_cases": [
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "device": "cpu",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "a8dc2638ece20b8b855e0e62259311bf5414a436a55967c114838a83433a722a",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "f32"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "da2f64d7efb76db249d0b0ed9023f9bb91b1d8973bc1a22b715716fd91bf3ac5",
+        "decode": "528dc715c9db41d75746b494d93060640d5111a6a5ea70143b12ad42e5a8a995",
+        "greedy": "859aa40711aa6ee1eed154ddd3402aa36e4ac06a28e69b4cd6226b777496ec50"
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "device": "vulkan:0",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "a8dc2638ece20b8b855e0e62259311bf5414a436a55967c114838a83433a722a",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "block-int16"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "23d6bf09376174be1b454756a0e234ec9103f5ea07d730f564c306066e522957",
+        "decode": "23d6bf09376174be1b454756a0e234ec9103f5ea07d730f564c306066e522957",
+        "greedy": "8d25de14f89f7e9700b918d08c3ad951e4e9f86cff80c25b45b659be23431590"
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "device": "cpu",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "a8dc2638ece20b8b855e0e62259311bf5414a436a55967c114838a83433a722a",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "e83eb3b4215fe5333130723e39a544365ea126d6b3d2ac2e56374bc0935bcd0d",
+        "decode": "c7504c98e595509a20675f187c18f2ed7818578e872c5ca2d06d127e3a722148",
+        "greedy": "785a139e169407bb1f885a3431310a539d657e17747bb53e53f94b59e2e2627d"
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_0.gguf",
+      "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "device": "vulkan:0",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "a8dc2638ece20b8b855e0e62259311bf5414a436a55967c114838a83433a722a",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "block-int16"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "be5351802a00c8f771d16ebda21c165af29b613cafd365c581f3e7e3e1f12751",
+        "decode": "be5351802a00c8f771d16ebda21c165af29b613cafd365c581f3e7e3e1f12751",
+        "greedy": "34e974a7e8b67cba4fe67f99c793b98667cf369448f8c9d616e25e404bd52051"
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "device": "cpu",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "a8dc2638ece20b8b855e0e62259311bf5414a436a55967c114838a83433a722a",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "651d03c5bb4ceff69e2651cecd50cc6fe3ef7de92e778b7a78ef7792e65fe028",
+        "decode": "5c98f4704749aeb24dbbb8cf34f3c441cbccb16643c41c546a527896958a2f64",
+        "greedy": "37f5764f046dab1db59bc9621d95da26ce42488ed28a5df372195ff9557d54f3"
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q5_K_M.gguf",
+      "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "device": "vulkan:0",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "a8dc2638ece20b8b855e0e62259311bf5414a436a55967c114838a83433a722a",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "block-int16"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "7f608a55eacf49b67c327815c96e2ba19a239f732efaf0067f9e9dc78bd00e93",
+        "decode": "7f608a55eacf49b67c327815c96e2ba19a239f732efaf0067f9e9dc78bd00e93",
+        "greedy": "5a74f32804d348422956bd9bb3ece50564673e4fc3c2d30d90e5a544c209c981"
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+      "device": "cpu",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "a8dc2638ece20b8b855e0e62259311bf5414a436a55967c114838a83433a722a",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "a1a8e16b7c117ec4b04af6cb136dd96da9b2302ab66b41494eee854a3c94f46b",
+        "decode": "76be22a7ac2f2219d6b4785497a614092e7932c712084bf81a63acb341ec40ac",
+        "greedy": "ce3ee69c8d814cf936588481722fc60f1d224a6c0605829f1099f841b56cbf3a"
+      }
+    },
+    {
+      "model": "Qwen3-0.6B-Q4_K_M.gguf",
+      "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+      "device": "vulkan:0",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "a8dc2638ece20b8b855e0e62259311bf5414a436a55967c114838a83433a722a",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "block-int16"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "59c68b30b4b67889b0067348043c4713495fc7776767857fecbdbf12a01dbe2f",
+        "decode": "59c68b30b4b67889b0067348043c4713495fc7776767857fecbdbf12a01dbe2f",
+        "greedy": "44558e1760bce04f6344b6bc8f8c85bb75673bb1cd6927c6ff7b7adc586a8296"
+      }
+    },
+    {
+      "model": "Qwen3.5-0.8B-Q8_0.gguf",
+      "model_sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+      "device": "cpu",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "3e30213496e5b61aa87782025bc6928fcf754948cfb85b55774ad494ab1495ae",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "f32"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "5377d2a9744e7c6e1c0b328a96292596f624d2f11b2b02fcf877754503f2bfce",
+        "decode": "e82cd5b2ce8d69a54355bb60bd0af31eb193c59d8f3a7376ccfaf48125e68c27",
+        "greedy": "b32a173f44eaf733b1cad2603587fc08d7f152f21191284ae3ca4b735d99e625"
+      }
+    },
+    {
+      "model": "Qwen3.5-0.8B-Q8_0.gguf",
+      "model_sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+      "device": "vulkan:0",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "3e30213496e5b61aa87782025bc6928fcf754948cfb85b55774ad494ab1495ae",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "block-int16"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "f9a4631110f2d8d8467f2969dab39dedcba3598aff10a8f24f8390ad8886e9ef",
+        "decode": "f9a4631110f2d8d8467f2969dab39dedcba3598aff10a8f24f8390ad8886e9ef",
+        "greedy": "848a9fe941065bc4a08759fc747e038718a75de0344a4ff5ddeba97cd045afe0"
+      }
+    },
+    {
+      "model": "Qwen3.5-0.8B-Q4_K_M.gguf",
+      "model_sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+      "device": "cpu",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "3e30213496e5b61aa87782025bc6928fcf754948cfb85b55774ad494ab1495ae",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "171c0366d5c65759478f4418adbc8f25b90bda765b2e6d466935f873402de622",
+        "decode": "09dbdf8cd6142b7efc4dd4aba14a5bc76254451428b61c60f74b7db70f3ce402",
+        "greedy": "904b33a9fa548cbbb0a5c46100c1d69210124c0ce0374ffc605abe7380cf2d1e"
+      }
+    },
+    {
+      "model": "Qwen3.5-0.8B-Q4_K_M.gguf",
+      "model_sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+      "device": "vulkan:0",
+      "prompt_token_count": 27,
+      "prompt_ids_sha256": "3e30213496e5b61aa87782025bc6928fcf754948cfb85b55774ad494ab1495ae",
+      "greedy_token_count": 64,
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "block-int16"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "equal_capture_sha256": {
+        "batched": "922cbaafea705d2e44a7d6faf97029b1d955dc4c92492306396cdc43d179639b",
+        "decode": "922cbaafea705d2e44a7d6faf97029b1d955dc4c92492306396cdc43d179639b",
+        "greedy": "6040abea016fef586b387a8626a5389c4f7ead198f1958d01265bcc2695f9c8c"
+      }
+    }
+  ],
+  "shader_identity": {
+    "modules": 99,
+    "byte_equal": true,
+    "record": "/zpool1/llmx-xdev-validation/storage-types-20261002/shader-hashes.json"
+  },
+  "control": {
+    "commit": "dc72bbd108d59fea1103738e9078aacdea414e42",
+    "text_sections": {
+      "candidate": {
+        "sha256": "41e121da97ca312cec330b90f46168057d8e171597f1920bd475e99b285108e1",
+        "bytes": 1436146
+      },
+      "control": {
+        "sha256": "1060fb1ba4f1a5c5a95765763e9d3dc6ae76e8e987429e0d929b61f21f7158fa",
+        "bytes": 1436146
+      }
+    },
+    "equal_q8_cpu_captures": {
+      "batched": "da2f64d7efb76db249d0b0ed9023f9bb91b1d8973bc1a22b715716fd91bf3ac5",
+      "decode": "528dc715c9db41d75746b494d93060640d5111a6a5ea70143b12ad42e5a8a995",
+      "greedy": "859aa40711aa6ee1eed154ddd3402aa36e4ac06a28e69b4cd6226b777496ec50"
+    },
+    "scope": "Info-only CLI type-name perturbation changes generated code, but the independent CPU inspection reports identical bytes and addresses for all inspected hot functions versus candidate. It is not an emitted-hot-code layout control. Full .text discrimination remains pending; no layout band or runtime cause is established."
+  },
+  "campaigns": {
+    "timing": {
+      "plan": {
+        "arms": {
+          "base": {
+            "version": "llmx 0.1.0+g46f60b649133",
+            "sha256": "870b994c30c7e8593fa1911e4897158b51dd5b6f476371d5f95971a1c2a7ced0",
+            "commit": "46f60b6491335b62785caf2d0647998864b0283b"
+          },
+          "candidate": {
+            "version": "llmx 0.1.0+g8923c3762af9",
+            "sha256": "be11f0a844d1459d18c2848c2a528e7b573aac20dc1504fc82acfa5a8056f798",
+            "commit": "8923c3762af9cb4befaf4a7eda00365f4b23da62"
+          }
+        },
+        "arguments": [
+          "bench",
+          "--model",
+          "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "devices": [
+          "cpu",
+          "vulkan:0"
+        ],
+        "order": [
+          "base",
+          "candidate",
+          "candidate",
+          "base"
+        ],
+        "cpu_set": "0-3",
+        "quota": 4,
+        "memory_gib": 16,
+        "activity_flags": {
+          "system_idle_below_percent": 25,
+          "iowait_above_percent": 5,
+          "unrelated_cpu_at_least_percent": 100,
+          "disk_bytes_per_second_above": 50000000,
+          "sample_gap_above_seconds": 2.5
+        },
+        "policy": "Retain every planned call and all activity/unknown observations; no global idle requirement. Reference comparison belongs to phase gate."
+      },
+      "comparisons": [
+        {
+          "device": "cpu",
+          "phase": "pp512",
+          "base": [
+            220.03,
+            227.41
+          ],
+          "candidate": [
+            217.58,
+            218.75
+          ],
+          "paired_percent_AB_BA": [
+            -1.1134845248375158,
+            -3.808099907655771
+          ],
+          "base_median": 223.72,
+          "candidate_median": 218.16500000000002,
+          "median_paired_percent": -2.4607922162466433
+        },
+        {
+          "device": "cpu",
+          "phase": "tg128",
+          "base": [
+            30.12,
+            30.58
+          ],
+          "candidate": [
+            29.17,
+            30.11
+          ],
+          "paired_percent_AB_BA": [
+            -3.154050464807434,
+            -1.5369522563767113
+          ],
+          "base_median": 30.35,
+          "candidate_median": 29.64,
+          "median_paired_percent": -2.3455013605920727
+        },
+        {
+          "device": "vulkan:0",
+          "phase": "pp512",
+          "base": [
+            8765.32,
+            8763.89
+          ],
+          "candidate": [
+            8755.38,
+            8777.92
+          ],
+          "paired_percent_AB_BA": [
+            -0.11340145026080828,
+            0.16008872772250715
+          ],
+          "base_median": 8764.605,
+          "candidate_median": 8766.65,
+          "median_paired_percent": 0.023343638730849436
+        },
+        {
+          "device": "vulkan:0",
+          "phase": "tg128",
+          "base": [
+            395.68,
+            389.67
+          ],
+          "candidate": [
+            378.27,
+            393.12
+          ],
+          "paired_percent_AB_BA": [
+            -4.40002021835828,
+            0.8853645392254972
+          ],
+          "base_median": 392.675,
+          "candidate_median": 385.695,
+          "median_paired_percent": -1.7573278395663916
+        }
+      ],
+      "limitations": [
+        "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+        "All calls retained; flags describe activity, not causation or automatic rejection.",
+        "Whole-call activity includes loading and both phases; phase-specific overlap is unavailable.",
+        "Wall alignment estimates sample start from its UTC end and collection duration; boundary observations may be shared by calls.",
+        "Process rates are one-CPU percentages. New, departed and inaccessible processes leave unmeasured work; flag counts are observed lower bounds.",
+        "Benchmark cgroup and monitor roles are separate; supervisor PID is excluded. Unrecorded docker launchers remain in unrelated activity.",
+        "GPU busy/VRAM ranges are descriptive, without process attribution or an undeclared activity threshold.",
+        "Disk rates are per whole device and are not summed across layered devices."
+      ],
+      "monitor": {
+        "samples": 63,
+        "intervals": 62,
+        "stop_recorded": true,
+        "max_interval_seconds": 1.0033141868188977,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 61,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "process_coverage": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 162,
+          "missed_process_observations": 25,
+          "appeared_processes": 162,
+          "disappeared_processes": 208
+        }
+      },
+      "evidence": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing/timing-analysis.json"
+    },
+    "timing-layout": {
+      "plan": {
+        "arms": {
+          "base": {
+            "version": "llmx 0.1.0+g46f60b649133",
+            "sha256": "870b994c30c7e8593fa1911e4897158b51dd5b6f476371d5f95971a1c2a7ced0",
+            "commit": "46f60b6491335b62785caf2d0647998864b0283b"
+          },
+          "candidate": {
+            "version": "llmx 0.1.0+g8923c3762af9",
+            "sha256": "be11f0a844d1459d18c2848c2a528e7b573aac20dc1504fc82acfa5a8056f798",
+            "commit": "8923c3762af9cb4befaf4a7eda00365f4b23da62"
+          },
+          "control": {
+            "sha256": "7ace0daf963d0563aeae9015145fa46bed8d3e8d94a8de8e4972bf1e1260c475",
+            "version": "llmx 0.1.0+gdc72bbd108d5",
+            "commit": "dc72bbd108d59fea1103738e9078aacdea414e42"
+          }
+        },
+        "arguments": [
+          "bench",
+          "--model",
+          "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "devices": [
+          "cpu"
+        ],
+        "order": [
+          "base",
+          "candidate",
+          "control",
+          "control",
+          "candidate",
+          "base"
+        ],
+        "cpu_set": "0-3",
+        "quota": 4,
+        "memory_gib": 16,
+        "activity_flags": {
+          "system_idle_below_percent": 25,
+          "iowait_above_percent": 5,
+          "unrelated_cpu_at_least_percent": 100,
+          "disk_bytes_per_second_above": 50000000,
+          "sample_gap_above_seconds": 2.5
+        },
+        "policy": "Retain every planned call and all activity/unknown observations; no global idle requirement. Reference comparison belongs to phase gate."
+      },
+      "comparisons": [
+        {
+          "device": "cpu",
+          "phase": "pp512",
+          "comparison": "candidate/base",
+          "numerator": "candidate",
+          "denominator": "base",
+          "numerator_rates": [
+            201.32,
+            208.33
+          ],
+          "denominator_rates": [
+            208.84,
+            210.93
+          ],
+          "directional_pair_percent_forward_reverse": [
+            -3.600842750430955,
+            -1.2326364196652895
+          ],
+          "numerator_median": 204.825,
+          "denominator_median": 209.885,
+          "median_paired_percent": -2.416739585048122
+        },
+        {
+          "device": "cpu",
+          "phase": "pp512",
+          "comparison": "control/base",
+          "numerator": "control",
+          "denominator": "base",
+          "numerator_rates": [
+            214.2,
+            209.41
+          ],
+          "denominator_rates": [
+            208.84,
+            210.93
+          ],
+          "directional_pair_percent_forward_reverse": [
+            2.5665581306263174,
+            -0.7206182145735651
+          ],
+          "numerator_median": 211.805,
+          "denominator_median": 209.885,
+          "median_paired_percent": 0.9229699580263762
+        },
+        {
+          "device": "cpu",
+          "phase": "pp512",
+          "comparison": "candidate/control",
+          "numerator": "candidate",
+          "denominator": "control",
+          "numerator_rates": [
+            201.32,
+            208.33
+          ],
+          "denominator_rates": [
+            214.2,
+            209.41
+          ],
+          "directional_pair_percent_forward_reverse": [
+            -6.013071895424837,
+            -0.5157346831574317
+          ],
+          "numerator_median": 204.825,
+          "denominator_median": 211.805,
+          "median_paired_percent": -3.2644032892911348
+        },
+        {
+          "device": "cpu",
+          "phase": "tg128",
+          "comparison": "candidate/base",
+          "numerator": "candidate",
+          "denominator": "base",
+          "numerator_rates": [
+            42.07,
+            42.86
+          ],
+          "denominator_rates": [
+            43.2,
+            42.0
+          ],
+          "directional_pair_percent_forward_reverse": [
+            -2.6157407407407463,
+            2.0476190476190537
+          ],
+          "numerator_median": 42.465,
+          "denominator_median": 42.6,
+          "median_paired_percent": -0.2840608465608463
+        },
+        {
+          "device": "cpu",
+          "phase": "tg128",
+          "comparison": "control/base",
+          "numerator": "control",
+          "denominator": "base",
+          "numerator_rates": [
+            39.61,
+            39.67
+          ],
+          "denominator_rates": [
+            43.2,
+            42.0
+          ],
+          "directional_pair_percent_forward_reverse": [
+            -8.310185185185192,
+            -5.547619047619046
+          ],
+          "numerator_median": 39.64,
+          "denominator_median": 42.6,
+          "median_paired_percent": -6.928902116402119
+        },
+        {
+          "device": "cpu",
+          "phase": "tg128",
+          "comparison": "candidate/control",
+          "numerator": "candidate",
+          "denominator": "control",
+          "numerator_rates": [
+            42.07,
+            42.86
+          ],
+          "denominator_rates": [
+            39.61,
+            39.67
+          ],
+          "directional_pair_percent_forward_reverse": [
+            6.210552890684173,
+            8.04134106377614
+          ],
+          "numerator_median": 42.465,
+          "denominator_median": 39.64,
+          "median_paired_percent": 7.125946977230157
+        }
+      ],
+      "limitations": [
+        "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+        "All calls retained; flags describe activity, not causation or automatic rejection.",
+        "Whole-call activity includes loading and both phases; phase-specific overlap is unavailable.",
+        "Wall alignment estimates sample start from its UTC end and collection duration; boundary observations may be shared by calls.",
+        "Process rates are one-CPU percentages. New, departed and inaccessible processes leave unmeasured work; flag counts are observed lower bounds.",
+        "Benchmark cgroup and monitor roles are separate; supervisor PID is excluded. Unrecorded docker launchers remain in unrelated activity.",
+        "GPU busy/VRAM ranges are descriptive, without process attribution or an undeclared activity threshold.",
+        "Disk rates are per whole device and are not summed across layered devices."
+      ],
+      "monitor": {
+        "samples": 72,
+        "intervals": 71,
+        "stop_recorded": true,
+        "max_interval_seconds": 1.0028880718164146,
+        "flagged_intervals": {
+          "cpu_busy": 33,
+          "iowait": 0,
+          "unrelated_cpu": 32,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "process_coverage": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 333,
+          "missed_process_observations": 51,
+          "appeared_processes": 333,
+          "disappeared_processes": 329
+        }
+      },
+      "evidence": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing-layout/timing-analysis.json"
+    }
+  },
+  "calls": [
+    {
+      "device": "cpu",
+      "arm": "base",
+      "start": 1790940289.3430262,
+      "end": 1790940302.7455585,
+      "returncode": 0,
+      "rates": {
+        "pp512": 220.03,
+        "tg128": 30.12
+      },
+      "campaign": "timing",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing/cpu-0-base.log",
+      "activity": {
+        "intervals": 15,
+        "observation_samples": 16,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 14,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 38,
+          "missed_process_observations": 15,
+          "appeared_processes": 38,
+          "disappeared_processes": 67
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 16,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 16,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "cpu",
+      "arm": "candidate",
+      "start": 1790940302.7462258,
+      "end": 1790940316.4986804,
+      "returncode": 0,
+      "rates": {
+        "pp512": 217.58,
+        "tg128": 29.17
+      },
+      "campaign": "timing",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing/cpu-1-candidate.log",
+      "activity": {
+        "intervals": 15,
+        "observation_samples": 16,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 15,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 35,
+          "missed_process_observations": 1,
+          "appeared_processes": 35,
+          "disappeared_processes": 77
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 16,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 16,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "cpu",
+      "arm": "candidate",
+      "start": 1790940316.4991744,
+      "end": 1790940330.5054107,
+      "returncode": 0,
+      "rates": {
+        "pp512": 218.75,
+        "tg128": 30.11
+      },
+      "campaign": "timing",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing/cpu-2-candidate.log",
+      "activity": {
+        "intervals": 15,
+        "observation_samples": 16,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 15,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 39,
+          "missed_process_observations": 7,
+          "appeared_processes": 39,
+          "disappeared_processes": 41
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 16,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 16,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "cpu",
+      "arm": "base",
+      "start": 1790940330.505925,
+      "end": 1790940343.9565725,
+      "returncode": 0,
+      "rates": {
+        "pp512": 227.41,
+        "tg128": 30.58
+      },
+      "campaign": "timing",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing/cpu-3-base.log",
+      "activity": {
+        "intervals": 14,
+        "observation_samples": 15,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 14,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 40,
+          "missed_process_observations": 0,
+          "appeared_processes": 40,
+          "disappeared_processes": 35
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 62.0,
+            "known": 15,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 668557312.0,
+            "known": 15,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "vulkan:0",
+      "arm": "base",
+      "start": 1790940343.957139,
+      "end": 1790940345.374813,
+      "returncode": 0,
+      "rates": {
+        "pp512": 8765.32,
+        "tg128": 395.68
+      },
+      "campaign": "timing",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing/vulkan-0-0-base.log",
+      "activity": {
+        "intervals": 2,
+        "observation_samples": 3,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 2,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 15,
+          "missed_process_observations": 0,
+          "appeared_processes": 15,
+          "disappeared_processes": 10
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 62.0,
+            "known": 3,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 668557312.0,
+            "known": 3,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "vulkan:0",
+      "arm": "candidate",
+      "start": 1790940345.375467,
+      "end": 1790940346.7423716,
+      "returncode": 0,
+      "rates": {
+        "pp512": 8755.38,
+        "tg128": 378.27
+      },
+      "campaign": "timing",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing/vulkan-0-1-candidate.log",
+      "activity": {
+        "intervals": 3,
+        "observation_samples": 4,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 3,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 9,
+          "missed_process_observations": 0,
+          "appeared_processes": 9,
+          "disappeared_processes": 4
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 92.0,
+            "known": 4,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 770715648.0,
+            "known": 4,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "vulkan:0",
+      "arm": "candidate",
+      "start": 1790940346.742914,
+      "end": 1790940348.1091828,
+      "returncode": 0,
+      "rates": {
+        "pp512": 8777.92,
+        "tg128": 393.12
+      },
+      "campaign": "timing",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing/vulkan-0-2-candidate.log",
+      "activity": {
+        "intervals": 2,
+        "observation_samples": 3,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 2,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 11,
+          "missed_process_observations": 0,
+          "appeared_processes": 11,
+          "disappeared_processes": 8
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 92.0,
+            "known": 3,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 668200960.0,
+            "max": 770715648.0,
+            "known": 3,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "vulkan:0",
+      "arm": "base",
+      "start": 1790940348.1097677,
+      "end": 1790940349.4759896,
+      "returncode": 0,
+      "rates": {
+        "pp512": 8763.89,
+        "tg128": 389.67
+      },
+      "campaign": "timing",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing/vulkan-0-3-base.log",
+      "activity": {
+        "intervals": 2,
+        "observation_samples": 3,
+        "unbracketed_seconds": 0.037847280502319336,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 2,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 12,
+          "missed_process_observations": 2,
+          "appeared_processes": 12,
+          "disappeared_processes": 12
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 92.0,
+            "known": 3,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 265854976.0,
+            "max": 770707456.0,
+            "known": 3,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "cpu",
+      "arm": "base",
+      "start": 1790941242.0010152,
+      "end": 1790941253.1960754,
+      "returncode": 0,
+      "rates": {
+        "pp512": 208.84,
+        "tg128": 43.2
+      },
+      "campaign": "timing-layout",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing-layout/cpu-0-base.log",
+      "activity": {
+        "intervals": 13,
+        "observation_samples": 14,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 7,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 98,
+          "missed_process_observations": 11,
+          "appeared_processes": 98,
+          "disappeared_processes": 46
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 14,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 14,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "cpu",
+      "arm": "candidate",
+      "start": 1790941253.1966798,
+      "end": 1790941264.795671,
+      "returncode": 0,
+      "rates": {
+        "pp512": 201.32,
+        "tg128": 42.07
+      },
+      "campaign": "timing-layout",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing-layout/cpu-1-candidate.log",
+      "activity": {
+        "intervals": 12,
+        "observation_samples": 13,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 4,
+          "iowait": 0,
+          "unrelated_cpu": 4,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 115,
+          "missed_process_observations": 15,
+          "appeared_processes": 115,
+          "disappeared_processes": 99
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 13,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 13,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "cpu",
+      "arm": "control",
+      "start": 1790941264.796136,
+      "end": 1790941276.792519,
+      "returncode": 0,
+      "rates": {
+        "pp512": 214.2,
+        "tg128": 39.61
+      },
+      "campaign": "timing-layout",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing-layout/cpu-2-control.log",
+      "activity": {
+        "intervals": 13,
+        "observation_samples": 14,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 6,
+          "iowait": 0,
+          "unrelated_cpu": 5,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 62,
+          "missed_process_observations": 28,
+          "appeared_processes": 62,
+          "disappeared_processes": 60
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 14,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 14,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "cpu",
+      "arm": "control",
+      "start": 1790941276.7929935,
+      "end": 1790941288.5872142,
+      "returncode": 0,
+      "rates": {
+        "pp512": 209.41,
+        "tg128": 39.67
+      },
+      "campaign": "timing-layout",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing-layout/cpu-3-control.log",
+      "activity": {
+        "intervals": 13,
+        "observation_samples": 14,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 6,
+          "iowait": 0,
+          "unrelated_cpu": 6,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 44,
+          "missed_process_observations": 4,
+          "appeared_processes": 44,
+          "disappeared_processes": 45
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 14,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 14,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "cpu",
+      "arm": "candidate",
+      "start": 1790941288.5876825,
+      "end": 1790941300.0429258,
+      "returncode": 0,
+      "rates": {
+        "pp512": 208.33,
+        "tg128": 42.86
+      },
+      "campaign": "timing-layout",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing-layout/cpu-4-candidate.log",
+      "activity": {
+        "intervals": 12,
+        "observation_samples": 13,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 9,
+          "iowait": 0,
+          "unrelated_cpu": 6,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 42,
+          "missed_process_observations": 1,
+          "appeared_processes": 42,
+          "disappeared_processes": 43
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 13,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 13,
+            "unknown": 0
+          }
+        }
+      }
+    },
+    {
+      "device": "cpu",
+      "arm": "base",
+      "start": 1790941300.0433733,
+      "end": 1790941311.4941835,
+      "returncode": 0,
+      "rates": {
+        "pp512": 210.93,
+        "tg128": 42.0
+      },
+      "campaign": "timing-layout",
+      "log": "/zpool1/llmx-xdev-validation/storage-types-20261002/timing-layout/cpu-5-base.log",
+      "activity": {
+        "intervals": 12,
+        "observation_samples": 13,
+        "unbracketed_seconds": 0.4023559093475342,
+        "flagged_intervals": {
+          "cpu_busy": 8,
+          "iowait": 0,
+          "unrelated_cpu": 5,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 43,
+          "missed_process_observations": 2,
+          "appeared_processes": 43,
+          "disappeared_processes": 47
+        },
+        "gpu_observations_unavailable": false,
+        "selected_gpu": {
+          "devices": [
+            "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+          ],
+          "busy": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 13,
+            "unknown": 0
+          },
+          "vram_used": {
+            "min": 10932224.0,
+            "max": 10932224.0,
+            "known": 13,
+            "unknown": 0
+          }
+        }
+      }
+    }
+  ],
+  "retained_calls": 14,
+  "reference_comparison": "No new mx run; this branch screen compares current main. Phase reference work remains separate.",
+  "prior_attempts": [
+    {
+      "record": "/zpool1/llmx-xdev-validation/storage-types-20261002/missing-numpy-preflight/functional-complete.json",
+      "note": "Missing NumPy stopped preflight before builds; verified retained offline dependencies were used for the completed run."
+    },
+    {
+      "record": ".tmp-storage-types-run-20261002/identity/generation-corrected.json",
+      "note": "Earlier Windows greedy stdout comparison included timing lines. Preserved output text and generated IDs agreed after using the existing parser; this was earlier 8af/dirty-tree evidence, not the current-main 12-case gate."
+    },
+    {
+      "record": "/zpool1/llmx-xdev-validation/storage-types-20261002/layout-control/complete.json",
+      "note": "Declaration-order control cf379fea produced identical .text and was not timed or accepted as a layout control."
+    },
+    {
+      "record": "/zpool1/llmx-xdev-validation/storage-types-20261002/layout-control-info/complete.json",
+      "note": "An extra /dev/null argument made nm fail after the info-only control built and passed native checks. Corrected inspection in verified.json proved changed .text and identical Q8 CPU captures without changing the executable."
+    }
+  ],
+  "record_manifest": {
+    "binaries.json": {
+      "sha256": "14d577e8201bba88723da9cd1f14ee41db3041e88195f164cd4173e4e1331b18",
+      "bytes": 406
+    },
+    "candidate-ctest.log": {
+      "sha256": "253594b8f3d3ce16a39e19dff379497349345b99d672613f515b26943b6c09ca",
+      "bytes": 4474
+    },
+    "candidate-device-suite.log": {
+      "sha256": "beac40928a6c79694993cecdac5ecf32370b358cac8c5cc87a5933df087bd2a0",
+      "bytes": 18509
+    },
+    "fixture-inventory.json": {
+      "sha256": "51c70d64d4110ba5f3a7ea1c7a8d75b6d2e24d34845ffebe9ab25199fef31f26",
+      "bytes": 2050
+    },
+    "functional-complete.json": {
+      "sha256": "0bc4244f5ca1e68b4203424399d906fe3c99885df66893b2f59ac251a7080247",
+      "bytes": 2915
+    },
+    "identity/complete.json": {
+      "sha256": "43337952977576d1fbc8c2b9d3d065e92853d34780acbe22a4f4a9b58d3e7be5",
+      "bytes": 88810
+    },
+    "layout-control/complete.json": {
+      "sha256": "92484f830170580bf998281339e69353f57bfc4843c9a865014fab23e5a32abc",
+      "bytes": 5567
+    },
+    "layout-control-info/complete.json": {
+      "sha256": "c9d368cfdabb8b9cf9029c2ee1a6fe4ae4d1f950a9f43af24531bfbff985d390",
+      "bytes": 4536
+    },
+    "layout-control-info/verified.json": {
+      "sha256": "d130b504c3ccc06c375807ef35775106152265860465af1b417255ad6f0faaff",
+      "bytes": 6161
+    },
+    "missing-numpy-preflight/functional-complete.json": {
+      "sha256": "daec4825c6f3098025d0555c339159f29c48c60279069bee965b51323098eddd",
+      "bytes": 971
+    },
+    "setup.json": {
+      "sha256": "1f99b2601aa4222973796a04ddb3d6d2d13a26224b7f2b16b39ebc9148ebba5e",
+      "bytes": 393
+    },
+    "shader-hashes.json": {
+      "sha256": "15ca84f5c5211428548f2b0821d366f5d3dea48c4176481db07995e23a8e719c",
+      "bytes": 19182
+    },
+    "timing/timing-analysis.json": {
+      "sha256": "816a9aa269df879cd9b079ec82d98547d39fd1182b18b0b79906dc6cc4bb008e",
+      "bytes": 137420
+    },
+    "timing/vulkan-identity.log": {
+      "sha256": "939f076660385567a9f3b782f1991d96f3702a11fef5db6183e4184a5cbcb5a6",
+      "bytes": 3064
+    },
+    "timing-layout/timing-analysis.json": {
+      "sha256": "0f7cb01d3bf5c645d53664a9392a6b72b8244fab35082a83da79dd283b45be4b",
+      "bytes": 142829
+    },
+    "windows/identity/generation-corrected.json": {
+      "sha256": "2e8256cbbc3e54f45be6841775216f35f78ade2e1b63ef53900ae1591730cab2",
+      "bytes": 2617
+    },
+    "windows/rebase-ctest.log": {
+      "sha256": "76a2b51223c41f582a98a5e2f6098798171f6b581bc52bb6d7c4aded1cdf47d8",
+      "bytes": 8078
+    },
+    "windows/windows-suite.log": {
+      "sha256": "ee43bcfe4b0892895cca23175cbffe86c0243f4a6016a40a0983be4e450c846a",
+      "bytes": 18544
+    },
+    "windows-suite-result.json": {
+      "sha256": "34e65f8c9b7727a1d122718fd16388664b30c510b21d0284c7c054747616a33c",
+      "bytes": 498
+    }
+  },
+  "emitted_code_comparison": {
+    "record": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-storage-types-run-20261002\\emitted-text-attribution.json",
+    "sha256": "064514e696ce0acb54b2aff1b425732b615d128ded8a24180d9c28642d3dda1d",
+    "summary": {
+      "text_vma": "0x12180",
+      "text_bytes": 1436146,
+      "different_bytes": 5309,
+      "binary_sha": {
+        "candidate": "be11f0a844d1459d18c2848c2a528e7b573aac20dc1504fc82acfa5a8056f798",
+        "control": "7ace0daf963d0563aeae9015145fa46bed8d3e8d94a8de8e4972bf1e1260c475"
+      },
+      "byte_attribution": [
+        {
+          "candidate_symbols": [
+            "main.cold"
+          ],
+          "control_symbols": [
+            "main.cold"
+          ],
+          "bytes": 1
+        },
+        {
+          "candidate_symbols": [
+            "main"
+          ],
+          "control_symbols": [
+            "main"
+          ],
+          "bytes": 5047
+        },
+        {
+          "candidate_symbols": [
+            "<padding or no sized function>"
+          ],
+          "control_symbols": [
+            "main"
+          ],
+          "bytes": 2
+        },
+        {
+          "candidate_symbols": [
+            "_start"
+          ],
+          "control_symbols": [
+            "main"
+          ],
+          "bytes": 9
+        },
+        {
+          "candidate_symbols": [
+            "_start"
+          ],
+          "control_symbols": [
+            "<padding or no sized function>"
+          ],
+          "bytes": 6
+        },
+        {
+          "candidate_symbols": [
+            "_start"
+          ],
+          "control_symbols": [
+            "_start"
+          ],
+          "bytes": 17
+        },
+        {
+          "candidate_symbols": [
+            "<padding or no sized function>"
+          ],
+          "control_symbols": [
+            "_start"
+          ],
+          "bytes": 16
+        },
+        {
+          "candidate_symbols": [
+            "<padding or no sized function>"
+          ],
+          "control_symbols": [
+            "<padding or no sized function>"
+          ],
+          "bytes": 211
+        }
+      ],
+      "touched_symbols": {
+        "candidate": [
+          {
+            "start": "0x15599",
+            "size": 6653,
+            "name": "main.cold"
+          },
+          {
+            "start": "0x1ceb0",
+            "size": 15550,
+            "name": "main"
+          },
+          {
+            "start": "0x20b70",
+            "size": 34,
+            "name": "_start"
+          }
+        ],
+        "control": [
+          {
+            "start": "0x15599",
+            "size": 6653,
+            "name": "main.cold"
+          },
+          {
+            "start": "0x1ceb0",
+            "size": 15562,
+            "name": "main"
+          },
+          {
+            "start": "0x20b80",
+            "size": 34,
+            "name": "_start"
+          }
+        ]
+      },
+      "all_differing_ranges": [
+        {
+          "start": "0x15863",
+          "end": "0x15864",
+          "owners": [
+            [
+              "main.cold"
+            ],
+            [
+              "main.cold"
+            ]
+          ]
+        },
+        {
+          "start": "0x1d1da",
+          "end": "0x1d1db",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1d351",
+          "end": "0x1d352",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1d619",
+          "end": "0x1d61a",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1d7bb",
+          "end": "0x1d7bc",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1d878",
+          "end": "0x1d879",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1e12e",
+          "end": "0x1e12f",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1e136",
+          "end": "0x1e137",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1e13f",
+          "end": "0x1e140",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1e44f",
+          "end": "0x1e450",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1e567",
+          "end": "0x1e568",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f1d0",
+          "end": "0x1f1d1",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f4af",
+          "end": "0x1f4b0",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f65c",
+          "end": "0x1f65d",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f67e",
+          "end": "0x1f691",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f692",
+          "end": "0x1f6a6",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f6a7",
+          "end": "0x1f6a9",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f6ac",
+          "end": "0x1f6ad",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f6ae",
+          "end": "0x1f6eb",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f6ec",
+          "end": "0x1f73e",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f73f",
+          "end": "0x1f779",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f77a",
+          "end": "0x1f77f",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f780",
+          "end": "0x1f785",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f786",
+          "end": "0x1f798",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f79a",
+          "end": "0x1f7a4",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f7a5",
+          "end": "0x1f7e0",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f7e1",
+          "end": "0x1f7ea",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f7eb",
+          "end": "0x1f7fa",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f7fd",
+          "end": "0x1f80d",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f80e",
+          "end": "0x1f813",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f814",
+          "end": "0x1f84d",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f84e",
+          "end": "0x1f852",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f853",
+          "end": "0x1f878",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f879",
+          "end": "0x1f87f",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f880",
+          "end": "0x1f88b",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f88d",
+          "end": "0x1f896",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f898",
+          "end": "0x1f8d6",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f8d7",
+          "end": "0x1f8e3",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f8e4",
+          "end": "0x1f8f0",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f8f1",
+          "end": "0x1f8f7",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f8fa",
+          "end": "0x1f8fb",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f8ff",
+          "end": "0x1f90d",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f90f",
+          "end": "0x1f995",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f996",
+          "end": "0x1f9a0",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f9a1",
+          "end": "0x1f9bf",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f9c0",
+          "end": "0x1f9da",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f9db",
+          "end": "0x1f9ea",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f9eb",
+          "end": "0x1f9ed",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f9ef",
+          "end": "0x1f9f6",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f9f7",
+          "end": "0x1f9f8",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1f9fb",
+          "end": "0x1faa4",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1faa5",
+          "end": "0x1fab9",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fabd",
+          "end": "0x1fac6",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fac7",
+          "end": "0x1facd",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1face",
+          "end": "0x1fb0b",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fb0c",
+          "end": "0x1fb2b",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fb2c",
+          "end": "0x1fb31",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fb32",
+          "end": "0x1fb61",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fb62",
+          "end": "0x1fb66",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fb68",
+          "end": "0x1fb96",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fb99",
+          "end": "0x1fb9b",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fb9d",
+          "end": "0x1fba8",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fba9",
+          "end": "0x1fbc1",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fbc2",
+          "end": "0x1fbef",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fbf0",
+          "end": "0x1fbf6",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fbf7",
+          "end": "0x1fbfb",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fbfd",
+          "end": "0x1fc17",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fc19",
+          "end": "0x1fc34",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fc38",
+          "end": "0x1fc41",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fc42",
+          "end": "0x1fc48",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fc49",
+          "end": "0x1fc7e",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fc7f",
+          "end": "0x1fc82",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fc84",
+          "end": "0x1fc9f",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fca3",
+          "end": "0x1fd15",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fd16",
+          "end": "0x1fd22",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fd23",
+          "end": "0x1fd3f",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fd42",
+          "end": "0x1fd47",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fd49",
+          "end": "0x1fd52",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fd53",
+          "end": "0x1fd8d",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fd8e",
+          "end": "0x1fd92",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fd94",
+          "end": "0x1fd98",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fd99",
+          "end": "0x1fda5",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fda6",
+          "end": "0x1fdb2",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fdb3",
+          "end": "0x1fdbd",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fdc0",
+          "end": "0x1fddd",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fddf",
+          "end": "0x1fde8",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fde9",
+          "end": "0x1fe05",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fe06",
+          "end": "0x1fe16",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fe18",
+          "end": "0x1fe1f",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fe20",
+          "end": "0x1fe21",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fe24",
+          "end": "0x1fe4d",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fe4e",
+          "end": "0x1fe59",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fe5a",
+          "end": "0x1fe6f",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fe71",
+          "end": "0x1fe76",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fe77",
+          "end": "0x1fea9",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1feaa",
+          "end": "0x1fee9",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1feeb",
+          "end": "0x1fef0",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1fef1",
+          "end": "0x1ff85",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1ff87",
+          "end": "0x1ff88",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1ff89",
+          "end": "0x1ff8b",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1ff8d",
+          "end": "0x1ff9d",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1ff9e",
+          "end": "0x1ffbb",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1ffbc",
+          "end": "0x1ffbd",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x1ffc0",
+          "end": "0x20006",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20007",
+          "end": "0x20030",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20031",
+          "end": "0x20045",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20046",
+          "end": "0x20059",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2005b",
+          "end": "0x20068",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20069",
+          "end": "0x20072",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20073",
+          "end": "0x2007c",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2007d",
+          "end": "0x20086",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20087",
+          "end": "0x20090",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20091",
+          "end": "0x20097",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20098",
+          "end": "0x200ae",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x200af",
+          "end": "0x200c3",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x200c7",
+          "end": "0x2013c",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2013d",
+          "end": "0x20142",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20143",
+          "end": "0x20172",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20173",
+          "end": "0x20177",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20179",
+          "end": "0x201a7",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x201aa",
+          "end": "0x201ac",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x201ae",
+          "end": "0x201b9",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x201ba",
+          "end": "0x201d1",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x201d3",
+          "end": "0x201dc",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x201dd",
+          "end": "0x201e4",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x201e5",
+          "end": "0x2021e",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2021f",
+          "end": "0x20225",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20226",
+          "end": "0x20231",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20233",
+          "end": "0x2023d",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2023f",
+          "end": "0x2024c",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2024d",
+          "end": "0x2024f",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20252",
+          "end": "0x20256",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20257",
+          "end": "0x2026c",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2026d",
+          "end": "0x20274",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20275",
+          "end": "0x2028b",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2028c",
+          "end": "0x202c7",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x202c8",
+          "end": "0x202ce",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x202d0",
+          "end": "0x202d5",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x202d7",
+          "end": "0x2032d",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2032e",
+          "end": "0x20333",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20334",
+          "end": "0x20339",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2033b",
+          "end": "0x20354",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20355",
+          "end": "0x20361",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20362",
+          "end": "0x20377",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20378",
+          "end": "0x20392",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20393",
+          "end": "0x203a7",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x203a8",
+          "end": "0x203a9",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x203aa",
+          "end": "0x203ac",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x203af",
+          "end": "0x203b4",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x203b5",
+          "end": "0x203d8",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x203db",
+          "end": "0x203dc",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x203e0",
+          "end": "0x203e3",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x203e7",
+          "end": "0x203e8",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x203ec",
+          "end": "0x203f6",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x203f7",
+          "end": "0x203fe",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20404",
+          "end": "0x2040e",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20410",
+          "end": "0x20414",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20415",
+          "end": "0x2041a",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2041c",
+          "end": "0x20421",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20423",
+          "end": "0x20428",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20429",
+          "end": "0x20433",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20434",
+          "end": "0x20447",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20448",
+          "end": "0x2047b",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2047d",
+          "end": "0x20481",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20482",
+          "end": "0x204c5",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x204c6",
+          "end": "0x204d0",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x204d1",
+          "end": "0x20507",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20508",
+          "end": "0x2053a",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2053b",
+          "end": "0x20541",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20543",
+          "end": "0x2054e",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2054f",
+          "end": "0x20550",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20551",
+          "end": "0x20554",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20557",
+          "end": "0x2055a",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2055d",
+          "end": "0x20560",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20562",
+          "end": "0x20589",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2058a",
+          "end": "0x2058e",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20590",
+          "end": "0x205a2",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x205a3",
+          "end": "0x205b7",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x205b8",
+          "end": "0x205c2",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x205c3",
+          "end": "0x205cf",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x205d0",
+          "end": "0x20612",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20613",
+          "end": "0x20637",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20638",
+          "end": "0x2063a",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2063d",
+          "end": "0x2064c",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2064e",
+          "end": "0x20655",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20656",
+          "end": "0x20658",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2065a",
+          "end": "0x2065f",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20661",
+          "end": "0x20696",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20697",
+          "end": "0x206b3",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x206b4",
+          "end": "0x206b9",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x206ba",
+          "end": "0x206bf",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x206c1",
+          "end": "0x206d6",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x206d7",
+          "end": "0x206db",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x206df",
+          "end": "0x206e9",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x206ea",
+          "end": "0x2070d",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2070e",
+          "end": "0x20710",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20711",
+          "end": "0x20713",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20715",
+          "end": "0x2071a",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2071c",
+          "end": "0x20736",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20737",
+          "end": "0x20755",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20756",
+          "end": "0x20772",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20773",
+          "end": "0x20778",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20779",
+          "end": "0x2077e",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20780",
+          "end": "0x2078a",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2078c",
+          "end": "0x2079c",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2079d",
+          "end": "0x207d1",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x207d2",
+          "end": "0x207fa",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x207fb",
+          "end": "0x20834",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20835",
+          "end": "0x2083f",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20840",
+          "end": "0x20858",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20859",
+          "end": "0x20871",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20872",
+          "end": "0x2087c",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2087d",
+          "end": "0x20887",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20888",
+          "end": "0x208b3",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x208b4",
+          "end": "0x2092a",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2092b",
+          "end": "0x20948",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20949",
+          "end": "0x20953",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20954",
+          "end": "0x2095e",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2095f",
+          "end": "0x20969",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2096a",
+          "end": "0x20979",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x2097a",
+          "end": "0x209cf",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x209d0",
+          "end": "0x209db",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x209dc",
+          "end": "0x209e7",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x209e8",
+          "end": "0x20a08",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20a09",
+          "end": "0x20a19",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20a1a",
+          "end": "0x20a25",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20a26",
+          "end": "0x20a80",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20a81",
+          "end": "0x20ab1",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20ab2",
+          "end": "0x20ac1",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20ac2",
+          "end": "0x20b20",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20b21",
+          "end": "0x20b3e",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20b3f",
+          "end": "0x20b49",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20b4a",
+          "end": "0x20b62",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20b63",
+          "end": "0x20b6d",
+          "owners": [
+            [
+              "main"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20b6e",
+          "end": "0x20b70",
+          "owners": [
+            [
+              "<padding or no sized function>"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20b70",
+          "end": "0x20b73",
+          "owners": [
+            [
+              "_start"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20b74",
+          "end": "0x20b7a",
+          "owners": [
+            [
+              "_start"
+            ],
+            [
+              "main"
+            ]
+          ]
+        },
+        {
+          "start": "0x20b7a",
+          "end": "0x20b80",
+          "owners": [
+            [
+              "_start"
+            ],
+            [
+              "<padding or no sized function>"
+            ]
+          ]
+        },
+        {
+          "start": "0x20b81",
+          "end": "0x20b92",
+          "owners": [
+            [
+              "_start"
+            ],
+            [
+              "_start"
+            ]
+          ]
+        },
+        {
+          "start": "0x20b92",
+          "end": "0x20ba2",
+          "owners": [
+            [
+              "<padding or no sized function>"
+            ],
+            [
+              "_start"
+            ]
+          ]
+        },
+        {
+          "start": "0x20ba2",
+          "end": "0x20bd6",
+          "owners": [
+            [
+              "<padding or no sized function>"
+            ],
+            [
+              "<padding or no sized function>"
+            ]
+          ]
+        },
+        {
+          "start": "0x20bd7",
+          "end": "0x20bdd",
+          "owners": [
+            [
+              "<padding or no sized function>"
+            ],
+            [
+              "<padding or no sized function>"
+            ]
+          ]
+        },
+        {
+          "start": "0x20bde",
+          "end": "0x20bf4",
+          "owners": [
+            [
+              "<padding or no sized function>"
+            ],
+            [
+              "<padding or no sized function>"
+            ]
+          ]
+        },
+        {
+          "start": "0x20bf5",
+          "end": "0x20c40",
+          "owners": [
+            [
+              "<padding or no sized function>"
+            ],
+            [
+              "<padding or no sized function>"
+            ]
+          ]
+        },
+        {
+          "start": "0x20c42",
+          "end": "0x20c5e",
+          "owners": [
+            [
+              "<padding or no sized function>"
+            ],
+            [
+              "<padding or no sized function>"
+            ]
+          ]
+        },
+        {
+          "start": "0x20c60",
+          "end": "0x20c72",
+          "owners": [
+            [
+              "<padding or no sized function>"
+            ],
+            [
+              "<padding or no sized function>"
+            ]
+          ]
+        },
+        {
+          "start": "0x20c73",
+          "end": "0x20c7b",
+          "owners": [
+            [
+              "<padding or no sized function>"
+            ],
+            [
+              "<padding or no sized function>"
+            ]
+          ]
+        },
+        {
+          "start": "0x20c7d",
+          "end": "0x20c7f",
+          "owners": [
+            [
+              "<padding or no sized function>"
+            ],
+            [
+              "<padding or no sized function>"
+            ]
+          ]
+        }
+      ],
+      "cmd_bench": [
+        {
+          "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(unsigned int, unsigned long)#1}::operator()(unsigned int, unsigned long) const [clone .cold]",
+          "candidate": {
+            "start": 74310,
+            "size": 12,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(unsigned int, unsigned long)#1}::operator()(unsigned int, unsigned long) const [clone .cold]"
+          },
+          "control": {
+            "start": 74310,
+            "size": 12,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(unsigned int, unsigned long)#1}::operator()(unsigned int, unsigned long) const [clone .cold]"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, int, std::vector<double, std::allocator<double> > const&)#1}::operator()(char const*, int, std::vector<double, std::allocator<double> > const&) const [clone .isra.0] [clone .cold]",
+          "candidate": {
+            "start": 75218,
+            "size": 38,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, int, std::vector<double, std::allocator<double> > const&)#1}::operator()(char const*, int, std::vector<double, std::allocator<double> > const&) const [clone .isra.0] [clone .cold]"
+          },
+          "control": {
+            "start": 75218,
+            "size": 38,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, int, std::vector<double, std::allocator<double> > const&)#1}::operator()(char const*, int, std::vector<double, std::allocator<double> > const&) const [clone .isra.0] [clone .cold]"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const [clone .cold]",
+          "candidate": {
+            "start": 77474,
+            "size": 70,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const [clone .cold]"
+          },
+          "control": {
+            "start": 77474,
+            "size": 70,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const [clone .cold]"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#2}>::_M_invoke(std::_Any_data const&, std::function<void ()> const&) [clone .cold]",
+          "candidate": {
+            "start": 78616,
+            "size": 5,
+            "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#2}>::_M_invoke(std::_Any_data const&, std::function<void ()> const&) [clone .cold]"
+          },
+          "control": {
+            "start": 78616,
+            "size": 5,
+            "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#2}>::_M_invoke(std::_Any_data const&, std::function<void ()> const&) [clone .cold]"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}::operator()(std::function<void ()> const&) const [clone .cold]",
+          "candidate": {
+            "start": 81070,
+            "size": 373,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}::operator()(std::function<void ()> const&) const [clone .cold]"
+          },
+          "control": {
+            "start": 81070,
+            "size": 373,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}::operator()(std::function<void ()> const&) const [clone .cold]"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "(anonymous namespace)::cmd_bench(int, int, int, int, int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [clone .isra.0] [clone .cold]",
+          "candidate": {
+            "start": 82923,
+            "size": 661,
+            "name": "(anonymous namespace)::cmd_bench(int, int, int, int, int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [clone .isra.0] [clone .cold]"
+          },
+          "control": {
+            "start": 82923,
+            "size": 661,
+            "name": "(anonymous namespace)::cmd_bench(int, int, int, int, int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [clone .isra.0] [clone .cold]"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int) [clone .isra.0] [clone .cold]",
+          "candidate": {
+            "start": 84213,
+            "size": 622,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int) [clone .isra.0] [clone .cold]"
+          },
+          "control": {
+            "start": 84213,
+            "size": 622,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int) [clone .isra.0] [clone .cold]"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#2}>::_M_manager(std::_Any_data&, std::_Any_data const&, std::_Manager_operation)",
+          "candidate": {
+            "start": 134576,
+            "size": 45,
+            "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#2}>::_M_manager(std::_Any_data&, std::_Any_data const&, std::_Manager_operation)"
+          },
+          "control": {
+            "start": 134576,
+            "size": 45,
+            "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#2}>::_M_manager(std::_Any_data&, std::_Any_data const&, std::_Manager_operation)"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "std::_Function_handler<void (), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda()#1}>::_M_manager(std::_Any_data&, std::_Any_data const&, std::_Manager_operation)",
+          "candidate": {
+            "start": 134624,
+            "size": 45,
+            "name": "std::_Function_handler<void (), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda()#1}>::_M_manager(std::_Any_data&, std::_Any_data const&, std::_Manager_operation)"
+          },
+          "control": {
+            "start": 134624,
+            "size": 45,
+            "name": "std::_Function_handler<void (), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda()#1}>::_M_manager(std::_Any_data&, std::_Any_data const&, std::_Manager_operation)"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}>::_M_manager(std::_Any_data&, std::_Any_data const&, std::_Manager_operation)",
+          "candidate": {
+            "start": 135904,
+            "size": 139,
+            "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}>::_M_manager(std::_Any_data&, std::_Any_data const&, std::_Manager_operation)"
+          },
+          "control": {
+            "start": 135904,
+            "size": 139,
+            "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}>::_M_manager(std::_Any_data&, std::_Any_data const&, std::_Manager_operation)"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(unsigned int, unsigned long)#1}::operator()(unsigned int, unsigned long) const",
+          "candidate": {
+            "start": 141296,
+            "size": 267,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(unsigned int, unsigned long)#1}::operator()(unsigned int, unsigned long) const"
+          },
+          "control": {
+            "start": 141296,
+            "size": 267,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(unsigned int, unsigned long)#1}::operator()(unsigned int, unsigned long) const"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "std::_Function_handler<void (), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda()#1}>::_M_invoke(std::_Any_data const&)",
+          "candidate": {
+            "start": 144176,
+            "size": 114,
+            "name": "std::_Function_handler<void (), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda()#1}>::_M_invoke(std::_Any_data const&)"
+          },
+          "control": {
+            "start": 144176,
+            "size": 114,
+            "name": "std::_Function_handler<void (), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda()#1}>::_M_invoke(std::_Any_data const&)"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "void std::__adjust_heap<__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}> >(__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, long, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}>) [clone .isra.0]",
+          "candidate": {
+            "start": 161872,
+            "size": 1431,
+            "name": "void std::__adjust_heap<__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}> >(__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, long, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}>) [clone .isra.0]"
+          },
+          "control": {
+            "start": 161872,
+            "size": 1431,
+            "name": "void std::__adjust_heap<__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}> >(__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, long, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}>) [clone .isra.0]"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "void std::__insertion_sort<__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}> >(__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}>) [clone .isra.0]",
+          "candidate": {
+            "start": 164096,
+            "size": 1525,
+            "name": "void std::__insertion_sort<__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}> >(__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}>) [clone .isra.0]"
+          },
+          "control": {
+            "start": 164096,
+            "size": 1525,
+            "name": "void std::__insertion_sort<__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}> >(__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}>) [clone .isra.0]"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "void std::__introsort_loop<__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}> >(__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}>)",
+          "candidate": {
+            "start": 169920,
+            "size": 1803,
+            "name": "void std::__introsort_loop<__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}> >(__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}>)"
+          },
+          "control": {
+            "start": 169920,
+            "size": 1803,
+            "name": "void std::__introsort_loop<__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}> >(__gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, __gnu_cxx::__normal_iterator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>*, std::vector<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, double> > > >, long, __gnu_cxx::__ops::_Iter_comp_iter<(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const::{lambda(auto:1 const&, auto:2 const&)#1}>)"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, int, std::vector<double, std::allocator<double> > const&)#1}::operator()(char const*, int, std::vector<double, std::allocator<double> > const&) const [clone .isra.0]",
+          "candidate": {
+            "start": 171728,
+            "size": 1014,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, int, std::vector<double, std::allocator<double> > const&)#1}::operator()(char const*, int, std::vector<double, std::allocator<double> > const&) const [clone .isra.0]"
+          },
+          "control": {
+            "start": 171728,
+            "size": 1014,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, int, std::vector<double, std::allocator<double> > const&)#1}::operator()(char const*, int, std::vector<double, std::allocator<double> > const&) const [clone .isra.0]"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const",
+          "candidate": {
+            "start": 183712,
+            "size": 1443,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const"
+          },
+          "control": {
+            "start": 183712,
+            "size": 1443,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(char const*, std::function<double (std::function<void ()> const&)> const&)#1}::operator()(char const*, std::function<double (std::function<void ()> const&)> const&) const"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#2}>::_M_invoke(std::_Any_data const&, std::function<void ()> const&)",
+          "candidate": {
+            "start": 193344,
+            "size": 242,
+            "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#2}>::_M_invoke(std::_Any_data const&, std::function<void ()> const&)"
+          },
+          "control": {
+            "start": 193344,
+            "size": 242,
+            "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#2}>::_M_invoke(std::_Any_data const&, std::function<void ()> const&)"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}::operator()(std::function<void ()> const&) const",
+          "candidate": {
+            "start": 204784,
+            "size": 4359,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}::operator()(std::function<void ()> const&) const"
+          },
+          "control": {
+            "start": 204784,
+            "size": 4359,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}::operator()(std::function<void ()> const&) const"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}>::_M_invoke(std::_Any_data const&, std::function<void ()> const&)",
+          "candidate": {
+            "start": 209152,
+            "size": 8,
+            "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}>::_M_invoke(std::_Any_data const&, std::function<void ()> const&)"
+          },
+          "control": {
+            "start": 209152,
+            "size": 8,
+            "name": "std::_Function_handler<double (std::function<void ()> const&), (anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int)::{lambda(std::function<void ()> const&)#1}>::_M_invoke(std::_Any_data const&, std::function<void ()> const&)"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "(anonymous namespace)::cmd_bench(int, int, int, int, int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [clone .isra.0]",
+          "candidate": {
+            "start": 217344,
+            "size": 7145,
+            "name": "(anonymous namespace)::cmd_bench(int, int, int, int, int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [clone .isra.0]"
+          },
+          "control": {
+            "start": 217344,
+            "size": 7145,
+            "name": "(anonymous namespace)::cmd_bench(int, int, int, int, int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [clone .isra.0]"
+          },
+          "same_address_size_bytes": true
+        },
+        {
+          "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int) [clone .isra.0]",
+          "candidate": {
+            "start": 228496,
+            "size": 3209,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int) [clone .isra.0]"
+          },
+          "control": {
+            "start": 228496,
+            "size": 3209,
+            "name": "(anonymous namespace)::cmd_bench_model(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, (anonymous namespace)::ExecOptions const&, int, int, int, bool, int, int) [clone .isra.0]"
+          },
+          "same_address_size_bytes": true
+        }
+      ],
+      "scope": "Full .text byte attribution only; no benchmark execution, sampling or other ELF data-section proof."
+    }
+  },
+  "integration_refresh": {
+    "source_head": "ae20c5d6e8f0fba870fe2ef3197e4506ed28b4a0",
+    "base": "58a696cec09bab6841eae06f6101080c54c0df92",
+    "previous_head": "c2f6c99d4822e3774cf8239191563085888ce9f7",
+    "previous_base": "46f60b6491335b62785caf2d0647998864b0283b",
+    "source_test_build_patch_id": "048b3c3dffc3202d06fa39d4920b4ddee85133fa",
+    "windows": {
+      "head": "ae20c5d6e8f0fba870fe2ef3197e4506ed28b4a0",
+      "start": 1790943919.6762316,
+      "steps": [
+        {
+          "name": "build",
+          "command": [
+            "cmake",
+            "--build",
+            "build",
+            "--config",
+            "Release",
+            "--clean-first",
+            "--parallel",
+            "2"
+          ],
+          "start": 1790943919.7252557,
+          "returncode": 0,
+          "end": 1790944003.3835657
+        },
+        {
+          "name": "ctest",
+          "command": [
+            "ctest",
+            "--test-dir",
+            "build",
+            "-C",
+            "Release",
+            "--output-on-failure"
+          ],
+          "start": 1790944003.3835657,
+          "returncode": 0,
+          "end": 1790944216.77446
+        }
+      ],
+      "executable": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-storage-types-20261002\\build\\Release\\llmx.exe",
+        "sha256": "d35c017950d853099b9803a5b56a54dd1857499b4f916709210182ab5ca9230a",
+        "version": "llmx 0.1.0+gae20c5d6e8f0"
+      },
+      "passed": true,
+      "end": 1790944216.785459
+    },
+    "linux": {
+      "head": "ae20c5d6e8f0fba870fe2ef3197e4506ed28b4a0",
+      "start": 1790943920.0201945,
+      "steps": [
+        {
+          "name": "fetch",
+          "command": [
+            "git",
+            "-C",
+            "/zpool1/llmx-xdev-validation/storage-types-20261002/repo",
+            "fetch",
+            "--depth",
+            "2",
+            "origin",
+            "refactor/storage-types-20261002"
+          ],
+          "start": 1790943920.043933,
+          "returncode": 0,
+          "end": 1790943920.3583913
+        },
+        {
+          "name": "worktree",
+          "command": [
+            "git",
+            "-C",
+            "/zpool1/llmx-xdev-validation/storage-types-20261002/repo",
+            "worktree",
+            "add",
+            "--detach",
+            "/zpool1/llmx-xdev-validation/storage-types-20261002/rebase-58a/candidate",
+            "ae20c5d6e8f0fba870fe2ef3197e4506ed28b4a0"
+          ],
+          "start": 1790943920.360275,
+          "returncode": 0,
+          "end": 1790943920.6749642
+        },
+        {
+          "name": "container-start",
+          "command": [
+            "docker",
+            "start",
+            "llmx-xdev-storage-types-20261002"
+          ],
+          "start": 1790943920.6749916,
+          "returncode": 0,
+          "end": 1790943920.8395183
+        },
+        {
+          "name": "configure",
+          "command": [
+            "docker",
+            "exec",
+            "--workdir",
+            "/zpool1/llmx-xdev-validation/storage-types-20261002/rebase-58a/candidate",
+            "llmx-xdev-storage-types-20261002",
+            "cmake",
+            "-S",
+            ".",
+            "-B",
+            "build",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DLLMX_HAS_BACKEND_VULKAN=ON"
+          ],
+          "start": 1790943920.9062722,
+          "returncode": 0,
+          "end": 1790943921.5713365
+        },
+        {
+          "name": "build",
+          "command": [
+            "docker",
+            "exec",
+            "--workdir",
+            "/zpool1/llmx-xdev-validation/storage-types-20261002/rebase-58a/candidate",
+            "llmx-xdev-storage-types-20261002",
+            "cmake",
+            "--build",
+            "build",
+            "--parallel",
+            "4"
+          ],
+          "start": 1790943921.5713573,
+          "returncode": 0,
+          "end": 1790944114.814659
+        },
+        {
+          "name": "ctest",
+          "command": [
+            "docker",
+            "exec",
+            "--workdir",
+            "/zpool1/llmx-xdev-validation/storage-types-20261002/rebase-58a/candidate",
+            "llmx-xdev-storage-types-20261002",
+            "ctest",
+            "--test-dir",
+            "build",
+            "--parallel",
+            "2",
+            "--output-on-failure"
+          ],
+          "start": 1790944114.8146832,
+          "returncode": 0,
+          "end": 1790944238.2240753
+        }
+      ],
+      "disk_free": {
+        "/": 6046482432,
+        "/zpool1": 440178573312
+      },
+      "executable": {
+        "sha256": "4aecade68f6e2848ad02fb64f809e3d7c7531349ad3faf2ad1d586f7fcd1d053",
+        "version": "llmx 0.1.0+gae20c5d6e8f0"
+      },
+      "shaders": {
+        "embed_mxfp4.inc": "171c698045284e77519db9e077a96250d371492c6697b6c02c34d1df94b471ef",
+        "matmul_row_k4_dot.inc": "f9c84098bf58150291524f1091adb69bf1e368690de7823485db1572e19bf751",
+        "norm_rope_kv.inc": "669c52250612b206b521528666a3ce935cbe817f521ba4505ca848d8946e9423",
+        "rms_norm_rows.inc": "02f5ef2b90765669f28461afe01f092b1f0490008e0a74e658b256770f76fa5e",
+        "matmul_row_mxfp4.inc": "3ce82bd91b250c45221df840329dfb2629248011ff3fe25583a40d201c07d67d",
+        "matmul_row_k.inc": "46333b6d0e65ee7f5e69083cf4c161bb72439eb0f6dda5628e585617e828c298",
+        "attention_vec_d256_v16.inc": "f444b1351ccaa8d82a5aa0d3d5659ec769f9172bd20fd26731fab66255923002",
+        "attention_kv16_g4.inc": "b7127b6422d7577c9419d377abf948f8d1ec55bc59c9f65f7d56e49f37012b6d",
+        "attention_merge.inc": "f3f46896a3cd54212ebde139cab0e9d60c5b104aba5b12cc4a5fcbb2d1571c78",
+        "matmul_tile_q.inc": "c2a6c50a44775a7c1c4b16152f962981b2f479af0338f35ab308397ef17a2089",
+        "embed.inc": "d7bd49769038979c039f81bea85098fa5d44c858b4442a999eac3f151bd2696c",
+        "norm_rope_kv_kv16.inc": "dd96b1beb9f4348074dfc10d82aeb691fafae8036e9776d14e823ff12805546f",
+        "attention_tile_d256_k16.inc": "48e7fc74b56a060dfa902133645d27bee11d4a7ce4233764d3bd45c156b4834f",
+        "matmul_tile_q6.inc": "37f703ed0b150080d2dea0bc5a13898ea6fc783b2f7da93b2613310b899a7ba6",
+        "matmul_tile_q8.inc": "42749dd7efc8c775dab840d70fda2fbbc923b0376632a8e19df0b91d768d98eb",
+        "norm_rope_kv_v16.inc": "a5ef8a8e0729832142d4aa3ca79b1be024f201b7bccaeeaa322bbe2d31ab0886",
+        "moe_route.inc": "d3b45c96874daa5aad108d06725d78ac2e3207d8cd50bf4ce70054df56341c3c",
+        "matmul_row_q8w.inc": "b7a65058ac297e29bbf2760ac15df81c4e78d706551e70aab3c0b538705b9085",
+        "gather_rows.inc": "18fb48ad4171822401e69747ac3d60ec074dc1f24a8ab7ae094a93f0f9ead37a",
+        "attention_k16_g4.inc": "6b83b9b0f1d3f3151cf97a6ae79e93605e6a3cd65ca55dbe7fee513b67d59330",
+        "matmul_row_k_dot.inc": "90d1c76633733da3922ac9aab50e96c68e55c030186c0169af155341d0840edf",
+        "kv_write.inc": "5789604e44fd11500b770aae6359b54db994e744a08afd4fba3999baa02f6f18",
+        "matmul_tile_mxfp4_bf16.inc": "cd8347a75fde26641d8525404b09255f9de7bae1305e6e26aabd3551aebd2f82",
+        "matmul_row_mxfp4_float_x.inc": "26cde06a2a69839913003ee79682df2efd933c81000a88ed76369dd1f663a364",
+        "matmul_vec_q8.inc": "ba2484d494f71727efaf33a48ce6433e35574ca88ad5a7d5fd939baf29fcc006",
+        "matmul_tile_q8mx.inc": "7dc644d5eab46fe6f3bb5e1c303de4535e83eed3b1f404bf227f66853b19d2a4",
+        "attention_vec_d256_v16_g4.inc": "3dac5f26e4c03c9d2313472510eccc7db9d462f7ddc7ac432d9461d22cf5051a",
+        "matmul_reduce_mxfp4.inc": "31af6a257c20a01b7fa3616c2f80fffa828c44b18fea64d7afd1aa38ff2f2500",
+        "attention_v16.inc": "434e31bd6355596ac015cdd985e8387c88ed7eeaf7b6f2a43a11e889c42ec5bf",
+        "quantize_x.inc": "1e9abc6c78f14b8a3c2f0ab45a961ca34b8983c6d3ce99885f126458769ad10c",
+        "matmul_tile_mxfp4.inc": "d746267b7b6fc333c63e26172c3c907637f3711279f7f96e9850fcae727e456b",
+        "matmul_row_q4_preserve.inc": "7437606edec1362764879d38258503e5d4cd20e774c369bc8ad15f11cac990d1",
+        "quantize_xw.inc": "c4b909ce38e41ee07a35c4ed7daa7f66f3988cb5fb69cc1a1e6688cc24fa9a17",
+        "moe_combine.inc": "e17faceaa27dda05a3819a8a820414075a23dc16901c3b8c820a4968db1bfedb",
+        "attention_vec_v16_g4.inc": "7f77ffe380ef7df3727c222f763a80d0379a70e20b1e2cc118ca1745e279938c",
+        "matmul_tile_q_preserve.inc": "8dca78d0a718639da64fb64cc10cdc00d5af47c98dfb63267edb85c6b3063603",
+        "norm_rope_partial.inc": "6b3a0989c51ab0b10ea2793717622620ee5b10c0d8047ab7a52f33162bf4b662",
+        "matmul_reduce_preserve.inc": "7e8053aa5f7f3139ff8a3f53fff4bf856c21a3475413fc933fb1634d12ba1632",
+        "matmul_row_float_x_preserve.inc": "694a04994d1b6021b3dcedd5bbdc077248456af2cc4f76836f89e80fb5d1e329",
+        "causal_conv_silu.inc": "ead149a1e347e3db6ad272034800fcd3a13fe35cb8c46c1a0a26bd53328fe980",
+        "attention_tile.inc": "9971ec0c4385fe51fecddef9172bd2dc56cbe86d5a57530998c55a21dc74253e",
+        "add.inc": "c5fcf6022b9dd4d471666924d51762739ba7dd4b4899923dcac2867034d3889a",
+        "silu_mul.inc": "cd36568f7370a073fa4c64e5db8c6a4dc094388d46ba44bc4870342ed3cc2f32",
+        "matmul_row_k5_dot.inc": "24e7a0c89206ce0de66f1e2ae7bc8fb44bc14e50462b172348ea495caa79a335",
+        "attention_tile_d256_kv16.inc": "23d5e28b837eb9a7e381b5dfbcaf34189d6e58258a63b55816a4ced74d6e7932",
+        "attention_vec_k16.inc": "0804afc17c16ede673d6230a709e3e0b1aa2bb4001832bebdb713c503bafafe0",
+        "matmul_row_float_x.inc": "6210ab42782c5ca1ef6f729952f24a05820043afcb10c0574cdc0f1df8dfd66a",
+        "delta_rule.inc": "41cac4d65a3c568594fb41c4a9505d96efe86ae2424cdfaa881bb96835be1e65",
+        "kv_write_v16.inc": "4c38eb5fd5d86171002cfe34f977bb9a8acc709655aa46a5a386e671f8a1c510",
+        "kv_write_kv16.inc": "07c72290273234fd6a1bbd61643ccc114d9e073595145b324bdbe927e4d75ba8",
+        "attention_tile_v16.inc": "913aa9ea07807876b09dd14c70b28b707d4e9d810d6fc82b1b51b550a77b0bf8",
+        "matmul_row.inc": "1236d88c9ed00c5143e29b15ada37b15a7469ae199c7d39ab1f2000e3cb6bfb6",
+        "matmul_tile.inc": "ff0f875d2c5800e9975040ba66b322710d360d97894a69b855ef30caecdb8703",
+        "matmul_row_q4.inc": "710745864c2603c0fc75edd44313562b999836a152338c8a99334bb881fe05f5",
+        "attention_g4.inc": "a303ef235a1dd080a566db46b6df961c175df8728cd4b49960bbcb7539e86793",
+        "sigmoid_mul.inc": "9a0d49c1b54eded4be2e41c3c3cbfe01225ac926592f726f2f586d6e15ab87c9",
+        "attention_tile_d256.inc": "d8ecb437260a0a90e00c415d9baef9ab1436abbc5762590f364350dd3bc72a0f",
+        "matmul_row_k_preserve.inc": "47f0d413b93bedef6b116a8d8cd394226dccaf5d68eefcdbf971bd127110ddf4",
+        "attention_vec_d256_kv16.inc": "497b558e7fea67a211fa712d408bf585c28123bd85bc27b6930e1f7929982a80",
+        "matmul_row_q4_dot_preserve.inc": "a6a39b00eb2a94ebee669b19b43e69a3c499c44f48ee9d307c928767f85f5746",
+        "attention_tile_d256_v16.inc": "226930f81664676c88874fc0a36265d8110bb0bf0b28f85ad7c32ee489a7848e",
+        "matmul_tile_q6_preserve.inc": "9fcf40e661926175eb0292825d514e8d5d43f52e03c4ab24efed93c61fdf7822",
+        "norm_rope_kv_k16.inc": "c32f29d8d6c56ca39e2e9dec2302b2037d5eb611e44f6057ce946d385b5c6dd3",
+        "matmul_row_k5.inc": "0fd2dcfb5e2a51386a8d4fdb7b265295920986342435c5b38ca2ee7943b0528d",
+        "attention_vec_d256_k16.inc": "f1cb955a36f4d852de8147568fd5e537c0c374952035f42024c207679dc436d9",
+        "attention_vec_kv16.inc": "ccfaae89c334ee88fc8ca705b7c5290b04643d1d42d8e75ea496f10202cc27af",
+        "attention_vec_d256_kv16_g4.inc": "84e46d63b6649a3081cfc394c3e90ab9eeb850b8b1831d13b146b3f215932c8b",
+        "attention_kv16.inc": "1ef4af9f906f670b892bf7d203bd95bc7b438180a719e50f7d8ba09774293bf5",
+        "attention_vec_kv16_g4.inc": "7770e4c5333f76e627d663f2aea0d853b7894650f4f75c2b77bcb5f2321cc07f",
+        "matmul_row_mxfp4_dot.inc": "66635834d11a292a650d1cb80fd2f63dadd7bc1d8f607c1e16fae4d0e1e0c049",
+        "attention_vec_d256_k16_g4.inc": "de17a0c07571140b277de24e4aadc9083baf4f1a79410ba8067279afc1bbb34e",
+        "matmul_tile_bf16_preserve.inc": "c740538591f4150819f6a3d03aeb97bcf784003e8b24b422b6c5dd0fe913fd2f",
+        "attention_vec_k16_g4.inc": "15f93ea5a8978e91281dfb16288d5372cbc0ebeda9db6585f65f6260f1a2c971",
+        "matmul_tile_preserve.inc": "065cd76bcefc5002ebd356b24399148bdf6a6cf1dc8039262d975075f6450a18",
+        "attention_v16_g4.inc": "db55808ddea2c44e2e4ab60670ed32b1474e0b67de95ce5ddb251b2bd365ecd0",
+        "matmul_row_k4.inc": "4689f433ccc86ab3631d4b9219ca52f9c0480425fff5af6eadb2a4f62c04dca8",
+        "kv_write_k16.inc": "c277d556a5efd0d4eb0773c72e5ee2a39cb543a020b098330be2855c5f46ce34",
+        "attention_vec_d256.inc": "3e3b90765a2fd5e99b20513570a5cce0a126ea72bfb0241fde4cdc3690e5520d",
+        "attention_tile_k16.inc": "84233dc91acd6540f6d7b28eb96bb5b96fb7179520bd7d5b46e31fd824bcd125",
+        "matmul_row_preserve.inc": "77168f8c2fd5d76fbbbb772ce705eea1cfa057dbb3f65a7b8c044cb29a966a09",
+        "attention_vec_g4.inc": "cd77ec2dc35b7f4a55a947f5dfaaba5ba5a03076443b709070b0f500693d92a6",
+        "moe_group.inc": "54d7a45d8db7202aefc70ec859c249117988f25f3c1a11cfb6114d17cd37a587",
+        "copy_mxfp4.inc": "95206411ce6426f7674c1c0a52a2bb55ba4344a4c3c32ce1f8fb7a23596119be",
+        "attention_vec.inc": "36ca50981bc85c8565ccfa82a446e0856b434988043affbfae5c87e16cbce927",
+        "attention_vec_d256_g4.inc": "4ae9ae1d5b70ef0aa24d3cd8d927518d0b9e2953c6f882d3650bf96cfd9f9d77",
+        "attention_vec_v16.inc": "c69a36d5a0f5351279e421dd6851debde7617abd82b53d9cecd39c26a55f741e",
+        "matmul_tile_bf16.inc": "dee3c5de040feb20aaa7c95aeefaeb5a05d72bad8dc5d01d8d4480dcc152adcf",
+        "matmul_row_q8w_preserve.inc": "48aa6f50810d125952db8d79af00cc5d0f7b727396bcbd6e177d3c921a316c34",
+        "matmul_row_k_dot_preserve.inc": "0e45c1ce99836a5eef6c7e8affea6f87adf866f5e7122501920a47667cfaf777",
+        "matmul_row_k5_preserve.inc": "8d269324e9ba57f0bba27ed1489b4e8fb9cf4eb21aca9d035ba1df3521f269db",
+        "matmul_row_q4_dot.inc": "d8b9b2e36cd579b6fbf94cf818d479f66b796798965cb06665e2242c549845f3",
+        "matmul_reduce.inc": "cb397b35c152ae077a9a82fd046fd3561c3ab66a6877e8521d04bfb34c8e2391",
+        "gated_rms_norm.inc": "1a7b8737a4123288477c1a9595ad9e07c68a31d68d464beaae227ee91ef0d78f",
+        "matmul_vec_q8_preserve.inc": "39be0288dc3d3de2d1d055b331b108e31dda922ae3c04257a517292fe86c1ed2",
+        "matmul_row_k5_dot_preserve.inc": "1e0694ca233d864a97f9b7d81491821366ba59c1bbb8623dfe9a58e7157e51f3",
+        "attention_tile_kv16.inc": "d2ab18ba3ec9edf137c55581f9a33abb74e7402eb42ab0a0f9f28a3e53edc3d5",
+        "attention.inc": "660602b9e12fe8213e3c18b1bd8fb3a3d437a2f18143a24b93566ce673d9b37d",
+        "attention_k16.inc": "388f8961bbb2fc1c361111f8d388ad61c46b4d5b174533a0e1bea76be94977e8",
+        "matmul_row_k4_dot_preserve.inc": "4af10724568c7b5c08329d5cbb925983338b5bf892d61ff64c88b67fba708ac4"
+      },
+      "passed": true,
+      "end": 1790944238.4806612
+    },
+    "native_counts": {
+      "windows": 38,
+      "linux": 42
+    },
+    "scope": "Code merged automatically; only STATUS conflicted and both entries were retained. The full numerical/timing campaigns retain their original source identities."
+  }
+}

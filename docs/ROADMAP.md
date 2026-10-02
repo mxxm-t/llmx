@@ -10,8 +10,9 @@ specified in `docs/ARCHITECTURE.md` but not yet implemented.
 
 ## 1. More quantization formats
 `quant::Registry` supplies the generic CPU path through block kernels and a
-registry entry, and the GGUF reader sizes tensors through it. What a new type
-takes on each layer and backend is listed once, in `docs/src/quant-types.md`. The type ids and block sizes live in
+registry entry. The GGUF reader sizes tensors through the separate storage
+metadata, so recognizing a file layout does not require a decoder. What a new type
+takes on each layer and backend is listed once, in `docs/src/quant-types.md`. Storage metadata and checked row sizing live in
 `quant/types.hpp`, block kernels and the registry in
 `quant/quant.hpp`; shared K-quant kernels live in `quant/k_quants.hpp`.
 - Done: `Q8_0`, `Q4_0`, `Q4_1`, plus `Q4_K` and `Q6_K` read-only. Real files
@@ -32,14 +33,14 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. Th
   Every type multiplies the per-backend kernel work (see #4b), so they are taken in the order of the files they open and how often those files are published, weighed against the effort.
   MXFP4 preceded IQ4 by the user's decision of 2026-09-25, although IQ4 opens far more files.
   They open the BF16 and UD-Q8_K_XL files, the MXFP4_MOE files, the IQ4 and UD-Q4_K_XL files, and the Q2_K and Q3_K mixtures that Qwen3 and Qwen 3.x are published in.
-  16-bit weights are widened to F32 exactly inside the kernels, since gfx906 has no BF16 arithmetic, and never through a lossy path.
+  The planned 16-bit weight kernels will widen to F32 exactly, since gfx906 has no BF16 arithmetic, and never take a lossy path.
   Each type must meet the six conditions listed there.
 - The lattice-codebook types (`IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ3_XXS`) are not planned: they need about 33 KB of codebooks, and every file that uses them mixes 8 or 9 types.
   `IQ3_S` is proposed as the first candidate after it, a question not yet asked (`docs/STATUS.md`, Quantization coverage, question 11).
   `Q5_0` and `Q5_1` are not planned; whether they join is an open question of the Qwen 3.x plan in `docs/STATUS.md`.
 - K-quants are what most GGUF on the Hub actually uses; see #9b
-- `TensorInfo::data_size()` sizes a tensor through `quant::row_bytes`, so the type ids and block sizes are written once in C++, in `quant/types.hpp`, and again in the Vulkan shaders' `q.glsl`.
-  The quantization plan's first step moves them into one table over every type id in `core/storage.hpp`, which the reader and the registry read and a test holds `q.glsl` to; whether that table grows in `quant/types.hpp` instead is open (`docs/STATUS.md`, Raw conversion in the format layer, Gotchas).
+- Storage metadata is owned by `quant/types.hpp`: 35 active GGML layouts, with unknown and removed IDs refused. `TensorInfo::data_size()` uses its checked `row_bytes`; the decoder registry reads the same metadata. `gguf-validation` holds the Vulkan shaders' `q.glsl` declarations to it.
+  This resolves the proposed `core/storage.hpp` owner in the existing quant layer. It does not implement new decoders, backend dispatch tables or the quantization plan's kernel-class work; those remain separate steps.
 - `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1, Q4_K, Q5_K, Q6_K, Q8_0 and Q4_0 from raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, each against a decoder written from the format description.
   Each new type joins it from raw blocks, since the planned types stay read-only, with no quantizer.
 
@@ -272,8 +273,8 @@ make a model usable: its architecture and tokenizer must also be implemented.
   schema, integer-range, tensor-extent and dtype checks before exposing data.
   No new dependency; see #3.
 - **BF16 / F16 tensors**: most HF safetensors are BF16.
-  `core/fp16.hpp` and `core/bf16.hpp` cover conversion to and from F32 for activations. Neither supplies an F16 or BF16 weight entry in the quant registry, which `gguf::TensorInfo::data_size()` sizes tensors through.
-  Both are the first types of the quantization plan (#1), widened exactly to F32 inside the kernels on every backend, and the native safetensors path takes the same kernels.
+  `core/fp16.hpp` and `core/bf16.hpp` cover conversion to and from F32 for activations. Their weight layouts are recognized by storage metadata, but neither has a decoder registry entry or backend weight kernels.
+  Both are the first executable types still to add in the quantization plan (#1), with exact widening to F32 planned inside the kernels on every backend; the native safetensors path will use those kernels too.
 - **`tokenizer.json`**: the HF tokenizer format. `bpe::Tokenizer` reads only
   GGUF-embedded `tokenizer.ggml.*`, so safetensors repos have no tokenizer path
 - **`config.json`**: architecture config. `infer::qwen3::read_config` reads only

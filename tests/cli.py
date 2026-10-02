@@ -66,6 +66,40 @@ def check_info(directory):
     assert listed == expected, listed
 
 
+def check_known_storage(directory):
+    """Known layouts open for metadata and tokenization while execution and conversion still refuse unsupported weights."""
+    config = dict(f32.CONFIG, embedding_length=256, block_count=1)
+    weights = f32.tensors(False, config=config)
+    for used in (True, False):
+        name = "token_embd.weight" if used else "unused.q2"
+        shape = [256, f32.VOCAB] if used else [256]
+        # One Q2_K block is 256 values in 84 bytes; this fixture uses the format's layout, independently of the runtime table.
+        raw = bytes(84 * (f32.VOCAB if used else 1))
+        path = os.path.join(directory, "known-storage-%s.gguf" % used)
+        model = f32.write_model(path, [w for w in weights if w[0] != name], config=config,
+                                quantized=[(name, shape, 10, raw)])
+        p = common.run_process(["info", model], text=True)
+        line = "  Q2_K %s shape=[%s] elements=%d bytes=%d" % (name, ", ".join(map(str, shape)), math.prod(shape), len(raw))
+        assert p.returncode == 0 and line in p.stdout.splitlines(), (p.returncode, p.stdout, p.stderr)
+        p = common.run_process(["tokenize", model, "hello"], text=True)
+        assert p.returncode == 0 and p.stdout == "104, 101, 108, 108, 111\n", (p.returncode, p.stdout, p.stderr)
+        p = common.run_process(["detokenize", model, "104,101,108,108,111"], text=True)
+        assert p.returncode == 0 and p.stdout == "hello\n", (p.returncode, p.stdout, p.stderr)
+        p = common.run_process(["generate", model, "a", "-n", "1", "--device", "cpu", "--threads", "1"], text=True)
+        refusal = ("embedding needs tensor %s of type Q2_K (10), which the backend of device 0 does not support" % name if used else
+                   "unused tensor %s of type Q2_K (10) is not supported by any model backend" % name)
+        assert p.returncode == 1 and not p.stdout and ("error: inference: " + refusal) in p.stderr, (p.returncode, p.stdout, p.stderr)
+        outputs = [os.path.join(directory, "unsupported." + ext) for ext in ("json", "bin")]
+        for output in outputs:
+            with open(output, "wb") as f:
+                f.write(b"existing output")
+        p = common.run_process(["dequantize", model] + outputs, text=True)
+        assert p.returncode == 1 and not p.stdout and ("unsupported tensor type in dequantize: " + name) in p.stderr, (p.returncode, p.stdout, p.stderr)
+        for output in outputs:
+            with open(output, "rb") as f:
+                assert f.read() == b"existing output", output
+
+
 def usage_error(args, page, reason=""):
     """`args` must be refused as a usage error: status 2, nothing on stdout, and `page`'s help on stderr followed by the reason, which starts with `reason`.
     The line is run as written, without the configured device flags, so a check of missing arguments stays one."""
@@ -281,10 +315,11 @@ def run():
         check_dtype(model)
         devices = check_expert_flags(model)
         check_info(directory)
+        check_known_storage(directory)
     check_usage_errors()
     taken, switches, refused, twice = check_help()
     print("cli: a Vulkan device refused without the backend or without the device, experts on the CPU refused on a model without routed layers "
-          "on %d device(s) by the flag's name, info's architecture, layers and tensors, "
+          "on %d device(s) by the flag's name, info's architecture, layers and tensors, known unsupported storage metadata and execution refusals, "
           "usage errors exiting 2 with the command's page, and every help page shown without a model, "
           "with %d lines of the flags it lists taken, %d of them giving a switch twice, %d of the flags it does not list refused and %d giving a listed flag a second value refused  [ok]"
           % (devices, taken, switches, refused, twice))

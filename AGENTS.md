@@ -169,6 +169,7 @@ real child-only file-size-limit failures on POSIX, existing-file preservation,
 a failed second output open and aliased raw output refusal.
 
 `gguf-validation` checks independent binary fixtures for field lengths/counts, array depth, tensor arithmetic, byte counts that overflow although the element count fits, in one row or across rows, file extents, tensor types and quantized row widths, each refused as such when the element count also overflows, custom alignment and a tensor name repeated in one file.
+Its independent layouts cover all 35 known storage types, including those without decoders, and refuse unknown and removed IDs even in empty tensors. It reads the type IDs and block declarations in `src/backends/vulkan/shaders/q.glsl` and holds them to `quant/types.hpp`, without running a shader. CTest supplies both arguments: `llmx-gguf-validation-test <fixture.gguf> <q.glsl>`.
 These are format checks; they do not establish model-schema safety.
 `load-progress` reads, maps and reads in a file as the loader does, and checks the progress, each tensor's file span, that reading the headers maps nothing, that a model not mapped is neither written nor read in, early rejection, and a file truncated before loading or whose size changes between reading and mapping, refused before any progress.
 The loader's readers check a file's size against its header with the mapping's own check, so a changed size is refused the same way.
@@ -379,6 +380,7 @@ unchanged storage and a zero thread hint preserving the current pool.
 It pins that construction and count changes start no threads, and that the first dispatch at a count starts one pool of that size, which later dispatches reuse.
 A start that fails partway fails its dispatch and keeps the count, and the next dispatch starts the whole pool without a new count.
 It checks `quant::row_bytes` against the block layouts over one row and over several, zero rows taking zero bytes however wide a whole-block row, and its refusals of an unknown type and a partial block, with rows or with none, and of a size that wraps in one row or across rows.
+It checks sizing of known layouts without decoders, refusal order and exact messages, and that the registry's metadata agrees with `quant::storage_type`. The decoder registry and CPU support must remain exactly F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and MXFP4; recognizing more storage layouts must not enable their execution.
 Decode and batched `matmul` and `embed` must refuse a Q8_0 row that ends inside a block, and `matmul` and `matmul_group` must refuse row runs that reach past the call, in order or not, are out of order or fall short of it, all before writing any output.
 It does not establish recovery of partially executed model sessions.
 
@@ -529,6 +531,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   A Vulkan device is refused with an error and nothing on stdout, never run on the CPU instead, through a model command and through the synthetic bench.
   A build without the Vulkan backend refuses it, and so does a Vulkan build that cannot open it; where device 0 opens, an index no machine has stands in for the missing device.
   `info` on the synthetic MoE model names its architecture and layer count, and lists every tensor written with its type, shape and size.
+  A known Q2_K layout, as an embedding and as an unused tensor, opens through `info`, `tokenize` and `detokenize`, with exact type/size and tokenizer output. CPU generation refuses each by tensor name and type, at its role or as unused by the model. `dequantize` refuses it before changing either existing raw output.
   `--n-cpu-moe` and `--cpu-moe`, alone and beside `--moe-stream-from`, are refused on the synthetic dense model with status 1 and the name of the flag given by `generate`, `chat`, `logits`, `perplexity`, `bench --model` and `serve`, on the CPU and on the configured device when that is one device other than the CPU.
   It also checks the CLI's usage errors, all refused before a model is opened: an unknown command, `serve` and `pull` without arguments, missing and extra arguments, unknown flags and flags without a value, a chat positional argument, a second prompt, `--file` or `-f` anywhere but right after the model, `--depth` with more than one sequence, a pull target without its quant, a bench `--size` that is not a multiple of 32, a value after the `--ignore-eos` switch (checked by its reason, which a parser without the switch would not give), the synthetic bench's flags with `--model` and the model run's without it, `--profile` off a single Vulkan device, `--moe-stream-from` without experts on the CPU, an unknown cache type or load mode, and numbers out of their form or range.
   So are, each checked by its reason so that a usage error for another cause does not pass for it: anything after `--version`, `-tb` with `perplexity --per-token`, `perplexity -c 1`, an empty value that would read as the flag not given (`pull --file`, `pull --cache-dir`, `--stop`, `--then-ids`, `--layer-shares`, `bench --model`), a second value for a flag in one spelling or in two, and `--cpu-moe` with `--n-cpu-moe`.
@@ -828,7 +831,7 @@ matters: **each layer depends only on the layers below it** -
 |--------------|-------------------------------------------------|
 | `core/`      | fp16 and bf16 <-> f32, JSON parser, UTF-8, file hashes, the host memory a process can still take and owned pages, comma-separated lists, the CPUs a process may use and the cgroups its limits are read from |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
-| `quant/`     | type ids and block sizes, QuantType registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K/MXFP4 kernels |
+| `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K/MXFP4 kernels |
 | `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, output files published whole, raw F32 tensors to and from GGUF |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | runtime (sequences and their histories, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35 and qwen35moe) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices |

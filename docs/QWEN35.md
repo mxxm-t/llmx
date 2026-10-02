@@ -296,6 +296,9 @@ llmx follows HF, and the HF gate checks it.
 ## The files on the Linux MI50 machine
 
 The step numbers are those of the plan in STATUS.
+Type refusals below concern inference. `info`, `tokenize` and `detokenize`
+can open the known storage layouts, including BF16, F16, IQ4_NL and Q5_1,
+without those execution kernels; unknown type IDs are still refused at open.
 
 | files | arch | tensor types | handling |
 |---|---|---|---|

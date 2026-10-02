@@ -73,8 +73,9 @@ placement contracts in `docs/EXECUTION.md`.
 - `is_cpu()`: whether the backend is the CPU itself, which experts on the CPU (`infer::adds_host_for_experts`) ask so that no second CPU is placed beside it, and which the split's fit does not ask; false by default, true on the CPU, and a device that reads in place still answers false.
 - `row_class(extent)`: a key for rows of that `RowRun` extent, equal for two extents only where every op of the backend takes the same arithmetic for both, so they give the same bits; by default every extent is a class of its own, and a backend claims more only where it proves it (`docs/SPECULATIVE.md`, section 1).
 - `matmul(type, data, X, Y, nin, nout, nbatch, runs)`: the type-generic
-  matmul. The quant type is resolved through `quant::Registry`, so every block
-  format gets the generic CPU batched fallback. Vendor backends require kernels
+  matmul. The quant type is resolved through `quant::Registry`, so every registered
+  block decoder gets the generic CPU batched fallback; storage metadata alone
+  does not enable it. Vendor backends require kernels
   and validation for each supported type. A decode token is the one-column
   case of the same call.
   Rows are sized by `quant::row_bytes`, so a row that ends inside a block is refused by every op on every backend.

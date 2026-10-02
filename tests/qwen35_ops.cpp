@@ -1,5 +1,6 @@
 // The CPU backend's ops of the qwen35 layers (docs/QWEN35.md, The forward pass) against references written here from the math in double precision, each within the bound stated beside it.
 // Also that no result depends on the thread count, on how rows are grouped into calls or on the block a V column runs in, bit for bit, and that length 0 reads a zero state.
+// And the embedded drafter's two ops (docs/SPECULATIVE.md, section 7): argmax_rows over ties, infinities and NaN, after an invalid id, and embed_ids, whose invalid id writes a zero row.
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -827,6 +828,58 @@ size_t check_sigmoid_mul(std::mt19937& g, size_t heads, size_t dim) {
 
 }  // namespace
 
+// The id stored in float-sized slot i of `b`.
+uint32_t id_at(CpuBackend& cpu, const backend::Buffer& b, size_t i) {
+    uint32_t id;
+    cpu.read(b, i * sizeof(float), &id, sizeof(id));
+    return id;
+}
+BufferPtr ids_of(CpuBackend& cpu, const std::vector<uint32_t>& ids) {
+    BufferPtr b = zeros(cpu, std::max<size_t>(ids.size(), 1) * sizeof(float));
+    if (!ids.empty()) cpu.write(*b, 0, ids.data(), ids.size() * sizeof(uint32_t));
+    return b;
+}
+
+// argmax_rows on rows beside each other: a plain row, a tie taken at its lower id, an infinity, a NaN anywhere, a row of -infinity, a row whose prior id is invalid, each row's id its own, and an id past the vocabulary only where the definition gives it.
+// Then embed_ids: valid ids give the table's rows, as embed gives them, and an id past the table a zero row beside them.
+size_t check_drafter_ops(std::mt19937& g) {
+    CpuBackend cpu;
+    const size_t n = 37;
+    const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
+    std::vector<std::vector<float>> rows(7, uniform(g, n, -4.0f, 4.0f));
+    for (auto& r : rows) r = uniform(g, n, -4.0f, 4.0f);
+    rows[1][5] = rows[1][20] = 9.0f;               // a tie at 5 and 20
+    rows[2][11] = inf;                              // an infinity is not finite
+    rows[3][30] = nan;                              // a NaN after the largest
+    rows[4].assign(n, -inf);                        // nothing finite
+    rows[5][2] = 9.0f;                              // a valid row, but its prior id is invalid
+    rows[6][0] = nan;                               // a NaN first
+    std::vector<float> flat;
+    for (const auto& r : rows) flat.insert(flat.end(), r.begin(), r.end());
+    const std::vector<uint32_t> want = {(uint32_t)(std::max_element(rows[0].begin(), rows[0].end()) - rows[0].begin()), 5, (uint32_t)n, (uint32_t)n,
+                                        (uint32_t)n, (uint32_t)n, (uint32_t)n};
+    const BufferPtr logits = upload(cpu, flat), out = zeros(cpu, rows.size() * sizeof(float));
+    const BufferPtr prior = ids_of(cpu, {0, 1, 2, 3, 4, (uint32_t)n, 6});
+    cpu.argmax_rows({out.get(), 0}, {logits.get(), 0}, rows.size(), n, {prior.get(), 0});
+    for (size_t r = 0; r < rows.size(); ++r)
+        require(id_at(cpu, *out, r) == want[r], "argmax_rows row " + std::to_string(r) + " gave " + std::to_string(id_at(cpu, *out, r)));
+    // Without a prior id the valid row of a prior invalid one is its own argmax.
+    cpu.argmax_rows({out.get(), 0}, {logits.get(), 5 * n}, 1, n);
+    require(id_at(cpu, *out, 0) == 2, "argmax_rows without prior ids");
+
+    const size_t width = 8, vocab = 5;
+    const std::vector<float> table = uniform(g, width * vocab, -1.0f, 1.0f);
+    const BufferPtr t = upload(cpu, table), dst = zeros(cpu, 4 * width * sizeof(float));
+    const BufferPtr ids = ids_of(cpu, {3, (uint32_t)vocab, 0, 0xffffffffu});
+    cpu.embed_ids({dst.get(), 0}, quant::GGML_TYPE_F32, {t.get(), 0}, width, vocab, {ids.get(), 0}, 4);
+    const std::vector<float> got = download(cpu, *dst, 4 * width);
+    for (size_t i = 0; i < width; ++i) {
+        require(got[i] == table[3 * width + i] && got[2 * width + i] == table[i], "embed_ids gave other rows than the table's");
+        require(got[width + i] == 0.0f && !std::signbit(got[width + i]) && got[3 * width + i] == 0.0f, "embed_ids of an invalid id wrote no zero row");
+    }
+    return rows.size() + 4;
+}
+
 int main() {
     try {
         std::mt19937 g(35);
@@ -855,6 +908,7 @@ int main() {
         check_norm_tail(g);
         gate += check_sigmoid_mul(g, 4, 40);
         gate += check_sigmoid_mul(g, 3, 256);
+        std::printf("drafter ops: %zu argmax rows and embedded ids\n", check_drafter_ops(g));
         std::printf("gated attention: %zu gated-norm heads, %zu partial-rope heads, %zu gated rows; rope and norm tails\n", norm, rope, gate);
         std::printf("worst error as a fraction of its bound: conv %.3f, delta rule %.3f, gated norm %.3f, partial rope %.3f, sigmoid_mul %.3f\n",
                     worst.conv, worst.delta, worst.norm, worst.rope, worst.gate);

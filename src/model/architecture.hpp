@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -13,7 +14,8 @@
 namespace infer {
 
 // The part of a pass a role runs with: a layer is a mixer part (attention) then a feed-forward part, which a placement may put on another device, and the embedding and the head are parts of the pass.
-enum class Part : uint8_t { embed, mixer, ffn, head };
+// An embedded drafter's roles (ModelPlan::drafter) run with the head, on its device.
+enum class Part : uint8_t { embed, mixer, ffn, head, draft };
 
 // How the model checks a role's tensor, and whether the fit counts it as a product.
 enum class RoleKind : uint8_t {
@@ -49,7 +51,8 @@ struct OpUse {
     backend::Op op;
 };
 
-// Rows of an arena slot that a state layer's mixer leaves for Architecture::recur: in slot `slot`, `width` floats a row, the `plane`-th block of the pass's rows, so plane 1 starts `rows` rows in.
+// Rows of an arena slot that a state layer's mixer leaves for Architecture::recur: in slot `slot`, `width` floats a row, the `plane`-th block of the call's rows, so plane 1 starts Step::rows rows in.
+// A slot's planes are consecutive entries of LayerPlan::saved, in plane order.
 struct Saved {
     size_t slot, width, plane = 0;
 };
@@ -62,6 +65,11 @@ struct LayerPlan {
     std::vector<Role> roles;
     std::vector<OpUse> ops;
     std::vector<Saved> saved;
+    // A rerun (docs/SPECULATIVE.md, section 1) runs every state layer's update with no barrier between layers, which halves the cost of a partial rejection on a 27B, so it needs to know what an update writes and in what order.
+    // The arena slots its state's update writes (Architecture::recur), which a rerun gives each layer a room of its own in, so no two layers write the same rows.
+    std::vector<size_t> recur_writes;
+    // The phases of its state's update, each reading what the ones before it in the same layer wrote, so a rerun runs one phase of every layer, then the next (Step::phase).
+    int recur_phases = 1;
 };
 
 // The floats a row of a state layer saves for a mark (LayerPlan::saved).
@@ -84,7 +92,18 @@ struct ModelPlan {
     size_t kv_heads = 0, head_dim = 0;  // K and V of every layer whose cache is KV: heads, and each head's width
     backend::StateShape state;          // the recurrent state of every layer whose cache is a state
     std::vector<size_t> tables;         // floats in each position table
+    // An embedded drafter, planned only when a caller asks for one (Architecture::plan_drafter): its roles, all Part::draft, its ops and its cache, KV in the head's device's storage beside the layers' (docs/SPECULATIVE.md, section 7).
+    // Its context rows leave the target's final-normed rows in arena slot `draft_h`, which the model carries and saves.
+    std::optional<LayerPlan> drafter;
+    size_t draft_h = 0;
 };
+
+// The floats a row of the slots a state layer's update writes take (LayerPlan::recur_writes), a layer's room in a rerun.
+inline size_t recur_floats(const ModelPlan& plan, const LayerPlan& layer) {
+    size_t n = 0;
+    for (size_t slot : layer.recur_writes) n = backend::size_add(n, plan.slots.at(slot));
+    return n;
+}
 
 // One call of an architecture's part: the backend of the device it runs on and that device's arena, the residual at the call's first row, the rows and their runs, the weights to read by role id, the layer's kind and cache views, the rows' positions, the position tables on that device, a run list the part may rebuild, which holds a run for every entry of the pass without allocating, and a state layer's views.
 struct Step {
@@ -105,6 +124,8 @@ struct Step {
     const backend::StateView* states = nullptr;
     size_t state_layer = 0;
     backend::Dtype dtype = backend::Dtype::f16;
+    // Which of the layer's update phases a call of recur runs (LayerPlan::recur_phases), every one when -1, as the mixer runs it.
+    int phase = -1;
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
 };
 
@@ -114,6 +135,18 @@ struct HeadStep : Step {
     size_t want;
     backend::RowRuns head_runs;
     backend::Slice logits;
+};
+
+// An embedded drafter's call over every row of a pass, after its last stage (Architecture::draft_rows): the rows' token ids, and per entry the row its first row reads as the target's row before it, the sequence's carried row or a zero row; the cache views are the drafter's KV layer's.
+struct DraftRowsStep : Step {
+    const uint32_t* ids;
+    const backend::CSlice* carry;
+};
+
+// One draft row of an embedded drafter (Architecture::draft): the token's row read from `id` on the device, the target's row before it at `prev`, the drafted id written to `next`, the drafter's output row after its final norm left at `out`, the next row's `prev`, and the head's logits at `logits`.
+struct DraftStep : Step {
+    backend::CSlice id, prev;
+    backend::Slice next, out, logits;
 };
 
 // An architecture: its configuration, read from a file, the plan of that file's tensors, the values of its position tables, and the math of each part as backend ops.
@@ -128,9 +161,16 @@ public:
     virtual void mixer(const Step& s) const = 0;
     // The ops of a state layer's mixer that update its state, from the rows LayerPlan::saved names in their slots: the mixer runs them, and a retract inside a mark runs them again over the rows it keeps (docs/SPECULATIVE.md, section 1).
     // A layer that keeps no state has none.
+    // A rerun reads the saved rows in place, where a plane holds the rows the mark has room for, which it gives as Step::rows, the views giving the rows it runs.
     virtual void recur(const Step&) const {}
     virtual void ffn(const Step& s) const = 0;
     virtual void head(const HeadStep& s) const = 0;
+    // An embedded drafter (docs/SPECULATIVE.md, section 7), which a file may carry: its plan, added to `plan` when a caller asks for one, refused where the architecture or the file has none.
+    virtual void plan_drafter(const TensorIndex&, ModelPlan&) const { throw std::runtime_error("inference: this architecture has no embedded drafter"); }
+    // The drafter's context rows of a pass: its cache's row for every row the pass feeds, from the token and the target's row before it.
+    virtual void draft_rows(const DraftRowsStep&) const {}
+    // One draft row, through the whole drafter and the head.
+    virtual void draft(const DraftStep&) const {}
 };
 
 } // namespace infer

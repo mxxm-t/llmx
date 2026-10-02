@@ -1,0 +1,44 @@
+#version 450
+// One workgroup per row: the id of the row's largest logit, ties to the lowest id, as a 32-bit integer; n where the largest is not finite or a logit is NaN, and n where the row's prior id is n or more (backend.hpp, argmax_rows).
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; uint has_after; } p;
+layout(set = 0, binding = 0) writeonly buffer O { uint ids[]; };
+layout(set = 0, binding = 1) readonly buffer L { float logits[]; };
+layout(set = 0, binding = 2) readonly buffer A { uint after[]; };
+const uint NONE = 0xffffffffu;
+shared float best_v[256];
+shared uint best_i[256];
+shared uint nans[256];
+void main() {
+    uint r = gl_WorkGroupID.x, lid = gl_LocalInvocationID.x;
+    uint base = r * p.n;
+    float bv = 0.0;
+    uint bi = NONE, nan = 0u;
+    // Ascending ids and a strict comparison keep each lane's first largest.
+    for (uint i = lid; i < p.n; i += 256u) {
+        float v = logits[base + i];
+        if (isnan(v)) nan = 1u;
+        else if (bi == NONE || v > bv) { bv = v; bi = i; }
+    }
+    best_v[lid] = bv;
+    best_i[lid] = bi;
+    nans[lid] = nan;
+    barrier();
+    for (uint s = 128u; s > 0u; s >>= 1) {
+        if (lid < s) {
+            uint oi = best_i[lid + s], mi = best_i[lid];
+            float ov = best_v[lid + s];
+            if (oi != NONE && (mi == NONE || ov > best_v[lid] || (ov == best_v[lid] && oi < mi))) {
+                best_v[lid] = ov;
+                best_i[lid] = oi;
+            }
+            nans[lid] |= nans[lid + s];
+        }
+        barrier();
+    }
+    if (lid == 0u) {
+        uint id = best_i[0];
+        if (nans[0] != 0u || id == NONE || isinf(best_v[0]) || (p.has_after != 0u && after[r] >= p.n)) id = p.n;
+        ids[r] = id;
+    }
+}

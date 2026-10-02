@@ -77,5 +77,9 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   rows' saved inputs into the live slot (`Architecture::recur`, in the
   model's own arena), at the mark's position takes the mark's state back,
   and at the pass's end keeps it; the mark then goes. A failed pass goes
-  back to the mark, and a rerun that throws drains the devices and keeps
+  back to the mark, and a rerun that throws turns every device's unordered recording off, drains the devices and keeps
   the mark, so the retract may be called again.
+  With an embedded drafter the pass after the mark saves its rows' final-normed rows too (`save_h`), and the rerun copies the last kept row's into the live slot's carried row, so the history carries the row of its last kept token.
+- `draft(sequence, last, k, out)`: up to `k` drafts of the tokens after `last`, the history's last pick not yet fed, from an embedded drafter (docs/SPECULATIVE.md, section 7): one submission on the head's device of `k` draft rows (`Architecture::draft`), row m at the history's length plus m, reading the token drafted before it, the first `last`, and the row before it, the first the row the history carries; each row's id is written and read on the device, and the host reads the ids once.
+  The rows write the drafter's KV at their positions into blocks taken for the chain and returned after it, a failure included, so the committed length is unchanged and the verify overwrites those rows before anything reads them; the drafts end before the first that is not an id of the vocabulary.
+  A sequence in flight, one no pass has fed and a model without a drafter are refused.

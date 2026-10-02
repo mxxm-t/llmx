@@ -62,10 +62,32 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         if (field == &fp.output) fp.tied = role.aliased;
     }
     fp.logits_per_row = fp.output.rows * sizeof(float);
+    // An embedded drafter's weights but those the head holds already, its embedding apart, and its KV layer, carried rows and the rows a mark saves.
+    if (plan.drafter) {
+        std::vector<size_t> held;
+        for (const Role& role : plan.pass)
+            if (role.part == Part::head && role.tensor) held.push_back(*role.tensor);
+        std::vector<std::pair<size_t, bool>> taken;
+        for (const Role& role : plan.drafter->roles) {
+            if (!role.tensor || std::find(held.begin(), held.end(), *role.tensor) != held.end()) continue;
+            if (role.kind == RoleKind::gather) {
+                fp.drafter_embedding = matrix(*role.tensor, false);
+                continue;
+            }
+            taken.push_back({*role.tensor, role.kind == RoleKind::matrix});
+        }
+        std::sort(taken.begin(), taken.end());
+        taken.erase(std::unique(taken.begin(), taken.end()), taken.end());
+        for (const auto& t : taken) fp.drafter.push_back(matrix(t.first, t.second));
+        const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
+        fp.drafter_cache = backend::size_add(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(plan, options)),
+                                             backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), plan.residual * sizeof(float)));
+    }
     for (const LayerPlan& layer : plan.layers)
         fp.cache.push_back(layer.cache == Cache::kv      ? kv_tokens(plan, options) * kv_bytes_per_position(plan, options)
                            : layer.cache == Cache::state ? backend::size_add(plan.state.layer_bytes(backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots)),
-                                                                             backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(saved_floats(layer), sizeof(float))))
+                                                                             backend::size_add(backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(saved_floats(layer), sizeof(float))),
+                                                                                               options.mark_slots ? backend::size_mul(options.mark_rows, backend::size_mul(recur_floats(plan, layer), sizeof(float))) : 0))
                                                          : 0);
     for (size_t n : plan.tables) fp.tables += n * sizeof(float);
     fp.handoff_per_row = plan.residual * sizeof(float);
@@ -104,6 +126,8 @@ struct PlacementRequest {
     bool fit_kv = false;
     // With fit_kv, the options' checkpoint slots are the most the fit gives rather than a number it must hold (fitted_kv).
     bool fit_checkpoints = false;
+    // The file's embedded drafter planned and loaded beside the model (Architecture::plan_drafter, docs/SPECULATIVE.md, section 7).
+    bool drafter = false;
 };
 
 // The run's activation policy and each device's implementation, resolved once before model construction.
@@ -307,7 +331,7 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
     if (backends.empty()) throw std::runtime_error("placement: no device");
     if (request.stream_from && !request.cpu_moe)
         throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
-    const ModelPlan plan = plan_model(weights);
+    const ModelPlan plan = plan_model(weights, request.drafter);
     // A model without routed layers has no experts to put on the CPU, so every placement refuses the flags, on the CPU as beside a device.
     const std::string experts_flag = request.cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe";
     if (request.cpu_moe && std::none_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.routed; }))

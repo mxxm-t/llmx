@@ -382,6 +382,19 @@ const uint32_t kSpvCausalConvSilu[] = {
 const uint32_t kSpvDeltaRule[] = {
 #include "vulkan/delta_rule.inc"
 };
+// The embedded drafter's ops (docs/SPECULATIVE.md, section 7).
+const uint32_t kSpvArgmaxRows[] = {
+#include "vulkan/argmax_rows.inc"
+};
+const uint32_t kSpvEmbedIds[] = {
+#include "vulkan/embed_ids.inc"
+};
+const uint32_t kSpvEmbedIdsMxfp4[] = {
+#include "vulkan/embed_ids_mxfp4.inc"
+};
+const uint32_t kSpvDeltaRuleShort[] = {
+#include "vulkan/delta_rule_short.inc"
+};
 
 const uint32_t kSpvEmbedMxfp4[] = {
 #include "vulkan/embed_mxfp4.inc"
@@ -504,7 +517,11 @@ const uint32_t kSpvMatmulTileQ8mx[] = {
     X(K_MATMUL_ROW_MXFP4_DOT, "matmul_row_mxfp4_dot", kSpvMatmulRowMxfp4Dot, sizeof(kSpvMatmulRowMxfp4Dot), 12, kMatmulRowCounts) \
     X(K_MATMUL_ROW_MXFP4_FLOAT_X, "matmul_row_mxfp4_float_x", kSpvMatmulRowMxfp4FloatX, sizeof(kSpvMatmulRowMxfp4FloatX), 12, kMatmulRowCounts) \
     X(K_MATMUL_TILE_Q8MX, "matmul_tile_q8mx", kSpvMatmulTileQ8mx, sizeof(kSpvMatmulTileQ8mx), 6, kMatmulTileQ8mxCounts) \
-    X(K_MATMUL_TILE_Q8MX_TALL, "matmul_tile_q8mx_tall", kSpvMatmulTileQ8mx, sizeof(kSpvMatmulTileQ8mx), 6, kMatmulTileQ8mxCounts)
+    X(K_MATMUL_TILE_Q8MX_TALL, "matmul_tile_q8mx_tall", kSpvMatmulTileQ8mx, sizeof(kSpvMatmulTileQ8mx), 6, kMatmulTileQ8mxCounts) \
+    X(K_ARGMAX_ROWS, "argmax_rows", kSpvArgmaxRows, sizeof(kSpvArgmaxRows), 3, nullptr) \
+    X(K_EMBED_IDS, "embed_ids", kSpvEmbedIds, sizeof(kSpvEmbedIds), 4, nullptr) \
+    X(K_DELTA_RULE_SHORT, "delta_rule_short", kSpvDeltaRuleShort, sizeof(kSpvDeltaRuleShort), 8, nullptr) \
+    X(K_EMBED_IDS_MXFP4, "embed_ids_mxfp4", kSpvEmbedIdsMxfp4, sizeof(kSpvEmbedIdsMxfp4), 4, nullptr)
 
 #define LLMX_KERNEL_ID(id, name, ...) id,
 enum KernelId { LLMX_VULKAN_KERNELS(LLMX_KERNEL_ID) K_COUNT };
@@ -1772,10 +1789,17 @@ public:
         span(src, src_off, bytes);
         if (!bytes) return;
         VkCommandBuffer cmd = open();
-        barrier(cmd);
+        if (!unordered_) barrier(cmd);
         VkBufferCopy region{src_off, dst_off, bytes};
         dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), dst.handle(), 1, &region);
-        barrier(cmd);
+        if (!unordered_) barrier(cmd);
+    }
+
+    // Barriers are left out while unordered, and one orders all of it against what follows once it ends.
+    void unordered(bool on) override {
+        const bool was = unordered_;
+        unordered_ = on;
+        if (was && !on) barrier(open());
     }
 
     // Elementwise kernels: one invocation per element.
@@ -1855,6 +1879,8 @@ public:
 
     // Rows a conv invocation walks, a chunk of a view; at least the three a window holds, so only a view's first chunk reads the rows it carries in (shaders/causal_conv_silu.comp).
     static constexpr size_t kConvChunk = 16;
+    // The most rows a view of a delta rule call takes for the short build to run it.
+    static constexpr size_t kShortRows = 8;
 
     // One dispatch, an invocation per (chunk of a view's rows, channel), whose view's first chunk also leaves its carried rows (shaders/causal_conv_silu.comp).
     void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) override {
@@ -1892,7 +1918,10 @@ public:
         const size_t blocks = (Dv + 31) / 32;
         const struct { uint32_t C, k_heads, v_heads, k_dim, v_dim, slot, blocks; float scale, eps; }
             pc{u32(C), u32(Hk), u32(Hv), u32(Dk), u32(Dv), u32(sh.slot_floats()), u32(blocks), (float)(1.0 / std::sqrt((double)Dk)), kL2NormEps};
-        dispatch(K_DELTA_RULE,
+        // Views of at most kShortRows rows each take the build that stages 4 tokens a block, which leaves room for more workgroups: a decode step, a verify of a few drafts and its rerun (shaders/delta_rule.comp).
+        size_t longest = 0;
+        for (size_t i = 0; i < n_views; ++i) longest = std::max(longest, views[i].nq);
+        dispatch(longest <= kShortRows ? K_DELTA_RULE_SHORT : K_DELTA_RULE,
                  {bind(out), bind(qkv), bind(alpha), bind(b), bind(a), bind(dt_bias), bind(CSlice{&t.storage->layer(layer), 0}),
                   args(t.words.data(), t.words.size() * sizeof(uint32_t))},
                  &pc, sizeof(pc), groups(size_mul(n_views * Hv, blocks), 1));
@@ -2003,6 +2032,25 @@ public:
                  pc, sizeof(pc), u32(count));
     }
 
+    // embed with the ids read from a device buffer, an id past the table a zero row (shaders/embed.comp, LLMX_DEVICE_IDS), an MXFP4 table through its own build as embed's.
+    void embed_ids(Slice dst, uint32_t type, CSlice table, size_t nin, size_t nrows, CSlice ids, size_t count) override {
+        if (!count || !nin) return;
+        check_matrix(type, table, nin, nrows, "embedding");
+        if (floats_from(ids) < count || floats_from(dst) < size_mul(count, nin))
+            throw std::runtime_error("vulkan: embed_ids operand outside its allocation");
+        const uint32_t pc[3] = {u32(nin), type, u32(nrows)};
+        dispatch(type == quant::GGML_TYPE_MXFP4 ? K_EMBED_IDS_MXFP4 : K_EMBED_IDS, {bind(dst), bind(table), bind(table), bind(ids)}, pc, sizeof(pc), u32(count));
+    }
+
+    // One workgroup a row (shaders/argmax_rows.comp); without prior ids the logits are bound in their place and not read.
+    void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}) override {
+        if (!rows) return;
+        if (!n || n >= UINT32_MAX) throw std::runtime_error("vulkan: argmax over no ids or more than 32 bits name");
+        if (floats_from(ids) < rows || floats_from(logits) < size_mul(rows, n) || (after.buffer && floats_from(after) < rows))
+            throw std::runtime_error("vulkan: argmax_rows operand outside its allocation");
+        const uint32_t pc[2] = {u32(n), after.buffer ? 1u : 0u};
+        dispatch(K_ARGMAX_ROWS, {bind(ids), bind(logits), after.buffer ? bind(after) : bind(logits)}, pc, sizeof(pc), u32(rows));
+    }
     void matmul(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
                 size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
         const Projection one{type, w, Y, nout};
@@ -2852,6 +2900,7 @@ public:
 private:
     static constexpr uint32_t kRing = 16;
     uint32_t chunk_ = 0;
+    bool unordered_ = false;   // barriers left out (unordered)
     static constexpr size_t kStagingBytes = size_t(64) << 20;
     static constexpr size_t kArenaBytes = size_t(1) << 20;
     static constexpr uint32_t kPushBytes = 128;
@@ -3078,7 +3127,7 @@ private:
         } else {
             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
         }
-        barrier(cmd);
+        if (!unordered_) barrier(cmd);
         // A pass is submitted in chunks so the device starts on the first while the host records the rest; the ordered timeline makes the last chunk's ticket cover them all.
         if (++chunk_ >= dev_->profile.dispatch_chunk) flush();
     }

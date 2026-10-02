@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "model/runtime.hpp"
 #include "inference/sampler.hpp"
 
 // Speculative decoding (docs/SPECULATIVE.md, section 3): proposers that draft the next tokens, the length of a draft, and the acceptance of a verify's rows, which keeps every token, draw and end what the run without drafts gives.
@@ -60,24 +61,47 @@ public:
     }
 };
 
+// The embedded drafter a model was loaded with (docs/SPECULATIVE.md, section 7): its chain of drafts after the history's last pick, which the model drafts from the row its history carries.
+class Embedded final : public Proposer {
+public:
+    explicit Embedded(Model& model) : model_(model) {}
+    void draft(const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
+        out.clear();
+        if (!h.empty()) model_.draft(h.back(), k, out);
+    }
+
+private:
+    Model& model_;
+};
+
 // A request's one acceptance figure (docs/SPECULATIVE.md, section 3): the average of the drafts its verifies kept, each verify moving it an eighth of the way to what that one kept, and below kBreakEven the request drafts nothing for its next 16 tokens, then verifies once more.
+// It also counts, by draft position, the drafts its verifies fed and those they kept.
 class Acceptance {
 public:
-    void verified(size_t kept) {
+    // A verify that fed `fed` drafts and kept the first `kept` of them.
+    void verified(size_t kept, size_t fed) {
         average_ += ((double)kept - average_) / kWeight;
         if (average_ < kBreakEven) rest_ = kRest;
+        if (drafted_.size() < fed) drafted_.resize(fed), kept_.resize(fed);
+        for (size_t i = 0; i < fed; ++i) {
+            ++drafted_[i];
+            kept_[i] += i < kept;
+        }
     }
     // A token generated without drafts.
     void stepped() {
         if (rest_) --rest_;
     }
     bool resting() const { return rest_ > 0; }
+    const std::vector<size_t>& drafted() const { return drafted_; }
+    const std::vector<size_t>& kept() const { return kept_; }
 
 private:
     static constexpr double kBreakEven = 0.5, kWeight = 8.0;
     static constexpr size_t kRest = 16;
     double average_ = 2.0;
     size_t rest_ = 0;
+    std::vector<size_t> drafted_, kept_;
 };
 
 // How many drafts a request verifies next, the one rule for every caller: at most `draft_max`, one fewer than the tokens it may still generate and than the positions its context has left, since the verify feeds the last pick and every draft, and none while it rests (Acceptance).

@@ -1,7 +1,7 @@
 #pragma once
 #include "model/runtime.hpp"
 
-// A sequence's history, the one owner of every operation on it (docs/SPECULATIVE.md, section 1): a fork, a reset, the one call that shortens it and what it goes through, the checkpoint a keep makes and the mark a verify takes, with the recurrent inputs a mark saves and the rerun that reads them.
+// A sequence's history, the one owner of every operation on it (docs/SPECULATIVE.md, section 1): a fork, a reset, the one call that shortens it and what it goes through, the checkpoint a keep makes and the mark a verify takes, with the recurrent inputs and the drafter's rows a mark saves and the rerun that reads them, and an embedded drafter's chain of drafts past the history (section 7).
 // Members of infer::Model, declared in its class (model/runtime.hpp), which includes this file after it.
 
 namespace infer {
@@ -382,38 +382,78 @@ inline void Model::save(ExecContext& ctx, const Pass& p, size_t dev, int l) {
     }
 }
 
-// The state after the first `rows` rows of the pass past the sequence's mark, into its live slot: on each device that keeps a state, every state layer's saved inputs copied back into the model's own arena and its update run from the mark's state (Architecture::recur), in each device's order after that pass.
+// After an embedded drafter's context rows on the head's device: each marked entry's normed rows, the row each kept row would carry, copied into its mark's room.
+inline void Model::save_h(ExecContext& ctx, const Pass& p) {
+    const Device& d = *devices_[(size_t)place_.output_device];
+    const backend::Slice hn = slot(ctx, (size_t)place_.output_device, plan_.draft_h);
+    const size_t E = plan_.residual;
+    for (size_t e = 0; e < p.entries.size(); ++e) {
+        const Sequence::Mark& m = p.entries[e].seq->mark_;
+        if (!m.held()) continue;
+        const size_t r0 = e ? p.runs[e - 1].end : 0, n = p.entries[e].n;
+        d.b->copy(*d.saved_h, m.hold.buffer() * options_.mark_rows * E * sizeof(float), *hn.buffer, (hn.offset + r0 * E) * sizeof(float), n * E * sizeof(float));
+    }
+}
+
+// The state after the first `rows` rows of the pass past the sequence's mark, into its live slot: on each device that keeps a state, every state layer's update run from the mark's state over its inputs where they were saved (Architecture::recur), the slots it writes in a room of its own, so each phase of the update runs for every layer unordered, one submission on each device after that pass.
+// An embedded drafter's carried row is the last kept row's, copied from the mark's room into the live slot's in the same submission.
 // A failure drains every device and leaves the mark, which a retry reads again.
 inline void Model::rerun(Sequence& s, size_t rows) {
     const Sequence::Mark& m = s.mark_;
     try {
         ensure(ctx_, rows, 0, handoffs(1));
-        const backend::RowRun run{rows, 1};
-        for (size_t st = 0; st < stages_.size(); ++st) {
-            const size_t dev = stages_[st].device;
+        // The update's calls take the mark's rows, which a plane of its saved inputs holds, and their views the rows kept.
+        const backend::RowRun run{options_.mark_rows, 1};
+        std::vector<size_t> offsets(plan_.slots.size());
+        int phases = 0;
+        for (const LayerPlan& lp : plan_.layers)
+            if (lp.cache == Cache::state) phases = std::max(phases, lp.recur_phases);
+        for (size_t dev = 0; dev < devices_.size(); ++dev) {
             Device& d = *devices_[dev];
-            if (!d.states) continue;
-            const ExecContext::Scratch& sc = ctx_.scratch[dev];
-            const size_t src = m.from[st] == Sequence::kLive ? s.state_.slot() : m.from[st];
-            const backend::StateView view{d.states.get(), src, s.state_.slot(), m.pos, rows};
-            for (int l = stages_[st].first; l < stages_[st].end; ++l) {
-                const LayerPlan& lp = plan_.layers[(size_t)l];
-                if (lp.cache != Cache::state) continue;
-                const size_t layer = (size_t)d.local_layer[(size_t)l];
-                for (size_t i = 0; i < lp.saved.size(); ++i) {
-                    const Saved& v = lp.saved[i];
-                    d.b->copy(*sc.arena, sc.offset[v.slot] + v.plane * rows * v.width * sizeof(float), *d.saved,
-                              saved_at(d, lp, m.hold.buffer(), layer, i) * sizeof(float), rows * v.width * sizeof(float));
+            const bool carry = plan_.drafter && dev == (size_t)place_.output_device;
+            if (!d.states && !carry) continue;
+            // Nothing a phase runs reads what another layer's writes: each layer reads its own saved inputs and slot, and writes its own room and slot.
+            for (int phase = 0; d.states && phase < phases; ++phase) {
+                d.b->unordered(true);
+                for (size_t st = 0; st < stages_.size(); ++st) {
+                    if (stages_[st].device != dev) continue;
+                    const size_t src = m.from[st] == Sequence::kLive ? s.state_.slot() : m.from[st];
+                    const backend::StateView view{d.states.get(), src, s.state_.slot(), m.pos, rows};
+                    for (int l = stages_[st].first; l < stages_[st].end; ++l) {
+                        const LayerPlan& lp = plan_.layers[(size_t)l];
+                        if (lp.cache != Cache::state || phase >= lp.recur_phases) continue;
+                        const size_t layer = (size_t)d.local_layer[(size_t)l];
+                        size_t at = d.rerun_base + layer * options_.mark_rows * d.rerun_floats;
+                        std::fill(offsets.begin(), offsets.end(), 0);
+                        for (size_t slot : lp.recur_writes) {
+                            offsets[slot] = at * sizeof(float);
+                            at += options_.mark_rows * plan_.slots[slot];
+                        }
+                        for (size_t i = 0; i < lp.saved.size(); ++i)
+                            if (!lp.saved[i].plane) offsets[lp.saved[i].slot] = saved_at(d, lp, m.hold.buffer(), layer, i) * sizeof(float);
+                        Step step = part(ctx_, dev, home_[(size_t)l].data(), lp.kind, 0, options_.mark_rows, {&run, 1});
+                        step.arena = d.saved.get();
+                        step.offsets = offsets.data();
+                        step.x = {d.saved.get(), 0};
+                        step.states = &view;
+                        step.n_views = 1;
+                        step.state_layer = layer;
+                        step.phase = phase;
+                        arch_->recur(step);
+                    }
                 }
-                Step step = part(ctx_, dev, home_[(size_t)l].data(), lp.kind, 0, rows, {&run, 1});
-                step.states = &view;
-                step.n_views = 1;
-                step.state_layer = layer;
-                arch_->recur(step);
+                d.b->unordered(false);
+            }
+            if (carry) {
+                const size_t E = plan_.residual;
+                d.b->copy(*d.carry, s.state_.slot() * E * sizeof(float), *d.saved_h, (m.hold.buffer() * options_.mark_rows + rows - 1) * E * sizeof(float),
+                          E * sizeof(float));
             }
             s.last_[dev] = d.b->submit();
         }
     } catch (...) {
+        // A failure inside a phase leaves its device recording without barriers; the mode is set before any barrier is recorded, so it is off even where recording that barrier fails.
+        for (auto& d : devices_) try { d->b->unordered(false); } catch (...) {}
         retire();
         throw;
     }
@@ -438,6 +478,65 @@ inline void Model::restore_mark(Sequence& s) noexcept {
 inline void Model::drop_mark(Sequence& s) noexcept {
     s.mark_.hold.release();
     s.mark_.ran = false;
+}
+
+// Up to `k` drafts of the tokens after `last`, the history's last pick not yet fed, from an embedded drafter (docs/SPECULATIVE.md, section 7), in `out`: one submission on the head's device of k draft rows, row m at the history's length plus m, reading the token drafted before it, the first the last pick, and the row before it, the first the row the history carries.
+// Each row writes the drafter's KV at its position into blocks taken for the chain and returned after it, so the history's committed length is unchanged and a verify overwrites those rows before anything reads them.
+// The drafts end before the first that is not an id of the vocabulary, which the device marks where a row's logits are not finite.
+inline void Model::draft(Sequence& s, uint32_t last, size_t k, std::vector<uint32_t>& out) {
+    settle(s, "a draft");
+    if (!plan_.drafter) throw std::logic_error("inference: a draft without an embedded drafter");
+    out.clear();
+    if (!k) return;
+    const size_t L = history(s), S = stages_.size(), E = plan_.residual, V = plan_.vocab;
+    if (!L || !s.state_.held()) throw std::logic_error("inference: a draft of a history no pass has fed");
+    if (k > plan_.context_length - std::min(plan_.context_length, L))
+        throw std::runtime_error("inference: context length exceeded (" + std::to_string(plan_.context_length) + " tokens)");
+    const size_t o = (size_t)place_.output_device;
+    Device& d = *devices_[o];
+    KVSequence& kv = s.kv_[(size_t)d.storage_index];
+    ensure(ctx_, 1, 0, handoffs(1));
+    if (draft_rows_ < k) {
+        backend::BufferPtr ids = d.b->alloc(backend::size_mul(k + 1, sizeof(float)), backend::Memory::host_visible);
+        backend::BufferPtr logits = d.b->alloc(backend::size_mul(backend::size_mul(k, V), sizeof(float)), backend::Memory::host_visible);
+        draft_ids_ = std::move(ids);
+        draft_logits_ = std::move(logits);
+        draft_rows_ = k;
+    }
+    kv.prepare(k);
+    try {
+        d.b->write(*draft_ids_, 0, &last, sizeof(last));
+        const size_t src = s.from_[S - 1] == Sequence::kLive ? s.state_.slot() : s.from_[S - 1];
+        const backend::RowRun run{1, 1};
+        const backend::Slice hn = slot(ctx_, o, plan_.draft_h);
+        for (size_t m = 0; m < k; ++m) {
+            backend::KVView view = kv.view(d.storage.get());
+            view.length = L + m;
+            view.nq = 1;
+            view.extent = 1;
+            const uint32_t pos = (uint32_t)(L + m);
+            DraftStep step{part(ctx_, o, drafter_.data(), plan_.drafter->kind, 0, 1, {&run, 1}),
+                           {draft_ids_.get(), m},
+                           m ? backend::CSlice{hn} : backend::CSlice{d.carry.get(), src * E},
+                           {draft_ids_.get(), m + 1},
+                           hn,
+                           {draft_logits_.get(), m * V}};
+            step.views = &view;
+            step.n_views = 1;
+            step.kv_layer = drafter_kv_;
+            step.pos = &pos;
+            arch_->draft(step);
+        }
+        s.last_[o] = d.b->submit();
+        d.b->wait(s.last_[o]);
+    } catch (...) {
+        retire();
+        kv.abort();
+        throw;
+    }
+    kv.abort();
+    const uint32_t* ids = (const uint32_t*)draft_ids_->host_ptr();
+    for (size_t m = 1; m <= k && ids[m] < V; ++m) out.push_back(ids[m]);
 }
 
 } // namespace infer

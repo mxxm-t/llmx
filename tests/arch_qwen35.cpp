@@ -62,6 +62,20 @@ void refuses(const std::string& what, const std::string& text, const std::functi
 constexpr uint64_t E = 8, F = 12, HQ = 2, HKV = 1, D = 8, HK = 1, HV = 2, DK = 4, DV = 4, VOCAB = 32, CONTEXT = 64;
 constexpr uint64_t C = 2 * HK * DK + HV * DV;
 
+// A tensor of `shape` appended to `m`, F32 from a fixed pattern of its index and the tensors before it, times `scale` plus `offset`.
+void add_tensor(gguf::GGUFModel& m, const std::string& name, std::vector<uint64_t> shape, float scale = 1.0f, float offset = 0.0f) {
+    size_t count = 1;
+    for (uint64_t d : shape) count *= size_t(d);
+    const size_t at = m.blob.size();
+    m.blob.resize(at + count * sizeof(float));
+    for (size_t i = 0; i < count; ++i) {
+        const float v = offset + scale * float(int((i * 17 + m.tensors.size() * 7) % 29) - 14) / 64.0f;
+        std::memcpy(m.blob.data() + at + i * sizeof(float), &v, sizeof(v));
+    }
+    m.tensors.push_back({name, std::move(shape), quant::GGML_TYPE_F32, 0});
+    m.offsets.push_back(at);
+}
+
 // Four layers, linear then full attention twice, 8 wide over a vocabulary of 32, with a rotary width of 4 of each head's 8; `edit` changes the metadata and tensors before the model is read.
 gguf::GGUFModel tiny(const std::function<void(gguf::GGUFModel&)>& edit = {}) {
     gguf::GGUFModel m;
@@ -92,16 +106,7 @@ gguf::GGUFModel tiny(const std::function<void(gguf::GGUFModel&)>& edit = {}) {
     }
     m.kv.push_back({"qwen35.rope.dimension_sections", sections});
     auto add = [&](const std::string& name, std::vector<uint64_t> shape, float scale = 1.0f, float offset = 0.0f) {
-        size_t count = 1;
-        for (uint64_t d : shape) count *= size_t(d);
-        const size_t at = m.blob.size();
-        m.blob.resize(at + count * sizeof(float));
-        for (size_t i = 0; i < count; ++i) {
-            const float v = offset + scale * float(int((i * 17 + m.tensors.size() * 7) % 29) - 14) / 64.0f;
-            std::memcpy(m.blob.data() + at + i * sizeof(float), &v, sizeof(v));
-        }
-        m.tensors.push_back({name, std::move(shape), quant::GGML_TYPE_F32, 0});
-        m.offsets.push_back(at);
+        add_tensor(m, name, std::move(shape), scale, offset);
     };
     add("token_embd.weight", {E, VOCAB});
     add("output_norm.weight", {E}, 0.1f, 1.0f);
@@ -818,6 +823,314 @@ void marks() {
     require(failed > 0, "a mark allocated nothing");
 }
 
+// The tiny model with an MTP block after its four layers, blk.4: a full-attention layer with its feed-forward block, and the block's input norms, eh_proj and final norm; a context of 512, so a prompt passes a CPU block.
+gguf::GGUFModel tiny_mtp(const std::function<void(gguf::GGUFModel&)>& edit = {}) {
+    return tiny([&](gguf::GGUFModel& m) {
+        set(m, "block_count", 5);
+        set(m, "nextn_predict_layers", 1);
+        set(m, "context_length", 512);
+        const std::string pre = "blk.4.";
+        add_tensor(m, pre + "attn_norm.weight", {E}, 0.1f, 1.0f);
+        add_tensor(m, pre + "post_attention_norm.weight", {E}, 0.1f, 1.0f);
+        add_tensor(m, pre + "attn_q.weight", {E, 2 * HQ * D});
+        add_tensor(m, pre + "attn_k.weight", {E, HKV * D});
+        add_tensor(m, pre + "attn_v.weight", {E, HKV * D});
+        add_tensor(m, pre + "attn_q_norm.weight", {D}, 0.1f, 1.0f);
+        add_tensor(m, pre + "attn_k_norm.weight", {D}, 0.1f, 1.0f);
+        add_tensor(m, pre + "attn_output.weight", {HQ * D, E});
+        add_tensor(m, pre + "ffn_gate.weight", {E, F});
+        add_tensor(m, pre + "ffn_up.weight", {E, F});
+        add_tensor(m, pre + "ffn_down.weight", {F, E});
+        add_tensor(m, pre + "nextn.eh_proj.weight", {2 * E, E});
+        add_tensor(m, pre + "nextn.enorm.weight", {E}, 0.1f, 1.0f);
+        add_tensor(m, pre + "nextn.hnorm.weight", {E}, 0.1f, 1.0f);
+        add_tensor(m, pre + "nextn.shared_head_norm.weight", {E}, 0.1f, 1.0f);
+        if (edit) edit(m);
+    });
+}
+
+// A draft's ids and every draft row's logits.
+struct Drafted {
+    std::vector<uint32_t> ids;
+    std::vector<float> logits;
+    bool operator==(const Drafted& o) const {
+        return ids == o.ids && logits.size() == o.logits.size() && !std::memcmp(logits.data(), o.logits.data(), logits.size() * sizeof(float));
+    }
+};
+Drafted drafted(infer::Model& model, infer::Sequence& s, uint32_t last, size_t k) {
+    Drafted d;
+    model.draft(s, last, k, d.ids);
+    for (size_t m = 0; m < d.ids.size(); ++m) d.logits.insert(d.logits.end(), model.draft_logits(m), model.draft_logits(m) + VOCAB);
+    return d;
+}
+
+// A CPU backend whose drafter argmax marks its `invalid`-th row, counted over the backend's life, as an id past the vocabulary.
+struct InvalidDraft : backend::CpuBackend {
+    size_t calls = 0, invalid = 2;
+    void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after) override {
+        backend::CpuBackend::argmax_rows(ids, logits, rows, n, after);
+        if (++calls != invalid) return;
+        const uint32_t past = (uint32_t)n;
+        std::memcpy((float*)const_cast<void*>(ids.buffer->host_ptr()) + ids.offset, &past, sizeof(past));
+    }
+};
+// A CPU backend that requires every product to take the model's activation dtype, and counts the heads' products.
+struct DtypeWitness : backend::CpuBackend {
+    backend::Dtype selected;
+    size_t heads = 0;
+    explicit DtypeWitness(backend::Dtype dtype) : selected(dtype) { set_threads(1); }
+    void seen(backend::Dtype dtype, const char* what) const { require(dtype == selected, std::string(what) + " lost the model's activation dtype"); }
+    void matmul(uint32_t type, backend::CSlice w, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {},
+                backend::Dtype dtype = backend::Dtype::f16) override {
+        seen(dtype, "a product");
+        backend::CpuBackend::matmul(type, w, x, y, nin, nout, rows, runs, dtype);
+    }
+    void matmul_add(uint32_t type, backend::CSlice w, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {},
+                    backend::Dtype dtype = backend::Dtype::f16) override {
+        seen(dtype, "a residual product");
+        backend::CpuBackend::matmul_add(type, w, x, y, nin, nout, rows, runs, dtype);
+    }
+    void matmul_group(std::initializer_list<backend::Projection> projections, backend::CSlice x, size_t nin, size_t rows, backend::RowRuns runs = {},
+                      backend::Dtype dtype = backend::Dtype::f16) override {
+        seen(dtype, "a grouped product");
+        backend::CpuBackend::matmul_group(projections, x, nin, rows, runs, dtype);
+    }
+    void matmul_logits(uint32_t type, backend::CSlice w, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {},
+                       backend::Dtype dtype = backend::Dtype::f16) override {
+        seen(dtype, "a head's product");
+        ++heads;
+        backend::CpuBackend::matmul_logits(type, w, x, y, nin, nout, rows, runs, dtype);
+    }
+};
+
+// A CPU backend without the drafter's argmax.
+struct NoArgmax : backend::CpuBackend {
+    bool implements(backend::Op op) const override { return op != backend::Op::argmax_rows; }
+};
+
+// The embedded drafter (docs/SPECULATIVE.md, section 7) on the tiny MTP model: loaded, it leaves the logits as they were; its drafts and draft logits are those of a fresh sequence fed the same tokens in the same row classes, bit for bit, for a history in slices, beside another sequence, retracted at every position of a verify, forked and retracted at a checkpoint, reset, continued after a failed pass and split over four CPU stages; a first pass reads a zero carried row whatever its slot holds; drafting ends at the first invalid draft; a draft whose blocks run out takes none and changes nothing; and its refusals.
+void drafts() {
+    const gguf::GGUFModel file = tiny_mtp();
+    const infer::ModelWeights w = infer::gguf_weights(file);
+    const infer::ModelPlan with = infer::plan_model(w, true);
+    require(with.drafter && with.drafter->roles.size() == 18 && with.slots.size() == 14 && with.draft_h == 10, "the drafter's plan");
+    refuses("a drafter of a file without an MTP block", "the file carries no MTP block for an embedded drafter",
+            [&] { const gguf::GGUFModel plain = tiny(); infer::plan_model(infer::gguf_weights(plain), true); });
+    infer::ModelOptions options;
+    options.state_slots = 3;
+    options.checkpoint_slots = 2;
+    options.mark_slots = 1;
+    options.mark_rows = 5;
+    auto make = [&](backend::BackendPtr b, infer::ModelOptions o) { return std::make_unique<infer::Model>(w, with, std::vector<backend::BackendPtr>{std::move(b)}, infer::Placement{}, o); };
+    refuses("a backend without argmax_rows", "the embedded drafter needs argmax_rows, which the backend of its device does not implement",
+            [&] { make(std::make_shared<NoArgmax>(), options); });
+    std::vector<uint32_t> prompt(140);
+    for (size_t i = 0; i < prompt.size(); ++i) prompt[i] = (uint32_t)((i * 11 + 5) % VOCAB);
+    const std::vector<uint32_t> steps = {9, 14, 3, 27};
+    const uint32_t last = 7;
+    const size_t depth = 4;
+
+    // The drafter's products take the activation dtype the model was asked for, as the target's do: its context rows, each draft step's layer and its head.
+    for (auto dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16}) {
+        auto witness = std::make_shared<DtypeWitness>(dtype);
+        infer::ModelOptions o = options;
+        o.dtype = dtype;
+        auto model = make(witness, o);
+        model->prefill(prompt);
+        const size_t before = witness->heads;
+        std::vector<uint32_t> out;
+        model->draft(last, depth, out);
+        require(witness->heads == before + depth, "the drafter's head was not reached once a draft");
+    }
+
+    // Loaded, the drafter leaves every logit of the prompt and of decode as it was.
+    {
+        infer::Model plain(w, backend::make_cpu_backend(), options);
+        auto drafting = make(backend::make_cpu_backend(), options);
+        require(same(drafting->prefill(prompt), plain.prefill(prompt)), "a drafter changed the prompt's logits");
+        for (uint32_t s : steps) require(same(drafting->step((int)s), plain.step((int)s)), "a drafter changed a decode step's logits");
+        refuses("a draft without a drafter", "a draft without an embedded drafter", [&] { std::vector<uint32_t> out; plain.draft(last, 1, out); });
+    }
+    auto model = make(backend::make_cpu_backend(), options);
+    infer::ExecContext ctx;
+    // Each pass one entry: a prompt's rows at the prompt's extent, generated tokens at extent 1.
+    auto feed = [&](infer::Model& m, infer::Sequence& s, const uint32_t* ids, size_t n, size_t extent, bool keep = false) {
+        infer::BatchEntry e{&s, ids, n, false};
+        e.extent = extent;
+        e.keep = keep;
+        m.forward(ctx, &e, 1);
+    };
+    auto history = [&](infer::Model& m, infer::Sequence& s, size_t generated) {
+        feed(m, s, prompt.data(), prompt.size(), prompt.size());
+        for (size_t i = 0; i < generated; ++i) feed(m, s, &steps[i], 1, 1);
+    };
+    {
+        infer::Sequence e = model->make_sequence();
+        refuses("a draft of an empty history", "a draft of a history no pass has fed", [&] { drafted(*model, e, last, 1); });
+    }
+    infer::Sequence a = model->make_sequence();
+    history(*model, a, 2);
+    const Drafted want = drafted(*model, a, last, depth);
+    require(want.ids.size() == depth && a.length() == prompt.size() + 2, "a draft took fewer than its drafts or changed the history");
+    require(drafted(*model, a, last, depth) == want, "a second draft of one history differs");
+    model->reset(a);
+
+    // The prompt in slices of 1, 3 and the rest, at its extent, then the steps.
+    {
+        infer::Sequence s = model->make_sequence();
+        size_t at = 0;
+        for (size_t n : {size_t(1), size_t(3), prompt.size() - 4}) {
+            feed(*model, s, prompt.data() + at, n, prompt.size());
+            at += n;
+        }
+        for (size_t i = 0; i < 2; ++i) feed(*model, s, &steps[i], 1, 1);
+        require(drafted(*model, s, last, depth) == want, "a history in slices drafts otherwise");
+        model->reset(s);
+    }
+    // Beside another sequence in every pass.
+    {
+        infer::Sequence s = model->make_sequence(), o = model->make_sequence();
+        infer::BatchEntry both[] = {{&s, prompt.data(), prompt.size(), false}, {&o, prompt.data() + 10, 30, false}};
+        both[0].extent = prompt.size();
+        both[1].extent = 30;
+        model->forward(ctx, both, 2);
+        for (size_t i = 0; i < 2; ++i) {
+            infer::BatchEntry pair[] = {{&o, &steps[3 - i], 1, false}, {&s, &steps[i], 1, false}};
+            pair[0].extent = pair[1].extent = 1;
+            model->forward(ctx, pair, 2);
+        }
+        require(drafted(*model, s, last, depth) == want, "a history beside another sequence drafts otherwise");
+        model->reset(s);
+        model->reset(o);
+    }
+    // A verify after a mark retracted to every position of it, as a round keeps n of its rows: the drafts are those of the history fed the kept tokens one at a time.
+    const std::vector<uint32_t> verify = {11, 22, 5, 6, 17};
+    for (size_t kept = 0; kept <= verify.size(); ++kept) {
+        infer::Sequence s = model->make_sequence();
+        history(*model, s, 2);
+        require(model->mark(s), "a mark was refused");
+        infer::BatchEntry e{&s, verify.data(), verify.size(), true};
+        e.every_logits = true;
+        e.extent = 1;
+        model->forward(ctx, &e, 1);
+        const size_t to = prompt.size() + 2 + kept;
+        require(model->retract(s, to) == to, "a retract inside the verify missed its length");
+        infer::Sequence f = model->make_sequence();
+        history(*model, f, 2);
+        for (size_t i = 0; i < kept; ++i) feed(*model, f, &verify[i], 1, 1);
+        const Drafted fresh = drafted(*model, f, last, depth);
+        require(drafted(*model, s, last, depth) == fresh, "a history retracted to " + std::to_string(kept) + " kept rows drafts otherwise");
+        model->reset(s);
+        model->reset(f);
+    }
+    // A checkpoint at a CPU block's end: a fork of it and a retract to it continue as the history never stopped.
+    {
+        infer::Sequence s = model->make_sequence();
+        feed(*model, s, prompt.data(), 128, prompt.size(), true);
+        feed(*model, s, prompt.data() + 128, prompt.size() - 128, prompt.size());
+        for (size_t i = 0; i < 2; ++i) feed(*model, s, &steps[i], 1, 1);
+        require(drafted(*model, s, last, depth) == want, "a history keeping a checkpoint drafts otherwise");
+        infer::Sequence f = model->fork(s, 128);
+        feed(*model, f, prompt.data() + 128, prompt.size() - 128, prompt.size());
+        for (size_t i = 0; i < 2; ++i) feed(*model, f, &steps[i], 1, 1);
+        require(drafted(*model, f, last, depth) == want, "a fork at a checkpoint drafts otherwise");
+        require(model->retract(s, 135) == 128, "a retract past the checkpoint did not reach it");
+        feed(*model, s, prompt.data() + 128, prompt.size() - 128, prompt.size());
+        for (size_t i = 0; i < 2; ++i) feed(*model, s, &steps[i], 1, 1);
+        require(drafted(*model, s, last, depth) == want, "a history retracted to its checkpoint drafts otherwise");
+        model->reset(s);
+        model->reset(f);
+        history(*model, s, 2);
+        require(drafted(*model, s, last, depth) == want, "a reset history drafts otherwise");
+        model->reset(s);
+    }
+    // A failed pass goes back to the checkpoint, and the history continues with the drafts of one never failed.
+    {
+        auto failing = std::make_shared<FailingHead>();
+        auto broken = make(failing, options);
+        infer::Sequence s = broken->make_sequence();
+        feed(*broken, s, prompt.data(), 128, prompt.size(), true);
+        feed(*broken, s, prompt.data() + 128, prompt.size() - 128, prompt.size());
+        failing->fail = true;
+        infer::BatchEntry e{&s, &steps[0], 1, true};
+        e.extent = 1;
+        refuses("a step failing", "injected", [&] { broken->forward(ctx, &e, 1); });
+        require(s.length() == 128, "a failed step did not go back to the checkpoint");
+        feed(*broken, s, prompt.data() + 128, prompt.size() - 128, prompt.size());
+        for (size_t i = 0; i < 2; ++i) feed(*broken, s, &steps[i], 1, 1);
+        require(drafted(*broken, s, last, depth) == want, "a history after a failed pass drafts otherwise");
+    }
+    // A slot whose carried row is NaN, left by a sequence whose token's embedding is NaN: the next sequence in that slot reads a zero carried row in its first pass, and drafts as a sequence in a clean slot does.
+    {
+        const uint32_t poison = VOCAB - 1;
+        const gguf::GGUFModel tainted = tiny_mtp([&](gguf::GGUFModel& f) {
+            add_tensor(f, "output.weight", {E, VOCAB});
+            const float nan = std::numeric_limits<float>::quiet_NaN();
+            for (size_t i = 0; i < E; ++i) std::memcpy(f.blob.data() + (poison * E + i) * sizeof(float), &nan, sizeof(nan));
+        });
+        const infer::ModelWeights tw = infer::gguf_weights(tainted);
+        infer::Model m(tw, infer::plan_model(tw, true), {backend::make_cpu_backend()}, infer::Placement{}, options);
+        const std::vector<uint32_t> clean = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        auto run = [&](infer::Sequence& s) {
+            feed(m, s, clean.data(), clean.size(), clean.size());
+            feed(m, s, &steps[0], 1, 1);
+        };
+        infer::Sequence f = m.make_sequence();
+        run(f);
+        const Drafted first = drafted(m, f, last, depth);
+        m.reset(f);
+        infer::Sequence nan = m.make_sequence();
+        feed(m, nan, &poison, 1, 1);
+        m.reset(nan);
+        infer::Sequence s = m.make_sequence();
+        run(s);
+        require(drafted(m, s, last, depth) == first, "a first pass read its slot's NaN carried row");
+        m.reset(s);
+    }
+    // The second draft row's id marked invalid on the device: one draft is kept, the rows after it end too.
+    {
+        auto invalid = std::make_shared<InvalidDraft>();
+        auto m = make(invalid, options);
+        infer::Sequence s = m->make_sequence();
+        history(*m, s, 2);
+        const Drafted d = drafted(*m, s, last, depth);
+        require(d.ids.size() == 1 && d.ids[0] == want.ids[0], "drafting went on past an invalid draft");
+    }
+    // Over four CPU stages, a layer each, the drafter on the last.
+    {
+        infer::Placement place;
+        place.mixer_device = place.ffn_device = {0, 1, 2, 3};
+        place.embed_device = 0;
+        place.output_device = 3;
+        infer::Model four(w, with, {backend::make_cpu_backend(), backend::make_cpu_backend(), backend::make_cpu_backend(), backend::make_cpu_backend()}, place, options);
+        infer::Sequence s = four.make_sequence();
+        history(four, s, 2);
+        require(drafted(four, s, last, depth) == want, "a split over four stages drafts otherwise");
+        place.output_device = 2;
+        refuses("a drafter away from the last stage", "an embedded drafter runs on the last stage's device",
+                [&] { infer::Model off(w, with, {backend::make_cpu_backend(), backend::make_cpu_backend(), backend::make_cpu_backend(), backend::make_cpu_backend()}, place, options); });
+    }
+    // Two blocks of KV, one held by another sequence: a draft needing a new block takes none and changes nothing, and once the block is free it drafts as before; a draft inside its last block needs none.
+    {
+        infer::ModelOptions small = options;
+        small.kv_tokens = 256;
+        auto m = make(backend::make_cpu_backend(), small);
+        infer::Sequence s = m->make_sequence(), o = m->make_sequence();
+        feed(*m, s, prompt.data(), 127, 127);
+        feed(*m, o, prompt.data(), 3, 3);
+        require(drafted(*m, s, last, 1).ids.size() == 1, "a draft inside its last block was refused");
+        feed(*m, s, &steps[0], 1, 1);
+        refuses("a draft past the blocks", "KV cache: block budget exhausted", [&] { drafted(*m, s, last, 2); });
+        require(s.length() == 128, "a failed draft changed the history");
+        m->reset(o);
+        auto other = make(backend::make_cpu_backend(), small);
+        infer::Sequence f = other->make_sequence();
+        feed(*other, f, prompt.data(), 127, 127);
+        feed(*other, f, &steps[0], 1, 1);
+        require(drafted(*m, s, last, 2) == drafted(*other, f, last, 2), "a draft after a failed one drafts otherwise");
+    }
+}
+
 // A prompt in slices of 1, 3 and 16, and its decode, give the bytes of the prompt in one pass; two sequences in one pass give each one's bytes alone.
 void slices(const gguf::GGUFModel& m, backend::Dtype dtype = backend::Dtype::f32) {
     const infer::ModelWeights w = infer::gguf_weights(m);
@@ -1009,6 +1322,7 @@ int main() {
         refused_passes_take_no_slot();
         failed_admission_takes_no_slot();
         marks();
+        drafts();
         slices(tiny());
         split_with_a_stage_of_states(tiny());
         experts();

@@ -76,7 +76,7 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
         // y and the drafts its picks equalled were fed, and a last pick the reply ends on fed where the verify fed it as its draft.
         const bool last_fed = end == End::fed && a.rows <= k && a.last == drafts[a.rows - 1];
         model.retract(start + a.rows + (last_fed ? 1 : 0));
-        drafting->acceptance.verified(a.rows - 1);
+        drafting->acceptance.verified(a.rows - 1, k);
         y = a.last;
         if (end == End::fed && !last_fed) model.step((int)y);
     }

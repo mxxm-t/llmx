@@ -213,31 +213,33 @@ def cli_stdout(raw):
 
 def generate_text(stdout):
     """The bytes `llmx generate` wrote between its `pp:` and `tg:` lines, from its raw stdout, without the line feed that ends the text.
-    The lines `--verbose` adds, the prompt token count before them and the cache line and the generated ids after, may frame them; any other output raises ValueError."""
+    The lines `--verbose` adds, the prompt token count before them and the cache line, the generated ids and with a drafter the drafts kept after, may frame them; any other output raises ValueError."""
     out = cli_stdout(stdout)
-    frame = re.fullmatch(rb"(?:prompt tokens: \d+\n)?pp: [^\n]*\n(.*)\ntg: [^\n]*\n(?:kv: [^\n]*\nids:[^\n]*\n)?", out, re.S)
+    frame = re.fullmatch(rb"(?:prompt tokens: \d+\n)?pp: [^\n]*\n(.*)\ntg: [^\n]*\n(?:kv: [^\n]*\nids:[^\n]*\n(?:drafts kept:[^\n]*\n)?)?", out, re.S)
     if not frame:
         raise ValueError("generate output outside the pp and tg frame: %r" % out)
     return frame[1]
 
 
-def check_drafts(name, model, prompt="ababab", n=9, chat=False):
-    """Speculative decoding leaves output as it was (docs/SPECULATIVE.md, section 3): generate, greedy and seeded, with `--drafter lookup` at `--draft-max` 1, 4, 8 and 16 prints the bytes and the ids generate prints with drafts off, and with `chat` so does a chat of two turns; `n` tokens after `prompt` fit the model's context."""
+def check_drafts(name, model, prompt="ababab", n=9, chat=False, drafter="lookup"):
+    """Speculative decoding leaves output as it was (docs/SPECULATIVE.md, section 3): generate, greedy and seeded, with `--drafter lookup`, or the `drafter` given, at `--draft-max` 1, 4, 8 and 16 prints the bytes and the ids generate prints with drafts off, and with `chat` so does a chat of two turns; `n` tokens after `prompt` fit the model's context."""
     for sampling in (["--temp", "0"], ["--temp", "0.8", "--seed", "3"]):
         base = ["generate", model, prompt, "-n", str(n), "--ignore-eos", "--verbose"] + sampling
         off = run_process(base + ["--drafter", "off"])
         assert off.returncode == 0, "%s generate failed: %s" % (name, off.stderr.decode("utf-8", "replace"))
         want = (generate_text(off.stdout), re.search(rb"^ids:.*$", cli_stdout(off.stdout), re.M)[0])
         for k in ("1", "4", "8", "16"):
-            on = run_process(base + ["--drafter", "lookup", "--draft-max", k])
+            on = run_process(base + ["--drafter", drafter, "--draft-max", k])
             assert on.returncode == 0, "%s generate with drafts failed: %s" % (name, on.stderr.decode("utf-8", "replace"))
             got = (generate_text(on.stdout), re.search(rb"^ids:.*$", cli_stdout(on.stdout), re.M)[0])
+            fed = re.search(rb"^drafts kept:((?: \d+/\d+)*)$", cli_stdout(on.stdout), re.M)
+            assert drafter != "embedded" or fed and sum(int(c.split(b"/")[1]) for c in fed[1].split()) > 0, "%s: generate with the embedded drafter fed no draft" % name
             assert got == want, "%s: generate %s with --draft-max %s gave %r, without drafts %r" % (name, sampling, k, got, want)
     if not chat:
         return
     turns = (prompt + "\n" + prompt[::-1] + "\n").encode("utf-8")
     chats = [run_process(["chat", model, "-n", str(n), "--temp", "0"] + flags, input=turns)
-             for flags in (["--drafter", "off"], ["--drafter", "lookup", "--draft-max", "8"])]
+             for flags in (["--drafter", "off"], ["--drafter", drafter, "--draft-max", "8"])]
     assert all(c.returncode == 0 for c in chats), "%s chat failed: %s" % (name, chats[-1].stderr.decode("utf-8", "replace"))
     assert chats[0].stdout == chats[1].stdout, "%s: chat with drafts printed other text than without" % name
 

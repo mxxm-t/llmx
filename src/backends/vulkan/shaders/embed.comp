@@ -1,8 +1,13 @@
 #version 450
 // One workgroup per gathered row: dst row i = table row ids[i], decoded.
+// With LLMX_DEVICE_IDS the ids are read on the device, as a draft chain feeds its drafts back (embed_ids), and an id of nrows or more writes a zero row and reads no row of the table.
 #include "q.glsl"
 layout(local_size_x = 256) in;
+#ifdef LLMX_DEVICE_IDS
+layout(push_constant) uniform P { uint nin; uint type; uint nrows; } p;
+#else
 layout(push_constant) uniform P { uint nin; uint type; } p;
+#endif
 layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer TF { float table_f[]; };
 layout(set = 0, binding = 2) readonly buffer TB { uint8_t table_b[]; };
@@ -14,6 +19,12 @@ void main() {
     uint lid = gl_LocalInvocationID.x;
     uint id = ids[i];
     uint out_base = i * p.nin;
+#ifdef LLMX_DEVICE_IDS
+    if (id >= p.nrows) {
+        for (uint j = lid; j < p.nin; j += 256u) dst[out_base + j] = 0.0;
+        return;
+    }
+#endif
 #ifdef LLMX_MXFP4
     uint base = id * (p.nin / MXFP4_BLOCK) * MXFP4_BYTES;
     for (uint j = lid; j < p.nin; j += 256u)

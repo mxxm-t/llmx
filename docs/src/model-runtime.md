@@ -14,10 +14,11 @@ devices. It runs an architecture's plan and parts
 over its devices by [place](model-place.md). The compute primitives are
 delegated to a `backend::Backend`.
 
-- `plan_model(weights)`: the plan of a model's weights, which `place_model`
+- `plan_model(weights, drafter)`: the plan of a model's weights, which `place_model`
   makes once and hands to the fit, the experts placement and the model. It
   indexes the views by name once (`TensorIndex`, which refuses a repeated
-  name), asks the architecture for its plan over that index, and sets each
+  name), asks the architecture for its plan over that index, and with
+  `drafter` for its embedded drafter's (`Architecture::plan_drafter`), and sets each
   role's `tensor`, its name's or else its alias's (`aliased`), so neither the
   fit nor the resolution looks a name up again. A plan whose slot 0 is not
   as wide as the residual, or with a role id past `role_ids`, is the
@@ -184,7 +185,8 @@ delegated to a `backend::Backend`.
     exists only at the end of what it has read, so such a model forks and
     takes a history back only at its checkpoint ([history](model-history.md)).
     `checkpoint_slots()` and `checkpoints_free()` give the checkpoint slots in all and those a keep can still take.
-  - A sequence's history, `fork`, `reset`, `retract`, `mark`, `keep` and `checkpoint`, has its operations in `model/history.hpp`, declared in the class and defined there ([history](model-history.md)).
+  - A sequence's history, `fork`, `reset`, `retract`, `mark`, `keep`, `checkpoint` and an embedded drafter's `draft`, has its operations in `model/history.hpp`, declared in the class and defined there ([history](model-history.md)).
+  - An embedded drafter (docs/SPECULATIVE.md, section 7), loaded where the plan has one: its roles resolved on the head's device, which must be the last stage's, a tensor the head or the embedding already holds there taken once; its KV one more layer of that device's storage (`drafter_kv_`), which the last stage reserves and commits with its own, so retract, fork, reset and a failed pass treat it as the layers' KV; its ops refused at load by name where that device's backend lacks one; and on that device a carried row a state slot (`Device::carry`), a zero row and each mark's room for the rows of the pass after it (`Device::saved_h`). After the last stage, before the head, `draft_context` runs the drafter's rows over every row of the pass (`Architecture::draft_rows`), each entry's first row reading the row carried at the slot its last stage's state is read from, or the zero row for an empty history, then carries each entry's last normed row into the slot its state is written to and saves a marked entry's rows (`save_h`). `draft_logits(i)` reads draft row i's logits of the last draft.
   - `state_slots()`: the sequences that may hold a recurrent state at once,
     `ModelOptions::state_slots`, zero for a model whose layers keep none; a
     server over such a model runs at most that many requests at once.

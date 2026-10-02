@@ -508,11 +508,11 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--ignore-eos`          | never end at the model's end-of-text token           | off     |
-| `--drafter D`           | draft tokens to verify in one pass: `off` or `lookup` | `off`  |
+| `--drafter D`           | draft tokens to verify in one pass: `off`, `lookup` or `embedded` | `off`  |
 | `--draft-max N`         | most drafts a verify takes, 1 to 63                  | 3       |
 | `-f`, `--file <path>`   | read the prompt from a UTF-8 file, right after the model | (none) |
 | `--chat`                | send the prompt as one user message through the model's chat template | off (raw text) |
-| `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status, and after `tg:` the generated token ids as `ids: a,b,...`, which `logits --then-ids` reads back | off   |
+| `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status, and after `tg:` the generated token ids as `ids: a,b,...`, which `logits --then-ids` reads back, and with a drafter the drafts kept by position | off   |
 
 `--seed` is a decimal whole number up to 2^64 - 1, so a leading zero does not make it octal and a `0x` prefix is refused.
 `--temp` and `--topk` are at least 0, `--topp` is 0 to 1 and `--penalty` is at least 1, the ranges the server takes for the same settings.
@@ -523,6 +523,9 @@ The model's context still bounds the reply: a `-n` up to what the prompt leaves 
 `--drafter lookup` drafts the tokens that followed the latest earlier occurrence of the last three tokens, else two, else one, of the prompt and the reply so far, and verifies the last token and up to `--draft-max` drafts in one pass of generated tokens (docs/SPECULATIVE.md, section 3).
 Each row is sampled as the token without drafts would be, so the text, the ids and every draw are the same as with `--drafter off`, greedy or seeded; drafts that match save passes, which pays where the reply repeats its prompt or itself, and a reply whose drafts kept average below half a draft a verify drafts nothing for its next 16 tokens, then tries again.
 On a model that keeps a recurrent state a verify keeps the state it started from in a slot of its own, and a rejected draft runs the state's update again over the rows it keeps.
+`--drafter embedded` drafts with the MTP block a qwen35 file carries after its layers (docs/SPECULATIVE.md, section 7): the model is loaded with the block on the device of its head, every pass writes the block's cache rows for the tokens it feeds, and each round's drafts are one chain of the block's rows on that device; a file without the block is refused by name.
+The text, the ids and every draw are those of `--drafter off` here too.
+With `--verbose`, a line after the ids gives the drafts kept and fed at each draft position, as `drafts kept: 7/10 4/8 ...`.
 A verify costs more than a step, and on a device its cost rises sharply past eight rows, so a large `--draft-max` can cost more than it saves; nothing yet prices a draft against its pass, so the default stays small (docs/STATUS.md has the measurements).
 
 ## `llmx chat <in.gguf> [--system "<text>"] [flags...]`
@@ -738,7 +741,7 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --max-queue 256
 python tools/server_load.py --input-len-range 64:1024 --output-len 128 --rate 1 2 4 8 inf --num-prompts 200 --json open.json
 ```
 
-## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--profile]`
+## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--profile] [--drafter D]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an
@@ -760,6 +763,9 @@ timer, the history is filled with `N` tokens, and `pp` and `tg` then run on
 top of it, reported as `pp P @ dN` and `tg G @ dN`, the protocol reference
 bench tools use for the same `-d N`. It takes one sequence.
 With `--moe-stream-from N` the depth counts toward a prompt's length, so `pp` at a depth streams once the depth plus `--p` reaches `N`.
+
+`--drafter embedded` loads the MTP block a qwen35 file carries as `generate` does and runs its cache rows in every pass, drafting nothing, so the figures show what carrying the block costs prompt and decode; `off`, the default, loads no drafter.
+It then times a round's rollback, after a mark and a verify of 3 drafts, the history kept at each of the verify's 4 rows: the retract and the decode step after it as completed work up to the step's logits, each repeat taking every position in turn, and gives the median over the repeats of each position less keeping all 4 in the same repeat, whose retract runs nothing, with the middle half of those differences and the median time of the retract call itself on the host, as `bench: rollback keeping K of 4 rows`, beside the step after keeping all and the mark itself, over `--r` runs after one more that is not counted; it needs `--n` of 5 or more and one sequence, and where the depth, the prompt, the verify's 4 rows and the step after them reach past the model's context it prints `bench: rollback skipped` with that reach instead.
 
 `--profile`, on a device backend, runs one more prompt run and one more
 decode run after the timed runs, each reported on its own as the device

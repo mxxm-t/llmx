@@ -1,4 +1,4 @@
-// Speculative decoding's round (docs/SPECULATIVE.md, section 3) held to the run without drafts: infer::generate with test-only proposers that keep every draft, miss at a chosen draft, draw at random or propose hostile ids, and with lookup, on a dense, a routed and a hybrid model on one to four CPU stages, greedy and seeded, must give the ids, the fed history and the next logits of the run without drafts.
+// Speculative decoding's round (docs/SPECULATIVE.md, section 3) held to the run without drafts: infer::generate with test-only proposers that keep every draft, miss at a chosen draft, draw at random or propose hostile ids, with lookup, and with the embedded drafter of a hybrid model with an MTP block (section 7), on a dense, a routed and a hybrid model on one to four CPU stages, greedy and seeded, must give the ids, the fed history and the next logits of the run without drafts.
 // Then the model's history calls under a verify: every row of a verify equals single steps, a retract to any row continues as if never drafted, the hybrid model's state rerun from its mark included, and a rerun that fails keeps the mark for a retry.
 #include <iostream>
 #include <random>
@@ -55,32 +55,40 @@ struct Run {
     int fed = 0;
     size_t passes = 0;         // the passes that generated them, counted at the first stage's submissions
     std::vector<float> next;   // the logits after the history and one more token, which hold the state the run left
+    size_t drafted = 0;        // the drafts its verifies fed
 };
 
-// A model of `weights` placed over `stages` CPU backends of one thread, with a mark of up to 17 rows where it keeps a state; `submits`, when given, counts the first stage's submissions.
-std::unique_ptr<infer::Model> placed(const gguf::GGUFModel& weights, size_t stages, size_t* submits = nullptr) {
+// A model of `weights` placed over `stages` CPU backends of one thread, with a mark of up to 17 rows where it keeps a state, and with `drafter` the file's embedded drafter; `submits`, when given, counts the first stage's submissions.
+std::unique_ptr<infer::Model> placed(const gguf::GGUFModel& weights, size_t stages, size_t* submits = nullptr, bool drafter = false) {
     std::vector<backend::BackendPtr> backends;
     for (const auto& h : hooked(stages)) backends.push_back(h);
     if (submits) static_cast<Hooked&>(*backends[0]).hook = [submits] { ++*submits; };
     infer::PlacementRequest request;
     for (size_t i = 0; i < stages; ++i) request.names.push_back("cpu " + std::to_string(i));
     if (stages > 1) request.shares.assign(stages, 1);
+    request.drafter = drafter;
     infer::ModelOptions options;
     options.mark_slots = 1;
     options.mark_rows = 17;
     return std::move(infer::place_model(infer::gguf_weights(weights), std::move(backends), request, options).model);
 }
 
+// With `embedded` and no proposer, the model is loaded with the file's embedded drafter and drafts with it.
 Run generate(const gguf::GGUFModel& weights, size_t stages, const std::vector<uint32_t>& prompt, const infer::GenParams& gp,
-             Proposer* proposer, size_t draft_max) {
+             Proposer* proposer, size_t draft_max, bool embedded = false) {
     size_t submits = 0;
-    auto model = placed(weights, stages, &submits);
+    auto model = placed(weights, stages, &submits, embedded);
     const std::vector<float> logits = model->prefill(prompt);
     const size_t prefilled = submits;
     bpe::Tokenizer tok(weights);
     infer::RNG rng;
     rng.seed(gp.seed);
     std::unique_ptr<infer::spec::Drafting> drafting;
+    std::unique_ptr<infer::spec::Embedded> own;
+    if (embedded && !proposer) {
+        own = std::make_unique<infer::spec::Embedded>(*model);
+        proposer = own.get();
+    }
     if (proposer) {
         drafting = std::make_unique<infer::spec::Drafting>();
         drafting->proposer = proposer;
@@ -89,6 +97,8 @@ Run generate(const gguf::GGUFModel& weights, size_t stages, const std::vector<ui
     }
     Run r;
     r.ids = infer::generate(*model, tok, gp, rng, logits, {}, drafting.get());
+    if (drafting)
+        for (size_t n : drafting->acceptance.drafted()) r.drafted += n;
     r.passes = submits - prefilled;
     r.fed = model->n_tokens();
     r.next = model->step(7);
@@ -188,9 +198,32 @@ void rounds(const std::string& name, const gguf::GGUFModel& plain, size_t vocab,
     }
 }
 
-// A CPU backend whose conv throws once where a test arms it, for a rerun that fails.
+// The embedded drafter of a hybrid model with an MTP block (docs/SPECULATIVE.md, section 7) against the run without drafts of the file without the block, on one, two and four CPU stages, greedy and seeded, prompts of 10, 127 and 129 tokens, at 1, 3 and 8 drafts a verify, each run feeding drafts.
+void embedded(const gguf::GGUFModel& plain, const gguf::GGUFModel& mtp, size_t vocab) {
+    std::vector<infer::GenParams> samplers(2);
+    samplers[0].temp = 0;
+    samplers[1].temp = 0.8f, samplers[1].top_k = 40, samplers[1].top_p = 0.95f, samplers[1].seed = 5;
+    for (infer::GenParams gp : samplers)
+        for (size_t prompt_len : {10, 127, 129}) {
+            gp.max_tokens = 40;
+            const std::vector<uint32_t> prompt = prompt_of(3, prompt_len, (uint32_t)vocab);
+            const Run want = generate(plain, 1, prompt, gp, nullptr, 0);
+            require(want.ids == generate(mtp, 1, prompt, gp, nullptr, 0).ids, "the file with an MTP block generates otherwise without its drafter");
+            for (size_t st : {1, 2, 4})
+                for (size_t k : {1, 3, 8}) {
+                    const Run got = generate(mtp, st, prompt, gp, nullptr, k, true);
+                    const std::string at = "the embedded drafter, " + std::to_string(st) + " stages, " + std::to_string(k) + " drafts, prompt " +
+                                           std::to_string(prompt_len) + (gp.temp > 0 ? ", seeded" : "");
+                    same(want, got, at);
+                    require(got.drafted > 0, at + ": no draft was fed");
+                }
+        }
+}
+
+// A CPU backend whose conv throws once where a test arms it, for a rerun that fails, and that remembers whether it was left recording unordered.
 struct FailingConv : backend::CpuBackend {
-    bool fail = false;
+    bool fail = false, unordered_on = false;
+    void unordered(bool on) override { unordered_on = on; }
     void causal_conv_silu(backend::Slice out, backend::CSlice x, backend::CSlice w, size_t layer, const backend::StateView* views, size_t n_views) override {
         if (fail) { fail = false; throw std::runtime_error("injected"); }
         backend::CpuBackend::causal_conv_silu(out, x, w, layer, views, n_views);
@@ -249,6 +282,7 @@ void failures(const gguf::GGUFModel& w, size_t vocab) {
     bool threw = false;
     try { model.retract(prompt.size() + 3); } catch (const std::runtime_error&) { threw = true; }
     require(threw, "an injected rerun failure did not fail the retract");
+    require(!conv->unordered_on, "a failed rerun left its backend recording unordered");
     require(model.retract(prompt.size() + 3) == prompt.size() + 3, "the retry of a failed retract did not reach its length");
     require(bits(model.step((int)walk[3]).data(), want[3].data(), want[3].size()), "the step after a retried retract differs");
     // Refusals: a second mark, a second pass after a mark, a pass of more rows than a mark saves; a mark with none free gives false.
@@ -280,6 +314,7 @@ int main() {
         rounds("the routed model", routed, 16, {1, 3});
         rounds("the hybrid model", hybrid, (size_t)kHybrid.vocab, {1, 2, 4});
         for (size_t st : {1, 2, 4}) history(hybrid, (size_t)kHybrid.vocab, st);
+        embedded(hybrid, served_hybrid(kHybrid, true), (size_t)kHybrid.vocab);
         history(dense, (size_t)kCpu.vocab, 2);
         failures(hybrid, (size_t)kHybrid.vocab);
         std::cout << "spec: " << checks << " checks pass\n";

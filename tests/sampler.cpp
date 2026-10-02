@@ -388,23 +388,26 @@ void acceptance() {
 }
 
 // spec::Acceptance, the one acceptance average: from 2, each empty verify moves it an eighth of the way to 0, so ten still leave it at half a draft or more and the eleventh rests the request; 16 tokens stepped then end the rest, and a verify keeping three moves the same average back above the break-even.
+// Its counts by draft position: every verify feeds its positions, and each keeps a prefix of them.
 void acceptance_rest() {
     infer::spec::Acceptance a;
     for (int i = 0; i < 10; ++i) {
-        a.verified(0);
+        a.verified(0, 3);
         require(!a.resting() && infer::spec::draft_length(3, 100, 100, a) == 3, "the acceptance rested after " + std::to_string(i + 1) + " empty verifies");
     }
-    a.verified(0);
+    a.verified(0, 3);
     require(a.resting() && infer::spec::draft_length(3, 100, 100, a) == 0, "eleven empty verifies did not rest the request");
     for (int i = 0; i < 15; ++i) a.stepped();
     require(a.resting(), "the rest ended before 16 tokens");
     a.stepped();
     require(!a.resting() && infer::spec::draft_length(3, 100, 100, a) == 3, "16 tokens did not end the rest");
-    a.verified(3);
+    a.verified(3, 3);
     require(!a.resting(), "a verify keeping three left the average below the break-even");
-    a.verified(0);
-    a.verified(0);
+    a.verified(0, 1);
+    a.verified(1, 4);
     require(!a.resting(), "the average forgot the verify that kept three");
+    require(a.drafted() == std::vector<size_t>({14, 13, 13, 1}) && a.kept() == std::vector<size_t>({2, 1, 1, 0}),
+            "the drafts fed and kept by position are not the verifies' counts");
 }
 
 int main() {

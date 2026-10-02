@@ -23,11 +23,12 @@
 
 namespace infer {
 
-// The plan of a model's weights: their tensors indexed once, a repeated name refused there, the architecture's plan over them, and each role's tensor, its name's or else its alias's, which the fit, the experts placement and the model all read.
+// The plan of a model's weights: their tensors indexed once, a repeated name refused there, the architecture's plan over them, with its embedded drafter's when `drafter` asks for one (Architecture::plan_drafter), and each role's tensor, its name's or else its alias's, which the fit, the experts placement and the model all read.
 // A plan whose slot 0 is not the residual's width, or with a role id past its row of weights, is the architecture's error.
-inline ModelPlan plan_model(const ModelWeights& weights) {
+inline ModelPlan plan_model(const ModelWeights& weights, bool drafter = false) {
     const TensorIndex tensors(weights.tensors);
     ModelPlan plan = weights.arch->plan(tensors);
+    if (drafter) weights.arch->plan_drafter(tensors, plan);
     if (plan.slots.empty() || plan.slots[0] != plan.residual)
         throw std::logic_error("inference: a plan whose slot 0 is not the residual");
     auto resolve = [&](Role& role) {
@@ -41,6 +42,8 @@ inline ModelPlan plan_model(const ModelWeights& weights) {
     for (Role& role : plan.pass) resolve(role);
     for (LayerPlan& layer : plan.layers)
         for (Role& role : layer.roles) resolve(role);
+    if (plan.drafter)
+        for (Role& role : plan.drafter->roles) resolve(role);
     return plan;
 }
 
@@ -196,6 +199,7 @@ struct ExecContext {
     std::vector<backend::RowRun> part_runs;    // a streamed layer's group of entries, rebased
     std::vector<backend::RowRun> entry_runs;   // the run list a part may rebuild (Step::scratch)
     std::vector<backend::Ticket> tickets;      // per device
+    std::vector<backend::CSlice> carry;        // per entry, the row an embedded drafter's first context row reads (DraftRowsStep::carry)
 };
 
 // Prompt tokens a pass takes by default (Model::set_ubatch), and so the prompt rows a placement is fitted for.
@@ -264,6 +268,14 @@ public:
         };
         for (const Role& role : plan_.pass)
             require_type(role, device_of(role.part, 0), role.part == Part::embed ? "embedding" : "head");
+        // An embedded drafter runs beside the head, every role and op of it on the head's device.
+        if (plan_.drafter) {
+            for (const Role& role : plan_.drafter->roles) require_type(role, device_of(Part::draft, 0), "embedded drafter");
+            for (const OpUse& u : plan_.drafter->ops)
+                if (!backends[device_of(Part::draft, 0)]->implements(u.op))
+                    throw std::runtime_error(std::string("inference: the embedded drafter needs ") + backend::op_name(u.op) +
+                                             ", which the backend of its device does not implement");
+        }
         // Home weights must run on their assigned device before anything is adopted; a stream destination that lacks a weight type leaves the whole layer at home.
         stream_device_.assign(n_layer, -1);
         for (size_t l = 0; l < n_layer; ++l) {
@@ -321,6 +333,15 @@ public:
             for (const Stage& st : stages_)
                 if (st.device == a) throw std::runtime_error("inference: a device's attention layers must be consecutive");
             stages_.push_back(Stage{a, l, l + 1, {}});
+        }
+        // The drafter's KV is one more layer of the head's device's storage, which the last stage reserves and commits with its own, so the head sits there.
+        if (plan_.drafter) {
+            if ((size_t)place_.output_device != stages_.back().device)
+                throw std::runtime_error("inference: an embedded drafter runs on the last stage's device, where the head must be");
+            if (!state_layers_) throw std::logic_error("inference: an embedded drafter carries its row in a state slot, which this model has none of");
+            Device& o = *devices_[(size_t)place_.output_device];
+            drafter_kv_ = (size_t)o.kv_layers++;
+            ++kv_layers_;
         }
         for (size_t s = 0; s < stages_.size(); ++s) {
             Stage& st = stages_[s];
@@ -386,10 +407,24 @@ public:
                         if (place_.mixer_device[l] == (int)di && plan_.layers[l].cache == Cache::state)
                             d.saved_floats = std::max(d.saved_floats, saved_floats(plan_.layers[l]));
                     if (!d.saved_floats) throw std::logic_error("inference: a state layer that saves no inputs for a mark");
-                    d.saved = d.b->alloc(backend::size_mul(backend::size_mul(backend::size_mul(options_.mark_slots, (size_t)d.state_layers),
-                                                                             backend::size_mul(options_.mark_rows, d.saved_floats)), sizeof(float)));
+                    // After every mark's inputs, each state layer's room for the slots its update writes, mark_rows rows of each, so a rerun reads the inputs where they were saved and runs the layers unordered.
+                    d.rerun_base = backend::size_mul(backend::size_mul(options_.mark_slots, (size_t)d.state_layers), backend::size_mul(options_.mark_rows, d.saved_floats));
+                    for (size_t l = 0; l < n_layer; ++l)
+                        if (place_.mixer_device[l] == (int)di && plan_.layers[l].cache == Cache::state)
+                            d.rerun_floats = std::max(d.rerun_floats, recur_floats(plan_, plan_.layers[l]));
+                    d.saved = d.b->alloc(backend::size_mul(backend::size_add(d.rerun_base, backend::size_mul(backend::size_mul((size_t)d.state_layers, options_.mark_rows), d.rerun_floats)),
+                                                           sizeof(float)));
                 }
                 slots_.configure(options_.state_slots, options_.checkpoint_slots, options_.mark_slots);
+            }
+            // The drafter's carried row, one a state slot on the head's device, a zero row a history of length 0 reads, and each mark's room for the normed rows of the pass after it.
+            if (plan_.drafter) {
+                Device& o = *devices_[(size_t)place_.output_device];
+                const size_t slots = backend::size_add(backend::size_add(options_.state_slots, options_.checkpoint_slots), options_.mark_slots);
+                const size_t row = backend::size_mul(plan_.residual, sizeof(float));
+                o.carry = o.b->alloc(backend::size_mul(slots, row));
+                o.zero = o.b->alloc(row);
+                if (options_.mark_slots) o.saved_h = o.b->alloc(backend::size_mul(backend::size_mul(options_.mark_slots, options_.mark_rows), row));
             }
             seq_ = make_sequence();
 
@@ -589,6 +624,12 @@ public:
     bool caches_on_devices() const;
     Sequence restore_host(HostHistory& h);
     void release_host(HostHistory& h) noexcept;
+    void draft(Sequence& s, uint32_t last, size_t k, std::vector<uint32_t>& out);
+    // The logits of draft row i of the last draft, valid until the next.
+    const float* draft_logits(size_t i) const {
+        if (!draft_logits_ || i >= draft_rows_) throw std::out_of_range("inference: no such draft row");
+        return (const float*)draft_logits_->host_ptr() + i * plan_.vocab;
+    }
     // Checkpoint slots in all, and those a keep can still take.
     size_t checkpoint_slots() const { return state_layers_ ? options_.checkpoint_slots : 0; }
     size_t checkpoints_free() const { return state_layers_ ? slots_.kept_available() : 0; }
@@ -613,6 +654,7 @@ public:
         return ctx_.logits(0);
     }
     bool mark() { return mark(seq_); }
+    void draft(uint32_t last, size_t k, std::vector<uint32_t>& out) { draft(seq_, last, k, out); }
 
     // Process a whole prompt with matrix-matrix matmuls instead of one token at a time.
     // Each weight row is then reused across the batch, which is the difference between prefill being compute bound and paying the entire weight stream once per token.
@@ -756,6 +798,9 @@ private:
         std::unique_ptr<backend::StateStorage> states;
         backend::BufferPtr saved;                // every mark's saved recurrent inputs, per mark, state layer, saved item and row
         size_t saved_floats = 0;                 // a row's saved inputs in one state layer
+        size_t rerun_base = 0;                   // where the rerun's rooms start in `saved`, in floats
+        size_t rerun_floats = 0;                 // a row of one state layer's room (recur_floats)
+        backend::BufferPtr carry, zero, saved_h; // on the head's device with an embedded drafter: its carried row a state slot, a zero row, and per mark and row the normed rows of the pass after it
         std::vector<backend::BufferPtr> tables;  // the position tables, on a device that runs a mixer
     };
 
@@ -788,13 +833,17 @@ private:
     std::vector<int> stream_device_;
     std::vector<std::vector<Weight>> stream_;
     std::vector<std::vector<backend::BufferPtr>> windows_;   // per device, a buffer per window role in role order, sized to the largest streamed layer's
+    std::vector<Weight> drafter_;                // an embedded drafter's roles by role id, on the head's device
+    size_t drafter_kv_ = 0;                      // its KV layer in the head's device's storage
+    backend::BufferPtr draft_ids_, draft_logits_;   // the last draft's ids, the last pick first, and its rows' logits, host visible on the head's device
+    size_t draft_rows_ = 0;
     std::vector<std::vector<float>> tables_;
     Sequence seq_;
     ExecContext ctx_;
 
     size_t device_of(Part part, size_t l) const {
         if (part == Part::embed) return (size_t)place_.embed_device;
-        if (part == Part::head) return (size_t)place_.output_device;
+        if (part == Part::head || part == Part::draft) return (size_t)place_.output_device;
         return (size_t)(part == Part::mixer ? place_.mixer_device[l] : place_.ffn_device[l]);
     }
 
@@ -832,6 +881,10 @@ private:
         };
         pass_.assign(plan_.role_ids, Weight{});
         for (const Role& role : plan_.pass) pass_[role.id] = resolve(role, device_of(role.part, 0));
+        if (plan_.drafter) {
+            drafter_.assign(plan_.role_ids, Weight{});
+            for (const Role& role : plan_.drafter->roles) drafter_[role.id] = resolve(role, device_of(role.part, 0));
+        }
         const size_t n_layer = plan_.layers.size();
         home_.assign(n_layer, {});
         stream_.assign(n_layer, {});
@@ -889,6 +942,7 @@ private:
     size_t rewind(Sequence& s, size_t length) noexcept;
     size_t saved_at(const Device& d, const LayerPlan& lp, size_t buffer, size_t layer, size_t item) const;
     void save(ExecContext& ctx, const Pass& p, size_t dev, int l);
+    void save_h(ExecContext& ctx, const Pass& p);
     void rerun(Sequence& s, size_t rows);
     void restore_mark(Sequence& s) noexcept;
     void drop_mark(Sequence& s) noexcept;
@@ -1053,6 +1107,7 @@ private:
         } else {
             const size_t o = (size_t)place_.output_device;
             if (o != cur) { cross(ctx, cur, o, 0, p.rows); cur = o; }
+            if (plan_.drafter) draft_context(ctx, p, s);
             if (p.want)
                 arch_->head(HeadStep{part(ctx, cur, pass_.data(), 0, 0, p.rows, all), p.pick.data(), p.want,
                                      backend::RowRuns{p.head_runs.data(), p.head_runs.size()},
@@ -1070,6 +1125,34 @@ private:
             // Once every stage holds it, the checkpoint is the sequence's, and the one it replaces goes: a later write of that slot is enqueued after every read of it on each device's stream.
             if (s + 1 == stages_.size() && p.kept[e].held()) q.kept_ = std::move(p.kept[e]);
         }
+    }
+
+    // An embedded drafter's context rows of the pass, on the head's device after the last stage (Architecture::draft_rows): each entry's first row reads the row its sequence carries, from where its history left it on the last stage, or a zero row for an empty history.
+    // Then each entry's last normed row is carried into the slot its state is written to, and a marked entry's rows are saved for its retract (save_h).
+    void draft_context(ExecContext& ctx, Pass& p, size_t s) {
+        const size_t o = (size_t)place_.output_device;
+        Device& d = *devices_[o];
+        const size_t E = plan_.residual, n = p.entries.size();
+        ctx.carry.resize(n);
+        for (size_t e = 0; e < n; ++e) {
+            const Sequence& q = *p.entries[e].seq;
+            const size_t src = q.from_[s] == Sequence::kLive ? q.state_.slot() : q.from_[s];
+            ctx.carry[e] = q.stage_length(s) ? backend::CSlice{d.carry.get(), src * E} : backend::CSlice{d.zero.get(), 0};
+        }
+        const backend::RowRuns all{p.runs.data(), p.runs.size()};
+        DraftRowsStep step{part(ctx, o, drafter_.data(), plan_.drafter->kind, 0, p.rows, all), p.ids.data(), ctx.carry.data()};
+        step.views = p.views[(size_t)d.storage_index].data();
+        step.n_views = n;
+        step.kv_layer = drafter_kv_;
+        step.pos = p.pos.data();
+        arch_->draft_rows(step);
+        const backend::Slice hn = slot(ctx, o, plan_.draft_h);
+        for (size_t e = 0; e < n; ++e) {
+            const Sequence& q = *p.entries[e].seq;
+            const size_t dst = p.kept[e].held() ? p.kept[e].slot() : q.state_.slot();
+            d.b->copy(*d.carry, dst * E * sizeof(float), *hn.buffer, (hn.offset + (p.runs[e].end - 1) * E) * sizeof(float), E * sizeof(float));
+        }
+        save_h(ctx, p);
     }
 
     // After the last stage: where the logits are and the ticket that says they are ready, the pass's own head's.

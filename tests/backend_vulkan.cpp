@@ -2485,8 +2485,9 @@ size_t check_mix(backend::Backend& vk, backend::CpuBackend& cpu, const StateShap
 }
 
 // On the device a sequence's rows and state are the same bits alone, beside others, in reverse view order and cut into passes of 1, 2 and 3 rows that carry the state in their slot (docs/QWEN35.md, Row classes).
+// The calls of all four take the delta rule's 16-token build, as the 40-row view asks for it, and a sequence alone the short build at 8 and 5 rows and in every pass, the 16-token one at 9 and 40, so a column computes the same in both builds, at both sides of the edge.
 size_t check_invariance(backend::Backend& vk, const StateShape& sh, uint32_t seed) {
-    const std::vector<Seq> seqs = {{0, 0, 0, 9}, {4, 1, 1, 7}, {2, 2, 3, 5}, {6, 4, 4, 40}};
+    const std::vector<Seq> seqs = {{0, 0, 0, 9}, {4, 1, 1, 8}, {2, 2, 3, 5}, {6, 4, 4, 40}};
     size_t rows = 0;
     for (const Seq& q : seqs) rows += q.nq;
     const Inputs in = inputs(seed, sh, rows);
@@ -2736,6 +2737,83 @@ size_t check_gated_attention(Pair& p, bool integer_dot) {
 }
 }  // namespace q35
 
+// The embedded drafter's ops (docs/SPECULATIVE.md, section 7) against the CPU, id for id and bit for bit: argmax_rows over rows of 37 and of 248320 logits, with a tie, an infinity, a NaN first and last, a row of -infinity and a row whose prior id is invalid beside plain rows, with and without prior ids; embed_ids of F32 and Q8_0 tables with valid ids and ids past the table, which write zero rows.
+size_t check_drafter_ops(Pair& p) {
+    size_t values = 0;
+    auto ids_on = [](backend::Backend& b, const std::vector<uint32_t>& ids) {
+        backend::BufferPtr buf = b.alloc(ids.size() * sizeof(float), backend::Memory::device);
+        b.write(*buf, 0, ids.data(), ids.size() * sizeof(uint32_t));
+        return buf;
+    };
+    auto ids_of = [](backend::Backend& b, const backend::Buffer& buf, size_t n) {
+        std::vector<uint32_t> ids(n);
+        b.read(buf, 0, ids.data(), n * sizeof(uint32_t));
+        return ids;
+    };
+    for (size_t n : {size_t(37), size_t(248320)}) {
+        const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
+        const size_t rows = 9;
+        std::vector<float> flat = uniform(rows * n, (uint32_t)(300 + n % 7), -6.0f, 6.0f);
+        flat[1 * n + 3] = flat[1 * n + n - 2] = 9.5f;   // a tie
+        flat[2 * n + n / 2] = inf;
+        flat[3 * n] = nan;
+        flat[4 * n + n - 1] = nan;
+        for (size_t i = 0; i < n; ++i) flat[5 * n + i] = -inf;
+        flat[6 * n + 7] = 9.0f;                          // its prior id is invalid
+        const std::vector<uint32_t> prior = {0, 0, 0, 0, 0, 0, (uint32_t)n, 0, 0};
+        const backend::BufferPtr lc = q35::floats_on(p.cpu, flat), lv = q35::floats_on(p.vk, flat), pc = ids_on(p.cpu, prior), pv = ids_on(p.vk, prior);
+        for (bool with_prior : {true, false}) {
+            const backend::BufferPtr oc = p.cpu.alloc(rows * sizeof(float), backend::Memory::device), ov = p.vk.alloc(rows * sizeof(float), backend::Memory::device);
+            p.cpu.argmax_rows({oc.get(), 0}, {lc.get(), 0}, rows, n, with_prior ? backend::CSlice{pc.get(), 0} : backend::CSlice{});
+            p.vk.argmax_rows({ov.get(), 0}, {lv.get(), 0}, rows, n, with_prior ? backend::CSlice{pv.get(), 0} : backend::CSlice{});
+            p.vk.sync();
+            const std::vector<uint32_t> c = ids_of(p.cpu, *oc, rows), v = ids_of(p.vk, *ov, rows);
+            require(c == v, ("argmax_rows differs from the CPU over " + std::to_string(n) + " ids").c_str());
+            require(c[1] == 3 && c[2] == n && c[3] == n && c[4] == n && c[5] == n && c[6] == (with_prior ? n : 7), "argmax_rows over ties, infinities and NaN");
+            values += rows;
+        }
+    }
+    const size_t width = 64, vocab = 9;
+    const std::vector<float> table = uniform(width * vocab, 333, -2.0f, 2.0f);
+    std::vector<uint8_t> q8(vocab * (width / quant::Q8_0_BLOCK) * quant::Q8_0_TYPESIZE);
+    for (size_t r = 0; r < vocab; ++r)
+        quant::quantize_row_q8_0(table.data() + r * width, q8.data() + r * (width / quant::Q8_0_BLOCK) * quant::Q8_0_TYPESIZE, width / quant::Q8_0_BLOCK);
+    const std::vector<uint32_t> ids = {4, (uint32_t)vocab, 0, 0xffffffffu, 8};
+    for (bool quantized : {false, true}) {
+        const uint32_t type = quantized ? quant::GGML_TYPE_Q8_0 : quant::GGML_TYPE_F32;
+        const void* data = quantized ? (const void*)q8.data() : (const void*)table.data();
+        const size_t bytes = quantized ? q8.size() : table.size() * sizeof(float);
+        const backend::BufferPtr tc = p.cpu.adopt(data, bytes), tv = p.vk.adopt(data, bytes), ic = ids_on(p.cpu, ids), iv = ids_on(p.vk, ids);
+        const backend::BufferPtr dc = p.cpu.alloc(ids.size() * width * sizeof(float), backend::Memory::device), dv = p.vk.alloc(ids.size() * width * sizeof(float), backend::Memory::device);
+        p.cpu.embed_ids({dc.get(), 0}, type, {tc.get(), 0}, width, vocab, {ic.get(), 0}, ids.size());
+        p.vk.embed_ids({dv.get(), 0}, type, {tv.get(), 0}, width, vocab, {iv.get(), 0}, ids.size());
+        p.vk.sync();
+        const std::vector<float> c = q35::read_floats(p.cpu, *dc, ids.size() * width), v = q35::read_floats(p.vk, *dv, ids.size() * width);
+        require(q35::same_bits(c, v), quantized ? "embed_ids differs from the CPU on a Q8_0 table" : "embed_ids differs from the CPU on an F32 table");
+        for (size_t i = 0; i < width; ++i) require(v[width + i] == 0.0f && v[3 * width + i] == 0.0f, "embed_ids of an id past the table wrote no zero row");
+        values += c.size();
+    }
+    // Every type the device embeds: embed_ids gives embed's rows for the ids inside the table, through the same decoding, and a zero row past it.
+    const size_t wide = 256;
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+                          quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4}) {
+        if (!p.vk.supports_type(type)) continue;
+        const std::vector<uint8_t> bytes = matrix(type, wide, vocab, 340 + type);
+        const backend::BufferPtr tv = p.vk.adopt(bytes.data(), bytes.size()), iv = ids_on(p.vk, ids);
+        const backend::BufferPtr dv = p.vk.alloc(ids.size() * wide * sizeof(float), backend::Memory::device), ev = p.vk.alloc(ids.size() * wide * sizeof(float), backend::Memory::device);
+        const std::vector<uint32_t> inside = {4, 0, 0, 0, 8};
+        p.vk.embed_ids({dv.get(), 0}, type, {tv.get(), 0}, wide, vocab, {iv.get(), 0}, ids.size());
+        p.vk.embed({ev.get(), 0}, type, {tv.get(), 0}, wide, vocab, inside.data(), inside.size());
+        p.vk.sync();
+        const std::vector<float> v = q35::read_floats(p.vk, *dv, ids.size() * wide), e = q35::read_floats(p.vk, *ev, ids.size() * wide);
+        for (size_t r : {size_t(0), size_t(2), size_t(4)})
+            require(std::memcmp(v.data() + r * wide, e.data() + r * wide, wide * sizeof(float)) == 0, ("embed_ids differs from embed on a table of type " + std::to_string(type)).c_str());
+        for (size_t i = 0; i < wide; ++i) require(v[wide + i] == 0.0f && v[3 * wide + i] == 0.0f, "embed_ids of an id past the table wrote no zero row");
+        values += v.size();
+    }
+    return values;
+}
+
 size_t check_qwen35(backend::Backend& vk) {
     Pair p(vk);
     const bool integer_dot = backend::vulkan_device_profile(p.vk).prefer_integer_dot;
@@ -2758,6 +2836,7 @@ size_t check_qwen35(backend::Backend& vk) {
     values += q35::check_gated_norm(p, 2, 10) + q35::check_gated_norm(p, 16, 128);
     values += q35::check_sigmoid_mul(p, 4, 40) + q35::check_sigmoid_mul(p, 3, 256);
     values += q35::check_gated_attention(p, integer_dot);
+    values += check_drafter_ops(p);
     std::cout << "backend-vulkan: qwen35 ops: " << runs << " device runs bit for bit across views, orders and passes; decay flush, state storage\n";
     return values;
 }

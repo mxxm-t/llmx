@@ -283,10 +283,15 @@ def check_serve(directory):
     routed = next(f for f in FIXTURES if f.get("moe"))
     routed_model = write_model(os.path.join(directory, "tiny-qwen35moe-serve.gguf"), gguf_tensors(routed, raw_weights(routed)), eos_id=EOS,
                                config=dict(gguf_config(routed), context_length=1024), arch="qwen35moe")
+    drafting_spec = next(f for f in FIXTURES if f["mtp"])
+    drafting = write_model(os.path.join(directory, "tiny-qwen35-serve-mtp.gguf"), gguf_tensors(drafting_spec, raw_weights(drafting_spec)), eos_id=EOS,
+                           config=dict(gguf_config(drafting_spec), context_length=1024), arch="qwen35")
     first = "".join(chr(97 + (i * 7) % 26) for i in range(500))
     for served in (model, routed_model):
-        # Drafts verified through a hybrid model's mark and its rerun, over a context that holds a longer reply and a chat.
+        # Drafts verified through a hybrid model's mark and its rerun, over a context that holds a longer reply and a chat; the MTP block's file drafts with it too.
         common.check_drafts(served, served, "abcabcabcabcabcabc xyz abcabcabcabc", 60, chat=True)
+        if served == model:
+            common.check_drafts(drafting, drafting, "abcabcabcabcabcabc xyz abcabcabcabc", 60, chat=True, drafter="embedded")
         srv = server.Server(served, "--max-seqs", "4")
         try:
             reply = server.post_ok(srv, "/v1/generate", {"prompt": first, "temperature": 0, "max_tokens": 24, "ignore_eos": True})
@@ -338,7 +343,48 @@ def check_greedy(name, model, greedy):
             assert got == greedy["ids"], "%s greedy ids %s, HF %s (threads %d, ubatch %d)" % (name, got, greedy["ids"], threads, ubatch)
 
 
-def run():
+def check_drafter(model, plain, require):
+    """The MTP block as an embedded drafter (docs/SPECULATIVE.md, section 7): its drafts and draft logits at steps 1 and 2 against the assembled HF reference (tools/gen_baseline.py qwen35-mtp) within the F32 bound, from prompts of 1, 2, 5 and 12 tokens, through llmx-decode-probe with f32 caches; the drafter loaded by `bench --model` without drafting; and a file without an MTP block refused by name.
+    Returns the largest error, or 0 with a skip line where the tool is not beside the executable and `require` does not ask for it."""
+    import decode_probe
+    rc, out = cli(["generate", plain, "abc", "-n", "2", "--drafter", "embedded"])
+    assert rc != 0 and "carries no MTP block" in out, "a file without an MTP block was not refused as an embedded drafter: " + out
+    rc, out = cli(["bench", "--model", model, "--p", "4", "--n", "2", "--r", "1", "--drafter", "embedded"])
+    assert rc == 0 and re.search(r"^bench: tg2 ", out, re.M), "bench --drafter embedded failed: " + out
+    # The rollback reaches the prompt, the verify's 4 rows and a step: at a 16-token context a prompt of 11 runs it and one of 12 skips it with its reason.
+    for p, runs in ((11, True), (12, False), (16, False)):
+        rc, out = cli(["bench", "--model", model, "--p", str(p), "--n", "8", "--r", "1", "--drafter", "embedded"])
+        assert rc == 0 and re.search(r"^bench: tg8 ", out, re.M), "bench --drafter embedded at a prompt of %d failed: %s" % (p, out)
+        ran, skipped = re.search(r"^bench: rollback keeping 3 of 4 rows", out, re.M), re.search(r"^bench: rollback skipped: .* past the context of 16$", out, re.M)
+        assert (ran and not skipped) if runs else (skipped and not ran), "bench's rollback at a prompt of %d %s: %s" % (p, "did not run" if runs else "was not skipped", out)
+    tool = decode_probe.tool_path()
+    if not os.path.exists(tool):
+        assert not require, "qwen35: llmx-decode-probe is not beside the executable, and --require-tools asks for it"
+        print("qwen35: SKIP the drafter's HF reference - llmx-decode-probe is not beside the executable")
+        return 0.0
+    with open(os.path.join(os.path.dirname(__file__), "data", "baseline_qwen35_mtp.json"), encoding="utf-8") as f:
+        doc = json.load(f)
+    spec = next(s for s in FIXTURES if s["mtp"])
+    assert doc["fixture"] == spec["name"] and doc["weights_sha256"] == weight_hash(hashed(raw_weights(spec))), "the MTP reference is not of the fixture's weights"
+    worst = 0.0
+    with tempfile.TemporaryDirectory(prefix="llmx_qwen35_mtp_") as directory:
+        for case in doc["cases"]:
+            p = decode_probe.probe(tool, model, directory, {"prompt": case["prompt"], "ids": [], "tokens": [0, 1], "draft": doc["steps"], "cache": "f32"})
+            assert p.returncode == 0, "llmx-decode-probe failed: " + p.stdout + p.stderr
+            pick = re.search(r"^draft pick (\d+), (\d+) drafts$", p.stdout, re.M)
+            rows = re.findall(r"^draft (\d+) (\d+):((?: \S+)+)$", p.stdout, re.M)
+            assert pick and int(pick.group(1)) == case["pick"] and [int(r[1]) for r in rows] == case["drafts"], \
+                "%r: pick and drafts %s %s, the reference's %d %s" % (case["prompt"], pick and pick.group(1), [r[1] for r in rows], case["pick"], case["drafts"])
+            for (_, _, values), want in zip(rows, case["logits"]):
+                got = [float(v) for v in values.split()]
+                assert len(got) == len(want), "a draft row of %d logits, the reference's %d" % (len(got), len(want))
+                worst = max(worst, max(abs(a - b) for a, b in zip(got, want)))
+    assert worst < common.F32_HF_LOGIT_BOUND, "qwen35 drafter/HF logit error %.8f" % worst
+    print("qwen35: the MTP block's drafts and their logits at steps 1 and 2 vs the assembled HF reference, prompts of 1, 2, 5 and 12 tokens; max error %.8f  [ok]" % worst)
+    return worst
+
+
+def run(require=False):
     if common.f32_cache_skip("qwen35"):
         return common.SKIPPED
     doc = golden()
@@ -366,12 +412,15 @@ def run():
             check_scores(name, model, goldens["perplexity"])
             check_greedy(name, model, goldens["greedy"])
             common.check_drafts(name, model)
+            if spec["mtp"]:
+                common.check_drafts(name, model, drafter="embedded")
+                worst = max(worst, check_drafter(model, models[fixture["base"]], require))
             if "base" in fixture:
                 for text in TEXTS:
                     printed = [cli(["logits", models[which], text, "--top", str(VOCAB)]) for which in (fixture["base"], spec["name"])]
                     assert printed[0] == printed[1], "%s logits differ from %s's on %r" % (name, fixture["base"], text)
     print("qwen35: all 257 logits vs HF's token-by-token goldens, Hv = Hk tied, Hv = 3 Hk untied and qwen35moe, ubatches, threads, --last rows, "
-          "NLL batched and per token, greedy decode after a prefill, an MTP block that leaves the logits as they were, serve alone, together, from the CLI and through pauses, and bench --seqs 3; max error %.8f  [ok]" % worst)
+          "NLL batched and per token, greedy decode after a prefill, an MTP block that leaves the logits as they were and drafts as the reference does with the output of no drafts, serve alone, together, from the CLI and through pauses, and bench --seqs 3; max error %.8f  [ok]" % worst)
     return True
 
 

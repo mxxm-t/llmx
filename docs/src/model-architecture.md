@@ -9,7 +9,7 @@ which the runtime calls. The runtime names no architecture; an architecture
 never sees devices, placements, stages or caches beyond what a call hands it.
 
 - The plan: `Role` (the id a resolved weight is indexed by, its `Part` -
-  `embed`, `mixer`, `ffn` or `head` - its `RoleKind`, its tensor name and an
+  `embed`, `mixer`, `ffn`, `head` or `draft` - its `RoleKind`, its tensor name and an
   alias taken when the name is absent, its expected `in`, `out` and
   `experts`, and its `Stream`; then `tensor` and `aliased`, the view it
   reads and whether that is the alias's, which `plan_model` sets and the
@@ -30,7 +30,10 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   widths, the K and V heads and head width of every layer whose cache is
   KV, the recurrent state's shape (`backend::StateShape`) of every layer
   whose cache is a state, and the position
-  tables' sizes).
+  tables' sizes, and an embedded drafter's `LayerPlan` when a caller asked
+  for one, its roles all `Part::draft`, which run on the head's device, and
+  `draft_h`, the arena slot its context rows leave the target's
+  final-normed rows in).
   - A `RoleKind` says how a role's tensor is checked and whether the fit
     counts it as a product: `norm` is F32 `[in]`, `matrix` is `[in, out]`
     read by a product, `gather` is checked as a matrix and gathered by the
@@ -61,6 +64,11 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   sequence's slot after the history the stage has committed) and its index
   in its device's state storage. `HeadStep` adds the
   rows that want logits, their runs and the slice their logits go to.
+  `DraftRowsStep` adds the rows' token ids and, per entry, the row its first
+  row reads as the target's row before it (the sequence's carried row, or
+  a zero row for an empty history); `DraftStep` the device slices of a
+  draft row's token id, the row before it, the drafted id, its output row
+  after the drafter's final norm and its logits.
 - `Architecture`: the interface an architecture implements, immutable once
   read from a file, so models built from one set of weights share it.
   - `plan(index)`: the plan of a file's tensors, looked up through the
@@ -79,3 +87,9 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     them again over a mark's kept rows when a retract lands inside a verify
     (`docs/SPECULATIVE.md`, section 1); a layer that keeps no state has
     none.
+  - `plan_drafter(index, plan)`, `draft_rows(step)` and `draft(step)`: an
+    embedded drafter a file carries (`docs/SPECULATIVE.md`, section 7):
+    its plan, added to the model's when a caller asks for one and refused
+    by default; its rows of the drafter's cache for every row of a pass,
+    after the last stage; and one draft row through the whole drafter and
+    the head into the next drafted id. None by default.

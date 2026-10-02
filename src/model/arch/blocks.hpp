@@ -11,15 +11,17 @@
 
 namespace infer::blocks {
 
-// A grouped expert call needs mixed-type support only when both declared projections exist and their storage tags differ.
+// A grouped expert call needs mixed-type support only when both declared projections exist and their storage tags differ; the requirement is the part's the gate role runs in.
 inline void routed_ops(LayerPlan& layer, const TensorIndex& tensors, uint16_t gate, uint16_t up) {
     const TensorView *g = nullptr, *u = nullptr;
+    Part part = Part::ffn;
     for (const Role& role : layer.roles) {
         if (role.id != gate && role.id != up) continue;
+        if (role.id == gate) part = role.part;
         const auto tensor = tensors.find(role.name);
         if (tensor) (role.id == gate ? g : u) = &tensors.view(*tensor);
     }
-    if (g && u && g->type != u->type) layer.ops.push_back({Part::ffn, backend::Op::mixed_experts});
+    if (g && u && g->type != u->type) layer.ops.push_back({part, backend::Op::mixed_experts});
 }
 
 // A weight's product into `out`, the buffer passed by raw pointer, not by handle, so building one copies no shared pointer on the per-token path.
@@ -59,6 +61,26 @@ inline void routed_experts(const Step& s, const Weight& router, const Weight& ga
     for (size_t i = 0; i < s.runs.n; ++i) entry_runs.push_back(backend::RowRun{s.runs.runs[i].end * k, s.runs.runs[i].extent});
     b.silu_mul(act, g, u, s.rows * k * ff, {entry_runs.data(), entry_runs.size()});
     b.matmul_experts_add(down.type, down.slice(), act, s.x, ff, E, s.rows, routing, s.runs, s.dtype);
+}
+
+// An MTP block's input (docs/SPECULATIVE.md, section 7): `pair` holds 2 * rows rows of E, the tokens' rows then the target's rows before them, which are normed in place by `enorm` and `hnorm`, put side by side a row each, token first, through `side` (a single row is already so), and projected by `eh_proj` into `out`.
+inline void nextn_input(const Step& s, const Weight& enorm, const Weight& hnorm, const Weight& eh_proj, backend::Slice pair, backend::Slice side,
+                        backend::Slice out, float eps) {
+    const size_t E = enorm.nin, n = s.rows;
+    const backend::Slice prev{pair.buffer, pair.offset + n * E};
+    s.b.rms_norm_rows(pair, pair, enorm.slice(), n, E, E, eps);
+    s.b.rms_norm_rows(prev, prev, hnorm.slice(), n, E, E, eps);
+    backend::Slice in = pair;
+    if (n > 1) {
+        std::vector<uint32_t> order(2 * n);
+        for (size_t r = 0; r < n; ++r) {
+            order[2 * r] = (uint32_t)r;
+            order[2 * r + 1] = (uint32_t)(n + r);
+        }
+        s.b.gather_rows(side, pair, E, order.data(), 2 * n);
+        in = side;
+    }
+    s.b.matmul(eh_proj.type, eh_proj.slice(), in, out, eh_proj.nin, eh_proj.nout, n, s.runs, s.dtype);
 }
 
 // The head: the rows that want logits are not contiguous once entries mix, so they are compacted into `rows` first, then normed and projected once over exactly those rows.

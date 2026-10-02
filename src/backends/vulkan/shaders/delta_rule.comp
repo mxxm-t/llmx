@@ -26,7 +26,12 @@ uint view_dst(uint v) { return tab[5u + 5u * v]; }
 // Rows of the matrix a lane holds: k_dim at most 8 of these (the backend refuses a wider K head); rows past k_dim hold zeros.
 #define ROWS 16u
 // Tokens a block stages: its normed q and k take 2 TB 128 floats of shared memory, and its v values TB 32.
+// The short build stages 4, for calls of a few rows a view, where the shared memory of 16 would hold the device to three workgroups a compute unit; a column's arithmetic is the same in either.
+#ifdef LLMX_SHORT
+#define TB 4u
+#else
 #define TB 16u
+#endif
 shared float kn[TB][128];
 shared float qn[TB][128];
 shared float vs[TB][32];
@@ -58,10 +63,6 @@ void main() {
     uint src = view_src(v) * p.slot + matrix, dst = view_dst(v) * p.slot + matrix;
     bool fresh = view_len(v) == 0u;
     precise float s[ROWS];
-    [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
-        uint i = part + 8u * ii;
-        s[ii] = col && i < p.k_dim && !fresh ? st[src + i * p.v_dim] : 0.0;
-    }
     // A staging lane: group g of eight lanes norms one row of the block, q of token g / 2 for g even and k for g odd, lane `part` taking values part, part + 8, ...
     uint g = lid >> 3u, tok = g >> 1u;
     bool is_k = (g & 1u) != 0u;
@@ -102,6 +103,12 @@ void main() {
             vs[t][idx & 31u] = cc < p.v_dim ? u[(row0 + t0 + t) * p.C + 2u * qk + j * p.v_dim + cc] : 0.0;
         }
         barrier();
+        // The state is read once the first block is staged, so the staging's rows and the state are not held at once, which leaves registers for more subgroups; a view has a row at least.
+        if (t0 == 0u)
+            [[unroll]] for (uint ii = 0u; ii < ROWS; ++ii) {
+                uint i = part + 8u * ii;
+                s[ii] = col && i < p.k_dim && !fresh ? st[src + i * p.v_dim] : 0.0;
+            }
         if (col) {
             // The block's first token's decay and m, from the matrix the last block left, or the source slot's.
             if (!have_m) {

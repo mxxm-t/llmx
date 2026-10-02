@@ -115,6 +115,180 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 - The host-reserve regression failed before the fix. After it, placement, host-memory, server-resume, server-passes and server-passes-cpu passed, 5/5. The same startup under the same 8 GiB limit reached healthy with 34816 KV tokens, a measured peak of 8162009088 bytes and zero cgroup OOM events; the smaller fitted pool is the capacity cost of leaving operating room.
 - Evidence: `/zpool1/llmx-xdev-validation/dtype-cpu-fit-oom-20261002`, including the failed original attempts, source hashes, build logs, 100 ms memory samples and health records. Fixed binary SHA256 `e97f62b637de5a186c7317ea2d619f73942db946a1b3b237b25773590975f9bc`, version `llmx 0.1.0+unknown`; the archived build has no Git metadata. The initial main command's unsupported `--dtype` refusal and a nonexistent build-target harness error are retained separately from the valid before/after comparison.
 - Throughput is not inferred from these startup checks. The integrated release refresh builds the performance arms alike and gives each llmx arm identical capacity and executed histories with automatic KV fitting disabled, so this reserve cannot change its benchmark capacity. The reference's reserved context is smaller and is reported separately from the matched histories. Independent HF results remain applicable because no arithmetic changed.
+## The embedded MTP proposer for qwen35 (2026-10-02, branch feat/qwen35-mtp, step 4 of SPECULATIVE, lands by fast-forward)
+
+- **Goal:** `--drafter embedded` drafts with the MTP block a qwen35 file carries and gives exactly the output of `--drafter off`, greedy and seeded, with a measured decode gain on the dense 27B ([SPECULATIVE](SPECULATIVE.md), section 7, approved 2026-10-02).
+- **Where each concern lives**, each once:
+  - the block's metadata and refusals: `qwen35::read_config`, unchanged;
+  - the block's roles, planned only when a drafter is asked for: `Qwen35::plan_drafter`, filling `ModelPlan::drafter` with a `LayerPlan` of `Part::draft` roles whose cache is KV, called by `plan_model` with the request's `drafter`;
+  - the block's math: `Qwen35::draft_rows` (the context rows of a pass) and `Qwen35::draft` (one draft row), the two norms, the interleave and `eh_proj` in `blocks::nextn_input`;
+  - the contract: `Architecture::plan_drafter`, `Architecture::draft_rows` and `Architecture::draft`, none by default, and `Part::draft`;
+  - the MTP layer's KV: one more KV layer of the output device's storage (`Model::drafter_kv_`), under the target's block table, length, fork, retract and budget;
+  - the carried row: a row of the residual's width a state slot on the output device (`Device::carry`), read at a pass's src slot and written at its dst slot by `Model::run_stage`, a history of length 0 reading a zero row; the h rows a mark saves in `Device::saved_h`, saved by `Model::save_h` and read back by `Model::rerun`, beside the state layers' saved inputs;
+  - the draft chain: `Model::draft(seq, last, k, out)` in `src/model/history.hpp`, one submission on the output device;
+  - the proposer: `spec::Embedded` in `src/inference/spec.hpp`;
+  - the two ops: `Backend::argmax_rows` and `Backend::embed_ids`, on the CPU and Vulkan, refused at load by name where a backend lacks them;
+  - loading and the fit: `PlacementRequest::drafter` through `place_model` and `plan_model`;
+  - the flag: `--drafter embedded` in `Drafts` (`src/cli/main.cpp`) on `generate`, `chat` and `bench --model`.
+- **Done:** the code on the CPU and Vulkan with its tests and docs; the drafter's ops on both; the fit's count of the drafter; `bench --model --drafter embedded` (the k = 0 gate and the rollback lines). Its gates and measurements, in the order they were taken:
+  - The block's math: the tiny fixture's drafts and every draft row's logits at steps 1 and 2, from prompts of 1, 2, 5 and 12 tokens, against the assembled HF reference (`tools/gen_baseline.py qwen35-mtp`, docs/ASSETS.md): every pick and drafted id equal, largest logit error 3.0e-7 on the CPU and 5.8e-7 on the Radeon VII against the F32 bound of 2e-5.
+  - Identity, drafts on against off, ids compared, `generate --verbose`, 128 tokens, greedy on a copy prompt and a chat story, and seeded at temperature 0.8: equal in every cell on one MI50 for Qwen3.6-27B-MTP Q8_0, Qwen3.8-27B Q8_0 and Qwen3.6-27B-MTP Q4_1 at 1 and 3 drafts, and over two MI50s (layer split) for both Q8_0 files; the tiny fixtures on the Radeon VII and the CPU; on Windows CTest 41 of 41 and the CPU suite.
+  - k = 0 (the block loaded, drafting nothing), Qwen3.6-27B-MTP Q8_0 on one MI50, `bench --model`, arms off, embedded, embedded, off: pp512 262.27, 260.23 off against 260.36, 260.43 (-0.3 percent), tg128 22.15, 21.19 against 21.68, 21.40 (-0.6 percent), pp16384 205.24 against 204.79 (-0.2 percent).
+  - Rollback, the same file on one MI50, after a mark and a verify of 3 drafts, each rejection position timed as completed work up to the next step's logits, medians of 10 runs against keeping all 4 rows (a step of about 44 ms): rerun copying the saved inputs back, +2.56, +2.74 and +2.80 ms (5.8 to 6.4 percent); reading them where they were saved, +1.99 to +2.23 ms (4.5 to 5.0 percent); with each phase of every state layer recorded unordered (`Backend::unordered`), +1.09 to +1.14 ms (2.5 to 2.6 percent). The gate is 2 percent: not met yet.
+  - The retract's own call, timed apart (e9305710, GPU[7], cores 4 to 7): 0.37 to 0.66 ms of a rollback of +0.81 to +0.94 ms (1.8 to 2.1 percent of a 44.2 ms step) after a 512-token prompt, and 0.47 to 0.60 ms of +0.89 to +1.02 ms (1.9 to 2.2 percent) after 4096 tokens, so recording the rerun's 96 dispatches on the host is more than half of it; on GPU[6] and cores 8 to 11 the same code measured 2.5 percent. Submitting the rerun in chunks, so the device starts while the host records the rest, loses: after a 512-token prompt, arms interleaved on GPU[7] and cores 4 to 7, one submission (e9305710) cost 2.35 to 2.44 percent, a submission every 24 state layers 2.36 to 2.47, every 12 2.68 to 2.92 and every 6 2.82 to 3.07, the retract's own call growing by about 30 us a submission. A second run of every 24 layers measured a 46 ms step and is flagged: a build ran on cores 8 to 11 beside it. The experiment trees are not kept.
+  - Where the rest goes (an experiment build of 8a5163a7 timing the rerun's dispatches, not kept): the rerun spans 1.02 to 1.12 ms on the device with every dispatch timestamped, its 48 delta rule dispatches 37 to 40 us each and overlapping about twice, the driver giving that kernel 84 registers and 18.9 KB of shared memory, 3 subgroups a SIMD; recording it takes the host 0.24 to 0.49 ms and submitting it 0.12 to 0.23 ms. So the device is the larger part. The delta rule's short build (staging 4 tokens a block for calls whose views hold at most 8 rows, a column's arithmetic unchanged) measured, arms 8a5163a7, short, short, 8a5163a7 on GPU[7] and cores 4 to 7: a rollback of +0.81 to +1.03 ms (1.83 to 2.35 percent of a 44.0 ms step) against +0.96 to +1.07 ms (2.17 to 2.40 percent of 44.3 to 44.5 ms), tg32 23.02 and 23.00 tok/s against 22.84 and 22.25, pp512 257.48 and 257.37 against 256.96 and 256.41; the per-token logits of a prompt and 128 greedy ids with 3 drafts were the same bytes from both builds, CTest passed 40 of 40 on the MI50 and the Vulkan, qwen35 and spec CTests on the Radeon VII, and the qwen35 and decode-probe components on the MI50. Still at the gate's edge: the register count is next.
+  - The delta rule reading its state once the first block is staged (eab3daa3) takes the short build from 84 registers to 48, 5 subgroups a SIMD, and the 16-token build to 72; a subtle change to the short build's rounding alone, within the CPU bound, fails backend-vulkan's 8- and 9-row comparison, so the test holds the two builds together. From 14:50 the arms were disturbed by the cards' own heat at default clocks: GPU[7] idles at 43 C, GPU[1] reached a junction of 104 C at its 225 W cap and ran 1032 to 1606 MHz, the step growing from 44 to 47 to 50 ms, so those arms (rollback -4 to +20 percent) are flagged and not counted. Started once GPU[6]'s junction is below 55 C, still at default clocks, four arms gave a step of 43.80 to 44.10 ms and a rollback of +0.56 to +1.14 ms, 1.28 to 2.61 percent, median 2.0: at the gate, not under it with a margin.
+  - The rollback measured as the median over repeats of each position's difference from keeping all 4 in the same repeat, so a clock drifting with the card's heat moves both (`bench`, 60f48305), 20 repeats, GPU[6], each arm started below 55 C, default clocks: the rerun as it is, two submissions, +0.71 to +0.83 ms, 1.62 to 1.89 percent of a 43.7 ms step, middle halves within +0.58 to +1.83 ms, in two arms (a third, whose step read 47.6 ms, flagged); the rerun as one submission, no chunk submitted while barriers are left out, +0.89 to +1.17 ms, 2.04 to 2.67 percent, in three. So the rerun stays as it is, under the 2 percent gate at every rejection position on one MI50; the split's is measured on the landing head.
+  - The gates at 415865a2, rebased on main fb366b16 (split-hold and the storage metadata among it), on cores 4 to 7, each timed arm started below 55 C at default clocks: CTest 42 of 42 on an MI50 and 43 of 43 on the Radeon VII, where the qwen35, decode-probe, f32 and moe components pass on the device; the suite on the CPU and on an MI50 passes but raw-blocks, which needs numpy the container lacks, and on the MI50 perf, whose synthetic prefill floor main misses on the same card too (544.8 and 535.4 tok/s against 1000); the Qwen3-0.6B and Qwen3.5-0.8B identity cells the same bytes as main's, 14 of 14 on the CPU and 14 of 14 on the MI50; drafts on against off on Qwen3.6-27B-MTP Q8_0, greedy and seeded, the same ids on one MI50 and on two. A timing round against main with drafts off, arms main, branch, branch, main on GPU[6]: the 27B's pp512 261.60, 260.93 against 261.27, 260.83 tok/s, tg128 21.38, 21.77 against 21.89, 20.96, pp16384 203.90, 203.92 against 204.06, 203.80; Qwen3-0.6B Q8_0 pp512 8702, 8606 against 8646, 8559 (within their run-to-run spread of 120 to 200), tg128 392.71, 390.81 against 391.18, 391.87. The rollback, paired: one MI50 1.67 to 1.79 percent, middle halves +0.63 to +0.88 ms (a second arm, its step read 46.3 ms, flagged); a two-MI50 split 0.52 to 1.22 and 0.62 to 1.40 percent of a 44.5 to 45.0 ms step. The hosted run's Vulkan job found `Model::drafts`, which only a test called, and it went (22f95978).
+  - At 3f6257f3, rebased on main 2c293678 with the drafter's dtype fix: CTest 42 of 42 on an MI50 and 38 of 38 on the CPU on Windows, the linked dead-code check, drafts on against off on Qwen3.6-27B-MTP Q8_0 the same ids greedy and seeded, and the Qwen3-0.6B and Qwen3.5-0.8B identity cells the same bytes as main's, 14 of 14 on the CPU and on the MI50. The rollback, paired, each arm started below 55 C: over two MI50s 0.02 to 0.43 and 0.50 to 0.63 percent of a 44.4 to 45.2 ms step; on one MI50 1.62 to 1.89 percent, middle halves +0.59 to +0.89 ms (a second arm, its step read 46.7 ms, flagged). Under the 2 percent gate at every rejection position on both.
+  - What the rerun adds to the architecture contract, after the coordinator's review: two plan fields and one step field, no hook. `LayerPlan::recur_writes` names the slots an update writes, so the rerun gives each layer a room of its own and runs every layer's update with no barrier between layers; `LayerPlan::recur_phases` (2 on qwen35: the conv, then the recurrence that reads its output) and `Step::phase` let it run one phase of every layer, then the next. Together they took the rollback from 4.5 to 5.0 percent of a step to 2.5. The rerun reads the mark's saved inputs in place by giving its calls the mark's rows as `Step::rows`, so no field says where a plane starts. Per-position draft counts moved into `spec::Acceptance::verified(kept, fed)`, and `blocks::nextn_input` builds its interleave order in a plain local.
+  - BOSS's comparison against the frozen reference (mx-llama.cpp f2a54df595, built for gfx906 in `mixa3607/rocm-gfx906:7.2.1-complete` with one fix to a call that did not compile, its Q5_1 routed product, a path these files do not reach; `llama-server -m M -ngl 99 -fa on -c 20480 -np 1 -v [--spec-type draft-mtp --spec-draft-n-max D] [-sm layer -ts 1,1 or 1,1,1]`, its batch settings the defaults, n_batch 2048 and n_ubatch 512, and every layer split's log saying `pipeline parallelism enabled`; `/completion` with the same raw text, the one user message in the Qwen chat frame, greedy, the end token ignored, `cache_prompt` false; its acceptance from its per-verify `accepted a/n draft tokens` lines). llmx: `generate --file F -n N --temp 0 --ignore-eos --drafter off|embedded --draft-max D --device ...` at llmx 415865a2, its ubatch the default 512. Same prompts, same depth on both sides, arms interleaved by depth, timing on cores 4 to 7; each row is one prompt at one draft depth, and the equality columns compare a runtime's text with drafts against its own without.
+  - Measured at 415865a2, rebased on main fb366b16 with split-hold, which stand for the landing head: what came after changes nothing the generate path runs on an MI50, the host tier being the server's alone, the mixed expert fix a refusal at load, the dispatch refactor the same kernels by another table, and the drafter's activation dtype fix leaving f16, the device's effective dtype, as it was; drafts on against off and the rollback are measured at 3f6257f3 and after. Each runtime's block of cells started once its cards were below 55 C, default clocks; the load reached 46 during the runs. The earlier tables at 9a512b02, before split-hold, are in this block's history.
+  - One MI50 (GPU[1]):
+  | model | prompt, tokens | depth | llmx tok/s | ref tok/s | llmx vs ref | llmx kept/drafted by position | ref kept/drafted by position | llmx = off | ref = off |
+  |---|---|---|---:|---:|---:|---|---|---|---|
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | off | 21.16 | 22.07 | -4.1% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 1 | 31.17 | 29.28 | +6.5% | 120/134 | 120/134 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 2 | 38.99 | 35.88 | +8.7% | 85/96 73/96 | 85/96 73/96 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 3 | 43.57 | 38.31 | +13.7% | 69/79 57/79 50/79 | 68/78 56/78 49/78 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 4 | 40.88 | 40.87 | +0.0% | 59/66 50/66 43/66 37/66 | 59/65 51/65 42/65 35/65 | yes | no |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | off | 22.22 | 22.09 | +0.6% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 1 | 31.45 | 28.90 | +8.8% | 118/137 | 117/136 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 2 | 38.03 | 35.55 | +7.0% | 87/99 69/98 | 87/98 68/98 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 3 | 40.17 | 34.04 | +18.0% | 71/86 55/85 43/84 | 69/86 55/86 43/85 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 4 | 35.10 | 37.14 | -5.5% | 61/75 51/74 40/73 28/73 | 59/73 51/73 40/72 30/72 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | off | 21.58 | 22.09 | -2.3% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 1 | 31.67 | 30.01 | +5.5% | 123/131 | 123/131 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 2 | 40.16 | 37.73 | +6.4% | 87/93 75/92 | 86/92 75/92 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 3 | 46.74 | 40.75 | +14.7% | 69/73 61/72 52/72 | 68/72 61/72 52/72 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 4 | 41.38 | 42.25 | -2.1% | 61/63 50/62 44/62 37/61 | 60/64 49/64 42/64 38/63 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | off | 17.27 | 18.12 | -4.7% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 1 | 23.72 | 24.47 | -3.1% | 111/127 | 117/136 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 2 | 27.27 | 32.73 | -16.7% | 87/100 67/99 | 85/99 70/99 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 3 | 32.55 | 31.35 | +3.8% | 71/85 53/84 45/83 | 72/82 55/82 43/82 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 4 | 28.99 | 34.25 | -15.4% | 62/74 47/73 41/72 30/72 | 62/73 48/73 39/73 32/73 | yes | no |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 2048 | off | 18.75 | 19.11 | -1.9% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 2048 | 1 | 27.28 | 25.84 | +5.6% | 892/1011 | 969/1076 | yes | no |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 2048 | 2 | 35.15 | 36.48 | -3.6% | 681/794 572/794 | 688/757 601/757 | yes | no |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 2048 | 3 | 41.05 | 39.11 | +5.0% | 558/665 459/665 365/664 | 547/635 467/635 394/635 | yes | no |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 2048 | 4 | 35.36 | 36.10 | -2.0% | 488/586 397/586 319/586 257/586 | 501/601 397/601 303/601 244/601 | yes | no |
+  | Qwen3.8-27B-Q8_0 | copy 256 | off | 20.29 | 22.08 | -8.1% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 1 | 33.62 | 29.05 | +15.7% | 121/133 | 121/133 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 2 | 38.12 | 36.24 | +5.2% | 84/95 76/95 | 83/93 76/93 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 3 | 44.48 | 40.11 | +10.9% | 69/77 61/77 48/76 | 68/76 60/76 48/76 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 4 | 39.09 | 39.46 | -0.9% | 61/68 54/68 39/67 33/67 | 60/67 54/67 38/67 33/67 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | explain 256 | off | 21.17 | 22.05 | -4.0% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 1 | 29.65 | 28.53 | +3.9% | 112/143 | 115/138 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 2 | 31.72 | 31.76 | -0.1% | 82/111 61/111 | 80/110 63/110 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 3 | 35.28 | 34.96 | +0.9% | 72/93 50/93 39/93 | 71/89 54/89 38/89 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 4 | 31.59 | 35.35 | -10.6% | 65/85 45/85 34/85 25/84 | 68/77 52/77 35/77 21/77 | yes | no |
+  | Qwen3.8-27B-Q8_0 | code 256 | off | 20.89 | 21.76 | -4.0% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | code 256 | 1 | 32.08 | 29.14 | +10.1% | 120/134 | 119/135 | yes | no |
+  | Qwen3.8-27B-Q8_0 | code 256 | 2 | 36.58 | 36.79 | -0.6% | 86/96 72/96 | 88/95 71/95 | yes | no |
+  | Qwen3.8-27B-Q8_0 | code 256 | 3 | 40.07 | 40.33 | -0.6% | 71/81 62/81 41/80 | 71/77 61/77 43/77 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | code 256 | 4 | 37.80 | 39.95 | -5.4% | 59/71 51/71 42/70 32/70 | 59/68 53/68 39/68 33/67 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | off | 16.45 | 20.41 | -19.4% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 1 | 27.11 | 27.59 | -1.8% | 118/137 | 119/134 | yes | no |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 2 | 29.68 | 33.38 | -11.1% | 83/99 72/99 | 86/97 71/97 | yes | no |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 3 | 32.63 | 33.56 | -2.8% | 69/86 57/85 43/85 | 69/87 55/87 43/87 | yes | no |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 4 | 28.73 | 36.18 | -20.6% | 62/77 51/77 37/76 28/76 | 61/69 52/69 40/69 30/69 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 2048 | off | 19.70 | 20.93 | -5.9% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | explain 2048 | 1 | 30.54 | 29.47 | +3.6% | 877/994 | 974/1072 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 2048 | 2 | 35.74 | 35.69 | +0.2% | 678/800 568/800 | 678/779 588/779 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 2048 | 3 | 41.26 | 40.63 | +1.6% | 557/665 452/664 373/664 | 553/612 469/612 409/612 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 2048 | 4 | 36.67 | 44.39 | -17.4% | 482/589 389/589 319/589 267/589 | 452/490 408/490 364/490 331/490 | yes | no |
+  - Two MI50s, a layer split (GPU[6] and GPU[7]), every reference server logging `pipeline parallelism enabled`:
+  | model | prompt, tokens | depth | llmx tok/s | ref tok/s | llmx vs ref | llmx kept/drafted by position | ref kept/drafted by position | llmx = off | ref = off |
+  |---|---|---|---:|---:|---:|---|---|---|---|
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | off | 22.67 | 20.76 | +9.2% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 1 | 34.21 | 28.07 | +21.9% | 120/134 | 120/134 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 2 | 39.59 | 33.65 | +17.7% | 85/96 73/96 | 85/96 73/96 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 3 | 44.42 | 35.66 | +24.6% | 69/79 57/79 50/79 | 68/78 56/78 49/78 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 4 | 41.34 | 40.04 | +3.3% | 59/66 50/66 43/66 37/66 | 59/65 51/65 42/65 35/65 | yes | no |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | off | 22.77 | 21.23 | +7.3% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 1 | 34.11 | 27.47 | +24.2% | 118/137 | 117/136 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 2 | 38.63 | 32.05 | +20.5% | 87/99 69/98 | 87/98 68/98 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 3 | 40.57 | 35.19 | +15.3% | 71/86 55/85 43/84 | 69/86 55/86 43/85 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 4 | 36.70 | 36.87 | -0.5% | 61/75 51/74 40/73 28/73 | 59/73 51/73 40/72 30/72 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | off | 22.59 | 21.37 | +5.7% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 1 | 35.14 | 28.61 | +22.8% | 123/131 | 123/131 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 2 | 40.95 | 36.47 | +12.3% | 87/93 75/92 | 86/92 75/92 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 3 | 47.36 | 42.17 | +12.3% | 69/73 61/72 52/72 | 68/72 61/72 52/72 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 4 | 43.06 | 41.85 | +2.9% | 61/63 50/62 44/62 37/61 | 60/64 49/64 42/64 38/63 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | off | 20.55 | 19.45 | +5.7% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 1 | 28.62 | 26.12 | +9.6% | 111/127 | 117/136 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 2 | 31.61 | 29.55 | +7.0% | 87/100 67/99 | 85/99 70/99 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 3 | 33.26 | 34.99 | -4.9% | 71/85 53/84 45/83 | 72/82 55/82 43/82 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 4 | 29.24 | 33.93 | -13.8% | 62/74 47/73 41/72 30/72 | 62/73 48/73 39/73 32/73 | yes | no |
+  | Qwen3.8-27B-Q8_0 | copy 256 | off | 22.72 | 21.67 | +4.8% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 1 | 35.01 | 29.08 | +20.4% | 121/133 | 121/133 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 2 | 40.55 | 36.02 | +12.6% | 84/95 76/95 | 83/93 76/93 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 3 | 45.18 | 40.06 | +12.8% | 69/77 61/77 48/76 | 68/76 60/76 48/76 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 4 | 39.83 | 38.19 | +4.3% | 61/68 54/68 39/67 33/67 | 60/67 54/67 38/67 33/67 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | explain 256 | off | 22.77 | 21.55 | +5.7% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 1 | 32.44 | 28.01 | +15.8% | 112/143 | 115/138 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 2 | 34.53 | 31.21 | +10.7% | 82/111 61/111 | 80/110 63/110 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 3 | 37.53 | 34.44 | +9.0% | 72/93 50/93 39/93 | 71/89 54/89 38/89 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 4 | 32.19 | 25.07 | +28.4% | 65/85 45/85 34/85 25/84 | 68/77 52/77 35/77 21/77 | yes | no |
+  | Qwen3.8-27B-Q8_0 | code 256 | off | 22.71 | 21.62 | +5.1% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | code 256 | 1 | 34.72 | 28.60 | +21.4% | 120/134 | 119/135 | yes | no |
+  | Qwen3.8-27B-Q8_0 | code 256 | 2 | 39.65 | 36.25 | +9.4% | 86/96 72/96 | 88/95 71/95 | yes | no |
+  | Qwen3.8-27B-Q8_0 | code 256 | 3 | 41.81 | 39.35 | +6.3% | 71/81 62/81 41/80 | 71/77 61/77 43/77 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | code 256 | 4 | 38.40 | 38.69 | -0.7% | 59/71 51/71 42/70 32/70 | 59/68 53/68 39/68 33/67 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | off | 20.55 | 19.88 | +3.4% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 1 | 29.46 | 26.90 | +9.5% | 118/137 | 119/134 | yes | no |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 2 | 32.17 | 31.97 | +0.6% | 83/99 72/99 | 86/97 71/97 | yes | no |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 3 | 32.91 | 33.12 | -0.6% | 69/86 57/85 43/85 | 69/87 55/87 43/87 | yes | no |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 4 | 27.55 | 35.56 | -22.5% | 62/77 51/77 37/76 28/76 | 61/69 52/69 40/69 30/69 | yes | no |
+  - Three MI50s, a layer split (GPU[1], GPU[6] and GPU[7]), every reference server logging `pipeline parallelism enabled`:
+  | model | prompt, tokens | depth | llmx tok/s | ref tok/s | llmx vs ref | llmx kept/drafted by position | ref kept/drafted by position | llmx = off | ref = off |
+  |---|---|---|---:|---:|---:|---|---|---|---|
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | off | 21.98 | 21.49 | +2.3% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 1 | 32.57 | 28.82 | +13.0% | 120/134 | 120/134 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 2 | 38.10 | 34.52 | +10.4% | 85/96 73/96 | 85/96 73/96 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 3 | 42.05 | 37.50 | +12.1% | 69/79 57/79 50/79 | 68/78 56/78 49/78 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | copy 256 | 4 | 40.28 | 38.47 | +4.7% | 59/66 50/66 43/66 37/66 | 59/65 51/65 42/65 35/65 | yes | no |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | off | 22.05 | 21.55 | +2.3% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 1 | 32.53 | 28.58 | +13.8% | 118/137 | 117/136 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 2 | 37.41 | 34.38 | +8.8% | 87/99 69/98 | 87/98 68/98 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 3 | 39.19 | 34.32 | +14.2% | 71/86 55/85 43/84 | 69/86 55/86 43/85 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | explain 256 | 4 | 35.85 | 37.27 | -3.8% | 61/75 51/74 40/73 28/73 | 59/73 51/73 40/72 30/72 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | off | 22.15 | 21.52 | +2.9% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 1 | 33.71 | 29.77 | +13.2% | 123/131 | 123/131 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 2 | 39.39 | 36.80 | +7.0% | 87/93 75/92 | 86/92 75/92 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 3 | 45.99 | 43.06 | +6.8% | 69/73 61/72 52/72 | 68/72 61/72 52/72 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | code 256 | 4 | 42.24 | 42.28 | -0.1% | 61/63 50/62 44/62 37/61 | 60/64 49/64 42/64 38/63 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | off | 20.31 | 19.88 | +2.1% |  |  |  |  |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 1 | 26.87 | 26.67 | +0.7% | 111/127 | 117/136 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 2 | 29.49 | 31.89 | -7.5% | 87/100 67/99 | 85/99 70/99 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 3 | 31.87 | 33.70 | -5.4% | 71/85 53/84 45/83 | 72/82 55/82 43/82 | yes | yes |
+  | Qwen3.6-27B-MTP-Q8_0 | long16k 256 | 4 | 28.36 | 34.24 | -17.2% | 62/74 47/73 41/72 30/72 | 62/73 48/73 39/73 32/73 | yes | no |
+  | Qwen3.8-27B-Q8_0 | copy 256 | off | 22.53 | 21.50 | +4.8% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 1 | 33.09 | 27.36 | +20.9% | 121/133 | 121/133 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 2 | 38.78 | 36.25 | +7.0% | 84/95 76/95 | 83/93 76/93 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 3 | 43.48 | 40.62 | +7.0% | 69/77 61/77 48/76 | 68/76 60/76 48/76 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | copy 256 | 4 | 38.83 | 38.12 | +1.9% | 61/68 54/68 39/67 33/67 | 60/67 54/67 38/67 33/67 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | explain 256 | off | 22.64 | 21.51 | +5.3% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 1 | 31.29 | 26.34 | +18.8% | 112/143 | 115/138 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 2 | 33.01 | 31.25 | +5.6% | 82/111 61/111 | 80/110 63/110 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 3 | 36.32 | 34.92 | +4.0% | 72/93 50/93 39/93 | 71/89 54/89 38/89 | yes | no |
+  | Qwen3.8-27B-Q8_0 | explain 256 | 4 | 31.24 | 32.75 | -4.6% | 65/85 45/85 34/85 25/84 | 68/77 52/77 35/77 21/77 | yes | no |
+  | Qwen3.8-27B-Q8_0 | code 256 | off | 22.53 | 21.31 | +5.7% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | code 256 | 1 | 32.93 | 26.77 | +23.0% | 120/134 | 119/135 | yes | no |
+  | Qwen3.8-27B-Q8_0 | code 256 | 2 | 37.55 | 36.31 | +3.4% | 86/96 72/96 | 88/95 71/95 | yes | no |
+  | Qwen3.8-27B-Q8_0 | code 256 | 3 | 41.28 | 40.16 | +2.8% | 71/81 62/81 41/80 | 71/77 61/77 43/77 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | code 256 | 4 | 36.92 | 37.72 | -2.1% | 59/71 51/71 42/70 32/70 | 59/68 53/68 39/68 33/67 | yes | yes |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | off | 20.40 | 19.78 | +3.1% |  |  |  |  |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 1 | 27.42 | 26.01 | +5.4% | 118/137 | 119/134 | yes | no |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 2 | 31.04 | 33.11 | -6.2% | 83/99 72/99 | 86/97 71/97 | yes | no |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 3 | 31.74 | 33.37 | -4.9% | 69/86 57/85 43/85 | 69/87 55/87 43/87 | yes | no |
+  | Qwen3.8-27B-Q8_0 | long16k 256 | 4 | 27.53 | 36.12 | -23.8% | 62/77 51/77 37/76 28/76 | 61/69 52/69 40/69 30/69 | yes | no |
+  - Read at the same depth, llmx against the reference. One MI50: Qwen3.6-27B-MTP Q8_0 off -4.7 to +0.6 percent, d1 +5.5 to +8.8 (-3.1 on the 16k prompt), d2 +6.4 to +8.7 (-16.7 on 16k, -3.6 at 2048 tokens), d3 +5.0 to +18.0, d4 -5.5 to 0.0 (-15.4 on 16k); Qwen3.8-27B Q8_0 off -8.1 to -4.0 (-19.4 on 16k), d1 +3.6 to +15.7, d2 -0.6 to +5.2 (-11.1 on 16k), d3 -0.6 to +10.9, d4 -17.4 to -0.9 (-20.6 on 16k).
+  - Two MI50s, with split-hold: off +3.4 to +9.2 percent, d1 +9.5 to +24.2, d2 +0.6 to +20.5, d3 -4.9 to +24.6, d4 -22.5 to +28.4, the 16k prompt the low end of each depth from d3 on. Three MI50s: off +2.1 to +5.7, d1 +0.7 to +23.0, d2 -7.5 to +10.4, d3 -5.4 to +14.2, d4 -23.8 to +4.7, again lowest on 16k.
+  - llmx's text with drafts equals its text without in every cell; the reference's differs in the 2048-token cells and in most Qwen3.8 cells, so its acceptance there is counted on another text, and where both texts are equal acceptance by position is within a few drafts. The 16k cells are the verify's attention, each row reading the whole history (the follow-up below); llmx's d4 against d3, where the reference holds level, is not yet explained.
+- **Follow-up, owned by the coordinator, outside this step:** a verify's 2 to 5 rows of one sequence each take the per-row attention kernel, which reads the whole history once a row, so at 16k tokens the KV read grows with the depth, which matches llmx falling from 3 percent behind the reference without drafts to 7 to 14 percent behind with them on the 16k prompt (not yet measured). The coordinator is building the per-row attention build that reads K and V once for every row of one view, each row's arithmetic unchanged; perf/attention-three-heads (ece55048), three query heads a workgroup where the GQA group divides by three, as the 27B's six do, is in test beside it.
+- **Landing:** one commit on main 5835886c, after the coordinator's review (the drafter's products dropping the activation dtype, fixed with a witness test) and XDEV's (`embed_ids` decoding an MXFP4 table as Q6_K, fixed with its own build and every embedded type checked against `embed`; a failed rerun leaving its device recording unordered, fixed and held by `spec`'s injected failure; bench's rollback reaching past a short context, now skipped with its reason and held at the edge by the `qwen35` component; the dtype, already fixed), and a hosted run green at its head; it lands by fast-forward. At e2555324, before the last rebase, CTest passed 42 of 42 on an MI50 and the Vulkan CTests on the Radeon VII, with the qwen35 and decode-probe components on the MI50. Next is step 5, `feat/spec-server`.
+- **Gotchas:** the host tier (`Model::save_host`, `restore_host`) copies a history's KV, the drafter's layer among it, and its checkpoint slot, but not the drafter's carried row, which sits beside the state slots on the head's device; the server loads no drafter until step 5, which must carry that row with the slot so a restored history drafts as one never evicted.
 
 ## One row class: a generated token's row and a prompt's row the same bits (2026-10-01, investigation, no branch yet)
 
@@ -439,7 +613,7 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 - **Goal:** one owner of where a sequence's history can be re-entered (checkpoint, fork, mark, retract) over KV blocks and recurrent state, prefix reuse for the hybrid models on it first (the qwen35 plan's step 8c), then speculative decoding on the same owner for every proposer.
 - **Done:** the design, [SPECULATIVE](SPECULATIVE.md), taking the speculative decoding plan approved on 2026-09-26 as input and saying what changes; its eight decisions were agreed with XDEV and approved by the user on 2026-09-30.
-- **Left:** its steps in order from step 3, `feat/spec-verify`; steps 1 and 2 have landed (their blocks above).
+- **Left:** its steps in order from step 5, `feat/spec-server`; steps 1 to 4 have landed (their blocks above).
 - **Step 4's plan** (SPECULATIVE, section 7): the embedded MTP proposer for qwen35, researched from the user's mx-llama.cpp history, vLLM and the MTP files' headers, with nine decisions; proposed 2026-10-01, agreed by XDEV with amendments written in (invalid drafts handled on the device, the draft's blocks returned on failure, a resident embedding reused, a pinned reference build, the margin in percentage points), approved by the user on 2026-10-02; the rollback gate (at most 2 percent of a decode step) added at the user's request.
 
 ## Qwen 3.5, 3.6 and 3.8 everywhere (2026-09-30, 8b merged at `56abfd9a`)

@@ -102,7 +102,7 @@ def main():
                   ("f32", f32.run),
                   ("moe", moe.run),
                   ("mxfp4", lambda: mxfp4.run(require=args.require_tools)),
-                  ("qwen35", qwen35.run),
+                  ("qwen35", lambda: qwen35.run(require=args.require_tools)),
                   ("split", lambda: split.run(require=args.require_tools)),
                   ("decode-probe", lambda: decode_probe.run(require=args.require_tools)),
                   ("shards", shards.run),

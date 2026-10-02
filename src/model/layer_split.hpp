@@ -35,6 +35,10 @@ struct Footprint {
     size_t activations_per_row = 0;            // one row of a pass's activations on each device
     size_t logits_per_row = 0;                 // one row of logits where the head runs
     size_t handoff_per_row = 0;                // one row of the stream handed from one device to the next through host memory, in each of the handoff buffers every used device but the last keeps
+    // An embedded drafter, which runs where the head does (docs/SPECULATIVE.md, section 7): its own weights, the embedding table it reads there, kept only where neither the embedding nor a tied head already holds it, and its KV, carried rows and the rows a mark saves.
+    std::vector<Matrix> drafter;
+    Matrix drafter_embedding;
+    size_t drafter_cache = 0;
 };
 
 // The handoff buffers each device the residual leaves keeps for `slots` passes in flight: on a pipelined split one per slot, two at least, so a prompt's chunk goes out through one while the chunk before it waits in the other, and one where crossings run only inside a stage.
@@ -124,8 +128,13 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     // The embedding and head weights a device keeps, given whether it runs the first and the last layers.
     // A tied pair on one device is one buffer, kept as the head keeps it, since the head reads it through a product.
     auto end_weights = [&](size_t d, bool first, bool last) -> size_t {
-        if (first && last && fp.tied) return resident(d, fp.output) + resident(d, fp.output_norm);
-        return (first ? resident(d, fp.embedding) : 0) + (last ? resident(d, fp.output) + resident(d, fp.output_norm) : 0);
+        size_t drafter = 0;
+        if (last) {
+            for (const Matrix& m : fp.drafter) drafter += resident(d, m);
+            if (!first && !fp.tied) drafter += resident(d, fp.drafter_embedding);
+        }
+        if (first && last && fp.tied) return resident(d, fp.output) + resident(d, fp.output_norm) + drafter;
+        return (first ? resident(d, fp.embedding) : 0) + (last ? resident(d, fp.output) + resident(d, fp.output_norm) : 0) + drafter;
     };
 
     // What the host holds for a set of devices running layers, and the device that carries it: the set's first host device, or none.
@@ -154,7 +163,8 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {
-        return backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], cached[i + k] - cached[i]), backend::size_add(end_weights(d, first, last), overhead(d, h)));
+        return backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], cached[i + k] - cached[i] + (last ? fp.drafter_cache : 0)),
+                                 backend::size_add(end_weights(d, first, last), overhead(d, h)));
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
 
@@ -248,7 +258,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     for (size_t d : used) {
         LayerSplit::Stage& st = out.stages[d];
         st.weights = prefix[d][(size_t)(st.first + st.count)] - prefix[d][(size_t)st.first] + end_weights(d, d == used.front(), d == used.back());
-        st.cache = cached[(size_t)(st.first + st.count)] - cached[(size_t)st.first];
+        st.cache = cached[(size_t)(st.first + st.count)] - cached[(size_t)st.first] + (d == used.back() ? fp.drafter_cache : 0);
         st.other = overhead(d, h);
         const size_t held = st.weights + st.cache + st.other;
         if (!fits(d, held)) {

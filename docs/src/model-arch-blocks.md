@@ -11,7 +11,7 @@ roles and slots ([ADDING-AN-ARCHITECTURE](../ADDING-AN-ARCHITECTURE.md),
 One owner). [qwen3](model-arch-qwen3.md) and [qwen35](model-arch-qwen35.md)
 run them.
 
-- `routed_ops(layer, tensors, gate, up)`: finds the two declared roles by id and adds the feed-forward `mixed_experts` requirement when both tensors exist with differing storage types. The down projection is separate. Missing tensors stay with the runtime's existing resolution errors; this helper performs no schema validation.
+- `routed_ops(layer, tensors, gate, up)`: finds the two declared roles by id and adds the `mixed_experts` requirement of the part the gate role runs in (the feed-forward part, or an embedded drafter's) when both tensors exist with differing storage types. The down projection is separate. Missing tensors stay with the runtime's existing resolution errors; this helper performs no schema validation.
 - `projection(weight, out)`: a weight's product into `out` for
   `matmul_group` and `matmul_experts`, the buffer passed by raw pointer so
   building one copies no shared pointer on the per-token path.
@@ -34,6 +34,12 @@ run them.
   the step's run list (`Step::scratch`), which the runtime has reserved;
   the down projection takes the step's runs unchanged. qwen3moe and
   qwen35moe run it.
+- `nextn_input(step, enorm, hnorm, eh_proj, pair, side, out, eps)`: an MTP
+  block's input (docs/SPECULATIVE.md, section 7): `pair` holds the tokens'
+  rows then the target's rows before them, each half normed in place, the
+  two put side by side a row each, token first, through `side` (a single
+  row already is), and projected by `eh_proj` into `out` with the step's
+  runs.
 - `head(step, norm, out, eps, rows)`: the rows that want logits gathered
   into the slot `rows`, since they are not contiguous once entries mix,
   normed, and projected once through `matmul_logits`.

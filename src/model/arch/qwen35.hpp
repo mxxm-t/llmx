@@ -129,6 +129,7 @@ enum Role : uint16_t {
     attn_qkv, attn_gate, ssm_alpha, ssm_beta, ssm_conv1d, ssm_a, ssm_dt, ssm_norm, ssm_out,
     ffn_gate, ffn_up, ffn_down,
     ffn_gate_inp, ffn_gate_exps, ffn_up_exps, ffn_down_exps, ffn_gate_inp_shexp, ffn_gate_shexp, ffn_up_shexp, ffn_down_shexp,
+    nextn_eh_proj, nextn_enorm, nextn_hnorm, nextn_shared_head_norm,
 };
 enum Kind : uint8_t { linear, full };
 
@@ -160,8 +161,7 @@ public:
         ModelPlan p;
         p.role_ids = ffn_down_shexp + 1;
         p.vocab = embedding.shape[1];
-        const uint64_t E = (uint64_t)c.n_embd, D = (uint64_t)c.head_dim, F = (uint64_t)c.n_ff;
-        const uint64_t Q = (uint64_t)c.n_head * D, KV = (uint64_t)c.n_head_kv * D;
+        const uint64_t E = (uint64_t)c.n_embd;
         const uint64_t Hv = (uint64_t)c.v_heads, V = Hv * (uint64_t)c.v_dim, C = 2 * (uint64_t)c.k_heads * (uint64_t)c.k_dim + V;
         p.pass = {{token_embd, Part::embed, RoleKind::gather, "token_embd.weight", "", E, p.vocab},
                   {output, Part::head, RoleKind::matrix, "output.weight", "token_embd.weight", E, p.vocab},
@@ -175,15 +175,7 @@ public:
             if (c.full[(size_t)l]) {
                 if (tensors.find(pre + "attn_qkv.weight"))
                     throw std::runtime_error("inference: a full-attention layer holds the linear-attention tensor " + pre + "attn_qkv.weight");
-                layer.kind = full;
-                layer.cache = Cache::kv;
-                layer.roles.insert(layer.roles.end(), {{attn_q, Part::mixer, RoleKind::matrix, pre + "attn_q.weight", "", E, 2 * Q},
-                                                       {attn_k, Part::mixer, RoleKind::matrix, pre + "attn_k.weight", "", E, KV},
-                                                       {attn_v, Part::mixer, RoleKind::matrix, pre + "attn_v.weight", "", E, KV},
-                                                       {attn_q_norm, Part::mixer, RoleKind::norm, pre + "attn_q_norm.weight", "", D},
-                                                       {attn_k_norm, Part::mixer, RoleKind::norm, pre + "attn_k_norm.weight", "", D},
-                                                       {attn_output, Part::mixer, RoleKind::matrix, pre + "attn_output.weight", "", Q, E}});
-                layer.ops = {{Part::mixer, backend::Op::norm_rope_partial}, {Part::mixer, backend::Op::sigmoid_mul}};
+                full_layer(layer, pre, Part::mixer);
             } else {
                 if (tensors.find(pre + "attn_q.weight"))
                     throw std::runtime_error("inference: a linear-attention layer holds the full-attention tensor " + pre + "attn_q.weight");
@@ -201,28 +193,11 @@ public:
                 layer.ops = {{Part::mixer, backend::Op::causal_conv_silu}, {Part::mixer, backend::Op::gated_delta_rule},
                              {Part::mixer, backend::Op::gated_rms_norm}};
                 layer.saved = {{2, (size_t)C}, {5, (size_t)Hv}, {5, (size_t)Hv, 1}};
+                // The conv's output and the recurrence's, the conv first, since the recurrence reads its output.
+                layer.recur_writes = {3, 6};
+                layer.recur_phases = 2;
             }
-            if (c.n_expert) {
-                const uint64_t X = (uint64_t)c.n_expert, Fe = (uint64_t)c.n_ff_exp, Fs = (uint64_t)c.n_ff_shexp;
-                layer.routed = true;
-                // The shared expert's gate is a vector of E weights, one dot product a row, checked as an F32 row.
-                layer.roles.insert(layer.roles.end(), {{post_attention_norm, Part::ffn, RoleKind::norm, pre + "post_attention_norm.weight", "", E, 1, 0, Stream::copy},
-                                                       {ffn_gate_inp, Part::ffn, RoleKind::matrix, pre + "ffn_gate_inp.weight", "", E, X, 0, Stream::copy},
-                                                       {ffn_gate_exps, Part::ffn, RoleKind::experts, pre + "ffn_gate_exps.weight", "", E, Fe, X, Stream::window},
-                                                       {ffn_up_exps, Part::ffn, RoleKind::experts, pre + "ffn_up_exps.weight", "", E, Fe, X, Stream::window},
-                                                       {ffn_down_exps, Part::ffn, RoleKind::experts, pre + "ffn_down_exps.weight", "", Fe, E, X, Stream::window},
-                                                       {ffn_gate_inp_shexp, Part::ffn, RoleKind::norm, pre + "ffn_gate_inp_shexp.weight", "", E, 1, 0, Stream::copy},
-                                                       {ffn_gate_shexp, Part::ffn, RoleKind::matrix, pre + "ffn_gate_shexp.weight", "", E, Fs, 0, Stream::copy},
-                                                       {ffn_up_shexp, Part::ffn, RoleKind::matrix, pre + "ffn_up_shexp.weight", "", E, Fs, 0, Stream::copy},
-                                                       {ffn_down_shexp, Part::ffn, RoleKind::matrix, pre + "ffn_down_shexp.weight", "", Fs, E, 0, Stream::copy}});
-                layer.ops.push_back({Part::ffn, backend::Op::sigmoid_mul});
-                blocks::routed_ops(layer, tensors, ffn_gate_exps, ffn_up_exps);
-            } else {
-                layer.roles.insert(layer.roles.end(), {{post_attention_norm, Part::ffn, RoleKind::norm, pre + "post_attention_norm.weight", "", E},
-                                                       {ffn_gate, Part::ffn, RoleKind::matrix, pre + "ffn_gate.weight", "", E, F},
-                                                       {ffn_up, Part::ffn, RoleKind::matrix, pre + "ffn_up.weight", "", E, F},
-                                                       {ffn_down, Part::ffn, RoleKind::matrix, pre + "ffn_down.weight", "", F, E}});
-            }
+            ffn_roles(layer, tensors, pre, Part::ffn);
         }
         p.context_length = (size_t)c.context_length;
         p.slots = slot_widths(c);
@@ -283,19 +258,139 @@ public:
 
     void head(const HeadStep& s) const override { blocks::head(s, s.w[output_norm], s.w[output], cfg_.rms_eps, s.slot(1)); }
 
-    // A linear-attention layer's state update: the causal conv over the raw rows (slot 2) into the conv's output (slot 3), and the recurrence over it with alpha and beta (slot 5) into the recurrence's output (slot 6), each reading the views' src slots and writing their dst slots.
+    // The MTP block after the decoder layers (docs/SPECULATIVE.md, section 7): the target's embedding, final norm and head, the block's input norms and eh_proj, and a full-attention layer with its feed-forward block, every role on the head's device.
+    // Its cache is KV, and four more arena slots hold the target's normed rows (draft_h), the block's input rows, their interleave, and eh_proj's output, which is the block's residual.
+    void plan_drafter(const TensorIndex& tensors, ModelPlan& p) const override {
+        const Config& c = cfg_;
+        if (!c.n_nextn) throw std::runtime_error("inference: the file carries no MTP block for an embedded drafter");
+        const uint64_t E = (uint64_t)c.n_embd;
+        const std::string pre = "blk." + std::to_string(c.n_layer) + ".";
+        if (tensors.find(pre + "attn_qkv.weight"))
+            throw std::runtime_error("inference: the MTP block holds the linear-attention tensor " + pre + "attn_qkv.weight");
+        LayerPlan d;
+        d.roles = {{token_embd, Part::draft, RoleKind::gather, "token_embd.weight", "", E, p.vocab},
+                   {output, Part::draft, RoleKind::matrix, "output.weight", "token_embd.weight", E, p.vocab},
+                   {output_norm, Part::draft, RoleKind::norm, "output_norm.weight", "", E},
+                   {nextn_enorm, Part::draft, RoleKind::norm, pre + "nextn.enorm.weight", "", E},
+                   {nextn_hnorm, Part::draft, RoleKind::norm, pre + "nextn.hnorm.weight", "", E},
+                   {nextn_eh_proj, Part::draft, RoleKind::matrix, pre + "nextn.eh_proj.weight", "", 2 * E, E},
+                   {nextn_shared_head_norm, Part::draft, RoleKind::norm, pre + "nextn.shared_head_norm.weight", "", E},
+                   {attn_norm, Part::draft, RoleKind::norm, pre + "attn_norm.weight", "", E}};
+        full_layer(d, pre, Part::draft);
+        ffn_roles(d, tensors, pre, Part::draft);
+        for (infer::Role& r : d.roles) r.stream = Stream::none;
+        d.routed = false;
+        d.ops.push_back({Part::draft, backend::Op::argmax_rows});
+        d.ops.push_back({Part::draft, backend::Op::embed_ids});
+        p.role_ids = nextn_shared_head_norm + 1;
+        p.draft_h = p.slots.size();
+        p.slots.insert(p.slots.end(), {(size_t)E, 2 * (size_t)E, 2 * (size_t)E, (size_t)E});
+        p.drafter = std::move(d);
+    }
+
+    // Every row of the pass in the MTP layer's cache: the final norm over every row into draft_h, the row before each (an entry's carried row for its first row, the normed row before it for the others), the block's input (blocks::nextn_input), then attn_norm, K and V, the k norm and the partial rope, written to the cache.
+    // q, attention, the feed-forward block and the head are not run for these rows, since only their K and V are ever read.
+    void draft_rows(const DraftRowsStep& s) const override {
+        backend::Backend& b = s.b;
+        const Weight* w = s.w;
+        const size_t E = (size_t)cfg_.n_embd, D = (size_t)cfg_.head_dim, Hkv = (size_t)cfg_.n_head_kv;
+        const size_t base = draft_slot();
+        const backend::Slice hn = s.slot(base), pair = s.slot(base + 1), u = s.slot(base + 3), h = s.slot(1), k = s.slot(3), v = s.slot(4);
+        b.rms_norm_rows(hn, s.x, w[output_norm].slice(), s.rows, E, E, cfg_.rms_eps);
+        b.embed(pair, w[token_embd].type, w[token_embd].slice(), w[token_embd].nin, w[token_embd].nout, s.ids, s.rows);
+        const size_t prev = pair.offset + s.rows * E;
+        for (size_t e = 0, r0 = 0; e < s.runs.n; r0 = s.runs.runs[e++].end) {
+            const size_t r1 = s.runs.runs[e].end;
+            b.copy(*pair.buffer, (prev + r0 * E) * sizeof(float), *s.carry[e].buffer, s.carry[e].offset * sizeof(float), E * sizeof(float));
+            if (r1 - r0 > 1)
+                b.copy(*pair.buffer, (prev + (r0 + 1) * E) * sizeof(float), *hn.buffer, (hn.offset + r0 * E) * sizeof(float), (r1 - r0 - 1) * E * sizeof(float));
+        }
+        blocks::nextn_input(s, w[nextn_enorm], w[nextn_hnorm], w[nextn_eh_proj], pair, s.slot(base + 2), u, cfg_.rms_eps);
+        b.rms_norm_rows(h, u, w[attn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
+        b.matmul_group({blocks::projection(w[attn_k], k), blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs, s.dtype);
+        const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
+        b.norm_rope_partial(k, k, s.rows, Hkv * D, D, Hkv, D, (size_t)cfg_.rope_dim, w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos);
+        b.kv_write(s.kv_layer, s.views, s.n_views, k, v);
+    }
+
+    // One draft row: the token's row read from its id on the device and the row before it as the block's input, then the block's full-attention layer and feed-forward block on its residual, shared_head_norm into `out`, the target's head into `logits` and its argmax into the next id.
+    void draft(const DraftStep& s) const override {
+        backend::Backend& b = s.b;
+        const Weight* w = s.w;
+        const size_t E = (size_t)cfg_.n_embd, V = w[output].nout;
+        const size_t base = draft_slot();
+        const backend::Slice pair = s.slot(base + 1), x = s.slot(base + 3);
+        b.embed_ids(pair, w[token_embd].type, w[token_embd].slice(), w[token_embd].nin, w[token_embd].nout, s.id, 1);
+        b.copy(*pair.buffer, (pair.offset + E) * sizeof(float), *s.prev.buffer, s.prev.offset * sizeof(float), E * sizeof(float));
+        blocks::nextn_input(s, w[nextn_enorm], w[nextn_hnorm], w[nextn_eh_proj], pair, s.slot(base + 2), x, cfg_.rms_eps);
+        Step layer = s;
+        layer.x = x;
+        layer.kind = full;
+        mixer(layer);
+        ffn(layer);
+        b.rms_norm_rows(s.out, x, w[nextn_shared_head_norm].slice(), 1, E, E, cfg_.rms_eps);
+        b.matmul_logits(w[output].type, w[output].slice(), s.out, s.logits, E, V, 1, s.runs, s.dtype);
+        b.argmax_rows(s.next, s.logits, 1, V, s.id);
+    }
+
+    // A linear-attention layer's state update: the causal conv over the raw rows (slot 2) into the conv's output (slot 3), and the recurrence over it with alpha and beta (slot 5) into the recurrence's output (slot 6), each reading the views' src slots and writing their dst slots; phase 0 is the conv and phase 1 the recurrence.
     void recur(const Step& s) const override {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
         const size_t Hv = (size_t)cfg_.v_heads;
         const backend::Slice raw = s.slot(2), u = s.slot(3), alpha = s.slot(5), o = s.slot(6);
         const backend::Slice beta{alpha.buffer, alpha.offset + s.rows * Hv};
-        b.causal_conv_silu(u, raw, w[ssm_conv1d].slice(), s.state_layer, s.states, s.n_views);
-        b.gated_delta_rule(o, u, alpha, beta, w[ssm_a].slice(), w[ssm_dt].slice(), s.state_layer, s.states, s.n_views);
+        if (s.phase != 1) b.causal_conv_silu(u, raw, w[ssm_conv1d].slice(), s.state_layer, s.states, s.n_views);
+        if (s.phase != 0) b.gated_delta_rule(o, u, alpha, beta, w[ssm_a].slice(), w[ssm_dt].slice(), s.state_layer, s.states, s.n_views);
     }
 
 private:
     Config cfg_;
+
+    // A full-attention layer's mixer roles under `pre`, run with `part`: its kind, its KV cache and its ops.
+    void full_layer(LayerPlan& layer, const std::string& pre, Part part) const {
+        const uint64_t E = (uint64_t)cfg_.n_embd, D = (uint64_t)cfg_.head_dim, Q = (uint64_t)cfg_.n_head * D, KV = (uint64_t)cfg_.n_head_kv * D;
+        layer.kind = full;
+        layer.cache = Cache::kv;
+        layer.roles.insert(layer.roles.end(), {{attn_q, part, RoleKind::matrix, pre + "attn_q.weight", "", E, 2 * Q},
+                                               {attn_k, part, RoleKind::matrix, pre + "attn_k.weight", "", E, KV},
+                                               {attn_v, part, RoleKind::matrix, pre + "attn_v.weight", "", E, KV},
+                                               {attn_q_norm, part, RoleKind::norm, pre + "attn_q_norm.weight", "", D},
+                                               {attn_k_norm, part, RoleKind::norm, pre + "attn_k_norm.weight", "", D},
+                                               {attn_output, part, RoleKind::matrix, pre + "attn_output.weight", "", Q, E}});
+        layer.ops.push_back({part, backend::Op::norm_rope_partial});
+        layer.ops.push_back({part, backend::Op::sigmoid_mul});
+    }
+
+    // A layer's feed-forward roles under `pre`, run with `part`: Qwen3's dense block, or on qwen35moe the router, the expert stacks and the shared expert with its gate, of which a routed layer run beside its mixer copies the norm, router and shared expert and writes its stacks into a window.
+    void ffn_roles(LayerPlan& layer, const TensorIndex& tensors, const std::string& pre, Part part) const {
+        const Config& c = cfg_;
+        const uint64_t E = (uint64_t)c.n_embd, F = (uint64_t)c.n_ff;
+        if (!c.n_expert) {
+            layer.roles.insert(layer.roles.end(), {{post_attention_norm, part, RoleKind::norm, pre + "post_attention_norm.weight", "", E},
+                                                   {ffn_gate, part, RoleKind::matrix, pre + "ffn_gate.weight", "", E, F},
+                                                   {ffn_up, part, RoleKind::matrix, pre + "ffn_up.weight", "", E, F},
+                                                   {ffn_down, part, RoleKind::matrix, pre + "ffn_down.weight", "", F, E}});
+            return;
+        }
+        const uint64_t X = (uint64_t)c.n_expert, Fe = (uint64_t)c.n_ff_exp, Fs = (uint64_t)c.n_ff_shexp;
+        layer.routed = true;
+        // The shared expert's gate is a vector of E weights, one dot product a row, checked as an F32 row.
+        layer.roles.insert(layer.roles.end(), {{post_attention_norm, part, RoleKind::norm, pre + "post_attention_norm.weight", "", E, 1, 0, Stream::copy},
+                                               {ffn_gate_inp, part, RoleKind::matrix, pre + "ffn_gate_inp.weight", "", E, X, 0, Stream::copy},
+                                               {ffn_gate_exps, part, RoleKind::experts, pre + "ffn_gate_exps.weight", "", E, Fe, X, Stream::window},
+                                               {ffn_up_exps, part, RoleKind::experts, pre + "ffn_up_exps.weight", "", E, Fe, X, Stream::window},
+                                               {ffn_down_exps, part, RoleKind::experts, pre + "ffn_down_exps.weight", "", Fe, E, X, Stream::window},
+                                               {ffn_gate_inp_shexp, part, RoleKind::norm, pre + "ffn_gate_inp_shexp.weight", "", E, 1, 0, Stream::copy},
+                                               {ffn_gate_shexp, part, RoleKind::matrix, pre + "ffn_gate_shexp.weight", "", E, Fs, 0, Stream::copy},
+                                               {ffn_up_shexp, part, RoleKind::matrix, pre + "ffn_up_shexp.weight", "", E, Fs, 0, Stream::copy},
+                                               {ffn_down_shexp, part, RoleKind::matrix, pre + "ffn_down_shexp.weight", "", Fs, E, 0, Stream::copy}});
+        layer.ops.push_back({part, backend::Op::sigmoid_mul});
+        blocks::routed_ops(layer, tensors, ffn_gate_exps, ffn_up_exps);
+    }
+
+    // The first of the drafter's four arena slots (plan_drafter), after those of slot_widths.
+    size_t draft_slot() const { return slot_widths(cfg_).size(); }
 
     // Gated attention (docs/QWEN35.md): attn_q gives each head's q and gate side by side; q and k are normed per head and their leading rope_dim dims rotated, the KV cache takes k and v, and the attention's output is gated by sigmoid(gate) before the output projection joins the residual.
     void full_attention(const Step& s, backend::Slice h) const {

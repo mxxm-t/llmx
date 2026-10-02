@@ -110,6 +110,23 @@ conversation's prefix through state checkpoints ([server](server.md)).
     it with alpha and beta into the recurrence's output, V head `j` reading
     K head `j mod Hk`; the mixer runs it, and a retract into a verify runs
     it again over the rows the mark saved.
+  - `plan_drafter`: the MTP block after the decoder layers as an embedded
+    drafter (docs/SPECULATIVE.md, section 7), planned only when a caller
+    asks for one and refused for a file without the block: the target's
+    embedding, final norm and head, the block's `nextn` norms and
+    `eh_proj`, and its full-attention layer and feed-forward block under
+    the decoder layers' names, all `Part::draft`, with the drafter's ops
+    and four more arena slots, the first `draft_h`.
+  - `draft_rows`: the block's KV rows for every row of a pass: the final
+    norm over every row into `draft_h`, the row before each (an entry's
+    carried row for its first, the normed row before it for the rest),
+    `blocks::nextn_input`, `attn_norm`, K and V with the k norm and the
+    partial rope, written to the block's cache; q, attention, the
+    feed-forward block and the head do not run for them.
+  - `draft`: one draft row: the drafted id's row through `embed_ids` and
+    the row before it as the block's input, the block's full-attention
+    layer and feed-forward block on its residual, `shared_head_norm`, the
+    target's head and `argmax_rows` into the next id.
 - `open_dense(file, prefix)`, `open_routed(file, prefix)`: the
   registry's readers of a qwen35 file and a qwen35moe file, each the
   architecture over the configuration `read_config` reads.

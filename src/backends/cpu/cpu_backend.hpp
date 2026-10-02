@@ -225,6 +225,47 @@ public:
         }
     }
 
+    void embed_ids(Slice dst_s, uint32_t type, CSlice table, size_t nin, size_t nrows, CSlice ids_s, size_t count) override {
+        if (!count) return;
+        span(*ids_s.buffer, ids_s.offset * sizeof(float), size_mul(count, sizeof(float)));
+        span(*dst_s.buffer, dst_s.offset * sizeof(float), size_mul(size_mul(count, nin), sizeof(float)));
+        const float* slots = at(ids_s);
+        float* dst = at(dst_s);
+        for (size_t i = 0; i < count; ++i) {
+            uint32_t id;
+            std::memcpy(&id, slots + i, sizeof(id));
+            if (id < nrows) embed(Slice{dst_s.buffer, dst_s.offset + i * nin}, type, table, nin, nrows, &id, 1);
+            else std::fill(dst + i * nin, dst + (i + 1) * nin, 0.0f);
+        }
+    }
+
+    void argmax_rows(Slice ids_s, CSlice logits_s, size_t rows, size_t n, CSlice after = {}) override {
+        if (!rows) return;
+        if (n > UINT32_MAX) throw std::runtime_error("backend: argmax over more ids than 32 bits hold");
+        span(*logits_s.buffer, logits_s.offset * sizeof(float), size_mul(size_mul(rows, n), sizeof(float)));
+        span(*ids_s.buffer, ids_s.offset * sizeof(float), size_mul(rows, sizeof(float)));
+        if (after.buffer) span(*after.buffer, after.offset * sizeof(float), size_mul(rows, sizeof(float)));
+        const float* logits = at(logits_s);
+        const float* prior = after.buffer ? at(after) : nullptr;
+        float* ids = at(ids_s);
+        for (size_t r = 0; r < rows; ++r) {
+            const float* row = logits + r * n;
+            uint32_t best = 0;
+            bool nan = n && std::isnan(row[0]);
+            for (size_t i = 1; i < n; ++i) {
+                nan = nan || std::isnan(row[i]);
+                if (row[i] > row[best]) best = (uint32_t)i;
+            }
+            if (!n || nan || !std::isfinite(row[best])) best = (uint32_t)n;
+            if (prior) {
+                uint32_t before;
+                std::memcpy(&before, prior + r, sizeof(before));
+                if (before >= n) best = (uint32_t)n;
+            }
+            std::memcpy(ids + r, &best, sizeof(best));
+        }
+    }
+
     // Host memory is host visible whatever was asked for.
     BufferPtr alloc(size_t bytes, Memory) override { return std::make_shared<CpuBuffer>(bytes); }
 

@@ -67,14 +67,15 @@ struct HybridShape {
 inline const HybridShape kHybrid{4, 64, 128, 4, 2, 16, 8, 2, 4, 16, 16, 64};
 
 // A hybrid model with random weights, Q8_0 matrices as the synthetic model has, so its prompt and decode rows take different CPU paths, and F32 norms and linear-attention tables; a context of 4096, which the cases' pools bound first.
-inline gguf::GGUFModel served_hybrid(const HybridShape& s) {
+// With `mtp`, an MTP block after the layers whose weights follow theirs, so the model without its drafter gives the bits of the file without the block (docs/SPECULATIVE.md, section 7).
+inline gguf::GGUFModel served_hybrid(const HybridShape& s, bool mtp = false) {
     gguf::GGUFModel m;
     gguf::MetaValue arch;
     arch.vtype = gguf::V_STRING;
     arch.s = "qwen35";
     m.kv.push_back({"general.architecture", arch});
     for (const auto& kv : std::vector<std::pair<std::string, int>>{
-             {"block_count", s.layers}, {"embedding_length", s.embd}, {"feed_forward_length", s.ff}, {"attention.head_count", s.heads},
+             {"block_count", s.layers + (mtp ? 1 : 0)}, {"embedding_length", s.embd}, {"feed_forward_length", s.ff}, {"attention.head_count", s.heads},
              {"attention.head_count_kv", s.kv_heads}, {"attention.key_length", s.head_dim}, {"attention.value_length", s.head_dim},
              {"rope.dimension_count", s.rope_dim}, {"context_length", 4096}, {"ssm.conv_kernel", 4}, {"ssm.state_size", s.state_k},
              {"ssm.group_count", s.k_heads}, {"ssm.time_step_rank", s.v_heads}, {"ssm.inner_size", s.v_heads * s.state_v},
@@ -83,6 +84,12 @@ inline gguf::GGUFModel served_hybrid(const HybridShape& s) {
         v.vtype = gguf::V_UINT32;
         v.u = (uint64_t)kv.second;
         m.kv.push_back({"qwen35." + kv.first, v});
+    }
+    if (mtp) {
+        gguf::MetaValue v;
+        v.vtype = gguf::V_UINT32;
+        v.u = 1;
+        m.kv.push_back({"qwen35.nextn_predict_layers", v});
     }
     gguf::MetaValue sections;
     sections.vtype = gguf::V_ARRAY;
@@ -146,6 +153,24 @@ inline gguf::GGUFModel served_hybrid(const HybridShape& s) {
             add(pre + "ssm_norm.weight", {DV}, false, 0.1f, 1.0f);
             add(pre + "ssm_out.weight", {HV * DV, E}, true);
         }
+        add(pre + "ffn_gate.weight", {E, F}, true);
+        add(pre + "ffn_up.weight", {E, F}, true);
+        add(pre + "ffn_down.weight", {F, E}, true);
+    }
+    if (mtp) {
+        const std::string pre = "blk." + std::to_string(s.layers) + ".";
+        add(pre + "nextn.eh_proj.weight", {2 * E, E}, true);
+        add(pre + "nextn.enorm.weight", {E}, false, 0.1f, 1.0f);
+        add(pre + "nextn.hnorm.weight", {E}, false, 0.1f, 1.0f);
+        add(pre + "nextn.shared_head_norm.weight", {E}, false, 0.1f, 1.0f);
+        add(pre + "attn_norm.weight", {E}, false, 0.1f, 1.0f);
+        add(pre + "post_attention_norm.weight", {E}, false, 0.1f, 1.0f);
+        add(pre + "attn_q.weight", {E, 2 * (uint64_t)s.heads * D}, true);
+        add(pre + "attn_k.weight", {E, (uint64_t)s.kv_heads * D}, true);
+        add(pre + "attn_v.weight", {E, (uint64_t)s.kv_heads * D}, true);
+        add(pre + "attn_q_norm.weight", {D}, false, 0.1f, 1.0f);
+        add(pre + "attn_k_norm.weight", {D}, false, 0.1f, 1.0f);
+        add(pre + "attn_output.weight", {(uint64_t)s.heads * D, E}, true);
         add(pre + "ffn_gate.weight", {E, F}, true);
         add(pre + "ffn_up.weight", {E, F}, true);
         add(pre + "ffn_down.weight", {F, E}, true);

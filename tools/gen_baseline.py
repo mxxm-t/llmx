@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|mxfp4|tokenizer-qwen35|qwen35-tiny]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|mxfp4|tokenizer-qwen35|qwen35-tiny|qwen35-mtp]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
 
@@ -18,6 +18,7 @@ moe-q8 writes the goldens of tests/moe.py's Q8_0 model, HF holding each variant'
 all includes f32 and moe regardless of --repo; mxfp4 is generated explicitly.
 tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenizer.json and tokenizer_config.json, takes only --output-dir, and is not part of all.
 qwen35-tiny writes the goldens of the tiny qwen35 fixtures of tests/qwen35.py from HF Qwen3_5ForCausalLM's token-by-token cached forward, takes only --output-dir, and is not part of all.
+qwen35-mtp writes the draft goldens of the tiny fixture with an MTP block from an assembled HF reference, HF's own full-attention Qwen3_5DecoderLayer with the block's input norms, fc, final norm and the target's head around it, since HF drops mtp.*; it takes only --output-dir and is not part of all.
 
 Requires: tokenizers, huggingface_hub (tokenizer goldens) and, for the logit/PPL goldens, torch + transformers.
 Those two segfault together in some environments (any `from transformers import Auto*` dies); an isolated venv with numpy<2.3, torch 2.5.1+cpu and transformers 4.55.2 is known to work.
@@ -1211,6 +1212,100 @@ def gen_qwen35_tiny(output_dir=OUT_DIR):
     print("wrote %s (%d fixtures)" % (path, len(fixtures)))
 
 
+# The prompts of the assembled MTP reference: one and two tokens, so row 0's zero row and the first carried row are both reached, and longer ones; each leaves the context room for the draft steps.
+QWEN35_MTP_PROMPTS = ["a", "ab", "hello", "the quick br"]
+QWEN35_MTP_STEPS = 2
+
+
+def mtp_block(model, raw, torch, modeling):
+    """The tiny fixture's MTP block assembled around HF's own full-attention Qwen3_5DecoderLayer: mtp.fc, the input norms of the embedding and of the target's row, the layer and mtp.norm, each holding the fixture's mtp.* weights and every one of them taken."""
+    config = model.config
+    width = config.hidden_size
+    layer = modeling.Qwen3_5DecoderLayer(config, config.layer_types.index("full_attention"))
+    fc = torch.nn.Linear(2 * width, width, bias=False)
+    norms = {name: modeling.Qwen3_5RMSNorm(width, eps=config.rms_norm_eps) for name in ("pre_fc_norm_embedding", "pre_fc_norm_hidden", "norm")}
+    weights = {name: torch.tensor(values, dtype=torch.float32).reshape(shape) for name, shape, values in raw if name.startswith("mtp.")}
+    prefix = "mtp.layers.0."
+    layer.load_state_dict({name[len(prefix):]: w for name, w in weights.items() if name.startswith(prefix)}, strict=True)
+    fc.weight.copy_(weights["mtp.fc.weight"])
+    for name, norm in norms.items():
+        norm.weight.copy_(weights["mtp.%s.weight" % name])
+    taken = {"mtp.fc.weight"} | {"mtp.%s.weight" % name for name in norms} | {prefix + name for name in layer.state_dict()}
+    if taken != set(weights):
+        raise SystemExit("qwen35-mtp: the assembled block takes %s and the fixture holds %s" % (sorted(taken), sorted(weights)))
+    layer.eval()
+    return layer, fc, norms
+
+
+def mtp_rows(model, block, torch, embeddings, hidden):
+    """The assembled block over rows of (token embedding, the target's row before it) at rotary positions 0 to T - 1, causal and eager, the embedding first in the concatenation: each row after mtp.norm."""
+    layer, fc, norms = block
+    rows = embeddings.shape[0]
+    x = fc(torch.cat([norms["pre_fc_norm_embedding"](embeddings), norms["pre_fc_norm_hidden"](hidden)], -1))[None]
+    positions = torch.arange(rows).view(1, 1, rows).expand(3, 1, rows)
+    mask = torch.full((rows, rows), float("-inf")).triu(1)[None, None]
+    return norms["norm"](layer(x, position_embeddings=model.model.rotary_emb(x, positions), attention_mask=mask)[0])
+
+
+def gen_qwen35_mtp(output_dir=OUT_DIR):
+    torch, transformers, modeling = qwen35_environment()
+    from safetensors.torch import save_file
+    import qwen35
+    from f32 import weight_hash
+
+    torch.set_num_threads(1)
+    spec = next(f for f in qwen35.FIXTURES if f["mtp"])
+    raw = qwen35.raw_weights(spec)
+    cases = []
+    with counted_delta_rules(modeling) as calls, torch.no_grad(), tempfile.TemporaryDirectory(prefix="llmx_qwen35_mtp_") as directory:
+        with open(os.path.join(directory, "config.json"), "w", encoding="utf-8") as f:
+            json.dump(qwen35_hf_config(spec), f)
+        tensors = {name: torch.tensor(values, dtype=torch.float32).reshape(shape) for name, shape, values in raw}
+        save_file(tensors, os.path.join(directory, "model.safetensors"), metadata={"format": "pt"})
+        model, unused = load_qwen35_tiny(directory, list(tensors), torch, transformers)
+        block = mtp_block(model, raw, torch, modeling)
+        if sorted(unused) != sorted(name for name in tensors if name.startswith("mtp.")):
+            raise SystemExit("qwen35-mtp: the target leaves keys unused other than the MTP block's: %s" % unused)
+        embed, head = model.model.embed_tokens, model.lm_head
+        linear = model.config.layer_types.count("linear_attention")
+        for text in QWEN35_MTP_PROMPTS:
+            tokens = list(text.encode("ascii"))
+            if len(tokens) + QWEN35_MTP_STEPS > qwen35.CONFIG["context_length"]:
+                raise SystemExit("qwen35-mtp: %r leaves no room for the draft steps" % text)
+            # The target's rows after its final norm, one cached step a token from a zero state, each through HF's recurrence.
+            cache = qwen35_cache(model, torch, transformers)
+            before = calls["recurrent"]
+            target = torch.stack([model.model(input_ids=torch.tensor([[token]]), past_key_values=cache, use_cache=True).last_hidden_state[0, -1]
+                                  for token in tokens])
+            if calls["recurrent"] - before != len(tokens) * linear or calls["chunk"]:
+                raise SystemExit("qwen35-mtp: the target's steps did not each run HF's recurrence")
+            pick = int(torch.argmax(head(target[-1])))
+            # Row j reads token j and the target's row j - 1, row 0 a zero row; the draft rows follow the prompt's, the first reading the pick and the target's last row, each later one the draft before it and the block's row before it.
+            ids = tokens + [pick]
+            hidden = torch.cat([torch.zeros(1, target.shape[1]), target])
+            drafts, logits, gap = [], [], math.inf
+            for step in range(QWEN35_MTP_STEPS):
+                out = mtp_rows(model, block, torch, embed(torch.tensor(ids)), hidden)
+                row = head(out[-1])
+                top = torch.topk(row, 2)
+                gap = min(gap, (top.values[0] - top.values[1]).item())
+                drafts.append(int(top.indices[0]))
+                logits.append(row.tolist())
+                ids.append(drafts[-1])
+                hidden = torch.cat([hidden, out[-1:]])
+            if gap < QWEN35_GREEDY_GAP:
+                raise SystemExit("qwen35-mtp: a draft row's top two logits are within %.2e; change the weights" % gap)
+            cases.append({"prompt": text, "pick": pick, "drafts": drafts, "logits": logits, "min_gap": gap})
+            print("  %r: pick %d, drafts %s, gap %.3g" % (text, pick, drafts, gap))
+    path = os.path.join(output_dir, "baseline_qwen35_mtp.json")
+    _write(path, {
+        "_comment": "Generated by tools/gen_baseline.py qwen35-mtp: an assembled HF reference, not HF's own MTP, which drops mtp.*: HF's full-attention Qwen3_5DecoderLayer with mtp.fc, the two input norms, mtp.norm and the target's head around it.",
+        "torch_version": torch.__version__, "transformers_version": transformers.__version__, "dtype": "float32", "attention": "eager",
+        "conventions": "token embedding first in the concatenation; the target's row after its final norm; a draft step's row after mtp.norm for the next step; row j at rotary position j; row 0 reading a zero row",
+        "fixture": spec["name"], "weights_sha256": weight_hash(qwen35.hashed(raw)), "steps": QWEN35_MTP_STEPS, "cases": cases})
+    print("wrote %s (%d cases)" % (path, len(cases)))
+
+
 # The kinds whose inputs are fixed, so only --output-dir applies to them, each with the reason a refusal gives.
 FIXED_KINDS = {
     "f32": "uses fixed synthetic weights and one thread",
@@ -1219,12 +1314,13 @@ FIXED_KINDS = {
     "mxfp4": "uses fixed synthetic raw blocks and one thread",
     "tokenizer-qwen35": "reads its own pinned tokenizer files",
     "qwen35-tiny": "uses fixed synthetic weights and one thread",
+    "qwen35-mtp": "uses fixed synthetic weights and one thread",
 }
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "mxfp4", "tokenizer-qwen35", "qwen35-tiny", "qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "mxfp4", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1333,6 +1429,8 @@ def main(argv=None):
         gen_tokenizer_qwen35(args.output_dir)
     if args.kind == "qwen35-tiny":
         gen_qwen35_tiny(args.output_dir)
+    if args.kind == "qwen35-mtp":
+        gen_qwen35_mtp(args.output_dir)
     if args.kind == "qwen35":
         loaded = load_reference(args)
         gen_logits(args, loaded)

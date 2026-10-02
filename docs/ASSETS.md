@@ -555,6 +555,16 @@ The same reading with one misreading at a time missed `hv3`'s goldens by 0.11 to
 Put in the CLI's place, printing what `logits`, `perplexity` and `generate` print, the reading passed the whole `qwen35` component, with a largest logit error of 7.9e-7, in 81 s at a load average of 56 on 2026-09-27.
 With V heads read in the grouped order it failed on `hv3` (0.30), after passing `hv1`, whose Hv = Hk cannot show the order, and with the decay after the recall it failed on `hv1` (0.012).
 
+#### The assembled MTP reference
+
+`qwen35-mtp` writes `tests/data/baseline_qwen35_mtp.json` (55,464 bytes) for the `hv3-mtp` fixture's MTP block as an embedded drafter (docs/SPECULATIVE.md, section 7, decision 7), accepts only `--output-dir` and is not part of `all`.
+It is an assembled HF reference, not HF's own MTP, which HF does not have: `Qwen3_5ForCausalLM` drops `mtp.*`, so the generator builds the block around HF's own full-attention `Qwen3_5DecoderLayer`, with `mtp.fc` as a `Linear` without bias, `mtp.pre_fc_norm_embedding`, `mtp.pre_fc_norm_hidden` and `mtp.norm` as HF's `Qwen3_5RMSNorm` (1 + w), and the target's `lm_head`, every `mtp.*` weight taken once and the layer loaded strictly.
+It runs in the qwen35 venv through the same environment check, offline, with one thread, in float32 with eager attention.
+- **The conventions it holds:** the token's embedding first in the concatenation; the target's row after its final norm (`last_hidden_state`), one cached step a token from a zero state through HF's recurrence; row j of the block at rotary position j, the target's; row 0 reading a zero row; and a draft step's row after `mtp.norm` as the next step's row.
+- **The cases:** prompts of 1, 2, 5 and 12 tokens ("a", "ab", "hello", "the quick br"), so row 0's zero row and the first carried row are both reached; for each the target's greedy pick after the prompt and two draft steps, each with its drafted id and all 257 logits, the block run over every row from 0 causally with an explicit additive mask, the draft rows after the prompt's.
+  Every draft row's top two logits stand at least 1e-4 apart (0.0031 at the least), so the drafted ids do not turn over under other rounding.
+- Generated on the Linux machine on 2026-10-02 with torch 2.5.1+cpu and transformers 5.17.0; llmx matched it within 3.0e-7 on the CPU and 5.8e-7 on the Radeon VII, against the F32 bound of 2e-5, with every pick and drafted id equal.
+
 `tests/data/qwen35_4b_dt_bias.json` holds the input of the hosted check of the writer's tiled order.
 
 - **HF's side:** the 32 values of `model.language_model.layers.0.linear_attn.dt_bias` of `Qwen/Qwen3.5-4B` at commit `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`, stored as bf16 and widened to float32.

@@ -136,6 +136,15 @@ placement contracts in `docs/EXECUTION.md`.
   rows into `dst`, row-major. An op rather than a model-side read because the
   table is a buffer the model cannot address on a device backend. Rejects a
   token id at or beyond `nrows`.
+- `embed_ids(dst, type, table, nin, nrows, ids, count)`: `embed` with the ids
+  read on the device, 32-bit integers in float-sized slots, as an embedded
+  drafter's chain feeds a draft back (docs/SPECULATIVE.md, section 7); an id
+  of `nrows` or more writes a zero row and reads no row of the table.
+- `argmax_rows(ids, logits, rows, n, after)`: each row's largest logit's id,
+  ties to the lowest, into `ids` as a 32-bit integer in a float-sized slot;
+  `n` where the largest is not finite or a logit is NaN, and `n` where the
+  row's id in `after`, when given, is `n` or more, so a draft chain ends at
+  its first invalid draft. Both throw by default, naming the op.
 - `rms_norm(dst, src, w, n, eps)`: RMS norm of one row, not virtual:
   `rms_norm_rows` over that one row.
 - `rms_norm_rows(dst, src, w, rows, n, stride, eps, runs)`: RMS norm of `rows` rows
@@ -180,7 +189,7 @@ placement contracts in `docs/EXECUTION.md`.
   the weighted sum of its k slots, formed in slot order before the add.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass, with `norm_rope_partial` above.
   Every backend implements them: the CPU (`backends-cpu.md`) and the Vulkan backend (`backends-vulkan.md`).
-  - `Op` names these five and the mixed routed projection capability above; `op_name(op)` spells each one. `implements(op)` is false unless the backend says otherwise; both backends support the five ops here.
+  - `Op` names these five, the mixed routed projection capability above and the embedded drafter's `argmax_rows` and `embed_ids`; `op_name(op)` spells each one. `implements(op)` is false unless the backend says otherwise; both backends support the five ops here and the drafter's two.
     A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`); a stream destination without one of a routed feed-forward part's ops leaves that layer on its host.
     It is the seam an architecture's new op comes through while one backend lacks it (`docs/ADDING-AN-ARCHITECTURE.md`, New backend ops); these five are pure virtual now that both backends run them.
   - `StateShape`: one linear-attention layer's state for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, `slot_floats()` a slot, every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32, and `layer_bytes(slots)` one layer's buffer of that many slots.

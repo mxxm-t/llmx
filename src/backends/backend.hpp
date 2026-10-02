@@ -263,7 +263,7 @@ inline size_t check_state_views(const StateView* views, size_t n_views, size_t l
 }
 
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
-enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, mixed_experts };
+enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, mixed_experts, argmax_rows, embed_ids };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -272,6 +272,8 @@ inline const char* op_name(Op op) {
         case Op::norm_rope_partial: return "norm_rope_partial";
         case Op::sigmoid_mul: return "sigmoid_mul";
         case Op::mixed_experts: return "mixed_experts";
+        case Op::argmax_rows: return "argmax_rows";
+        case Op::embed_ids: return "embed_ids";
     }
     return "an unknown op";
 }
@@ -296,6 +298,10 @@ public:
         (void)op;
         return false;
     }
+
+    // While on, the ops recorded need not run in order, the caller's promise that none of them reads or writes what another writes; turned off, everything recorded before runs before what follows.
+    // A rerun of many independent state layers records them so (docs/SPECULATIVE.md, section 7); a backend that computes as it records ignores it.
+    virtual void unordered(bool on) { (void)on; }
 
     // Set the worker thread count hint; 0 leaves the current count unchanged.
     virtual void set_threads(int n) = 0;
@@ -404,6 +410,18 @@ public:
     virtual void embed(Slice dst, uint32_t type, CSlice table,
                        size_t nin, size_t nrows, const uint32_t* ids,
                        size_t count) = 0;
+
+    // embed with the ids read on the device, `count` 32-bit integers in float-sized slots at `ids`, as a draft chain feeds a drafted token back (docs/SPECULATIVE.md, section 7): an id of `nrows` or more writes a zero row and reads no row of the table.
+    virtual void embed_ids(Slice dst, uint32_t type, CSlice table, size_t nin, size_t nrows, CSlice ids, size_t count) {
+        (void)dst; (void)type; (void)table; (void)nin; (void)nrows; (void)ids; (void)count;
+        throw std::runtime_error(std::string("backend: ") + op_name(Op::embed_ids) + " is not implemented");
+    }
+
+    // For each of `rows` rows of `n` logits, the id of the largest, ties to the lowest, as a 32-bit integer in a float-sized slot of `ids`: `n` where the largest is not finite or a logit is NaN, and `n` for a row whose id in `after`, when given, is `n` or more, so a chain of drafts ends at its first invalid one.
+    virtual void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}) {
+        (void)ids; (void)logits; (void)rows; (void)n; (void)after;
+        throw std::runtime_error(std::string("backend: ") + op_name(Op::argmax_rows) + " is not implemented");
+    }
 
     // Independent projections of the same X; outputs must not overlap each other, X, or any weights.
     // Outputs are observable after wait(), sync() or read(), as for matmul.

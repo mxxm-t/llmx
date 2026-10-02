@@ -50,7 +50,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
     set(LLMX_VK_SHADERS copy_mxfp4 add silu_mul gather_rows rms_norm_rows norm_rope_partial embed matmul_row
         kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile quantize_x
         quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group attention_vec
-        sigmoid_mul gated_rms_norm causal_conv_silu delta_rule)
+        sigmoid_mul gated_rms_norm causal_conv_silu delta_rule argmax_rows)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
     set(LLMX_VK_VARIANTS matmul_row_mxfp4=matmul_row=LLMX_MXFP4+LLMX_PRESERVE_F32
         matmul_row_mxfp4_dot=matmul_row=LLMX_MXFP4+LLMX_DOT+LLMX_PRESERVE_F32
@@ -99,7 +99,9 @@ if(LLMX_HAS_BACKEND_VULKAN)
         attention_vec_d256_v16_g4=attention_vec=LLMX_D256+LLMX_V16+LLMX_G4 attention_vec_d256_kv16_g4=attention_vec=LLMX_D256+LLMX_K16+LLMX_V16+LLMX_G4
         norm_rope_kv_k16=norm_rope_kv=LLMX_K16 norm_rope_kv_v16=norm_rope_kv=LLMX_V16
         norm_rope_kv_kv16=norm_rope_kv=LLMX_K16+LLMX_V16
-        matmul_tile_q6=matmul_tile_q=LLMX_Q6 matmul_tile_q8=matmul_tile_q=LLMX_Q8)
+        matmul_tile_q6=matmul_tile_q=LLMX_Q6 matmul_tile_q8=matmul_tile_q=LLMX_Q8
+        embed_ids=embed=LLMX_DEVICE_IDS embed_ids_mxfp4=embed=LLMX_DEVICE_IDS+LLMX_MXFP4
+        delta_rule_short=delta_rule=LLMX_SHORT)
     set(LLMX_VK_SPV)
     foreach(entry IN LISTS LLMX_VK_SHADERS LLMX_VK_VARIANTS)
         string(REPLACE "=" ";" parts ${entry})

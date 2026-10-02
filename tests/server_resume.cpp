@@ -755,6 +755,105 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
     }
 }
 
+// A job beside a decoding request over a two-CPU split, with a pass in flight on each stage and a pass budget past a job's chunk, so the request is in flight in one pass while the next is formed and that pass is not idle (Scheduler, kJobChunk).
+// `idle`: a job begun once a request's reply has ended, beside another request decoding 200 tokens, takes no pass from that request's first pass to its last, completes once it has ended, and the request gives its reply alone.
+// Otherwise a job begun while the reply it follows is written, from ids given once 100 tokens are, keeps reading beside that request's decode rows, at most a chunk a pass, and the request gives its reply alone.
+void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool idle) {
+    const std::string what = idle ? "a job begun at idle beside a decoding request over a two-CPU split" : "a job begun while its reply is written over a two-CPU split";
+    const size_t kJobChunk = 64, ubatch = 256;
+    const Make make = on(weights, [] { return cpus(2); });
+    const Req first{prompt_of(5, 300, vocab), idle ? 100 : 400}, other{prompt_of(9, 40, vocab), 200};
+    Reply alone;
+    std::vector<uint32_t> early = first.prompt;
+    {
+        auto model = make(4096, (int)ubatch);
+        const std::vector<Reply> replies = serve(*model, tok, 3, {{idle ? other : first}});
+        alone = replies[0];
+        if (!idle) {
+            const std::vector<uint32_t> ids = ids_of(alone);
+            early.insert(early.end(), ids.begin(), ids.begin() + 100);
+        }
+    }
+    auto model = make(4096, (int)ubatch);
+    Reply reply;
+    std::vector<std::pair<bool, size_t>> passes;   // per retired pass, whether it held the decoding request and the job's rows in it
+    size_t followed_at = 0;                        // the passes retired when the job's ids were given
+    {
+        server::Scheduler sched(*model, tok, 3, 64);
+        require(sched.stats().passes == 2, what + ": the scheduler keeps " + std::to_string(sched.stats().passes) + " passes in flight, against 2");
+        std::shared_ptr<server::Request> h, o;
+        size_t request_passes = 0;
+        std::mutex handles;
+        sched.on_retire = [&](const server::Scheduler::Retired& t) {
+            std::lock_guard<std::mutex> lock(handles);
+            const server::Request* decoding = idle ? o.get() : h.get();
+            bool held = false;
+            size_t job = 0;
+            for (size_t i = 0; i < t.requests.size(); ++i) {
+                if (t.requests[i] == decoding) held = true;
+                else if (t.requests[i] != h.get()) job += t.rows[i];
+            }
+            passes.push_back({held, job});
+            // The prompt takes two passes, so the 120th of the request has written more than 100 tokens.
+            if (!idle && held && ++request_passes == 120) {
+                sched.follow(h, early, false);
+                followed_at = passes.size();
+            }
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            {
+                std::lock_guard<std::mutex> lock(handles);
+                h = sched.submit(first.prompt, params_of(first));
+            }
+            if (idle) {
+                std::vector<uint32_t> next = first.prompt;
+                for (uint32_t id : ids_of(drain(*h))) next.push_back(id);
+                const std::vector<uint32_t> more = prompt_of(3, 1200, vocab);
+                next.insert(next.end(), more.begin(), more.end());
+                {
+                    std::lock_guard<std::mutex> lock(handles);
+                    sched.follow(h, next, true);
+                    followed_at = passes.size();
+                    o = sched.submit(other.prompt, params_of(other));
+                }
+                reply = drain(*o);
+                const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+                while (sched.stats().reprefills == 0) {
+                    require(std::chrono::steady_clock::now() < until, what + ": the job did not complete in 60 seconds once the request had ended");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+            } else {
+                reply = drain(*h);
+            }
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    same(alone, reply, what);
+    size_t first_pass = passes.size(), last_pass = 0, most = 0, read = 0;
+    for (size_t i = followed_at; i < passes.size(); ++i)
+        if (passes[i].first) {
+            first_pass = std::min(first_pass, i);
+            last_pass = i;
+        }
+    require(first_pass < passes.size(), what + ": no pass held the request once the job's ids were given");
+    for (size_t i = first_pass; i <= last_pass; ++i) {
+        most = std::max(most, passes[i].second);
+        read += passes[i].second;
+    }
+    if (idle) {
+        require(most == 0, what + ": a pass carried " + std::to_string(most) + " rows of the job while the request decoded, against none");
+    } else {
+        require(most <= kJobChunk, what + ": a pass carried " + std::to_string(most) + " rows of the job beside the reply it follows, against at most " + std::to_string(kJobChunk));
+        require(read > 0, what + ": the job read nothing while its reply was written");
+    }
+}
+
 // A job whose ids grow while its reply is written reserves the blocks they take before it reads them (XDEV's review of step 2c): on 16 blocks of 128 tokens, a 300-token prompt capped at 700 reserves 8, its job 3 for 384 tokens, then 7 for 896 once 600 tokens are written, 15 in all; a request needing 5 blocks then finds no free room, so the job gives way to it rather than both running past the pool, which ended every request of a pass with an allocation error.
 // Every request runs to its length with its reply alone, and once the reply has ended the job starts again and the follow-up forks its 896 tokens.
 void writing_growth(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
@@ -1032,6 +1131,8 @@ int main(int argc, char** argv) {
             host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, 1, 1, HostFault::promotion, "a hybrid model's donors in host memory, a promotion failing");
             // The job reads 128 rows in passes of 16, so it can be cancelled at each of the seven boundaries before its last pass.
             writing_growth(one, tok, vocab);
+            job_beside_decode(weights, tok, vocab, true);
+            job_beside_decode(weights, tok, vocab, false);
             for (size_t devices = 1; devices <= 2; ++devices)
                 host_tier(weights, tok, vocab, devices, 0, HostFault::none, "donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));
             host_tier(weights, tok, vocab, 1, 0, HostFault::write_back, "donors in host memory, a write-back failing");

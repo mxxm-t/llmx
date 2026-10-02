@@ -115,7 +115,7 @@ delegated to a `backend::Backend`.
   When the roles use more than one device, the model, once made, asks each
   of them to hold between submissions (`Backend::hold_between_submissions`),
   since each waits while the others run their parts, and gives the request
-  back when it goes; a construction that fails asks nothing.
+  back when it goes; a construction that fails leaves no request standing, any it made rolled back.
   Each stage commits its own length, whatever its layers keep, so a stage
   whose layers keep no KV has no storage and still runs. Each device whose
   mixer layers keep a recurrent state holds a `backend::StateStorage` of

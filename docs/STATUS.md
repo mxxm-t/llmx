@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## A re-prefill job no longer takes whole passes beside a request in flight (2026-10-02, branch fix/job-idle-passes, lands by fast-forward)
+
+- **Bug:** a job begun at idle (a finished reply read again for the next turn, step 2c) took a pass's whole budget whenever the pass being formed held no request rows. With passes in flight a decoding request is always in the other pass, so every pass the job formed counted as idle: on production (Qwen3.8-27B Q8_0 over two MI50s, two passes in flight, a 512-row budget) a long conversation's job read 512 rows a pass for minutes, over 23000 rows, and the user's reply ran at a token every 3 s, each token waiting for a 512-row prompt pass on both stages.
+- **Fix:** a pass is idle for a job only while no request is active, in flight or not (`Scheduler`'s pass formation); a job begun while its reply was written still takes at most `kJobChunk` rows of a busy pass, and one begun after it waits.
+- **Test first:** `server-resume` over a two-CPU split with two passes in flight and a 256-row budget: a job begun at idle beside a request decoding 200 tokens reads nothing from that request's first pass to its last and completes once it has ended, and a job begun while its reply is written reads beside that request at most 64 rows a pass and some; each request gives its reply alone. Both fail on main's code, where a pass carried 256 of the job's rows. The other developer's review asked for the two cases apart.
+- **Production** ran with `--passes 1` until this landed, which keeps a decoding request in every pass formed.
+- **Gates** (server tier, on the CPU of the MI50 machine, each tree built from its own sha): CTest 37 of 37, every component of the CPU suite, Qwen3-0.6B Q8_0's greedy ids and logits main's; the test commit fails on main's code (a pass carried 256 of the job's rows) and passes with the fix; the other developer reviewed the fix and the test. Rebased onto main `f22367c6` without a conflict, so the builds, CTest and the hosted run ran again at the head.
+
 ## Vulkan weight dispatch ownership (2026-10-02, integration validation record)
 
 - **Goal:** complete the bounded dispatch prerequisite for half-weight formats: one private descriptor for the existing Vulkan weight types and one kernel ID/name/source list, preserving current behavior.

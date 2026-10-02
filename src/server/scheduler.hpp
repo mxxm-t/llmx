@@ -566,8 +566,9 @@ private:
         };
         for (auto& r : active)
             if (!r->job_ && !decoding(*r) && !r->seq_.in_flight() && budget) slice(r, budget);
-        // Then a job: in a pass no request has rows for, or, once it has read some of a reply while that reply was written, in the budget a pass leaves, at most kJobChunk rows of it.
-        const bool idle = entries_.empty();
+        // Then a job: while no request is active, in flight in another pass or not, or, once it has read some of a reply while that reply was written, in the budget a pass leaves, at most kJobChunk rows of it.
+        // A pass without request rows is not idle while a request is in flight beside it: its next token waits for this pass on every stage.
+        const bool idle = std::none_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return !r->job_; });
         for (auto& r : active)
             if (r->job_ && !r->seq_.in_flight() && budget && (idle || r->writing_)) slice(r, idle ? budget : kJobChunk);
         if (entries_.empty()) {

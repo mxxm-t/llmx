@@ -1,6 +1,8 @@
 # llmx - Development Status
 
-## macOS Intel CI timeout (2026-10-03, branch fix/ci-macos-timeout-20261003)
+## macOS Intel CI timeout (2026-10-03, published)
+
+Published at [59d7e14b](https://github.com/mxxm-t/llmx/commit/59d7e14b75364dd11cd520d21dfcc49ea801484e) after [CI 37115070878](https://github.com/mxxm-t/llmx/actions/runs/37115070878) passed all seven jobs. Both main refs were verified at that commit, and the owned temporary gate branch was removed. The following pre-publication record retains the original timeout and its validation; the separate half-weight numerical hold is unchanged.
 
 - **Goal:** give the complete macOS Intel job a finite 40-minute budget after its 25-minute limit cancelled a run whose build and native checks had passed.
 - **Done:** the workflow changes only the macOS budget from 25 to 40 minutes. GitHub's check annotation confirms the timeout. Compared with the preceding passing main run, the build took 15m08s instead of 3m56s, and native checks took 6m28s instead of 3m21s. The added half-weight native test took only 5.32s; other native and Python checks also slowed. The dated evidence in [CI.md](CI.md#macos-intel-timeout-2026-10-03) records the observations and the bounded estimate.
@@ -8,7 +10,11 @@
 - **Left:** exact-head hosted CI before fast-forward landing. The cancelled integration run remains retained; this checkpoint does not claim the longer job has completed.
 - **Gotchas:** no failed or unfinished check becomes a pass. Preserve the cancelled run, keep every test and its own timeout, and leave Windows, Linux and HF job budgets unchanged. Hosted runner slowness is plausible, not proven by machine telemetry. The separate half-weight numerical hold is unaffected.
 
-## Qwen3-MoE file-exact HF reference (in development)
+## Qwen3-MoE file-exact HF reference (2026-10-03, published)
+
+Published at [d9c37b07](https://github.com/mxxm-t/llmx/commit/d9c37b072b27c0dfab6218233c978aab4aeb8fca) after [CI 37109015725](https://github.com/mxxm-t/llmx/actions/runs/37109015725) passed all seven jobs. Both main refs were verified at that commit. The tools release is complete; the following pre-publication record preserves its validation and the separately scoped runtime-qualification work.
+
+The publication reconciliation reviewed all 88 tracked Markdown pages against the unchanged published tree and retained landing records; STATUS and CI needed publication updates, while the other 86 pages are unchanged. Docs and dead-code pass with their existing 13 and 7 known findings and all 16 and 18 planted faults. No runtime gate or failed numerical comparison is relabeled by this documentation correction.
 
 - **Goal:** generate independent file-exact Qwen3-MoE references with the existing spec decoder and layered HF owner, holding only one decoder layer in memory. Branch `test/hf-moe-file-exact-20261003` started at `b7a6d235` and is integrated onto main `da38d13a`; only the two STATUS introductions conflicted, and both records are retained.
 - **Done:** shared expert/router mapping in `tools/gen_baseline.py`, using independent spec decoders without full-model copies. The existing layered owner runs Qwen3-MoE through HF's own forward with temporary load/release hooks. Mixed storage/order and version-refusal checks join the hosted reference-generator component. An isolated local environment with torch 2.5.1+cpu, transformers 4.55.2 and numpy 2.2.6 passes the tiny full-versus-layered check, global rotary/one-layer residency assertions and failure recovery. The final hand check compares 57,568 F32 values exactly, including checkpoint loading. At the original checkpoint, reference-generator passed 37/37; docs and dead-code pass with their 16 and 18 planted faults. Original goldens remain unchanged; the gated HF comparison retains its existing 2e-5 bound (largest difference 1.70921e-6), while the near-tie difference 1.36668e-6 remains diagnostic. No runtime policy or acceptance bound has changed.
@@ -17,7 +23,9 @@
 - **Landing:** land this tools-only feature by fast-forward after exact-head hosted CI passes and both main tips remain unchanged. The final documentation reconciliation covers all 88 tracked Markdown pages; the reporting/offline fixes and reference math retain their measured source, and this final amendment changes documentation only. The real-model reference campaign and the retained 30B numerical criterion remain separately reported; neither is approved by the generator's tests.
 - **Gotchas:** the pinned 30B UD file widens to 113.741 GiB of F32 weights, while its largest decoder layer is 2.321 GiB. The ordinary full-model loader cannot fit the rig. Preserve existing goldens and Qwen3.5 behavior; no precision allowance or golden has changed, and the real check used the existing file without downloading model weights. The authorized isolated CPU test dependencies are recorded separately; global Python is unchanged. The Qwen3-MoE hand check is not claimed as hosted coverage.
 
-## Uncapped server check counts host-cache resumes (2026-10-03, test correction)
+## Uncapped server check counts host-cache resumes (2026-10-03, published)
+
+Published at [da38d13a](https://github.com/mxxm-t/llmx/commit/da38d13a82ed07fb77b97944bd0e501f3a97314f) after [CI 37104221441](https://github.com/mxxm-t/llmx/actions/runs/37104221441) passed all seven jobs. The following pre-publication record retains the original failure and validation; its hosted check and fast-forward landing are complete.
 
 - **Goal:** keep the uncapped concurrency check's pause/resume witness valid when a paused history returns from host memory, while requiring new activity during the concurrent requests.
 - **Done:** the retained Radeon integration failure reached equal replies and log-probabilities, then reported two pauses, nothing active or paused, three host promotions, and no device takebacks or recomputed rows. The scheduler promotes a host donor before admission and counts it in `host_hits`; this is a valid resume path omitted by the assertion. Its source is unchanged between main `b7a6d235` and integration `6c5e21aa`.
@@ -35,7 +43,9 @@
 - **Production** ran with `--passes 1` until this landed, which keeps a decoding request in every pass formed.
 - **Gates** (server tier, on the CPU of the MI50 machine, each tree built from its own sha): CTest 37 of 37, every component of the CPU suite, Qwen3-0.6B Q8_0's greedy ids and logits main's; the test commit fails on main's code (a pass carried 256 of the job's rows) and passes with the fix; the other developer reviewed the fix and the test. Rebased onto main `f22367c6` without a conflict, so the builds, CTest and the hosted run ran again at the head.
 
-## Vulkan weight dispatch ownership (2026-10-02, integration validation record)
+## Vulkan weight dispatch ownership (2026-10-02, published)
+
+Published at [5835886c](https://github.com/mxxm-t/llmx/commit/5835886c92250317a69e7139ec7164f13874456d) after [CI 37034673513](https://github.com/mxxm-t/llmx/actions/runs/37034673513) passed all seven jobs. Both main refs and removal of its temporary gate were verified. The following pre-publication record preserves the integration measurements and their limitations.
 
 - **Goal:** complete the bounded dispatch prerequisite for half-weight formats: one private descriptor for the existing Vulkan weight types and one kernel ID/name/source list, preserving current behavior.
 - **Done:** one private Vulkan weight descriptor now selects support, row layout and modules, activation twins, float/BF16 and integer tiles, and existing dense/routed crossover families. One macro list generates the kernel IDs, diagnostic names and module bindings. An independent mechanical comparison against `fb366b16` preserves all 91 numeric IDs and their complete names/source/binding/count-array/preservation mappings. Shader sources and CMake entries are unchanged. The source dead-code check reads the list, with planted orphan-ID, missing-module and missing-name faults.

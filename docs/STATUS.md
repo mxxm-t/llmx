@@ -1,5 +1,41 @@
 # llmx - Development Status
 
+## A pass's stages in one file (2026-10-03, branch refactor/runtime-split, step 0b of TENSOR-SPLIT, move only, lands by fast-forward)
+
+- **Goal:** decision 6 of [TENSOR-SPLIT](TENSOR-SPLIT.md), step 0b: a minimal move-only split of `src/model/runtime.hpp` by concern, so the tensor split's per-member bookkeeping lands in a file of its own rather than growing `runtime.hpp`; nothing renamed, no behaviour changed, no new abstraction, following `src/model/history.hpp`.
+- **Done:** `src/model/passes.hpp` holds how a pass runs: `Model::forward` and the pass API (`reserve_passes`, `begin_pass`, `run_pass_stage`, `pass_logits`, `end_pass`, `abort_pass`), and the private steps of a pass, `begin`, `run_stage`, `draft_context`, `finish`, `roll_back`, `alloc_arena`, `ensure`, `send`, `receive`, `cross`, `ffn_split`, `part` and `mixer_part`, each body and its comments moved unchanged and defined out of the class in the class's order; `Model` declares them in three groups where the first of each stood, and `runtime.hpp` includes the file after `history.hpp`. The small helpers a pass shares with the history operations and the entry points (`whole_blocks`, `in_flight`, `release`, `handoffs`, `scoped`, `slot`, `row`, `streams`, `retire`) stay in the class. `runtime.hpp` goes from 1400 lines to 976. `docs/src/model-passes.md` takes the description of `forward`, the pass API and the crossings from the runtime's page.
+- **Gates** (`bdb1e1e3`, this commit before this block's gate lines): the 430 moved non-blank lines are the removed ones, in order, but for the indent, `inline` and `Model::` before each name and `begin`'s default argument, which stays on its declaration; the 888 non-blank lines left in `runtime.hpp` are main's but for the added declarations and the include. On Windows: `build.bat` and a fresh CMake build without a warning in a changed file, CTest 39 of 39, `docs` and `dead-code` [ok]. On the Linux MI50 machine against main `6a365411`, each arm built the same way from its own shallow clone detached at its commit, Vulkan on (main `llmx 0.1.0+g6a365411a11e`, sha256 `9cf8cead...`; branch `llmx 0.1.0+gbdb1e1e353c9`, sha256 `d7340128...`): Qwen3-0.6B, Qwen3-8B and Qwen3.5-0.8B Q8_0 give main's stdout in all 63 cells (generate greedy and seeded, logits `--top 20` and `--last 4`, perplexity batched and `--per-token`, two chat turns, each on the CPU, one MI50 and two MI50s split), the timing lines of generate aside, and main's stderr in all 63; `llmx-split-check` one MI50 against two (excerpt, 8 steps, ubatch 64) bit-identical on all three models with both arms, its stdout byte-equal between them; CTest 43 of 43 with Vulkan and 38 of 38 without; the suite's split, server, qwen35, f32 and moe components on the build without Vulkan all PASS with `--require-tools`, the server's real-model pass skipped without the Qwen3-0.6B fixture in the container's cache. The hosted run is not part of these gates yet.
+- **Timing** against main on one MI50 at default clocks, `bench --model Qwen3-8B-Q8_0 --p 512 --n 128 --r 3 --device vulkan:0`, each arm's three repetitions a run, tok/s in run order, a perturbed-layout control (main with one unused function appended to `src/model/history.hpp`, committed, `llmx 0.1.0+gbe133491e294`) in a second block; the monitor of this round sampled every 5 s only the host load average (7.4 to 11.9 on the 16-thread machine) and GPU[2] and GPU[3] use and power (GPU[3] idle throughout), so per-process CPU, system CPU and disk activity are unavailable for its 16 runs and the load is not attributed:
+
+  | block | cell | main | change or control | change in the mean, percent |
+  |---|---|---|---|---:|
+  | main, branch, branch, main, twice | pp512 | 833.93, 831.10, 829.96, 828.80 | 832.36, 830.96, 829.43, 830.03 | -0.03 |
+  | main, branch, branch, main, twice | tg128 | 74.57, 74.88, 74.98, 74.86 | 74.93, 74.96, 74.92, 74.93 | +0.15 |
+  | main, control, control, main, twice | pp512 | 829.79, 829.58, 829.52, 829.27 | 829.66, 829.58, 830.75, 830.05 | +0.06 |
+  | main, control, control, main, twice | tg128 | 74.98, 74.88, 74.68, 74.93 | 74.87, 75.05, 75.03, 74.93 | +0.13 |
+
+  pp512 drifts down about 0.5 percent over the session in every arm. That control perturbs `history.hpp`, not the files the change edits, so it does not give the band at the change's location.
+- **Timing repeat at the matched location** (after review): the same command, one MI50, default clocks, main, a control of main with one unused non-inline function appended to the end of `src/model/runtime.hpp` (committed, `llmx 0.1.0+g95f18bba9173`, the function present in the binary) and the branch, in the order main, control, branch, branch, control, main, twice, every run kept. A monitor sampled with a nominal 1 s delay after each collection (observed interval median 1.42 s, at most 1.47 s), the same for every arm: per-process CPU (`top`), system CPU (`/proc/stat`), disk (`/proc/diskstats`) and GPU[2] and GPU[3] use and power (`rocm-smi`); the activity flags were written before measuring: F-gpu3 (GPU[3] above 0 percent), F-cpu-host (all 16 threads above 50 percent), F-cpu-sib (cores 0-3 above 50 percent), F-cpu-mine (cores 8-11 above 50 percent), F-proc (a process other than the bench and the monitor at 100 percent or more), F-disk (above 100 MB/s).
+
+  | run | arm | pp512 | tg128 | flags |
+  |---:|---|---:|---:|---|
+  | 1 | main | 835.77 | 74.98 | F-disk (2354 MB/s), F-proc (`llmx-spec-test`) |
+  | 2 | control | 830.37 | 74.95 | F-disk (625 MB/s) |
+  | 3 | branch | 828.55 | 74.92 | F-cpu-mine |
+  | 4 | branch | 829.17 | 74.90 | F-cpu-mine |
+  | 5 | control | 827.62 | 74.83 | none |
+  | 6 | main | 830.20 | 74.97 | F-cpu-mine, F-proc (`llmx-mxfp4-vulk`, as `top` cuts the name) |
+  | 7 | main | 829.98 | 74.91 | F-cpu-mine |
+  | 8 | control | 830.47 | 75.01 | F-cpu-mine |
+  | 9 | branch | 830.31 | 75.07 | none |
+  | 10 | branch | 829.07 | 75.02 | F-cpu-mine |
+  | 11 | control | 829.28 | 74.98 | F-cpu-mine |
+  | 12 | main | 828.61 | 75.02 | F-cpu-mine |
+
+  Against main's mean, the control is -0.21 percent on pp512 and -0.04 on tg128, the branch -0.22 and +0.01, so the branch sits inside the band the matched-location control shows. No run saw F-gpu3, F-cpu-host or F-cpu-sib (all 16 threads at most 23.9 percent, cores 0-3 at most 16.2). Cores 8-11 passed 50 percent in eight runs, three of main's, two of the control's and three of the branch's; the bench's own process took 7 to 27 percent CPU in `top`, so most of that load was other processes, and `top` showed test binaries running elsewhere (`llmx-spec-test`, `llmx-backend-vu`, `python3`, names as `top` cuts them) but records no core affinity, so which process ran on cores 8-11 is not known. Run 1, main's fastest, also read the disk at up to 2354 MB/s.
+- **Left:** the hosted run; landing by fast-forward.
+- **Gotchas:** a branch that changed one of these bodies in `runtime.hpp` moves its change to `passes.hpp`, where the body sits dedented by one level, `inline` and `Model::` before its name.
+
 ## The edited-turn gap after message boundaries: what it is made of (2026-10-04, finding, docs only, lands by fast-forward)
 
 - **Question:** after message boundaries (step 2b part b), an edit at turn 2 of the six-user, twenty-turn workload still takes 3.31 s at p50 against the reference server's 1.63 s; what would close it, measured before building.

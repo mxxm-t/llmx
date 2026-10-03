@@ -125,61 +125,18 @@ delegated to a `backend::Backend`.
   slot of the model's `SlotPool` in its first pass, once the pass is
   accepted and planned, and keeps it until its reset, its destruction or a
   move over it. The
-  residual stream crosses devices wherever the placement changes, in two
-  halves: the source copies the rows into its handoff buffer inside its own
-  work (`send`), and the destination waits that submission's ticket and
-  writes them (`receive`); inside a stage both run at once (`cross`). One
+  residual stream crosses devices wherever the placement changes
+  ([passes](model-passes.md)). One
   default sequence and context serve the single-sequence entry points.
   Read-only after construction apart from pool bookkeeping.
-  - `forward(ctx, entries, n)`: one pass over every entry. Each sequence's
-    tokens go through the graph at their own positions and attend through
-    their own history via one view per entry and per storage; the rows that
-    want logits are gathered, normed and projected once on the output
-    device. The head's submission is waited on only when logits are wanted;
-    a crossing waits on the host for its source's submission. It runs
-    its stages in a row (`begin`, `run_stage`, `finish`): each reserves the
-    blocks of the storage it writes, submits the devices it recorded on and
-    commits. It is one transaction: a failure anywhere drains every device
-    and returns every history to where the pass found it, stages already
-    committed included. A sequence listed twice, in flight or whose state
-    a failed pass lost is refused before any work, and so is a pass whose
-    fresh sequences outnumber the free state slots and a context reserved
-    for passes; `begin` takes the slots last, once the pass is planned.
-  - The pass API, for a scheduler that keeps passes of different sequences
-    in flight so that every stage of a pipelined split works on one while
-    the host samples another (`docs/MULTI-DEVICE.md`). `stage_count()` and
+  - A pass, `forward` and the pass API (`reserve_passes`, `begin_pass`, `run_pass_stage`, `pass_logits`, `end_pass`, `abort_pass`), has its plan, its stages, the crossings between devices and its context's storage in `model/passes.hpp`, declared in the class and defined there ([passes](model-passes.md)).
+    For a scheduler that keeps passes in flight, `stage_count()` and
     `pipelined()` say whether that can pay: several stages, the embedding on
     the first stage's device, the head on the last's and every feed-forward
     block beside its mixer. `stage_on_host(s)` says whether stage s runs
     on the CPU, which computes as it is recorded, so a caller records it
     after its device stages, and `stage_backend(s)` gives the backend a
-    caller timing the stages reads. `reserve_passes(ctx, slots, rows,
-    logit_rows)` sizes a fresh context once: the arena for `rows` rows,
-    which every pass shares, a handoff buffer per slot on each device the
-    residual leaves, two at least on a pipelined split and one for the
-    single slot of a placement that is not pipelined (`handoff_buffers` in
-    `layer_split.hpp`, the rule the fit counts by), and `logit_rows` rows
-    of logits the caller hands out. The context is frozen from then on. A
-    reservation that fails leaves the context fresh, so a smaller one may
-    follow. More than one slot needs a pipelined placement.
-    `begin_pass(ctx, slot, entries, n, logits_base)` plans a pass in a free
-    slot, copying its tokens, and puts its sequences in flight; a sequence
-    in flight or listed twice, a slot in use or beyond the reservation, and
-    more rows or logits rows than reserved are refused before any work, and
-    so is a pass whose sequences without a state slot outnumber the free
-    ones, which takes none; a pass takes its slots last, so one whose plan
-    fails to allocate takes none either.
-    `run_pass_stage(ctx, slot, s)` records the pass's next stage, which must
-    be `s`; a failure aborts the pass before it is rethrown, and the other
-    passes go on. `pass_logits(ctx, slot, i)` waits on the pass's own head
-    and returns its wanting row `i`, written from row `logits_base` on.
-    `end_pass` takes a pass whose last stage has run out of flight, and
-    `abort_pass` abandons one at any point: every device drained, then only
-    its entries truncated in every storage to where it found them. Each
-    pass's stages run in order; passes interleave as the caller likes, since
-    each device runs the stages recorded on it in that order and a pass
-    keeps its own handoff buffer, logits rows and ticket. `forward`,
-    `prefill`, `step` and `score` do not use it.
+    caller timing the stages reads.
   - `make_sequence()`: a fresh history over the model's cache, a table per KV storage and a count for each stage without one.
   - `keeps_state()`: whether some layer keeps a recurrent state, which
     exists only at the end of what it has read, so such a model forks and

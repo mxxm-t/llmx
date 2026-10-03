@@ -1,5 +1,26 @@
 # llmx - Development Status
 
+## The edited-turn gap after message boundaries: what it is made of (2026-10-04, finding, docs only, lands by fast-forward)
+
+- **Question:** after message boundaries (step 2b part b), an edit at turn 2 of the six-user, twenty-turn workload still takes 3.31 s at p50 against the reference server's 1.63 s; what would close it, measured before building.
+- **Setup:** Qwen3.8-27B Q8_0 on one MI50 at default clocks, cores 12-15 of the MI50 machine, the workload of the message-boundaries block, `--max-seqs 8 --ctx-size 32768`, each tree built from its own sha in the same image; main `c4305c0a` repeated run 7 (regenerate 2.96 s, edit 3.31 s at p50).
+- **What the 3.31 s is made of**, at main with the default 10 GiB host tier:
+  - three users of six lack the boundary before message 2, which the thinning to four drops on equal spacing while it keeps the first, message 1's: they fork 512 tokens in and read 800 to 940 tokens in 3.6 to 4.3 s, against 441 to 600 tokens in 1.9 to 3.1 s for the users who have it;
+  - a request waits about 350 ms behind one job pass in flight, 64 rows at the prompt rate, on about a third of the requests (the server's own queued time);
+  - boundaries on whole blocks cost the users with the right boundary 25 to 37 tokens beyond the reference's read, about 0.1 to 0.15 s, so a boundary at the message's exact start, which would need the partial block's KV copied with the state, is not worth building for this;
+  - the prompt rate: about 0.3 s slower than the reference per 430 tokens.
+- **More boundaries a conversation**, up to 64 instead of four (measurement builds, not merged), edit p50 at a 10 GiB and a 16 GiB host tier:
+
+  | which boundary the room takes | 10 GiB | 16 GiB |
+  |---|---:|---:|
+  | the oldest | 6.1 s, no boundary forked | 6.1 s, no boundary forked |
+  | a conversation's most crowded, the longest unheard first | 3.77 s, one conversation left with none | 2.81 s |
+  | the cheapest of the conversation holding most | 6.14 s, no boundary forked | 2.54 s, four users of six; regenerate 2.07 s |
+
+  At the default size, half of what the host has free here, the host tier holds about four 150 MiB states a conversation beside the copies, so keeping more helps only with more room; whether the host tier's default or a smaller state should give it that room is open.
+- **An idle job's pass capped at its chunk** (`fix/job-idle-chunk`, test and change, not merged): interleaved and repeated against main `6a365411`, edit p50 3.36 and 3.31 s against 3.32 and 3.32 s, follow-ups p50/p99 2.40/4.07 and 2.38/4.08 s against 2.36/3.71 and 2.36/3.71 s, 44 requests of 114 queued about 354 ms against 38 at 349 ms, the job's completion after its reply 0.10 s at p50 on both. Most of a job's rows are read while its reply is written, already at 64 rows a pass, and few at idle, so the cap barely changes what a request meets, and split into more passes the idle remainder overlaps more arrivals; a chunk of 16 rows is worse on every count (edit 3.57 s, follow-ups 2.56/4.42 s, waits of 470 ms). The 350 ms wait is one 64-row pass, not an idle job's whole budget.
+- **Left:** the host room for boundaries (the host tier's default or a smaller state), and the prompt rate; nothing of this lands as code.
+
 ## Speculative decoding in the server (2026-10-02, branch feat/spec-server, step 5 of SPECULATIVE, lands by fast-forward)
 
 - **Goal:** `serve --drafter embedded|lookup` drafts in the scheduler's passes beside other requests, each request's output the bytes of drafts off, greedy and seeded, alone and at once, with a measured gain for one user and no loss for many ([SPECULATIVE](SPECULATIVE.md), section 3 and step 5).

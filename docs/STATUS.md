@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Host-tier usage and raw-decoder coverage wording (2026-10-03, branch docs/host-tier-usage-20261003, lands by fast-forward)
+
+- **Goal:** make the usage and test-coverage descriptions agree with the code already on main.
+- **Done:** USAGE links to the host-tier eviction policy described in [SERVER](SERVER.md), replacing its old claim that eviction was strictly by age. CI and ROADMAP now include MXFP4 in the raw-decoder coverage lists, as `tests/roundtrip.py` already does.
+- **Checks:** all 88 tracked Markdown pages reconciled against the code and existing reviewed pages: 75 identical canonical Git pages retain their review, and the 13 differing pages were checked against current main, keeping the unmerged IQ4 feature out of this correction. The docs and dead-code components pass with no new findings against their existing lists; their 16 and 18 planted-fault checks pass. The documentation-only gate requires these two components, without repeating runtime tests or waiting for hosted CI.
+- **Left:** none for this documentation correction.
+- **Gotchas:** no runtime behavior, default, flag or numerical gate changes; the IQ4 and message-checkpoint feature branches remain separate.
+
 ## One host copy per conversation, host memory kept for conversations that come back, and its default size (2026-10-03, branch fix/host-tier-room, step 2b of SPECULATIVE, lands by fast-forward)
 
 - **Goal:** the host tier of step 2b part (a) holds each conversation once and does not thrash under users taking turns, so a follow-up turn whose conversation fits the tiers does not read its whole history again ([SPECULATIVE](SPECULATIVE.md), section 2, Host tier); before 2b part (b), which comes after this, measured again on the edited-turn case.

@@ -41,7 +41,7 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
 - K-quants are what most GGUF on the Hub actually uses; see #9b
 - Storage metadata is owned by `quant/types.hpp`: 35 active GGML layouts, with unknown and removed IDs refused. `TensorInfo::data_size()` uses its checked `row_bytes`; the decoder registry reads the same metadata. `gguf-validation` holds the Vulkan shaders' `q.glsl` declarations to it.
   This resolves the proposed `core/storage.hpp` owner in the existing quant layer. It does not implement new decoders, backend dispatch tables or the quantization plan's kernel-class work; those remain separate steps.
-- `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1, Q4_K, Q5_K, Q6_K, Q8_0 and Q4_0 from raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, each against a decoder written from the format description.
+- `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1, Q4_K, Q5_K, Q6_K, MXFP4, Q8_0 and Q4_0 from raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, each against a decoder written from the format description.
   Each new type joins it from raw blocks, since the planned types stay read-only, with no quantizer.
 
 ## 2. More model architectures

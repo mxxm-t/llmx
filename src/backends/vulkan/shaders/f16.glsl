@@ -1,10 +1,12 @@
-// Half storage conversion in integer bits, matching core/fp16.hpp and core/bf16.hpp without depending on the driver's half rounding or subnormal mode.
+// Exact half storage conversion matching core/fp16.hpp and core/bf16.hpp.
 #ifndef LLMX_F16_GLSL
 #define LLMX_F16_GLSL
-// Widen in integer bits so subnormal half weights and signed zeros do not depend on the device's half arithmetic mode.
+// Normal halves widen natively; integer handling keeps subnormals, signed zeros and nonfinite encodings independent of the device's half arithmetic mode.
 float f16_to_f32(uint h) {
+    uint e = (h >> 10u) & 31u;
+    if (e != 0u && e != 31u) return unpackHalf2x16(h).x;
     uint sign = (h & 0x8000u) << 16u;
-    uint e = (h >> 10u) & 31u, m = h & 1023u;
+    uint m = h & 1023u;
     uint bits;
     if (e == 0u) {
         if (m == 0u) bits = sign;
@@ -12,8 +14,7 @@ float f16_to_f32(uint h) {
             uint shift = uint(10 - findMSB(m));
             bits = sign | ((113u - shift) << 23u) | (((m << shift) & 1023u) << 13u);
         }
-    } else if (e == 31u) bits = sign | 0x7f800000u | (m << 13u);
-    else bits = sign | ((e + 112u) << 23u) | (m << 13u);
+    } else bits = sign | 0x7f800000u | (m << 13u);
     return uintBitsToFloat(bits);
 }
 

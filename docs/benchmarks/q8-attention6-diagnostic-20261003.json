@@ -1,0 +1,493 @@
+{
+  "scope": "Diagnostic at Qwen3-30B-A3B UD-Q8 block 6, decode position 243; fixed saved inputs from default and F32-policy runs. No release acceptance or runtime change.",
+  "diagnostic_only": true,
+  "production_checkpoint_runtime": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01",
+  "scratch_source_base": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+  "source_owners_sha256": {
+    "src/backends/vulkan/vulkan_backend.cpp": "d404397c64ad3532e16d6ba7f4971d53a6f26289206ede533209af950e29f953",
+    "tools/model_logits.cpp": "c99f3cff89fdc20171bbc7fb7c32af655b5283b2a3cf844e0ea49958c1156f8d"
+  },
+  "instrumented_sources_sha256": {
+    "attention_trace.hpp": "ce4870722f4799b4f962dd04d8dadb5811bbbd532d40a17daafca59f2ea25e63",
+    "identity.inc": "a5ec42c730073f786838a53d2f2a83f32948a5be36e49ea9963a2df671053e91",
+    "vulkan_backend_trace.cpp": "bee7cf21caecebf61f595087a4dfe5e280aac02185d70fb547cb234b16ccf077",
+    "model_logits_trace.cpp": "a59419be2f53ebee62c1b30f62ae02a79a1e0fcfc07105b02ff0934c8dde35e6"
+  },
+  "scratch_executable_sha256": "0e6c1adfc2d721f8dd7de0a214e3b04e4fa8c1f8f1bddfc3561a91beb2aafe6c",
+  "generated_config_sha256": "491660170fc92e8abfacfc8144606ffc56f159069514c2a1684738c532e0b57c",
+  "analyzer_sha256": "985fa422418aa6aee8e158a65a0b61d5f536d68ce83776533559d6be9ca02412",
+  "binary64_oracle_sha256": "dad203e0a44d1d0890f08222cb27b8794238f61d13b639798a329ba333ca128c",
+  "numpy": "2.2.4",
+  "model": {
+    "linux": "/models/llmx-xdev-half-weights-20261002/cache/models--unsloth--Qwen3-30B-A3B-GGUF/snapshots/d5b1d57bd0b504ac62ae6c725904e96ef228dc74/Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+    "bytes": 35989944896,
+    "sha256": "25693e28926e2277d9edd0f55d33ddb6fea8f10e344105b02e4bf328f37f1c3a"
+  },
+  "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+  "settings": {
+    "threads": 6,
+    "cache": "f16",
+    "ubatch": 128,
+    "kv_tokens": 311,
+    "forced_decode_tokens": 247,
+    "batched": false,
+    "greedy": false,
+    "load_mode": "auto",
+    "shares": [
+      1,
+      1
+    ],
+    "dtype_policies": [
+      "default",
+      "f32"
+    ]
+  },
+  "devices": [
+    {
+      "index": 0,
+      "render": "renderD136",
+      "pci": "0000:03:00.0",
+      "uuid": "00000000-0300-0000-0000-000000000000"
+    },
+    {
+      "index": 1,
+      "render": "renderD132",
+      "pci": "0000:83:00.0",
+      "uuid": "00000000-8300-0000-0000-000000000000"
+    }
+  ],
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "arms": {
+    "default": {
+      "metadata": {
+        "version": "0.1.0+ge98453f9e562.scratch-attention6",
+        "architecture": "qwen3moe",
+        "vocab": 151936,
+        "storage_types": [
+          0,
+          8,
+          30
+        ],
+        "decode_identity": true,
+        "trace_position": 243,
+        "traced_layers": 1,
+        "trace_layer": 6,
+        "diagnostic_policy": "default",
+        "dtype": "f16",
+        "matrix_paths": {
+          "decode": [
+            [
+              "f32",
+              "block-int16"
+            ],
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        }
+      },
+      "token_count": 247,
+      "decode": {
+        "bytes": 150112768,
+        "sha256": "d2075db3eed730f5b07c78fae8719442231ab86ca5c3da1e4c8c07b2405215c9",
+        "matches_retained_original": true
+      },
+      "residual_boundaries": {
+        "before.f32": {
+          "bytes": 8192,
+          "sha256": "0e290a0c1e7aa651c3a3ae351a09866edbca90fb20af2dc630f63d5cc757fafe"
+        },
+        "after.f32": {
+          "bytes": 8192,
+          "sha256": "ff3bced2763c020dac9fa01b23f7a7c05be44171c4d95c1441f7b7b1f44375b3"
+        }
+      },
+      "input_capture_pins": {
+        "h.f32": {
+          "bytes": 8192,
+          "sha256": "969400c454d912ca3ccc29adb8dd8fd338611e855f6d6001987e5995cd1db68b"
+        },
+        "q_pre.f32": {
+          "bytes": 16384,
+          "sha256": "2a38308ac6b4cb5281a8b19421d3d369f28a5197952cb5a9480a026191b0dcaa"
+        },
+        "k_pre.f32": {
+          "bytes": 2048,
+          "sha256": "0487a16079a5c040d177c5006d38cc396274827377bdfc1739495f64430f3317"
+        },
+        "v_pre.f32": {
+          "bytes": 2048,
+          "sha256": "3567b80df145eb68fc2db7e07d92aa95630cecea3df26ec93e320682f6abf4b1"
+        },
+        "q_post.f32": {
+          "bytes": 16384,
+          "sha256": "aaf36bfdddd9690fac511efe4be63ec5bf082e9fdc959a400a21fc54c30a5ea1"
+        },
+        "attn.f32": {
+          "bytes": 16384,
+          "sha256": "e2e355319cd8559a9c7e2c3c8c12e7fd76b3393785d235a1c2ec2dfd6917ddad"
+        },
+        "cache_k.u16": {
+          "bytes": 249856,
+          "sha256": "dc3450c1425483c45fae1bcc6ebade9a18480e4a56bea45dc24b4b2462d33d04"
+        },
+        "cache_v.u16": {
+          "bytes": 249856,
+          "sha256": "a2d3e8d107ac6dbf5ef65231852bdd2e3e977a961044ab1b32586d1277d0c462"
+        }
+      },
+      "stdout_sha256": "469aefb26cd7e56e13177a9721484c98e31ed58fa00e53b91b5e44d434666434",
+      "kernels": [
+        {
+          "phase": 1,
+          "type": 8,
+          "kernel": "matmul_vec_q8",
+          "variant": 1,
+          "nin": 2048,
+          "projections": 2
+        },
+        {
+          "phase": 1,
+          "type": 30,
+          "kernel": "matmul_row_wbf16",
+          "variant": 1,
+          "nin": 2048,
+          "projections": 1
+        },
+        {
+          "phase": 4,
+          "type": 8,
+          "kernel": "matmul_vec_q8",
+          "variant": 1,
+          "nin": 4096,
+          "projections": 1
+        }
+      ]
+    },
+    "f32": {
+      "metadata": {
+        "version": "0.1.0+ge98453f9e562.scratch-attention6",
+        "architecture": "qwen3moe",
+        "vocab": 151936,
+        "storage_types": [
+          0,
+          8,
+          30
+        ],
+        "decode_identity": true,
+        "trace_position": 243,
+        "traced_layers": 1,
+        "trace_layer": 6,
+        "diagnostic_policy": "f32",
+        "dtype": "f32",
+        "matrix_paths": {
+          "decode": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "token_count": 247,
+      "decode": {
+        "bytes": 150112768,
+        "sha256": "e0f3d5d7e3d922de1381d7cf4109ce9f29d7f8a62c3cb936ab8b7adbdfd3e711",
+        "matches_retained_original": true
+      },
+      "residual_boundaries": {
+        "before.f32": {
+          "bytes": 8192,
+          "sha256": "c8c6cabc318257431e9746c22b175ace6c84f3afd7f8b773e8458532da542872"
+        },
+        "after.f32": {
+          "bytes": 8192,
+          "sha256": "ef9d30fec5fe1aa729076b440ef18efd8856adf82b11ca00acdb4914a3642493"
+        }
+      },
+      "input_capture_pins": {
+        "h.f32": {
+          "bytes": 8192,
+          "sha256": "a983ccb430a5de7232aadefa68e09b0589d1679c1103dc2924ab99b11df658f1"
+        },
+        "q_pre.f32": {
+          "bytes": 16384,
+          "sha256": "405e83e445de02ab05f0d068a0c9877c5c313b820f467be4a4ff99bb1e0d3070"
+        },
+        "k_pre.f32": {
+          "bytes": 2048,
+          "sha256": "665ad7af600942a098d6f335c74876362ee2df1b418ffa4fa5367e743a52481b"
+        },
+        "v_pre.f32": {
+          "bytes": 2048,
+          "sha256": "7fcae33807862b148a40e50733c6a5bad1106bb3aca2b5531954c94020347640"
+        },
+        "q_post.f32": {
+          "bytes": 16384,
+          "sha256": "ac53b740ef402d4804fd5b66e1f1c8789b19232a44c873735982dee04e6c1a13"
+        },
+        "attn.f32": {
+          "bytes": 16384,
+          "sha256": "4126f54744d24dc791a2662248cc8f1381ec721c34c74e49eb5dca5a39f331e0"
+        },
+        "cache_k.u16": {
+          "bytes": 249856,
+          "sha256": "10e6b31140b37061173d912c0c388522fa635fd77ee7fe31a9b6b003654ca903"
+        },
+        "cache_v.u16": {
+          "bytes": 249856,
+          "sha256": "1832913f5a72b1a1ed1cd8d02099d5290b8912eb9091ff9cf03becb3bdf645b2"
+        }
+      },
+      "stdout_sha256": "7efe792c0e8f9e0c2036f22ee159dbfe9d7f36abba013389a55aa40b8e8c1e8e",
+      "kernels": [
+        {
+          "phase": 1,
+          "type": 8,
+          "kernel": "matmul_row_float_x",
+          "variant": 1,
+          "nin": 2048,
+          "projections": 2
+        },
+        {
+          "phase": 1,
+          "type": 30,
+          "kernel": "matmul_row_wbf16",
+          "variant": 1,
+          "nin": 2048,
+          "projections": 1
+        },
+        {
+          "phase": 4,
+          "type": 8,
+          "kernel": "matmul_row_float_x",
+          "variant": 1,
+          "nin": 4096,
+          "projections": 1
+        }
+      ]
+    }
+  },
+  "convention": "A=default, B=F32. Attention changes current Q/current KV first on B history, then history at A current.",
+  "attention": {
+    "native_difference": {
+      "max_abs": 0.0003595668822526932,
+      "l2": 0.0015589724492071468,
+      "rms": 2.435894451886169e-05
+    },
+    "parts": {
+      "current_query_and_current_kv": {
+        "max_abs": 5.40941935028294e-05,
+        "l2": 0.000151780160273625,
+        "rms": 2.3715650042753907e-06
+      },
+      "prior_kv_history": {
+        "max_abs": 0.00036006562354970115,
+        "l2": 0.0015507901788601515,
+        "rms": 2.4231096544689878e-05
+      },
+      "default_native_error": {
+        "max_abs": 5.638817850150968e-08,
+        "l2": 2.6070201824449406e-07,
+        "rms": 4.073469035070218e-09
+      },
+      "negative_f32_native_error": {
+        "max_abs": 2.459772928398163e-08,
+        "l2": 2.0132710812715437e-07,
+        "rms": 3.1457360644867862e-09
+      }
+    },
+    "interaction": {
+      "max_abs": 1.3601296231652293e-08,
+      "l2": 7.077238157399377e-08,
+      "rms": 1.1058184620936543e-09
+    },
+    "opposite_order": {
+      "history_first": {
+        "max_abs": 0.0003600792248459328,
+        "l2": 0.0015508398137732138,
+        "rms": 2.4231872090206482e-05
+      },
+      "current_second": {
+        "max_abs": 5.4093812110092565e-05,
+        "l2": 0.00015178314191678272,
+        "rms": 2.37161159244973e-06
+      }
+    },
+    "closure": {
+      "max_abs": 0.0,
+      "l2": 0.0,
+      "rms": 0.0
+    }
+  },
+  "output_projection": {
+    "observed_update": {
+      "max_abs": 0.00030083954334259033,
+      "l2": 0.0024460697121539885,
+      "rms": 5.405101502247224e-05
+    },
+    "before_difference": {
+      "max_abs": 8.20159912109375e-05,
+      "l2": 0.000313584906982619,
+      "rms": 6.929312943911332e-06
+    },
+    "after_difference": {
+      "max_abs": 0.0003112033009529114,
+      "l2": 0.002474032596319163,
+      "rms": 5.466891330418251e-05
+    },
+    "parts": {
+      "current_query_and_current_kv": {
+        "max_abs": 6.497090109598446e-05,
+        "l2": 0.00018100503139122356,
+        "rms": 3.999683910175563e-06
+      },
+      "prior_kv_history": {
+        "max_abs": 0.0003027626588831505,
+        "l2": 0.002450584663119986,
+        "rms": 5.415078228637161e-05
+      },
+      "default_native_error": {
+        "max_abs": 3.1948107210777585e-08,
+        "l2": 3.677886549565814e-07,
+        "rms": 8.127057873852435e-09
+      },
+      "negative_f32_native_error": {
+        "max_abs": 2.228458615756125e-08,
+        "l2": 2.3190039559883293e-07,
+        "rms": 5.124323196493061e-09
+      },
+      "output_packing": {
+        "max_abs": 3.956243254874544e-06,
+        "l2": 2.2076355211911612e-05,
+        "rms": 4.878231398195526e-07
+      },
+      "default_output_arithmetic_and_add": {
+        "max_abs": 6.783300253443425e-08,
+        "l2": 1.5683230123155312e-07,
+        "rms": 3.465536990935082e-09
+      },
+      "negative_f32_output_arithmetic_and_add": {
+        "max_abs": 3.821191489963849e-08,
+        "l2": 1.944491110834972e-07,
+        "rms": 4.296758907588657e-09
+      }
+    },
+    "closure": {
+      "max_abs": 4.3998279412177377e-16,
+      "l2": 2.067124589791542e-15,
+      "rms": 4.5677431718720606e-17
+    }
+  },
+  "interpretation": [
+    "At these fixed inputs, prior KV history has the largest measured attention and output-space L2 contribution.",
+    "Vector contributions close to the observed difference; their scalar L2 norms are nonadditive, so these are not percentages or an error budget.",
+    "Native attention error here is the difference from the binary64 saved-input oracle, not an HF comparison or proof of a defective kernel.",
+    "Both full decode hashes and saved residual boundaries match their prior retained captures.",
+    "The original default-policy numerical failure remains unresolved; no bound, acceptance rule or format policy changes.",
+    "Independent exact-file layered HF work is separate on test/hf-moe-file-exact-20261003; no result from that work is claimed."
+  ],
+  "limitations": [
+    "Fixed saved inputs at one block/position; no model acceptance, bound changes or full-model counterfactual.",
+    "Binary64 oracle arithmetic differs from native F32 reductions. Crossed attention inputs are diagnostic interventions; their effects do not prove a kernel defect or end-to-end repair.",
+    "The diagnostic uses instrumented e984 source; it does not retest final 6c5 source or establish a full-model counterfactual.",
+    "No timing or memory-fit claim from these capture durations."
+  ],
+  "completion": {
+    "passed_diagnostic_only": true,
+    "steps": [
+      {
+        "label": "compile-0",
+        "start": 1791010409.1795743,
+        "end": 1791010416.8003235,
+        "returncode": 0
+      },
+      {
+        "label": "compile-1",
+        "start": 1791010416.800634,
+        "end": 1791010445.278052,
+        "returncode": 0
+      },
+      {
+        "label": "link",
+        "start": 1791010445.2783387,
+        "end": 1791010445.543657,
+        "returncode": 0
+      },
+      {
+        "label": "default",
+        "start": 1791010445.7180402,
+        "end": 1791010462.139077,
+        "returncode": 0
+      },
+      {
+        "label": "f32",
+        "start": 1791010462.1393666,
+        "end": 1791010484.8628197,
+        "returncode": 0
+      },
+      {
+        "label": "verify",
+        "start": 1791010484.8632407,
+        "end": 1791010485.2286367,
+        "returncode": 0
+      },
+      {
+        "label": "analyze",
+        "start": 1791010485.2288098,
+        "end": 1791010485.6939812,
+        "returncode": 0
+      }
+    ],
+    "capture_runs": 2,
+    "owned_runtime_children_terminal": true,
+    "terminal_processes_observed": [
+      "docker-init",
+      "sleep",
+      "terminal ps inspection"
+    ],
+    "memory_caps_restored_bytes": {
+      "Memory": 34359738368,
+      "MemorySwap": 34359738368
+    },
+    "caps_restored": true,
+    "start": 1791010408.3924592,
+    "end": 1791010485.8250985
+  },
+  "raw_evidence": {
+    "results/analysis.json": {
+      "path": ".tmp-half-weight-fixture-20261002/q8-attention6-diagnostic/results/analysis.json",
+      "sha256": "9a276e392bec173ee941c806a842e509124d241bae6637e1de61ec08771fb10d",
+      "bytes": 39068
+    },
+    "results/verified.json": {
+      "path": ".tmp-half-weight-fixture-20261002/q8-attention6-diagnostic/results/verified.json",
+      "sha256": "97bbd8a2d12ba8b3a37cec61486515a340c93c1d2b9fd4da8861dd1e23877d23",
+      "bytes": 17582
+    },
+    "results/complete.json": {
+      "path": ".tmp-half-weight-fixture-20261002/q8-attention6-diagnostic/results/complete.json",
+      "sha256": "cec0eedae33d944dfe5b709bc9948976e7f081dd9fbd63b1b242aa441d6d6ad0",
+      "bytes": 8193
+    },
+    "manifest.json": {
+      "path": ".tmp-half-weight-fixture-20261002/q8-attention6-diagnostic/manifest.json",
+      "sha256": "5989b6b8d9cc7a186f1187f297969e3e9a8f35281150148bad17875117b95d5c",
+      "bytes": 12919
+    },
+    "schema.json": {
+      "path": ".tmp-half-weight-fixture-20261002/q8-attention6-diagnostic/schema.json",
+      "sha256": "d4775147be37ac401af825c7d0d62473eccd8225597471138fa2e93ceb2aa593",
+      "bytes": 6291
+    },
+    "verify.py": {
+      "path": ".tmp-half-weight-fixture-20261002/q8-attention6-diagnostic/verify.py",
+      "sha256": "cfcfe27df4e1f9aa0e497ab781853060abe6959fa717baeec51f49dfa71fee1c",
+      "bytes": 4569
+    }
+  },
+  "vectors_sha256": "07ea1e22342e85607c2f6b8ada9fe81b62f46444ec2f40ba2916c2a07725a138"
+}

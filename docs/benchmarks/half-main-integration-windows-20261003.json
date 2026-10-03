@@ -1,0 +1,81 @@
+{
+  "scope": "Windows current-main half integration qualification; numerical supplemental hold unchanged; later main update is documentation-only.",
+  "compiled_head": "258645b75f1a701fe43dbb1ee63922bc4541b44a",
+  "compiled_tree": "90d90b0cfc9bda3841abe3b64a8f54e005be0800",
+  "matched_main": "bd05390a3f46179d9f657857d49987f8a7bf2e10",
+  "later_documentation_main": "6a365411a11e2e6bcad9412bd7f379cc88a6f12d",
+  "native": {
+    "cpu": 40,
+    "vulkan": 5,
+    "total": 45,
+    "skipped": 0,
+    "expected_ordinary_subcase_exclusions": 7488,
+    "preserving_subcase_exclusions": 0
+  },
+  "compiler": {
+    "id": "MSVC",
+    "version": "19.50.35728.0",
+    "architecture": "x64",
+    "executable_sha256": "194ddf4aafcb74452218a982309a97de30e0adb33edf4af02904ee107213e782"
+  },
+  "version": "llmx 0.1.0+g258645b75f1a",
+  "executables": {
+    "llmx-model-logits.exe": {
+      "bytes": 3756544,
+      "sha256": "bf12e56efd2777b891a84747f9d20b45a07249988722e7237fea69c48421ac7b"
+    },
+    "llmx.exe": {
+      "bytes": 4485632,
+      "sha256": "4e0f72fb5a52e74fe04b65a387c6b0f96f230ddad56d3694ea7de7589245ef8c"
+    }
+  },
+  "shaders": {
+    "existing_main_identical": 103,
+    "qualified_half_identical": 117
+  },
+  "quick_identity": {
+    "model": "0.6b-q8_0",
+    "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+    "tokens": 247,
+    "greedy": 64,
+    "calls": 6,
+    "all_calls_returned_zero_and_drained": true,
+    "bytes_exact": true,
+    "captures": {
+      "batched": {
+        "bytes": 150112768,
+        "sha256": "0480d91c9cee17fb0708ba6619026bc3ec666c3787b5099496bb066e2bf6ff29"
+      },
+      "decode": {
+        "bytes": 150112768,
+        "sha256": "4c8f23ac7091459c95cc3ef55654afcf132f626b92f739df897e5d4134e9c404"
+      },
+      "greedy": {
+        "bytes": 38895616,
+        "sha256": "e1c3ab74d96ed2c9cb53e67e4ab2b341ab3725e9c51898d0e0e2b618217df246"
+      }
+    },
+    "settings": {
+      "dtype": "auto",
+      "load_mode": "auto",
+      "cache": "f16",
+      "ubatch": 128,
+      "cpu_threads": 6,
+      "greedy_tokens": 64
+    }
+  },
+  "retained": {
+    "windows\\execution\\complete.json": "bcd63ff583303eb3c13cdba03fa03a1deefa398f0e2dfa90ccc28918f4aa4e57",
+    "windows\\execution\\shader-hashes.json": "65a59815c96845e60625d4417344eb8bdb09e4dac0f35ca54d7abb9097269857",
+    "windows\\identity\\execution\\complete.json": "8f08498413253aa1ad699d5f94b7fb1b278e96827f11b4a1e8a2a95b7dadc377",
+    "windows\\identity\\setup-01.json": "c63b6a2b2db6d8f52c92979156296ce9ad5d0268e5e8c03320aea5df1ebfe654",
+    "windows\\identity\\admission-01.json": "6406646f16a9c0c00c494ade8837fa54031acbc035de1dc3191f517406c2c306"
+  },
+  "limits": [
+    "Original setup-only guard rejected concurrent native CTests; no model child was created. The corrected admission allows native correctness overlap with adequate memory; no timing was measured.",
+    "Seven thousand four hundred eighty-eight ordinary nonpreserving quantization subcases remain deliberately excluded; preserving variants skip none, and no CTest is skipped.",
+    "This is a quick existing-path CPU identity, not another 30B numerical test, benchmark or blanket suite.",
+    "Original failed supplemental criteria and prior model/CI failures remain retained; no threshold or applicability decision is changed.",
+    "Linux rebase qualification and final exact-head hosted CI remain pending."
+  ]
+}

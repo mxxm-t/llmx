@@ -1,0 +1,479 @@
+{
+  "passed": true,
+  "scope": "Source composition only; combined-tree runtime and release gates pending",
+  "main": "b7a6d235078572ca1643a55be77eaca6fa33f79d",
+  "dependency": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+  "tile_checkpoint": "db1f2c8eb9e73fcc98ace9bdb65c715c3944c27e",
+  "native_checkpoint": "13967462f0ce66e9edb7c79763072be69ed1bc03",
+  "tile_commit": "5e1c6f7d4bc903d8116efc6ecc7773d30a599724",
+  "source_files": {
+    "src/backends/vulkan/vulkan_backend.cpp": {
+      "reference": "db1f2c8eb9e73fcc98ace9bdb65c715c3944c27e",
+      "sha256": "11666eb380f25d5f254e1d4ed7ed0763d51cc145eaceea11b7ff83c27d329f02"
+    },
+    "src/backends/vulkan/shaders/f16.glsl": {
+      "reference": "13967462f0ce66e9edb7c79763072be69ed1bc03",
+      "sha256": "ee0aad28940bc77dcb1ad1101ac1ec298dbbb8b5db227023766e80592ac514f0"
+    },
+    "tests/backend_vulkan.cpp": {
+      "reference": "13967462f0ce66e9edb7c79763072be69ed1bc03",
+      "sha256": "361f877201c7646fbb1c0cf4d160675bb573cbabce318a2cbe44342b998971fe"
+    }
+  },
+  "allowed_changed_paths": [
+    "src/backends/vulkan/shaders/f16.glsl",
+    "src/backends/vulkan/vulkan_backend.cpp",
+    "tests/backend_vulkan.cpp"
+  ],
+  "source_conflicts": [],
+  "preserved_status_records": true,
+  "numerical_hold_unchanged": true,
+  "docs_review": {
+    "total": 88,
+    "unchanged": 84,
+    "changed": 4,
+    "compared_to": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+    "pages": [
+      {
+        "path": "AGENTS.md",
+        "changed": true,
+        "sha256": "5d76fd1f6a889c4e16ec80b0d94f18a5fe04c7f82d332ab26c4eb900717ae1ba"
+      },
+      {
+        "path": "README.md",
+        "changed": false,
+        "sha256": "ef08038946eb8da1ccb8450b5efe2f7ebafa9b58e7e3a21b34d6f092b6555e23"
+      },
+      {
+        "path": "docs/ADDING-AN-ARCHITECTURE.md",
+        "changed": false,
+        "sha256": "e217c3f3da47900f80beee9662edfd9530282ea2426b2e2f2580922e5871bfc2"
+      },
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "changed": false,
+        "sha256": "6d9d7a6111601216e9ba09234f30f54ccd984e85b0f2f867fbed84a3737d1619"
+      },
+      {
+        "path": "docs/ASSETS.md",
+        "changed": false,
+        "sha256": "6e25ee1bde9ab266088e6e82134af8850c9118127972e546b7bc5825572c570c"
+      },
+      {
+        "path": "docs/BUILD.md",
+        "changed": false,
+        "sha256": "af6ec7f6791ba3b06e57bb0a2081595911b486b0332b8cd5d2f838cc6031918a"
+      },
+      {
+        "path": "docs/CI.md",
+        "changed": false,
+        "sha256": "f5d6ebcf4cbc2e4d3f49e226c376b18f7ceb0312d4a594c6bb3e8fec68dcf639"
+      },
+      {
+        "path": "docs/DEVICE-EXECUTION.md",
+        "changed": false,
+        "sha256": "81ed5b78ed40e1adfc3f61f71bf998be766fdb3e62ee519d655e1cb6335f7a02"
+      },
+      {
+        "path": "docs/EXECUTION.md",
+        "changed": false,
+        "sha256": "e73a551cff7993f4b9ca8337b2c4d95c371d6389a79b71d007ac85ba4e3938be"
+      },
+      {
+        "path": "docs/KV-CACHE.md",
+        "changed": false,
+        "sha256": "6ea8c1911e41cd643700dc11057fa0be9ac93cc8c60ab93f39e959c8fc971673"
+      },
+      {
+        "path": "docs/MULTI-DEVICE.md",
+        "changed": false,
+        "sha256": "5f3791194ae86a0d56510c0514a58574717a406373e479fe037c43e986e57a89"
+      },
+      {
+        "path": "docs/PRECISION.md",
+        "changed": false,
+        "sha256": "fb92acb16b615e887fd84016a28bdb6feea078f17f71ab601a00f5ac3abeb949"
+      },
+      {
+        "path": "docs/QWEN35.md",
+        "changed": false,
+        "sha256": "69f45e6c1af21f1cd3ecc6ebd9b81a5db69709986440379c55ca67a25ea512ed"
+      },
+      {
+        "path": "docs/ROADMAP.md",
+        "changed": false,
+        "sha256": "0fa4eeccb94e58079901ee7937fe5ca75037539b9e4610009e1c9c98f619490c"
+      },
+      {
+        "path": "docs/SERVER.md",
+        "changed": false,
+        "sha256": "cadba6b329d101cb0377506f040b03e3888c431582767050fded8805202129c2"
+      },
+      {
+        "path": "docs/SPECULATIVE.md",
+        "changed": false,
+        "sha256": "0b34d31a5e49aad82f524ce5104f098106b355d79a8dc9c01521f58d14675724"
+      },
+      {
+        "path": "docs/STATUS.md",
+        "changed": true,
+        "sha256": "6d64d5a8bb5a79cc7c7c846b874cf700de168491e69ce8d6a8393e833950900d"
+      },
+      {
+        "path": "docs/USAGE.md",
+        "changed": false,
+        "sha256": "15f6678a18114b26d0f834362eb3b2c8405f3cef08ab6b5c13d7de03add90fac"
+      },
+      {
+        "path": "docs/VULKAN.md",
+        "changed": true,
+        "sha256": "2604766dd7832a3033846867ecebf4012c6ef1efb0abfc58e4227254812ebcbd"
+      },
+      {
+        "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+        "changed": false,
+        "sha256": "f76f422a386c181e9d6ada0618bbf741a5b1d21e623c8137ba5120ace8e702cc"
+      },
+      {
+        "path": "docs/benchmarks/backend-audit-20260925/README.md",
+        "changed": false,
+        "sha256": "c31bd5cb16c603473b83f00d2c992b8d2a2149fc045c48ced91016f07d5711fd"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+        "changed": false,
+        "sha256": "1816e5fbf3f0f7a5929dcba66c5091bac737a5180a49bf3172fd804912f3642b"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+        "changed": false,
+        "sha256": "fd6091e66d5387f2402a94b1ef6f0b4e8535215125e71c09a32abd278abf2da1"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+        "changed": false,
+        "sha256": "3cbeb4a6fe43324de5860d3639f93cc8ce54ae155a0881eabe8166ae8627b7e7"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+        "changed": false,
+        "sha256": "f6aa16822344c2cde32e23a05c1ec7e5a795f383195aa761f844e298db699457"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+        "changed": false,
+        "sha256": "d5849714c7dfd07384026b36f1d3b9d5108a3ba3a1f6089dd9e18d3f7d4ff374"
+      },
+      {
+        "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+        "changed": false,
+        "sha256": "55cf162127e60dab392cef524218ce74a6336445c3f710327be6fca672616dd6"
+      },
+      {
+        "path": "docs/benchmarks/dtype-cpu-final-20261002.md",
+        "changed": false,
+        "sha256": "a0239685cced515d81181eccfe1f8d8e5b41d6651ae7f74d2a3de4bc2f2a403c"
+      },
+      {
+        "path": "docs/benchmarks/dtype-execution-history-20261002.md",
+        "changed": false,
+        "sha256": "80df9317f83558eba7c8e44def91b167269cf092853fe53790d244f7b227c50f"
+      },
+      {
+        "path": "docs/benchmarks/expert-types-20261002.md",
+        "changed": false,
+        "sha256": "8bf0d1af369049ca4361a260c51f18837416b62b201e3253c21883757236f9a0"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/README.md",
+        "changed": false,
+        "sha256": "22b947b75145958162dce32a628b76acc411c6d94ff5f91f6dd452fe739bb5eb"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md",
+        "changed": false,
+        "sha256": "894f9f5dd0be187a857638d54905a39f83f35b2da8fbb58a4098c38da58ed547"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md",
+        "changed": false,
+        "sha256": "bb69f4da9a31081afb5b3669c05fb631927f047ff1207baafbbb093cad9b1b68"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md",
+        "changed": false,
+        "sha256": "cb639556775c60128b36e1560d8e7e6d96892dfe2b30403ef7047768e76b21f0"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/README.md",
+        "changed": false,
+        "sha256": "9aef0ea39e8e1908796387dad0b0de6987852c2c8a59886a40b1fe28732724af"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/micro/microtab.md",
+        "changed": false,
+        "sha256": "5f11e225938e769bab2d4ef7427a4678a3038ed3e2e372a0197a53d734862bd4"
+      },
+      {
+        "path": "docs/benchmarks/storage-types-20261002.md",
+        "changed": false,
+        "sha256": "7451bfdafbe2e1c3df937765e6771f5a8cc918f44dd47fff1aad0d0985f3d34c"
+      },
+      {
+        "path": "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md",
+        "changed": false,
+        "sha256": "64cbc0ebe67b9a8c0713186179384c3d24f0460e6e43eee33b0afb9a18164360"
+      },
+      {
+        "path": "docs/src/backends-backend.md",
+        "changed": false,
+        "sha256": "eec083009e0af124a455724a2cd7bd0f34ce5cf7039b588f0dfdce7928c3d6ac"
+      },
+      {
+        "path": "docs/src/backends-cpu-placement.md",
+        "changed": false,
+        "sha256": "c57891c2757fffa55d621ef34b9ff598fadac343802c5d5c2d9f0f0185883612"
+      },
+      {
+        "path": "docs/src/backends-cpu.md",
+        "changed": false,
+        "sha256": "d3f8dc9c3b69dbe20b07a9b2781e4c4f09a7289c8bb52c0ea9efd3d393d6f3c7"
+      },
+      {
+        "path": "docs/src/backends-device_profile.md",
+        "changed": false,
+        "sha256": "9c354c91c5b7084936138cf27f103bb4f355c702ba46708c665c2f5724528558"
+      },
+      {
+        "path": "docs/src/backends-devices.md",
+        "changed": false,
+        "sha256": "9c16a88b484e8957f4ff0d199c545343b58d95a3b8f4769ec478efef62007c8b"
+      },
+      {
+        "path": "docs/src/backends-kv_storage.md",
+        "changed": false,
+        "sha256": "3e84c4f7947991f3e22e9c4b2e93a2e7abeba04646f9f9667eae7f4cc16f96a9"
+      },
+      {
+        "path": "docs/src/backends-vulkan.md",
+        "changed": true,
+        "sha256": "b85dbf66f3fdd93fa8062e254cca700edf7401b1875d0934986e93a131b3a7d2"
+      },
+      {
+        "path": "docs/src/cli-main.md",
+        "changed": false,
+        "sha256": "892d53bb43d9b3aa0ab1a3053e4a9cdf31b2dc86b026fd5a32da8ca2fcf5b2d3"
+      },
+      {
+        "path": "docs/src/config.md",
+        "changed": false,
+        "sha256": "99f8e777cfa27eb90a851cfec815e010fa4950188e38b2bb55520a3fee705163"
+      },
+      {
+        "path": "docs/src/core-bf16.md",
+        "changed": false,
+        "sha256": "bf54de4c4c7bdafc7310f1ed9f98dab10af1a1549a77b0f50ade1a149c1f734c"
+      },
+      {
+        "path": "docs/src/core-cgroup.md",
+        "changed": false,
+        "sha256": "79e2f2957421911a91ad00a933a773153ae4df45ae6f65a980a57e22d8bf69da"
+      },
+      {
+        "path": "docs/src/core-cpus.md",
+        "changed": false,
+        "sha256": "2c9209ffd0665996e411a353af046dbea29575011aa233a391a869d9e9f7bf65"
+      },
+      {
+        "path": "docs/src/core-fp16.md",
+        "changed": false,
+        "sha256": "b53d4deba7f5feca3a3fa9552276608470743e43e1ab26564c773e850f771886"
+      },
+      {
+        "path": "docs/src/core-host_memory.md",
+        "changed": false,
+        "sha256": "949b45b77d86d97ca9daddd7dd9a992385f58042c4078a0ab0e41f21126761f4"
+      },
+      {
+        "path": "docs/src/core-json.md",
+        "changed": false,
+        "sha256": "0eae3c5f2ecb096fc7569fdca42ae4abd6cca644ee8754b0ae300eddda807635"
+      },
+      {
+        "path": "docs/src/core-list.md",
+        "changed": false,
+        "sha256": "1391886c08239a59d10a5a81e13ed1c45a884c372906836f04f9855985d62568"
+      },
+      {
+        "path": "docs/src/core-sha.md",
+        "changed": false,
+        "sha256": "8d48e1c187bc804309b215b6aba0f190456ecdd3adf6f91c537ca8fca926d0cf"
+      },
+      {
+        "path": "docs/src/core-utf8.md",
+        "changed": false,
+        "sha256": "2390a228a9499299f81eac3ff6725308b6744f4ca25ee06fc1060d29ae9c9e04"
+      },
+      {
+        "path": "docs/src/format-file_reader.md",
+        "changed": false,
+        "sha256": "0928968bc1ad76ded3fdd9a63dc5e1028964b35d6f1cb1afb28f3206d36718d8"
+      },
+      {
+        "path": "docs/src/format-format.md",
+        "changed": false,
+        "sha256": "85860e6b8f0a9aec9c80d7bee619df443d949286f70a6b2895c270b912bb9baa"
+      },
+      {
+        "path": "docs/src/format-gguf.md",
+        "changed": false,
+        "sha256": "dd7096d0caca9886b897cb0a7a21232c7e8030e2e0e4eddaac11c93e069728d2"
+      },
+      {
+        "path": "docs/src/format-mapped_file.md",
+        "changed": false,
+        "sha256": "d383b77a0799508acd00d2c8bf7532687dc91ee733f93897d26bb7cf0d5e3de6"
+      },
+      {
+        "path": "docs/src/format-output_file.md",
+        "changed": false,
+        "sha256": "0c36716e9ebc2ed556ec06d18d1b2388531e0ddd0966cde56681473c7935df83"
+      },
+      {
+        "path": "docs/src/format-raw_convert.md",
+        "changed": false,
+        "sha256": "997d0c836c06f6ef8121fd9e476058417c1663a538a755c5d6b1c3b3ef74e9ac"
+      },
+      {
+        "path": "docs/src/hub.md",
+        "changed": false,
+        "sha256": "89f617e1cbde41e6b5923658f723166a60e5123c9aa33e2a3c1c513f2a71b860"
+      },
+      {
+        "path": "docs/src/inference-chat.md",
+        "changed": false,
+        "sha256": "c0501b07e65ca38d899211ab56c7d36c3608621b77d9c7cded8d0d82f0efaa55"
+      },
+      {
+        "path": "docs/src/inference-generate.md",
+        "changed": false,
+        "sha256": "493c98da75083e8d9c1adb02e175fea9b3b517367bcbdf0bbe15931a188799fd"
+      },
+      {
+        "path": "docs/src/inference-load.md",
+        "changed": false,
+        "sha256": "cc970fec6ddc32b8d9d9a50e2055505ff3a1a8fc34ba617997b5c800e93f74d3"
+      },
+      {
+        "path": "docs/src/inference-logprobs.md",
+        "changed": false,
+        "sha256": "67182cf3a2071f7e2a00b0289dbb4d42ad717f8d9837757bf0b580a9e45217f2"
+      },
+      {
+        "path": "docs/src/inference-perplexity.md",
+        "changed": false,
+        "sha256": "84ead8b6068ec1aaa94d2b70fa52c6a568a06e40448ae05ffc0b4b4db865b772"
+      },
+      {
+        "path": "docs/src/inference-sampler.md",
+        "changed": false,
+        "sha256": "108af7e1cbcd4a8454d7ef1bde1216893c5a1b70a33022f34f8045927b0d1dc2"
+      },
+      {
+        "path": "docs/src/inference-spec.md",
+        "changed": false,
+        "sha256": "f75982ca9940e417004ef11d79f9f0da5b11ff033d93286eca6c4f44ad6e75ac"
+      },
+      {
+        "path": "docs/src/model-arch-blocks.md",
+        "changed": false,
+        "sha256": "7b19d84696bc52a93f7ea66b7e30ccd755073ec8d38e056f1a394094d182830b"
+      },
+      {
+        "path": "docs/src/model-arch-metadata.md",
+        "changed": false,
+        "sha256": "03d851d17fb45171110df860b6bfbb306ddf0b75a6cd054dce628ab7ac80318b"
+      },
+      {
+        "path": "docs/src/model-arch-qwen3.md",
+        "changed": false,
+        "sha256": "f40365ad9964aac87afd2030ddff996f63740db3ca731048b6916d2fa9262e8c"
+      },
+      {
+        "path": "docs/src/model-arch-qwen35.md",
+        "changed": false,
+        "sha256": "0fbbebb985a9d67899d0589b257c2d835d788afa64d5e3cb45ea0e550447516d"
+      },
+      {
+        "path": "docs/src/model-arch-registry.md",
+        "changed": false,
+        "sha256": "8aa89082cdc708123583ec2efa7d989983ed72ade206c8a8845d5dc6eeabd3f4"
+      },
+      {
+        "path": "docs/src/model-architecture.md",
+        "changed": false,
+        "sha256": "7e635c07b5e38102dc8c5dcc949180ceeedc3b202d0f42f6838d84caa7197f03"
+      },
+      {
+        "path": "docs/src/model-history.md",
+        "changed": false,
+        "sha256": "f8502522b10e1c3baa33268859ac66c87ccc4a187669c37223acff0d25da004f"
+      },
+      {
+        "path": "docs/src/model-kv_cache.md",
+        "changed": false,
+        "sha256": "9a4a47476c27881f6d69e11889c9af426673697ad1d1d1596700f2338b379872"
+      },
+      {
+        "path": "docs/src/model-layer_split.md",
+        "changed": false,
+        "sha256": "7c3a7ed73f3afcb3af1e2f8d46f4ebfc1f7c89a70d12ab4466801ef0a99b941b"
+      },
+      {
+        "path": "docs/src/model-place.md",
+        "changed": false,
+        "sha256": "47000f723e36ae6458ba6e554d3e19c84db72afa0c60fc0d64217f73cbc86366"
+      },
+      {
+        "path": "docs/src/model-runtime.md",
+        "changed": false,
+        "sha256": "63ba9927d2b91ca9980db1cdebba4572404ebe78778eb5c34fb73c6405c37c88"
+      },
+      {
+        "path": "docs/src/model-weights.md",
+        "changed": false,
+        "sha256": "545e74e0c87a0077ed264246709a98e11d7a43d1f68ed0859c58bd03724181ba"
+      },
+      {
+        "path": "docs/src/quant-k_quants.md",
+        "changed": false,
+        "sha256": "1f1e3984ba5740e17d64951dfd093bf95bbbecc0838d934c5618d95272f432b7"
+      },
+      {
+        "path": "docs/src/quant-mxfp4.md",
+        "changed": false,
+        "sha256": "941f16c981f087eebb35c8257f5de142fe7955f88898f3bdd13324bdffadd4b0"
+      },
+      {
+        "path": "docs/src/quant-quant.md",
+        "changed": false,
+        "sha256": "de21299d8adf99a80a89f849d1d59315fcdb0ffa60f4791115ad2588eb2bf906"
+      },
+      {
+        "path": "docs/src/quant-types.md",
+        "changed": false,
+        "sha256": "802f232e183b43a98d5f62a129add8aff42a7c0204505ad0bb6f595ace2a69aa"
+      },
+      {
+        "path": "docs/src/server.md",
+        "changed": false,
+        "sha256": "f62baf4f91d74db4770cef8b3951750172114a29c47e71b190e2de2a9558284e"
+      },
+      {
+        "path": "docs/src/tokenizer-tokenizer.md",
+        "changed": false,
+        "sha256": "70c0e8583c484ab6829b361b68c5bcf1a870aaa16abaa052422f270c5b29c113"
+      }
+    ]
+  }
+}

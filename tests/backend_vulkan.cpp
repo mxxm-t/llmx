@@ -2207,6 +2207,43 @@ float half_weight_value(uint32_t type, uint16_t bits) {
     return std::copysign(float(magnitude), bits & 0x8000u ? -1.0f : 1.0f);
 }
 
+size_t check_nonfinite_half_embeddings(backend::Backend& vk) {
+    size_t checked = 0;
+    for (uint32_t type : {1u, 30u}) {
+        const unsigned fraction_bits = type == 1 ? 10 : 7, mask = type == 1 ? 0x7c00u : 0x7f80u;
+        std::vector<uint8_t> bytes(1, 0xa5);
+        std::vector<uint32_t> wide;
+        for (unsigned bits = 0; bits < 65536; ++bits) {
+            if ((bits & mask) != mask) continue;
+            bytes.push_back(uint8_t(bits));
+            bytes.push_back(uint8_t(bits >> 8));
+            // Widen the sign and payload as integers, without converting a NaN through host floating-point arithmetic.
+            wide.push_back(((bits & 0x8000u) << 16) | 0x7f800000u |
+                           ((bits & ((1u << fraction_bits) - 1)) << (23 - fraction_bits)));
+        }
+        const size_t n = wide.size();
+        const uint32_t id = 0, ids[] = {0, 1, UINT32_MAX, 0};
+        const auto weights = vk.adopt(bytes.data() + 1, n * 2), output = vk.alloc(n * sizeof(uint32_t));
+        std::vector<uint32_t> actual(n, 0x41880000u);
+        vk.write(*output, 0, actual.data(), n * sizeof(uint32_t));
+        vk.embed({output.get(), 0}, type, {weights.get(), 0}, n, 1, &id, 1);
+        vk.read(*output, 0, actual.data(), n * sizeof(uint32_t));
+        require(actual == wide, "nonfinite half embedding changed an infinity sign or NaN payload");
+        checked += n;
+
+        const auto device_ids = vk.adopt(ids, sizeof(ids)), gathered = vk.alloc(4 * n * sizeof(uint32_t));
+        std::vector<uint32_t> device_rows(4 * n, 0x41880000u), expected_rows(4 * n, 0);
+        std::copy(wide.begin(), wide.end(), expected_rows.begin());
+        std::copy(wide.begin(), wide.end(), expected_rows.begin() + 3 * n);
+        vk.write(*gathered, 0, device_rows.data(), device_rows.size() * sizeof(uint32_t));
+        vk.embed_ids({gathered.get(), 0}, type, {weights.get(), 0}, n, 1, {device_ids.get(), 0}, 4);
+        vk.read(*gathered, 0, device_rows.data(), device_rows.size() * sizeof(uint32_t));
+        require(device_rows == expected_rows, "nonfinite half device-ID embedding bits or invalid-ID zero row differ");
+        checked += device_rows.size();
+    }
+    return checked;
+}
+
 size_t check_half_weights(backend::Backend& vk) {
     const auto profile = backend::vulkan_device_profile(vk);
     size_t checked = 0;
@@ -3306,6 +3343,7 @@ int main(int argc, char** argv) {
         checks += check_refusals(*b);
         std::cout << "backend-vulkan: " << check_weight_dispatch() << " expected weight dispatches and type refusals\n";
         std::cout << "backend-vulkan: " << check_half_weights(*b) << " finite half-weight values and exact F32-control products\n";
+        std::cout << "backend-vulkan: " << check_nonfinite_half_embeddings(*b) << " half-weight embedding values checked bit for bit (nonfinite and invalid IDs)\n";
 
         std::cout << "backend-vulkan: " << testq::check_matrix_precision(*b) << " shared matrix precision values passed\n";
         std::cout << "backend-vulkan: " << check_matrix_witness(*b) << " matrix-path witnesses match arithmetic\n";

@@ -123,6 +123,7 @@ class Model;
 struct HostHistory {
     const Model* owner = nullptr;
     size_t length = 0, bytes = 0, held = 0;
+    bool blocks = true;   // false for a state alone, at `length`, whose blocks a history on the devices holds (Model::fork with a state)
     std::vector<std::vector<backend::BufferPtr>> slabs;
     std::vector<backend::Ticket> tickets;
 };
@@ -496,6 +497,7 @@ public:
 
     // Defined in model/history.hpp, the owner of a sequence's history (docs/SPECULATIVE.md, section 1).
     Sequence fork(const Sequence& src, size_t length);
+    Sequence fork(const Sequence& src, size_t length, HostHistory& state);
 
     // A fresh history over this model's cache: a table per KV storage, and a count for each stage without one.
     Sequence make_sequence() {
@@ -618,8 +620,8 @@ public:
     bool mark(Sequence& s);
     bool keep(Sequence& s);
     std::optional<size_t> checkpoint(const Sequence& s) const;
-    size_t host_bytes(size_t length) const;
-    void save_host(Sequence& s, size_t length, HostHistory& out, size_t limit);
+    size_t host_bytes(size_t length, bool blocks = true) const;
+    void save_host(Sequence& s, size_t length, HostHistory& out, size_t limit, bool blocks = true);
     size_t host_allocated() const;
     bool caches_on_devices() const;
     Sequence restore_host(HostHistory& h);

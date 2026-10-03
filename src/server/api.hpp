@@ -149,7 +149,8 @@ private:
                   ",\"recomputed\":" + std::to_string(s.recomputed) + ",\"taken_back\":" + std::to_string(s.taken_back) +
                   ",\"checkpoints\":" + std::to_string(s.checkpoints) + ",\"host_donors\":" + std::to_string(s.host_donors) +
                   ",\"host_bytes\":" + std::to_string(s.host_bytes) + ",\"host_hits\":" + std::to_string(s.host_hits) +
-                  ",\"host_bytes_moved\":" + std::to_string(s.host_bytes_moved) + ",\"reprefills\":" + std::to_string(s.reprefills) +
+                  ",\"host_bytes_moved\":" + std::to_string(s.host_bytes_moved) + ",\"boundaries\":" + std::to_string(s.boundaries) +
+                  ",\"boundary_hits\":" + std::to_string(s.boundary_hits) + ",\"reprefills\":" + std::to_string(s.reprefills) +
                   ",\"reprefill_rows\":" + std::to_string(s.reprefill_rows) + ",\"reprefill_cancels\":" + std::to_string(s.reprefill_cancels) +
                   ",\"passes\":" + std::to_string(s.passes) + ",\"in_flight\":" + std::to_string(s.in_flight) +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");

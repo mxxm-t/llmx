@@ -330,6 +330,7 @@ public:
         size_t host_donors = 0, host_bytes = 0;   // donors held in host memory now, and their bytes
         size_t host_hits = 0;                     // donors promoted from host memory for a request
         size_t host_bytes_moved = 0;              // bytes copied between the devices and host memory, both ways
+        size_t boundaries = 0, boundary_hits = 0; // message boundaries' states held in host memory now, and the requests that forked one
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
@@ -344,6 +345,8 @@ public:
         s.host_bytes = host_held_;
         s.host_hits = host_hits_;
         s.host_bytes_moved = host_moved_;
+        s.boundaries = bounds_.size();
+        s.boundary_hits = bound_hits_;
         return s;
     }
 
@@ -441,6 +444,7 @@ public:
         follows_.clear();
         while (!donors_.empty()) drop_donor();
         while (!host_.empty()) drop_host(0);
+        while (!bounds_.empty()) drop_bound(0);
         active_count_.store(0);
         paused_count_.store(0);
         in_flight_.store(0);
@@ -847,6 +851,46 @@ private:
                 d = best_donor(*r, shared);
             }
         }
+        // A message boundary sharing more takes its blocks from a donor holding its rows, a host donor holding them promoted first, and a checkpoint slot of its own (Model::fork with a state).
+        // It is pinned while room is made, so nothing that room drops is the one chosen, and renewed once the request is admitted.
+        struct Unpin {
+            uint64_t& id;
+            ~Unpin() { id = 0; }
+        } unpin{pinned_bound_};
+        if (!take && !bounds_.empty()) {
+            size_t bp = 0;
+            const size_t b = best_bound(*r, bp);
+            if (b < bounds_.size() && bp > shared) {
+                pinned_bound_ = bounds_[b].id;
+                const auto source = [&]() -> size_t {
+                    const Boundary& bound = *find_bound(pinned_bound_);
+                    for (size_t k = 0; k < donors_.size(); ++k)
+                        if (holds(bound, donors_[k].tokens, donors_[k].classes, donors_[k].seq.length())) return k;
+                    return donors_.size();
+                };
+                size_t k = source();
+                if (k == donors_.size())
+                    for (size_t h = 0; h < host_.size(); ++h)
+                        if (holds(*find_bound(pinned_bound_), host_[h].tokens, host_[h].classes, host_[h].history.length)) {
+                            if (promote(h)) k = source();
+                            break;
+                        }
+                if (k < donors_.size()) {
+                    const uint64_t id = donors_[k].id;
+                    const bool room = checkpoint_room_held(0, id);
+                    k = donors_.size();
+                    for (size_t i = 0; room && i < donors_.size(); ++i)
+                        if (donors_[i].id == id) k = i;
+                }
+                if (k < donors_.size()) {
+                    d = k;
+                    shared = bp;
+                } else {
+                    pinned_bound_ = 0;
+                    d = best_donor(*r, shared);
+                }
+            }
+        }
         // A running job, as far as it has read, is a source too, and a job's own request while it runs, where no pass holds them.
         const Request* from = nullptr;
         for (const auto& a : active) {
@@ -857,6 +901,7 @@ private:
                 shared = n;
                 d = donors_.size();
                 from = a.get();
+                pinned_bound_ = 0;
             }
         }
         const bool keep = !from && (take || shared);
@@ -871,7 +916,13 @@ private:
             drop_donor(i, true);
             if (i < d) --d;
         }
-        admit(*r, d, shared, take, from);
+        Boundary* bound = pinned_bound_ ? find_bound(pinned_bound_) : nullptr;
+        admit(*r, d, shared, take, from, bound ? &bound->state : nullptr);
+        for (size_t i = 0; bound && i < bounds_.size(); ++i)
+            if (&bounds_[i] == bound) {
+                std::rotate(bounds_.begin() + (std::ptrdiff_t)i, bounds_.begin() + (std::ptrdiff_t)i + 1, bounds_.end());
+                break;
+            }
         if (consume && !take) drop_donor(d);
         add(reserved_, need);
         r->need_ = std::move(need);
@@ -1036,6 +1087,122 @@ private:
         bool back = false;         // as Donor::back
     };
 
+    // A message boundary (docs/SPECULATIVE.md, section 2, Host tier): the state alone (Model::save_host without blocks) of a job's donor as the job completes, at its checkpoint, where its conversation's next user message starts, with the tokens and row classes below it.
+    // A request that edits or regenerates that message forks it with the blocks of a history holding the same rows, a donor or a host donor of the same conversation (Model::fork with a state).
+    struct Boundary {
+        uint64_t id = 0;
+        std::vector<uint32_t> tokens;
+        std::vector<RowClass> classes;
+        infer::HostHistory state;
+    };
+    // The boundaries a conversation keeps: the first, the newest and, between them, those that leave the most even spacing.
+    static constexpr size_t kBoundaries = 4;
+
+    // Job donor d's state kept as a boundary as its job completes, the copy enqueued behind the passes that wrote it, within the room the host tier's copies and the host's free memory leave, superseded copies and then the boundaries of the conversation that went longest unheard going first, and the conversation's boundaries thinned to kBoundaries; one already kept is renewed.
+    // So the state survives the donor's later fate: consumed by the follow-up turn that forks it, superseded by the next job's or evicted.
+    // Under the lock.
+    void keep_boundary(Donor& d) {
+        if (!host_cap_ || !model_.keeps_state()) return;
+        const std::optional<size_t> kept = model_.checkpoint(d.seq);
+        const size_t bt = model_.kv_block_tokens();
+        if (!kept || !*kept || *kept % bt || *kept > d.tokens.size()) return;
+        const size_t n = *kept;
+        // The conversation's boundaries: those whose tokens d's begin with.
+        std::vector<size_t> mine;
+        for (size_t i = 0; i < bounds_.size(); ++i) {
+            const auto& t = bounds_[i].tokens;
+            if (t.size() > n || !std::equal(t.begin(), t.end(), d.tokens.begin())) continue;
+            if (t.size() == n && alike(bounds_[i].classes, d.classes, n) == n) {
+                std::rotate(bounds_.begin() + (std::ptrdiff_t)i, bounds_.begin() + (std::ptrdiff_t)i + 1, bounds_.end());
+                return;
+            }
+            mine.push_back(i);
+        }
+        // Thinned before the copy, by position: the one between its neighbours whose gap would grow least goes, never the first nor one a request being admitted has pinned.
+        while (mine.size() + 1 > kBoundaries) {
+            std::sort(mine.begin(), mine.end(), [&](size_t a, size_t b) { return bounds_[a].tokens.size() < bounds_[b].tokens.size(); });
+            size_t best = 0, gap = std::numeric_limits<size_t>::max();
+            for (size_t k = 1; k < mine.size(); ++k) {
+                const size_t next = k + 1 < mine.size() ? bounds_[mine[k + 1]].tokens.size() : n;
+                const size_t g = next - bounds_[mine[k - 1]].tokens.size();
+                if (g < gap && bounds_[mine[k]].id != pinned_bound_) { gap = g; best = k; }
+            }
+            if (!best) break;
+            const size_t gone = mine[best];
+            drop_bound(gone);
+            mine.erase(mine.begin() + (std::ptrdiff_t)best);
+            for (size_t& i : mine) if (i > gone) --i;
+        }
+        const size_t bytes = model_.host_bytes(n, false);
+        while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
+        while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
+        if (host_held_ + bytes > host_cap_) return;
+        // The conversation's boundaries take its age, behind every other conversation's in their order, so the room the tier needs takes the boundaries of the conversation that went longest unheard, its first boundary among them, before any of a conversation still going.
+        std::stable_partition(bounds_.begin(), bounds_.end(), [&](const Boundary& o) {
+            return !(o.tokens.size() < n && std::equal(o.tokens.begin(), o.tokens.end(), d.tokens.begin()));
+        });
+        // The entry is made before the copy, so nothing allocates between a copy enqueued and its entry: a throw before the copy, or from it, which releases what it took, leaves no entry.
+        bounds_.emplace_back();
+        Boundary& b = bounds_.back();
+        try {
+            b.id = ++donor_ids_;
+            b.tokens.assign(d.tokens.begin(), d.tokens.begin() + (std::ptrdiff_t)n);
+            b.classes = clip(d.classes, n);
+            model_.save_host(d.seq, n, b.state, host_cap_, false);
+        } catch (const std::exception& e) {
+            bounds_.pop_back();
+            std::fprintf(stderr, "server: a message boundary at %zu tokens was not kept in host memory (%s)\n", n, e.what());
+            return;
+        }
+        host_held_ += b.state.held;
+        host_moved_ += b.state.bytes;
+        std::fprintf(stderr, "server: a message boundary at %zu tokens kept in host memory, %.1f MiB\n", n, (double)b.state.bytes / (1 << 20));
+    }
+
+    // The boundary `id`, or none.
+    Boundary* find_bound(uint64_t id) {
+        for (Boundary& b : bounds_)
+            if (b.id == id) return &b;
+        return nullptr;
+    }
+
+    // The oldest boundary but the one a request being admitted has pinned out of host memory; false when there is none.
+    // Under the lock.
+    bool drop_oldest_bound() {
+        for (size_t i = 0; i < bounds_.size(); ++i)
+            if (bounds_[i].id != pinned_bound_) {
+                drop_bound(i);
+                return true;
+            }
+        return false;
+    }
+
+    // Boundary i out of host memory.
+    // Under the lock.
+    void drop_bound(size_t i) {
+        host_held_ -= bounds_[i].state.held;
+        model_.release_host(bounds_[i].state);
+        bounds_.erase(bounds_.begin() + (std::ptrdiff_t)i);
+    }
+
+    // The boundary sharing the most whole blocks with r's history, by best_donor's rule at the boundary's position; bounds_.size() when none shares a block.
+    size_t best_bound(const Request& r, size_t& tokens) const {
+        size_t best = bounds_.size();
+        tokens = 0;
+        for (size_t i = 0; i < bounds_.size(); ++i) {
+            const size_t len = bounds_[i].state.length;
+            const size_t n = shareable(r, bounds_[i].tokens, bounds_[i].classes, len, std::optional<size_t>(len));
+            if (n > tokens) { tokens = n; best = i; }
+        }
+        return best;
+    }
+
+    // Whether a history of tokens `t` computed as `classes` record, `held` of them on hand, holds boundary b's rows: its tokens and row classes below b's position.
+    bool holds(const Boundary& b, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, size_t held) const {
+        const size_t n = b.state.length;
+        return held >= n && t.size() >= n && std::equal(b.tokens.begin(), b.tokens.end(), t.begin()) && alike(b.classes, classes, n) == n;
+    }
+
     // The host donor sharing the most whole blocks with r's history, by best_donor's rule; host_.size() when none shares a block.
     size_t best_host(const Request& r, size_t& tokens) const {
         size_t best = host_.size();
@@ -1075,6 +1242,9 @@ private:
         }
         const size_t bytes = model_.host_bytes(n);
         if (bytes > host_cap_) return;
+        // Superseded copies go first, then message boundaries, which live in the room the other copies leave.
+        while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
+        while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
         // A donor whose conversation did not come back takes free room and that of superseded entries and of entries whose conversations did not come back either, the oldest first, and the room of the others only once the tier has refused as many such donors in a row as it holds entries.
         // So users taking turns over more conversations than the tier holds keep hitting the ones it holds, where evicting the oldest would evict each time the one needed next, and conversations that stopped coming back still leave.
         if (!d.back) {
@@ -1091,15 +1261,18 @@ private:
             }
         }
         while (!host_.empty() && host_held_ + bytes > host_cap_) drop_host(0);
-        HostDonor h;
-        h.id = d.id ? d.id : ++donor_ids_;
-        h.back = d.back;
-        h.tokens.assign(d.tokens.begin(), d.tokens.begin() + (std::ptrdiff_t)n);
-        h.classes = clip(d.classes, n);
+        // The entry is made before the copy, so nothing allocates between a copy enqueued and its entry.
+        host_.emplace_back();
+        HostDonor& h = host_.back();
         const Clock::time_point start = Clock::now();
         try {
+            h.id = d.id ? d.id : ++donor_ids_;
+            h.back = d.back;
+            h.tokens.assign(d.tokens.begin(), d.tokens.begin() + (std::ptrdiff_t)n);
+            h.classes = clip(d.classes, n);
             model_.save_host(d.seq, n, h.history, host_cap_);
         } catch (const std::exception& e) {
+            host_.pop_back();
             std::fprintf(stderr, "server: a donor of %zu tokens was not kept in host memory (%s)\n", n, e.what());
             return;
         }
@@ -1107,7 +1280,6 @@ private:
         host_moved_ += h.history.bytes;
         std::fprintf(stderr, "server: a donor of %zu tokens kept in host memory, %.1f MiB, its copy enqueued in %.1f ms\n", n, (double)h.history.bytes / (1 << 20),
                      ms_since(start));
-        host_.push_back(std::move(h));
         host_refused_ = 0;
     }
 
@@ -1168,7 +1340,7 @@ private:
     // A history for an admitted request: its own donor `d` taken back whole (`take`), a fork at `shared` tokens of donor `d` or of the running request `from`, or a fresh sequence.
     // A first admission records its rows: a forked prefix as its source recorded it, the rest of the prompt at the prompt's extent, then the generated tokens at extent 1; a job's rows past the fork all at its prompt's extent, of the class every longer prompt takes.
     // Under the lock.
-    void admit(Request& r, size_t d, size_t shared, bool take = false, const Request* from = nullptr) {
+    void admit(Request& r, size_t d, size_t shared, bool take = false, const Request* from = nullptr, infer::HostHistory* state = nullptr) {
         {
             std::lock_guard<std::mutex> lk(r.m_);
             if (r.admitted_ == Request::Clock::time_point{}) r.admitted_ = Request::Clock::now();
@@ -1182,7 +1354,19 @@ private:
             ++r.taken_back_;
             ++taken_back_;
         } else {
-            r.seq_ = shared ? model_.fork(from ? from->seq_ : donors_[d].seq, shared) : model_.make_sequence();
+            if (shared && state) {
+                // A fork with a state whose copy fails reads the history from the start: the room admission made holds the whole history either way.
+                try {
+                    r.seq_ = model_.fork(donors_[d].seq, shared, *state);
+                    ++bound_hits_;
+                } catch (const std::exception& e) {
+                    std::fprintf(stderr, "server: a message boundary of %zu tokens was not forked (%s)\n", shared, e.what());
+                    shared = 0;
+                    r.seq_ = model_.make_sequence();
+                }
+            } else {
+                r.seq_ = shared ? model_.fork(from ? from->seq_ : donors_[d].seq, shared) : model_.make_sequence();
+            }
         }
         if (!first) return;
         if (shared) {
@@ -1478,6 +1662,7 @@ private:
             std::lock_guard<std::mutex> lk(m_);
             if (!id) continue;
             ++reprefills_;
+            if (!donors_.empty() && donors_.back().id == id) keep_boundary(donors_.back());
             supersede(*j, id);
         }
     }
@@ -1542,6 +1727,9 @@ private:
     std::deque<std::shared_ptr<Request>> paused_;
     std::deque<Donor> donors_;
     std::deque<HostDonor> host_;                  // under the lock, oldest first
+    std::deque<Boundary> bounds_;                 // under the lock, oldest first, in host_held_
+    uint64_t pinned_bound_ = 0;                   // the boundary a request being admitted forks (enter), which nothing drops meanwhile
+    size_t bound_hits_ = 0;                       // under the lock
     size_t host_held_ = 0, host_hits_ = 0, host_moved_ = 0;   // under the lock
     size_t host_refused_ = 0;             // donors write_back refused in a row for want of room the tier keeps for conversations that came back, under the lock
     std::vector<Follow> follows_;                 // under the lock, the ids given since the last round

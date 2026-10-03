@@ -58,6 +58,8 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   pass, and only the model that wrote the copy restores it; a throw from a
   pool, a slot or a copy leaves nothing held. `host_bytes(length)` gives
   the slabs a copy of `length` tokens takes.
+  Without `blocks`, `save_host` copies the checkpoint's state alone (`HostHistory::blocks` false), and `fork(sequence, length, state)` continues from it: a second history sharing the source's blocks below `length`, as `fork` does whatever checkpoint the source holds, with the state copied back into a checkpoint slot of its own at `length`, which its first pass reads in place; the server keeps a conversation's message boundaries this way, the source a later history of the same conversation whose rows below `length` are the ones the state was computed after.
+  `restore_host` refuses a state alone, and a fork with a state refuses a whole history's copy or another length; a throw from the slot or a copy holds nothing.
 - `mark(sequence)`: the history kept at its length while one pass runs
   past it, so a retract into that pass reaches any of its rows exactly, as
   a verify of drafts needs (`docs/SPECULATIVE.md`, section 1). On a model

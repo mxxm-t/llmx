@@ -105,12 +105,12 @@ inline std::optional<size_t> Model::checkpoint(const Sequence& s) const {
     return s.kept_.pos();
 }
 
-// The host memory a copy of `length` tokens takes (HostHistory::held): per device, whole blocks of its KV storage's layers, K and V, and one slot of its state storage, in whole slabs.
-inline size_t Model::host_bytes(size_t length) const {
+// The host memory a copy of `length` tokens takes (HostHistory::held): per device, whole blocks of its KV storage's layers, K and V, and one slot of its state storage, in whole slabs; without `blocks`, the slot alone.
+inline size_t Model::host_bytes(size_t length, bool blocks) const {
     size_t n = 0;
     for (const auto& d : devices_) {
         size_t bytes = 0;
-        if (const auto* st = dynamic_cast<const backend::BlockKVStorage*>(d->storage.get()))
+        if (const auto* st = blocks ? dynamic_cast<const backend::BlockKVStorage*>(d->storage.get()) : nullptr)
             bytes += backend::blocks_for(length, st->block_tokens()) * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
         if (d->states) bytes += d->states->layers() * d->states->shape().slot_floats() * sizeof(float);
         n += backend::blocks_for(bytes, kHostSlab) * kHostSlab;
@@ -197,14 +197,16 @@ inline size_t Model::host_allocated() const {
 // `length` is whole blocks of every storage.
 // The copies are enqueued on each device's stream behind the passes that wrote the history, into slabs released copies left where there are, and nothing waits for them: whatever writes those blocks or that slot next, and a restore of `out`, comes after them on the same stream.
 // The slabs alive, idle or holding a copy, stay within `limit` bytes: idle slabs of other devices are freed before one is allocated, and a copy they cannot make room for is refused, as is one whose new slabs would leave the host less free memory than the reserve the fit keeps on it.
+// Without `blocks` only the state is copied, for a fork that takes its blocks from a history on the devices (Model::fork with a state).
 // `out` is whole or, on a throw, released.
-inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_t limit) {
+inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_t limit, bool blocks) {
     settle(s, "a copy to host memory");
     release_host(out);
     if (s.mark_.held()) throw std::logic_error("inference: a copy to host memory of a marked sequence");
     if (length > s.length()) throw std::logic_error("inference: a copy to host memory past the history");
     if (state_layers_ && (!s.kept_.held() || s.kept_.pos() != length))
         throw std::logic_error("inference: a copy to host memory of a model whose layers keep a recurrent state takes its checkpoint");
+    if (!blocks && !state_layers_) throw std::logic_error("inference: a state alone copied to host memory on a model whose layers keep none");
     for (const Device* d : storages_) {
         if (!dynamic_cast<const backend::BlockKVStorage*>(d->storage.get())) throw std::runtime_error("inference: a KV storage that cannot be copied to host memory");
         if (length % d->b->kv_layout().block_tokens) throw std::logic_error("inference: a copy to host memory takes whole blocks of the history");
@@ -215,7 +217,7 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
     std::vector<size_t> bytes(devices_.size(), 0), need(devices_.size(), 0), idle(devices_.size(), 0);
     for (size_t i = 0; i < devices_.size(); ++i) {
         const Device& d = *devices_[i];
-        if (const auto* st = dynamic_cast<const backend::BlockKVStorage*>(d.storage.get()))
+        if (const auto* st = blocks ? dynamic_cast<const backend::BlockKVStorage*>(d.storage.get()) : nullptr)
             bytes[i] = length / st->block_tokens() * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
         if (d.states) bytes[i] += d.states->layers() * d.states->shape().slot_floats() * sizeof(float);
         need[i] = backend::blocks_for(bytes[i], kHostSlab);
@@ -238,6 +240,7 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
     HostHistory h;
     h.owner = this;
     h.length = length;
+    h.blocks = blocks;
     h.slabs.resize(devices_.size());
     h.tickets.assign(devices_.size(), 0);
     try {
@@ -257,7 +260,7 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
                 h.held += kHostSlab;
             }
             detail::HostSpan span{*d.b, slabs, kHostSlab, true};
-            auto* st = dynamic_cast<backend::BlockKVStorage*>(d.storage.get());
+            auto* st = blocks ? dynamic_cast<backend::BlockKVStorage*>(d.storage.get()) : nullptr;
             if (st) span.blocks(*st, s.kv_[(size_t)d.storage_index].view(nullptr).blocks, length / st->block_tokens());
             if (d.states) span.slot(*d.states, s.kept_.slot());
             h.tickets[i] = d.b->submit();
@@ -277,7 +280,7 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
 // A throw, from a pool, a slot or a copy, leaves nothing held.
 inline Sequence Model::restore_host(HostHistory& h) {
     if (h.owner != this) throw std::runtime_error("inference: a history copied to host memory by another model");
-    if (h.slabs.size() != devices_.size()) throw std::logic_error("inference: a host history of another layout");
+    if (h.slabs.size() != devices_.size() || !h.blocks) throw std::logic_error("inference: a host history of another layout");
     Sequence s = make_sequence();
     size_t slot = 0;
     if (state_layers_) {
@@ -312,6 +315,43 @@ inline Sequence Model::restore_host(HostHistory& h) {
     for (size_t i = 0; i < devices_.size(); ++i)
         if (!h.slabs[i].empty()) h.tickets[i] = s.last_[i] = devices_[i]->b->submit();
     return s;
+}
+
+// A second history holding the first `length` tokens of `src`, whose blocks it shares as fork does, and the state at `length` that `state` holds, a state alone copied to host memory (Model::save_host without blocks) from a history whose rows below `length` were these: on a model that keeps a state, a history continued from a message boundary its source has passed (docs/SPECULATIVE.md, section 2, Host tier).
+// The state is copied back into a checkpoint slot of its own, which the fork's first pass reads in place; the copies are enqueued behind the passes that wrote what it shares, which its tickets cover.
+// A throw, from the slot or a copy, leaves nothing held.
+inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& state) {
+    if (src.owner_ != this || state.owner != this) throw std::runtime_error("inference: sequence or host state of another model");
+    if (src.in_flight_) throw std::logic_error("inference: a fork of a sequence in flight");
+    if (src.mark_.held()) throw std::logic_error("inference: a fork of a marked sequence");
+    if (!state_layers_ || state.blocks || state.length != length || state.slabs.size() != devices_.size())
+        throw std::logic_error("inference: a fork with a state takes a state alone at its length, on a model whose layers keep one");
+    if (length > src.length()) throw std::logic_error("KV cache: a fork takes whole blocks of the history");
+    Sequence f;
+    f.storage_of_ = src.storage_of_;
+    f.length_.assign(stages_.size(), length);
+    f.kv_.reserve(storages_.size());
+    for (const KVSequence& kv : src.kv_) f.kv_.push_back(kv.fork(length));
+    f.last_ = src.last_;
+    f.owner_ = this;
+    const size_t slot = slots_.acquire_kept();
+    f.kept_ = Checkpoint(slots_, slot, length);
+    f.from_.assign(stages_.size(), slot);
+    try {
+        for (size_t i = 0; i < devices_.size(); ++i) {
+            Device& d = *devices_[i];
+            if (!d.states) continue;
+            if (state.slabs[i].empty()) throw std::logic_error("inference: a host state of another layout");
+            detail::HostSpan span{*d.b, state.slabs[i], kHostSlab, false};
+            span.slot(*d.states, slot);
+            state.tickets[i] = f.last_[i] = d.b->submit();
+        }
+    } catch (...) {
+        // Copies out of the state's slabs may be enqueued past its tickets, so they retire before it can be released.
+        for (auto& d : devices_) d->b->sync();
+        throw;
+    }
+    return f;
 }
 
 // The slabs `h` holds left for the next copy on their devices once every copy into or out of them has retired; the pools' capacity is reserved as slabs are allocated, so this allocates nothing.

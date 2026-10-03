@@ -635,6 +635,142 @@ void hybrid_checkpoints(const gguf::GGUFModel& weights, const bpe::Tokenizer& to
     }
 }
 
+// Message boundaries (docs/SPECULATIVE.md, section 2, Host tier): a hybrid model with three checkpoint slots and a host tier, a conversation of six turns, each a 300-token prompt or 50 more tokens after the ids its last reply's job read, a 100-token reply and two closing ids, read again, so each job's donor supersedes the one before, whose state goes to host memory as it leaves the devices, thinned to four for the conversation, the first kept.
+// A 2000-token request then evicts every donor, the last job's to host memory whole; an edit of turn 2, its prompt the first job's ids with another message, forks the first boundary's tokens with the last job's blocks, promoted from host memory, and a regenerated turn 6 forks the newest boundary's, each giving its reply on a fresh model.
+void message_boundaries(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
+    auto model = make(2048, 0);
+    std::vector<std::vector<uint32_t>> prompts, nexts;
+    Reply edit_reply, regen_reply;
+    std::vector<uint32_t> edit;
+    size_t edit_reused = 0, regen_reused = 0;
+    server::Scheduler::Stats after_long, stats;
+    {
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30);
+        std::thread runner([&] { sched.run(); });
+        try {
+            std::vector<uint32_t> prompt = prompt_of(5, 300, vocab);
+            for (size_t turn = 1; turn <= 6; ++turn) {
+                prompts.push_back(prompt);
+                const auto h = sched.submit(prompt, params_of(Req{prompt, 100}));
+                std::vector<uint32_t> next = prompt;
+                for (uint32_t id : ids_of(drain(*h))) next.push_back(id);
+                next.push_back(1);
+                next.push_back(2);
+                nexts.push_back(next);
+                sched.follow(h, next, true);
+                const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+                while (sched.stats().reprefills < turn) {
+                    require(std::chrono::steady_clock::now() < until, what + ": a reply was not read again in 60 seconds");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+                prompt = next;
+                const std::vector<uint32_t> tail = prompt_of(10 + (int)turn, 50, vocab);
+                prompt.insert(prompt.end(), tail.begin(), tail.end());
+            }
+            const std::vector<uint32_t> long_prompt = prompt_of(9, 2000, vocab);
+            drain(*sched.submit(long_prompt, params_of(Req{long_prompt, 40})));
+            after_long = sched.stats();
+            edit = nexts[0];
+            const std::vector<uint32_t> other = prompt_of(30, 50, vocab);
+            edit.insert(edit.end(), other.begin(), other.end());
+            const auto e = sched.submit(edit, params_of(Req{edit, 32}));
+            edit_reply = drain(*e);
+            edit_reused = e->reused();
+            const auto g = sched.submit(prompts[5], params_of(Req{prompts[5], 32}));
+            regen_reply = drain(*g);
+            regen_reused = g->reused();
+            stats = sched.stats();
+            ledger(stats, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(after_long.boundaries == 4, what + ": " + std::to_string(after_long.boundaries) + " boundaries in host memory, against 4");
+    const size_t first = nexts[0].size() / kBlock * kBlock, newest = nexts[4].size() / kBlock * kBlock;
+    require(edit_reused == first, what + ": the edit of turn 2 reused " + std::to_string(edit_reused) + " tokens, against " + std::to_string(first));
+    require(regen_reused == newest, what + ": the regenerated turn 6 reused " + std::to_string(regen_reused) + " tokens, against " + std::to_string(newest));
+    require(stats.boundary_hits == 2, what + ": " + std::to_string(stats.boundary_hits) + " requests forked a boundary, against 2");
+    auto fresh = make(2048, 0);
+    same(serve(*fresh, tok, 3, {{Req{edit, 32}}})[0], edit_reply, what + ", the edit of turn 2");
+    fresh = make(2048, 0);
+    same(serve(*fresh, tok, 3, {{Req{prompts[5], 32}}})[0], regen_reply, what + ", the regenerated turn 6");
+}
+
+// Message boundaries whose copies fail (the other developer's review): three turns of a conversation, each reply read again, the second message 200 tokens so that its request's checkpoint lies past the first boundary, on a hybrid model with three checkpoint slots and a host tier, then an unrelated request, whose donor takes the place of the first job's, and an edit of turn 2 while the last job's donor is on the devices.
+// Copies to host memory failing keep no boundary and no host copy; copies from host memory failing keep the boundaries, and the edit's fork with the first boundary's state, the blocks the last job's donor's, fails, so it reads its prompt from the start; either way every reply is its reply alone and the ledger adds up.
+void boundary_faults(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool reads) {
+    const std::string what = std::string("message boundaries, copies ") + (reads ? "to" : "from") + " host memory failing";
+    std::shared_ptr<FailingCopies> failing;
+    const Make make = on(weights, [&] {
+        failing = std::make_shared<FailingCopies>();
+        failing->set_threads(1);
+        return std::vector<backend::BackendPtr>{failing};
+    }, 3, 3);
+    auto model = make(2048, 0);
+    failing->fail_read = reads;
+    failing->fail_write = !reads;
+    std::vector<uint32_t> first, edit;
+    Reply edit_reply;
+    size_t edit_reused = 0;
+    server::Scheduler::Stats stats;
+    {
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30);
+        std::thread runner([&] { sched.run(); });
+        try {
+            std::vector<uint32_t> prompt = prompt_of(5, 300, vocab);
+            for (size_t turn = 1; turn <= 3; ++turn) {
+                const auto h = sched.submit(prompt, params_of(Req{prompt, 100}));
+                std::vector<uint32_t> next = prompt;
+                for (uint32_t id : ids_of(drain(*h))) next.push_back(id);
+                next.push_back(1);
+                next.push_back(2);
+                if (turn == 1) first = next;
+                sched.follow(h, next, true);
+                const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+                while (sched.stats().reprefills < turn) {
+                    require(std::chrono::steady_clock::now() < until, what + ": a reply was not read again in 60 seconds");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+                prompt = next;
+                const std::vector<uint32_t> tail = prompt_of(10 + (int)turn, turn == 1 ? 200 : 50, vocab);
+                prompt.insert(prompt.end(), tail.begin(), tail.end());
+            }
+            // An unrelated request's donor takes the place of the oldest superseded one, the first job's.
+            const std::vector<uint32_t> unrelated = prompt_of(40, 300, vocab);
+            drain(*sched.submit(unrelated, params_of(Req{unrelated, 32})));
+            edit = first;
+            const std::vector<uint32_t> other = prompt_of(30, 50, vocab);
+            edit.insert(edit.end(), other.begin(), other.end());
+            const auto g = sched.submit(edit, params_of(Req{edit, 32}));
+            edit_reply = drain(*g);
+            edit_reused = g->reused();
+            stats = sched.stats();
+            ledger(stats, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    if (reads) {
+        require(stats.boundaries == 0 && stats.host_donors == 0 && stats.host_bytes == 0,
+                what + ": " + std::to_string(stats.boundaries) + " boundaries and " + std::to_string(stats.host_donors) + " donors in host memory");
+    } else {
+        require(stats.boundaries == 3 && stats.boundary_hits == 0 && edit_reused == 0,
+                what + ": " + std::to_string(stats.boundaries) + " boundaries, " + std::to_string(stats.boundary_hits) + " forked, the edit reusing " +
+                    std::to_string(edit_reused) + " tokens");
+    }
+    auto fresh = make(2048, 0);
+    failing->fail_read = failing->fail_write = false;
+    same(serve(*fresh, tok, 3, {{Req{edit, 32}}})[0], edit_reply, what + ", the edit of turn 2");
+}
+
 // A reply read again as prompt rows (docs/SPECULATIVE.md, section 2, Idle re-prefill): once a 300-token prompt's reply has ended, the ids its conversation's next turn begins with, the prompt, the reply and two closing ids, go to the scheduler, which reads them on a fork of the request's history and keeps them as a donor at their last whole block; a follow-up turn of those ids and a new message then forks all of that, past the reply, and gives the reply of its prompt on a fresh model.
 // Idle, the reply is 100 tokens and the job reads 128 rows in passes of 16 after it, while nothing else runs; a regenerated reply, the prompt sent again, then forks the request's own donor, which stays beside the job's, at the prompt's 256 tokens and gives the same reply. With `interrupt` k, a request submitted as the job's k-th pass retires, needing four of the pool's eight blocks where the donor and the job leave three at most, cancels the job at that boundary: it gives its reply alone, the job runs again once nothing else does, and the follow-up still forks 384 tokens; with `small`, the request needs one block, which is free, and the job runs on beside it.
 // `writing`, the reply is 400 tokens, and once 100 and 380 are written the next turn's ids as far as they go then reach the scheduler, whose job forks the running request and reads them in chunks beside its decode rows, all 640 tokens the whole ids keep before the reply ends, so the ids once it has ended leave nothing to read; the follow-up forks 640 tokens.
@@ -1419,6 +1555,10 @@ int main(int argc, char** argv) {
             const gguf::GGUFModel mixed = served_hybrid(kHybrid);
             hybrid(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             hybrid_checkpoints(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
+            for (size_t devices = 1; devices <= 2; ++devices)
+                message_boundaries(on(mixed, [devices] { return cpus(devices); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab,
+                                   "message boundaries on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));
+            for (const bool reads : {true, false}) boundary_faults(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, reads);
             for (size_t devices = 1; devices <= 2; ++devices)
                 host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices, 1, HostFault::none,
                           "a hybrid model's donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));

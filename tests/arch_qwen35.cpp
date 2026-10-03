@@ -516,6 +516,77 @@ void host_round_trip() {
     require(model.checkpoints_free() == 1, "a restored history's reset kept its checkpoint slot");
 }
 
+// A state alone copied to host memory (Model::save_host without blocks) at a history's checkpoint at 128, which the history then replaces with one at 200: a fork of the history at 128 with that state (Model::fork with a state) continues the prompt with the bits of the prompt read in one, beside the history's own continuation in one pass.
+// The state takes only its slot's bytes; a fork with a state at another length, with a whole history's copy or with every checkpoint slot held, and a restore of a state alone, are refused and hold nothing.
+void host_state_fork() {
+    const gguf::GGUFModel m = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    std::vector<uint32_t> ids(200);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = (uint32_t)((i * 7 + 3) % VOCAB);
+    const std::vector<uint32_t> head(ids.begin(), ids.begin() + 128), tail(ids.begin() + 128, ids.end());
+    std::vector<uint32_t> more(40);
+    for (size_t i = 0; i < more.size(); ++i) more[i] = (uint32_t)((i * 5 + 1) % VOCAB);
+    infer::ModelOptions options;
+    options.state_slots = 2;
+    options.checkpoint_slots = 2;
+    infer::Model fresh(w, backend::make_cpu_backend(), options);
+    const std::vector<float> want = fresh.prefill(ids);
+    std::vector<uint32_t> longer = ids;
+    longer.insert(longer.end(), more.begin(), more.end());
+    infer::Model model(w, backend::make_cpu_backend(), options);
+    infer::ExecContext ctx;
+    std::vector<float> want_longer;
+    {
+        infer::Sequence b = model.make_sequence();
+        infer::BatchEntry first{&b, ids.data(), ids.size(), false}, second{&b, more.data(), more.size(), true};
+        first.extent = ids.size();
+        second.extent = longer.size();
+        model.forward(ctx, &first, 1);
+        model.forward(ctx, &second, 1);
+        want_longer.assign(ctx.logits(0), ctx.logits(0) + VOCAB);
+        model.reset(b);
+    }
+    infer::Sequence a = model.make_sequence();
+    infer::BatchEntry keep{&a, head.data(), head.size(), false};
+    keep.keep = true;
+    keep.extent = ids.size();
+    model.forward(ctx, &keep, 1);
+    infer::HostHistory st, whole;
+    const size_t any = std::numeric_limits<size_t>::max();
+    model.save_host(a, 128, st, any, false);
+    model.save_host(a, 128, whole, any);
+    require(!st.blocks && st.length == 128 && st.held == model.host_bytes(128, false) && st.held <= whole.held && st.bytes < whole.bytes,
+            "a state alone in host memory holds other bytes");
+    infer::BatchEntry rest{&a, tail.data(), tail.size(), false};
+    rest.extent = ids.size();
+    model.forward(ctx, &rest, 1);
+    require(model.keep(a) && model.checkpoint(a) == std::optional<size_t>(200), "the history's state at 200 was not kept");
+    refuses("a fork with a state at another length", "a state alone at its length", [&] { model.fork(a, 0, st); });
+    refuses("a fork with a whole history's copy", "a state alone at its length", [&] { model.fork(a, 128, whole); });
+    refuses("a restore of a state alone", "another layout", [&] { model.restore_host(st); });
+    infer::Sequence other = model.make_sequence();
+    infer::BatchEntry other_keep{&other, head.data(), head.size(), false};
+    other_keep.keep = true;
+    other_keep.extent = ids.size();
+    model.forward(ctx, &other_keep, 1);
+    require(model.checkpoints_free() == 0, "two checkpoints left a slot free");
+    refuses("a fork with a state with every checkpoint slot held", "every checkpoint slot is held", [&] { model.fork(a, 128, st); });
+    model.reset(other);
+    infer::Sequence f = model.fork(a, 128, st);
+    require(model.checkpoint(f) == std::optional<size_t>(128) && f.length() == 128, "a fork with a state's checkpoint");
+    infer::BatchEntry both[] = {{&f, tail.data(), tail.size(), true}, {&a, more.data(), more.size(), true}};
+    both[0].extent = ids.size();
+    both[1].extent = longer.size();
+    model.forward(ctx, both, 2);
+    require(!std::memcmp(ctx.logits(0), want.data(), VOCAB * sizeof(float)), "a fork with a state from host memory differs from the prompt in one");
+    require(!std::memcmp(ctx.logits(1), want_longer.data(), VOCAB * sizeof(float)), "the history beside its fork with a state differs from its prompt in one");
+    model.release_host(st);
+    model.release_host(whole);
+    model.reset(f);
+    model.reset(a);
+    require(model.checkpoints_free() == 2, "a fork with a state kept its checkpoint slot after its reset");
+}
+
 // A device reporting `room` bytes free that keeps copies of what it adopts, so the fit charges it the weights its layers take; its first `rise_after` reads report one byte, as a card still taking back an ended process's memory does.
 // With `device` it says it is not the CPU, as a card does.
 struct Room : backend::CpuBackend {
@@ -1318,6 +1389,7 @@ int main() {
         state_rules();
         checkpoints();
         host_round_trip();
+        host_state_fork();
         checkpoint_fit();
         refused_passes_take_no_slot();
         failed_admission_takes_no_slot();

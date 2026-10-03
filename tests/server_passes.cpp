@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -608,6 +609,16 @@ void rooms_by_hand() {
     require(t.enough && !t.wait, "a capped request in flight held up a plan that does not pause it");
 }
 
+// The host tier's default size: max_seqs histories below half the free memory, half the free memory at and past it, a product that would overflow taken as past it, and none where the free memory is unknown or a history takes nothing.
+void host_cache_by_hand() {
+    require(server::host_cache_default(100, 8, 2000) == 800, "8 histories of 100 bytes below half of 2000 bytes free did not take 800");
+    require(server::host_cache_default(100, 8, 1600) == 800, "8 histories of 100 bytes at half of 1600 bytes free did not take 800");
+    require(server::host_cache_default(100, 8, 1000) == 500, "8 histories of 100 bytes past half of 1000 bytes free did not take 500");
+    require(server::host_cache_default(std::numeric_limits<size_t>::max() / 2, 4, 1000) == 500, "histories whose sum overflows did not take half of the free memory");
+    require(server::host_cache_default(100, 8, std::nullopt) == 0, "an unknown free memory did not take none");
+    require(server::host_cache_default(0, 8, 1000) == 0, "histories of no bytes did not take none");
+}
+
 // The growth rule by hand: admission reserves a capped request's history and what it may still generate and an uncapped one's history and a step, and a step falls due only for an uncapped decoding request whose next position passes its blocks, reaching a step past that position, never past what a pool holds.
 // Then the logits rows a context reserves, one pass's alone and twice that once passes overlap, and the decode share, the decoding requests over the passes rounded up once the passes fill the stages.
 void growth_by_hand() {
@@ -732,6 +743,7 @@ int main(int argc, char** argv) {
     try {
         const size_t schedules = argc > 1 ? (size_t)std::stoul(argv[1]) : 2000;
         rooms_by_hand();
+        host_cache_by_hand();
         growth_by_hand();
         rounds_by_hand();
         rows_by_hand();

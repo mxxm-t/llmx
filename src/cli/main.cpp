@@ -978,7 +978,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
     c.dtype = loaded->dtype;
     // Read once the model and its caches are in memory, so the default takes what they leave.
-    if (!c.host_cache_bytes) c.host_cache_bytes = server::default_host_cache(model);
+    if (!c.host_cache_bytes) c.host_cache_bytes = server::default_host_cache(model, c.max_seqs);
     http::Listener listener(c.host, c.port);
     // A split's plan, what each device was given, so a lopsided placement shows in the log.
     std::cerr << loaded->plan;
@@ -1099,7 +1099,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --max-queue N           Queued request limit, paused requests not counted (default: " << cfg.max_queue << ")\n"
             << "  --passes N              Passes in flight; above 1 needs a layer split (default: its stages, else 1)\n"
             << "  --state-checkpoints N   States a recurrent model keeps for prefix reuse (default: fitted, up to --max-seqs)\n"
-            << "  --host-cache-bytes N    Host memory for prefixes the devices evict; 0 keeps none (default: a quarter of free host memory once the model is loaded, none with every cache on the CPU)\n"
+            << "  --host-cache-bytes N    Host memory for prefixes the devices evict; 0 keeps none (default: --max-seqs histories as long as a request may hold, within half of free host memory once the model is loaded, none with every cache on the CPU)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
             << "  --ctx-size N, -c        Most KV tokens in total, fitted to the devices at load (default: model context)\n";
         model_options(false);

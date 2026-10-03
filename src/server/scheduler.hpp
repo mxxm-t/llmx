@@ -26,9 +26,12 @@
 
 namespace server {
 
-// The host memory for donors the devices evict when the server is given none (--host-cache-bytes): a quarter of what the host has free once the model is loaded, or none where every cache sits on the CPU, whose copies would only move host memory into more of it.
-inline size_t default_host_cache(const infer::Model& model) {
-    return model.caches_on_devices() ? core::host_memory_available().value_or(0) / 4 : 0;
+// The host memory for donors the devices evict when the server is given none (--host-cache-bytes): what `max_seqs` conversations take at the most one request may hold, the model context or the KV pool, whichever is smaller, within half of what the host has free once the model is loaded (host_cache_default); none where every cache sits on the CPU, whose copies would only move host memory into more of it.
+// Each copy still leaves the host the reserve the fit keeps (Model::save_host).
+inline size_t default_host_cache(const infer::Model& model, size_t max_seqs) {
+    if (!model.caches_on_devices()) return 0;
+    const size_t bt = model.kv_block_tokens(), limit = std::min((size_t)model.context_length(), model.kv_tokens_total()) / bt * bt;
+    return host_cache_default(model.host_bytes(limit), max_seqs, core::host_memory_available());
 }
 
 // A request's sampling settings, with the defaults and ranges of infer::Sampling, and what only a request has: several stop texts and no cap.
@@ -193,6 +196,7 @@ private:
     size_t recomputed_ = 0;        // rows its resumes computed again
     size_t keep_at_ = 0;           // on a model that keeps a state, where the slice that reaches it keeps the state as a checkpoint; 0 once kept or skipped
     bool finished_ = false;        // it has left the active set for good
+    uint64_t parked_ = 0;          // the donor it left as it finished
     // A job (docs/SPECULATIVE.md, section 2, Idle re-prefill): an internal request whose prompt, whole blocks, is what the conversation's next turn begins with after request `of_`'s reply, read as prompt rows of one class and kept as a donor that replaces the ones it supersedes; `whole_` once those ids follow the whole reply rather than the part written so far.
     bool job_ = false, whole_ = false;
     bool writing_ = false;         // a job begun while its reply was written, which keeps taking a busy pass's leftover budget once the reply has ended
@@ -945,6 +949,8 @@ private:
         infer::Sequence seq;
         std::vector<size_t> blocks;   // per cache pool
         uint64_t on_host = 0;         // the host donor holding the same history, which it was promoted from
+        bool superseded = false;      // a job's donor holds what its conversation's next turn needs, so this one is kept only while room allows, as a regenerate's
+        bool back = false;            // its conversation came back: the request it holds, or the one a job read the reply of, forked a history a tier kept
     };
 
     // A resumed request's own donor, the one its pause left, when nothing has evicted it; donors_.size() when there is none.
@@ -1026,6 +1032,8 @@ private:
         std::vector<uint32_t> tokens;
         std::vector<RowClass> classes;
         infer::HostHistory history;
+        bool superseded = false;   // as Donor::superseded
+        bool back = false;         // as Donor::back
     };
 
     // The host donor sharing the most whole blocks with r's history, by best_donor's rule; host_.size() when none shares a block.
@@ -1040,11 +1048,11 @@ private:
         return best;
     }
 
-    // Donor d's history copied to host memory as it leaves the devices, the copies enqueued on the devices' streams and not waited for, its whole blocks up to its checkpoint on a model that keeps a state, where the tier's cap and the host's free memory allow, the oldest host donors going first; a copy that fails keeps nothing.
+    // Donor d's history copied to host memory as it leaves the devices, the copies enqueued on the devices' streams and not waited for, its whole blocks up to its checkpoint on a model that keeps a state, where the tier's cap and the host's free memory allow, superseded host donors and then the oldest going first, but for a donor whose conversation did not come back (below); a superseded donor is not copied, and a copy that fails keeps nothing.
     // A donor promoted from host memory whose entry is still there, or one whose history an entry already holds, only renews that entry's age.
     // Under the lock.
     void write_back(Donor& d) {
-        if (!host_cap_) return;
+        if (!host_cap_ || d.superseded) return;
         const size_t bt = model_.kv_block_tokens();
         size_t n = std::min(d.seq.length(), d.tokens.size()) / bt * bt;
         if (model_.keeps_state()) {
@@ -1057,15 +1065,35 @@ private:
             const bool same = h.history.length == n && std::equal(h.tokens.begin(), h.tokens.end(), d.tokens.begin()) &&
                               alike(h.classes, d.classes, n) == n;
             if ((d.on_host && h.id == d.on_host) || same) {
+                // The entry now stands for this donor, which is not superseded, so it takes the donor's standing too.
+                host_[i].superseded = false;
+                host_[i].back = host_[i].back || d.back;
+                host_refused_ = 0;
                 std::rotate(host_.begin() + (std::ptrdiff_t)i, host_.begin() + (std::ptrdiff_t)i + 1, host_.end());
                 return;
             }
         }
         const size_t bytes = model_.host_bytes(n);
         if (bytes > host_cap_) return;
+        // A donor whose conversation did not come back takes free room and that of superseded entries and of entries whose conversations did not come back either, the oldest first, and the room of the others only once the tier has refused as many such donors in a row as it holds entries.
+        // So users taking turns over more conversations than the tier holds keep hitting the ones it holds, where evicting the oldest would evict each time the one needed next, and conversations that stopped coming back still leave.
+        if (!d.back) {
+            size_t room = host_cap_ - std::min(host_cap_, host_held_);
+            for (const HostDonor& h : host_)
+                if (h.superseded || !h.back) room += h.history.held;
+            if (room < bytes && host_refused_ < host_.size()) {
+                ++host_refused_;
+                return;
+            }
+            for (size_t i = 0; i < host_.size() && host_held_ + bytes > host_cap_;) {
+                if (host_[i].superseded || !host_[i].back) drop_host(i);
+                else ++i;
+            }
+        }
         while (!host_.empty() && host_held_ + bytes > host_cap_) drop_host(0);
         HostDonor h;
         h.id = d.id ? d.id : ++donor_ids_;
+        h.back = d.back;
         h.tokens.assign(d.tokens.begin(), d.tokens.begin() + (std::ptrdiff_t)n);
         h.classes = clip(d.classes, n);
         const Clock::time_point start = Clock::now();
@@ -1080,6 +1108,7 @@ private:
         std::fprintf(stderr, "server: a donor of %zu tokens kept in host memory, %.1f MiB, its copy enqueued in %.1f ms\n", n, (double)h.history.bytes / (1 << 20),
                      ms_since(start));
         host_.push_back(std::move(h));
+        host_refused_ = 0;
     }
 
     // Host donor i out of host memory.
@@ -1095,6 +1124,8 @@ private:
     // Under the lock.
     bool promote(size_t i) {
         const uint64_t id = host_[i].id;
+        // Its conversation came back, so the room this promotion makes does not take the entry for a donor whose conversation did not (write_back).
+        host_[i].back = true;
         std::rotate(host_.begin() + (std::ptrdiff_t)i, host_.begin() + (std::ptrdiff_t)i + 1, host_.end());
         const auto entry = [&]() -> HostDonor* {
             for (HostDonor& h : host_)
@@ -1121,6 +1152,7 @@ private:
         }
         d.id = ++donor_ids_;
         d.on_host = h->id;
+        d.back = h->back;
         d.tokens = h->tokens;
         d.classes = h->classes;
         d.blocks = std::move(need);
@@ -1239,7 +1271,7 @@ private:
             r->seq_ = infer::Sequence{};
             active_count_.store(requests(active));
         } else {
-            park(active, i, history(*r));
+            r->parked_ = park(active, i, history(*r));
         }
         r->end(why, err);
         const Request::Timings t = r->timings();
@@ -1267,9 +1299,20 @@ private:
         uint64_t id = 0;
         if (held && held >= (least ? least : model_.kv_block_tokens())) {
             std::lock_guard<std::mutex> lk(m_);
-            while (donors_.size() >= max_seqs_) drop_donor(0, true);
+            // The donor count gives up a superseded donor first, or one a job's donor supersedes, which it marks so, so a job's donor never evicts an unrelated conversation's while its own conversation's older copies stay.
+            while (donors_.size() >= max_seqs_) {
+                size_t v = 0;
+                for (size_t d = 0; d < donors_.size(); ++d)
+                    if (donors_[d].superseded || (r->job_ && supersedes(*r, donors_[d].id, donors_[d].tokens))) {
+                        donors_[d].superseded = true;
+                        v = d;
+                        break;
+                    }
+                drop_donor(v, true);
+            }
             Donor d;
             d.id = id = ++donor_ids_;
+            d.back = (r->job_ ? r->of_.get() : r.get())->reused() > 0;
             d.tokens.assign(h.begin(), h.begin() + (std::ptrdiff_t)std::min(h.size(), held));
             d.classes = clip(r->classes_, held);
             d.seq = std::move(r->seq_);
@@ -1406,7 +1449,7 @@ private:
     }
 
     // On a model that keeps a state, each job between passes keeps its state where it has read to a whole block (Model::keep, its live slot becoming the checkpoint's, in the slot of the one it replaces or else one checkpoint_room finds), so a follow-up turn that arrives before it completes forks what it has read.
-    // Each job that has read the whole of its ids, kept where a model that keeps a state needs it, becomes a donor beside the one it forked, which a regenerated reply still forks at its earlier checkpoint; both go by donor age (make_room) as room is needed.
+    // Each job that has read the whole of its ids, kept where a model that keeps a state needs it, becomes a donor beside the one it forked, which a regenerated reply still forks at its earlier checkpoint while room allows (supersede).
     void complete_jobs(std::vector<std::shared_ptr<Request>>& active) {
         for (size_t i = 0; i < active.size();) {
             auto j = active[i];
@@ -1433,8 +1476,28 @@ private:
             const uint64_t id = park(active, i, j->prompt_);
             j->finished_ = true;
             std::lock_guard<std::mutex> lk(m_);
-            if (id) ++reprefills_;
+            if (!id) continue;
+            ++reprefills_;
+            supersede(*j, id);
         }
+    }
+
+    // Job j's donor `kept` supersedes the other donors of its conversation, in the device tier and the host tier alike: the one it forked, the request's it reads the reply of and every one whose tokens its own begin with, such as the job's of the turn before.
+    // Each goes to the front of its tier, oldest first among them, so it is the first to go when room is needed, and a superseded donor the devices evict is not copied to host memory, so one conversation never holds two full copies competing for the same room; it stays while room allows, as a regenerated reply's.
+    // Under the lock.
+    void supersede(const Request& j, uint64_t kept) {
+        for (Donor& d : donors_)
+            if (d.id != kept && supersedes(j, d.id, d.tokens)) d.superseded = true;
+        for (HostDonor& h : host_)
+            if (h.id != kept && supersedes(j, h.id, h.tokens)) h.superseded = true;
+        std::stable_partition(donors_.begin(), donors_.end(), [](const Donor& d) { return d.superseded; });
+        std::stable_partition(host_.begin(), host_.end(), [](const HostDonor& h) { return h.superseded; });
+    }
+
+    // Whether job j's donor supersedes the donor or host donor `id` holding `tokens` (supersede).
+    static bool supersedes(const Request& j, uint64_t id, const std::vector<uint32_t>& tokens) {
+        return (id && (id == j.source_ || id == j.of_->parked_)) ||
+               (tokens.size() <= j.prompt_.size() && std::equal(tokens.begin(), tokens.end(), j.prompt_.begin()));
     }
 
     // reset waits for the last pass that touched the sequence, so its blocks return to the pool only once the device is done with them.
@@ -1480,6 +1543,7 @@ private:
     std::deque<Donor> donors_;
     std::deque<HostDonor> host_;                  // under the lock, oldest first
     size_t host_held_ = 0, host_hits_ = 0, host_moved_ = 0;   // under the lock
+    size_t host_refused_ = 0;             // donors write_back refused in a row for want of room the tier keeps for conversations that came back, under the lock
     std::vector<Follow> follows_;                 // under the lock, the ids given since the last round
     std::deque<std::shared_ptr<Request>> jobs_;   // under the lock, jobs waiting for a seat, oldest first
     size_t steady_from_ = 0;                      // the least extent from which rows are one class up to the limit

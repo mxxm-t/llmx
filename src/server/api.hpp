@@ -697,7 +697,7 @@ private:
 // Serve until the listener is closed: the scheduler on its own thread, the accept loop here, one detached thread per connection.
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format,
                   const Config& cfg, http::Listener& listener) {
-    Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing, cfg.host_cache_bytes.value_or(default_host_cache(model)));
+    Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing, cfg.host_cache_bytes.value_or(default_host_cache(model, cfg.max_seqs)));
     const Scheduler::Stats started = sched.stats();
     std::fprintf(stderr, "server: up to %zu pass%s in flight over %zu stage%s, %zu sampling thread%s beside the scheduler's\n", started.passes,
                  started.passes == 1 ? "" : "es", model.stage_count(), model.stage_count() == 1 ? "" : "s", started.samplers,

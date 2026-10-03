@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <optional>
 #include <utility>
 #include <vector>
 #include "backends/backend.hpp"
@@ -109,6 +110,13 @@ inline Taken make_room(const std::vector<size_t>& pool, const std::vector<size_t
     }
     if (!t.enough) return Taken{};
     return t;
+}
+
+// The host tier's default size (Scheduler, --host-cache-bytes): `seqs` histories of `history` bytes, within half of `free`, the host memory free once the model is loaded; none where that is unknown.
+inline size_t host_cache_default(size_t history, size_t seqs, std::optional<size_t> free) {
+    if (!free) return 0;
+    const size_t cap = *free / 2;
+    return history && seqs > cap / history ? cap : std::min(cap, history * seqs);
 }
 
 // A pass slot as the round sees it: whether a pass is in flight in it, that pass's place in formation order, and the stages recorded.

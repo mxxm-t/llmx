@@ -980,6 +980,300 @@ void host_tier(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32
     }
 }
 
+// A job's donor supersedes the request's donor of the same conversation (one copy per conversation in each tier): on 16 blocks of 128, an unrelated conversation C leaves a 340-token donor (3 blocks), then conversation A's 300-token prompt and 100-token reply leave its request's donor (4 blocks) and, read again, its job's donor of the next turn's 384 tokens (3 blocks).
+// An 800-token request then needs a donor's room: the superseded request donor of A goes, though C is older, and with a host tier it is not copied to host memory, so nothing is held there and a prompt repeating C forks its 256 tokens; A's follow-up then forks its job's 384; every reply is its reply alone.
+void superseded_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    for (const size_t host : {(size_t)0, (size_t)1 << 30}) {
+        const std::string what = std::string("a superseded donor") + (host ? " with a host tier" : "");
+        const Req c{prompt_of(3, 300, vocab), 40}, a{prompt_of(5, 300, vocab), 100}, big{prompt_of(9, 800, vocab), 40};
+        auto model = make(2048, 0);
+        Reply a_reply, c_again_reply, follow_reply;
+        std::vector<uint32_t> next, c_again;
+        size_t c_reused = 0, follow_reused = 0;
+        server::Scheduler::Stats stats;
+        {
+            // Four at once, so the donor count, which max_seqs bounds, evicts nothing here.
+            server::Scheduler sched(*model, tok, 4, 64, 0, false, host);
+            std::thread runner([&] { sched.run(); });
+            try {
+                drain(*sched.submit(c.prompt, params_of(c)));
+                const auto h = sched.submit(a.prompt, params_of(a));
+                a_reply = drain(*h);
+                next = a.prompt;
+                for (uint32_t id : ids_of(a_reply)) next.push_back(id);
+                next.push_back(1);
+                next.push_back(2);
+                sched.follow(h, next, true);
+                const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+                while (sched.stats().reprefills == 0) {
+                    require(std::chrono::steady_clock::now() < until, what + ": the reply was not read again in 60 seconds");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+                drain(*sched.submit(big.prompt, params_of(big)));
+                c_again = c.prompt;
+                const std::vector<uint32_t> more = prompt_of(7, 30, vocab);
+                c_again.insert(c_again.end(), more.begin(), more.end());
+                const auto ca = sched.submit(c_again, params_of(Req{c_again, 32}));
+                c_again_reply = drain(*ca);
+                c_reused = ca->reused();
+                stats = sched.stats();
+                std::vector<uint32_t> follow = next;
+                const std::vector<uint32_t> tail = prompt_of(6, 30, vocab);
+                follow.insert(follow.end(), tail.begin(), tail.end());
+                const auto f = sched.submit(follow, params_of(Req{follow, 32}));
+                follow_reply = drain(*f);
+                follow_reused = f->reused();
+                next = follow;
+                ledger(sched.stats(), *model, what);
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+        }
+        require(c_reused == 2 * kBlock, what + ": the older conversation's repeat reused " + std::to_string(c_reused) + " tokens, against " + std::to_string(2 * kBlock));
+        require(follow_reused == 3 * kBlock, what + ": the follow-up reused " + std::to_string(follow_reused) + " tokens, against " + std::to_string(3 * kBlock));
+        require(stats.host_donors == 0 && stats.host_bytes_moved == 0,
+                what + ": " + std::to_string(stats.host_donors) + " donors in host memory and " + std::to_string(stats.host_bytes_moved) + " bytes moved");
+        auto fresh = make(2048, 0);
+        same(serve(*fresh, tok, 3, {{Req{c_again, 32}}})[0], c_again_reply, what + ", the older conversation's repeat");
+        fresh = make(2048, 0);
+        same(serve(*fresh, tok, 3, {{Req{next, 32}}})[0], follow_reply, what + ", the follow-up");
+    }
+}
+
+// One copy per conversation in host memory: conversation A takes two turns, each reply read again, so its second job's donor supersedes its second request's donor and, its tokens beginning with them, the first job's donor, beside an unrelated conversation C.
+// A request needing the whole pool of 16 blocks then evicts every donor: host memory keeps C's and A's second job's alone, so a prompt repeating C forks its 256 tokens and A's third turn forks the 384 of its second job's, both from host memory, every reply its reply alone.
+void one_copy_per_conversation(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "one copy per conversation in host memory";
+    const Req c{prompt_of(3, 300, vocab), 40}, a{prompt_of(5, 300, vocab), 40}, big{prompt_of(9, 2000, vocab), 40};
+    auto model = make(2048, 0);
+    std::vector<uint32_t> next, c_again;
+    Reply c_again_reply, third_reply;
+    size_t c_reused = 0, third_reused = 0, kept = 0;
+    {
+        server::Scheduler sched(*model, tok, 4, 64, 0, false, (size_t)1 << 30);
+        std::thread runner([&] { sched.run(); });
+        try {
+            drain(*sched.submit(c.prompt, params_of(c)));
+            next = a.prompt;
+            for (size_t turn = 1; turn <= 2; ++turn) {
+                const auto h = sched.submit(next, params_of(Req{next, 40}));
+                for (uint32_t id : ids_of(drain(*h))) next.push_back(id);
+                next.push_back(1);
+                next.push_back(2);
+                sched.follow(h, next, true);
+                const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+                while (sched.stats().reprefills < turn) {
+                    require(std::chrono::steady_clock::now() < until, what + ": a reply was not read again in 60 seconds");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+                if (turn == 1) {
+                    const std::vector<uint32_t> tail = prompt_of(6, 30, vocab);
+                    next.insert(next.end(), tail.begin(), tail.end());
+                }
+            }
+            drain(*sched.submit(big.prompt, params_of(big)));
+            kept = sched.stats().host_donors;
+            c_again = c.prompt;
+            const std::vector<uint32_t> more = prompt_of(7, 30, vocab);
+            c_again.insert(c_again.end(), more.begin(), more.end());
+            const auto ca = sched.submit(c_again, params_of(Req{c_again, 32}));
+            c_again_reply = drain(*ca);
+            c_reused = ca->reused();
+            const std::vector<uint32_t> tail = prompt_of(8, 30, vocab);
+            next.insert(next.end(), tail.begin(), tail.end());
+            const auto t = sched.submit(next, params_of(Req{next, 32}));
+            third_reply = drain(*t);
+            third_reused = t->reused();
+            ledger(sched.stats(), *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(kept == 2, what + ": " + std::to_string(kept) + " donors in host memory once every donor was evicted, against 2");
+    require(c_reused == 2 * kBlock, what + ": the older conversation's repeat reused " + std::to_string(c_reused) + " tokens, against " + std::to_string(2 * kBlock));
+    require(third_reused == 3 * kBlock, what + ": the third turn reused " + std::to_string(third_reused) + " tokens, against " + std::to_string(3 * kBlock));
+    auto fresh = make(2048, 0);
+    same(serve(*fresh, tok, 3, {{Req{c_again, 32}}})[0], c_again_reply, what + ", the older conversation's repeat");
+    fresh = make(2048, 0);
+    same(serve(*fresh, tok, 3, {{Req{next, 32}}})[0], third_reply, what + ", the third turn");
+}
+
+// Host memory keeps the conversations that came back against newcomers (Scheduler::write_back): one request at a time, so each finished request's donor evicts the one before it, and each host copy takes one 64 MiB slab.
+// X's 300-token prompt, then X' repeating it with 200 more tokens, which forks X and so came back; then three new prompts Y, Z and W, each evicting the donor before it to host memory.
+// With room for two copies, Y's copy takes X's room and Z's and W's take the room of the newcomer before them, so a prompt repeating X' with 30 more tokens forks the 384 tokens of its prompt from host memory, where evicting the oldest would have dropped it; with room for one, Y's copy is refused, the one after it, the tier having refused as many as it holds, evicts X', and a prompt repeating Z forks its 256 tokens while one repeating X' forks nothing.
+// Every reply is its reply alone.
+void conversations_that_came_back(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    for (const size_t slabs : {(size_t)2, (size_t)1}) {
+        const std::string what = "host memory for " + std::to_string(slabs) + " cop" + (slabs == 1 ? "y" : "ies") + " keeping conversations that came back";
+        const std::vector<uint32_t> x = prompt_of(5, 300, vocab), y = prompt_of(3, 300, vocab), z = prompt_of(9, 300, vocab), w = prompt_of(11, 300, vocab);
+        std::vector<uint32_t> x1 = x;
+        const std::vector<uint32_t> t1 = prompt_of(6, 200, vocab);
+        x1.insert(x1.end(), t1.begin(), t1.end());
+        std::vector<uint32_t> x2 = x1, z1 = z;
+        const std::vector<uint32_t> t2 = prompt_of(7, 30, vocab);
+        x2.insert(x2.end(), t2.begin(), t2.end());
+        z1.insert(z1.end(), t2.begin(), t2.end());
+        const std::vector<std::vector<uint32_t>> order = slabs == 2 ? std::vector<std::vector<uint32_t>>{x, x1, y, z, w, x2} : std::vector<std::vector<uint32_t>>{x, x1, y, z, w, z1, x2};
+        auto model = make(2048, 0);
+        std::vector<Reply> replies;
+        std::vector<size_t> reused;
+        {
+            server::Scheduler sched(*model, tok, 1, 64, 0, false, slabs * ((size_t)64 << 20));
+            std::thread runner([&] { sched.run(); });
+            try {
+                for (const auto& p : order) {
+                    const auto h = sched.submit(p, params_of(Req{p, 20}));
+                    replies.push_back(drain(*h));
+                    reused.push_back(h->reused());
+                }
+                ledger(sched.stats(), *model, what);
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+        }
+        const std::vector<size_t> want = slabs == 2 ? std::vector<size_t>{0, 2 * kBlock, 0, 0, 0, 3 * kBlock} : std::vector<size_t>{0, 2 * kBlock, 0, 0, 0, 2 * kBlock, 0};
+        for (size_t i = 0; i < order.size(); ++i) {
+            require(reused[i] == want[i], what + ": request " + std::to_string(i) + " reused " + std::to_string(reused[i]) + " tokens, against " + std::to_string(want[i]));
+            auto fresh = make(2048, 0);
+            same(serve(*fresh, tok, 1, {{Req{order[i], 20}}})[0], replies[i], what + ", request " + std::to_string(i));
+        }
+    }
+}
+
+// The donor count gives up the donors a job's donor supersedes (the other developer's review): with two at most, an unrelated conversation C's donor and conversation A's request's, A's job completing gives up A's request's donor, not C's, so a prompt repeating C forks its 256 tokens and A's follow-up the job's 384; with a host tier nothing has been copied to host memory once the job has completed.
+void count_gives_up_superseded(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    for (const size_t host : {(size_t)0, (size_t)1 << 30}) {
+        const std::string what = std::string("the donor count giving up a superseded donor") + (host ? " with a host tier" : "");
+        const Req c{prompt_of(3, 300, vocab), 40}, a{prompt_of(5, 300, vocab), 100};
+        auto model = make(2048, 0);
+        std::vector<uint32_t> next, c_again, follow;
+        Reply c_again_reply, follow_reply;
+        size_t c_reused = 0, follow_reused = 0;
+        server::Scheduler::Stats stats;
+        {
+            server::Scheduler sched(*model, tok, 2, 64, 0, false, host);
+            std::thread runner([&] { sched.run(); });
+            try {
+                drain(*sched.submit(c.prompt, params_of(c)));
+                const auto h = sched.submit(a.prompt, params_of(a));
+                next = a.prompt;
+                for (uint32_t id : ids_of(drain(*h))) next.push_back(id);
+                next.push_back(1);
+                next.push_back(2);
+                sched.follow(h, next, true);
+                const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+                while (sched.stats().reprefills == 0) {
+                    require(std::chrono::steady_clock::now() < until, what + ": the reply was not read again in 60 seconds");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+                stats = sched.stats();
+                c_again = c.prompt;
+                const std::vector<uint32_t> more = prompt_of(7, 30, vocab);
+                c_again.insert(c_again.end(), more.begin(), more.end());
+                const auto ca = sched.submit(c_again, params_of(Req{c_again, 32}));
+                c_again_reply = drain(*ca);
+                c_reused = ca->reused();
+                follow = next;
+                const std::vector<uint32_t> tail = prompt_of(6, 30, vocab);
+                follow.insert(follow.end(), tail.begin(), tail.end());
+                const auto f = sched.submit(follow, params_of(Req{follow, 32}));
+                follow_reply = drain(*f);
+                follow_reused = f->reused();
+                ledger(sched.stats(), *model, what);
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+        }
+        require(stats.host_donors == 0 && stats.host_bytes_moved == 0,
+                what + ": " + std::to_string(stats.host_donors) + " donors in host memory and " + std::to_string(stats.host_bytes_moved) + " bytes moved once the job completed");
+        require(c_reused == 2 * kBlock, what + ": the older conversation's repeat reused " + std::to_string(c_reused) + " tokens, against " + std::to_string(2 * kBlock));
+        require(follow_reused == 3 * kBlock, what + ": the follow-up reused " + std::to_string(follow_reused) + " tokens, against " + std::to_string(3 * kBlock));
+        auto fresh = make(2048, 0);
+        same(serve(*fresh, tok, 3, {{Req{c_again, 32}}})[0], c_again_reply, what + ", the older conversation's repeat");
+        fresh = make(2048, 0);
+        same(serve(*fresh, tok, 3, {{Req{follow, 32}}})[0], follow_reply, what + ", the follow-up");
+    }
+}
+
+// A host copy that a job's donor of the same history renews stands for that donor again (the other developer's review): conversation A's turn, read again, leaves a job donor J1 that a 2000-token request evicts to host memory; the reply regenerated promotes J1, gives the same reply, and its job, of the same ids, supersedes J1's copy; a second long request evicts the new job's donor, which renews J1's copy, and two more each evict the long donor before them, so host memory for two copies is pressed twice.
+// The renewed copy is not taken as superseded, so A's follow-up forks its 384 tokens from host memory; every reply is its reply alone.
+void renewed_copy_current(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a renewed host copy standing for its donor";
+    const Req a{prompt_of(5, 300, vocab), 100};
+    auto model = make(2048, 0);
+    std::vector<uint32_t> next, follow;
+    Reply a_reply, regen_reply, follow_reply;
+    size_t regen_reused = 0, follow_reused = 0;
+    {
+        server::Scheduler sched(*model, tok, 4, 64, 0, false, (size_t)2 << 26);
+        std::thread runner([&] { sched.run(); });
+        const auto read_again = [&](size_t n) {
+            const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+            while (sched.stats().reprefills < n) {
+                require(std::chrono::steady_clock::now() < until, what + ": a reply was not read again in 60 seconds");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        };
+        const auto long_request = [&](int seed) {
+            const std::vector<uint32_t> p = prompt_of(seed, 2000, vocab);
+            drain(*sched.submit(p, params_of(Req{p, 40})));
+        };
+        try {
+            const auto h = sched.submit(a.prompt, params_of(a));
+            a_reply = drain(*h);
+            next = a.prompt;
+            for (uint32_t id : ids_of(a_reply)) next.push_back(id);
+            next.push_back(1);
+            next.push_back(2);
+            sched.follow(h, next, true);
+            read_again(1);
+            long_request(9);
+            const auto g = sched.submit(a.prompt, params_of(a));
+            regen_reply = drain(*g);
+            regen_reused = g->reused();
+            sched.follow(g, next, true);
+            read_again(2);
+            long_request(10);
+            long_request(11);
+            long_request(12);
+            follow = next;
+            const std::vector<uint32_t> tail = prompt_of(6, 30, vocab);
+            follow.insert(follow.end(), tail.begin(), tail.end());
+            const auto f = sched.submit(follow, params_of(Req{follow, 32}));
+            follow_reply = drain(*f);
+            follow_reused = f->reused();
+            ledger(sched.stats(), *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    same(regen_reply, a_reply, what + ", the regenerated reply against the first");
+    require(regen_reused == 2 * kBlock, what + ": the regenerated reply reused " + std::to_string(regen_reused) + " tokens, against " + std::to_string(2 * kBlock));
+    require(follow_reused == 3 * kBlock, what + ": the follow-up reused " + std::to_string(follow_reused) + " tokens, against " + std::to_string(3 * kBlock));
+    auto fresh = make(2048, 0);
+    same(serve(*fresh, tok, 3, {{Req{follow, 32}}})[0], follow_reply, what + ", the follow-up");
+}
+
 // A promotion that fails after evicting the device donor a request would otherwise fork (XDEV's review of step 2b): with one request at a time and host memory for one copy, a 300-token prompt's donor goes to host memory when a second request forks its first block; a third request repeating the first prompt prefers the host copy, but making room for it evicts the second's donor, whose copy takes the host memory the first copy held, so the promotion fails, and the request runs from what is left with its reply alone.
 void failed_promotion(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const Req a{prompt_of(5, 300, vocab), 40};
@@ -1138,6 +1432,11 @@ int main(int argc, char** argv) {
             host_tier(weights, tok, vocab, 1, 0, HostFault::write_back, "donors in host memory, a write-back failing");
             host_tier(weights, tok, vocab, 1, 0, HostFault::promotion, "donors in host memory, a promotion failing");
             failed_promotion(one, tok, vocab);
+            superseded_donor(one, tok, vocab);
+            one_copy_per_conversation(one, tok, vocab);
+            conversations_that_came_back(one, tok, vocab);
+            count_gives_up_superseded(one, tok, vocab);
+            renewed_copy_current(one, tok, vocab);
             for (const When w : {When::idle, When::writing, When::at_once}) {
                 const std::string when = w == When::writing ? " while it is written" : w == When::at_once ? " and answered at once" : "";
                 reprefilled(one, tok, vocab, 0, w, "a reply read again" + when);

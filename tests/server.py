@@ -1113,7 +1113,7 @@ def check_uncapped(model):
             status, reply = srv.post("/v1/completions", body(p), timeout=600)
             assert status == 200, reply
             alone[p] = reply["choices"][0]
-        before = srv.get("/v1/health")["pauses"]
+        before = srv.get("/v1/health")
         results = {}
         def worker(p):
             results[p] = srv.post("/v1/completions", body(p), timeout=600)
@@ -1128,9 +1128,10 @@ def check_uncapped(model):
             assert reply["usage"]["total_tokens"] <= 1024, (p, reply)
             same_choice(alone[p], reply["choices"][0], "an uncapped request paused beside others, %r" % p)
         health = srv.get("/v1/health")
-        assert health["active"] == 0 and health["pauses"] > before, health
-        # Nothing waits paused once every request has ended, and the resumes took their donors back or recomputed what their caches lacked.
-        assert health["paused"] == 0 and (health["recomputed"] > 0 or health["taken_back"] > 0), health
+        assert health["active"] == 0 and health["queued"] == 0 and health["paused"] == 0, health
+        assert health["pauses"] > before["pauses"], (before, health)
+        # Resumes take device donors back, promote host donors or recompute missing rows; count only this concurrent group.
+        assert any(health[key] > before[key] for key in ("recomputed", "taken_back", "host_hits")), (before, health)
     finally:
         srv.close()
 

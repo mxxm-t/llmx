@@ -8,6 +8,7 @@ import common
 import f32
 import moe
 import mxfp4
+import iq4_nl
 import qwen35
 
 
@@ -114,10 +115,11 @@ def run(require=False):
                   for name, tied in (("tied", True), ("untied", False))]
         models.append((f32.write_model(os.path.join(directory, "tiny-moe.gguf"), moe.tensors(), config=moe.CONFIG, arch="qwen3moe"),
                        ["cpu,cpu", "cpu,cpu,cpu"]))
-        for name, tied, routed in mxfp4.VARIANTS:
-            config, weights, packed = mxfp4.fixture(tied, routed)
-            model = mxfp4.write_fixture(os.path.join(directory, "tiny-mxfp4-" + name + ".gguf"), config, weights, packed, routed)
-            models.append((model, ["cpu,cpu"]))
+        for family, module in (("mxfp4", mxfp4), ("iq4-nl", iq4_nl)):
+            for name, tied, routed in module.VARIANTS:
+                config, weights, packed = module.fixture(tied, routed)
+                model = module.write_fixture(os.path.join(directory, "tiny-" + family + "-" + name + ".gguf"), config, weights, packed, routed)
+                models.append((model, ["cpu,cpu"]))
         models += [(qwen35.write_fixture(directory, spec), ["cpu,cpu", "cpu,cpu,cpu,cpu"]) for spec in qwen35.FIXTURES if not spec["mtp"]]
         for model, splits in models:
             for split in splits:
@@ -137,7 +139,7 @@ def run(require=False):
                     assert forked == 2, "split: %d recomputes from a fork on the Q8_0 model's %d-token history, against 2" % (forked, length + steps)
                     assert verifies or steps < 17, "split: no rounds of verifies after %d decode steps" % steps
                     runs += 1
-    print("split: %d runs of the tiny F32 (tied, untied), MoE, MXFP4 (dense tied/untied and MoE), qwen35 and Q8_0 models over 2, 3 and 4 CPU backends at ubatch %s with %s caches, "
+    print("split: %d runs of the tiny F32 (tied, untied), MoE, MXFP4 and IQ4_NL (dense tied/untied and MoE), qwen35 and Q8_0 models over 2, 3 and 4 CPU backends at ubatch %s with %s caches, "
           "bit-identical to one, the Q8_0 model's recompute also from a fork at a block and its verifies of drafts  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
     return True
 

@@ -60,6 +60,7 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(default.threads, 6)
         self.assertEqual(generator.parse_args(["tokenizer-qwen35"]).output_dir, generator.OUT_DIR)
         self.assertEqual(generator.parse_args(["qwen35-tiny"]).output_dir, generator.OUT_DIR)
+        self.assertEqual(generator.parse_args(["iq4-nl"]).output_dir, generator.OUT_DIR)
         alternate = ["logits", "--repo", "Qwen/Qwen3-8B", "--revision", "a" * 40]
         invalid = [
             ["typo"], ["logits", "--revision", "main"],
@@ -73,6 +74,7 @@ class ReferenceGenerator(unittest.TestCase):
             ["tokenizer-qwen35", "--repo", "Qwen/Qwen3.5-9B", "--revision", "c" * 40],
             ["tokenizer-qwen35", "--gguf-repo", "a/b", "--gguf-file", "c.gguf"],
             ["qwen35-tiny", "--threads", "2"], ["qwen35-tiny", "--revision", "c" * 40],
+            ["iq4-nl", "--threads", "2"], ["iq4-nl", "--revision", "c" * 40],
             ["file-exact"],
         ]
         with contextlib.redirect_stderr(io.StringIO()):
@@ -87,6 +89,20 @@ class ReferenceGenerator(unittest.TestCase):
             self.assertTrue(Path(selected.output_dir).is_absolute())
             self.assertTrue(Path(selected.output_dir).samefile(directory))
             self.assertEqual(selected.gguf_file, "Qwen3-8B-Q8_0.gguf")
+
+    def test_mxfp4_shared_fixture_preserves_goldens(self):
+        import mxfp4
+
+        for filename, context in (("baseline_mxfp4.json", 16), ("baseline_mxfp4_prompt.json", 128)):
+            with open(Path(__file__).parent / "data" / filename, encoding="utf-8") as f:
+                goldens = json.load(f)
+            self.assertEqual([case["name"] for case in goldens["fixtures"]], [name for name, _, _ in mxfp4.VARIANTS])
+            for (name, tied, moe), golden in zip(mxfp4.VARIANTS, goldens["fixtures"]):
+                with self.subTest(name=name, context=context):
+                    config, weights, packed = mxfp4.fixture(tied, moe, context=context)
+                    self.assertEqual(config, golden["config"])
+                    self.assertEqual(mxfp4.weight_hash(weights), golden["weights_sha256"])
+                    self.assertEqual(mxfp4.packed_hash(packed), golden["packed_sha256"])
 
     def test_file_exact_selection(self):
         with tempfile.TemporaryDirectory(prefix="llmx_reference_file_exact_") as directory:

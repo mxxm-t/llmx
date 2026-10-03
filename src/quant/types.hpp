@@ -18,6 +18,7 @@ constexpr uint32_t GGML_TYPE_Q8_0 = 8;
 constexpr uint32_t GGML_TYPE_Q4_K = 12;
 constexpr uint32_t GGML_TYPE_Q5_K = 13;
 constexpr uint32_t GGML_TYPE_Q6_K = 14;
+constexpr uint32_t GGML_TYPE_IQ4_NL = 20;
 constexpr uint32_t GGML_TYPE_MXFP4 = 39;
 
 constexpr size_t   Q4_0_BLOCK    = 32;   // values per block
@@ -32,6 +33,8 @@ constexpr size_t   Q5_K_BLOCK    = 256;  // K-quant super-block
 constexpr size_t   Q5_K_TYPESIZE = 176;  // Q4_K plus 32 bytes of fifth bits
 constexpr size_t   Q6_K_BLOCK    = 256;  // K-quant super-block
 constexpr size_t   Q6_K_TYPESIZE = 210;  // 128 low + 64 high + 16 scales + f16
+constexpr size_t   IQ4_NL_BLOCK = 32;
+constexpr size_t   IQ4_NL_TYPESIZE = 18; // f16 scale + 32 nonuniform lookup indices
 
 constexpr size_t   MXFP4_BLOCK = 32;
 constexpr size_t   MXFP4_TYPESIZE = 17;   // E8M0 scale + 32 E2M1 nibbles
@@ -54,7 +57,7 @@ inline const StorageType* storage_type(uint32_t id) {
         {"Q4_K", Q4_K_BLOCK, Q4_K_TYPESIZE}, {"Q5_K", Q5_K_BLOCK, Q5_K_TYPESIZE},
         {"Q6_K", Q6_K_BLOCK, Q6_K_TYPESIZE}, {"Q8_K", 256, 292},
         {"IQ2_XXS", 256, 66}, {"IQ2_XS", 256, 74}, {"IQ3_XXS", 256, 98}, {"IQ1_S", 256, 50},
-        {"IQ4_NL", 32, 18}, {"IQ3_S", 256, 110}, {"IQ2_S", 256, 82}, {"IQ4_XS", 256, 136},
+        {"IQ4_NL", IQ4_NL_BLOCK, IQ4_NL_TYPESIZE}, {"IQ3_S", 256, 110}, {"IQ2_S", 256, 82}, {"IQ4_XS", 256, 136},
         {"I8", 1, 1}, {"I16", 1, 2}, {"I32", 1, 4}, {"I64", 1, 8}, {"F64", 1, 8},
         {"IQ1_M", 256, 56}, {"BF16", 1, 2},
         {}, {}, {},

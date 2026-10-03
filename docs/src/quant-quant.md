@@ -21,7 +21,7 @@ Block quantization kernels, in namespace `quant`.
   (de)quantize routines. The registry takes its name and sizes from
   `storage_type`, so it defines no second storage layout.
 - `Registry::instance().get(id)`: the implemented type for a GGML id, or null when llmx has no decoder for it.
-  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `MXFP4` and `F32` on first use and never changes after, so no caller sets it up and any thread may read it.
+  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `IQ4_NL`, `MXFP4` and `F32` on first use and never changes after, so no caller sets it up and any thread may read it.
   `F32` is registered as a block of one value in 4 bytes.
 - `row_bytes(type, nin, rows = 1)` is owned by `types.hpp` and remains available
   through this header. It sizes any known storage layout, including types
@@ -31,6 +31,8 @@ Block quantization kernels, in namespace `quant`.
 K-quant layouts and shared sub-scale decoding live in `k_quants.hpp`. The
 type ids and block sizes the registry names live in `types.hpp`, whose page
 ([quant-types](quant-types.md)) lists what a new type takes.
+
+`dequantize_row_iq4_nl` and `IQ4_NL_VALUES` own IQ4_NL decoding here: each 18-byte block holds a binary16 scale and 32 indices into the signed, nonuniform 16-value table. Low nibbles address values 0..15 and high nibbles values 16..31. The decoded weight is the scale times the table value, with no offset correction. Negative and zero scales retain the format's zero signs. The registry is read-only; the CPU fused row dot uses the same table. `iq4-nl` checks all finite scale/code/position combinations against a separate mathematical oracle, and `roundtrip` checks the CLI decoder against `tests/spec_decode.py`. The Python `iq4-nl` component adds tiny dense/MoE HF checks, and the pinned 0.6B file passes its file-exact CPU check. Original-weight quality and full performance/release qualification remain in STATUS; Vulkan still refuses this type at load.
 
 CPU Q8_0 decode keeps the original F32 inputs through its float dot; Q4_0, Q4_1, Q4_K, Q5_K and Q6_K decode takes the integer dots in `backends/cpu/q8_dots.hpp`.
 Batched prompt rows of Q8_0, Q4_0 and Q4_1 dequantize through these block routines (`docs/src/backends-cpu.md`).

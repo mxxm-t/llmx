@@ -19,6 +19,7 @@ import perplexity
 import f32
 import moe
 import mxfp4
+import iq4_nl
 import qwen35
 import split
 import decode_probe
@@ -102,6 +103,7 @@ def main():
                   ("f32", f32.run),
                   ("moe", moe.run),
                   ("mxfp4", lambda: mxfp4.run(require=args.require_tools)),
+                  ("iq4-nl", iq4_nl.run),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),
                   ("split", lambda: split.run(require=args.require_tools)),
                   ("decode-probe", lambda: decode_probe.run(require=args.require_tools)),

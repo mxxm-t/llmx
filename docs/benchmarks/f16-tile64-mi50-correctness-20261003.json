@@ -1,0 +1,2224 @@
+{
+  "scope": "Focused MI50 F16 tile correctness after the completed speed screen; not a complete release gate.",
+  "tested_heads": {
+    "base": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+    "candidate": "faef505124e795eff8d26e95ee4e9adc130f80ad"
+  },
+  "values_per_arm": 84780288,
+  "failed_path_witness_attempts": [
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\qualification",
+      "report": {
+        "pid": 512146,
+        "started": 1790996784.4611917,
+        "steps": [
+          {
+            "label": "base-tool-build",
+            "command": [
+              "docker",
+              "exec",
+              "--workdir",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+              "llmx-xdev-vulkan-weight-dispatch-20261002",
+              "prlimit",
+              "--core=0:0",
+              "--",
+              "timeout",
+              "--kill-after=10",
+              "600",
+              "cmake",
+              "--build",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build",
+              "--parallel",
+              "4",
+              "--target",
+              "llmx-model-logits"
+            ],
+            "start": 1790996784.6262808,
+            "pid": 512189,
+            "returncode": 0,
+            "end": 1790996814.1045637
+          },
+          {
+            "label": "candidate-tool-build",
+            "command": [
+              "docker",
+              "exec",
+              "--workdir",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+              "llmx-xdev-vulkan-weight-dispatch-20261002",
+              "prlimit",
+              "--core=0:0",
+              "--",
+              "timeout",
+              "--kill-after=10",
+              "600",
+              "cmake",
+              "--build",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build",
+              "--parallel",
+              "4",
+              "--target",
+              "llmx-model-logits"
+            ],
+            "start": 1790996814.1424735,
+            "pid": 513039,
+            "returncode": 0,
+            "end": 1790996843.0203557
+          },
+          {
+            "label": "range-compile",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-xdev-vulkan-weight-dispatch-20261002",
+              "prlimit",
+              "--core=0:0",
+              "--",
+              "timeout",
+              "--kill-after=10",
+              "120",
+              "/usr/bin/c++",
+              "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/generated",
+              "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source/src",
+              "-O3",
+              "-DNDEBUG",
+              "-std=c++17",
+              "-O3",
+              "-mavx2",
+              "-mfma",
+              "-mf16c",
+              "-Wall",
+              "-Wextra",
+              "-Werror=unused-function",
+              "-Werror=unused-variable",
+              "-Werror=unused-but-set-variable",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification/tile-range.cpp",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/libllmx-vulkan.a",
+              "-ldl",
+              "-o",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification/execution/tile-range"
+            ],
+            "start": 1790996843.032972,
+            "pid": 513549,
+            "returncode": 0,
+            "end": 1790996843.8993242
+          },
+          {
+            "label": "range",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-xdev-vulkan-weight-dispatch-20261002",
+              "prlimit",
+              "--core=0:0",
+              "--",
+              "timeout",
+              "--kill-after=10",
+              "300",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification/execution/tile-range"
+            ],
+            "start": 1790996843.9028993,
+            "pid": 513601,
+            "returncode": 1,
+            "end": 1790996844.2683492
+          }
+        ],
+        "passed": false,
+        "preflight": {
+          "container": {
+            "Id": "62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a",
+            "Created": "2026-10-02T14:27:36.95981974Z",
+            "Path": "sleep",
+            "Args": [
+              "infinity"
+            ],
+            "State": {
+              "Status": "running",
+              "Running": true,
+              "Paused": false,
+              "Restarting": false,
+              "OOMKilled": false,
+              "Dead": false,
+              "Pid": 3617039,
+              "ExitCode": 0,
+              "Error": "",
+              "StartedAt": "2026-10-02T17:30:02.253846252Z",
+              "FinishedAt": "2026-10-02T16:27:46.697103095Z"
+            },
+            "Image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+            "ResolvConfPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/resolv.conf",
+            "HostnamePath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/hostname",
+            "HostsPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/hosts",
+            "LogPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a-json.log",
+            "Name": "/llmx-xdev-vulkan-weight-dispatch-20261002",
+            "RestartCount": 0,
+            "Driver": "overlayfs",
+            "Platform": "linux",
+            "MountLabel": "",
+            "ProcessLabel": "",
+            "AppArmorProfile": "docker-default",
+            "ExecIDs": null,
+            "HostConfig": {
+              "Binds": [
+                "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002:/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+                "/zpool1/models:/models:ro",
+                "/zpool1/llmx-xdev-validation/storage-types-20261002/deps:/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps:ro",
+                "/opt/claude-work/llmx-p2-x-mxfp4-cpu:/fixtures:ro"
+              ],
+              "ContainerIDFile": "",
+              "LogConfig": {
+                "Type": "json-file",
+                "Config": {}
+              },
+              "NetworkMode": "none",
+              "PortBindings": {},
+              "RestartPolicy": {
+                "Name": "no",
+                "MaximumRetryCount": 0
+              },
+              "AutoRemove": false,
+              "VolumeDriver": "",
+              "VolumesFrom": null,
+              "ConsoleSize": [
+                0,
+                0
+              ],
+              "CapAdd": null,
+              "CapDrop": null,
+              "CgroupnsMode": "private",
+              "Dns": null,
+              "DnsOptions": [],
+              "DnsSearch": [],
+              "ExtraHosts": null,
+              "GroupAdd": null,
+              "IpcMode": "private",
+              "Cgroup": "",
+              "Links": null,
+              "OomScoreAdj": 0,
+              "PidMode": "",
+              "Privileged": false,
+              "PublishAllPorts": false,
+              "ReadonlyRootfs": false,
+              "SecurityOpt": null,
+              "UTSMode": "",
+              "UsernsMode": "",
+              "ShmSize": 67108864,
+              "Runtime": "runc",
+              "Isolation": "",
+              "CpuShares": 0,
+              "Memory": 34359738368,
+              "NanoCpus": 4000000000,
+              "CgroupParent": "",
+              "BlkioWeight": 0,
+              "BlkioWeightDevice": [],
+              "BlkioDeviceReadBps": [],
+              "BlkioDeviceWriteBps": [],
+              "BlkioDeviceReadIOps": [],
+              "BlkioDeviceWriteIOps": [],
+              "CpuPeriod": 0,
+              "CpuQuota": 0,
+              "CpuRealtimePeriod": 0,
+              "CpuRealtimeRuntime": 0,
+              "CpusetCpus": "0-3",
+              "CpusetMems": "",
+              "Devices": [
+                {
+                  "PathOnHost": "/dev/dri/renderD136",
+                  "PathInContainer": "/dev/dri/renderD136",
+                  "CgroupPermissions": "rwm"
+                }
+              ],
+              "DeviceCgroupRules": null,
+              "DeviceRequests": null,
+              "MemoryReservation": 0,
+              "MemorySwap": 34359738368,
+              "MemorySwappiness": null,
+              "OomKillDisable": null,
+              "PidsLimit": null,
+              "Ulimits": [
+                {
+                  "Name": "core",
+                  "Hard": 0,
+                  "Soft": 0
+                }
+              ],
+              "CpuCount": 0,
+              "CpuPercent": 0,
+              "IOMaximumIOps": 0,
+              "IOMaximumBandwidth": 0,
+              "MaskedPaths": [
+                "/proc/acpi",
+                "/proc/asound",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/sys/devices/virtual/powercap",
+                "/sys/firmware"
+              ],
+              "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+              ],
+              "Init": true
+            },
+            "Storage": {
+              "RootFS": {
+                "Snapshot": {
+                  "Name": "overlayfs"
+                }
+              }
+            },
+            "Mounts": [
+              {
+                "Type": "bind",
+                "Source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu",
+                "Destination": "/fixtures",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+              },
+              {
+                "Type": "bind",
+                "Source": "/zpool1/models",
+                "Destination": "/models",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+              },
+              {
+                "Type": "bind",
+                "Source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+                "Destination": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+                "Mode": "",
+                "RW": true,
+                "Propagation": "rprivate"
+              },
+              {
+                "Type": "bind",
+                "Source": "/zpool1/llmx-xdev-validation/storage-types-20261002/deps",
+                "Destination": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+              }
+            ],
+            "Config": {
+              "Hostname": "62207877ff9f",
+              "Domainname": "",
+              "User": "",
+              "AttachStdin": false,
+              "AttachStdout": false,
+              "AttachStderr": false,
+              "Tty": false,
+              "OpenStdin": false,
+              "StdinOnce": false,
+              "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "CCACHE_DIR=/ccache",
+                "CCACHE_MAXSIZE=20G"
+              ],
+              "Cmd": [
+                "sleep",
+                "infinity"
+              ],
+              "Image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+              "Volumes": null,
+              "WorkingDir": "/llmx",
+              "Entrypoint": null,
+              "Labels": {}
+            },
+            "NetworkSettings": {
+              "SandboxID": "24c0042247ec77fcea5cba75f8db8d6b376cc020d642d2aae3730a3965387870",
+              "SandboxKey": "/var/run/docker/netns/24c0042247ec",
+              "Ports": {},
+              "Networks": {
+                "none": {
+                  "IPAMConfig": null,
+                  "Links": null,
+                  "Aliases": null,
+                  "DriverOpts": null,
+                  "GwPriority": 0,
+                  "NetworkID": "f98ed81641d87483e2e85e963338961ccaeb63d04696fc493ea1bdda3426da26",
+                  "EndpointID": "8a050360e5558c35c72615e5711f8053d7858b4361b516389e102061476d262a",
+                  "Gateway": "",
+                  "IPAddress": "",
+                  "MacAddress": "",
+                  "IPPrefixLen": 0,
+                  "IPv6Gateway": "",
+                  "GlobalIPv6Address": "",
+                  "GlobalIPv6PrefixLen": 0,
+                  "DNSNames": null
+                }
+              }
+            },
+            "ImageManifestDescriptor": {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:3649a8caf91a45f1ebc0ccb08f006840d2203c1bf26fa153d7dacf26f7a929c5",
+              "size": 1054,
+              "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+              }
+            }
+          },
+          "processes": "PID                 STAT                COMMAND\n3617039             Ss                  docker-init\n3617053             S                   sleep",
+          "host_memory": "MemTotal:       65707356 kB\nMemFree:        18912172 kB\nMemAvailable:   20857392 kB\nBuffers:               0 kB\nCached:          2737236 kB\nSwapCached:            0 kB\nActive:          3518756 kB\nInactive:        1904192 kB\nActive(anon):    1447192 kB\nInactive(anon):  1391032 kB\nActive(file):    2071564 kB\nInactive(file):   513160 kB\nUnevictable:           0 kB\nMlocked:               0 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:               604 kB\nWriteback:             0 kB\nAnonPages:       2685504 kB\nMapped:           158376 kB\nShmem:            152676 kB\nKReclaimable:     480728 kB\nSlab:            1218460 kB\nSReclaimable:     480728 kB\nSUnreclaim:       737732 kB\nKernelStack:       22848 kB\nPageTables:        44860 kB\nSecPageTables:      2792 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:    32853676 kB\nCommitted_AS:    8798312 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:     2030060 kB\nVmallocChunk:          0 kB\nPercpu:            31232 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:              0 kB\nCmaFree:               0 kB\nUnaccepted:            0 kB\nBalloon:               0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:     4918724 kB\nDirectMap2M:    58906624 kB\nDirectMap1G:     4194304 kB\n",
+          "resources": {
+            "at": 1790996784.598861,
+            "values": {
+              "cpu.max": "400000 100000",
+              "cpu.stat": "usage_usec 13341106375\nuser_usec 12100614291\nsystem_usec 1240492084\nnice_usec 45000\ncore_sched.force_idle_usec 0\nnr_periods 61907\nnr_throttled 5030\nthrottled_usec 3227428\nnr_bursts 0\nburst_usec 0",
+              "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=305002574\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=22290653",
+              "memory.current": "106237952",
+              "memory.peak": "16803950592",
+              "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+              "memory.stat": "anon 155648\nfile 102359040\nkernel 3723264\nkernel_stack 32768\npagetables 98304\nsec_pagetables 0\npercpu 6696\nsock 0\nvmalloc 16384\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 40960\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 94208\nactive_anon 61440\ninactive_file 40960\nactive_file 102318080\nunevictable 0\nslab_reclaimable 3405296\nslab_unreclaimable 170184\nslab 3575480\nworkingset_refault_anon 0\nworkingset_refault_file 4191872\nworkingset_activate_anon 0\nworkingset_activate_file 158221\nworkingset_restore_anon 0\nworkingset_restore_file 2615\nworkingset_nodereclaim 170773\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 15307906\npgsteal 14889377\npswpin 0\npswpout 0\npgscan_kswapd 13957370\npgscan_direct 1347068\npgscan_khugepaged 3468\npgscan_proactive 0\npgsteal_kswapd 13817104\npgsteal_direct 1068997\npgsteal_khugepaged 3276\npgsteal_proactive 0\npgfault 133374478\npgmajfault 14945080\npgrefill 9912939\npgactivate 130249\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+              "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=16870452\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=16842115",
+              "io.stat": "8:16 rbytes=19854503936 wbytes=0 rios=103957 wios=0 dbytes=0 dios=0\n8:64 rbytes=14826455040 wbytes=0 rios=80341 wios=0 dbytes=0 dios=0\n8:80 rbytes=16985919488 wbytes=0 rios=90198 wios=0 dbytes=0 dios=0\n259:0 rbytes=2647187456 wbytes=0 rios=20537 wios=0 dbytes=0 dios=0\n8:0 rbytes=19882442752 wbytes=0 rios=104377 wios=0 dbytes=0 dios=0\n8:48 rbytes=17433165824 wbytes=0 rios=92288 wios=0 dbytes=0 dios=0\n8:32 rbytes=17458282496 wbytes=0 rios=92782 wios=0 dbytes=0 dios=0",
+              "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30169173\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=29901383"
+            },
+            "unavailable": {}
+          }
+        },
+        "tools": {
+          "base": {
+            "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+            "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+            "exe_sha256": "448ab1850505787f893ba60a59a462f9de535e321c04e83fa437be2f28e79905",
+            "version": "llmx 0.1.0+gd31f0113317e",
+            "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx-model-logits",
+            "tool_sha256": "4d60e6deb7f8cbad280f35a02d7c6add78db8baea96284e40ab8fe7a9ba3093e"
+          },
+          "candidate": {
+            "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+            "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+            "exe_sha256": "0d8a8ecaec2ec8c98ae8c9f164aa3a7f84f726da69576f177908729bab288315",
+            "version": "llmx 0.1.0+gfaef505124e7",
+            "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx-model-logits",
+            "tool_sha256": "d734f8fb58e7311d8689d594f172b18cb4f261a987625f3ec950b591928df708"
+          }
+        },
+        "range_compile_flags": {
+          "CXX_DEFINES": [],
+          "CXX_INCLUDES": [
+            "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/generated",
+            "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source/src"
+          ],
+          "CXX_FLAGS": [
+            "-O3",
+            "-DNDEBUG",
+            "-std=c++17",
+            "-O3",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-Wall",
+            "-Wextra",
+            "-Werror=unused-function",
+            "-Werror=unused-variable",
+            "-Werror=unused-but-set-variable"
+          ]
+        },
+        "range_exe_sha256": "3c43cdb6b1e54b2b1030d00b4d79cb4bee46a14246d54f2efb38f64d8f5fd17c",
+        "error": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification/run-linux.py\", line 65, in <module>\n    run('range',['docker','exec',NAME,'prlimit','--core=0:0','--','timeout','--kill-after=10','300',str(OUT/'tile-range')],330)\n    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification/run-linux.py\", line 31, in run\n    assert item['returncode']==0,label\n           ^^^^^^^^^^^^^^^^^^^^^\nAssertionError: range\n",
+        "ended": 1790996844.3129036
+      },
+      "stdout": "device=AMD Instinct MI60 / MI50 (RADV VEGA20)\n",
+      "stderr": "range check did not reach short-half and tall-F32 tiles\n"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\qualification-mi50",
+      "report": {
+        "pid": 520432,
+        "started": 1790997180.3546076,
+        "steps": [
+          {
+            "label": "range-compile",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-xdev-vulkan-weight-dispatch-20261002",
+              "prlimit",
+              "--core=0:0",
+              "--",
+              "timeout",
+              "--kill-after=10",
+              "120",
+              "/usr/bin/c++",
+              "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/generated",
+              "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source/src",
+              "-O3",
+              "-DNDEBUG",
+              "-std=c++17",
+              "-O3",
+              "-mavx2",
+              "-mfma",
+              "-mf16c",
+              "-Wall",
+              "-Wextra",
+              "-Werror=unused-function",
+              "-Werror=unused-variable",
+              "-Werror=unused-but-set-variable",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50/tile-range.cpp",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/libllmx-vulkan.a",
+              "-ldl",
+              "-o",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50/execution/tile-range"
+            ],
+            "start": 1790997180.5473654,
+            "pid": 520480,
+            "returncode": 0,
+            "end": 1790997181.4135973
+          },
+          {
+            "label": "range",
+            "command": [
+              "docker",
+              "exec",
+              "llmx-xdev-vulkan-weight-dispatch-20261002",
+              "prlimit",
+              "--core=0:0",
+              "--",
+              "timeout",
+              "--kill-after=10",
+              "300",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50/execution/tile-range"
+            ],
+            "start": 1790997181.4167805,
+            "pid": 520518,
+            "returncode": 1,
+            "end": 1790997182.1828387
+          }
+        ],
+        "passed": false,
+        "preflight": {
+          "container": {
+            "Id": "62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a",
+            "Created": "2026-10-02T14:27:36.95981974Z",
+            "Path": "sleep",
+            "Args": [
+              "infinity"
+            ],
+            "State": {
+              "Status": "running",
+              "Running": true,
+              "Paused": false,
+              "Restarting": false,
+              "OOMKilled": false,
+              "Dead": false,
+              "Pid": 3617039,
+              "ExitCode": 0,
+              "Error": "",
+              "StartedAt": "2026-10-02T17:30:02.253846252Z",
+              "FinishedAt": "2026-10-02T16:27:46.697103095Z"
+            },
+            "Image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+            "ResolvConfPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/resolv.conf",
+            "HostnamePath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/hostname",
+            "HostsPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/hosts",
+            "LogPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a-json.log",
+            "Name": "/llmx-xdev-vulkan-weight-dispatch-20261002",
+            "RestartCount": 0,
+            "Driver": "overlayfs",
+            "Platform": "linux",
+            "MountLabel": "",
+            "ProcessLabel": "",
+            "AppArmorProfile": "docker-default",
+            "ExecIDs": null,
+            "HostConfig": {
+              "Binds": [
+                "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002:/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+                "/zpool1/models:/models:ro",
+                "/zpool1/llmx-xdev-validation/storage-types-20261002/deps:/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps:ro",
+                "/opt/claude-work/llmx-p2-x-mxfp4-cpu:/fixtures:ro"
+              ],
+              "ContainerIDFile": "",
+              "LogConfig": {
+                "Type": "json-file",
+                "Config": {}
+              },
+              "NetworkMode": "none",
+              "PortBindings": {},
+              "RestartPolicy": {
+                "Name": "no",
+                "MaximumRetryCount": 0
+              },
+              "AutoRemove": false,
+              "VolumeDriver": "",
+              "VolumesFrom": null,
+              "ConsoleSize": [
+                0,
+                0
+              ],
+              "CapAdd": null,
+              "CapDrop": null,
+              "CgroupnsMode": "private",
+              "Dns": null,
+              "DnsOptions": [],
+              "DnsSearch": [],
+              "ExtraHosts": null,
+              "GroupAdd": null,
+              "IpcMode": "private",
+              "Cgroup": "",
+              "Links": null,
+              "OomScoreAdj": 0,
+              "PidMode": "",
+              "Privileged": false,
+              "PublishAllPorts": false,
+              "ReadonlyRootfs": false,
+              "SecurityOpt": null,
+              "UTSMode": "",
+              "UsernsMode": "",
+              "ShmSize": 67108864,
+              "Runtime": "runc",
+              "Isolation": "",
+              "CpuShares": 0,
+              "Memory": 34359738368,
+              "NanoCpus": 4000000000,
+              "CgroupParent": "",
+              "BlkioWeight": 0,
+              "BlkioWeightDevice": [],
+              "BlkioDeviceReadBps": [],
+              "BlkioDeviceWriteBps": [],
+              "BlkioDeviceReadIOps": [],
+              "BlkioDeviceWriteIOps": [],
+              "CpuPeriod": 0,
+              "CpuQuota": 0,
+              "CpuRealtimePeriod": 0,
+              "CpuRealtimeRuntime": 0,
+              "CpusetCpus": "0-3",
+              "CpusetMems": "",
+              "Devices": [
+                {
+                  "PathOnHost": "/dev/dri/renderD136",
+                  "PathInContainer": "/dev/dri/renderD136",
+                  "CgroupPermissions": "rwm"
+                }
+              ],
+              "DeviceCgroupRules": null,
+              "DeviceRequests": null,
+              "MemoryReservation": 0,
+              "MemorySwap": 34359738368,
+              "MemorySwappiness": null,
+              "OomKillDisable": null,
+              "PidsLimit": null,
+              "Ulimits": [
+                {
+                  "Name": "core",
+                  "Hard": 0,
+                  "Soft": 0
+                }
+              ],
+              "CpuCount": 0,
+              "CpuPercent": 0,
+              "IOMaximumIOps": 0,
+              "IOMaximumBandwidth": 0,
+              "MaskedPaths": [
+                "/proc/acpi",
+                "/proc/asound",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/sys/devices/virtual/powercap",
+                "/sys/firmware"
+              ],
+              "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+              ],
+              "Init": true
+            },
+            "Storage": {
+              "RootFS": {
+                "Snapshot": {
+                  "Name": "overlayfs"
+                }
+              }
+            },
+            "Mounts": [
+              {
+                "Type": "bind",
+                "Source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu",
+                "Destination": "/fixtures",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+              },
+              {
+                "Type": "bind",
+                "Source": "/zpool1/models",
+                "Destination": "/models",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+              },
+              {
+                "Type": "bind",
+                "Source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+                "Destination": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+                "Mode": "",
+                "RW": true,
+                "Propagation": "rprivate"
+              },
+              {
+                "Type": "bind",
+                "Source": "/zpool1/llmx-xdev-validation/storage-types-20261002/deps",
+                "Destination": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+              }
+            ],
+            "Config": {
+              "Hostname": "62207877ff9f",
+              "Domainname": "",
+              "User": "",
+              "AttachStdin": false,
+              "AttachStdout": false,
+              "AttachStderr": false,
+              "Tty": false,
+              "OpenStdin": false,
+              "StdinOnce": false,
+              "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "CCACHE_DIR=/ccache",
+                "CCACHE_MAXSIZE=20G"
+              ],
+              "Cmd": [
+                "sleep",
+                "infinity"
+              ],
+              "Image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+              "Volumes": null,
+              "WorkingDir": "/llmx",
+              "Entrypoint": null,
+              "Labels": {}
+            },
+            "NetworkSettings": {
+              "SandboxID": "24c0042247ec77fcea5cba75f8db8d6b376cc020d642d2aae3730a3965387870",
+              "SandboxKey": "/var/run/docker/netns/24c0042247ec",
+              "Ports": {},
+              "Networks": {
+                "none": {
+                  "IPAMConfig": null,
+                  "Links": null,
+                  "Aliases": null,
+                  "DriverOpts": null,
+                  "GwPriority": 0,
+                  "NetworkID": "f98ed81641d87483e2e85e963338961ccaeb63d04696fc493ea1bdda3426da26",
+                  "EndpointID": "8a050360e5558c35c72615e5711f8053d7858b4361b516389e102061476d262a",
+                  "Gateway": "",
+                  "IPAddress": "",
+                  "MacAddress": "",
+                  "IPPrefixLen": 0,
+                  "IPv6Gateway": "",
+                  "GlobalIPv6Address": "",
+                  "GlobalIPv6PrefixLen": 0,
+                  "DNSNames": null
+                }
+              }
+            },
+            "ImageManifestDescriptor": {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:3649a8caf91a45f1ebc0ccb08f006840d2203c1bf26fa153d7dacf26f7a929c5",
+              "size": 1054,
+              "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+              }
+            }
+          },
+          "processes": "PID                 STAT                COMMAND\n3617039             Ss                  docker-init\n3617053             S                   sleep",
+          "host_memory": "MemTotal:       65707356 kB\nMemFree:        18986184 kB\nMemAvailable:   20943736 kB\nBuffers:               0 kB\nCached:          2749604 kB\nSwapCached:            0 kB\nActive:          3433652 kB\nInactive:        1904192 kB\nActive(anon):    1349724 kB\nInactive(anon):  1391028 kB\nActive(file):    2083928 kB\nInactive(file):   513164 kB\nUnevictable:           0 kB\nMlocked:               0 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:              1364 kB\nWriteback:             0 kB\nAnonPages:       2588008 kB\nMapped:           159688 kB\nShmem:            152672 kB\nKReclaimable:     480656 kB\nSlab:            1221220 kB\nSReclaimable:     480656 kB\nSUnreclaim:       740564 kB\nKernelStack:       23104 kB\nPageTables:        45168 kB\nSecPageTables:      2792 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:    32853676 kB\nCommitted_AS:    8798296 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:     2030412 kB\nVmallocChunk:          0 kB\nPercpu:            31232 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:              0 kB\nCmaFree:               0 kB\nUnaccepted:            0 kB\nBalloon:               0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:     4918724 kB\nDirectMap2M:    58906624 kB\nDirectMap1G:     4194304 kB\n",
+          "resources": {
+            "at": 1790997180.494239,
+            "values": {
+              "cpu.max": "400000 100000",
+              "cpu.stat": "usage_usec 13400516655\nuser_usec 12157653118\nsystem_usec 1242863536\nnice_usec 45000\ncore_sched.force_idle_usec 0\nnr_periods 62518\nnr_throttled 5030\nthrottled_usec 3227428\nnr_bursts 0\nburst_usec 0",
+              "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=305024821\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=22309636",
+              "memory.current": "118079488",
+              "memory.peak": "16803950592",
+              "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+              "memory.stat": "anon 155648\nfile 114151424\nkernel 3772416\nkernel_stack 32768\npagetables 98304\nsec_pagetables 0\npercpu 6696\nsock 0\nvmalloc 16384\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 40960\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 94208\nactive_anon 61440\ninactive_file 40960\nactive_file 114110464\nunevictable 0\nslab_reclaimable 3451040\nslab_unreclaimable 171016\nslab 3622056\nworkingset_refault_anon 0\nworkingset_refault_file 4191872\nworkingset_activate_anon 0\nworkingset_activate_file 158221\nworkingset_restore_anon 0\nworkingset_restore_file 2615\nworkingset_nodereclaim 170773\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 15307906\npgsteal 14889377\npswpin 0\npswpout 0\npgscan_kswapd 13957370\npgscan_direct 1347068\npgscan_khugepaged 3468\npgscan_proactive 0\npgsteal_kswapd 13817104\npgsteal_direct 1068997\npgsteal_khugepaged 3276\npgsteal_proactive 0\npgfault 133971280\npgmajfault 14947959\npgrefill 9912939\npgactivate 130249\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+              "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=16870452\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=16842115",
+              "io.stat": "8:16 rbytes=19854503936 wbytes=0 rios=103957 wios=0 dbytes=0 dios=0\n8:64 rbytes=14826455040 wbytes=0 rios=80341 wios=0 dbytes=0 dios=0\n8:80 rbytes=16985923584 wbytes=0 rios=90199 wios=0 dbytes=0 dios=0\n259:0 rbytes=2647187456 wbytes=0 rios=20537 wios=0 dbytes=0 dios=0\n8:0 rbytes=19882446848 wbytes=0 rios=104378 wios=0 dbytes=0 dios=0\n8:48 rbytes=17433165824 wbytes=0 rios=92288 wios=0 dbytes=0 dios=0\n8:32 rbytes=17458282496 wbytes=0 rios=92782 wios=0 dbytes=0 dios=0",
+              "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30169340\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=29901550"
+            },
+            "unavailable": {}
+          }
+        },
+        "tools": {
+          "base": {
+            "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+            "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+            "exe_sha256": "448ab1850505787f893ba60a59a462f9de535e321c04e83fa437be2f28e79905",
+            "version": "llmx 0.1.0+gd31f0113317e",
+            "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx-model-logits",
+            "tool_sha256": "4d60e6deb7f8cbad280f35a02d7c6add78db8baea96284e40ab8fe7a9ba3093e"
+          },
+          "candidate": {
+            "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+            "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+            "exe_sha256": "0d8a8ecaec2ec8c98ae8c9f164aa3a7f84f726da69576f177908729bab288315",
+            "version": "llmx 0.1.0+gfaef505124e7",
+            "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx-model-logits",
+            "tool_sha256": "d734f8fb58e7311d8689d594f172b18cb4f261a987625f3ec950b591928df708"
+          }
+        },
+        "range_compile_flags": {
+          "CXX_DEFINES": [],
+          "CXX_INCLUDES": [
+            "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/generated",
+            "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source/src"
+          ],
+          "CXX_FLAGS": [
+            "-O3",
+            "-DNDEBUG",
+            "-std=c++17",
+            "-O3",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-Wall",
+            "-Wextra",
+            "-Werror=unused-function",
+            "-Werror=unused-variable",
+            "-Werror=unused-but-set-variable"
+          ]
+        },
+        "range_exe_sha256": "b84503745b106c8e4d1427c230ba31efe46a36b9a4158f10df861f3e24f1f584",
+        "error": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50/run-linux.py\", line 64, in <module>\n    run('range',['docker','exec',NAME,'prlimit','--core=0:0','--','timeout','--kill-after=10','300',str(OUT/'tile-range')],330)\n    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50/run-linux.py\", line 31, in run\n    assert item['returncode']==0,label\n           ^^^^^^^^^^^^^^^^^^^^^\nAssertionError: range\n",
+        "ended": 1790997182.1872854
+      },
+      "stdout": "device=AMD Instinct MI60 / MI50 (RADV VEGA20)\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile\n",
+      "stderr": "range check did not reach short-half and tall-F32 tiles\n"
+    }
+  ],
+  "successful_qualification": {
+    "pid": 524101,
+    "started": 1790997353.0757766,
+    "steps": [
+      {
+        "label": "range-compile",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "prlimit",
+          "--core=0:0",
+          "--",
+          "timeout",
+          "--kill-after=10",
+          "120",
+          "/usr/bin/c++",
+          "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/generated",
+          "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source/src",
+          "-O3",
+          "-DNDEBUG",
+          "-std=c++17",
+          "-O3",
+          "-mavx2",
+          "-mfma",
+          "-mf16c",
+          "-Wall",
+          "-Wextra",
+          "-Werror=unused-function",
+          "-Werror=unused-variable",
+          "-Werror=unused-but-set-variable",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50-wide/tile-range.cpp",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/libllmx-vulkan.a",
+          "-ldl",
+          "-o",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50-wide/execution/tile-range"
+        ],
+        "start": 1790997353.271362,
+        "pid": 524150,
+        "returncode": 0,
+        "end": 1790997354.1376154
+      },
+      {
+        "label": "range",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "prlimit",
+          "--core=0:0",
+          "--",
+          "timeout",
+          "--kill-after=10",
+          "300",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50-wide/execution/tile-range"
+        ],
+        "start": 1790997354.1412196,
+        "pid": 524202,
+        "returncode": 0,
+        "end": 1790997357.7626169
+      },
+      {
+        "label": "identity",
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "prlimit",
+          "--core=0:0",
+          "--",
+          "timeout",
+          "--kill-after=10",
+          "4200",
+          "python3",
+          "-B",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50-wide/run-identity.py",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50-wide/execution/identity-plan.json",
+          "linux",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50-wide/execution/captures"
+        ],
+        "start": 1790997357.7633677,
+        "pid": 524282,
+        "returncode": 0,
+        "end": 1790997385.1390095
+      }
+    ],
+    "passed": true,
+    "preflight": {
+      "container": {
+        "Id": "62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a",
+        "Created": "2026-10-02T14:27:36.95981974Z",
+        "Path": "sleep",
+        "Args": [
+          "infinity"
+        ],
+        "State": {
+          "Status": "running",
+          "Running": true,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 3617039,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-02T17:30:02.253846252Z",
+          "FinishedAt": "2026-10-02T16:27:46.697103095Z"
+        },
+        "Image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "ResolvConfPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/hostname",
+        "HostsPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/hosts",
+        "LogPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a-json.log",
+        "Name": "/llmx-xdev-vulkan-weight-dispatch-20261002",
+        "RestartCount": 0,
+        "Driver": "overlayfs",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "docker-default",
+        "ExecIDs": null,
+        "HostConfig": {
+          "Binds": [
+            "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002:/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+            "/zpool1/models:/models:ro",
+            "/zpool1/llmx-xdev-validation/storage-types-20261002/deps:/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps:ro",
+            "/opt/claude-work/llmx-p2-x-mxfp4-cpu:/fixtures:ro"
+          ],
+          "ContainerIDFile": "",
+          "LogConfig": {
+            "Type": "json-file",
+            "Config": {}
+          },
+          "NetworkMode": "none",
+          "PortBindings": {},
+          "RestartPolicy": {
+            "Name": "no",
+            "MaximumRetryCount": 0
+          },
+          "AutoRemove": false,
+          "VolumeDriver": "",
+          "VolumesFrom": null,
+          "ConsoleSize": [
+            0,
+            0
+          ],
+          "CapAdd": null,
+          "CapDrop": null,
+          "CgroupnsMode": "private",
+          "Dns": null,
+          "DnsOptions": [],
+          "DnsSearch": [],
+          "ExtraHosts": null,
+          "GroupAdd": null,
+          "IpcMode": "private",
+          "Cgroup": "",
+          "Links": null,
+          "OomScoreAdj": 0,
+          "PidMode": "",
+          "Privileged": false,
+          "PublishAllPorts": false,
+          "ReadonlyRootfs": false,
+          "SecurityOpt": null,
+          "UTSMode": "",
+          "UsernsMode": "",
+          "ShmSize": 67108864,
+          "Runtime": "runc",
+          "Isolation": "",
+          "CpuShares": 0,
+          "Memory": 34359738368,
+          "NanoCpus": 4000000000,
+          "CgroupParent": "",
+          "BlkioWeight": 0,
+          "BlkioWeightDevice": [],
+          "BlkioDeviceReadBps": [],
+          "BlkioDeviceWriteBps": [],
+          "BlkioDeviceReadIOps": [],
+          "BlkioDeviceWriteIOps": [],
+          "CpuPeriod": 0,
+          "CpuQuota": 0,
+          "CpuRealtimePeriod": 0,
+          "CpuRealtimeRuntime": 0,
+          "CpusetCpus": "0-3",
+          "CpusetMems": "",
+          "Devices": [
+            {
+              "PathOnHost": "/dev/dri/renderD136",
+              "PathInContainer": "/dev/dri/renderD136",
+              "CgroupPermissions": "rwm"
+            }
+          ],
+          "DeviceCgroupRules": null,
+          "DeviceRequests": null,
+          "MemoryReservation": 0,
+          "MemorySwap": 34359738368,
+          "MemorySwappiness": null,
+          "OomKillDisable": null,
+          "PidsLimit": null,
+          "Ulimits": [
+            {
+              "Name": "core",
+              "Hard": 0,
+              "Soft": 0
+            }
+          ],
+          "CpuCount": 0,
+          "CpuPercent": 0,
+          "IOMaximumIOps": 0,
+          "IOMaximumBandwidth": 0,
+          "MaskedPaths": [
+            "/proc/acpi",
+            "/proc/asound",
+            "/proc/interrupts",
+            "/proc/kcore",
+            "/proc/keys",
+            "/proc/latency_stats",
+            "/proc/sched_debug",
+            "/proc/scsi",
+            "/proc/timer_list",
+            "/proc/timer_stats",
+            "/sys/devices/virtual/powercap",
+            "/sys/firmware"
+          ],
+          "ReadonlyPaths": [
+            "/proc/bus",
+            "/proc/fs",
+            "/proc/irq",
+            "/proc/sys",
+            "/proc/sysrq-trigger"
+          ],
+          "Init": true
+        },
+        "Storage": {
+          "RootFS": {
+            "Snapshot": {
+              "Name": "overlayfs"
+            }
+          }
+        },
+        "Mounts": [
+          {
+            "Type": "bind",
+            "Source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu",
+            "Destination": "/fixtures",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "/zpool1/models",
+            "Destination": "/models",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+            "Destination": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+            "Mode": "",
+            "RW": true,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "/zpool1/llmx-xdev-validation/storage-types-20261002/deps",
+            "Destination": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          }
+        ],
+        "Config": {
+          "Hostname": "62207877ff9f",
+          "Domainname": "",
+          "User": "",
+          "AttachStdin": false,
+          "AttachStdout": false,
+          "AttachStderr": false,
+          "Tty": false,
+          "OpenStdin": false,
+          "StdinOnce": false,
+          "Env": [
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "CCACHE_DIR=/ccache",
+            "CCACHE_MAXSIZE=20G"
+          ],
+          "Cmd": [
+            "sleep",
+            "infinity"
+          ],
+          "Image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "Volumes": null,
+          "WorkingDir": "/llmx",
+          "Entrypoint": null,
+          "Labels": {}
+        },
+        "NetworkSettings": {
+          "SandboxID": "24c0042247ec77fcea5cba75f8db8d6b376cc020d642d2aae3730a3965387870",
+          "SandboxKey": "/var/run/docker/netns/24c0042247ec",
+          "Ports": {},
+          "Networks": {
+            "none": {
+              "IPAMConfig": null,
+              "Links": null,
+              "Aliases": null,
+              "DriverOpts": null,
+              "GwPriority": 0,
+              "NetworkID": "f98ed81641d87483e2e85e963338961ccaeb63d04696fc493ea1bdda3426da26",
+              "EndpointID": "8a050360e5558c35c72615e5711f8053d7858b4361b516389e102061476d262a",
+              "Gateway": "",
+              "IPAddress": "",
+              "MacAddress": "",
+              "IPPrefixLen": 0,
+              "IPv6Gateway": "",
+              "GlobalIPv6Address": "",
+              "GlobalIPv6PrefixLen": 0,
+              "DNSNames": null
+            }
+          }
+        },
+        "ImageManifestDescriptor": {
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "digest": "sha256:3649a8caf91a45f1ebc0ccb08f006840d2203c1bf26fa153d7dacf26f7a929c5",
+          "size": 1054,
+          "platform": {
+            "architecture": "amd64",
+            "os": "linux"
+          }
+        }
+      },
+      "processes": "PID                 STAT                COMMAND\n3617039             Ss                  docker-init\n3617053             S                   sleep",
+      "host_memory": "MemTotal:       65707356 kB\nMemFree:        18960604 kB\nMemAvailable:   20921648 kB\nBuffers:               0 kB\nCached:          2753128 kB\nSwapCached:            0 kB\nActive:          3462276 kB\nInactive:        1904188 kB\nActive(anon):    1374832 kB\nInactive(anon):  1391020 kB\nActive(file):    2087444 kB\nInactive(file):   513168 kB\nUnevictable:           0 kB\nMlocked:               0 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:              1556 kB\nWriteback:             0 kB\nAnonPages:       2613560 kB\nMapped:           160200 kB\nShmem:            152680 kB\nKReclaimable:     480600 kB\nSlab:            1220420 kB\nSReclaimable:     480600 kB\nSUnreclaim:       739820 kB\nKernelStack:       23296 kB\nPageTables:        45200 kB\nSecPageTables:      2792 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:    32853676 kB\nCommitted_AS:    8798296 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:     2030572 kB\nVmallocChunk:          0 kB\nPercpu:            31232 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:              0 kB\nCmaFree:               0 kB\nUnaccepted:            0 kB\nBalloon:               0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:     4918724 kB\nDirectMap2M:    58906624 kB\nDirectMap1G:     4194304 kB\n",
+      "resources": {
+        "at": 1790997353.2167194,
+        "values": {
+          "cpu.max": "400000 100000",
+          "cpu.stat": "usage_usec 13401975255\nuser_usec 12158747121\nsystem_usec 1243228133\nnice_usec 45000\ncore_sched.force_idle_usec 0\nnr_periods 62543\nnr_throttled 5030\nthrottled_usec 3227428\nnr_bursts 0\nburst_usec 0",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=305026819\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=22310610",
+          "memory.current": "121085952",
+          "memory.peak": "16803950592",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.stat": "anon 155648\nfile 117149696\nkernel 3780608\nkernel_stack 32768\npagetables 98304\nsec_pagetables 0\npercpu 6696\nsock 0\nvmalloc 16384\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 40960\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 94208\nactive_anon 61440\ninactive_file 40960\nactive_file 117108736\nunevictable 0\nslab_reclaimable 3460336\nslab_unreclaimable 171016\nslab 3631352\nworkingset_refault_anon 0\nworkingset_refault_file 4191872\nworkingset_activate_anon 0\nworkingset_activate_file 158221\nworkingset_restore_anon 0\nworkingset_restore_file 2615\nworkingset_nodereclaim 170773\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 15307906\npgsteal 14889377\npswpin 0\npswpout 0\npgscan_kswapd 13957370\npgscan_direct 1347068\npgscan_khugepaged 3468\npgscan_proactive 0\npgsteal_kswapd 13817104\npgsteal_direct 1068997\npgsteal_khugepaged 3276\npgsteal_proactive 0\npgfault 134080969\npgmajfault 14948691\npgrefill 9912939\npgactivate 130249\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=16870452\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=16842115",
+          "io.stat": "8:16 rbytes=19854503936 wbytes=0 rios=103957 wios=0 dbytes=0 dios=0\n8:64 rbytes=14826455040 wbytes=0 rios=80341 wios=0 dbytes=0 dios=0\n8:80 rbytes=16985923584 wbytes=0 rios=90199 wios=0 dbytes=0 dios=0\n259:0 rbytes=2647187456 wbytes=0 rios=20537 wios=0 dbytes=0 dios=0\n8:0 rbytes=19882446848 wbytes=0 rios=104378 wios=0 dbytes=0 dios=0\n8:48 rbytes=17433165824 wbytes=0 rios=92288 wios=0 dbytes=0 dios=0\n8:32 rbytes=17458282496 wbytes=0 rios=92782 wios=0 dbytes=0 dios=0",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30169340\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=29901550"
+        },
+        "unavailable": {}
+      }
+    },
+    "tools": {
+      "base": {
+        "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+        "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+        "exe_sha256": "448ab1850505787f893ba60a59a462f9de535e321c04e83fa437be2f28e79905",
+        "version": "llmx 0.1.0+gd31f0113317e",
+        "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx-model-logits",
+        "tool_sha256": "4d60e6deb7f8cbad280f35a02d7c6add78db8baea96284e40ab8fe7a9ba3093e"
+      },
+      "candidate": {
+        "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+        "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+        "exe_sha256": "0d8a8ecaec2ec8c98ae8c9f164aa3a7f84f726da69576f177908729bab288315",
+        "version": "llmx 0.1.0+gfaef505124e7",
+        "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx-model-logits",
+        "tool_sha256": "d734f8fb58e7311d8689d594f172b18cb4f261a987625f3ec950b591928df708"
+      }
+    },
+    "range_compile_flags": {
+      "CXX_DEFINES": [],
+      "CXX_INCLUDES": [
+        "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/generated",
+        "-I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source/src"
+      ],
+      "CXX_FLAGS": [
+        "-O3",
+        "-DNDEBUG",
+        "-std=c++17",
+        "-O3",
+        "-mavx2",
+        "-mfma",
+        "-mf16c",
+        "-Wall",
+        "-Wextra",
+        "-Werror=unused-function",
+        "-Werror=unused-variable",
+        "-Werror=unused-but-set-variable"
+      ]
+    },
+    "range_exe_sha256": "36f4e4f33cf3f1b6f264457e1c4ca5f21a1b808232b8796e93ab315ea3955002",
+    "range": {
+      "cases": 18,
+      "values": 76088457,
+      "finite_half_codes": 63488,
+      "stdout_sha256": "62416fb182ec3f513bdb2179c7a378a18f9f2d4c1a956a51aed5494db99afb93"
+    },
+    "identity_plan_sha256": "dffab2d1ec29ee203465bd5f9c2cb1b489eb315d9a355aad5d74bfdf8ea8b135",
+    "identity_complete_sha256": "e172763126611b167225688c604e565cd365e34cd866e026238830a83e0b5aba",
+    "unchanged_original_artifacts": {
+      "base": {
+        "exe": "448ab1850505787f893ba60a59a462f9de535e321c04e83fa437be2f28e79905",
+        "library": "a3d48442a75a1dcadb0ac9650143ce39af5c27e3300df1287e07f8202fe7feda"
+      },
+      "candidate": {
+        "exe": "0d8a8ecaec2ec8c98ae8c9f164aa3a7f84f726da69576f177908729bab288315",
+        "library": "e27ce61fb41057424a900fbb9f55dde8c5c24a733d6ef29797f08519514e7ab6"
+      }
+    },
+    "terminal_processes": "PID                 STAT                COMMAND\n3617039             Ss                  docker-init\n3617053             S                   sleep",
+    "end_resources": {
+      "at": 1790997385.3133702,
+      "values": {
+        "cpu.max": "400000 100000",
+        "cpu.stat": "usage_usec 13423570001\nuser_usec 12168601565\nsystem_usec 1254968435\nnice_usec 45000\ncore_sched.force_idle_usec 0\nnr_periods 62846\nnr_throttled 5030\nthrottled_usec 3227428\nnr_bursts 0\nburst_usec 0",
+        "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=305057023\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=22332492",
+        "memory.current": "124624896",
+        "memory.peak": "16803950592",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "memory.stat": "anon 155648\nfile 120389632\nkernel 3907584\nkernel_stack 32768\npagetables 98304\nsec_pagetables 0\npercpu 6696\nsock 0\nvmalloc 16384\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 40960\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 94208\nactive_anon 61440\ninactive_file 40960\nactive_file 120348672\nunevictable 0\nslab_reclaimable 3586456\nslab_unreclaimable 171408\nslab 3757864\nworkingset_refault_anon 0\nworkingset_refault_file 4191872\nworkingset_activate_anon 0\nworkingset_activate_file 158221\nworkingset_restore_anon 0\nworkingset_restore_file 2615\nworkingset_nodereclaim 170773\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 15307906\npgsteal 14889377\npswpin 0\npswpout 0\npgscan_kswapd 13957370\npgscan_direct 1347068\npgscan_khugepaged 3468\npgscan_proactive 0\npgsteal_kswapd 13817104\npgsteal_direct 1068997\npgsteal_khugepaged 3276\npgsteal_proactive 0\npgfault 134732521\npgmajfault 14949482\npgrefill 9912939\npgactivate 130249\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+        "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=16870452\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=16842115",
+        "io.stat": "8:16 rbytes=19854503936 wbytes=0 rios=103957 wios=0 dbytes=0 dios=0\n8:64 rbytes=14826455040 wbytes=0 rios=80341 wios=0 dbytes=0 dios=0\n8:80 rbytes=16985923584 wbytes=0 rios=90199 wios=0 dbytes=0 dios=0\n259:0 rbytes=2647187456 wbytes=0 rios=20537 wios=0 dbytes=0 dios=0\n8:0 rbytes=19882467328 wbytes=0 rios=104383 wios=0 dbytes=0 dios=0\n8:48 rbytes=17433165824 wbytes=0 rios=92288 wios=0 dbytes=0 dios=0\n8:32 rbytes=17458282496 wbytes=0 rios=92782 wios=0 dbytes=0 dios=0",
+        "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30169977\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=29902187"
+      },
+      "unavailable": {}
+    },
+    "ended": 1790997385.3140986
+  },
+  "identity": {
+    "pid": 40521,
+    "started": 1790997357.8570032,
+    "passed": true,
+    "platform": "linux",
+    "plan": {
+      "capture_owner": "tools/model_logits.cpp",
+      "excerpt_owner": "tests/data/baseline_perplexity.json",
+      "excerpt_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+      "dtype": "auto",
+      "load_mode": "auto",
+      "cache": "f32",
+      "ubatch": 512,
+      "cpu_threads": 6,
+      "greedy_tokens": 64,
+      "dense_refusal": "model-logits: --n-cpu-moe: the model has no expert layers",
+      "prepared_only": false,
+      "heads": {
+        "base": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+        "candidate": "faef505124e795eff8d26e95ee4e9adc130f80ad"
+      },
+      "total_capture_cells": 1,
+      "total_refusal_cells": 0,
+      "total_hardware_inapplicable": 0,
+      "scope": "Single MI50 4B F16 full-vocab identity: clean d31 baseline versus faef tile64 candidate. Exact bytes including sign-zero for247 batched rows,247 per-token rows and64 greedy rows/IDs. Correctness only, no rates or HF claim.",
+      "models": [
+        {
+          "label": "4b-f16",
+          "file": "Qwen3-4B-Instruct-2507-F16.gguf",
+          "sha256": "336228a2810f17724ecd6e9e2e40e8381eee81e886316fee311ade2899c31030",
+          "size": 8051285344,
+          "moe": false,
+          "prompt_rows": 247
+        }
+      ],
+      "acceptance": [
+        "Three phase payload hashes/lengths exact; each tool requires finite values.",
+        "All64 greedy IDs and complete metadata exact except build version.",
+        "Both arms tokenize the frozen1024-byte excerpt to the same247 IDs.",
+        "Exactly one model/device comparison, zero refusals or skipped cells.",
+        "Keep all captures, output, settings/source/tool/model pins and failed attempts."
+      ],
+      "platforms": {
+        "linux": {
+          "ready": true,
+          "capture_cells": 1,
+          "refusal_cells": 0,
+          "models": {
+            "4b-f16": "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf"
+          },
+          "placements": [
+            {
+              "label": "mi50",
+              "device": "vulkan:0",
+              "shares": "",
+              "cpu_experts": 0
+            }
+          ],
+          "arms": {
+            "base": {
+              "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+              "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+              "exe_sha256": "448ab1850505787f893ba60a59a462f9de535e321c04e83fa437be2f28e79905",
+              "version": "llmx 0.1.0+gd31f0113317e",
+              "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx-model-logits",
+              "tool_sha256": "4d60e6deb7f8cbad280f35a02d7c6add78db8baea96284e40ab8fe7a9ba3093e"
+            },
+            "candidate": {
+              "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+              "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+              "exe_sha256": "0d8a8ecaec2ec8c98ae8c9f164aa3a7f84f726da69576f177908729bab288315",
+              "version": "llmx 0.1.0+gfaef505124e7",
+              "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx-model-logits",
+              "tool_sha256": "d734f8fb58e7311d8689d594f172b18cb4f261a987625f3ec950b591928df708"
+            }
+          }
+        }
+      }
+    },
+    "calls": [
+      {
+        "label": "base-version",
+        "command": [
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+          "--version"
+        ],
+        "start": 1790997357.884382,
+        "returncode": 0,
+        "end": 1790997357.888689,
+        "stdout": "base-version.stdout",
+        "stderr": "base-version.stderr"
+      },
+      {
+        "label": "candidate-version",
+        "command": [
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+          "--version"
+        ],
+        "start": 1790997357.9135203,
+        "returncode": 0,
+        "end": 1790997357.917309,
+        "stdout": "candidate-version.stdout",
+        "stderr": "candidate-version.stderr"
+      },
+      {
+        "label": "4b-f16-base-tokenize",
+        "command": [
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+          "tokenize",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television"
+        ],
+        "start": 1790997364.6685898,
+        "returncode": 0,
+        "end": 1790997364.8332658,
+        "stdout": "4b-f16-base-tokenize.stdout",
+        "stderr": "4b-f16-base-tokenize.stderr"
+      },
+      {
+        "label": "4b-f16-candidate-tokenize",
+        "command": [
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+          "tokenize",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television"
+        ],
+        "start": 1790997364.833766,
+        "returncode": 0,
+        "end": 1790997364.997875,
+        "stdout": "4b-f16-candidate-tokenize.stdout",
+        "stderr": "4b-f16-candidate-tokenize.stderr"
+      },
+      {
+        "label": "4b-f16-mi50-base",
+        "command": [
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx-model-logits",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50-wide/execution/captures/4b-f16.ids",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50-wide/execution/captures/4b-f16-mi50-base",
+          "vulkan:0",
+          "f32",
+          "512",
+          "0"
+        ],
+        "start": 1790997364.9984605,
+        "returncode": 0,
+        "end": 1790997374.736876,
+        "stdout": "4b-f16-mi50-base.stdout",
+        "stderr": "4b-f16-mi50-base.stderr"
+      },
+      {
+        "label": "4b-f16-mi50-candidate",
+        "command": [
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx-model-logits",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50-wide/execution/captures/4b-f16.ids",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50-wide/execution/captures/4b-f16-mi50-candidate",
+          "vulkan:0",
+          "f32",
+          "512",
+          "0"
+        ],
+        "start": 1790997374.9979088,
+        "returncode": 0,
+        "end": 1790997384.7886868,
+        "stdout": "4b-f16-mi50-candidate.stdout",
+        "stderr": "4b-f16-mi50-candidate.stderr"
+      }
+    ],
+    "cases": [
+      {
+        "model": "4b-f16",
+        "model_path": "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+        "model_sha256": "336228a2810f17724ecd6e9e2e40e8381eee81e886316fee311ade2899c31030",
+        "placement": {
+          "label": "mi50",
+          "device": "vulkan:0",
+          "shares": "",
+          "cpu_experts": 0
+        },
+        "expected_refusal": false,
+        "token_count": 247,
+        "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "arms": {
+          "base": {
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "27853ef0ad2fa643d6e55d1c1a3879948d6615540b9e95d39e41b565f8beb8b2"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "902695fb87e47580920be52f47e15c3765fc9abff85471ffd4683439e70f393d"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "2c5892c8f07054a458d54523bca8046b30f2174c55bb21e0a2656bbfdaa5fbee"
+              }
+            },
+            "report": {
+              "version": "0.1.0+gd31f0113317e",
+              "architecture": "qwen3",
+              "vocab": 151936,
+              "tokens": [
+                284,
+                8397,
+                425,
+                10965,
+                465,
+                284,
+                715,
+                8397,
+                425,
+                10965,
+                465,
+                374,
+                458,
+                6364,
+                4531,
+                1154,
+                12425,
+                323,
+                33496,
+                12089,
+                659,
+                1260,
+                1030,
+                264,
+                8640,
+                569,
+                12,
+                31,
+                39400,
+                3476,
+                389,
+                279,
+                12425,
+                4013,
+                576,
+                8596,
+                304,
+                220,
+                17,
+                15,
+                15,
+                15,
+                659,
+                1096,
+                572,
+                8110,
+                553,
+                264,
+                39400,
+                3476,
+                304,
+                279,
+                1486,
+                6252,
+                2382,
+                5326,
+                553,
+                21315,
+                75923,
+                1154,
+                892,
+                572,
+                10660,
+                304,
+                220,
+                17,
+                15,
+                15,
+                16,
+                518,
+                279,
+                16194,
+                7154,
+                26221,
+                659,
+                1260,
+                1030,
+                264,
+                8640,
+                3476,
+                304,
+                279,
+                12425,
+                4013,
+                20207,
+                3757,
+                1581,
+                291,
+                304,
+                220,
+                17,
+                15,
+                15,
+                17,
+                659,
+                758,
+                220,
+                17,
+                15,
+                15,
+                19,
+                425,
+                10965,
+                465,
+                26120,
+                264,
+                3476,
+                438,
+                330,
+                28417,
+                330,
+                304,
+                279,
+                9234,
+                330,
+                70066,
+                364,
+                82,
+                15106,
+                330,
+                315,
+                279,
+                12425,
+                4013,
+                576,
+                5724,
+                37625,
+                2587,
+                566,
+                58235,
+                16263,
+                19571,
+                4389,
+                26099,
+                323,
+                42323,
+                15035,
+                18337,
+                659,
+                1260,
+                572,
+                6311,
+                304,
+                279,
+                220,
+                17,
+                15,
+                15,
+                20,
+                33496,
+                53148,
+                315,
+                279,
+                25179,
+                92301,
+                1486,
+                43562,
+                49840,
+                1154,
+                892,
+                572,
+                10660,
+                518,
+                279,
+                45406,
+                26221,
+                304,
+                70998,
+                323,
+                279,
+                11012,
+                1268,
+                38420,
+                16937,
+                304,
+                7148,
+                659,
+                1260,
+                572,
+                15540,
+                553,
+                3757,
+                67473,
+                323,
+                58235,
+                16263,
+                7355,
+                1232,
+                812,
+                672,
+                1154,
+                49975,
+                1863,
+                12707,
+                1154,
+                13928,
+                17734,
+                1154,
+                55130,
+                23905,
+                416,
+                1154,
+                59310,
+                80664,
+                323,
+                67034,
+                10926,
+                659,
+                715,
+                758,
+                220,
+                17,
+                15,
+                15,
+                21,
+                1154,
+                425,
+                10965,
+                465,
+                58235,
+                16263,
+                1232,
+                812,
+                672,
+                304,
+                279,
+                1486,
+                93736,
+                5326,
+                553,
+                4389,
+                45107,
+                27507,
+                659,
+                1260,
+                9723,
+                389,
+                264,
+                220,
+                17,
+                15,
+                15,
+                21,
+                9234,
+                315,
+                279,
+                12425
+              ],
+              "storage_types": [
+                0,
+                1
+              ],
+              "greedy": [
+                4013,
+                576,
+                5724,
+                37625,
+                438,
+                330,
+                6798,
+                330,
+                659,
+                758,
+                220,
+                17,
+                15,
+                15,
+                22,
+                1154,
+                566,
+                58235,
+                304,
+                279,
+                1486,
+                576,
+                2363,
+                10479,
+                14804,
+                77,
+                944,
+                2619,
+                1154,
+                5326,
+                553,
+                6798,
+                472,
+                546,
+                659,
+                1260,
+                1083,
+                9723,
+                304,
+                279,
+                220,
+                17,
+                15,
+                15,
+                22,
+                9234,
+                315,
+                279,
+                12425,
+                4013,
+                576,
+                8596,
+                438,
+                330,
+                6798,
+                330,
+                659,
+                758,
+                220,
+                17,
+                15,
+                15,
+                23,
+                1154
+              ],
+              "dtype": "f16",
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          },
+          "candidate": {
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "27853ef0ad2fa643d6e55d1c1a3879948d6615540b9e95d39e41b565f8beb8b2"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "902695fb87e47580920be52f47e15c3765fc9abff85471ffd4683439e70f393d"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "2c5892c8f07054a458d54523bca8046b30f2174c55bb21e0a2656bbfdaa5fbee"
+              }
+            },
+            "report": {
+              "version": "0.1.0+gfaef505124e7",
+              "architecture": "qwen3",
+              "vocab": 151936,
+              "tokens": [
+                284,
+                8397,
+                425,
+                10965,
+                465,
+                284,
+                715,
+                8397,
+                425,
+                10965,
+                465,
+                374,
+                458,
+                6364,
+                4531,
+                1154,
+                12425,
+                323,
+                33496,
+                12089,
+                659,
+                1260,
+                1030,
+                264,
+                8640,
+                569,
+                12,
+                31,
+                39400,
+                3476,
+                389,
+                279,
+                12425,
+                4013,
+                576,
+                8596,
+                304,
+                220,
+                17,
+                15,
+                15,
+                15,
+                659,
+                1096,
+                572,
+                8110,
+                553,
+                264,
+                39400,
+                3476,
+                304,
+                279,
+                1486,
+                6252,
+                2382,
+                5326,
+                553,
+                21315,
+                75923,
+                1154,
+                892,
+                572,
+                10660,
+                304,
+                220,
+                17,
+                15,
+                15,
+                16,
+                518,
+                279,
+                16194,
+                7154,
+                26221,
+                659,
+                1260,
+                1030,
+                264,
+                8640,
+                3476,
+                304,
+                279,
+                12425,
+                4013,
+                20207,
+                3757,
+                1581,
+                291,
+                304,
+                220,
+                17,
+                15,
+                15,
+                17,
+                659,
+                758,
+                220,
+                17,
+                15,
+                15,
+                19,
+                425,
+                10965,
+                465,
+                26120,
+                264,
+                3476,
+                438,
+                330,
+                28417,
+                330,
+                304,
+                279,
+                9234,
+                330,
+                70066,
+                364,
+                82,
+                15106,
+                330,
+                315,
+                279,
+                12425,
+                4013,
+                576,
+                5724,
+                37625,
+                2587,
+                566,
+                58235,
+                16263,
+                19571,
+                4389,
+                26099,
+                323,
+                42323,
+                15035,
+                18337,
+                659,
+                1260,
+                572,
+                6311,
+                304,
+                279,
+                220,
+                17,
+                15,
+                15,
+                20,
+                33496,
+                53148,
+                315,
+                279,
+                25179,
+                92301,
+                1486,
+                43562,
+                49840,
+                1154,
+                892,
+                572,
+                10660,
+                518,
+                279,
+                45406,
+                26221,
+                304,
+                70998,
+                323,
+                279,
+                11012,
+                1268,
+                38420,
+                16937,
+                304,
+                7148,
+                659,
+                1260,
+                572,
+                15540,
+                553,
+                3757,
+                67473,
+                323,
+                58235,
+                16263,
+                7355,
+                1232,
+                812,
+                672,
+                1154,
+                49975,
+                1863,
+                12707,
+                1154,
+                13928,
+                17734,
+                1154,
+                55130,
+                23905,
+                416,
+                1154,
+                59310,
+                80664,
+                323,
+                67034,
+                10926,
+                659,
+                715,
+                758,
+                220,
+                17,
+                15,
+                15,
+                21,
+                1154,
+                425,
+                10965,
+                465,
+                58235,
+                16263,
+                1232,
+                812,
+                672,
+                304,
+                279,
+                1486,
+                93736,
+                5326,
+                553,
+                4389,
+                45107,
+                27507,
+                659,
+                1260,
+                9723,
+                389,
+                264,
+                220,
+                17,
+                15,
+                15,
+                21,
+                9234,
+                315,
+                279,
+                12425
+              ],
+              "storage_types": [
+                0,
+                1
+              ],
+              "greedy": [
+                4013,
+                576,
+                5724,
+                37625,
+                438,
+                330,
+                6798,
+                330,
+                659,
+                758,
+                220,
+                17,
+                15,
+                15,
+                22,
+                1154,
+                566,
+                58235,
+                304,
+                279,
+                1486,
+                576,
+                2363,
+                10479,
+                14804,
+                77,
+                944,
+                2619,
+                1154,
+                5326,
+                553,
+                6798,
+                472,
+                546,
+                659,
+                1260,
+                1083,
+                9723,
+                304,
+                279,
+                220,
+                17,
+                15,
+                15,
+                22,
+                9234,
+                315,
+                279,
+                12425,
+                4013,
+                576,
+                8596,
+                438,
+                330,
+                6798,
+                330,
+                659,
+                758,
+                220,
+                17,
+                15,
+                15,
+                23,
+                1154
+              ],
+              "dtype": "f16",
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        "passed": true
+      }
+    ],
+    "owner_hashes": {
+      "tools/model_logits.cpp": "3a5722eec7657a6f61f5cf93a5f88a09665d4a19e67b37f06912680619e98138",
+      "tests/f32.py": "a75a9cba27001febf86a7bda68e4470d2c101d795228a5118c0a9d6f886516f2",
+      "tests/common.py": "f26bc37ee1a76a74a850c781afd610461553f7d02a909086bf380e25928563fb",
+      "tests/data/baseline_perplexity.json": "63a6f788f1cd143d905c95e587c673d76a3c624fa252fc1545b31b3812beb42c",
+      "tests/data/baseline_f32.json": "42caa7b77f4ee09ea30b51bab28ef872286986396536c1d1966c9d805fa2cd29"
+    },
+    "tiny": {
+      "source": "tests/f32.py tensors(False), default seed 12345; weights unchanged",
+      "original_config": {
+        "block_count": 2,
+        "embedding_length": 37,
+        "feed_forward_length": 19,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 42,
+        "context_length": 16
+      },
+      "capture_config": {
+        "block_count": 2,
+        "embedding_length": 37,
+        "feed_forward_length": 19,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 42,
+        "context_length": 1088
+      },
+      "weights_sha256": "e4480d5d59f953bdb30cfcecac3d0b108295ba09d8ecb989eaa955133ffc12d2",
+      "sha256": "877f24a38e0aec5dcff633ce48425caa581dcf6f740476da219db42dbfde7337",
+      "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/qualification-mi50-wide/execution/captures/tiny-f32.gguf"
+    },
+    "current": null,
+    "ended": 1790997385.0731337,
+    "scope": "Applicable cells passed; any hardware-inapplicable cell is retained as not executed, not a passed refusal"
+  },
+  "range_stdout": "device=AMD Instinct MI60 / MI50 (RADV VEGA20)\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2560 rows=32768 exponent=-120 dtype=f16 values=4227072 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2560 rows=32768 exponent=-120 dtype=f32 values=4227072 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_reduce\nhalf-kernel=matmul_tile_wf16_bf16\ncontrol-kernel=matmul_reduce\ncontrol-kernel=matmul_tile_bf16_tall\nPASS width=2560 rows=32768 exponent=-120 dtype=bf16 values=4227072 half=matmul_tile_wf16_bf16 control=matmul_tile_bf16_tall\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2560 rows=32768 exponent=0 dtype=f16 values=4227072 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2560 rows=32768 exponent=0 dtype=f32 values=4227072 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_reduce\nhalf-kernel=matmul_tile_wf16_bf16\ncontrol-kernel=matmul_reduce\ncontrol-kernel=matmul_tile_bf16_tall\nPASS width=2560 rows=32768 exponent=0 dtype=bf16 values=4227072 half=matmul_tile_wf16_bf16 control=matmul_tile_bf16_tall\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2560 rows=32768 exponent=100 dtype=f16 values=4227072 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2560 rows=32768 exponent=100 dtype=f32 values=4227072 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_reduce\nhalf-kernel=matmul_tile_wf16_bf16\ncontrol-kernel=matmul_reduce\ncontrol-kernel=matmul_tile_bf16_tall\nPASS width=2560 rows=32768 exponent=100 dtype=bf16 values=4227072 half=matmul_tile_wf16_bf16 control=matmul_tile_bf16_tall\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2561 rows=32769 exponent=-120 dtype=f16 values=4227201 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2561 rows=32769 exponent=-120 dtype=f32 values=4227201 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_reduce\nhalf-kernel=matmul_tile_wf16_bf16\ncontrol-kernel=matmul_reduce\ncontrol-kernel=matmul_tile_bf16_tall\nPASS width=2561 rows=32769 exponent=-120 dtype=bf16 values=4227201 half=matmul_tile_wf16_bf16 control=matmul_tile_bf16_tall\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2561 rows=32769 exponent=0 dtype=f16 values=4227201 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2561 rows=32769 exponent=0 dtype=f32 values=4227201 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_reduce\nhalf-kernel=matmul_tile_wf16_bf16\ncontrol-kernel=matmul_reduce\ncontrol-kernel=matmul_tile_bf16_tall\nPASS width=2561 rows=32769 exponent=0 dtype=bf16 values=4227201 half=matmul_tile_wf16_bf16 control=matmul_tile_bf16_tall\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2561 rows=32769 exponent=100 dtype=f16 values=4227201 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_tile_wf16\ncontrol-kernel=matmul_tile_tall\nPASS width=2561 rows=32769 exponent=100 dtype=f32 values=4227201 half=matmul_tile_wf16 control=matmul_tile_tall\nhalf-kernel=matmul_reduce\nhalf-kernel=matmul_tile_wf16_bf16\ncontrol-kernel=matmul_reduce\ncontrol-kernel=matmul_tile_bf16_tall\nPASS width=2561 rows=32769 exponent=100 dtype=bf16 values=4227201 half=matmul_tile_wf16_bf16 control=matmul_tile_bf16_tall\nPASS cases=18 values=76088457 finite_half_codes=63488\n",
+  "adjusted_range_source_sha256": "52509f7852b522c482c1c40d46855ef2c028407cb7365ed5b3a1c21ae556bc51",
+  "source_adjustment": "--- original-range.cpp\n+++ mi50-range.cpp\n@@ -24,7 +24,7 @@\n         const size_t columns = 129, guard = 64;\n         size_t checked = 0;\n         for (size_t tail : {size_t(0), size_t(1)}) {\n-            const size_t width = 2560 + tail, rows = 4096 + tail, elements = width * rows;\n+            const size_t width = 2560 + tail, rows = 32768 + tail, elements = width * rows;\n             std::vector<uint8_t> half(2 * elements + 1, 0xa5);\n             std::vector<float> full(elements);\n             for (size_t i = 0; i < elements; ++i) {\n@@ -64,6 +64,8 @@\n                         }\n                         return tile && reduce == split;\n                     };\n+                    for (const auto& entry : half_times) std::printf(\"half-kernel=%s\\n\", entry.first.c_str());\n+                    for (const auto& entry : full_times) std::printf(\"control-kernel=%s\\n\", entry.first.c_str());\n                     if (!witnessed(half_times, half_name, dtype == backend::Dtype::bf16) ||\n                         !witnessed(full_times, full_name, dtype == backend::Dtype::bf16))\n                         throw std::runtime_error(\"range check did not reach short-half and tall-F32 tiles\");\n",
+  "fixture_change": "Only output extent and kernel-name diagnostics changed. Numerical assertions and exact control remain unchanged.",
+  "retained_local_preparation_failure": "One inline preparation command had a SyntaxError before execution; the file-based replacement succeeded.",
+  "dependency_ci": {
+    "head": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+    "run_id": 37090668606,
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/37090668606",
+    "jobs": [
+      {
+        "name": "HF reference (CPU)",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (Linux UBSan)",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "conclusion": "success"
+      }
+    ],
+    "evidence_sha256": "e38fa57f94312a03f7789a4fd70b2cc468832247cff7e0a21060f36ccfa667f0",
+    "main_unchanged": "b7a6d235",
+    "numerical_hold_unchanged": true
+  }
+}

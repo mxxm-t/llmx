@@ -1,0 +1,4656 @@
+{
+  "screen": {
+    "scope": "Eight unprofiled4B F16 before/after calls, plus2 separate profile witnesses after timing. No occupancy, HF, merge or fresh mx-parity claim.",
+    "runner_passed": true,
+    "runner_error": null,
+    "issues": [],
+    "timed_calls": [
+      {
+        "number": 1,
+        "arm": "base",
+        "prompt": 64,
+        "decode": 128,
+        "direction": "forward",
+        "diagnostic": false,
+        "arguments": [
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "64",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1790996067.5137513,
+        "end": 1790996075.6956615,
+        "returncode": 0,
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/timing/call-1-base-pp64.usage.json",
+          "prlimit",
+          "--core=0",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "64",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "activity": {
+          "intervals": 10,
+          "observation_samples": 11,
+          "unbracketed_seconds": 0,
+          "flagged_intervals": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk_activity": 0,
+            "sample_gap": 0
+          },
+          "unknown_cpu_intervals": 0,
+          "unknown_disk_intervals": 0,
+          "process_observations": {
+            "unknown_process_roles": 0,
+            "new_processes_without_delta": 124,
+            "missed_process_observations": 5,
+            "appeared_processes": 124,
+            "disappeared_processes": 30
+          },
+          "gpu": {
+            "card0": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card1": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card2": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713475584.0,
+                "max": 25713475584.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card3": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713479680.0,
+                "max": 25713479680.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card4": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card5": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card6": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card7": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card8": {
+              "devices": [
+                "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 99.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 8244404224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card9": {
+              "devices": [
+                "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            }
+          },
+          "gpu_observations_unavailable": false,
+          "end_estimated_from_runner": false
+        },
+        "resources": {
+          "wall_seconds": 8.048167943954468,
+          "cpu_seconds": 4.89554,
+          "major_faults": 0,
+          "minor_faults": 74294,
+          "input_blocks": 0,
+          "max_rss_kib": 311120,
+          "average_cpu_cores": 0.6082800500798913,
+          "cgroup_deltas": {
+            "cpu.stat": {
+              "usage_usec": 4952021,
+              "user_usec": 698220,
+              "system_usec": 4253800,
+              "nr_throttled": 0,
+              "throttled_usec": 0
+            },
+            "memory.stat": {
+              "pgfault": 76967,
+              "pgmajfault": 0,
+              "workingset_refault_file": 0,
+              "pgscan": 0,
+              "pgsteal": 0
+            },
+            "memory.events": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            }
+          },
+          "unknown_cgroup_fields": {
+            "before": {},
+            "after": {}
+          }
+        },
+        "raw_rate_records": {
+          "pp64": {
+            "mean": 264.96,
+            "sd": 0.0,
+            "repeats": 1
+          },
+          "tg128": {
+            "mean": 51.27,
+            "sd": 0.0,
+            "repeats": 1
+          }
+        },
+        "completed_matrix_paths_records": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "rates": {
+          "pp64": 264.96,
+          "tg128": 51.27
+        }
+      },
+      {
+        "number": 2,
+        "arm": "candidate",
+        "prompt": 64,
+        "decode": 128,
+        "direction": "forward",
+        "diagnostic": false,
+        "arguments": [
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "64",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1790996075.6972127,
+        "end": 1790996083.626126,
+        "returncode": 0,
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/timing/call-2-candidate-pp64.usage.json",
+          "prlimit",
+          "--core=0",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "64",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "activity": {
+          "intervals": 9,
+          "observation_samples": 10,
+          "unbracketed_seconds": 0,
+          "flagged_intervals": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk_activity": 0,
+            "sample_gap": 0
+          },
+          "unknown_cpu_intervals": 0,
+          "unknown_disk_intervals": 0,
+          "process_observations": {
+            "unknown_process_roles": 0,
+            "new_processes_without_delta": 128,
+            "missed_process_observations": 5,
+            "appeared_processes": 128,
+            "disappeared_processes": 35
+          },
+          "gpu": {
+            "card0": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card1": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card2": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713475584.0,
+                "max": 25713475584.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card3": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713479680.0,
+                "max": 25713479680.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card4": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card5": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card6": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card7": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card8": {
+              "devices": [
+                "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+              ],
+              "busy": {
+                "min": 10.0,
+                "max": 100.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 7726653440.0,
+                "max": 8244404224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card9": {
+              "devices": [
+                "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            }
+          },
+          "gpu_observations_unavailable": false,
+          "end_estimated_from_runner": false
+        },
+        "resources": {
+          "wall_seconds": 7.819153785705566,
+          "cpu_seconds": 5.0111229999999995,
+          "major_faults": 0,
+          "minor_faults": 74310,
+          "input_blocks": 0,
+          "max_rss_kib": 311100,
+          "average_cpu_cores": 0.6408779181656442,
+          "cgroup_deltas": {
+            "cpu.stat": {
+              "usage_usec": 5065796,
+              "user_usec": 718829,
+              "system_usec": 4346968,
+              "nr_throttled": 0,
+              "throttled_usec": 0
+            },
+            "memory.stat": {
+              "pgfault": 76977,
+              "pgmajfault": 0,
+              "workingset_refault_file": 0,
+              "pgscan": 0,
+              "pgsteal": 0
+            },
+            "memory.events": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            }
+          },
+          "unknown_cgroup_fields": {
+            "before": {},
+            "after": {}
+          }
+        },
+        "raw_rate_records": {
+          "pp64": {
+            "mean": 257.01,
+            "sd": 0.0,
+            "repeats": 1
+          },
+          "tg128": {
+            "mean": 56.17,
+            "sd": 0.0,
+            "repeats": 1
+          }
+        },
+        "completed_matrix_paths_records": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "rates": {
+          "pp64": 257.01,
+          "tg128": 56.17
+        }
+      },
+      {
+        "number": 3,
+        "arm": "base",
+        "prompt": 512,
+        "decode": 32,
+        "direction": "forward",
+        "diagnostic": false,
+        "arguments": [
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1790996083.6273372,
+        "end": 1790996090.2045703,
+        "returncode": 0,
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/timing/call-3-base-pp512.usage.json",
+          "prlimit",
+          "--core=0",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "activity": {
+          "intervals": 7,
+          "observation_samples": 8,
+          "unbracketed_seconds": 0,
+          "flagged_intervals": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk_activity": 0,
+            "sample_gap": 0
+          },
+          "unknown_cpu_intervals": 0,
+          "unknown_disk_intervals": 0,
+          "process_observations": {
+            "unknown_process_roles": 0,
+            "new_processes_without_delta": 134,
+            "missed_process_observations": 1,
+            "appeared_processes": 134,
+            "disappeared_processes": 22
+          },
+          "gpu": {
+            "card0": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card1": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card2": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713475584.0,
+                "max": 25713475584.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card3": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713479680.0,
+                "max": 25713479680.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card4": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card5": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card6": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card7": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card8": {
+              "devices": [
+                "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 100.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 7726653440.0,
+                "max": 8587255808.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card9": {
+              "devices": [
+                "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            }
+          },
+          "gpu_observations_unavailable": false,
+          "end_estimated_from_runner": false
+        },
+        "resources": {
+          "wall_seconds": 6.47832727432251,
+          "cpu_seconds": 4.687972,
+          "major_faults": 0,
+          "minor_faults": 74335,
+          "input_blocks": 0,
+          "max_rss_kib": 311320,
+          "average_cpu_cores": 0.7236392669727015,
+          "cgroup_deltas": {
+            "cpu.stat": {
+              "usage_usec": 4740529,
+              "user_usec": 590242,
+              "system_usec": 4150286,
+              "nr_throttled": 0,
+              "throttled_usec": 0
+            },
+            "memory.stat": {
+              "pgfault": 77001,
+              "pgmajfault": 0,
+              "workingset_refault_file": 0,
+              "pgscan": 0,
+              "pgsteal": 0
+            },
+            "memory.events": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            }
+          },
+          "unknown_cgroup_fields": {
+            "before": {},
+            "after": {}
+          }
+        },
+        "raw_rate_records": {
+          "pp512": {
+            "mean": 386.28,
+            "sd": 0.0,
+            "repeats": 1
+          },
+          "tg32": {
+            "mean": 55.63,
+            "sd": 0.0,
+            "repeats": 1
+          }
+        },
+        "completed_matrix_paths_records": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "rates": {
+          "pp512": 386.28,
+          "tg32": 55.63
+        }
+      },
+      {
+        "number": 4,
+        "arm": "candidate",
+        "prompt": 512,
+        "decode": 32,
+        "direction": "forward",
+        "diagnostic": false,
+        "arguments": [
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1790996090.205862,
+        "end": 1790996096.582662,
+        "returncode": 0,
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/timing/call-4-candidate-pp512.usage.json",
+          "prlimit",
+          "--core=0",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "activity": {
+          "intervals": 8,
+          "observation_samples": 9,
+          "unbracketed_seconds": 0,
+          "flagged_intervals": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk_activity": 0,
+            "sample_gap": 0
+          },
+          "unknown_cpu_intervals": 0,
+          "unknown_disk_intervals": 0,
+          "process_observations": {
+            "unknown_process_roles": 0,
+            "new_processes_without_delta": 102,
+            "missed_process_observations": 1,
+            "appeared_processes": 102,
+            "disappeared_processes": 25
+          },
+          "gpu": {
+            "card0": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card1": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card2": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713475584.0,
+                "max": 25713475584.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card3": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713479680.0,
+                "max": 25713479680.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card4": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card5": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card6": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card7": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card8": {
+              "devices": [
+                "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 100.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 7293386752.0,
+                "max": 8587255808.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card9": {
+              "devices": [
+                "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            }
+          },
+          "gpu_observations_unavailable": false,
+          "end_estimated_from_runner": false
+        },
+        "resources": {
+          "wall_seconds": 6.261950254440308,
+          "cpu_seconds": 4.6704349999999994,
+          "major_faults": 0,
+          "minor_faults": 74325,
+          "input_blocks": 0,
+          "max_rss_kib": 311260,
+          "average_cpu_cores": 0.7458435168321922,
+          "cgroup_deltas": {
+            "cpu.stat": {
+              "usage_usec": 4724220,
+              "user_usec": 600544,
+              "system_usec": 4123677,
+              "nr_throttled": 0,
+              "throttled_usec": 0
+            },
+            "memory.stat": {
+              "pgfault": 76985,
+              "pgmajfault": 0,
+              "workingset_refault_file": 0,
+              "pgscan": 0,
+              "pgsteal": 0
+            },
+            "memory.events": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            }
+          },
+          "unknown_cgroup_fields": {
+            "before": {},
+            "after": {}
+          }
+        },
+        "raw_rate_records": {
+          "pp512": {
+            "mean": 434.22,
+            "sd": 0.0,
+            "repeats": 1
+          },
+          "tg32": {
+            "mean": 53.09,
+            "sd": 0.0,
+            "repeats": 1
+          }
+        },
+        "completed_matrix_paths_records": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "rates": {
+          "pp512": 434.22,
+          "tg32": 53.09
+        }
+      },
+      {
+        "number": 5,
+        "arm": "candidate",
+        "prompt": 512,
+        "decode": 32,
+        "direction": "reverse",
+        "diagnostic": false,
+        "arguments": [
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1790996096.5847256,
+        "end": 1790996102.9115956,
+        "returncode": 0,
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/timing/call-5-candidate-pp512.usage.json",
+          "prlimit",
+          "--core=0",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "activity": {
+          "intervals": 7,
+          "observation_samples": 8,
+          "unbracketed_seconds": 0,
+          "flagged_intervals": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk_activity": 0,
+            "sample_gap": 0
+          },
+          "unknown_cpu_intervals": 0,
+          "unknown_disk_intervals": 0,
+          "process_observations": {
+            "unknown_process_roles": 0,
+            "new_processes_without_delta": 48,
+            "missed_process_observations": 4,
+            "appeared_processes": 48,
+            "disappeared_processes": 19
+          },
+          "gpu": {
+            "card0": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card1": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card2": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713475584.0,
+                "max": 25713475584.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card3": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713479680.0,
+                "max": 25713479680.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card4": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card5": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card6": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card7": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card8": {
+              "devices": [
+                "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 100.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 7293386752.0,
+                "max": 8587255808.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card9": {
+              "devices": [
+                "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            }
+          },
+          "gpu_observations_unavailable": false,
+          "end_estimated_from_runner": false
+        },
+        "resources": {
+          "wall_seconds": 6.200412750244141,
+          "cpu_seconds": 4.622223,
+          "major_faults": 0,
+          "minor_faults": 74335,
+          "input_blocks": 0,
+          "max_rss_kib": 311272,
+          "average_cpu_cores": 0.7454702108045953,
+          "cgroup_deltas": {
+            "cpu.stat": {
+              "usage_usec": 4675948,
+              "user_usec": 587247,
+              "system_usec": 4088700,
+              "nr_throttled": 0,
+              "throttled_usec": 0
+            },
+            "memory.stat": {
+              "pgfault": 77077,
+              "pgmajfault": 0,
+              "workingset_refault_file": 0,
+              "pgscan": 0,
+              "pgsteal": 0
+            },
+            "memory.events": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            }
+          },
+          "unknown_cgroup_fields": {
+            "before": {},
+            "after": {}
+          }
+        },
+        "raw_rate_records": {
+          "pp512": {
+            "mean": 432.26,
+            "sd": 0.0,
+            "repeats": 1
+          },
+          "tg32": {
+            "mean": 54.34,
+            "sd": 0.0,
+            "repeats": 1
+          }
+        },
+        "completed_matrix_paths_records": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "rates": {
+          "pp512": 432.26,
+          "tg32": 54.34
+        }
+      },
+      {
+        "number": 6,
+        "arm": "base",
+        "prompt": 512,
+        "decode": 32,
+        "direction": "reverse",
+        "diagnostic": false,
+        "arguments": [
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1790996102.9132862,
+        "end": 1790996109.44229,
+        "returncode": 0,
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/timing/call-6-base-pp512.usage.json",
+          "prlimit",
+          "--core=0",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "activity": {
+          "intervals": 7,
+          "observation_samples": 8,
+          "unbracketed_seconds": 0,
+          "flagged_intervals": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk_activity": 0,
+            "sample_gap": 0
+          },
+          "unknown_cpu_intervals": 0,
+          "unknown_disk_intervals": 0,
+          "process_observations": {
+            "unknown_process_roles": 0,
+            "new_processes_without_delta": 124,
+            "missed_process_observations": 0,
+            "appeared_processes": 124,
+            "disappeared_processes": 24
+          },
+          "gpu": {
+            "card0": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card1": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card2": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713475584.0,
+                "max": 25713475584.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card3": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713479680.0,
+                "max": 25713479680.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card4": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card5": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card6": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card7": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card8": {
+              "devices": [
+                "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 100.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 7347240960.0,
+                "max": 8587255808.0,
+                "known": 8,
+                "unknown": 0
+              }
+            },
+            "card9": {
+              "devices": [
+                "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 8,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 8,
+                "unknown": 0
+              }
+            }
+          },
+          "gpu_observations_unavailable": false,
+          "end_estimated_from_runner": false
+        },
+        "resources": {
+          "wall_seconds": 6.42316746711731,
+          "cpu_seconds": 4.636464,
+          "major_faults": 0,
+          "minor_faults": 74344,
+          "input_blocks": 0,
+          "max_rss_kib": 311484,
+          "average_cpu_cores": 0.7218345191427533,
+          "cgroup_deltas": {
+            "cpu.stat": {
+              "usage_usec": 4689134,
+              "user_usec": 591322,
+              "system_usec": 4097813,
+              "nr_throttled": 0,
+              "throttled_usec": 0
+            },
+            "memory.stat": {
+              "pgfault": 77002,
+              "pgmajfault": 0,
+              "workingset_refault_file": 0,
+              "pgscan": 0,
+              "pgsteal": 0
+            },
+            "memory.events": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            }
+          },
+          "unknown_cgroup_fields": {
+            "before": {},
+            "after": {}
+          }
+        },
+        "raw_rate_records": {
+          "pp512": {
+            "mean": 386.4,
+            "sd": 0.0,
+            "repeats": 1
+          },
+          "tg32": {
+            "mean": 56.8,
+            "sd": 0.0,
+            "repeats": 1
+          }
+        },
+        "completed_matrix_paths_records": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "rates": {
+          "pp512": 386.4,
+          "tg32": 56.8
+        }
+      },
+      {
+        "number": 7,
+        "arm": "candidate",
+        "prompt": 64,
+        "decode": 128,
+        "direction": "reverse",
+        "diagnostic": false,
+        "arguments": [
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "64",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1790996109.4438019,
+        "end": 1790996117.3229694,
+        "returncode": 0,
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/timing/call-7-candidate-pp64.usage.json",
+          "prlimit",
+          "--core=0",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "64",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "activity": {
+          "intervals": 9,
+          "observation_samples": 10,
+          "unbracketed_seconds": 0,
+          "flagged_intervals": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk_activity": 0,
+            "sample_gap": 0
+          },
+          "unknown_cpu_intervals": 0,
+          "unknown_disk_intervals": 0,
+          "process_observations": {
+            "unknown_process_roles": 0,
+            "new_processes_without_delta": 34,
+            "missed_process_observations": 0,
+            "appeared_processes": 34,
+            "disappeared_processes": 31
+          },
+          "gpu": {
+            "card0": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card1": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card2": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713475584.0,
+                "max": 25713475584.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card3": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713479680.0,
+                "max": 25713479680.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card4": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card5": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card6": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card7": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card8": {
+              "devices": [
+                "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 100.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 14712832.0,
+                "max": 8447406080.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card9": {
+              "devices": [
+                "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            }
+          },
+          "gpu_observations_unavailable": false,
+          "end_estimated_from_runner": false
+        },
+        "resources": {
+          "wall_seconds": 7.75991415977478,
+          "cpu_seconds": 5.002491,
+          "major_faults": 0,
+          "minor_faults": 74299,
+          "input_blocks": 0,
+          "max_rss_kib": 310976,
+          "average_cpu_cores": 0.6446580331946855,
+          "cgroup_deltas": {
+            "cpu.stat": {
+              "usage_usec": 5055052,
+              "user_usec": 700902,
+              "system_usec": 4354150,
+              "nr_throttled": 0,
+              "throttled_usec": 0
+            },
+            "memory.stat": {
+              "pgfault": 76964,
+              "pgmajfault": 0,
+              "workingset_refault_file": 0,
+              "pgscan": 0,
+              "pgsteal": 0
+            },
+            "memory.events": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            }
+          },
+          "unknown_cgroup_fields": {
+            "before": {},
+            "after": {}
+          }
+        },
+        "raw_rate_records": {
+          "pp64": {
+            "mean": 262.08,
+            "sd": 0.0,
+            "repeats": 1
+          },
+          "tg128": {
+            "mean": 56.71,
+            "sd": 0.0,
+            "repeats": 1
+          }
+        },
+        "completed_matrix_paths_records": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "rates": {
+          "pp64": 262.08,
+          "tg128": 56.71
+        }
+      },
+      {
+        "number": 8,
+        "arm": "base",
+        "prompt": 64,
+        "decode": 128,
+        "direction": "reverse",
+        "diagnostic": false,
+        "arguments": [
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "64",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1790996117.3249538,
+        "end": 1790996125.3048453,
+        "returncode": 0,
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/timing/call-8-base-pp64.usage.json",
+          "prlimit",
+          "--core=0",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "64",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "activity": {
+          "intervals": 9,
+          "observation_samples": 10,
+          "unbracketed_seconds": 0,
+          "flagged_intervals": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 1,
+            "disk_activity": 0,
+            "sample_gap": 0
+          },
+          "unknown_cpu_intervals": 0,
+          "unknown_disk_intervals": 0,
+          "process_observations": {
+            "unknown_process_roles": 0,
+            "new_processes_without_delta": 111,
+            "missed_process_observations": 1,
+            "appeared_processes": 111,
+            "disappeared_processes": 32
+          },
+          "gpu": {
+            "card0": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card1": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card2": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713475584.0,
+                "max": 25713475584.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card3": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713479680.0,
+                "max": 25713479680.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card4": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card5": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card6": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card7": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card8": {
+              "devices": [
+                "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 99.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 14712832.0,
+                "max": 8244404224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            },
+            "card9": {
+              "devices": [
+                "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 10,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 10,
+                "unknown": 0
+              }
+            }
+          },
+          "gpu_observations_unavailable": false,
+          "end_estimated_from_runner": false
+        },
+        "resources": {
+          "wall_seconds": 7.86293888092041,
+          "cpu_seconds": 4.928642999999999,
+          "major_faults": 0,
+          "minor_faults": 74299,
+          "input_blocks": 0,
+          "max_rss_kib": 311120,
+          "average_cpu_cores": 0.6268194468558642,
+          "cgroup_deltas": {
+            "cpu.stat": {
+              "usage_usec": 4982532,
+              "user_usec": 716749,
+              "system_usec": 4265782,
+              "nr_throttled": 0,
+              "throttled_usec": 0
+            },
+            "memory.stat": {
+              "pgfault": 76966,
+              "pgmajfault": 0,
+              "workingset_refault_file": 0,
+              "pgscan": 0,
+              "pgsteal": 0
+            },
+            "memory.events": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            }
+          },
+          "unknown_cgroup_fields": {
+            "before": {},
+            "after": {}
+          }
+        },
+        "raw_rate_records": {
+          "pp64": {
+            "mean": 267.23,
+            "sd": 0.0,
+            "repeats": 1
+          },
+          "tg128": {
+            "mean": 55.42,
+            "sd": 0.0,
+            "repeats": 1
+          }
+        },
+        "completed_matrix_paths_records": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "rates": {
+          "pp64": 267.23,
+          "tg128": 55.42
+        }
+      }
+    ],
+    "profile_diagnostics": [
+      {
+        "number": 9,
+        "arm": "base",
+        "prompt": 512,
+        "decode": 32,
+        "direction": "diagnostic",
+        "diagnostic": true,
+        "arguments": [
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto",
+          "--profile"
+        ],
+        "status": "passed",
+        "start": 1790996125.3066385,
+        "end": 1790996134.0407898,
+        "returncode": 0,
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/timing/witness-9-base-pp512.usage.json",
+          "prlimit",
+          "--core=0",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto",
+          "--profile"
+        ],
+        "actual_tile_witness": "tall present",
+        "activity": {
+          "intervals": 10,
+          "observation_samples": 11,
+          "unbracketed_seconds": 0,
+          "flagged_intervals": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk_activity": 0,
+            "sample_gap": 0
+          },
+          "unknown_cpu_intervals": 0,
+          "unknown_disk_intervals": 0,
+          "process_observations": {
+            "unknown_process_roles": 0,
+            "new_processes_without_delta": 67,
+            "missed_process_observations": 1,
+            "appeared_processes": 67,
+            "disappeared_processes": 32
+          },
+          "gpu": {
+            "card0": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card1": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card2": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713475584.0,
+                "max": 25713475584.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card3": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713479680.0,
+                "max": 25713479680.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card4": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card5": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card6": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card7": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card8": {
+              "devices": [
+                "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 100.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 8058777600.0,
+                "max": 8587255808.0,
+                "known": 11,
+                "unknown": 0
+              }
+            },
+            "card9": {
+              "devices": [
+                "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 11,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 11,
+                "unknown": 0
+              }
+            }
+          },
+          "gpu_observations_unavailable": false,
+          "end_estimated_from_runner": false
+        },
+        "resources": {
+          "wall_seconds": 8.635927200317383,
+          "cpu_seconds": 4.918362,
+          "major_faults": 0,
+          "minor_faults": 82313,
+          "input_blocks": 0,
+          "max_rss_kib": 311000,
+          "average_cpu_cores": 0.5695233280590002,
+          "cgroup_deltas": {
+            "cpu.stat": {
+              "usage_usec": 4971673,
+              "user_usec": 843200,
+              "system_usec": 4128474,
+              "nr_throttled": 0,
+              "throttled_usec": 0
+            },
+            "memory.stat": {
+              "pgfault": 85065,
+              "pgmajfault": 0,
+              "workingset_refault_file": 0,
+              "pgscan": 0,
+              "pgsteal": 0
+            },
+            "memory.events": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            }
+          },
+          "unknown_cgroup_fields": {
+            "before": {},
+            "after": {}
+          }
+        },
+        "raw_rate_records": {
+          "pp512": {
+            "mean": 385.12,
+            "sd": 0.0,
+            "repeats": 1
+          },
+          "tg32": {
+            "mean": 57.63,
+            "sd": 0.0,
+            "repeats": 1
+          }
+        },
+        "completed_matrix_paths_records": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "rates": {
+          "pp512": 385.12,
+          "tg32": 57.63
+        },
+        "profile": {
+          "sections": [
+            {
+              "phase": "pp",
+              "device_ms": 1330.83,
+              "dispatches": 436,
+              "kernels": [
+                {
+                  "name": "matmul_tile_wf16",
+                  "ms": 679.626,
+                  "percent": 51.0679
+                },
+                {
+                  "name": "matmul_tile_wf16_tall",
+                  "ms": 612.362,
+                  "percent": 46.0136
+                },
+                {
+                  "name": "attention_tile",
+                  "ms": 20.8165,
+                  "percent": 1.56418
+                },
+                {
+                  "name": "norm_rope_kv",
+                  "ms": 6.78704,
+                  "percent": 0.509986
+                },
+                {
+                  "name": "rms_norm_rows",
+                  "ms": 4.91504,
+                  "percent": 0.369322
+                },
+                {
+                  "name": "silu_mul",
+                  "ms": 4.89248,
+                  "percent": 0.367627
+                },
+                {
+                  "name": "matmul_row_wf16_1col",
+                  "ms": 1.28304,
+                  "percent": 0.0964092
+                },
+                {
+                  "name": "gather_rows",
+                  "ms": 0.12704,
+                  "percent": 0.00954594
+                },
+                {
+                  "name": "embed_wf16",
+                  "ms": 0.01856,
+                  "percent": 0.00139462
+                }
+              ]
+            },
+            {
+              "phase": "tg",
+              "device_ms": 245.54,
+              "dispatches": 4096,
+              "kernels": [
+                {
+                  "name": "matmul_row_wf16_1col",
+                  "ms": 201.932,
+                  "percent": 82.2402
+                },
+                {
+                  "name": "rms_norm_rows",
+                  "ms": 19.5397,
+                  "percent": 7.95785
+                },
+                {
+                  "name": "silu_mul",
+                  "ms": 9.69264,
+                  "percent": 3.94748
+                },
+                {
+                  "name": "norm_rope_kv",
+                  "ms": 9.36752,
+                  "percent": 3.81507
+                },
+                {
+                  "name": "attention_vec",
+                  "ms": 4.4384,
+                  "percent": 1.80761
+                },
+                {
+                  "name": "gather_rows",
+                  "ms": 0.42528,
+                  "percent": 0.173202
+                },
+                {
+                  "name": "embed_wf16",
+                  "ms": 0.14384,
+                  "percent": 0.0585812
+                }
+              ]
+            }
+          ],
+          "driver_statistics_lines": [
+            "profile: kernel silu_mul: Driver pipeline hash=13055365034415255110 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+            "profile: kernel gather_rows: Driver pipeline hash=5568314472803487755 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+            "profile: kernel rms_norm_rows: Driver pipeline hash=6326628525475067928 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+            "profile: kernel norm_rope_kv: Driver pipeline hash=9276555973224797266 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+            "profile: kernel attention_tile: Driver pipeline hash=17341919720392497138 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9848 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1542993669 Instructions=1872 Copies=173 Branches=73 Latency=71196 Inverse Throughput=34901 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=63 VALU=1283 SALU=300 VMEM=12 SMEM=10 VOPD=0",
+            "profile: kernel attention_vec: Driver pipeline hash=16779967215042580234 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+            "profile: kernel embed_wf16: Driver pipeline hash=66460419618181044 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=320 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=2550053810 Instructions=59 Copies=12 Branches=5 Latency=4454 Inverse Throughput=668 VMEM Clause=2 SMEM Clause=4 Pre-Sched SGPRs=12 Pre-Sched VGPRs=5 VALU=27 SALU=15 VMEM=2 SMEM=4 VOPD=0",
+            "profile: kernel matmul_row_wf16_1col: Driver pipeline hash=8535898559068262356 SGPRs=32 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=5376 LDS size=0 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=2725187054 Instructions=929 Copies=161 Branches=80 Latency=20380 Inverse Throughput=5197 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=27 Pre-Sched VGPRs=27 VALU=553 SALU=245 VMEM=15 SMEM=10 VOPD=0",
+            "profile: kernel matmul_tile_wf16: Driver pipeline hash=7297207032444309125 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9212 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=2144686587 Instructions=1682 Copies=360 Branches=150 Latency=320243 Inverse Throughput=80061 VMEM Clause=81 SMEM Clause=67 Pre-Sched SGPRs=40 Pre-Sched VGPRs=36 VALU=690 SALU=481 VMEM=81 SMEM=67 VOPD=0",
+            "profile: kernel matmul_tile_wf16_tall: Driver pipeline hash=8827296466793253536 SGPRs=48 VGPRs=92 Spilled SGPRs=0 Spilled VGPRs=0 Code size=16804 LDS size=24576 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=2616583463 Instructions=3061 Copies=668 Branches=282 Latency=522675 Inverse Throughput=261337 VMEM Clause=153 SMEM Clause=123 Pre-Sched SGPRs=26 Pre-Sched VGPRs=50 VALU=1300 SALU=850 VMEM=153 SMEM=123 VOPD=0"
+          ],
+          "expected_tile_present": true
+        }
+      },
+      {
+        "number": 10,
+        "arm": "candidate",
+        "prompt": 512,
+        "decode": 32,
+        "direction": "diagnostic",
+        "diagnostic": true,
+        "arguments": [
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto",
+          "--profile"
+        ],
+        "status": "passed",
+        "start": 1790996134.0425823,
+        "end": 1790996142.225006,
+        "returncode": 0,
+        "command": [
+          "docker",
+          "exec",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/timing/witness-10-candidate-pp512.usage.json",
+          "prlimit",
+          "--core=0",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "32",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto",
+          "--profile"
+        ],
+        "actual_tile_witness": "short present, tall absent",
+        "activity": {
+          "intervals": 8,
+          "observation_samples": 9,
+          "unbracketed_seconds": 0.6361150741577148,
+          "flagged_intervals": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk_activity": 0,
+            "sample_gap": 0
+          },
+          "unknown_cpu_intervals": 0,
+          "unknown_disk_intervals": 0,
+          "process_observations": {
+            "unknown_process_roles": 0,
+            "new_processes_without_delta": 25,
+            "missed_process_observations": 1,
+            "appeared_processes": 25,
+            "disappeared_processes": 29
+          },
+          "gpu": {
+            "card0": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card1": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card2": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713475584.0,
+                "max": 25713475584.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card3": {
+              "devices": [
+                "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 25713479680.0,
+                "max": 25713479680.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card4": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card5": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card6": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card7": {
+              "devices": [
+                "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card8": {
+              "devices": [
+                "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 100.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 8058777600.0,
+                "max": 8587255808.0,
+                "known": 9,
+                "unknown": 0
+              }
+            },
+            "card9": {
+              "devices": [
+                "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+              ],
+              "busy": {
+                "min": 0.0,
+                "max": 0.0,
+                "known": 9,
+                "unknown": 0
+              },
+              "vram_used": {
+                "min": 10932224.0,
+                "max": 10932224.0,
+                "known": 9,
+                "unknown": 0
+              }
+            }
+          },
+          "gpu_observations_unavailable": false,
+          "end_estimated_from_runner": false
+        },
+        "resources": {
+          "wall_seconds": 8.09288239479065,
+          "cpu_seconds": 4.860798999999999,
+          "major_faults": 0,
+          "minor_faults": 79113,
+          "input_blocks": 0,
+          "max_rss_kib": 311076,
+          "average_cpu_cores": 0.6006264224386694,
+          "cgroup_deltas": {
+            "cpu.stat": {
+              "usage_usec": 4913803,
+              "user_usec": 806809,
+              "system_usec": 4106993,
+              "nr_throttled": 0,
+              "throttled_usec": 0
+            },
+            "memory.stat": {
+              "pgfault": 81790,
+              "pgmajfault": 0,
+              "workingset_refault_file": 0,
+              "pgscan": 0,
+              "pgsteal": 0
+            },
+            "memory.events": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            }
+          },
+          "unknown_cgroup_fields": {
+            "before": {},
+            "after": {}
+          }
+        },
+        "raw_rate_records": {
+          "pp512": {
+            "mean": 432.88,
+            "sd": 0.0,
+            "repeats": 1
+          },
+          "tg32": {
+            "mean": 57.67,
+            "sd": 0.0,
+            "repeats": 1
+          }
+        },
+        "completed_matrix_paths_records": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "rates": {
+          "pp512": 432.88,
+          "tg32": 57.67
+        },
+        "profile": {
+          "sections": [
+            {
+              "phase": "pp",
+              "device_ms": 1183.56,
+              "dispatches": 436,
+              "kernels": [
+                {
+                  "name": "matmul_tile_wf16",
+                  "ms": 1145.94,
+                  "percent": 96.8215
+                },
+                {
+                  "name": "attention_tile",
+                  "ms": 20.8138,
+                  "percent": 1.75857
+                },
+                {
+                  "name": "norm_rope_kv",
+                  "ms": 6.30272,
+                  "percent": 0.532522
+                },
+                {
+                  "name": "silu_mul",
+                  "ms": 4.64176,
+                  "percent": 0.392186
+                },
+                {
+                  "name": "rms_norm_rows",
+                  "ms": 4.55312,
+                  "percent": 0.384697
+                },
+                {
+                  "name": "matmul_row_wf16_1col",
+                  "ms": 1.28336,
+                  "percent": 0.108432
+                },
+                {
+                  "name": "embed_wf16",
+                  "ms": 0.0184,
+                  "percent": 0.00155463
+                },
+                {
+                  "name": "gather_rows",
+                  "ms": 0.0064,
+                  "percent": 0.000540741
+                }
+              ]
+            },
+            {
+              "phase": "tg",
+              "device_ms": 220.791,
+              "dispatches": 4096,
+              "kernels": [
+                {
+                  "name": "matmul_row_wf16_1col",
+                  "ms": 201.918,
+                  "percent": 91.4519
+                },
+                {
+                  "name": "rms_norm_rows",
+                  "ms": 7.2256,
+                  "percent": 3.2726
+                },
+                {
+                  "name": "attention_vec",
+                  "ms": 4.42064,
+                  "percent": 2.00218
+                },
+                {
+                  "name": "norm_rope_kv",
+                  "ms": 4.31616,
+                  "percent": 1.95486
+                },
+                {
+                  "name": "silu_mul",
+                  "ms": 2.69712,
+                  "percent": 1.22157
+                },
+                {
+                  "name": "embed_wf16",
+                  "ms": 0.13904,
+                  "percent": 0.0629736
+                },
+                {
+                  "name": "gather_rows",
+                  "ms": 0.07488,
+                  "percent": 0.0339144
+                }
+              ]
+            }
+          ],
+          "driver_statistics_lines": [
+            "profile: kernel silu_mul: Driver pipeline hash=13055365034415255110 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+            "profile: kernel gather_rows: Driver pipeline hash=5568314472803487755 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+            "profile: kernel rms_norm_rows: Driver pipeline hash=6326628525475067928 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+            "profile: kernel norm_rope_kv: Driver pipeline hash=9276555973224797266 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+            "profile: kernel attention_tile: Driver pipeline hash=17341919720392497138 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9848 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1542993669 Instructions=1872 Copies=173 Branches=73 Latency=71196 Inverse Throughput=34901 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=63 VALU=1283 SALU=300 VMEM=12 SMEM=10 VOPD=0",
+            "profile: kernel attention_vec: Driver pipeline hash=16779967215042580234 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+            "profile: kernel embed_wf16: Driver pipeline hash=66460419618181044 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=320 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=2550053810 Instructions=59 Copies=12 Branches=5 Latency=4454 Inverse Throughput=668 VMEM Clause=2 SMEM Clause=4 Pre-Sched SGPRs=12 Pre-Sched VGPRs=5 VALU=27 SALU=15 VMEM=2 SMEM=4 VOPD=0",
+            "profile: kernel matmul_row_wf16_1col: Driver pipeline hash=8535898559068262356 SGPRs=32 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=5376 LDS size=0 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=2725187054 Instructions=929 Copies=161 Branches=80 Latency=20380 Inverse Throughput=5197 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=27 Pre-Sched VGPRs=27 VALU=553 SALU=245 VMEM=15 SMEM=10 VOPD=0",
+            "profile: kernel matmul_tile_wf16: Driver pipeline hash=7297207032444309125 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9212 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=2144686587 Instructions=1682 Copies=360 Branches=150 Latency=320243 Inverse Throughput=80061 VMEM Clause=81 SMEM Clause=67 Pre-Sched SGPRs=40 Pre-Sched VGPRs=36 VALU=690 SALU=481 VMEM=81 SMEM=67 VOPD=0"
+          ],
+          "expected_tile_present": true
+        }
+      }
+    ],
+    "comparisons": [
+      {
+        "prompt": 64,
+        "decode": 128,
+        "call_numbers": [
+          1,
+          2,
+          7,
+          8
+        ],
+        "phases": {
+          "pp64": {
+            "raw_forward_reverse": {
+              "base": [
+                264.96,
+                267.23
+              ],
+              "candidate": [
+                257.01,
+                262.08
+              ]
+            },
+            "means": {
+              "base": 266.095,
+              "candidate": 259.54499999999996
+            },
+            "ranges": {
+              "base": [
+                264.96,
+                267.23
+              ],
+              "candidate": [
+                257.01,
+                262.08
+              ]
+            },
+            "candidate_vs_base_percent_forward_reverse": [
+              -3.0004528985507206,
+              -1.9271788347116847
+            ],
+            "mean_paired_percent": -2.4638158666312027,
+            "ratio_of_means_percent": -2.4615268982882355
+          },
+          "tg128": {
+            "raw_forward_reverse": {
+              "base": [
+                51.27,
+                55.42
+              ],
+              "candidate": [
+                56.17,
+                56.71
+              ]
+            },
+            "means": {
+              "base": 53.345,
+              "candidate": 56.44
+            },
+            "ranges": {
+              "base": [
+                51.27,
+                55.42
+              ],
+              "candidate": [
+                56.17,
+                56.71
+              ]
+            },
+            "candidate_vs_base_percent_forward_reverse": [
+              9.557245952798898,
+              2.327679538072891
+            ],
+            "mean_paired_percent": 5.942462745435894,
+            "ratio_of_means_percent": 5.801855844034121
+          }
+        }
+      },
+      {
+        "prompt": 512,
+        "decode": 32,
+        "call_numbers": [
+          3,
+          4,
+          5,
+          6
+        ],
+        "phases": {
+          "pp512": {
+            "raw_forward_reverse": {
+              "base": [
+                386.28,
+                386.4
+              ],
+              "candidate": [
+                434.22,
+                432.26
+              ]
+            },
+            "means": {
+              "base": 386.34,
+              "candidate": 433.24
+            },
+            "ranges": {
+              "base": [
+                386.28,
+                386.4
+              ],
+              "candidate": [
+                432.26,
+                434.22
+              ]
+            },
+            "candidate_vs_base_percent_forward_reverse": [
+              12.410686548617589,
+              11.868530020703938
+            ],
+            "mean_paired_percent": 12.139608284660763,
+            "ratio_of_means_percent": 12.139566185225448
+          },
+          "tg32": {
+            "raw_forward_reverse": {
+              "base": [
+                55.63,
+                56.8
+              ],
+              "candidate": [
+                53.09,
+                54.34
+              ]
+            },
+            "means": {
+              "base": 56.215,
+              "candidate": 53.715
+            },
+            "ranges": {
+              "base": [
+                55.63,
+                56.8
+              ],
+              "candidate": [
+                53.09,
+                54.34
+              ]
+            },
+            "candidate_vs_base_percent_forward_reverse": [
+              -4.565881718497211,
+              -4.330985915492946
+            ],
+            "mean_paired_percent": -4.448433816995079,
+            "ratio_of_means_percent": -4.447211598327849
+          }
+        }
+      }
+    ],
+    "historical_reference_context": {
+      "scope": "Historical same-container MI50 e984 versus mx matched measurement. These figures are context beside the new d31/faef screen, never a new matched mx arm or fresh parity claim.",
+      "source_head": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+      "executables": {
+        "candidate": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx",
+          "bytes": 4957064,
+          "sha256": "ea7b848aead33c509308d7989e011ee9859646b2c39f79a3f5aedb5fd6891386",
+          "version": "llmx 0.1.0+ge98453f9e562"
+        },
+        "mx": {
+          "path": "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+          "sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+          "revision": "eefc4e7321c869496146697d63362f073941aed6",
+          "required_recheck": "actual F32-KV Vulkan adapter source/hash, linked libraries and --list-devices; do not substitute CPU or default-f16-KV wrapper",
+          "linked_library_manifest": ".tmp-half-weight-perf-20261002/cpu-initial/mx-reference.json reference_artifacts; reuse only matching GPU build-r2 libraries, not that manifest CPU executable",
+          "manifest": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/retry2/complete.json",
+          "reference_root": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929"
+        }
+      },
+      "model": {
+        "path": "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+        "bytes": 8051285344,
+        "sha256": "336228a2810f17724ecd6e9e2e40e8381eee81e886316fee311ade2899c31030",
+        "revision": "a06e946bb6b655725eafa393f4a9745d460374c9",
+        "repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
+        "host_path": "/zpool1/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf"
+      },
+      "settings": {
+        "threads": 4,
+        "ubatch": 512,
+        "cache_type_k": "f32",
+        "cache_type_v": "f32",
+        "dtype": "auto",
+        "repeats": 1
+      },
+      "rows": [
+        {
+          "model": "4b-f16",
+          "prompt": 64,
+          "decode": 128,
+          "call_numbers": [
+            1,
+            2,
+            47,
+            48
+          ],
+          "phases": {
+            "pp64": {
+              "candidate_raw_forward_reverse": [
+                267.83,
+                263.01
+              ],
+              "mx_raw_forward_reverse": [
+                507.95,
+                506.28
+              ],
+              "candidate_mean": 265.41999999999996,
+              "mx_mean": 507.115,
+              "candidate_range": [
+                263.01,
+                267.83
+              ],
+              "mx_range": [
+                506.28,
+                507.95
+              ],
+              "candidate_vs_mx_percent_forward_reverse": [
+                -47.27236932768973,
+                -48.05048589713202
+              ],
+              "paired_percent_range": [
+                -48.05048589713202,
+                -47.27236932768973
+              ],
+              "mean_paired_percent": -47.661427612410876,
+              "ratio_of_means_percent": -47.66078700097612
+            },
+            "tg128": {
+              "candidate_raw_forward_reverse": [
+                57.09,
+                53.96
+              ],
+              "mx_raw_forward_reverse": [
+                71.02,
+                71.01
+              ],
+              "candidate_mean": 55.525000000000006,
+              "mx_mean": 71.015,
+              "candidate_range": [
+                53.96,
+                57.09
+              ],
+              "mx_range": [
+                71.01,
+                71.02
+              ],
+              "candidate_vs_mx_percent_forward_reverse": [
+                -19.61419318501829,
+                -24.010702717927057
+              ],
+              "paired_percent_range": [
+                -24.010702717927057,
+                -19.61419318501829
+              ],
+              "mean_paired_percent": -21.812447951472674,
+              "ratio_of_means_percent": -21.8122931774977
+            }
+          }
+        },
+        {
+          "model": "4b-f16",
+          "prompt": 512,
+          "decode": 32,
+          "call_numbers": [
+            5,
+            6,
+            43,
+            44
+          ],
+          "phases": {
+            "pp512": {
+              "candidate_raw_forward_reverse": [
+                387.67,
+                386.4
+              ],
+              "mx_raw_forward_reverse": [
+                677.66,
+                677.18
+              ],
+              "candidate_mean": 387.03499999999997,
+              "mx_mean": 677.42,
+              "candidate_range": [
+                386.4,
+                387.67
+              ],
+              "mx_range": [
+                677.18,
+                677.66
+              ],
+              "candidate_vs_mx_percent_forward_reverse": [
+                -42.79284596995543,
+                -42.93983874302253
+              ],
+              "paired_percent_range": [
+                -42.93983874302253,
+                -42.79284596995543
+              ],
+              "mean_paired_percent": -42.86634235648898,
+              "ratio_of_means_percent": -42.86631631779399
+            },
+            "tg32": {
+              "candidate_raw_forward_reverse": [
+                57.72,
+                57.32
+              ],
+              "mx_raw_forward_reverse": [
+                70.5,
+                70.4
+              ],
+              "candidate_mean": 57.519999999999996,
+              "mx_mean": 70.45,
+              "candidate_range": [
+                57.32,
+                57.72
+              ],
+              "mx_range": [
+                70.4,
+                70.5
+              ],
+              "candidate_vs_mx_percent_forward_reverse": [
+                -18.12765957446809,
+                -18.579545454545464
+              ],
+              "paired_percent_range": [
+                -18.579545454545464,
+                -18.12765957446809
+              ],
+              "mean_paired_percent": -18.353602514506775,
+              "ratio_of_means_percent": -18.353442157558565
+            }
+          }
+        }
+      ],
+      "activity_source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\linux-larger-e98453f9\\results\\analysis.json",
+      "activity_source_sha256": "ec5ce2cf077287beb46b36676bae9de6c3c78b711b465afe1a8534d3517b4dff",
+      "plan_sha256": "ce393d638ad41d69335d04726a1b917948133e7c0d100ce49ff872744619daea",
+      "caveats": [
+        "Each decode resets history; tg128/32 is not generation after pp64/512.",
+        "Historical llmx and mx context allocation/load/arithmetic policies remain those recorded in their original report.",
+        "No old rate is subtracted from a new rate to establish a kernel gain, driver effect or occupancy."
+      ]
+    },
+    "heads": {
+      "base": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+      "candidate": "faef505124e795eff8d26e95ee4e9adc130f80ad"
+    },
+    "model": {
+      "path": "/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf",
+      "bytes": 8051285344,
+      "sha256": "336228a2810f17724ecd6e9e2e40e8381eee81e886316fee311ade2899c31030",
+      "revision": "a06e946bb6b655725eafa393f4a9745d460374c9",
+      "repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
+      "host_path": "/zpool1/models/llmx-xdev-half-weights-20261002/Qwen3-4B-Instruct-2507-F16.gguf"
+    },
+    "resources": {
+      "container": "llmx-xdev-vulkan-weight-dispatch-20261002",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "cpu_set": "0-3",
+      "quota": 4,
+      "memory_gib": 32,
+      "gpu_node": "/dev/dri/renderD136",
+      "gpu_pci": "0000:03:00.0",
+      "clocks": "auto"
+    },
+    "build_evidence": {
+      "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/build-complete.json",
+      "sha256": "cdb0388350650ac0e7c534cf5d6d5f9be7894ebedbf149d73c19cdf1a18dae1a"
+    },
+    "binaries": {
+      "base": {
+        "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+        "exe_sha256": "448ab1850505787f893ba60a59a462f9de535e321c04e83fa437be2f28e79905",
+        "version": "llmx 0.1.0+gd31f0113317e",
+        "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+        "head": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+        "tree": "a8e25edf7427d7c0cacddaf979aab12ee70928b5"
+      },
+      "candidate": {
+        "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+        "exe_sha256": "0d8a8ecaec2ec8c98ae8c9f164aa3a7f84f726da69576f177908729bab288315",
+        "version": "llmx 0.1.0+gfaef505124e7",
+        "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+        "head": "faef505124e795eff8d26e95ee4e9adc130f80ad",
+        "tree": "1d5b998f5a5bcbf7db63242bb34b9c0474d3bbed"
+      }
+    },
+    "activity_flags": {
+      "system_idle_below_percent": 25,
+      "iowait_above_percent": 5,
+      "unrelated_cpu_at_least_percent": 100,
+      "disk_bytes_per_second_above": 50000000,
+      "sample_gap_above_seconds": 2.5
+    },
+    "activity_totals": {
+      "flags": {
+        "cpu_busy": 0,
+        "iowait": 0,
+        "unrelated_cpu": 1,
+        "disk_activity": 0,
+        "sample_gap": 0
+      },
+      "unknown_cpu_intervals": 0,
+      "unknown_disk_intervals": 0,
+      "process_observations": {
+        "unknown_process_roles": 0,
+        "new_processes_without_delta": 793,
+        "missed_process_observations": 15,
+        "appeared_processes": 793,
+        "disappeared_processes": 223
+      },
+      "hot_unrelated_process_observations": [
+        [
+          "dockerd",
+          1
+        ]
+      ]
+    },
+    "sample_count": 77,
+    "interval_count": 76,
+    "monitor_stop_records": [
+      {
+        "event": "stop",
+        "at": "2026-10-03T02:55:42.589382+00:00",
+        "elapsed": 77.04747068695724
+      }
+    ],
+    "monitor_exit_code": null,
+    "monitor_exit_limit": "Runner waits for monitor but does not save its return code; no zero inferred.",
+    "artifacts": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\summarize.py": {
+        "bytes": 12185,
+        "sha256": "951eac82c94749e5405794ec6433d2cafef8be7b9d4c9c5842167fa0fe4dbfeb"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\linux-larger-e98453f9\\analyze.py": {
+        "bytes": 14231,
+        "sha256": "6d4d0bf4e390aa4fc85ef2d3fb2b231fb8f4f7b5c6885f7ebb10ce18a0d6d517"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-storage-types-run-20261002\\analyze-timing.py": {
+        "bytes": 13785,
+        "sha256": "d73583a62e068a51061fa97e64e1bb5b9380fef68875c8b846ae5d1754164681"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\screen-plan.json": {
+        "bytes": 9502,
+        "sha256": "c330f29196684c96dcdf4d5153d95ba9e3304c302bbc82f44f8d0c8a1b2bf009"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\rig-timing.py": {
+        "bytes": 8862,
+        "sha256": "40dacfb26b2ce5ba4be20660164cbdaeba90db136b0a41e6d42b6dbada18e448"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\preparation.json": {
+        "bytes": 2541,
+        "sha256": "7394aa8c904fcf54551b7db3ac5a024731cbc680110e7adec237ce0bd88d9632"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\historical-reference.json": {
+        "bytes": 6357,
+        "sha256": "5dc555acd45492e662b50bde958fb9a20379162e02d0227d60f836ec923d73a9"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\build-complete.json": {
+        "bytes": 22975,
+        "sha256": "cdb0388350650ac0e7c534cf5d6d5f9be7894ebedbf149d73c19cdf1a18dae1a"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\timing-complete.json": {
+        "bytes": 86800,
+        "sha256": "fc9fe8e3b54b0c59290fa4fdad5788c193c94ed899ba7200bf7204de047bf8c3"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\activity.jsonl": {
+        "bytes": 759420,
+        "sha256": "ee34092b5336ca6de6e341fa51c8da04801c4ee34000a2dd1b9c70f9c0b6c7c2"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\preflight.json": {
+        "bytes": 11763,
+        "sha256": "686a1776050a3e22b4b65bb6b0533acd20cd07241cfe6484c607e2f2bad514e6"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\vulkan-identity.log": {
+        "bytes": 3064,
+        "sha256": "939f076660385567a9f3b782f1991d96f3702a11fef5db6183e4184a5cbcb5a6"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\call-1-base-pp64.log": {
+        "bytes": 433,
+        "sha256": "42da149e81e023f9968fc2280090a3305199cc3ef69ca70cc4fc2cd2f023c5e3"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\call-2-candidate-pp64.log": {
+        "bytes": 433,
+        "sha256": "cce7b081f252cc37b64f008ef97e5c1b32f60c67c54518bc800cc529fa449830"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\call-3-base-pp512.log": {
+        "bytes": 433,
+        "sha256": "bfe9b149dee0c4583afeea47ac218c33482b447c582da6fbfee0bcc239ebb418"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\call-4-candidate-pp512.log": {
+        "bytes": 433,
+        "sha256": "f32daedd0c32007fc677cf7810f5bd504c52a2eec2dc8039e08ca4f825f418e9"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\call-5-candidate-pp512.log": {
+        "bytes": 433,
+        "sha256": "ded7a3686fdc0d83446fbe7794d38ed2c2dd8b2366b5a46fc32d041cdc5cf403"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\call-6-base-pp512.log": {
+        "bytes": 433,
+        "sha256": "baa30e80f4e8fd226c1e98e47af785324775c28eda7c628676cb132d1796d25a"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\call-7-candidate-pp64.log": {
+        "bytes": 433,
+        "sha256": "90caca8f502ed86c852cad8c35ff95c252f4f24b843c538c0263dca0aaf96cac"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\call-8-base-pp64.log": {
+        "bytes": 433,
+        "sha256": "5152ad280ffe12db3582786c6585efab7cccb7cab098a5bc4c6a9476ac63c80d"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\witness-9-base-pp512.log": {
+        "bytes": 5588,
+        "sha256": "b0ed81abf2ed254b3d920ee1f0cc98aa97ce5ee50d20232173e804c1a072f788"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-tile64-mi50-20261003\\witness-10-candidate-pp512.log": {
+        "bytes": 5085,
+        "sha256": "da213801777f0ccb48671a317c53e6988f90a68c50e4268e7c5967be12e4ce41"
+      }
+    },
+    "workload": "Same model and LCG histories in both llmx arms. Every pp/tg resets history; tg128/32 is independent of pp64/512. Same model logical context and actual token reach between arms.",
+    "limitations": [
+      "Historical Radeon results are a different environment.",
+      "Historical Linux e984/mx matched rows are context only, not a fresh candidate-versus-mx arm or parity proof.",
+      "Identical shader modules and actual tile witnesses do not measure occupancy, bandwidth or stalls.",
+      "A viable screen needs appropriate later correctness/wider performance qualification; this preparation adds no such runs.",
+      "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+      "All calls retained. Positive percentages mean higher candidate throughput; no slow/activity-flagged call is removed.",
+      "Two process rates per arm; r1 SD does not measure repeatability. Profile rates are diagnostic only and excluded from comparisons.",
+      "Whole-call activity includes loading, warmup and both phases; per-call boundary samples overlap and cannot be summed as unique observations.",
+      "New, missed and inaccessible processes are unknown, not idle. GPU ranges have no process attribution.",
+      "No occupancy, bandwidth, stall, numerical qualification, same-owner layout-control or fresh mx-parity claim."
+    ]
+  },
+  "build_report": {
+    "pid": 490078,
+    "started": 1790995839.1755,
+    "heads": {
+      "base": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+      "candidate": "faef505124e795eff8d26e95ee4e9adc130f80ad"
+    },
+    "steps": [
+      {
+        "label": "base-clone",
+        "command": [
+          "git",
+          "clone",
+          "--no-hardlinks",
+          "--no-checkout",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source"
+        ],
+        "started": 1790995839.383352,
+        "pid": 490151,
+        "returncode": 0,
+        "finished": 1790995839.8486114
+      },
+      {
+        "label": "base-bundle-verify",
+        "command": [
+          "git",
+          "-C",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+          "bundle",
+          "verify",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/arms.bundle"
+        ],
+        "started": 1790995839.8490098,
+        "pid": 490181,
+        "returncode": 0,
+        "finished": 1790995839.8569715
+      },
+      {
+        "label": "base-fetch",
+        "command": [
+          "git",
+          "-C",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+          "fetch",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/arms.bundle",
+          "HEAD"
+        ],
+        "started": 1790995839.8571405,
+        "pid": 490183,
+        "returncode": 0,
+        "finished": 1790995840.0712798
+      },
+      {
+        "label": "base-lf",
+        "command": [
+          "git",
+          "-C",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+          "config",
+          "core.autocrlf",
+          "false"
+        ],
+        "started": 1790995840.071721,
+        "pid": 490197,
+        "returncode": 0,
+        "finished": 1790995840.075645
+      },
+      {
+        "label": "base-checkout",
+        "command": [
+          "git",
+          "-C",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+          "checkout",
+          "--detach",
+          "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d"
+        ],
+        "started": 1790995840.075795,
+        "pid": 490198,
+        "returncode": 0,
+        "finished": 1790995840.3902535
+      },
+      {
+        "label": "base-configure",
+        "command": [
+          "docker",
+          "exec",
+          "--workdir",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "prlimit",
+          "--core=0:0",
+          "--",
+          "timeout",
+          "--kill-after=10",
+          "180",
+          "cmake",
+          "-S",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+          "-B",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON"
+        ],
+        "started": 1790995840.717809,
+        "pid": 490266,
+        "returncode": 0,
+        "finished": 1790995841.3331292
+      },
+      {
+        "label": "base-build",
+        "command": [
+          "docker",
+          "exec",
+          "--workdir",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "prlimit",
+          "--core=0:0",
+          "--",
+          "timeout",
+          "--kill-after=10",
+          "1800",
+          "cmake",
+          "--build",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build",
+          "--parallel",
+          "4",
+          "--target",
+          "llmx"
+        ],
+        "started": 1790995841.3333652,
+        "pid": 490345,
+        "returncode": 0,
+        "finished": 1790995900.2024646
+      },
+      {
+        "label": "candidate-clone",
+        "command": [
+          "git",
+          "clone",
+          "--no-hardlinks",
+          "--no-checkout",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source"
+        ],
+        "started": 1790995900.646218,
+        "pid": 492254,
+        "returncode": 0,
+        "finished": 1790995901.111241
+      },
+      {
+        "label": "candidate-bundle-verify",
+        "command": [
+          "git",
+          "-C",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+          "bundle",
+          "verify",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/arms.bundle"
+        ],
+        "started": 1790995901.1115098,
+        "pid": 492286,
+        "returncode": 0,
+        "finished": 1790995901.1192658
+      },
+      {
+        "label": "candidate-fetch",
+        "command": [
+          "git",
+          "-C",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+          "fetch",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/arms.bundle",
+          "HEAD"
+        ],
+        "started": 1790995901.1194596,
+        "pid": 492288,
+        "returncode": 0,
+        "finished": 1790995901.3336248
+      },
+      {
+        "label": "candidate-lf",
+        "command": [
+          "git",
+          "-C",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+          "config",
+          "core.autocrlf",
+          "false"
+        ],
+        "started": 1790995901.334028,
+        "pid": 492302,
+        "returncode": 0,
+        "finished": 1790995901.3379135
+      },
+      {
+        "label": "candidate-checkout",
+        "command": [
+          "git",
+          "-C",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+          "checkout",
+          "--detach",
+          "faef505124e795eff8d26e95ee4e9adc130f80ad"
+        ],
+        "started": 1790995901.338131,
+        "pid": 492303,
+        "returncode": 0,
+        "finished": 1790995901.652621
+      },
+      {
+        "label": "candidate-configure",
+        "command": [
+          "docker",
+          "exec",
+          "--workdir",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "prlimit",
+          "--core=0:0",
+          "--",
+          "timeout",
+          "--kill-after=10",
+          "180",
+          "cmake",
+          "-S",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+          "-B",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON"
+        ],
+        "started": 1790995901.9623215,
+        "pid": 492349,
+        "returncode": 0,
+        "finished": 1790995902.6282465
+      },
+      {
+        "label": "candidate-build",
+        "command": [
+          "docker",
+          "exec",
+          "--workdir",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "prlimit",
+          "--core=0:0",
+          "--",
+          "timeout",
+          "--kill-after=10",
+          "1800",
+          "cmake",
+          "--build",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build",
+          "--parallel",
+          "4",
+          "--target",
+          "llmx"
+        ],
+        "started": 1790995902.6287827,
+        "pid": 492431,
+        "returncode": 0,
+        "finished": 1790995961.7028713
+      }
+    ],
+    "binaries": {
+      "base": {
+        "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+        "exe_sha256": "448ab1850505787f893ba60a59a462f9de535e321c04e83fa437be2f28e79905",
+        "version": "llmx 0.1.0+gd31f0113317e",
+        "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source",
+        "head": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+        "tree": "a8e25edf7427d7c0cacddaf979aab12ee70928b5"
+      },
+      "candidate": {
+        "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/llmx",
+        "exe_sha256": "0d8a8ecaec2ec8c98ae8c9f164aa3a7f84f726da69576f177908729bab288315",
+        "version": "llmx 0.1.0+gfaef505124e7",
+        "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source",
+        "head": "faef505124e795eff8d26e95ee4e9adc130f80ad",
+        "tree": "1d5b998f5a5bcbf7db63242bb34b9c0474d3bbed"
+      }
+    },
+    "passed": true,
+    "preflight": {
+      "container": {
+        "Id": "62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a",
+        "Created": "2026-10-02T14:27:36.95981974Z",
+        "Path": "sleep",
+        "Args": [
+          "infinity"
+        ],
+        "State": {
+          "Status": "running",
+          "Running": true,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 3617039,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-02T17:30:02.253846252Z",
+          "FinishedAt": "2026-10-02T16:27:46.697103095Z"
+        },
+        "Image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "ResolvConfPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/hostname",
+        "HostsPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/hosts",
+        "LogPath": "/var/lib/docker/containers/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a/62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a-json.log",
+        "Name": "/llmx-xdev-vulkan-weight-dispatch-20261002",
+        "RestartCount": 0,
+        "Driver": "overlayfs",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "docker-default",
+        "ExecIDs": null,
+        "HostConfig": {
+          "Binds": [
+            "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002:/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+            "/zpool1/models:/models:ro",
+            "/zpool1/llmx-xdev-validation/storage-types-20261002/deps:/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps:ro",
+            "/opt/claude-work/llmx-p2-x-mxfp4-cpu:/fixtures:ro"
+          ],
+          "ContainerIDFile": "",
+          "LogConfig": {
+            "Type": "json-file",
+            "Config": {}
+          },
+          "NetworkMode": "none",
+          "PortBindings": {},
+          "RestartPolicy": {
+            "Name": "no",
+            "MaximumRetryCount": 0
+          },
+          "AutoRemove": false,
+          "VolumeDriver": "",
+          "VolumesFrom": null,
+          "ConsoleSize": [
+            0,
+            0
+          ],
+          "CapAdd": null,
+          "CapDrop": null,
+          "CgroupnsMode": "private",
+          "Dns": null,
+          "DnsOptions": [],
+          "DnsSearch": [],
+          "ExtraHosts": null,
+          "GroupAdd": null,
+          "IpcMode": "private",
+          "Cgroup": "",
+          "Links": null,
+          "OomScoreAdj": 0,
+          "PidMode": "",
+          "Privileged": false,
+          "PublishAllPorts": false,
+          "ReadonlyRootfs": false,
+          "SecurityOpt": null,
+          "UTSMode": "",
+          "UsernsMode": "",
+          "ShmSize": 67108864,
+          "Runtime": "runc",
+          "Isolation": "",
+          "CpuShares": 0,
+          "Memory": 34359738368,
+          "NanoCpus": 4000000000,
+          "CgroupParent": "",
+          "BlkioWeight": 0,
+          "BlkioWeightDevice": [],
+          "BlkioDeviceReadBps": [],
+          "BlkioDeviceWriteBps": [],
+          "BlkioDeviceReadIOps": [],
+          "BlkioDeviceWriteIOps": [],
+          "CpuPeriod": 0,
+          "CpuQuota": 0,
+          "CpuRealtimePeriod": 0,
+          "CpuRealtimeRuntime": 0,
+          "CpusetCpus": "0-3",
+          "CpusetMems": "",
+          "Devices": [
+            {
+              "PathOnHost": "/dev/dri/renderD136",
+              "PathInContainer": "/dev/dri/renderD136",
+              "CgroupPermissions": "rwm"
+            }
+          ],
+          "DeviceCgroupRules": null,
+          "DeviceRequests": null,
+          "MemoryReservation": 0,
+          "MemorySwap": 34359738368,
+          "MemorySwappiness": null,
+          "OomKillDisable": null,
+          "PidsLimit": null,
+          "Ulimits": [
+            {
+              "Name": "core",
+              "Hard": 0,
+              "Soft": 0
+            }
+          ],
+          "CpuCount": 0,
+          "CpuPercent": 0,
+          "IOMaximumIOps": 0,
+          "IOMaximumBandwidth": 0,
+          "MaskedPaths": [
+            "/proc/acpi",
+            "/proc/asound",
+            "/proc/interrupts",
+            "/proc/kcore",
+            "/proc/keys",
+            "/proc/latency_stats",
+            "/proc/sched_debug",
+            "/proc/scsi",
+            "/proc/timer_list",
+            "/proc/timer_stats",
+            "/sys/devices/virtual/powercap",
+            "/sys/firmware"
+          ],
+          "ReadonlyPaths": [
+            "/proc/bus",
+            "/proc/fs",
+            "/proc/irq",
+            "/proc/sys",
+            "/proc/sysrq-trigger"
+          ],
+          "Init": true
+        },
+        "Storage": {
+          "RootFS": {
+            "Snapshot": {
+              "Name": "overlayfs"
+            }
+          }
+        },
+        "Mounts": [
+          {
+            "Type": "bind",
+            "Source": "/opt/claude-work/llmx-p2-x-mxfp4-cpu",
+            "Destination": "/fixtures",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "/zpool1/models",
+            "Destination": "/models",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+            "Destination": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+            "Mode": "",
+            "RW": true,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "/zpool1/llmx-xdev-validation/storage-types-20261002/deps",
+            "Destination": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          }
+        ],
+        "Config": {
+          "Hostname": "62207877ff9f",
+          "Domainname": "",
+          "User": "",
+          "AttachStdin": false,
+          "AttachStdout": false,
+          "AttachStderr": false,
+          "Tty": false,
+          "OpenStdin": false,
+          "StdinOnce": false,
+          "Env": [
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "CCACHE_DIR=/ccache",
+            "CCACHE_MAXSIZE=20G"
+          ],
+          "Cmd": [
+            "sleep",
+            "infinity"
+          ],
+          "Image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "Volumes": null,
+          "WorkingDir": "/llmx",
+          "Entrypoint": null,
+          "Labels": {}
+        },
+        "NetworkSettings": {
+          "SandboxID": "24c0042247ec77fcea5cba75f8db8d6b376cc020d642d2aae3730a3965387870",
+          "SandboxKey": "/var/run/docker/netns/24c0042247ec",
+          "Ports": {},
+          "Networks": {
+            "none": {
+              "IPAMConfig": null,
+              "Links": null,
+              "Aliases": null,
+              "DriverOpts": null,
+              "GwPriority": 0,
+              "NetworkID": "f98ed81641d87483e2e85e963338961ccaeb63d04696fc493ea1bdda3426da26",
+              "EndpointID": "8a050360e5558c35c72615e5711f8053d7858b4361b516389e102061476d262a",
+              "Gateway": "",
+              "IPAddress": "",
+              "MacAddress": "",
+              "IPPrefixLen": 0,
+              "IPv6Gateway": "",
+              "GlobalIPv6Address": "",
+              "GlobalIPv6PrefixLen": 0,
+              "DNSNames": null
+            }
+          }
+        },
+        "ImageManifestDescriptor": {
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "digest": "sha256:3649a8caf91a45f1ebc0ccb08f006840d2203c1bf26fa153d7dacf26f7a929c5",
+          "size": 1054,
+          "platform": {
+            "architecture": "amd64",
+            "os": "linux"
+          }
+        }
+      },
+      "processes": "PID                 STAT                COMMAND\n3617039             Ss                  docker-init\n3617053             S                   sleep",
+      "host_memory": "MemTotal:       65707356 kB\nMemFree:        19008400 kB\nMemAvailable:   20829476 kB\nBuffers:               0 kB\nCached:          2619928 kB\nSwapCached:            0 kB\nActive:          3320816 kB\nInactive:        1904948 kB\nActive(anon):    1366564 kB\nInactive(anon):  1391796 kB\nActive(file):    1954252 kB\nInactive(file):   513152 kB\nUnevictable:           0 kB\nMlocked:               0 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:              1392 kB\nWriteback:             0 kB\nAnonPages:       2605888 kB\nMapped:           156588 kB\nShmem:            152680 kB\nKReclaimable:     467076 kB\nSlab:            1220564 kB\nSReclaimable:     467076 kB\nSUnreclaim:       753488 kB\nKernelStack:       22776 kB\nPageTables:        44872 kB\nSecPageTables:      2792 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:    32853676 kB\nCommitted_AS:    8798440 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:     2021884 kB\nVmallocChunk:          0 kB\nPercpu:            31232 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:              0 kB\nCmaFree:               0 kB\nUnaccepted:            0 kB\nBalloon:               0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:     4918724 kB\nDirectMap2M:    58906624 kB\nDirectMap1G:     4194304 kB\n",
+      "disk": "Filesystem        Size  Used Avail Use% Mounted on\nrpool/ROOT/pve-1  835G  620G  215G  75% /\nzpool1            3.5T  3.4T   95G  98% /zpool1"
+    },
+    "compiler": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+    "build_flags": {
+      "base": {
+        "CMakeFiles/llmx.dir/flags.make": {
+          "sha256": "b6698c6a7418a4b070d2406fdcd30d8fd38bc8b680e3219d0be7fddcbf8e10ea",
+          "text": "# CMAKE generated file: DO NOT EDIT!\n# Generated by \"Unix Makefiles\" Generator, CMake Version 3.31\n\n# compile CXX with /usr/bin/c++\nCXX_DEFINES = \n\nCXX_INCLUDES = -I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/generated -I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source/src\n\nCXX_FLAGS = -O3 -DNDEBUG -std=c++17 -O3 -mavx2 -mfma -mf16c -Wall -Wextra -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable\n\n"
+        },
+        "CMakeFiles/llmx.dir/link.txt": {
+          "sha256": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299",
+          "text": "/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/llmx.dir/link.d CMakeFiles/llmx.dir/src/cli/main.cpp.o -o llmx  libllmx-vulkan.a -ldl\n"
+        },
+        "generated/config.hpp": {
+          "sha256": "491660170fc92e8abfacfc8144606ffc56f159069514c2a1684738c532e0b57c",
+          "text": "// Generated by CMake from cmake/llmx-config.hpp.in. Do not edit by hand.\n// The checked-in src/config.hpp is the fallback for the plain build.bat path.\n#pragma once\n\n#define LLMX_RELEASE_VERSION \"0.1.0\"\n#if __has_include(\"llmx-build-info.hpp\")\n#include \"llmx-build-info.hpp\"\n#endif\n#ifndef LLMX_BUILD_REVISION\n#define LLMX_BUILD_REVISION \"unknown\"\n#endif\n#define LLMX_VERSION_STRING LLMX_RELEASE_VERSION \"+\" LLMX_BUILD_REVISION\n\n// Backends compiled in besides the CPU, which is always built: the Vulkan backend is opt-in and needs its SDK at build time.\n#define LLMX_HAS_BACKEND_VULKAN 1\n"
+        }
+      },
+      "candidate": {
+        "CMakeFiles/llmx.dir/flags.make": {
+          "sha256": "c18c3e326f36ccc4ce0c268a25dc21f2e7f2c7ad1142786f870817b6a7c70238",
+          "text": "# CMAKE generated file: DO NOT EDIT!\n# Generated by \"Unix Makefiles\" Generator, CMake Version 3.31\n\n# compile CXX with /usr/bin/c++\nCXX_DEFINES = \n\nCXX_INCLUDES = -I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/build/generated -I/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/candidate/source/src\n\nCXX_FLAGS = -O3 -DNDEBUG -std=c++17 -O3 -mavx2 -mfma -mf16c -Wall -Wextra -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable\n\n"
+        },
+        "CMakeFiles/llmx.dir/link.txt": {
+          "sha256": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299",
+          "text": "/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/llmx.dir/link.d CMakeFiles/llmx.dir/src/cli/main.cpp.o -o llmx  libllmx-vulkan.a -ldl\n"
+        },
+        "generated/config.hpp": {
+          "sha256": "491660170fc92e8abfacfc8144606ffc56f159069514c2a1684738c532e0b57c",
+          "text": "// Generated by CMake from cmake/llmx-config.hpp.in. Do not edit by hand.\n// The checked-in src/config.hpp is the fallback for the plain build.bat path.\n#pragma once\n\n#define LLMX_RELEASE_VERSION \"0.1.0\"\n#if __has_include(\"llmx-build-info.hpp\")\n#include \"llmx-build-info.hpp\"\n#endif\n#ifndef LLMX_BUILD_REVISION\n#define LLMX_BUILD_REVISION \"unknown\"\n#endif\n#define LLMX_VERSION_STRING LLMX_RELEASE_VERSION \"+\" LLMX_BUILD_REVISION\n\n// Backends compiled in besides the CPU, which is always built: the Vulkan backend is opt-in and needs its SDK at build time.\n#define LLMX_HAS_BACKEND_VULKAN 1\n"
+        }
+      }
+    },
+    "one_hunk_source_proof": true,
+    "shader_modules": {
+      "count": 117,
+      "identical": true
+    },
+    "finished": 1790995962.1598046,
+    "terminal_processes": "PID                 STAT                COMMAND\n3617039             Ss                  docker-init\n3617053             S                   sleep"
+  },
+  "retained_summary_sha256": "28c671e5182c69bcb691c07d07ff54a26ef56a95dd9ab95cc2251af3ea117a7c",
+  "terminal_observation": {
+    "session_exit_code": 0,
+    "container_processes": [
+      "docker-init",
+      "sleep"
+    ],
+    "exact_monitor_process_absent": true,
+    "gpu_fuser_returncode": 1,
+    "monitor_exit_code_not_recorded": true
+  },
+  "checkpoint_scope": "Performance development screen. Focused correctness and release gates remain pending."
+}

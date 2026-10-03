@@ -18,6 +18,8 @@ target on Linux; it comes after this and reuses the structure.
 
 The backend retains these read-only weights in their file storage and widens them in separate builds of the existing F32 embedding, row and tile kernels. Storage precision is independent of activation `--dtype`; the weight descriptor selects the modules and existing crossovers. The CPU and device qualification status is in [STATUS](STATUS.md), and ownership and float-control details are in [the backend page](src/backends-vulkan.md).
 
+The current F16 prompt experiment uses the existing 64-row float tile where dense or grouped dispatch would select 128 rows. It leaves K partitioning and arithmetic unchanged; BF16 weights and routed experts keep their tile selections. Focused MI50 range and full-vocabulary identity checks and a fresh Windows Radeon backend check pass. A bounded MI50 performance repeat with a behavior-preserving dispatch control is complete; its tradeoff and the remaining release qualification are recorded in STATUS.
+
 ## MXFP4 and activation precision
 
 The Vulkan backend reads MXFP4 through exact embedding, row and tile decoders. F32 uses original activations; BF16 tiles round inputs explicitly. F16 calls use block-int16 rows and, on integer-tile profiles, dense prompts with an exact float-scale copy. Routed prompts and projections beyond the bounded 256 MiB copy scratch take the wider F32 tile. Unsafe sums are recomputed in double from exact weights and the selected path's inputs; split partials stay double until reduction. Optional float preservation and double properties gate the type without raising other types' requirements. The backend advertises native F16 and resolves auto to it on the qualified MI50 and Radeon VII paths.

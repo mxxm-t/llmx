@@ -2247,8 +2247,9 @@ public:
                 const size_t kper = dtype == Dtype::bf16 ? std::min(base_kper, (steps + 3) / 4) : base_kper;
                 const size_t parts = (steps + kper - 1) / kper;
                 // A taller tile reads less shared memory per product but halves the workgroups; below one per compute unit the call takes a shorter one, and a starved call the shortest, for the most workgroups.
-                const uint32_t height = starved ? kTileRowsSmall
+                const uint32_t selected_height = starved ? kTileRowsSmall
                                                 : tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, pr->rows, gy, nin);
+                const uint32_t height = pr->type == quant::GGML_TYPE_F16 && selected_height == kTileRowsTall ? kTileRowsShort : selected_height;
                 const bool tall = height == kTileRowsTall;
                 const VkDescriptorBufferInfo wf = padded_f32(pr->data, pr->type, pr->rows, nin);
                 const size_t wstride = wf.buffer == bind(pr->data).buffer ? nin : nin + kF32Pad;

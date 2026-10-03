@@ -628,6 +628,20 @@ LAYERED_SPEC.loader.exec_module(layered)
 class LayeredReference(unittest.TestCase):
     """tools/gen_layered_reference.py, which needs torch to run, through what it does without it: its arguments, its environment, its inputs, and the records it committed."""
 
+    def test_peak_memory_on_this_platform(self):
+        peak = layered.peak_gib()
+        self.assertTrue(math.isfinite(peak))
+        self.assertGreater(peak, 0)
+
+    def test_peak_memory_posix_units(self):
+        for platform, units in (("linux", 2 ** 20), ("darwin", 2 ** 30)):
+            resource = SimpleNamespace(RUSAGE_SELF=17, getrusage=MagicMock(return_value=SimpleNamespace(ru_maxrss=units * 1.25)))
+            with self.subTest(platform=platform), patch.object(layered.sys, "platform", platform), \
+                 patch.dict(sys.modules, {"resource": resource}):
+                self.assertEqual(layered.peak_gib(), 1.25)
+                resource.getrusage.assert_called_once_with(resource.RUSAGE_SELF)
+
+
     def test_arguments(self):
         with tempfile.TemporaryDirectory(prefix="llmx_layered_args_") as directory:
             gguf = os.path.join(directory, "model.gguf")

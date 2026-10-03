@@ -1795,6 +1795,11 @@ public:
         if (!unordered_) barrier(cmd);
     }
 
+    // The narrower of the Q8_0 decode kernel's widest build and the other row kernels', each reading a weight once for its columns.
+    size_t decode_columns() const override {
+        return std::min<size_t>(dev_->profile.q8_decode_cols, dev_->profile.row_decode_cols ? dev_->profile.row_decode_cols : kRowColsWide);
+    }
+
     // Barriers are left out while unordered, and one orders all of it against what follows once it ends.
     void unordered(bool on) override {
         const bool was = unordered_;

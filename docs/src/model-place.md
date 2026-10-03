@@ -16,7 +16,8 @@ backends its caller made. It reads the plan
   fitted for,
   and the histories the budget must hold, `fit_kv`, a server's budget
   fitted to the devices, and `fit_checkpoints`, its checkpoint slots
-  fitted too, and `drafter`, the file's embedded drafter planned and loaded
+  fitted too, `fit_marks`, its mark slots past the first fitted after both,
+  and `drafter`, the file's embedded drafter planned and loaded
   with the model), and the placed model with its split's description and the
   KV tokens its fitted checkpoint slots took from the budget.
 - `settle(budgets, backends, names, settled, level = false)`: a fit the devices' free
@@ -48,7 +49,12 @@ backends its caller made. It reads the plan
   does not leave a restarted server none (`docs/SPECULATIVE.md`, section 2);
   the KV tokens they took go to `given_up` when given, and the devices'
   budgets it settled on to `read`, by which `place_model` then places a
-  split's layers, so the budget and the split see one reading. It refuses a model that does not fit even without
+  split's layers, so the budget and the split see one reading. With
+  `fit_marks`, on a model that keeps a state, it fits the budget and the
+  checkpoints with one mark slot, if the options ask for any, then takes
+  as mark slots the most, up to the options', at which that budget and
+  those checkpoints still fit, so marks past the first take only the room
+  left over. It refuses a model that does not fit even without
   its KV, and one that leaves no room for one block, each by its own text.
   Beside experts on the CPU the plan it fits leaves out the feed-forward
   roles of the layers whose block runs on the CPU (`ffn_on_host`, which

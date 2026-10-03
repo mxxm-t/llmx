@@ -1,5 +1,112 @@
 # llmx - Development Status
 
+## Speculative decoding in the server (2026-10-02, branch feat/spec-server, step 5 of SPECULATIVE, lands by fast-forward)
+
+- **Goal:** `serve --drafter embedded|lookup` drafts in the scheduler's passes beside other requests, each request's output the bytes of drafts off, greedy and seeded, alone and at once, with a measured gain for one user and no loss for many ([SPECULATIVE](SPECULATIVE.md), section 3 and step 5).
+- **Design, against section 3 as the code now stands** (proposed in the devlog before building):
+  - a decoding request with a mark and drafts is one verify entry [last pick, d1 ... dk], extent 1, every row's logits; its rows are sampled in order by the request's own sampler as `infer::accept` does, and the history retracted right after, before park, pause or fork;
+  - the embedded drafter's chains run as one batched draft on the head's device for every request drafting that round (`Model::draft` over several sequences), after a pass is sampled and before the next is formed; lookup drafts on the host;
+  - `spec::draft_length` also takes the decode columns a pass has left (the device profile's widest decode build), so drafting fills idle columns and is off under load, and a verify stays inside the room its request's reservation holds; at most 64 draft rows a pass;
+  - logits rows 2 x (max_seqs + 64), rows a pass reserves ubatch + max_seqs + 64, `Request::kRowsWaiting` at least draft_max + 1, a mark a request at once, `mark_rows` draft_max + 1;
+  - the host tier carries an embedded drafter's carried row with its checkpoint slot;
+  - jobs, replays and resumes never draft; `--drafter` and `--draft-max` on `serve`, no request field.
+- **Changed after the first figures** (proposed in the devlog, 2026-10-03 01:02): the decode columns were a stand-in for section 3's pass cost model and were wrong on the 27B, whose pass costs about 10 ms a row past a few rows; a pass now drafts what a measured price pays for (`spec::PassTimes`, `spec::draft_depths`), the columns only bounding it. Eight marks counted before the budget left the 27B on one MI50 1536 of 8192 KV tokens and no checkpoint, so eight users queued behind four; marks past the first now fit only the room the budget and the checkpoints leave (`PlacementRequest::fit_marks`), and no more requests draft at once than marks are free.
+- **Done:**
+  - the design above, built: verify entries in `Scheduler::form`, drafts asked once a pass (`Scheduler::propose`, `spec::Proposer::draft_all`), the embedded drafter's chains in one batch (`Model::draft` over `DraftAsk`s, longest chain first, the carried rows gathered by slot), `Backend::decode_columns` (the Vulkan profile's narrower decode build, 1 on the CPU), `server::draft_marks`, sampling a verify's rows with `infer::accept`, the retract right after `end_pass` (`settle_verifies`), the host tier carrying the drafter's carried row, `/v1/health`'s `drafted` and `kept`, `serve --drafter` and `--draft-max`, `server_mix_check.py --drafter`;
+  - tests: `server-spec` (lookup on the synthetic Q8_0 model over one and two CPUs and paused, the hybrid MTP model's embedded drafter and lookup over one and two, greedy, sampled, capped, uncapped and stopped, cancelled in flight, each reply its reply alone without drafts), `arch-qwen35` (the host tier's carried row; three histories drafted in one batch, each its drafts and rows alone), the `qwen35` component's served drafts;
+  - at 8460c60b, before the batch, on an MI50 (GPU[7], cores 4 to 7): CTest 43 of 43, the device suite's qwen35, server and decode-probe, and `server_mix_check.py` on Qwen3.6-27B-MTP Q8_0 with the embedded drafter on one MI50 and over two at two passes in flight, every request equal alone, together and skewed and to the CLI without drafts.
+  - at 3f9e35f5 (the batch) on the Radeon VII: CTest 44 of 44 and the device suite's qwen35, server and decode-probe (XDEV's 30B captures overlapped the CTests; nothing was timed).
+  - at dd90e175 (the price) on an MI50: CTest 43 of 43, no compiler warning, the device suite's three components, and `server_mix_check.py` on Qwen3.6-27B-MTP Q8_0, every request equal alone, together, skewed and to the CLI, with the drafts fed and kept now printed and required: embedded on one MI50 1033 fed, 670 kept, over two at two passes 1082 and 715, lookup on one 392 and 149; the device tier against main b7a6d235 (devtier.sh): the CPU and device suites 23 components PASS each, raw-blocks failing on the container's missing numpy and baseline skipping without its models, and the Qwen3-0.6B and Qwen3.5-0.8B identity cells 14 of 14 the same on the CPU and on the device.
+  - **The final serving matrix**, at 0651303a (the code of 47336670), interleaved per placement in the order llmx embedded, reference without drafts, llmx drafts off, reference draft-mtp, then the reverse: Qwen3.6-27B-MTP Q8_0, `server_load.py`, the eight fixed prompts, 256 tokens a reply with the end ignored, greedy, `--max-seqs 8 --ctx-size 8192` (reference `-np 8 -c 8192`, `-sm layer -ts 1,1` on the split, whose verbose start of the same commands logs pipeline parallelism enabled, with and without draft-mtp), drafts at 3 (reference `--spec-type draft-mtp --spec-draft-n-max 3`), cores 4 to 7, each arm started below 55 C at default clocks, three rounds an arm, every round kept, output tok/s at 1 / 2 / 4 / 8 / 16 users (16 queue behind 8):
+
+    | one MI50, in the order run, every round | 1 | 2 | 4 | 8 | 16 |
+    |---|---|---|---|---|---|
+    | llmx embedded, run 1 | 40.8 / 40.8 / 40.0 | 41.9 / 43.9 / 42.6 | 54.5 / 55.9 / 56.1 | 74.7 / 75.0 / 74.2 | 74.6 / 74.8 / 75.1 |
+    | reference without drafts, run 1 | 21.4 / 21.8 / 21.8 | 33.9 / 31.2 / 30.4 | 47.5 / 44.3 / 45.0 | 52.6 / 55.6 / 55.7 | 56.3 / 54.8 / 54.6 |
+    | llmx drafts off, run 1 | 22.8 / 22.6 / 20.5 | 33.5 / 33.0 / 32.5 | 53.3 / 53.8 / 53.4 | 67.2 / 68.6 / 66.7 | 66.2 / 66.2 / 66.1 |
+    | reference draft-mtp, run 1 | 34.1 / 34.7 / 34.1 | 31.3 / 30.7 / 29.7 | 27.2 / 27.0 / 27.1 | 30.2 / 30.5 / 30.5 | 30.6 / 28.6 / 29.5 |
+    | reference draft-mtp, run 2 | 33.1 / 34.4 / 34.3 | 31.3 / 30.9 / 30.0 | 26.8 / 26.9 / 26.9 | 30.8 / 30.1 / 30.2 | 30.9 / 30.6 / 29.4 |
+    | llmx drafts off, run 2 | 20.6 / 20.4 / 19.6 | 31.2 / 30.4 / 30.3 | 51.2 / 51.2 / 50.7 | 63.1 / 63.4 / 63.9 | 64.1 / 66.4 / 65.7 |
+    | reference without drafts, run 2 | 21.2 / 21.8 / 21.8 | 33.6 / 30.6 / 30.1 | 46.7 / 45.3 / 45.0 | 59.1 / 57.1 / 57.3 | 58.7 / 58.0 / 57.7 |
+    | llmx embedded, run 2 | 40.8 / 40.7 / 37.5 | 38.6 / 38.4 / 36.8 | 46.2 / 46.7 / 45.8 | 62.7 / 62.2 / 62.3 | 62.4 / 62.4 / 62.7 |
+
+    | one MI50, mean of the two runs' best rounds | 1 | 2 | 4 | 8 | 16 |
+    |---|---|---|---|---|---|
+    | reference without drafts | 21.8 | 33.8 | 47.1 | 57.4 | 57.5 |
+    | reference draft-mtp | 34.6 | 31.3 | 27.1 | 30.7 | 30.7 |
+    | llmx drafts off | 21.7 | 32.4 | 52.5 | 66.3 | 66.3 |
+    | llmx embedded | 40.8 | 41.3 | 51.4 | 68.9 | 68.9 |
+    | llmx's best against the reference's best | +18% | +22% | +12% | +20% | +20% |
+    | llmx embedded against llmx drafts off | +88% | +28% | -2% | +4% | +4% |
+
+    | two MI50s, layer split, in the order run, every round | 1 | 2 | 4 | 8 | 16 |
+    |---|---|---|---|---|---|
+    | llmx embedded, run 1 | 41.7 / 41.7 / 41.4 | 41.1 / 42.7 / 43.8 | 71.4 / 71.2 / 71.9 | 116.7 / 114.3 / 115.0 | 116.1 / 116.3 / 116.0 |
+    | reference without drafts, run 1 | 20.9 / 21.4 / 21.4 | 33.6 / 32.5 / 33.0 | 50.4 / 48.3 / 49.0 | 59.7 / 58.2 / 59.0 | 59.2 / 58.8 / 59.2 |
+    | llmx drafts off, run 1 | 22.7 / 22.7 / 22.8 | 43.3 / 43.9 / 43.9 | 73.8 / 72.4 / 72.9 | 119.6 / 119.5 / 119.5 | 120.0 / 118.5 / 119.8 |
+    | reference draft-mtp, run 1 | 33.2 / 34.0 / 34.2 | 31.5 / 31.2 / 30.5 | 27.8 / 27.3 / 25.4 | 31.1 / 31.0 / 31.6 | 30.5 / 30.4 / 30.6 |
+    | reference draft-mtp, run 2 | 33.4 / 34.3 / 34.3 | 31.2 / 31.3 / 30.7 | 28.3 / 28.0 / 28.0 | 29.4 / 27.5 / 29.4 | 30.1 / 30.0 / 28.9 |
+    | llmx drafts off, run 2 | 22.8 / 22.7 / 22.7 | 43.3 / 43.9 / 44.0 | 72.6 / 73.4 / 73.4 | 119.3 / 119.2 / 119.2 | 120.1 / 119.8 / 119.8 |
+    | reference without drafts, run 2 | 21.1 / 21.4 / 21.3 | 33.2 / 33.0 / 31.8 | 48.0 / 45.9 / 47.6 | 51.1 / 47.6 / 48.5 | 53.0 / 53.1 / 52.7 |
+    | llmx embedded, run 2 | 41.8 / 41.7 / 41.0 | 41.3 / 43.0 / 42.4 | 71.2 / 70.9 / 72.3 | 116.7 / 114.2 / 114.2 | 116.2 / 115.8 / 116.0 |
+
+    | two MI50s, layer split, mean of the two runs' best rounds | 1 | 2 | 4 | 8 | 16 |
+    |---|---|---|---|---|---|
+    | reference without drafts | 21.4 | 33.4 | 49.2 | 55.4 | 56.1 |
+    | reference draft-mtp | 34.2 | 31.4 | 28.1 | 30.5 | 30.3 |
+    | llmx drafts off | 22.8 | 44.0 | 73.6 | 119.4 | 120.0 |
+    | llmx embedded | 41.8 | 43.4 | 72.1 | 116.7 | 116.2 |
+    | llmx's best against the reference's best | +22% | +32% | +49% | +115% | +114% |
+    | llmx embedded against llmx drafts off | +83% | -1% | -2% | -2% | -3% |
+
+    On one MI50 the second run of each llmx arm came out slower than the first (drafts off by 3 to 9 percent, embedded by up to 17 percent at 4 to 16 users) with the same drafts fed and kept, so the card, not the code, moved within the session; the means average it. On the split, where the runs agree to a percent, drafting gives up 1 to 3 percent from 2 users up, where the price finds the drafts barely pay, and llmx's best there is drafts off. The machine's one-minute load average at each arm's end was 5 to 17; no finer activity monitor ran.
+  - Serving figures (earlier sessions), Qwen3.6-27B-MTP Q8_0, `server_load.py`, the eight fixed prompts, 256 tokens a reply with the end ignored, greedy, `--max-seqs 8 --ctx-size 8192` (reference `-np 8 -c 8192`, `-sm layer -ts 1,1` on the split, where a verbose start of the same command shows pipeline parallelism enabled), drafts at 3 (reference `--spec-type draft-mtp --spec-draft-n-max 3`), cores 4 to 7, each arm started below 55 C at default clocks, the best of three rounds, output tok/s at 1 / 2 / 4 / 8 / 16 users (16 queue behind 8). The rows at 7da75632 are the candidate's; the others show how it got there.
+
+    | one MI50 | 1 | 2 | 4 | 8 | 16 |
+    |---|---|---|---|---|---|
+    | llmx drafts off, 7da75632 | 22.9 | 33.4 | 57.8 | 71.7 | 71.9 |
+    | llmx embedded, 7da75632 | 41.2 | 43.2 | 54.9 | 71.6 | 71.6 |
+    | change | +80% | +29% | -5% | 0% | 0% |
+    | reference without drafts | 21.8 | 34.4 | 51.3 | 60.7 | 59.5 |
+    | reference draft-mtp | 35.1 | 32.1 | 28.9 | 31.9 | 31.0 |
+    | llmx off / embedded, columns only, 28de9130 | 22.8 / 41.1 | 37.9 / 43.1 | 59.1 / 52.3 | 70.2 / 56.8 | 70.1 / 57.1 |
+    | llmx off / embedded, priced, marks before the budget, dd90e175 | 23.0 / 40.2 | 37.6 / 50.5 | 60.9 / 59.8 | 75.9 / 57.0 | 75.8 / 59.1 |
+    | llmx off / embedded, fitted marks, 56c0dc5a, two pairs | 22.8 / 40.7 | 33.8 / 41.1 | 54.5 / 52.9 | 66.2 / 67.2 | 66.5 / 68.1 |
+
+    | two MI50s, layer split | 1 | 2 | 4 | 8 | 16 |
+    |---|---|---|---|---|---|
+    | llmx drafts off, 7da75632, two runs | 22.9 | 44.0 | 73.3 | 119.2 | 120.0 |
+    | llmx embedded, 7da75632, two runs | 42.1 | 43.2 | 72.4 | 117.1 | 116.3 |
+    | change | +84% | -2% | -1% | -2% | -3% |
+    | reference without drafts | 21.4 | 33.3 | 50.6 | 59.9 | 54.9 |
+    | reference draft-mtp | 34.6 | 32.0 | 28.4 | 30.3 | 30.5 |
+    | llmx off / embedded, priced by latency, dd90e175 | 22.3 / 42.0 | 43.9 / 38.0 | 73.4 / 56.8 | 119.8 / 116.9 | 120.0 / 115.9 |
+    | llmx off / embedded, priced by retirements, a chain once a pass in flight, 72ee44d0, two pairs | 22.8 / 41.7 | 43.4 / 37.7 | 73.4 / 71.4 | 119.4 / 117.6 | 119.4 / 115.6 |
+
+    Every round of the arms above, output tok/s, in the order run (the tables take each level's best):
+
+    | arm, every round | 1 | 2 | 4 | 8 | 16 |
+    |---|---|---|---|---|---|
+    | one MI50, llmx drafts off, 7da75632 | 22.9 / 22.6 / 20.3 | 33.4 / 33.0 / 32.9 | 54.8 / 56.7 / 57.8 | 70.6 / 70.7 / 71.7 | 71.8 / 71.6 / 71.9 |
+    | one MI50, llmx embedded, 7da75632 | 40.1 / 41.2 / 40.8 | 42.2 / 43.2 / 42.9 | 54.9 / 54.4 / 54.0 | 71.6 / 71.5 / 70.8 | 70.8 / 71.6 / 69.6 |
+    | one MI50, reference without drafts | 21.5 / 21.8 / 21.8 | 34.4 / 33.4 / 34.3 | 51.3 / 49.2 / 48.5 | 60.7 / 58.9 / 58.4 | 59.5 / 55.3 / 58.1 |
+    | one MI50, reference draft-mtp | 34.1 / 35.1 / 35.0 | 32.1 / 31.2 / 31.5 | 28.7 / 28.0 / 28.9 | 31.8 / 31.5 / 31.9 | 30.5 / 31.0 / 30.9 |
+    | split, llmx drafts off, 7da75632, run 1 | 22.9 / 22.8 / 22.9 | 43.3 / 44.0 / 43.9 | 72.4 / 73.3 / 73.3 | 119.0 / 118.9 / 117.8 | 119.5 / 119.9 / 120.0 |
+    | split, llmx drafts off, 7da75632, run 2 | 22.9 / 22.8 / 22.8 | 43.3 / 43.9 / 43.7 | 72.4 / 73.2 / 73.3 | 119.2 / 119.3 / 119.2 | 120.0 / 119.8 / 120.0 |
+    | split, llmx embedded, 7da75632, run 1 | 42.1 / 42.1 / 41.5 | 41.5 / 43.0 / 43.1 | 72.6 / 70.6 / 72.0 | 117.4 / 114.8 / 115.2 | 116.0 / 116.3 / 116.1 |
+    | split, llmx embedded, 7da75632, run 2 | 42.0 / 41.9 / 41.5 | 41.5 / 43.2 / 43.0 | 71.3 / 72.1 / 71.7 | 116.8 / 114.3 / 114.0 | 116.1 / 116.2 / 115.9 |
+    | split, reference without drafts | 20.9 / 21.4 / 21.4 | 33.3 / 31.8 / 32.4 | 50.3 / 43.0 / 50.6 | 59.9 / 57.7 / 57.0 | 54.9 / 53.5 / 53.3 |
+    | split, reference draft-mtp | 33.5 / 34.6 / 34.5 | 32.0 / 30.9 / 31.6 | 28.3 / 28.2 / 28.4 | 30.3 / 30.1 / 29.7 | 30.3 / 30.5 / 30.3 |
+
+    The machine's one-minute load average was logged at the end of each arm (6 to 20, other users' work on other cores, once 93); no finer activity monitor ran, so activity during an arm is not known.
+    Llmx with drafts against the reference with draft-mtp, the same depth: one MI50 +17%, +35%, +90%, +124%, +131%; the split +22%, +35%, +155%, +286%, +281%. Without drafts against without: one MI50 +5%, -3%, +13%, +18%, +21%; the split +7%, +32%, +45%, +99%, +119%.
+    At 2 users on the split both requests drafted in every pass, so every pass measured had the same rows and the price stayed unknown (72ee44d0: -13%); 7da75632 measures a pass without drafts then. At 8 users on one MI50 the drafter's eight marks counted before the budget had left 1536 of 8192 KV tokens and queued four requests (dd90e175, time to first token 9.7 s against 0.7 s); 56c0dc5a fits them after it. The one-MI50 drafts-off arm at dd90e175 ran while the machine's load average was 93 (another user's work on other cores), and the one-MI50 figures drift by some 10 percent between sessions hours apart, so only pairs of one session are compared.
+  - The drafter loaded and drafting nothing (`bench --model`, one MI50, 8 sequences, off, on, on, off at 56c0dc5a): 79.2, 76.7, 74.8, 72.6 tok/s, mirrored -0.3 percent, a falling card rather than a cost.
+  - At 7da75632, rebased onto main b18acd9d, on an MI50: CTest 43 of 43, no compiler warning, the device suite's three components, and `server_mix_check.py` every request equal alone, together, skewed and to the CLI, with drafts fed and kept.
+  - Against main b18acd9d at 7da75632: the served ids of Qwen3-0.6B Q8_0 through `server_mix_check.py --ids`, drafts off, the same on the CPU and on an MI50; a timing round without drafts, Qwen3.6-27B-MTP Q8_0 on one MI50, `server_load.py`, main, branch, branch, main, main, branch, each cool-gated at default clocks: 1 user 23.0, 22.7, 22.8, 23.0, 22.8, 22.8 tok/s (branch -0.7 percent on the means), 8 users 74.2, 71.7, 73.2, 73.2, 72.6, 72.9 (-1.0 percent), inside main's own spread of 2.2 percent at 8 users.
+- **Review:** XDEV (16:49) found that the draft rows of passes in flight could pass the 64 the logits rows hold, three passes of 63 drafts ending every request with "no logits rows"; confirmed by a `server-spec` case over three CPU stages at three passes that failed so, and fixed by capping a pass's new draft rows by those in flight (`draft_columns`). XDEV's later point, that the case's prompt appended a range of its own vector, is fixed by appending copies. The first hosted run failed only under UBSan, on `arch-qwen35` comparing two empty logits vectors with memcmp for a chain of no drafts, which the comparison now skips. At d3a8196e, with the cap, on an MI50: CTest 43 of 43, the device suite's three components, and `server_mix_check.py` on the 27B, every request equal, drafts fed and kept (embedded 745 and 540 on one MI50, 714 and 492 over two at two passes, lookup 303 and 111).
+- **Landing:** XDEV's review closed at 47336670 (18:49) and the coordinator's found nothing more (19:23); a hosted run was green on the squash of 47336670 (37131480729). Main then took message-boundary checkpoints (c4305c0a), whose state alone in host memory and fork with a state now carry the drafter's carried row with the slot, held by an `arch-qwen35` case that fails without the copy; rebased onto it, CTest 39 of 39 and the CPU suite's docs, dead-code, cli, qwen35 and server pass, and the device checks and the hosted run run again at the landing head, which lands by fast-forward.
+
 ## Message boundaries: an edited or regenerated earlier turn read from its message (2026-10-03, branch feat/message-checkpoints, step 2b part b of SPECULATIVE, lands by fast-forward)
 
 - **Goal:** on a model that keeps a state, a request that edits or regenerates an earlier turn of a conversation forks the state at the start of that turn's message and reads from there, rather than its whole history ([SPECULATIVE](SPECULATIVE.md), section 2, Host tier, message-boundary checkpoints); on the six-user, twenty-turn workload such a request at turn 2 read its whole 1.3k to 1.5k tokens in 5.7 to 6.1 s, against the reference's 1.6 s for the edit.
@@ -735,7 +842,7 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 - **Goal:** one owner of where a sequence's history can be re-entered (checkpoint, fork, mark, retract) over KV blocks and recurrent state, prefix reuse for the hybrid models on it first (the qwen35 plan's step 8c), then speculative decoding on the same owner for every proposer.
 - **Done:** the design, [SPECULATIVE](SPECULATIVE.md), taking the speculative decoding plan approved on 2026-09-26 as input and saying what changes; its eight decisions were agreed with XDEV and approved by the user on 2026-09-30.
-- **Left:** its steps in order from step 5, `feat/spec-server`; steps 1 to 4 have landed (their blocks above).
+- **Left:** its steps in order from step 6; steps 1 to 5 have landed (their blocks above).
 - **Step 4's plan** (SPECULATIVE, section 7): the embedded MTP proposer for qwen35, researched from the user's mx-llama.cpp history, vLLM and the MTP files' headers, with nine decisions; proposed 2026-10-01, agreed by XDEV with amendments written in (invalid drafts handled on the device, the draft's blocks returned on failure, a resident embedding reused, a pinned reference build, the margin in percentage points), approved by the user on 2026-10-02; the rollback gate (at most 2 percent of a decode step) added at the user's request.
 
 ## Qwen 3.5, 3.6 and 3.8 everywhere (2026-09-30, 8b merged at `56abfd9a`)

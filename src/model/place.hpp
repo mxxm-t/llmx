@@ -126,6 +126,8 @@ struct PlacementRequest {
     bool fit_kv = false;
     // With fit_kv, the options' checkpoint slots are the most the fit gives rather than a number it must hold (fitted_kv).
     bool fit_checkpoints = false;
+    // With fit_kv, the options' mark slots past the first are the most the fit gives, only in the room the KV budget and the checkpoint slots leave (fitted_kv).
+    bool fit_marks = false;
     // The file's embedded drafter planned and loaded beside the model (Architecture::plan_drafter, docs/SPECULATIVE.md, section 7).
     bool drafter = false;
 };
@@ -245,6 +247,7 @@ inline void settle(std::vector<DeviceBudget>& budgets, const std::vector<backend
 // The options with the KV budget fitted (PlacementRequest::fit_kv): the most whole blocks of the largest block size, at most the options' budget, at which the fit of model/layer_split.hpp places the model on these devices and the host, and backed whole at load.
 // Beside a device with experts on the CPU, the device holds neither those layers' feed-forward blocks nor their experts; a device that cannot tell its free memory takes the options' budget.
 // Refused when not one block fits beside the weights, the activations and the recurrent state slots.
+// With fit_marks a model that keeps a state takes one mark slot, if the options ask for any, before the budget, and then the most more, up to the options', at which the budget and the checkpoint slots stay as they are, so marks past the first never cost the KV room or prefix reuse a server has without them.
 // With fit_checkpoints a model that keeps a state takes as checkpoint slots the fewer of the options' and the most at which the placement still holds three quarters of the budget it holds without them, so they take at most a quarter of the KV room, each count tried through the fit itself once the devices' free memory has settled (docs/SPECULATIVE.md, section 2); `given_up`, when given, gets the KV tokens the checkpoints took from the budget, and `read`, the devices' budgets the fit settled on, so a split places its layers by the same reading.
 inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
                               const PlacementRequest& request, ModelOptions options, size_t* given_up = nullptr,
@@ -290,8 +293,11 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         return lo * block;
     };
     // The budget without checkpoint slots first, read again while the devices' free memory rises, since a card still taking back an ended process's memory would leave room for none.
-    const bool choose = request.fit_checkpoints && kept &&
-                        std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; });
+    const bool keeps_state = std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; });
+    const bool choose = request.fit_checkpoints && kept && keeps_state;
+    const size_t most_marks = options.mark_slots;
+    const bool marks = request.fit_marks && most_marks > 1 && keeps_state;
+    if (marks) options.mark_slots = 1;
     const size_t most_kept = kept;
     if (choose) kept = 0;
     size_t tokens = 0;
@@ -308,6 +314,16 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         }
         kept = lo;
         if (kept) tokens = most();
+    }
+    // Then the marks past the first, by bisection, the most at which the budget and the checkpoint slots still fit.
+    if (marks && tokens) {
+        size_t lo = 1, hi = most_marks;
+        while (lo < hi) {
+            options.mark_slots = lo + (hi - lo) / 2 + (hi - lo) % 2;
+            if (fits(tokens)) lo = options.mark_slots;
+            else hi = options.mark_slots - 1;
+        }
+        options.mark_slots = lo;
     }
     if (given_up) *given_up = bare - tokens;
     if (read) *read = budgets;

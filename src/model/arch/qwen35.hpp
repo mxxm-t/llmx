@@ -313,24 +313,26 @@ public:
         b.kv_write(s.kv_layer, s.views, s.n_views, k, v);
     }
 
-    // One draft row: the token's row read from its id on the device and the row before it as the block's input, then the block's full-attention layer and feed-forward block on its residual, shared_head_norm into `out`, the target's head into `logits` and its argmax into the next id.
+    // A draft row a sequence: each token's row read from its id on the device and the row before it as the block's input, then the block's full-attention layer and feed-forward block on its residual, shared_head_norm into `out`, the target's head into `logits` and its argmax into the next id.
     void draft(const DraftStep& s) const override {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
-        const size_t E = (size_t)cfg_.n_embd, V = w[output].nout;
+        const size_t E = (size_t)cfg_.n_embd, V = w[output].nout, n = s.rows;
         const size_t base = draft_slot();
         const backend::Slice pair = s.slot(base + 1), x = s.slot(base + 3);
-        b.embed_ids(pair, w[token_embd].type, w[token_embd].slice(), w[token_embd].nin, w[token_embd].nout, s.id, 1);
-        b.copy(*pair.buffer, (pair.offset + E) * sizeof(float), *s.prev.buffer, s.prev.offset * sizeof(float), E * sizeof(float));
+        b.embed_ids(pair, w[token_embd].type, w[token_embd].slice(), w[token_embd].nin, w[token_embd].nout, s.id, n);
+        const backend::Slice prev{pair.buffer, pair.offset + n * E};
+        if (s.prev_rows) b.gather_rows(prev, s.prev, E, s.prev_rows, n);
+        else b.copy(*pair.buffer, prev.offset * sizeof(float), *s.prev.buffer, s.prev.offset * sizeof(float), n * E * sizeof(float));
         blocks::nextn_input(s, w[nextn_enorm], w[nextn_hnorm], w[nextn_eh_proj], pair, s.slot(base + 2), x, cfg_.rms_eps);
         Step layer = s;
         layer.x = x;
         layer.kind = full;
         mixer(layer);
         ffn(layer);
-        b.rms_norm_rows(s.out, x, w[nextn_shared_head_norm].slice(), 1, E, E, cfg_.rms_eps);
-        b.matmul_logits(w[output].type, w[output].slice(), s.out, s.logits, E, V, 1, s.runs, s.dtype);
-        b.argmax_rows(s.next, s.logits, 1, V, s.id);
+        b.rms_norm_rows(s.out, x, w[nextn_shared_head_norm].slice(), n, E, E, cfg_.rms_eps);
+        b.matmul_logits(w[output].type, w[output].slice(), s.out, s.logits, E, V, n, s.runs, s.dtype);
+        b.argmax_rows(s.next, s.logits, n, V, s.id);
     }
 
     // A linear-attention layer's state update: the causal conv over the raw rows (slot 2) into the conv's output (slot 3), and the recurrence over it with alpha and beta (slot 5) into the recurrence's output (slot 6), each reading the views' src slots and writing their dst slots; phase 0 is the conv and phase 1 the recurrence.

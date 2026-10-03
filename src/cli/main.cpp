@@ -469,10 +469,13 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     options.checkpoint_slots = checkpoints < 0 ? decode_rows : (size_t)checkpoints;
     request.fit_checkpoints = checkpoints < 0;
     request.drafter = drafter;
-    // A command that verifies drafts marks its one sequence before each verify, of up to `mark_rows` rows.
+    // A command that verifies drafts marks a sequence before each verify, of up to `mark_rows` rows: its one sequence, or as many of the `decode_rows` a server decodes at once as can draft in one pass, past the first only in the room its budget and checkpoints leave.
     if (mark_rows) {
-        options.mark_slots = 1;
+        size_t columns = SIZE_MAX;
+        for (const auto& b : backends) columns = std::min(columns, b->decode_columns());
+        options.mark_slots = decode_rows ? server::draft_marks(decode_rows, columns) : 1;
         options.mark_rows = mark_rows;
+        request.fit_marks = decode_rows > 0;
     }
     format::LoadProgress shown;
     if (progress) {
@@ -510,7 +513,7 @@ std::string chat_prompt(const chat::ChatFormat& format, const std::string& text)
     return format.render({ { "user", text, std::nullopt } }, true);
 }
 
-// What `--drafter` and `--draft-max` ask of generate and chat: the proposer, none for off, whether it is the file's embedded drafter, which the model is loaded with, and the most drafts a verify feeds after the last pick.
+// What `--drafter` and `--draft-max` ask of generate, chat and serve: the proposer, none for off, whether it is the file's embedded drafter, which the model is loaded with, and the most drafts a verify feeds after the last pick.
 struct Drafts {
     std::unique_ptr<infer::spec::Proposer> proposer;
     bool embedded = false;
@@ -531,6 +534,23 @@ struct Drafts {
         return d;
     }
 };
+
+// --drafter and --draft-max, which generate, chat and serve take; true when `f` is one of them.
+bool drafts_flag(int argc, char** argv, int& i, const std::string& a, std::string_view f, Drafts& drafts) {
+    if (f == "--drafter") {
+        const std::string d = flag_value(argc, argv, i, a);
+        drafts.proposer.reset();
+        drafts.embedded = d == "embedded";
+        if (d == "lookup") drafts.proposer = std::make_unique<infer::spec::Lookup>();
+        else if (d != "off" && d != "embedded") throw UsageError("--drafter takes off, lookup or embedded, not '" + d + "'");
+        return true;
+    }
+    if (f == "--draft-max") {
+        drafts.draft_max = (size_t)int_arg(argc, argv, i, a, 1, infer::spec::kMaxDrafts);
+        return true;
+    }
+    return false;
+}
 
 int cmd_generate(const std::string& model_path, const std::string& prompt, bool as_chat, const infer::GenParams& gp, const ExecOptions& exec,
                  Drafts& drafts) {
@@ -965,12 +985,14 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
 }
 
 // llmx serve: the multi-user server of docs/SERVER.md over one model.
-int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec) {
+int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts) {
     // Without --passes a pipelined split keeps a pass in flight per stage, and its stages are at most the devices listed.
     const size_t slots = cfg.passes ? cfg.passes : backend::device_specs(exec.device).size();
-    const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints);
+    const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
+                                   drafts.mark_rows(), drafts.embedded);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
+    drafts.attach(model);
     // A template the renderer refuses stops the server before it listens, as it stops chat before a turn.
     loaded->chat.require();
     server::Config c = cfg;
@@ -979,6 +1001,8 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     c.dtype = loaded->dtype;
     // Read once the model and its caches are in memory, so the default takes what they leave.
     if (!c.host_cache_bytes) c.host_cache_bytes = server::default_host_cache(model, c.max_seqs);
+    c.proposer = drafts.proposer.get();
+    c.draft_max = drafts.draft_max;
     http::Listener listener(c.host, c.port);
     // A split's plan, what each device was given, so a lopsided placement shows in the log.
     std::cerr << loaded->plan;
@@ -1101,7 +1125,10 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --state-checkpoints N   States a recurrent model keeps for prefix reuse (default: fitted, up to --max-seqs)\n"
             << "  --host-cache-bytes N    Host memory for prefixes the devices evict; 0 keeps none (default: --max-seqs histories as long as a request may hold, within half of free host memory once the model is loaded, none with every cache on the CPU)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
-            << "  --ctx-size N, -c        Most KV tokens in total, fitted to the devices at load (default: model context)\n";
+            << "  --ctx-size N, -c        Most KV tokens in total, fitted to the devices at load (default: model context)\n"
+            << "  --drafter D             Draft tokens to verify beside other requests: off, lookup or embedded,\n"
+            << "                          where the passes' measured cost finds a gain; each reply the same either way (default: off)\n"
+            << "  --draft-max N           Most drafts a verify takes, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
         model_options(false);
         out << "\nRoutes:\n"
             << "  POST /v1/generate             POST /v1/chat\n"
@@ -1306,14 +1333,7 @@ int main(int argc, char** argv) {
                 else if (f == "--seed") gp.seed = int_arg<uint64_t>(argc, argv, i, a, 0);
                 else if (f == "--stop") gp.stop = nonempty_value(argc, argv, i, a, "a text");
                 else if (f == "--ignore-eos") gp.ignore_eos = true;
-                else if (f == "--drafter") {
-                    const std::string d = flag_value(argc, argv, i, a);
-                    drafts.proposer.reset();
-                    drafts.embedded = d == "embedded";
-                    if (d == "lookup") drafts.proposer = std::make_unique<infer::spec::Lookup>();
-                    else if (d != "off" && d != "embedded") throw UsageError("--drafter takes off, lookup or embedded, not '" + d + "'");
-                }
-                else if (f == "--draft-max") drafts.draft_max = (size_t)int_arg(argc, argv, i, a, 1, infer::spec::kMaxDrafts);
+                else if (drafts_flag(argc, argv, i, a, f, drafts)) {}
                 else if (exec_flag(argc, argv, i, exec, true)) {}
                 else if (f == "--system" && chat) system = flag_value(argc, argv, i, a);
                 else if (f == "--chat" && !chat) as_chat = true;
@@ -1407,6 +1427,7 @@ int main(int argc, char** argv) {
             server::Config cfg;
             ExecOptions exec;
             GivenFlags given;
+            Drafts drafts;
             std::optional<uint64_t> host_bytes;
             for (int i = 3; i < argc; i++) {
                 const int at = i;
@@ -1421,12 +1442,13 @@ int main(int argc, char** argv) {
                 else if (f == "--host-cache-bytes") host_bytes = int_arg<uint64_t>(argc, argv, i, a, 0);
                 else if (f == "--timing") cfg.timing = true;
                 else if (f == "--ctx-size") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
+                else if (drafts_flag(argc, argv, i, a, f, drafts)) {}
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
                 given.take(a, i > at);
             }
             if (host_bytes) cfg.host_cache_bytes = (size_t)*host_bytes;
-            return cmd_serve(argv[2], cfg, exec);
+            return cmd_serve(argv[2], cfg, exec, drafts);
         }
         if (cmd == "bench") {
             BenchNumbers n;

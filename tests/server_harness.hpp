@@ -253,12 +253,12 @@ inline void ledger(const server::Scheduler::Stats& s, const infer::Model& model,
                 std::to_string(s.donor_blocks[p]) + ", of " + std::to_string(model.kv_pool_blocks(p)));
 }
 
-// Runs `waves` through one scheduler over `model` with `passes` passes in flight, the scheduler's own number when 0, and `host` bytes of host memory for evicted donors: a wave is fully queued before any pass retires, and every request is drained before the next wave starts.
+// Runs `waves` through one scheduler over `model` with `passes` passes in flight, the scheduler's own number when 0, `host` bytes of host memory for evicted donors and, with a `proposer`, up to `draft_max` drafts a verify, `priced` by the passes' measured cost or else by the decode columns alone: a wave is fully queued before any pass retires, and every request is drained before the next wave starts.
 // The replies come in submission order; the scheduler's counters at the end go to `stats`.
 inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs,
                          const std::vector<std::vector<Req>>& waves, server::Scheduler::Stats* stats = nullptr, size_t passes = 0,
-                         size_t host = 0) {
-    server::Scheduler sched(model, tok, max_seqs, 64, passes, false, host);
+                         size_t host = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = false) {
+    server::Scheduler sched(model, tok, max_seqs, 64, passes, false, host, proposer, draft_max, priced);
     std::mutex submitting;
     // The first pass may start while a wave is queued, but cannot retire and advance its request ahead of the rest.
     sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };
@@ -307,14 +307,19 @@ inline void same(const Reply& alone, const Reply& got, const std::string& what, 
 using Make = std::function<std::unique_ptr<infer::Model>(size_t pool, int ubatch)>;
 
 // A hybrid model holds `state_slots` recurrent states, which bounds the requests a scheduler over it runs at once, and `checkpoints` states kept for prefix reuse; the others hold none.
-inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend::BackendPtr>()> backends, size_t state_slots = 8, size_t checkpoints = 0) {
-    return [&weights, backends, state_slots, checkpoints](size_t pool, int ubatch) {
+// With `marks` the model marks that many sequences at once for verifies of up to `mark_rows` rows, and with `drafter` it loads the embedded drafter its file carries.
+inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend::BackendPtr>()> backends, size_t state_slots = 8, size_t checkpoints = 0,
+               size_t marks = 0, size_t mark_rows = 0, bool drafter = false) {
+    return [&weights, backends, state_slots, checkpoints, marks, mark_rows, drafter](size_t pool, int ubatch) {
         infer::ModelOptions options;
         options.kv_tokens = pool;
         options.state_slots = state_slots;
         options.checkpoint_slots = checkpoints;
+        options.mark_slots = marks;
+        options.mark_rows = mark_rows;
         std::vector<backend::BackendPtr> b = backends();
         infer::PlacementRequest request;
+        request.drafter = drafter;
         for (size_t i = 0; i < b.size(); ++i) request.names.push_back("device " + std::to_string(i));
         if (b.size() > 1) request.shares.assign(b.size(), 1);
         request.ubatch = ubatch;

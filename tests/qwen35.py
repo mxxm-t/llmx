@@ -260,7 +260,7 @@ def write_fixture(directory, fixture):
 
 
 def check_serve(directory):
-    """The Hv = 3 Hk model served with a context of 1024: greedy ids through /v1/generate alone, four at once and from the CLI are the same; a follow-up turn forks the state its first turn kept at its prompt's last whole block and gives the CLI's text for its whole prompt, on this model and on a qwen35moe one; and uncapped requests on a pool too small for them together are paused and resumed with the text each gives alone, with and without checkpoints, those without recomputing from their start; growth takes the paused requests' donors here, so the take-back of a kept state is `server-resume`'s."""
+    """The Hv = 3 Hk model served with a context of 1024: greedy ids through /v1/generate alone, four at once and from the CLI are the same; served with drafts, the MTP block's file with its embedded drafter and this model with lookup, each reply alone and at once is its reply without drafts, greedy and seeded; a follow-up turn forks the state its first turn kept at its prompt's last whole block and gives the CLI's text for its whole prompt, on this model and on a qwen35moe one; and uncapped requests on a pool too small for them together are paused and resumed with the text each gives alone, with and without checkpoints, those without recomputing from their start; growth takes the paused requests' donors here, so the take-back of a kept state is `server-resume`'s."""
     # Imported here, since the server test imports the baseline checks, which import this module.
     import server
     fixture = FIXTURES[1]
@@ -302,6 +302,24 @@ def check_serve(directory):
             assert p.returncode == 0, p.stderr.decode("utf-8", "replace")
             assert list(common.generate_text(p.stdout)) == again["ids"], (served, again["ids"])
             assert srv.get("/v1/health")["checkpoints"] > 0
+        finally:
+            srv.close()
+    # Drafts in the scheduler (docs/SPECULATIVE.md, section 3): with the MTP block's drafter and with lookup, each reply alone and with the others at once is its reply without drafts, greedy and seeded, and drafts were fed.
+    texts = ["abcabcabcabcabcabc xyz abcabc", "hello hello hello hello", "the quick brown fox", "0123456789"]
+    bodies = [{"prompt": text, "temperature": temp, "seed": 5, "max_tokens": 40, "ignore_eos": True} for text in texts for temp in (0, 0.8)]
+    for served, drafter in ((drafting, "embedded"), (model, "lookup")):
+        plain = server.Server(served, "--max-seqs", "4")
+        try:
+            want = [server.post_ok(plain, "/v1/generate", body)["ids"] for body in bodies]
+        finally:
+            plain.close()
+        srv = server.Server(served, "--max-seqs", "4", "--drafter", drafter)
+        try:
+            server.alone_and_together(srv, bodies)
+            for body, ids in zip(bodies, want):
+                assert server.post_ok(srv, "/v1/generate", body)["ids"] == ids, (drafter, body)
+            health = srv.get("/v1/health")
+            assert sum(health["drafted"]) > 0 and len(health["kept"]) == len(health["drafted"]), (drafter, health)
         finally:
             srv.close()
     # Uncapped, each request runs to the context the pool holds, so four together pause and resume with the text each gives alone, with checkpoints and without, where each recomputes its history from its start.

@@ -113,6 +113,7 @@ inline size_t Model::host_bytes(size_t length, bool blocks) const {
         if (const auto* st = blocks ? dynamic_cast<const backend::BlockKVStorage*>(d->storage.get()) : nullptr)
             bytes += backend::blocks_for(length, st->block_tokens()) * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
         if (d->states) bytes += d->states->layers() * d->states->shape().slot_floats() * sizeof(float);
+        if (d->carry && state_layers_) bytes += plan_.residual * sizeof(float);
         n += backend::blocks_for(bytes, kHostSlab) * kHostSlab;
     }
     return n;
@@ -220,6 +221,7 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
         if (const auto* st = blocks ? dynamic_cast<const backend::BlockKVStorage*>(d.storage.get()) : nullptr)
             bytes[i] = length / st->block_tokens() * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
         if (d.states) bytes[i] += d.states->layers() * d.states->shape().slot_floats() * sizeof(float);
+        if (d.carry && state_layers_) bytes[i] += plan_.residual * sizeof(float);
         need[i] = backend::blocks_for(bytes[i], kHostSlab);
         idle[i] = host_slabs_[i].size();
     }
@@ -263,6 +265,8 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
             auto* st = blocks ? dynamic_cast<backend::BlockKVStorage*>(d.storage.get()) : nullptr;
             if (st) span.blocks(*st, s.kv_[(size_t)d.storage_index].view(nullptr).blocks, length / st->block_tokens());
             if (d.states) span.slot(*d.states, s.kept_.slot());
+            // An embedded drafter's carried row goes with the checkpoint it sits beside, so the history promoted back drafts as one never evicted.
+            if (d.carry && state_layers_) span.copy(*d.carry, s.kept_.slot() * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
             h.tickets[i] = d.b->submit();
             h.bytes += bytes[i];
         }
@@ -305,6 +309,7 @@ inline Sequence Model::restore_host(HostHistory& h) {
                 kv.commit();
             }
             if (d.states) span.slot(*d.states, slot);
+            if (d.carry && state_layers_) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
         }
     } catch (...) {
         // Copies out of h's slabs may be enqueued past its tickets, so they retire before h can be released.
@@ -340,10 +345,12 @@ inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& sta
     try {
         for (size_t i = 0; i < devices_.size(); ++i) {
             Device& d = *devices_[i];
-            if (!d.states) continue;
+            if (!d.states && !d.carry) continue;
             if (state.slabs[i].empty()) throw std::logic_error("inference: a host state of another layout");
             detail::HostSpan span{*d.b, state.slabs[i], kHostSlab, false};
-            span.slot(*d.states, slot);
+            if (d.states) span.slot(*d.states, slot);
+            // An embedded drafter's carried row comes back with the state it was saved beside, so the fork drafts as the history it was taken from did.
+            if (d.carry) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
             state.tickets[i] = f.last_[i] = d.b->submit();
         }
     } catch (...) {
@@ -520,63 +527,101 @@ inline void Model::drop_mark(Sequence& s) noexcept {
     s.mark_.ran = false;
 }
 
-// Up to `k` drafts of the tokens after `last`, the history's last pick not yet fed, from an embedded drafter (docs/SPECULATIVE.md, section 7), in `out`: one submission on the head's device of k draft rows, row m at the history's length plus m, reading the token drafted before it, the first the last pick, and the row before it, the first the row the history carries.
-// Each row writes the drafter's KV at its position into blocks taken for the chain and returned after it, so the history's committed length is unchanged and a verify overwrites those rows before anything reads them.
-// The drafts end before the first that is not an id of the vocabulary, which the device marks where a row's logits are not finite.
-inline void Model::draft(Sequence& s, uint32_t last, size_t k, std::vector<uint32_t>& out) {
-    settle(s, "a draft");
+// Up to `k` drafts of the tokens after `last`, each history's last pick not yet fed, from an embedded drafter (docs/SPECULATIVE.md, section 7), in `out`, for every sequence asked: one submission on the head's device of a step a draft, step m a row for each sequence whose chain is longer than m, at that history's length plus m, reading the token drafted before it, the first the last pick, and the row before it, the first the row the history carries.
+// The sequences take their rows in order of their chains' lengths, longest first, so the rows of every step are those of the step before it less the last ones; a row computes what it computes alone.
+// Each row writes the drafter's KV at its position into blocks taken for the chain and returned after it, so a history's committed length is unchanged and a verify overwrites those rows before anything reads them.
+// A sequence's drafts end before its first that is not an id of the vocabulary, which the device marks where a row's logits are not finite.
+inline void Model::draft(DraftAsk* asks, size_t n) {
     if (!plan_.drafter) throw std::logic_error("inference: a draft without an embedded drafter");
-    out.clear();
-    if (!k) return;
-    const size_t L = history(s), S = stages_.size(), E = plan_.residual, V = plan_.vocab;
-    if (!L || !s.state_.held()) throw std::logic_error("inference: a draft of a history no pass has fed");
-    if (k > plan_.context_length - std::min(plan_.context_length, L))
-        throw std::runtime_error("inference: context length exceeded (" + std::to_string(plan_.context_length) + " tokens)");
-    const size_t o = (size_t)place_.output_device;
+    const size_t S = stages_.size(), V = plan_.vocab;
+    std::vector<size_t> order;
+    size_t steps = 0;
+    for (size_t i = 0; i < n; ++i) {
+        DraftAsk& a = asks[i];
+        settle(*a.seq, "a draft");
+        a.out->clear();
+        if (!a.k) continue;
+        const size_t L = history(*a.seq);
+        if (!L || !a.seq->state_.held()) throw std::logic_error("inference: a draft of a history no pass has fed");
+        if (a.k > plan_.context_length - std::min(plan_.context_length, L))
+            throw std::runtime_error("inference: context length exceeded (" + std::to_string(plan_.context_length) + " tokens)");
+        order.push_back(i);
+        steps = std::max(steps, a.k);
+    }
+    if (order.empty()) return;
+    std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) { return asks[a].k > asks[b].k; });
+    const size_t R = order.size(), o = (size_t)place_.output_device;
     Device& d = *devices_[o];
-    KVSequence& kv = s.kv_[(size_t)d.storage_index];
-    ensure(ctx_, 1, 0, handoffs(1));
-    if (draft_rows_ < k) {
-        backend::BufferPtr ids = d.b->alloc(backend::size_mul(k + 1, sizeof(float)), backend::Memory::host_visible);
-        backend::BufferPtr logits = d.b->alloc(backend::size_mul(backend::size_mul(k, V), sizeof(float)), backend::Memory::host_visible);
+    ensure(ctx_, R, 0, handoffs(1));
+    if (draft_id_rows_ < R * (steps + 1) || draft_rows_ < R * steps) {
+        const size_t id_rows = std::max(draft_id_rows_, R * (steps + 1)), rows = std::max(draft_rows_, R * steps);
+        backend::BufferPtr ids = d.b->alloc(backend::size_mul(id_rows, sizeof(float)), backend::Memory::host_visible);
+        backend::BufferPtr logits = d.b->alloc(backend::size_mul(rows, backend::size_mul(V, sizeof(float))), backend::Memory::host_visible);
         draft_ids_ = std::move(ids);
         draft_logits_ = std::move(logits);
-        draft_rows_ = k;
+        draft_id_rows_ = id_rows;
+        draft_rows_ = rows;
     }
-    kv.prepare(k);
+    draft_order_.assign(n, R);
+    draft_k_.assign(n, 0);
+    draft_width_ = R;
+    std::vector<uint32_t> last(R), carried(R), pos(R);
+    std::vector<size_t> length(R);
+    std::vector<KVSequence*> kv(R);
+    for (size_t p = 0; p < R; ++p) {
+        Sequence& s = *asks[order[p]].seq;
+        draft_order_[order[p]] = p;
+        last[p] = asks[order[p]].last;
+        length[p] = history(s);
+        carried[p] = (uint32_t)(s.from_[S - 1] == Sequence::kLive ? s.state_.slot() : s.from_[S - 1]);
+        kv[p] = &s.kv_[(size_t)d.storage_index];
+    }
+    size_t prepared = 0;
     try {
-        d.b->write(*draft_ids_, 0, &last, sizeof(last));
-        const size_t src = s.from_[S - 1] == Sequence::kLive ? s.state_.slot() : s.from_[S - 1];
-        const backend::RowRun run{1, 1};
+        for (; prepared < R; ++prepared) kv[prepared]->prepare(asks[order[prepared]].k);
+        d.b->write(*draft_ids_, 0, last.data(), R * sizeof(uint32_t));
         const backend::Slice hn = slot(ctx_, o, plan_.draft_h);
-        for (size_t m = 0; m < k; ++m) {
-            backend::KVView view = kv.view(d.storage.get());
-            view.length = L + m;
-            view.nq = 1;
-            view.extent = 1;
-            const uint32_t pos = (uint32_t)(L + m);
-            DraftStep step{part(ctx_, o, drafter_.data(), plan_.drafter->kind, 0, 1, {&run, 1}),
-                           {draft_ids_.get(), m},
-                           m ? backend::CSlice{hn} : backend::CSlice{d.carry.get(), src * E},
-                           {draft_ids_.get(), m + 1},
+        std::vector<backend::KVView> views(R);
+        for (size_t m = 0, rows = R; m < steps; ++m) {
+            while (asks[order[rows - 1]].k <= m) --rows;
+            for (size_t p = 0; p < rows; ++p) {
+                views[p] = kv[p]->view(d.storage.get());
+                views[p].length = length[p] + m;
+                views[p].nq = 1;
+                views[p].extent = 1;
+                pos[p] = (uint32_t)(length[p] + m);
+            }
+            const backend::RowRun run{rows, 1};
+            DraftStep step{part(ctx_, o, drafter_.data(), plan_.drafter->kind, 0, rows, {&run, 1}),
+                           {draft_ids_.get(), m * R},
+                           m ? backend::CSlice{hn} : backend::CSlice{d.carry.get(), 0},
+                           m ? nullptr : carried.data(),
+                           {draft_ids_.get(), (m + 1) * R},
                            hn,
-                           {draft_logits_.get(), m * V}};
-            step.views = &view;
-            step.n_views = 1;
+                           {draft_logits_.get(), m * R * V}};
+            step.views = views.data();
+            step.n_views = rows;
             step.kv_layer = drafter_kv_;
-            step.pos = &pos;
+            step.pos = pos.data();
             arch_->draft(step);
         }
-        s.last_[o] = d.b->submit();
-        d.b->wait(s.last_[o]);
+        const backend::Ticket t = d.b->submit();
+        for (size_t p = 0; p < R; ++p) asks[order[p]].seq->last_[o] = t;
+        d.b->wait(t);
     } catch (...) {
         retire();
-        kv.abort();
+        for (size_t p = 0; p < prepared; ++p) kv[p]->abort();
         throw;
     }
-    kv.abort();
+    for (size_t p = 0; p < R; ++p) {
+        kv[p]->abort();
+        draft_k_[order[p]] = asks[order[p]].k;
+    }
     const uint32_t* ids = (const uint32_t*)draft_ids_->host_ptr();
-    for (size_t m = 1; m <= k && ids[m] < V; ++m) out.push_back(ids[m]);
+    for (size_t p = 0; p < R; ++p) {
+        const DraftAsk& a = asks[order[p]];
+        for (size_t m = 1; m <= a.k && ids[m * R + p] < V; ++m) a.out->push_back(ids[m * R + p]);
+    }
 }
 
 } // namespace infer

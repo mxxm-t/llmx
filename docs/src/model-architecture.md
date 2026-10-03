@@ -67,8 +67,9 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   `DraftRowsStep` adds the rows' token ids and, per entry, the row its first
   row reads as the target's row before it (the sequence's carried row, or
   a zero row for an empty history); `DraftStep` the device slices of a
-  draft row's token id, the row before it, the drafted id, its output row
-  after the drafter's final norm and its logits.
+  draft step's token ids, the rows before them (gathered by `prev_rows`
+  where they are rows of the carried rows), the drafted ids, its output
+  rows after the drafter's final norm and its logits, a row a sequence.
 - `Architecture`: the interface an architecture implements, immutable once
   read from a file, so models built from one set of weights share it.
   - `plan(index)`: the plan of a file's tensors, looked up through the

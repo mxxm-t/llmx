@@ -303,6 +303,9 @@ public:
     // A rerun of many independent state layers records them so (docs/SPECULATIVE.md, section 7); a backend that computes as it records ignores it.
     virtual void unordered(bool on) { (void)on; }
 
+    // The generated tokens a decode pass's products read each weight once for, past which another row costs a weight read of its own: what drafts ride on beside other requests' rows (docs/SPECULATIVE.md, section 3).
+    virtual size_t decode_columns() const { return 1; }
+
     // Set the worker thread count hint; 0 leaves the current count unchanged.
     virtual void set_threads(int n) = 0;
 

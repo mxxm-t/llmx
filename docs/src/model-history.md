@@ -36,7 +36,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   section 2, Host tier): each KV storage's blocks, read through
   `BlockKVStorage`'s buffers in runs of consecutive blocks, and on a model
   that keeps a state its checkpoint's slot, which must be at `length`, from
-  every state storage, through `Backend::copy` into the backend's
+  every state storage, with an embedded drafter's carried row of that slot, through `Backend::copy` into the backend's
   host-visible memory, enqueued on each device's stream behind the passes
   that wrote the history and not waited for, since whatever writes those
   blocks or that slot next comes after them on the same stream. The memory
@@ -59,6 +59,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   pool, a slot or a copy leaves nothing held. `host_bytes(length)` gives
   the slabs a copy of `length` tokens takes.
   Without `blocks`, `save_host` copies the checkpoint's state alone (`HostHistory::blocks` false), and `fork(sequence, length, state)` continues from it: a second history sharing the source's blocks below `length`, as `fork` does whatever checkpoint the source holds, with the state copied back into a checkpoint slot of its own at `length`, which its first pass reads in place; the server keeps a conversation's message boundaries this way, the source a later history of the same conversation whose rows below `length` are the ones the state was computed after.
+  With an embedded drafter the state alone carries the drafter's carried row of its slot too, and the fork copies it into its own slot, so it drafts as the history it was taken from.
   `restore_host` refuses a state alone, and a fork with a state refuses a whole history's copy or another length; a throw from the slot or a copy holds nothing.
 - `mark(sequence)`: the history kept at its length while one pass runs
   past it, so a retract into that pass reaches any of its rows exactly, as
@@ -82,6 +83,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   back to the mark, and a rerun that throws turns every device's unordered recording off, drains the devices and keeps
   the mark, so the retract may be called again.
   With an embedded drafter the pass after the mark saves its rows' final-normed rows too (`save_h`), and the rerun copies the last kept row's into the live slot's carried row, so the history carries the row of its last kept token.
-- `draft(sequence, last, k, out)`: up to `k` drafts of the tokens after `last`, the history's last pick not yet fed, from an embedded drafter (docs/SPECULATIVE.md, section 7): one submission on the head's device of `k` draft rows (`Architecture::draft`), row m at the history's length plus m, reading the token drafted before it, the first `last`, and the row before it, the first the row the history carries; each row's id is written and read on the device, and the host reads the ids once.
-  The rows write the drafter's KV at their positions into blocks taken for the chain and returned after it, a failure included, so the committed length is unchanged and the verify overwrites those rows before anything reads them; the drafts end before the first that is not an id of the vocabulary.
-  A sequence in flight, one no pass has fed and a model without a drafter are refused.
+- `draft(asks, n)`: for each of `n` sequences (`DraftAsk`), up to its `k` drafts of the tokens after its `last`, the history's last pick not yet fed, from an embedded drafter (docs/SPECULATIVE.md, section 7), in its `out`: one submission on the head's device of a step a draft (`Architecture::draft`), step m a row for each sequence whose chain is longer than m, at that history's length plus m, reading the token drafted before it, the first `last`, and the row before it, the first the row the history carries; each row's id is written and read on the device, and the host reads the ids once.
+  The sequences take their rows longest chain first, so a step's rows are those of the step before it less the last ones, and the drafter's weights and the head are read once a step for all of them; a row computes what it computes alone.
+  The rows write the drafter's KV at their positions into blocks taken for the chain and returned after it, a failure included, so the committed lengths are unchanged and the verify overwrites those rows before anything reads them; a sequence's drafts end before its first that is not an id of the vocabulary.
+  A sequence in flight, one no pass has fed and a model without a drafter are refused; `draft(sequence, last, k, out)` is the batch of one.

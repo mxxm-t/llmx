@@ -32,6 +32,9 @@ struct Config {
     std::optional<size_t> host_cache_bytes;   // host memory for donors the devices evict (Scheduler); none given takes default_host_cache
     std::string model_name;
     infer::DtypePlan dtype;
+    // The proposer a decoding request drafts with and its most drafts a verify (docs/SPECULATIVE.md, section 3); none drafts nothing.
+    infer::spec::Proposer* proposer = nullptr;
+    size_t draft_max = 0;
 };
 
 // The longest prefix of `bytes` that ends on a complete UTF-8 character, so a token whose text ends mid-character is held until the rest comes.
@@ -138,6 +141,13 @@ private:
         BadRequest(int s, const std::string& m) : std::runtime_error(m), status(s) {}
     };
 
+    // Counts as a JSON array.
+    static std::string counts_json(const std::vector<size_t>& v) {
+        std::string out = "[";
+        for (size_t i = 0; i < v.size(); ++i) out += (i ? "," : "") + std::to_string(v[i]);
+        return out + "]";
+    }
+
     void health(http::Connection& c) {
         const Scheduler::Stats s = sched_.stats();
         c.respond(200, "application/json",
@@ -153,6 +163,7 @@ private:
                   ",\"boundary_hits\":" + std::to_string(s.boundary_hits) + ",\"reprefills\":" + std::to_string(s.reprefills) +
                   ",\"reprefill_rows\":" + std::to_string(s.reprefill_rows) + ",\"reprefill_cancels\":" + std::to_string(s.reprefill_cancels) +
                   ",\"passes\":" + std::to_string(s.passes) + ",\"in_flight\":" + std::to_string(s.in_flight) +
+                  ",\"drafted\":" + counts_json(s.drafted) + ",\"kept\":" + counts_json(s.kept) +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
     }
     // The run's request and resolved dtype, including each device's emulation or wider fallback.
@@ -698,7 +709,8 @@ private:
 // Serve until the listener is closed: the scheduler on its own thread, the accept loop here, one detached thread per connection.
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format,
                   const Config& cfg, http::Listener& listener) {
-    Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing, cfg.host_cache_bytes.value_or(default_host_cache(model, cfg.max_seqs)));
+    Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing, cfg.host_cache_bytes.value_or(default_host_cache(model, cfg.max_seqs)), cfg.proposer,
+                    cfg.draft_max);
     const Scheduler::Stats started = sched.stats();
     std::fprintf(stderr, "server: up to %zu pass%s in flight over %zu stage%s, %zu sampling thread%s beside the scheduler's\n", started.passes,
                  started.passes == 1 ? "" : "es", model.stage_count(), model.stage_count() == 1 ? "" : "s", started.samplers,

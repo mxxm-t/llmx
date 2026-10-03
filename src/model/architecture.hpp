@@ -143,9 +143,10 @@ struct DraftRowsStep : Step {
     const backend::CSlice* carry;
 };
 
-// One draft row of an embedded drafter (Architecture::draft): the token's row read from `id` on the device, the target's row before it at `prev`, the drafted id written to `next`, the drafter's output row after its final norm left at `out`, the next row's `prev`, and the head's logits at `logits`.
+// One step of an embedded drafter's chains (Architecture::draft), a draft row for each of `rows` sequences, one cache view each: each token's row read from `id` on the device, the target's row before it at `prev`, row i of it or, with `prev_rows`, the row prev_rows[i] names, the drafted ids written to `next`, the drafter's output rows after its final norm left at `out`, the next step's `prev`, and the head's logits at `logits`.
 struct DraftStep : Step {
     backend::CSlice id, prev;
+    const uint32_t* prev_rows = nullptr;
     backend::Slice next, out, logits;
 };
 

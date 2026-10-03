@@ -123,10 +123,12 @@ conversation's prefix through state checkpoints ([server](server.md)).
     `blocks::nextn_input`, `attn_norm`, K and V with the k norm and the
     partial rope, written to the block's cache; q, attention, the
     feed-forward block and the head do not run for them.
-  - `draft`: one draft row: the drafted id's row through `embed_ids` and
-    the row before it as the block's input, the block's full-attention
-    layer and feed-forward block on its residual, `shared_head_norm`, the
-    target's head and `argmax_rows` into the next id.
+  - `draft`: a draft row for each drafting sequence: the drafted ids'
+    rows through `embed_ids` and the rows before them as the block's
+    input, gathered where a step reads carried rows, the block's
+    full-attention layer and feed-forward block on its residual,
+    `shared_head_norm`, the target's head and `argmax_rows` into the next
+    ids.
 - `open_dense(file, prefix)`, `open_routed(file, prefix)`: the
   registry's readers of a qwen35 file and a qwen35moe file, each the
   architecture over the configuration `read_config` reads.

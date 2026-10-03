@@ -19,6 +19,7 @@
 #include "core/host_memory.hpp"
 #include "inference/logprobs.hpp"
 #include "inference/sampler.hpp"
+#include "inference/spec.hpp"
 #include "model/runtime.hpp"
 #include "server/policy.hpp"
 #include "server/sampling_pool.hpp"
@@ -50,6 +51,11 @@ struct SampleParams : infer::Sampling {
 struct RowClass {
     size_t end, extent;
 };
+
+// The marks a server of `max_seqs` requests needs for drafts on devices whose decode kernels hold `columns` (Backend::decode_columns): a request drafting takes a column for its last pick and one for each draft, so at most half the columns' requests draft in one pass, and a lone decoder drafts whatever its devices hold (docs/SPECULATIVE.md, section 3).
+inline size_t draft_marks(size_t max_seqs, size_t columns) {
+    return std::min(max_seqs, std::max<size_t>(1, columns / 2));
+}
 
 // One request from submission to completion: the connection thread reads its channel, and everything below the channel belongs to the scheduler thread.
 class Request {
@@ -178,9 +184,13 @@ private:
     // The history is the prompt then the generated tokens, neither ever rewritten; the cache holds its first seq_.length(), which is all the progress there is.
     infer::Sequence seq_;
     std::string finish_pending_;   // set by a sampled end, acted on after the pass
+    std::string error_pending_;    // with finish_pending_ "error", what failed
     std::vector<size_t> need_;     // blocks reserved for it, per cache pool
     std::vector<RowClass> classes_;   // how its history was computed, stretch by stretch; empty until the first admission
     uint32_t last_id_ = 0;
+    // Drafting (docs/SPECULATIVE.md, section 3): its acceptance, and the verify its pass in flight carries, its last pick then the drafts, empty for a decode entry.
+    infer::spec::Acceptance acceptance_;
+    std::vector<uint32_t> verify_;
     std::vector<uint32_t> gen_;
     std::string decoded_;
     infer::RNG rng_;
@@ -222,9 +232,11 @@ public:
     // Up to kSamplers threads beside the scheduler thread sample a pass's rows, fewer where the process may use fewer CPUs.
     // A model whose layers keep a recurrent state must hold a state slot for each of the `max_seqs` requests it runs at once, so admission never waits on one.
     // Donors the device tier evicts are kept in up to `host_bytes` of host memory and promoted back on a match (docs/SPECULATIVE.md, section 2, Host tier); 0 keeps none.
+    // With a `proposer` a decoding request drafts up to `draft_max` tokens a verify where the pass has decode columns to spare and, `priced`, where the passes' measured cost finds a gain (docs/SPECULATIVE.md, section 3), each verify on a mark of the model's; tests leave the price out so their drafts do not follow their timing.
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false,
-              size_t host_bytes = 0)
+              size_t host_bytes = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = true)
         : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), timed_(timed), host_cap_(host_bytes),
+          proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), priced_(priced),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)), reserved_(model.kv_pools(), 0) {
         if (model_.keeps_state() && max_seqs_ > model_.state_slots())
             throw std::logic_error("server: " + std::to_string(max_seqs_) + " requests at once need as many recurrent state slots, and the model holds " +
@@ -236,10 +248,12 @@ public:
         size_t p = passes ? passes : model_.pipelined() ? model_.stage_count() : 1;
         if (p > 1 && !model_.pipelined())
             throw std::runtime_error("server: " + std::to_string(p) + " passes in flight need a layer split over several devices, each running its layers whole; this placement runs one at a time");
+        // A pass carries at most kDraftRows draft rows beside a row a decoding request and a ubatch of prompt rows, each draft row wanting its logits.
+        const size_t drafts = proposer_ ? kDraftRows : 0;
         for (;; --p) {
-            logit_rows_ = logit_rows(p, max_seqs_);
+            logit_rows_ = logit_rows(p, max_seqs_ + drafts);
             try {
-                model_.reserve_passes(ctx_, p, ubatch_ + max_seqs_, logit_rows_.size);
+                model_.reserve_passes(ctx_, p, ubatch_ + max_seqs_ + drafts, logit_rows_.size);
                 break;
             } catch (const std::logic_error&) {
                 throw;
@@ -331,6 +345,7 @@ public:
         size_t host_hits = 0;                     // donors promoted from host memory for a request
         size_t host_bytes_moved = 0;              // bytes copied between the devices and host memory, both ways
         size_t boundaries = 0, boundary_hits = 0; // message boundaries' states held in host memory now, and the requests that forked one
+        std::vector<size_t> drafted{}, kept{};    // by draft position, the drafts verifies fed and those they kept
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
@@ -347,6 +362,8 @@ public:
         s.host_bytes_moved = host_moved_;
         s.boundaries = bounds_.size();
         s.boundary_hits = bound_hits_;
+        s.drafted = tally_.drafted();
+        s.kept = tally_.kept();
         return s;
     }
 
@@ -376,7 +393,7 @@ public:
             }
             for (const size_t k : steps.retire) retire(active, k);
             for (size_t i = 0; i < active.size();) {
-                if (!active[i]->finish_pending_.empty()) finish(active, i, active[i]->finish_pending_);
+                if (!active[i]->finish_pending_.empty()) finish(active, i, active[i]->finish_pending_, active[i]->error_pending_);
                 else ++i;
             }
             complete_jobs(active);
@@ -462,7 +479,7 @@ public:
     struct Retired {
         std::vector<const Request*> requests;
         std::vector<size_t> from, rows, extent;
-        std::vector<char> want;
+        std::vector<char> want, every;
         std::vector<std::vector<float>> logits;
     };
     // Called on the scheduler thread with each pass that retires, before its rows are sampled; set before run.
@@ -478,21 +495,26 @@ private:
     static constexpr size_t kSamplers = 4;
     // The most rows of a job a pass carries beside requests' rows, while the reply it follows is written; docs/STATUS.md (step 2c) records the latency it costs.
     static constexpr size_t kJobChunk = 64;
+    // The most draft rows a pass carries (docs/SPECULATIVE.md, section 3).
+    static constexpr size_t kDraftRows = 64;
 
-    // One wanting row of a retiring pass as the sampling pool draws it: the request, its mapped logits row, read in place, and the token drawn.
-    // With logprobs asked the row is copied for the channel, or, once the reader has fallen behind (Request::kRowsWaiting), the token takes its values instead.
+    // One wanting entry of a retiring pass as the sampling pool draws it: the request, its mapped logits rows, read in place, one for a decode entry and one a token for a verify, the rows the channel may still take copies of, the tokens drawn and the rows sampled.
+    // With logprobs asked a row is copied for the channel, or, once the reader has fallen behind (Request::kRowsWaiting), the token takes its values instead.
     struct Draw {
         Request* r;
         const float* row;
-        bool keep_row;
-        Request::Token t;
+        size_t copies;
+        std::vector<Request::Token> picks;
+        size_t sampled = 0;
     };
 
     // A slot of the context reserved for passes: the round's view of it (Flight), its pass's requests by entry with the history each had and the rows each adds, those it samples in logits order, its logits rows and its decode entries.
     struct Slot : Flight {
         std::vector<std::shared_ptr<Request>> members, wanting;
-        std::vector<size_t> from, rows;
+        std::vector<size_t> from, rows, first_row;   // first_row: per wanting entry, its first logits row in the pass
         size_t base = 0, want = 0, decoders = 0;
+        size_t generated = 0;        // its rows where every one is a generated token's, which the pass cost is measured on, else 0
+        Clock::time_point begun;
     };
 
     bool flying() const {
@@ -515,13 +537,18 @@ private:
         f.wanting.clear();
         f.from.clear();
         f.rows.clear();
+        f.first_row.clear();
         f.decoders = 0;
+        f.want = 0;
         const auto add_entry = [&](const std::shared_ptr<Request>& r, const infer::BatchEntry& e) {
             entries_.push_back(e);
             f.members.push_back(r);
             f.from.push_back(r->seq_.length());
             f.rows.push_back(e.n);
-            if (e.want_logits) f.wanting.push_back(r);
+            if (!e.want_logits) return;
+            f.wanting.push_back(r);
+            f.first_row.push_back(f.want);
+            f.want += e.every_logits ? e.n : 1;
         };
         const auto ready = [](const Request& r) { return !r.seq_.in_flight() && !r.stalled_; };
         // The share goes to the decoders that left flight earliest, so one held back takes the next pass; they join in order of first admission.
@@ -534,11 +561,21 @@ private:
         const size_t share = std::min(decode_share(decoders, slots_.size(), model_.stage_count()), waiting.size());
         std::stable_sort(waiting.begin(), waiting.end(), [](const Request* a, const Request* b) { return a->landed_ < b->landed_; });
         waiting.resize(share);
+        // A decoding request with drafts takes a verify entry, its last pick then the drafts, every row's logits, extent 1, in the decode columns the pass's decoders leave.
+        std::vector<std::shared_ptr<Request>> decoding_now;
         for (auto& r : active)
-            if (std::find(waiting.begin(), waiting.end(), r.get()) != waiting.end()) {
+            if (std::find(waiting.begin(), waiting.end(), r.get()) != waiting.end()) decoding_now.push_back(r);
+        propose(decoding_now, draft_columns(share));
+        for (auto& r : decoding_now) {
+            if (r->verify_.size() > 1) {
+                infer::BatchEntry e{&r->seq_, r->verify_.data(), r->verify_.size(), true, true};
+                e.extent = 1;
+                add_entry(r, e);
+            } else {
                 add_entry(r, infer::BatchEntry{&r->seq_, &r->last_id_, 1, true});
-                ++f.decoders;
             }
+            ++f.decoders;
+        }
         size_t budget = ubatch_, keeps = 0;
         // What r's cache lacks, one stretch's slice of at most `most` rows within the budget.
         const auto slice = [&](const std::shared_ptr<Request>& r, size_t most) {
@@ -584,7 +621,6 @@ private:
                 throw std::logic_error("server: a round with active requests formed an empty pass");
             return false;
         }
-        f.want = f.wanting.size();
         f.base = take_rows(logit_rows_, f.want);
         if (f.base == logit_rows_.size) throw std::logic_error("server: no logits rows for a new pass");
         try {
@@ -596,6 +632,10 @@ private:
         f.live = true;
         f.formed = ++formed_;
         f.ran = 0;
+        f.generated = 0;
+        if (std::all_of(entries_.begin(), entries_.end(), [](const infer::BatchEntry& e) { return e.extent == 1 || e.n == 1; }))
+            for (const infer::BatchEntry& e : entries_) f.generated += e.n;
+        f.begun = Clock::now();
         if (model_.stage_on_host(0)) host.push_back({k, 0});
         else advance(active, k, 0);
         return true;
@@ -681,8 +721,9 @@ private:
                     t.rows.push_back(f.rows[e]);
                     t.extent.push_back(entries[e].extent ? entries[e].extent : entries[e].n);
                     t.want.push_back(entries[e].want_logits);
+                    t.every.push_back(entries[e].every_logits);
                 }
-                for (size_t w = 0; w < f.wanting.size(); ++w) {
+                for (size_t w = 0; w < f.want; ++w) {
                     const float* row = model_.pass_logits(ctx_, k, w);
                     t.logits.emplace_back(row, row + ctx_.width);
                 }
@@ -696,9 +737,10 @@ private:
                 Request& r = *f.wanting[w];
                 if (r.cancel_.load()) continue;
                 const Clock::time_point read = timed_ ? Clock::now() : Clock::time_point{};
-                const float* row = model_.pass_logits(ctx_, k, w);
+                const float* row = model_.pass_logits(ctx_, k, f.first_row[w]);
                 if (timed_) waited += ms_since(read);
-                draws_.push_back(Draw{&r, row, r.params_.logprobs && r.rows_waiting() < Request::kRowsWaiting, {}});
+                const size_t waiting = r.params_.logprobs ? r.rows_waiting() : Request::kRowsWaiting;
+                draws_.push_back(Draw{&r, row, waiting < Request::kRowsWaiting ? Request::kRowsWaiting - waiting : 0, {}, 0});
             }
             samplers_.run(draws_.size(), [this](size_t i) { draw(draws_[i]); });
             for (Draw& d : draws_) step(d);
@@ -713,11 +755,18 @@ private:
             return;
         }
         model_.end_pass(ctx_, k);
-        // Rows a resume computed again are those below the longest history the cache has held.
+        settle_verifies(k);
+        // A pass's cost is the time the server gave it: from its formation through its retract, which on a model that keeps a state reruns the kept rows, or, with passes in flight, since the pass before it retired, which is less, less the chains drafted meanwhile, which the price counts apart.
+        const double since_retired = retired_ ? ms_since(last_retired_) - chain_ms_ : std::numeric_limits<double>::infinity();
+        if (f.generated) times_.pass(f.generated, std::min(ms_since(f.begun), since_retired));
+        last_retired_ = Clock::now();
+        retired_ = true;
+        chain_ms_ = 0;
+        // Rows a resume computed again are those below the longest history the cache has held, a verify's those its retract kept.
         size_t again = 0, job_rows = 0;
         for (size_t e = 0; e < f.members.size(); ++e) {
             Request& r = *f.members[e];
-            const size_t to = f.from[e] + f.rows[e], n = std::min(to, r.reached_) - std::min(f.from[e], r.reached_);
+            const size_t to = r.seq_.length(), n = std::min(to, r.reached_) - std::min(f.from[e], r.reached_);
             r.recomputed_ += n;
             again += n;
             r.reached_ = std::max(r.reached_, to);
@@ -740,6 +789,116 @@ private:
         f.members.clear();
         f.wanting.clear();
         f.decoders = 0;
+        f.want = 0;
+    }
+
+    // The decode columns a pass with `decoders` decode entries leaves for drafts (docs/SPECULATIVE.md, section 3): those its kernels read each weight once for past one a decoder, every draft a lone decoder asks, at most the kDraftRows the logits rows hold for drafts less those the passes in flight carry, and none while a request waits to be admitted or to resume, so drafts never hold room or rows another request needs.
+    size_t draft_columns(size_t decoders) {
+        if (!proposer_) return 0;
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            if (!queue_.empty() || !paused_.empty()) return 0;
+        }
+        const size_t columns = model_.decode_columns();
+        size_t free = columns > decoders ? columns - decoders : 0;
+        if (decoders == 1) free = std::max(free, draft_max_);
+        size_t flying = 0;
+        for (const Slot& s : slots_)
+            if (s.live)
+                for (const auto& m : s.members) flying += m->verify_.empty() ? 0 : m->verify_.size() - 1;
+        return std::min(free, kDraftRows - std::min(kDraftRows, flying));
+    }
+
+    // The verifies of the decoding requests `rs` in the pass being formed, each in r.verify_ on a mark of its sequence, its last pick then its drafts, or empty for a decode entry.
+    // Each may take drafts within the `columns` the requests before it leave, the history its reservation holds and the tokens it may still generate (spec::draft_length), and takes those the pass cost finds a gain in (spec::draft_depths); the proposer drafts them all at once.
+    void propose(const std::vector<std::shared_ptr<Request>>& rs, size_t columns) {
+        for (const auto& r : rs) r->verify_.clear();
+        if (!proposer_) return;
+        keeps_.clear();
+        askers_.clear();
+        for (const auto& r : rs) {
+            if (r->job_) continue;
+            const size_t at = r->seq_.length(), room = std::min(reserved_tokens(*r), token_limit());
+            const size_t k = infer::spec::draft_length(draft_max_, (size_t)r->params_.max_tokens - r->gen_.size(), room > at ? room - at : 0, columns, r->acceptance_);
+            if (!k) continue;
+            columns -= k;
+            keeps_.emplace_back(k);
+            for (size_t j = 0; j < k; ++j) keeps_.back()[j] = r->acceptance_.keeps(j, tally_);
+            askers_.push_back(r.get());
+        }
+        // A chain holds the scheduler thread and queues behind the head device's work, so every pass in flight waits on it as the one being formed does.
+        infer::spec::PassCost cost = priced_ ? times_.cost() : infer::spec::PassCost{};
+        const double stall = 1.0 + (double)flights_live();
+        cost.step_ms *= stall;
+        cost.step_row_ms *= stall;
+        infer::spec::draft_depths(cost, rs.size(), keeps_, takes_);
+        // A model that keeps a state holds as many marks as its fit gave, some held by verifies in flight, and a request without one drafts nothing, so no more draft than are free.
+        size_t held = 0;
+        for (const Slot& s : slots_)
+            if (s.live)
+                for (const auto& m : s.members) held += !m->verify_.empty();
+        const size_t marks = model_.mark_slots() > held ? model_.mark_slots() - held : 0;
+        size_t n = 0, steps = 0;
+        for (size_t i = 0; i < askers_.size() && n < marks; ++i) {
+            if (!takes_[i]) continue;
+            Request& r = *askers_[i];
+            if (asks_.size() <= n) asks_.resize(n + 1);
+            infer::spec::Proposer::Ask& a = asks_[n];
+            a.seq = &r.seq_;
+            a.history.assign(r.prompt_.begin(), r.prompt_.end());
+            a.history.insert(a.history.end(), r.gen_.begin(), r.gen_.end());
+            a.k = takes_[i];
+            askers_[n++] = &r;
+            steps = std::max(steps, a.k);
+        }
+        if (!n) return;
+        const Clock::time_point start = Clock::now();
+        proposer_->draft_all(asks_.data(), n);
+        const double chain = ms_since(start);
+        times_.chain(steps, n, chain);
+        chain_ms_ += chain;
+        for (size_t i = 0; i < n; ++i) {
+            Request& r = *askers_[i];
+            const std::vector<uint32_t>& d = asks_[i].out;
+            // A draft past the vocabulary, and those after it, are not fed: a verify needs nothing a decode does not.
+            const auto past = std::find_if(d.begin(), d.end(), [&](uint32_t id) { return id >= model_.n_vocab(); });
+            const size_t k = std::min(asks_[i].k, (size_t)(past - d.begin()));
+            if (!k || !model_.mark(r.seq_)) continue;
+            r.verify_.assign(1, r.last_id_);
+            r.verify_.insert(r.verify_.end(), d.begin(), d.begin() + (std::ptrdiff_t)k);
+        }
+    }
+
+    // The positions request r's reserved blocks hold in every pool.
+    size_t reserved_tokens(const Request& r) const {
+        if (r.need_.empty()) return 0;
+        size_t n = SIZE_MAX;
+        for (size_t s = 0; s < r.need_.size(); ++s) n = std::min(n, r.need_[s] * pools_.block_tokens[s]);
+        return n;
+    }
+
+    // After slot k's pass has ended, each verify's history goes back to what the run without drafts holds, the last pick and the drafts its picks kept, before anything parks, pauses or forks it; a request cancelled in flight keeps its last pick alone (docs/SPECULATIVE.md, section 3).
+    // A retract whose rerun fails ends the request with the error.
+    void settle_verifies(size_t k) {
+        Slot& f = slots_[k];
+        for (size_t e = 0; e < f.members.size(); ++e) {
+            Request& r = *f.members[e];
+            if (r.verify_.empty()) continue;
+            size_t keep = f.from[e] + 1;
+            for (const Draw& d : draws_)
+                if (d.r == &r) keep = f.from[e] + d.sampled;
+            const size_t k_drafts = r.verify_.size() - 1;
+            r.verify_.clear();
+            try {
+                model_.retract(r.seq_, keep);
+            } catch (const std::exception& ex) {
+                r.finish_pending_ = "error";
+                r.error_pending_ = ex.what();
+                continue;
+            }
+            std::lock_guard<std::mutex> lk(m_);
+            tally_.verified(keep - f.from[e] - 1, k_drafts);
+        }
     }
 
     // A failed pass, which the model has abandoned, returned its requests' histories to where it found them: they end with the error and give their blocks back, while the other passes in flight go on, their rows in their own storages, handoff buffers and logits rows.
@@ -1403,38 +1562,55 @@ private:
         donors_.erase(donors_.begin() + (std::ptrdiff_t)i);
     }
 
-    // On a sampling thread: the token drawn from d's row with its request's own settings, history and generator, and with logprobs asked the row copied or its values computed.
-    // It touches only d and its request's generator and row copy, which no other draw of the pass shares, since a request wants one row a pass.
+    // On a sampling thread: the tokens drawn from d's rows with its request's own settings, history and generator, in order, as infer::accept takes a verify's rows, a decode entry's one row being a verify of no drafts.
+    // Each token goes into the history the next row is drawn after, as the run without drafts gives it, and an end token, a stop text or the length ends the request; with logprobs asked each token's row is copied or its values computed.
+    // It touches only d and its request's generator, history and row copy, which no other draw of the pass shares, since a request is one entry of a pass.
     void draw(Draw& d) {
         Request& r = *d.r;
-        d.t.id = infer::sample(d.row, ctx_.width, r.params_, tok_.eos_id, r.gen_, r.rng_);
-        if (tok_.is_eos(d.t.id) || !r.params_.logprobs) return;
-        if (d.keep_row) r.logits_.assign(d.row, d.row + ctx_.width);
-        else Request::fill(d.t, d.row, ctx_.width, r.params_.top_logprobs);
+        const size_t w = ctx_.width, k = r.verify_.empty() ? 0 : r.verify_.size() - 1;
+        size_t i = 0;
+        const auto pick = [&](uint32_t id) {
+            const float* row = d.row + i++ * w;
+            if (tok_.is_eos(id)) { r.finish_pending_ = "eos"; return false; }
+            Request::Token t;
+            t.id = id;
+            if (r.params_.logprobs) {
+                if (d.copies) {
+                    // A row the reader has finished with is filled first.
+                    --d.copies;
+                    r.logits_.assign(row, row + w);
+                    t.row = std::move(r.logits_);
+                    r.logits_ = std::vector<float>();
+                } else {
+                    // A reader that has fallen behind gets the values the draw computes, the same the reader would.
+                    Request::fill(t, row, w, r.params_.top_logprobs);
+                }
+            }
+            r.gen_.push_back(id);
+            d.picks.push_back(std::move(t));
+            if (!r.params_.stop.empty()) {
+                r.decoded_ += tok_.decode({id});
+                for (const auto& s : r.params_.stop)
+                    if (!s.empty() && r.decoded_.find(s) != std::string::npos) { r.finish_pending_ = "stop"; return false; }
+            }
+            if ((int)r.gen_.size() >= r.params_.max_tokens) { r.finish_pending_ = "length"; return false; }
+            return true;
+        };
+        d.sampled = infer::accept(d.row, w, k ? r.verify_.data() + 1 : nullptr, k, r.params_, tok_.eos_id, r.gen_, r.rng_, pick).rows;
     }
 
-    // A drawn token on the scheduler thread: pushed to its channel unless it ends the request; a request that ends is finished after the pass, once every entry's logits have been read.
+    // A draw's tokens on the scheduler thread, pushed to the channel in order, the last its next decode feeds; a request that ends is finished after the pass, once every entry's logits have been read.
     void step(Draw& d) {
         Request& r = *d.r;
-        const uint32_t id = d.t.id;
-        if (tok_.is_eos(id)) { r.finish_pending_ = "eos"; return; }
-        r.gen_.push_back(id);
-        r.last_id_ = id;
-        if (d.keep_row) {
-            // The row the id was sampled from goes with it, and a row the reader has finished with comes back for the next pass to fill.
-            d.t.row = std::move(r.logits_);
-            r.logits_.clear();
-            r.push(std::move(d.t), &r.logits_);
-        } else {
-            // Without logprobs the token is its id; a reader that has fallen behind gets the values the draw computed, the same the reader would.
-            r.push(std::move(d.t));
+        for (Request::Token& t : d.picks) {
+            r.last_id_ = t.id;
+            // A row a token goes with comes back, once the reader has finished with another, for a later pass to fill.
+            const bool row = !t.row.empty();
+            r.push(std::move(t), row ? &r.logits_ : nullptr);
         }
-        if (!r.params_.stop.empty()) {
-            r.decoded_ += tok_.decode({id});
-            for (const auto& s : r.params_.stop)
-                if (!s.empty() && r.decoded_.find(s) != std::string::npos) { r.finish_pending_ = "stop"; return; }
-        }
-        if ((int)r.gen_.size() >= r.params_.max_tokens) r.finish_pending_ = "length";
+        if (!proposer_) return;
+        if (r.verify_.empty()) r.acceptance_.stepped();
+        else r.acceptance_.verified(d.sampled - 1, r.verify_.size() - 1);
     }
 
     // A finished request becomes a donor through park, and one line on stderr records it.
@@ -1706,6 +1882,18 @@ private:
     size_t max_seqs_, ubatch_, max_queue_;
     const bool timed_;
     const size_t host_cap_;               // the host tier's bytes at most
+    infer::spec::Proposer* const proposer_;   // none drafts nothing
+    const size_t draft_max_;
+    const bool priced_;
+    std::vector<infer::spec::Proposer::Ask> asks_;   // the drafts being proposed, the first of them in use
+    std::vector<Request*> askers_;        // the requests asking them
+    std::vector<std::vector<double>> keeps_;   // per request that may draft, the chance it keeps each draft
+    std::vector<size_t> takes_;           // per request that may draft, the drafts the price gives it
+    infer::spec::PassTimes times_;        // the passes' measured cost, the scheduler thread's
+    Clock::time_point last_retired_;      // when the last pass retired, if one has
+    bool retired_ = false;
+    double chain_ms_ = 0;                 // the chains drafted since then
+    infer::spec::Acceptance tally_;       // under the lock, every verify's drafts by position
     Timing round_;                        // the scheduler thread's, published to timing_ each round
     Timing timing_;                       // under the lock
     std::vector<double> host_stage_ms_;   // per stage on the host, its time since the last reading

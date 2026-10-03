@@ -16,7 +16,7 @@ struct Oracle final : Proposer {
     const std::vector<uint32_t>* truth = nullptr;
     size_t prompt = 0, miss = SIZE_MAX, vocab = 0;
     int64_t end = -1;
-    void draft(const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
+    void draft(infer::Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
         out.clear();
         const size_t g = h.size() - prompt;
         for (size_t i = 0; i < k; ++i) {
@@ -34,7 +34,7 @@ struct Oracle final : Proposer {
 struct Random final : Proposer {
     std::mt19937 rng{20261001u};
     size_t vocab = 0;
-    void draft(const std::vector<uint32_t>&, size_t k, std::vector<uint32_t>& out) override {
+    void draft(infer::Sequence*, const std::vector<uint32_t>&, size_t k, std::vector<uint32_t>& out) override {
         out.clear();
         for (size_t i = 0; i < k; ++i) out.push_back((uint32_t)(rng() % vocab));
     }
@@ -44,7 +44,7 @@ struct Random final : Proposer {
 struct Hostile final : Proposer {
     size_t vocab = 0;
     uint32_t end = 0;
-    void draft(const std::vector<uint32_t>&, size_t k, std::vector<uint32_t>& out) override {
+    void draft(infer::Sequence*, const std::vector<uint32_t>&, size_t k, std::vector<uint32_t>& out) override {
         const uint32_t ids[] = {end, (uint32_t)vocab - 1, (uint32_t)vocab + 3, 1};
         out.assign(ids, ids + std::min<size_t>(k, 4));
     }

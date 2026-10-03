@@ -626,14 +626,33 @@ public:
     bool caches_on_devices() const;
     Sequence restore_host(HostHistory& h);
     void release_host(HostHistory& h) noexcept;
-    void draft(Sequence& s, uint32_t last, size_t k, std::vector<uint32_t>& out);
-    // The logits of draft row i of the last draft, valid until the next.
-    const float* draft_logits(size_t i) const {
-        if (!draft_logits_ || i >= draft_rows_) throw std::out_of_range("inference: no such draft row");
-        return (const float*)draft_logits_->host_ptr() + i * plan_.vocab;
+    // One sequence's draft in a batch of drafts (draft).
+    struct DraftAsk {
+        Sequence* seq;
+        uint32_t last;
+        size_t k;
+        std::vector<uint32_t>* out;
+    };
+    void draft(DraftAsk* asks, size_t n);
+    void draft(Sequence& s, uint32_t last, size_t k, std::vector<uint32_t>& out) {
+        DraftAsk a{&s, last, k, &out};
+        draft(&a, 1);
+    }
+    // The generated tokens every stage's products read each weight once for (Backend::decode_columns), what a pass's drafts ride on.
+    size_t decode_columns() const {
+        size_t n = SIZE_MAX;
+        for (const auto& d : devices_) n = std::min(n, d->b->decode_columns());
+        return n;
+    }
+    // The logits of draft row i of the last draft's sequence `r`, in the order it was asked for, valid until the next.
+    const float* draft_logits(size_t i, size_t r = 0) const {
+        if (!draft_logits_ || r >= draft_order_.size() || i >= draft_k_[r]) throw std::out_of_range("inference: no such draft row");
+        return (const float*)draft_logits_->host_ptr() + (i * draft_width_ + draft_order_[r]) * plan_.vocab;
     }
     // Checkpoint slots in all, and those a keep can still take.
     size_t checkpoint_slots() const { return state_layers_ ? options_.checkpoint_slots : 0; }
+    // The marks sequences may hold at once; a model that keeps no state marks any number.
+    size_t mark_slots() const { return state_layers_ ? options_.mark_slots : SIZE_MAX; }
     size_t checkpoints_free() const { return state_layers_ ? slots_.kept_available() : 0; }
 
     // The single-sequence entry points the CLI uses: one sequence and one context owned here, and one entry per pass.
@@ -837,8 +856,10 @@ private:
     std::vector<std::vector<backend::BufferPtr>> windows_;   // per device, a buffer per window role in role order, sized to the largest streamed layer's
     std::vector<Weight> drafter_;                // an embedded drafter's roles by role id, on the head's device
     size_t drafter_kv_ = 0;                      // its KV layer in the head's device's storage
-    backend::BufferPtr draft_ids_, draft_logits_;   // the last draft's ids, the last pick first, and its rows' logits, host visible on the head's device
-    size_t draft_rows_ = 0;
+    backend::BufferPtr draft_ids_, draft_logits_;   // the last draft's ids, the last picks first, and its rows' logits, a step's rows together, host visible on the head's device
+    size_t draft_id_rows_ = 0, draft_rows_ = 0;     // the ids and the logits rows the two hold
+    std::vector<size_t> draft_order_, draft_k_;     // the last draft's sequences' places in its steps' rows and their chains' lengths, in the order they were asked for
+    size_t draft_width_ = 0;                        // the last draft's sequences with a chain, the rows of its first step
     std::vector<std::vector<float>> tables_;
     Sequence seq_;
     ExecContext ctx_;

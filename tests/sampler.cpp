@@ -387,20 +387,23 @@ void acceptance() {
     }
 }
 
+bool close_to(double a, double b, double tolerance = 1e-12) { return std::fabs(a - b) <= tolerance; }
+
 // spec::Acceptance, the one acceptance average: from 2, each empty verify moves it an eighth of the way to 0, so ten still leave it at half a draft or more and the eleventh rests the request; 16 tokens stepped then end the rest, and a verify keeping three moves the same average back above the break-even.
 // Its counts by draft position: every verify feeds its positions, and each keeps a prefix of them.
 void acceptance_rest() {
     infer::spec::Acceptance a;
     for (int i = 0; i < 10; ++i) {
         a.verified(0, 3);
-        require(!a.resting() && infer::spec::draft_length(3, 100, 100, a) == 3, "the acceptance rested after " + std::to_string(i + 1) + " empty verifies");
+        require(!a.resting() && infer::spec::draft_length(3, 100, 100, 3, a) == 3, "the acceptance rested after " + std::to_string(i + 1) + " empty verifies");
     }
     a.verified(0, 3);
-    require(a.resting() && infer::spec::draft_length(3, 100, 100, a) == 0, "eleven empty verifies did not rest the request");
+    require(a.resting() && infer::spec::draft_length(3, 100, 100, 3, a) == 0, "eleven empty verifies did not rest the request");
     for (int i = 0; i < 15; ++i) a.stepped();
     require(a.resting(), "the rest ended before 16 tokens");
     a.stepped();
-    require(!a.resting() && infer::spec::draft_length(3, 100, 100, a) == 3, "16 tokens did not end the rest");
+    require(!a.resting() && infer::spec::draft_length(3, 100, 100, 3, a) == 3, "16 tokens did not end the rest");
+    require(infer::spec::draft_length(3, 100, 100, 2, a) == 2 && infer::spec::draft_length(3, 100, 100, 0, a) == 0, "a draft past the decode columns its pass leaves");
     a.verified(3, 3);
     require(!a.resting(), "a verify keeping three left the average below the break-even");
     a.verified(0, 1);
@@ -408,6 +411,53 @@ void acceptance_rest() {
     require(!a.resting(), "the average forgot the verify that kept three");
     require(a.drafted() == std::vector<size_t>({14, 13, 13, 1}) && a.kept() == std::vector<size_t>({2, 1, 1, 0}),
             "the drafts fed and kept by position are not the verifies' counts");
+    // A position's chance of being kept: its own share weighed with four verifies at the prior's share there, or at one half where neither has fed one.
+    infer::spec::Acceptance prior;
+    prior.verified(1, 2);
+    require(close_to(a.keeps(0, prior), (2 + 4 * 1.0) / (14 + 4)) && close_to(a.keeps(1, prior), (1 + 4 * 0.0) / (13 + 4)) && close_to(a.keeps(5, prior), 0.5),
+            "a position's chance of being kept is not its share weighed with the prior's");
+}
+
+// The pass price (spec::PassTimes, spec::draft_depths), on passes that cost 34 ms and 10 ms a row and chains of 4 ms a step and 1 ms a chain.
+void pass_price() {
+    infer::spec::PassTimes t;
+    for (int i = 0; i < 20; ++i) t.pass(1, 44);
+    require(!t.cost().known, "passes of one width priced a row");
+    t.pass(4, 74);
+    t.pass(8, 114);
+    for (int i = 0; i < 20; ++i) t.chain(3, 1 + i % 3, 3 * (4.0 + (1 + i % 3)));
+    const infer::spec::PassCost c = t.cost();
+    require(c.known && close_to(c.base_ms, 34, 1e-6) && close_to(c.row_ms, 10, 1e-6) && close_to(c.step_ms, 4, 1e-6) && close_to(c.step_row_ms, 1, 1e-6),
+            "the measured price is not the passes' and the chains' lines");
+    // Passes of one width long enough forget the spread, so the price is measured again.
+    for (int i = 0; i < 1000; ++i) t.pass(8, 114);
+    require(!t.cost().known, "a thousand passes of one width kept their price");
+
+    std::vector<size_t> takes;
+    // One decoder that keeps most drafts takes three: 1 + 2.4 tokens in 44 + 30 + 3 x 5 ms beats one in 44.
+    infer::spec::draft_depths(c, 1, {{0.8, 0.8, 0.8}}, takes);
+    require(takes == std::vector<size_t>({3}), "a lone decoder that keeps most drafts took " + std::to_string(takes[0]));
+    // A decoder that keeps few drafts takes none: their rows cost more than they give.
+    infer::spec::draft_depths(c, 1, {{0.1, 0.1, 0.1}}, takes);
+    require(takes == std::vector<size_t>({0}), "a decoder that keeps few drafts drafted");
+    // Eight decoders: 8 tokens in 114 ms, which three drafts kept at one half each do not pay for, so none drafts.
+    infer::spec::draft_depths(c, 8, std::vector<std::vector<double>>(8, {0.5, 0.5, 0.5}), takes);
+    require(takes == std::vector<size_t>(8, 0), "eight decoders drafted where their rows cost more than they give");
+    // Beside one that keeps few drafts, two that keep most draft, and the depth is the one most tokens a millisecond give, within each request's cap.
+    infer::spec::draft_depths(c, 3, {{0.9, 0.9}, {0.1, 0.1, 0.1}, {0.99, 0.99, 0.99}}, takes);
+    require(takes == std::vector<size_t>({2, 0, 3}), "the depth did not follow the requests that pay for their rows");
+    // A price not known, or rows that cost nothing, give every request its cap, unless every pass measured had the rows the caps give, when the pass drafts nothing, so another width is measured.
+    infer::spec::draft_depths(infer::spec::PassCost{}, 8, {{0.1}, {0.1, 0.1}}, takes);
+    require(takes == std::vector<size_t>({1, 2}), "a price not known held drafts back");
+    infer::spec::PassCost seen;
+    seen.seen_rows = 4;
+    infer::spec::draft_depths(seen, 1, {{0.9, 0.9, 0.9}}, takes);
+    require(takes == std::vector<size_t>({0}), "passes all of the capped width did not measure one without drafts");
+    seen.seen_rows = 1;
+    infer::spec::draft_depths(seen, 1, {{0.9, 0.9, 0.9}}, takes);
+    require(takes == std::vector<size_t>({3}), "passes all without drafts did not measure one with them");
+    for (int i = 0; i < 20; ++i) t.pass(8, 114);
+    require(!t.cost().known && close_to(t.cost().seen_rows, 8, 1e-3), "passes of one width do not give that width as the rows seen");
 }
 
 int main() {
@@ -422,6 +472,7 @@ int main() {
         against_reference();
         acceptance();
         acceptance_rest();
+        pass_price();
         std::cout << "sampler: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& error) {

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <array>
 #include <cstring>
 #include <functional>
 #include <iostream>
@@ -683,6 +684,41 @@ void checkpoint_fit() {
                         std::to_string(all->kv_tokens_total()) + " KV tokens");
         }
     }
+    // Marks past the first take only the room the budget leaves (PlacementRequest::fit_marks): of six asked for, one on a device that holds the whole budget with one and no more, three where it holds three, all six on a roomy one, the 512-token budget whole each time; one mark more than the device holds is not taken.
+    {
+        infer::PlacementRequest marked = one;
+        marked.fit_checkpoints = false;
+        marked.fit_marks = true;
+        infer::ModelOptions mo = options;
+        mo.checkpoint_slots = 0;
+        mo.mark_slots = 6;
+        mo.mark_rows = 4;
+        const auto least = [&](size_t marks) {
+            infer::ModelOptions o = mo;
+            o.mark_slots = marks;
+            const auto holds = [&](size_t room) {
+                try {
+                    infer::split_layers(infer::footprint(w, plan, o), infer::budgets_for(alone(room), one.names), infer::kDefaultUbatch, {},
+                                        core::host_memory_available());
+                    return true;
+                } catch (const std::runtime_error&) {
+                    return false;
+                }
+            };
+            size_t l = 1, h = size_t(1) << 30;
+            while (h - l > 1) {
+                const size_t mid = l + (h - l) / 2;
+                (holds(mid) ? h : l) = mid;
+            }
+            return h;
+        };
+        for (const auto& [room, want] : {std::pair<size_t, size_t>{least(1), 1}, {least(3), 3}, {least(4) - 1, 3}, {size_t(1) << 30, 6}}) {
+            const infer::PlacedModel placed = infer::place_model(w, alone(room), marked, mo);
+            require(placed.model->mark_slots() == want && placed.model->kv_tokens_total() == 512,
+                    "a device of " + std::to_string(room) + " bytes took " + std::to_string(placed.model->mark_slots()) + " mark slots beside " +
+                        std::to_string(placed.model->kv_tokens_total()) + " KV tokens, where " + std::to_string(want) + " fit beside the whole budget");
+        }
+    }
     // A device whose free memory is still coming back when the fit first reads it, as a server restarted on the card its predecessor held finds it: once the memory has settled it holds the whole budget and the checkpoints asked for, so it gets both.
     {
         auto d = std::make_shared<Room>();
@@ -925,7 +961,7 @@ struct Drafted {
     std::vector<uint32_t> ids;
     std::vector<float> logits;
     bool operator==(const Drafted& o) const {
-        return ids == o.ids && logits.size() == o.logits.size() && !std::memcmp(logits.data(), o.logits.data(), logits.size() * sizeof(float));
+        return ids == o.ids && logits.size() == o.logits.size() && (logits.empty() || !std::memcmp(logits.data(), o.logits.data(), logits.size() * sizeof(float)));
     }
 };
 Drafted drafted(infer::Model& model, infer::Sequence& s, uint32_t last, size_t k) {
@@ -1074,6 +1110,30 @@ void drafts() {
         model->reset(s);
         model->reset(o);
     }
+    // Drafts of several histories in one batch, one a block each, chains of every length and one of none, asked in no order of length: each the drafts and every row's logits of its history alone.
+    {
+        infer::Sequence s[3] = {model->make_sequence(), model->make_sequence(), model->make_sequence()};
+        feed(*model, s[0], prompt.data(), 40, 40);
+        feed(*model, s[0], &steps[0], 1, 1);
+        feed(*model, s[1], prompt.data(), 30, 30);
+        feed(*model, s[2], prompt.data() + 60, 50, 50);
+        const uint32_t lasts[3] = {last, 13, 3};
+        for (const auto& ks : {std::array<size_t, 3>{1, depth, 0}, std::array<size_t, 3>{depth - 1, 2, depth}}) {
+            Drafted alone[3];
+            for (size_t i = 0; i < 3; ++i) alone[i] = drafted(*model, s[i], lasts[i], ks[i]);
+            std::vector<uint32_t> out[3];
+            infer::Model::DraftAsk asks[3];
+            for (size_t i = 0; i < 3; ++i) asks[i] = {&s[i], lasts[i], ks[i], &out[i]};
+            model->draft(asks, 3);
+            for (size_t i = 0; i < 3; ++i) {
+                Drafted d;
+                d.ids = out[i];
+                for (size_t m = 0; m < d.ids.size(); ++m) d.logits.insert(d.logits.end(), model->draft_logits(m, i), model->draft_logits(m, i) + VOCAB);
+                require(d == alone[i] && d.ids.size() == ks[i], "a history drafted beside others drafts otherwise");
+            }
+        }
+        for (auto& q : s) model->reset(q);
+    }
     // A verify after a mark retracted to every position of it, as a round keeps n of its rows: the drafts are those of the history fed the kept tokens one at a time.
     const std::vector<uint32_t> verify = {11, 22, 5, 6, 17};
     for (size_t kept = 0; kept <= verify.size(); ++kept) {
@@ -1114,6 +1174,35 @@ void drafts() {
         history(*model, s, 2);
         require(drafted(*model, s, last, depth) == want, "a reset history drafts otherwise");
         model->reset(s);
+    }
+    // The host tier: a history copied to host memory at its checkpoint and promoted back into the other checkpoint slot drafts as one never evicted, the drafter's carried row going with the slot.
+    {
+        infer::Sequence s = model->make_sequence();
+        feed(*model, s, prompt.data(), 128, prompt.size(), true);
+        infer::HostHistory host;
+        model->save_host(s, 128, host, SIZE_MAX);
+        infer::Sequence r = model->restore_host(host);
+        feed(*model, r, prompt.data() + 128, prompt.size() - 128, prompt.size());
+        for (size_t i = 0; i < 2; ++i) feed(*model, r, &steps[i], 1, 1);
+        require(drafted(*model, r, last, depth) == want, "a history promoted back from host memory drafts otherwise");
+        model->reset(r);
+        model->reset(s);
+        model->release_host(host);
+    }
+    // A message boundary's state alone in host memory (Model::save_host without blocks) at the checkpoint at 128, the history going on past it: a fork of the history at 128 with that state, in a checkpoint slot of its own, drafts as one never evicted, the drafter's carried row coming back with the state.
+    {
+        infer::Sequence s = model->make_sequence();
+        feed(*model, s, prompt.data(), 128, prompt.size(), true);
+        infer::HostHistory state;
+        model->save_host(s, 128, state, SIZE_MAX, false);
+        feed(*model, s, prompt.data() + 128, prompt.size() - 128, prompt.size());
+        infer::Sequence f = model->fork(s, 128, state);
+        feed(*model, f, prompt.data() + 128, prompt.size() - 128, prompt.size());
+        for (size_t i = 0; i < 2; ++i) feed(*model, f, &steps[i], 1, 1);
+        require(drafted(*model, f, last, depth) == want, "a fork from a state alone in host memory drafts otherwise");
+        model->reset(f);
+        model->reset(s);
+        model->release_host(state);
     }
     // A failed pass goes back to the checkpoint, and the history continues with the drafts of one never failed.
     {

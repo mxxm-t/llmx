@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -40,13 +41,26 @@ class Proposer {
 public:
     virtual ~Proposer() = default;
     // Up to `k` tokens likely to follow `history`, in `out`; fewer, or none, where it has nothing to propose.
-    virtual void draft(const std::vector<uint32_t>& history, size_t k, std::vector<uint32_t>& out) = 0;
+    // `seq` is the history's sequence in the model, or null for the model's own, as `generate` runs it.
+    virtual void draft(Sequence* seq, const std::vector<uint32_t>& history, size_t k, std::vector<uint32_t>& out) = 0;
+
+    // One history's draft among several: its sequence in the model, its history, the most drafts it takes and its drafts.
+    struct Ask {
+        Sequence* seq = nullptr;
+        std::vector<uint32_t> history;
+        size_t k = 0;
+        std::vector<uint32_t> out;
+    };
+    // Each of `n` asks' drafts, each what draft gives it alone; a proposer that drafts several histories at once does so here.
+    virtual void draft_all(Ask* asks, size_t n) {
+        for (size_t i = 0; i < n; ++i) draft(asks[i].seq, asks[i].history, asks[i].k, asks[i].out);
+    }
 };
 
 // Prompt lookup: the tokens that followed the latest earlier occurrence of the history's last three tokens, else two, else one.
 class Lookup final : public Proposer {
 public:
-    void draft(const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
+    void draft(Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
         out.clear();
         const size_t size = h.size();
         for (size_t n = std::min<size_t>(3, size); n >= 1 && k; --n) {
@@ -65,13 +79,25 @@ public:
 class Embedded final : public Proposer {
 public:
     explicit Embedded(Model& model) : model_(model) {}
-    void draft(const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
+    void draft(Sequence* seq, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
         out.clear();
-        if (!h.empty()) model_.draft(h.back(), k, out);
+        if (h.empty()) return;
+        if (seq) model_.draft(*seq, h.back(), k, out);
+        else model_.draft(h.back(), k, out);
+    }
+    // Every ask's chain in one batch of the model's (Model::draft), so the drafter's weights and the head are read once a step for all of them; each ask names its sequence.
+    void draft_all(Ask* asks, size_t n) override {
+        batch_.clear();
+        for (size_t i = 0; i < n; ++i) {
+            asks[i].out.clear();
+            if (!asks[i].history.empty()) batch_.push_back({asks[i].seq, asks[i].history.back(), asks[i].k, &asks[i].out});
+        }
+        model_.draft(batch_.data(), batch_.size());
     }
 
 private:
     Model& model_;
+    std::vector<Model::DraftAsk> batch_;
 };
 
 // A request's one acceptance figure (docs/SPECULATIVE.md, section 3): the average of the drafts its verifies kept, each verify moving it an eighth of the way to what that one kept, and below kBreakEven the request drafts nothing for its next 16 tokens, then verifies once more.
@@ -95,19 +121,111 @@ public:
     bool resting() const { return rest_ > 0; }
     const std::vector<size_t>& drafted() const { return drafted_; }
     const std::vector<size_t>& kept() const { return kept_; }
+    // The chance a verify keeps its draft at position i: the share these verifies kept there, weighed with kPrior verifies at `prior`'s share, or at one half where neither has fed one.
+    double keeps(size_t i, const Acceptance& prior) const {
+        const double p = i < prior.drafted_.size() && prior.drafted_[i] ? (double)prior.kept_[i] / (double)prior.drafted_[i] : 0.5;
+        const double n = i < drafted_.size() ? (double)drafted_[i] : 0.0, k = i < kept_.size() ? (double)kept_[i] : 0.0;
+        return (k + kPrior * p) / (n + kPrior);
+    }
 
 private:
-    static constexpr double kBreakEven = 0.5, kWeight = 8.0;
+    static constexpr double kBreakEven = 0.5, kWeight = 8.0, kPrior = 4.0;
     static constexpr size_t kRest = 16;
     double average_ = 2.0;
     size_t rest_ = 0;
     std::vector<size_t> drafted_, kept_;
 };
 
-// How many drafts a request verifies next, the one rule for every caller: at most `draft_max`, one fewer than the tokens it may still generate and than the positions its context has left, since the verify feeds the last pick and every draft, and none while it rests (Acceptance).
-inline size_t draft_length(size_t draft_max, size_t tokens_left, size_t context_left, const Acceptance& acceptance) {
+// How many drafts a request verifies next, the one rule for every caller: at most `draft_max`, one fewer than the tokens it may still generate and than the positions its context has left, since the verify feeds the last pick and every draft, none while it rests (Acceptance), and at most `columns`, the rows the pass's decode kernels read each weight once for that its other rows leave, past which a draft row costs a weight read of its own (docs/SPECULATIVE.md, section 3).
+inline size_t draft_length(size_t draft_max, size_t tokens_left, size_t context_left, size_t columns, const Acceptance& acceptance) {
     if (acceptance.resting() || !tokens_left || !context_left) return 0;
-    return std::min({draft_max, tokens_left - 1, context_left - 1});
+    return std::min({draft_max, tokens_left - 1, context_left - 1, columns});
+}
+
+// What a pass of generated rows costs, `base_ms` and `row_ms` a row, and a step of the drafter's chains, which run before the pass, `step_ms` and `step_row_ms` a chain; the pass's part is unknown until passes of different rows have been measured (PassTimes), and until then `seen_rows` is the rows of those measured, 0 for none.
+struct PassCost {
+    double base_ms = 0, row_ms = 0, step_ms = 0, step_row_ms = 0, seen_rows = 0;
+    bool known = false;
+};
+
+// The pass cost measured as passes run: lines through the passes of generated rows, their rows against their milliseconds, and through the chains' steps, their chains against a step's milliseconds, each measurement weighing kForget of the one after it.
+// A line is known while the rows it was fitted to spread by half a row or more, so a server running one width for long enough forgets the price and measures it again; a chain's line not known yet is its mean step.
+class PassTimes {
+public:
+    void pass(size_t rows, double ms) { passes_.add((double)rows, ms); }
+    void chain(size_t steps, size_t chains, double ms) {
+        if (steps) chains_.add((double)chains, ms / (double)steps);
+    }
+    PassCost cost() const {
+        PassCost c;
+        if (!chains_.fit(c.step_ms, c.step_row_ms)) c.step_ms = chains_.mean();
+        c.known = passes_.fit(c.base_ms, c.row_ms);
+        if (!c.known) c.seen_rows = passes_.mean_x();
+        return c;
+    }
+
+private:
+    static constexpr double kForget = 0.99;
+    struct Line {
+        double w = 0, x = 0, y = 0, xx = 0, xy = 0;
+        void add(double a, double b) {
+            w = w * kForget + 1;
+            x = x * kForget + a;
+            y = y * kForget + b;
+            xx = xx * kForget + a * a;
+            xy = xy * kForget + a * b;
+        }
+        double mean() const { return w ? y / w : 0.0; }
+        double mean_x() const { return w ? x / w : 0.0; }
+        // The line's value at 0 and its slope, neither below 0.
+        bool fit(double& at0, double& slope) const {
+            if (w < 2) return false;
+            const double mx = x / w, my = y / w, var = xx / w - mx * mx;
+            if (var < 0.25) return false;
+            slope = std::max(0.0, (xy / w - mx * my) / var);
+            at0 = std::max(0.0, my - slope * mx);
+            return true;
+        }
+    };
+    Line passes_, chains_;
+};
+
+// The drafts each of a pass's drafting requests verifies (docs/SPECULATIVE.md, section 3), from the pass cost `c`, the pass's `decoders` and, for each request, the chance it keeps each draft its cap allows (`keeps[i]`, as many as draft_length gives it), into `takes`.
+// A depth K gives request i min(K, its cap) drafts where their expected kept drafts pay for their rows at the rate the pass gives without drafts, and the depth taken is the one whose tokens a millisecond, the decoders' and the kept drafts' over the pass's rows and K steps of the chains, are most, none where no depth beats the pass without drafts.
+// Rows that cost nothing give every request its cap; so does a cost not yet known, so the price is measured, unless the passes measured all had the rows the caps give, when the pass drafts nothing, so passes of another width are measured too.
+inline void draft_depths(const PassCost& c, size_t decoders, const std::vector<std::vector<double>>& keeps, std::vector<size_t>& takes) {
+    takes.assign(keeps.size(), 0);
+    size_t depth = 0, capped = decoders;
+    for (const auto& k : keeps) depth = std::max(depth, k.size()), capped += k.size();
+    if (!c.known && c.seen_rows > 0 && std::fabs(c.seen_rows - (double)capped) < 0.5) return;
+    if (!c.known || c.row_ms <= 0) {
+        for (size_t i = 0; i < keeps.size(); ++i) takes[i] = keeps[i].size();
+        return;
+    }
+    const double plain_ms = c.base_ms + c.row_ms * (double)decoders, rate = (double)decoders / plain_ms;
+    const auto take = [&](size_t K, std::vector<size_t>* out) {
+        double tokens = (double)decoders, ms = plain_ms;
+        size_t chains = 0;
+        for (size_t i = 0; i < keeps.size(); ++i) {
+            const size_t k = std::min(K, keeps[i].size());
+            double kept = 0;
+            for (size_t j = 0; j < k; ++j) kept += keeps[i][j];
+            if (!k || kept < rate * c.row_ms * (double)k) continue;
+            tokens += kept;
+            ms += c.row_ms * (double)k;
+            ++chains;
+            if (out) (*out)[i] = k;
+        }
+        if (chains) ms += (double)K * (c.step_ms + c.step_row_ms * (double)chains);
+        return tokens / ms;
+    };
+    double best = rate;
+    size_t best_depth = 0;
+    for (size_t K = 1; K <= depth; ++K) {
+        const double r = take(K, nullptr);
+        if (r > best) best = r, best_depth = K;
+    }
+    if (best_depth) take(best_depth, &takes);
 }
 
 // A request's drafting: its proposer, its most drafts a verify, the tokens its history held before it generated, and its acceptance.

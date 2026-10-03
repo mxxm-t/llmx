@@ -14,6 +14,7 @@ Every request that runs to its end must give its ids alone, the CLI its text; a 
 --logprobs asks every request of these phases for its log-probabilities and top five too, which must equal alone's as its ids do.
 --ids writes every phase's ids, with --logprobs beside their values, so two builds can be compared byte for byte.
 --passes N serves with N passes in flight, which a layer split takes above one.
+--drafter lookup|embedded serves with drafts, so every phase holds drafting to the replies without them: alone, together and skewed as the server gives them, and the CLI's run without drafts; it prints the drafts the server fed and kept, and fails where it fed none.
 --fresh-phases starts each capped phase and the final repeat on a fresh server and requires zero prefix reuse and pauses, isolating batching from history reuse.
 --ctx-size sets the server pool; leave enough room for every active request in this mode.
 
@@ -218,6 +219,8 @@ def main():
     p.add_argument("--logprobs", action="store_true", help="the capped phases compare log-probabilities and the top five beside the ids")
     p.add_argument("--sampled", action="store_true", help="the capped phases draw every request at the defaults with a seed of its own, in place of greedy")
     p.add_argument("--passes", type=int, help="passes in flight, the server's own number when not given")
+    p.add_argument("--drafter", choices=["off", "lookup", "embedded"], default="off",
+                   help="the server's drafter; the CLI runs without drafts, so its text holds the server's drafts to the reply without them")
     p.add_argument("--fresh-phases", action="store_true", help="fresh server for each capped phase; fail on prefix reuse or pauses")
     p.add_argument("--cli", type=int, default=4,
                    help="requests also checked against the CLI; the first four cover every prompt length, the last two several ubatch chunks")
@@ -234,7 +237,7 @@ def main():
     flags = ["--device", args.device] + (["--layer-shares", args.layer_shares] if args.layer_shares else [])
     if args.cache_type:
         flags += ["--cache-type-k", args.cache_type, "--cache-type-v", args.cache_type]
-    server_flags = flags + (["--passes", str(args.passes)] if args.passes else [])
+    server_flags = flags + (["--passes", str(args.passes)] if args.passes else []) + (["--drafter", args.drafter] if args.drafter != "off" else [])
     if args.uncapped:
         return uncapped(args, text, server_flags)
     rng = random.Random(1 if args.seed is None else args.seed)
@@ -277,6 +280,13 @@ def main():
             if answer(post(port, reqs[0])) != alone[0]:
                 failures.append("the first request differs on a fresh server" if args.fresh_phases else "the first request differs after the load")
             check_phase(port, "repeat" if args.fresh_phases else "recovery", args.fresh_phases, failures)
+            # Drafts that were never fed would hold nothing to the replies without them.
+            if args.drafter != "off":
+                state = health(port)
+                fed, kept = sum(state.get("drafted", [])), sum(state.get("kept", []))
+                print("drafts: %d fed, %d kept%s" % (fed, kept, " in the last phase" if args.fresh_phases else ""), flush=True)
+                if not fed:
+                    failures.append("no draft was fed")
 
     # The CLI prints the reply's text between its pp and tg lines, which must be the text the server gave the request alone.
     for i in range(min(args.cli, len(reqs))):

@@ -48,12 +48,13 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
         // y is the last pick, not yet fed.
         size_t k = 0;
         if (drafting) {
+            // One request alone: its verify is the pass, so every column its kernels hold is its own.
             k = spec::draft_length(drafting->draft_max, (size_t)gp.max_tokens - gen.size(), (size_t)model.context_length() - (size_t)model.n_tokens(),
-                                   drafting->acceptance);
+                                   drafting->draft_max, drafting->acceptance);
             if (k) {
                 history = drafting->history;
                 history.insert(history.end(), gen.begin(), gen.end());
-                drafting->proposer->draft(history, k, drafts);
+                drafting->proposer->draft(nullptr, history, k, drafts);
                 // A draft past the vocabulary, and those after it, are not fed: the verify needs nothing a decode does not.
                 const auto past = std::find_if(drafts.begin(), drafts.end(), [&](uint32_t id) { return id >= n_vocab; });
                 drafts.erase(past, drafts.end());

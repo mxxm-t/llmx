@@ -11,7 +11,8 @@ Q4_K/Q5_K decode reduces each group of 32 integer products exactly before conver
 Dense Q4_K/Q5_K packed prompts at widths of at least 4096 and eight or more columns use `PromptPairs` in the existing CPU dot owner. It repacks the already quantized 16-bit activations, pairing adjacent features across eight columns. The dot takes two such groups across two output rows, reusing each weight broadcast for sixteen columns; a final group uses four output rows. A compiler-guarded loop hint keeps GCC-compatible builds from expanding the inner pair loop eightfold. Complete tiles transpose eight-by-eight 32-bit lanes with AVX2, each lane holding two adjacent 16-bit features; a partial tile keeps the scalar copy and zero padding. Each integer lane sums one group of 32 products; its magnitude is bounded by 32 * 31 * 32767, so the reassociation is exact in int32. Integer group sums, the order of the per-group float FMAs and the final reduction are unchanged. Smaller prompts, routed products and decode keep their existing dots. The reusable packing scratch retains about two bytes per input value plus eight bytes per group of 32 values, with columns rounded up to eight, alongside the original activation rows; packing is included in measured matmul time.
 
 CPU implementation of the `Backend` interface, in namespace `backend`.
-`supports_type` reads the quant registry, including its F32 entry, and `implements(op)` is true for every `Op`.
+`supports_type` reads the quant registry, including its F32, F16 and BF16 entries, and `implements(op)` is true for every `Op`.
+F16 and BF16 weight storage is read-only. Embedding and prompt products widen through the registry; decode uses `dot_half` below. The weights always retain their stored values, independently of activation dtype. F16 execution retains F32 activation inputs for these float-storage products; BF16 execution rounds inputs before the same float math. Model roles that require F32 vectors keep that requirement.
 The build requires x86-64 AVX2, FMA and F16C (`docs/BUILD.md`), and the kernels use them with no runtime check and no scalar fallback; their scalar loops cover the tails of lengths that are not a multiple of 8.
 Every multiply-add in those tails is an explicit FMA (`std::fma`), never `a * b + c`: a compiler that contracts fuses such an expression in one inlined copy and not in another by the code around it, which gave a prompt row different bits by its place in the batch (`tests/backend_group.cpp`, docs/STATUS.md).
 A compile without them stops at one `#error` at the top of the header.
@@ -35,7 +36,8 @@ A compile without them stops at one `#error` at the top of the header.
   buffers and an offset exactly at the end. Range checks still reject offsets
   past the end, and a nonempty write still requires a non-null source.
 - `row_dot`: one weight row against one activation row in float, the one float decode row dot.
-  F32 takes `dot_f32`, Q8_0 `dot_row_impl`, and Q4_K, Q5_K and Q6_K their fused dequant+FMA dots, falling back to `dot_row_dequant` when a fused sum overflows.
+  F32 takes `dot_f32`, F16 and BF16 take `dot_half`, Q8_0 takes `dot_row_impl`, and Q4_K, Q5_K and Q6_K take their fused dequant+FMA dots, falling back to `dot_row_dequant` when a fused sum overflows.
+  `dot_half` widens eight unaligned weight words at a time: F16 through F16C, BF16 by shifting the bits into binary32. Its four accumulators, FMA order, final reduction and scalar tails match `dot_f32` on exactly widened weights. Dense, grouped, routed and output-head decode share this owner.
   A decode run of those types calls it in one pooled loop over weight rows, walking all activation columns against each row before moving on; a routed decode entry calls it for every type.
   Q8_0 always takes this float path. The other supported quantized types take `q8_dots.hpp` under F16; an explicit F32 request selects the original float path, and BF16 rounds its inputs before the float dots.
   Other types, routed Q4_0 and Q4_1 decode among them, take `dot_row_dequant`, which dequantizes and sums in double, while a dense Q4_0 or Q4_1 decode keeps the batched float path, so the two differ in rounding.
@@ -59,7 +61,7 @@ A compile without them stops at one `#error` at the top of the header.
 - F32 matrices use those same float dot kernels directly on resident host
   weights, without a dequantization buffer or row copy. Quantized inputs retain
   the existing row staging and fused decode paths.
-  F32 decode goes through `row_dot`, `dot_f32` one row at a time for contiguous weight access; this has a different reduction order from the fused four-row dot.
+  F32/F16/BF16 weight decode goes through `row_dot`, using `dot_f32` or `dot_half` one row at a time for contiguous weight access; this has a different reduction order from the fused four-row dot.
 - `DOT_ROWS` is the fused kernel's width, not a tuning constant. A cache-byte
   budget was measured instead and was worse at every size (see
   `docs/STATUS.md`).
@@ -100,7 +102,7 @@ A compile without them stops at one `#error` at the top of the header.
   - `state_slot` resolves a slot of a state storage's layer to host floats and refuses storage of another backend; the conv and the recurrence resolve every view's slots before they write anything.
 - `rms_norm_rows`, `silu_mul`, `add`: the batched forms the model calls.
   Private helpers decide dispatch.
-  `spread` keeps a stage on the calling thread below two rows per worker; `chunk` keeps elementwise spans under 32K elements there; `split_rows` hands the row dots of a decode matmul, `matvec_q8x`, `matmul_group` and the routed decode entries to the pool in one contiguous range per worker, and keeps them on the caller below eight rows per worker, except an F32 decode matmul, which splits as the batched float path does, from `DOT_ROWS` rows per worker in whole `DOT_ROWS` chunks.
+  `spread` keeps a stage on the calling thread below two rows per worker; `chunk` keeps elementwise spans under 32K elements there; `split_rows` hands the row dots of a decode matmul, `matvec_q8x`, `matmul_group` and the routed decode entries to the pool in one contiguous range per worker, and keeps them on the caller below eight rows per worker, except an F32/F16/BF16 weight decode matmul, which splits as the batched float path does, from `DOT_ROWS` rows per worker in whole `DOT_ROWS` chunks.
   The thresholds are properties of a host thread pool - waking it costs more than the work - and a device backend must not inherit them.
   `silu_mul` keeps `std::exp` per element: a vectorized approximation would shift logits and needs its own correctness gate.
 - `parallel_for` stays public here but is deliberately off the `Backend`

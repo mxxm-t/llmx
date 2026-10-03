@@ -4,8 +4,8 @@ GGUF storage metadata in namespace `quant`, independent of which types a
 backend can execute. This is the lowest header of the quant layer.
 
 - Type ids, the numbers GGUF files and the backends' kernels name the types
-  by: `GGML_TYPE_F32=0`, `GGML_TYPE_Q4_0=2`, `Q4_1=3`, `Q8_0=8`, `Q4_K=12`,
-  `Q5_K=13`, `Q6_K=14`, `MXFP4=39`.
+  by: `GGML_TYPE_F32=0`, `F16=1`, `GGML_TYPE_Q4_0=2`, `Q4_1=3`, `Q8_0=8`, `Q4_K=12`,
+  `Q5_K=13`, `Q6_K=14`, `BF16=30`, `MXFP4=39`.
 - The block constants of each implemented quantized type, values per block and bytes per block
   (`*_BLOCK`, `*_TYPESIZE`): 32/18 (Q4_0), 32/20 (Q4_1), 32/34 (Q8_0),
   256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K), 32/17 (MXFP4).
@@ -39,7 +39,8 @@ holds registry metadata to the table and ensures metadata-only types do not
 become executable.
 
 A new executable type adds its decoder to the registry and kernels to the
-backends that run it. `tests/roundtrip.py` holds CPU decoding to an independent
-format decoder, and `backend-vulkan` holds device kernels to the CPU's. A
+backends that run it. `tests/roundtrip.py` holds block decoding to an independent
+format decoder; `half-weights` holds finite F16/BF16 decoding to a mathematical
+oracle and CPU products to exactly widened F32 weights. `backend-vulkan` holds device kernels to the CPU's. A
 previously unknown layout also needs storage metadata here; a known layout
 does not need another sizing or format implementation.

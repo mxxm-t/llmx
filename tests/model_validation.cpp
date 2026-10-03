@@ -555,7 +555,7 @@ void tensor_checks() {
     rejects("truncated blob", [&] { construct(m); });
     m = base; set(m, "qwen3.block_count", integer(2));
     rejects("missing second layer", [&] { construct(m); });
-    m = base; m.tensors[0].type = 1;
+    m = base; m.tensors[0].type = 25;   // I16 has valid scalar storage but no weight kernel.
     rejects("unsupported tensor type", [&] { construct(m); });
     m = base; m.tensors[0].ne[1] = uint64_t(std::numeric_limits<int>::max()) + 1;
     rejects("oversized vocabulary", [&] { construct(m); });
@@ -563,7 +563,7 @@ void tensor_checks() {
     rejects("zero vocabulary", [&] { construct(m); });
     m = base; m.tensors[0].ne = {std::numeric_limits<uint64_t>::max(), 2};
     rejects("overflowing tensor extent", [&] { construct(m); });
-    m = base; m.tensors.push_back({"unused", {8}, 1, 0}); m.offsets.push_back(0);
+    m = base; m.tensors.push_back({"unused", {8}, 25, 0}); m.offsets.push_back(0);
     rejects("unsupported unused tensor", [&] { construct(m); });
     m = base; m.tensors.push_back({"unused", {8}, 0, 0}); m.offsets.push_back(m.offsets[1]);
     construct(m); ++checks;

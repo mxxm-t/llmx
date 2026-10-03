@@ -3,7 +3,7 @@
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
 llmx is a dependency-free LLM inference runtime in C++17 for CPUs and GPUs, run from the command line or as an OpenAI-compatible server, and able to run one model over several devices of one machine.
-The tables below list the supported models, file formats, quantization types, backends and multi-device modes, each marked **Supported** (works today) or **Planned** (on the [ROADMAP](docs/ROADMAP.md), not yet qualified for release).
+The tables below list the supported models, file formats, quantization types, backends and multi-device modes, marked **Supported** (works today), **Planned** (on the [ROADMAP](docs/ROADMAP.md)) or explicitly awaiting release qualification.
 
 ## Supported models
 
@@ -24,10 +24,11 @@ Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS
 | F32, Q8_0, Q4_0 | Supported | Supported | Q8_0, Q4_0 |
 | Q4_1, Q4_K, Q5_K, Q6_K (so Q4_K_M and Q5_K_M files) | Supported | Supported | No |
 | MXFP4 | Supported | Supported on devices with the required float preservation and double arithmetic | No |
-| F16, BF16, IQ4_NL, IQ4_XS, Q3_K, Q2_K | Planned | Planned | No |
+| F16, BF16 | Implemented; release qualification pending | Implemented; release qualification pending | No |
+| IQ4_NL, IQ4_XS, Q3_K, Q2_K | Planned | Planned | No |
 
-Inference requires each used tensor's type to be supported by its assigned backend; a device never falls back to the CPU on its own. `info`, `tokenize` and `detokenize` also accept known storage layouts without execution support, including F16 and BF16. Recognizing a layout does not add a decoder or kernel; [storage metadata](docs/src/quant-types.md) lists that boundary.
-Activation precision is selected with `--dtype auto|f16|bf16|f32`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices. This does not add F16 or BF16 weight execution; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.
+Inference requires each used tensor's type to be supported by its assigned backend; a device never falls back to the CPU on its own. `info`, `tokenize` and `detokenize` also accept known storage layouts without execution support, including IQ4_NL and Q2_K. Recognizing a layout does not add a decoder or kernel; [storage metadata](docs/src/quant-types.md) lists that boundary. F16/BF16 weights widen to F32 through the existing CPU and Vulkan product paths. CPU and device development checks include pinned BF16/F32 output identity. Remaining 30B correctness, memory and final integration gates are recorded in [STATUS](docs/STATUS.md).
+Activation precision is selected with `--dtype auto|f16|bf16|f32`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices. Activation precision is separate from the weight types above; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.
 The KV cache is stored as `f16` (default) or `f32` on every backend, independently of activation precision.
 
 ## File formats

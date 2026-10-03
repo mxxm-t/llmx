@@ -107,7 +107,7 @@ static void check_contracts(backend::CpuBackend& cpu) {
     for (uint32_t id = 0; id <= 43; ++id) {
         const auto* storage = quant::storage_type(id);
         const auto* kernel = quant::Registry::instance().get(id);
-        const bool implemented = id == 0 || id == 2 || id == 3 || id == 8 || id == 12 || id == 13 || id == 14 || id == 39;
+        const bool implemented = id == 0 || id == 1 || id == 2 || id == 3 || id == 8 || id == 12 || id == 13 || id == 14 || id == 30 || id == 39;
         require(bool(kernel) == implemented && cpu.supports_type(id) == implemented,
                 "storage metadata changed execution support");
         if (kernel) {
@@ -129,7 +129,7 @@ static void check_contracts(backend::CpuBackend& cpu) {
     refusal(1, size_t(1) << 63, 1, "quant: row size overflows");
     require(quant::row_bytes(1, 37) == 74 && quant::row_bytes(30, 37, 2) == 148 && quant::row_bytes(10, 512, 3) == 504 &&
             quant::row_bytes(1, std::numeric_limits<size_t>::max(), 0) == 0,
-            "known unsupported storage was not sized by its layout");
+            "known storage was not sized by its layout");
     require(quant::row_bytes(quant::GGML_TYPE_F32, 37) == 148 && quant::row_bytes(quant::GGML_TYPE_Q8_0, 64) == 68 &&
             quant::row_bytes(quant::GGML_TYPE_Q6_K, 512) == 420, "row bytes differ from the block layout");
     rejects([] { quant::row_bytes(quant::GGML_TYPE_Q4_K, 128); }, "a row inside one K-quant block was sized");

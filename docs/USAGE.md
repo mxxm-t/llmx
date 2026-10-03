@@ -39,7 +39,7 @@ change the release number, or embed timestamps.
 
 Commands that load a model accept `--dtype auto|f16|bf16|f32` (default `auto`) and print one `dtype:` record to stderr. It gives the request, resolved policy, architecture default and each device's native, emulated or wider fallback implementation, with a warning for emulation or fallback. The same record appears in `/v1/health` as `dtype`, with `requested`, `declared`, `effective` and `devices`; each device has `device`, `how`, `paths` and its own `effective` dtype. `paths` groups possible matrix families by activation form, including retained F32 operations; it describes the implementation, not which paths a particular request executed. A mixed run retains the requested policy at the top level and lists F32 for the devices that fall back; when all devices fall back, the top-level effective dtype is F32.
 
-On the supported AVX2 CPU, MI50 and Radeon VII paths, `auto` selects F16. The Qwen architectures declare BF16, but these backends prefer their supported F16 policy because they do not implement BF16 natively. Explicit `f32` keeps original F32 matrix inputs. Explicit `bf16` rounds inputs to BF16 and widens for F32 arithmetic on the CPU and on Vulkan devices that preserve F32 denormals, signed zeros, infinities and NaNs; otherwise it reports F32 fallback. F16 uses qualifying block-int16 kernels or documented wider F32 products, not a conversion of the whole model to half precision. Weights remain exact, and norms, softmax, rope, recurrent state, residuals and routers retain their F32 operations. Dtype is independent of the KV cache storage flags and does not add support for F16 or BF16 weight tensors.
+On the supported AVX2 CPU, MI50 and Radeon VII paths, `auto` selects F16. The Qwen architectures declare BF16, but these backends prefer their supported F16 policy because they do not implement BF16 natively. Explicit `f32` keeps original F32 matrix inputs. Explicit `bf16` rounds inputs to BF16 and widens for F32 arithmetic on the CPU and on Vulkan devices that preserve F32 denormals, signed zeros, infinities and NaNs; otherwise it reports F32 fallback. F16 uses qualifying block-int16 kernels or documented wider F32 products, not a conversion of the whole model to half precision. Weights remain exact, and norms, softmax, rope, recurrent state, residuals and routers retain their F32 operations. Dtype is independent of the KV cache storage flags and weight storage. F16/BF16 weight matrices widen exactly into the CPU and Vulkan float product paths. Weights keep their compact storage through loading. Their release qualification is recorded in STATUS.
 
 `logits`, `perplexity` and model `bench` also write one `matrix-paths:` JSON record to stderr after computation, containing the effective `dtype` and a `devices` list of the matrix paths actually dispatched. The correctness tools use it to select their precision bound; the startup capability description is not execution evidence. Numerical stdout is unchanged.
 
@@ -165,8 +165,9 @@ float32 data in `out.bin`. JSON output escapes path and tensor-name quotes,
 backslashes and control characters, preserving UTF-8 tensor names. Reusing this
 output with `quantize` requires the shape rules above: GGUF can also hold scalar,
 zero-sized or F32 tensors whose rows do not contain whole quantization blocks.
-The decoder types are F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and MXFP4.
-A known storage layout without a decoder, including F16 and BF16, is refused
+The decoder types are F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and MXFP4.
+F16 and BF16 are widened exactly; `quantize` does not write either format.
+A known storage layout without a decoder, including IQ4_NL and Q2_K, is refused
 by tensor name before mapping the payload or allocating decoded buffers;
 existing output files remain unchanged.
 

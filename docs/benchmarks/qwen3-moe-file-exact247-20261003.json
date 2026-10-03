@@ -1,0 +1,919 @@
+{
+  "scope": "Independent fixed247-token file-exact F32 HF forward and offline comparison with six retained e984 runtime captures. Only continuous NLL is an established pass/fail check here.",
+  "production_runtime_unchanged": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01",
+  "hf_source_commit": "91a7a6ff4d16d26e5eca3e3244ff1a92b3ec9930",
+  "hf_source_files": {
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tools\\gen_baseline.py": "37c607b94ddbd2cb6801b8adeb7a195cc5489cfdd3d2ef9472eae860bb469062",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tools\\gen_layered_reference.py": "294da7af8dc9cafaa140ca441764cfc4078f2d0082308afb6a3dc517982e3311",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tests\\spec_decode.py": "0e6ae071f9e60919af54f037e62fbaf5d2d4563bb7249e3b246d585b107cfcd6",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tests\\f32.py": "a1b5b805d1c7f5adb6ac40cae23c9cf3cfe26c73212d3a55bde5395e3d3de503",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tests\\moe.py": "30be6aaf2818d3f1d45a53c983da0579cf5eec30da4f3a8e97aaddaa923ba3d5",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tests\\qwen35.py": "609937df85bd8cdfce8181f35e228ef09772b7ca2382f9df2432ffe588436835",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tests\\common.py": "01877fcbe5d04c333baf28e4e5e61d2d2caffbfdd5121d1d39430eb3b42d7c1c"
+  },
+  "hf_policy": "Independent GGUF spec decoding; exact file weights widened to F32; HF Qwen3Moe eager CPU forward, F32 activations and sums, no KV cache, one unpadded full247-token input. Not literal-F16 or F16-KV reference.",
+  "hf_versions": {
+    "python": "3.12.1 (tags/v3.12.1:2305ca5, Dec  7 2023, 22:03:25) [MSC v.1937 64 bit (AMD64)]",
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "numpy": "2.2.6"
+  },
+  "model": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\models\\Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+    "bytes": 35989944896,
+    "sha256": "25693e28926e2277d9edd0f55d33ddb6fea8f10e344105b02e4bf328f37f1c3a",
+    "repo": "unsloth/Qwen3-30B-A3B-GGUF",
+    "revision": "d5b1d57bd0b504ac62ae6c725904e96ef228dc74"
+  },
+  "metadata": {
+    "repo": "Qwen/Qwen3-30B-A3B",
+    "revision": "ad44e777bcd18fa416d9da3bd8f70d33ebb85d39",
+    "revision_scope": "Pinned fetched config/tokenizer revision, not proven original conversion revision. Exact GGUF payload supplies all weights.",
+    "files": {
+      "config.json": "2850ddb3bf7aecad20b611e2d44f3077fc8193f4827c93beddd4c02ad63c2297",
+      "generation_config.json": "2325da0f15bb848e018c5ae071b7943332e9f871d6b60e2ed22ca97d4cb993d2",
+      "manifest.json": "9a9016472b6f717025903d80f4c193645b9d5adfe69c91e934fc60fbc26ee328",
+      "merges.txt": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
+      "repository.json": "7d78f635ee315ee7285c97aac1d16c9765f12108447eaed2bc65cc5f364476fb",
+      "tokenizer.json": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+      "tokenizer_config.json": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101",
+      "vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+    }
+  },
+  "input_ids": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\30b-device-gate-plan\\windows-e98453f9\\tokens.txt",
+    "sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+    "count": 247,
+    "special_tokens_added": false,
+    "padding": false
+  },
+  "hf_output": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\real247\\execution\\logits.f32",
+    "sha256": "2e1d01f1ba0320412b8223d11cc125104de0af629783bf12c34290725dade650",
+    "bytes": 150112768,
+    "shape": [
+      247,
+      151936
+    ],
+    "storage": "little-endian IEEE binary32"
+  },
+  "hf_threads": 6,
+  "hf_mean_nll": 2.375093767374276,
+  "runtime_source": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+  "runtime_settings": {
+    "cache": "f16",
+    "ubatch": 128,
+    "threads": 6,
+    "dtype": "auto",
+    "load_mode": "auto",
+    "prompt_tokens": 247,
+    "greedy_tokens": 64,
+    "kv_budget": 311,
+    "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+    "excerpt_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c"
+  },
+  "runtime_settings_scope": "The original captures also include greedy rows; this comparison reads only the two247-row phases and compares no HF greedy output. F32 arms use their input dtype/path records.",
+  "comparison_source_files": {
+    "tests/common.py": {
+      "sha256_raw_windows": "01877fcbe5d04c333baf28e4e5e61d2d2caffbfdd5121d1d39430eb3b42d7c1c",
+      "sha256_lf": "f26bc37ee1a76a74a850c781afd610461553f7d02a909086bf380e25928563fb"
+    },
+    "tests/baseline.py": {
+      "sha256_raw_windows": "6025f3360372563d2e27ed118b9be76fe47e0abb27cb33dcc13638c5657ce334",
+      "sha256_lf": "7151cd1be910128ddf45682730fc59dbf91056827fbf00977530d9fe58937109"
+    },
+    "tests/spec_decode.py": {
+      "sha256_raw_windows": "0e6ae071f9e60919af54f037e62fbaf5d2d4563bb7249e3b246d585b107cfcd6",
+      "sha256_lf": "2d8bb61b12f7e8edafeddc110b9b587ee8e7f2cf669c82396992ae09cf604b00"
+    },
+    "tools/gen_baseline.py": {
+      "sha256_raw_windows": "37c607b94ddbd2cb6801b8adeb7a195cc5489cfdd3d2ef9472eae860bb469062",
+      "sha256_lf": "4ce840e76e312bca20f975411e6dda36dd5d74a7c421eddc79167f94d46afc8d"
+    },
+    "tools/gen_layered_reference.py": {
+      "sha256_raw_windows": "294da7af8dc9cafaa140ca441764cfc4078f2d0082308afb6a3dc517982e3311",
+      "sha256_lf": "294da7af8dc9cafaa140ca441764cfc4078f2d0082308afb6a3dc517982e3311"
+    }
+  },
+  "arms": [
+    {
+      "input": {
+        "label": "cpu-auto-batched",
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-device/execution/captures/new-cpu.batched.bin",
+        "sha256": "2e636d61106a378b9cdb5c8da43161048d10e35fd17ba0cdd42e7da8684a9ef2",
+        "phase": "batched",
+        "version": "0.1.0+ge98453f9e562",
+        "dtype": "f16",
+        "matrix_paths": [
+          [
+            "f32"
+          ]
+        ],
+        "storage_types": [
+          0,
+          8,
+          30
+        ],
+        "tool_sha256": "87030afc4034ced0109cd5de374f93829b1c86f780b95d3f829c9ec52dc49cfb",
+        "devices": [
+          "cpu"
+        ],
+        "layer_shares": null
+      },
+      "rows": 247,
+      "scored_targets": 246,
+      "continuous_nll": {
+        "hf": 2.375093767374276,
+        "runtime": 2.372479920388211,
+        "signed_delta": -0.002613846986064594,
+        "absolute_delta": 0.002613846986064594,
+        "bound": 0.01,
+        "passed": true,
+        "headroom": 0.007386153013935406
+      },
+      "diagnostic": {
+        "strict_top1_matches": 246,
+        "top1_mismatch_positions": [
+          35
+        ],
+        "strict_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 9,
+          "5": 238
+        },
+        "adjusted_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 1,
+          "5": 246
+        },
+        "adjusted_top5_mismatch_positions": [
+          243
+        ],
+        "worst_error": {
+          "max_abs": 2.374690055847168,
+          "position": 115,
+          "token": 21636,
+          "runtime": -6.241382598876953,
+          "hf": -8.616072654724121
+        },
+        "rms_error": 0.10352513794549591,
+        "mean_abs_error": 0.039056462639018436,
+        "mean_signed_error": 0.01652715442432202
+      },
+      "mismatch_details": [
+        {
+          "position": 35,
+          "strict_top1_match": false,
+          "hf_top1_gap": 0.017473220825195312,
+          "hf_gap_to_runtime_choice": 0.017473220825195312,
+          "runtime_top1_gap": 0.03675079345703125,
+          "strict_top5_overlap": 5,
+          "adjusted_top5_overlap": 5,
+          "missing_hf_top5": [],
+          "extra_runtime_top5": [],
+          "hf_top1_id": 438,
+          "runtime_top1_id": 323
+        },
+        {
+          "position": 243,
+          "strict_top1_match": true,
+          "hf_top1_gap": 8.426780700683594,
+          "hf_gap_to_runtime_choice": 0.0,
+          "runtime_top1_gap": 8.584053039550781,
+          "strict_top5_overlap": 4,
+          "adjusted_top5_overlap": 4,
+          "missing_hf_top5": [
+            {
+              "token": 389,
+              "hf_rank": 4,
+              "hf_above_fifth": 0.0077381134033203125,
+              "runtime_below_fifth": 0.07611274719238281
+            }
+          ],
+          "extra_runtime_top5": [
+            {
+              "token": 330,
+              "hf_rank": 6,
+              "hf_below_fifth": 0.13077354431152344
+            }
+          ],
+          "hf_top1_id": 315,
+          "runtime_top1_id": 315
+        }
+      ],
+      "all_rows": {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/comparison/results/cpu-auto-batched-rows.json",
+        "sha256": "863e502488822d94e29369577b6f60c741b3e36944ef5fdfebd23e7395702891",
+        "bytes": 344625
+      }
+    },
+    {
+      "input": {
+        "label": "cpu-auto-decode",
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-device/execution/captures/new-cpu.decode.bin",
+        "sha256": "98877e076a7d4a43cf259561080829248750b8b529382d682b76c7dd4ef0a7cd",
+        "phase": "decode",
+        "version": "0.1.0+ge98453f9e562",
+        "dtype": "f16",
+        "matrix_paths": [
+          [
+            "f32"
+          ]
+        ],
+        "storage_types": [
+          0,
+          8,
+          30
+        ],
+        "tool_sha256": "87030afc4034ced0109cd5de374f93829b1c86f780b95d3f829c9ec52dc49cfb",
+        "devices": [
+          "cpu"
+        ],
+        "layer_shares": null
+      },
+      "rows": 247,
+      "scored_targets": 246,
+      "continuous_nll": {
+        "hf": 2.375093767374276,
+        "runtime": 2.3721335291060117,
+        "signed_delta": -0.0029602382682640815,
+        "absolute_delta": 0.0029602382682640815,
+        "bound": 0.01,
+        "passed": true,
+        "headroom": 0.007039761731735919
+      },
+      "diagnostic": {
+        "strict_top1_matches": 246,
+        "top1_mismatch_positions": [
+          35
+        ],
+        "strict_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 9,
+          "5": 238
+        },
+        "adjusted_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 247
+        },
+        "adjusted_top5_mismatch_positions": [],
+        "worst_error": {
+          "max_abs": 2.372117042541504,
+          "position": 115,
+          "token": 21636,
+          "runtime": -6.243955612182617,
+          "hf": -8.616072654724121
+        },
+        "rms_error": 0.10166277470811648,
+        "mean_abs_error": 0.037998510081998185,
+        "mean_signed_error": 0.015905952680820328
+      },
+      "mismatch_details": [
+        {
+          "position": 35,
+          "strict_top1_match": false,
+          "hf_top1_gap": 0.017473220825195312,
+          "hf_gap_to_runtime_choice": 0.017473220825195312,
+          "runtime_top1_gap": 0.03679084777832031,
+          "strict_top5_overlap": 5,
+          "adjusted_top5_overlap": 5,
+          "missing_hf_top5": [],
+          "extra_runtime_top5": [],
+          "hf_top1_id": 438,
+          "runtime_top1_id": 323
+        }
+      ],
+      "all_rows": {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/comparison/results/cpu-auto-decode-rows.json",
+        "sha256": "ec9a4530ef1c2afb86ddc8d629b76fa2c0d4b05565ff31f6cecbf18195b29be8",
+        "bytes": 344644
+      }
+    },
+    {
+      "input": {
+        "label": "mi50-default-batched",
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-device/execution/captures/new-mi50-split.batched.bin",
+        "sha256": "49f039719337da006c0fe6fd2bab003697ce2c5b3a446d378fbb1bb018b38432",
+        "phase": "batched",
+        "version": "0.1.0+ge98453f9e562",
+        "dtype": "f16",
+        "matrix_paths": [
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ]
+        ],
+        "storage_types": [
+          0,
+          8,
+          30
+        ],
+        "tool_sha256": "87030afc4034ced0109cd5de374f93829b1c86f780b95d3f829c9ec52dc49cfb",
+        "devices": [
+          "vulkan:0",
+          "vulkan:1"
+        ],
+        "layer_shares": [
+          1,
+          1
+        ]
+      },
+      "rows": 247,
+      "scored_targets": 246,
+      "continuous_nll": {
+        "hf": 2.375093767374276,
+        "runtime": 2.3743972164490876,
+        "signed_delta": -0.0006965509251881663,
+        "absolute_delta": 0.0006965509251881663,
+        "bound": 0.01,
+        "passed": true,
+        "headroom": 0.009303449074811834
+      },
+      "diagnostic": {
+        "strict_top1_matches": 246,
+        "top1_mismatch_positions": [
+          35
+        ],
+        "strict_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 8,
+          "5": 239
+        },
+        "adjusted_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 1,
+          "5": 246
+        },
+        "adjusted_top5_mismatch_positions": [
+          243
+        ],
+        "worst_error": {
+          "max_abs": 2.4501113891601562,
+          "position": 115,
+          "token": 79865,
+          "runtime": -11.088794708251953,
+          "hf": -13.53890609741211
+        },
+        "rms_error": 0.10420297396801019,
+        "mean_abs_error": 0.039036753877694896,
+        "mean_signed_error": 0.014281446421764902
+      },
+      "mismatch_details": [
+        {
+          "position": 35,
+          "strict_top1_match": false,
+          "hf_top1_gap": 0.017473220825195312,
+          "hf_gap_to_runtime_choice": 0.017473220825195312,
+          "runtime_top1_gap": 0.05025291442871094,
+          "strict_top5_overlap": 5,
+          "adjusted_top5_overlap": 5,
+          "missing_hf_top5": [],
+          "extra_runtime_top5": [],
+          "hf_top1_id": 438,
+          "runtime_top1_id": 323
+        },
+        {
+          "position": 243,
+          "strict_top1_match": true,
+          "hf_top1_gap": 8.426780700683594,
+          "hf_gap_to_runtime_choice": 0.0,
+          "runtime_top1_gap": 8.579826354980469,
+          "strict_top5_overlap": 4,
+          "adjusted_top5_overlap": 4,
+          "missing_hf_top5": [
+            {
+              "token": 389,
+              "hf_rank": 4,
+              "hf_above_fifth": 0.0077381134033203125,
+              "runtime_below_fifth": 0.0754547119140625
+            }
+          ],
+          "extra_runtime_top5": [
+            {
+              "token": 330,
+              "hf_rank": 6,
+              "hf_below_fifth": 0.13077354431152344
+            }
+          ],
+          "hf_top1_id": 315,
+          "runtime_top1_id": 315
+        }
+      ],
+      "all_rows": {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/comparison/results/mi50-default-batched-rows.json",
+        "sha256": "2c9ede1e99d0176258b5b07971aace89fb53019b1524d4ad11d15cbe48e6e14f",
+        "bytes": 344622
+      }
+    },
+    {
+      "input": {
+        "label": "mi50-default-decode",
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-device/execution/captures/new-mi50-split.decode.bin",
+        "sha256": "d2075db3eed730f5b07c78fae8719442231ab86ca5c3da1e4c8c07b2405215c9",
+        "phase": "decode",
+        "version": "0.1.0+ge98453f9e562",
+        "dtype": "f16",
+        "matrix_paths": [
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ]
+        ],
+        "storage_types": [
+          0,
+          8,
+          30
+        ],
+        "tool_sha256": "87030afc4034ced0109cd5de374f93829b1c86f780b95d3f829c9ec52dc49cfb",
+        "devices": [
+          "vulkan:0",
+          "vulkan:1"
+        ],
+        "layer_shares": [
+          1,
+          1
+        ]
+      },
+      "rows": 247,
+      "scored_targets": 246,
+      "continuous_nll": {
+        "hf": 2.375093767374276,
+        "runtime": 2.3725250624645167,
+        "signed_delta": -0.002568704909759134,
+        "absolute_delta": 0.002568704909759134,
+        "bound": 0.01,
+        "passed": true,
+        "headroom": 0.007431295090240866
+      },
+      "diagnostic": {
+        "strict_top1_matches": 246,
+        "top1_mismatch_positions": [
+          35
+        ],
+        "strict_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 9,
+          "5": 238
+        },
+        "adjusted_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 1,
+          "5": 246
+        },
+        "adjusted_top5_mismatch_positions": [
+          243
+        ],
+        "worst_error": {
+          "max_abs": 2.3776707649230957,
+          "position": 115,
+          "token": 21636,
+          "runtime": -6.238401889801025,
+          "hf": -8.616072654724121
+        },
+        "rms_error": 0.1035937637184256,
+        "mean_abs_error": 0.03937332788727512,
+        "mean_signed_error": 0.016467471504986227
+      },
+      "mismatch_details": [
+        {
+          "position": 35,
+          "strict_top1_match": false,
+          "hf_top1_gap": 0.017473220825195312,
+          "hf_gap_to_runtime_choice": 0.017473220825195312,
+          "runtime_top1_gap": 0.03545951843261719,
+          "strict_top5_overlap": 5,
+          "adjusted_top5_overlap": 5,
+          "missing_hf_top5": [],
+          "extra_runtime_top5": [],
+          "hf_top1_id": 438,
+          "runtime_top1_id": 323
+        },
+        {
+          "position": 243,
+          "strict_top1_match": true,
+          "hf_top1_gap": 8.426780700683594,
+          "hf_gap_to_runtime_choice": 0.0,
+          "runtime_top1_gap": 8.583436965942383,
+          "strict_top5_overlap": 4,
+          "adjusted_top5_overlap": 4,
+          "missing_hf_top5": [
+            {
+              "token": 389,
+              "hf_rank": 4,
+              "hf_above_fifth": 0.0077381134033203125,
+              "runtime_below_fifth": 0.07564163208007812
+            }
+          ],
+          "extra_runtime_top5": [
+            {
+              "token": 330,
+              "hf_rank": 6,
+              "hf_below_fifth": 0.13077354431152344
+            }
+          ],
+          "hf_top1_id": 315,
+          "runtime_top1_id": 315
+        }
+      ],
+      "all_rows": {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/comparison/results/mi50-default-decode-rows.json",
+        "sha256": "fa4a56fad718ba9b14530e9a4c8123f55f117d5a24801e9fc5cecc2bcd5fc42c",
+        "bytes": 344635
+      }
+    },
+    {
+      "input": {
+        "label": "mi50-f32-batched",
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-f32-diagnostic/execution/captures/f32-mi50-split.batched.bin",
+        "sha256": "9df4dbce17caefe9b638f8a949b03aaef1355592eed71d62d274845eeecc6cdf",
+        "phase": "batched",
+        "version": "0.1.0+ge98453f9e562.scratch-f32",
+        "dtype": "f32",
+        "matrix_paths": [
+          [
+            "f32"
+          ],
+          [
+            "f32"
+          ]
+        ],
+        "storage_types": [
+          0,
+          8,
+          30
+        ],
+        "tool_sha256": "a4151edca13a1574867ae1813bbbe5a4d73c40f009b7e77c8b0adfca8f02ecdd",
+        "devices": [
+          "vulkan:0",
+          "vulkan:1"
+        ],
+        "layer_shares": [
+          1,
+          1
+        ]
+      },
+      "rows": 247,
+      "scored_targets": 246,
+      "continuous_nll": {
+        "hf": 2.375093767374276,
+        "runtime": 2.3719897369266874,
+        "signed_delta": -0.003104030447588446,
+        "absolute_delta": 0.003104030447588446,
+        "bound": 0.01,
+        "passed": true,
+        "headroom": 0.006895969552411554
+      },
+      "diagnostic": {
+        "strict_top1_matches": 246,
+        "top1_mismatch_positions": [
+          35
+        ],
+        "strict_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 8,
+          "5": 239
+        },
+        "adjusted_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 1,
+          "5": 246
+        },
+        "adjusted_top5_mismatch_positions": [
+          116
+        ],
+        "worst_error": {
+          "max_abs": 2.3636107444763184,
+          "position": 115,
+          "token": 21636,
+          "runtime": -6.252461910247803,
+          "hf": -8.616072654724121
+        },
+        "rms_error": 0.10256717085112145,
+        "mean_abs_error": 0.038708460367142816,
+        "mean_signed_error": 0.01640827753482192
+      },
+      "mismatch_details": [
+        {
+          "position": 35,
+          "strict_top1_match": false,
+          "hf_top1_gap": 0.017473220825195312,
+          "hf_gap_to_runtime_choice": 0.017473220825195312,
+          "runtime_top1_gap": 0.035793304443359375,
+          "strict_top5_overlap": 5,
+          "adjusted_top5_overlap": 5,
+          "missing_hf_top5": [],
+          "extra_runtime_top5": [],
+          "hf_top1_id": 438,
+          "runtime_top1_id": 323
+        },
+        {
+          "position": 116,
+          "strict_top1_match": true,
+          "hf_top1_gap": 10.20797348022461,
+          "hf_gap_to_runtime_choice": 0.0,
+          "runtime_top1_gap": 10.429401397705078,
+          "strict_top5_overlap": 4,
+          "adjusted_top5_overlap": 4,
+          "missing_hf_top5": [
+            {
+              "token": 2587,
+              "hf_rank": 5,
+              "hf_above_fifth": 0.0,
+              "runtime_below_fifth": 0.10076904296875
+            }
+          ],
+          "extra_runtime_top5": [
+            {
+              "token": 67,
+              "hf_rank": 6,
+              "hf_below_fifth": 0.10846710205078125
+            }
+          ],
+          "hf_top1_id": 82,
+          "runtime_top1_id": 82
+        }
+      ],
+      "all_rows": {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/comparison/results/mi50-f32-batched-rows.json",
+        "sha256": "684415a4558b945d653ec96e842a361f6cb821c3f9767ef78b22613092607e1b",
+        "bytes": 344663
+      }
+    },
+    {
+      "input": {
+        "label": "mi50-f32-decode",
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-f32-diagnostic/execution/captures/f32-mi50-split.decode.bin",
+        "sha256": "e0f3d5d7e3d922de1381d7cf4109ce9f29d7f8a62c3cb936ab8b7adbdfd3e711",
+        "phase": "decode",
+        "version": "0.1.0+ge98453f9e562.scratch-f32",
+        "dtype": "f32",
+        "matrix_paths": [
+          [
+            "f32"
+          ],
+          [
+            "f32"
+          ]
+        ],
+        "storage_types": [
+          0,
+          8,
+          30
+        ],
+        "tool_sha256": "a4151edca13a1574867ae1813bbbe5a4d73c40f009b7e77c8b0adfca8f02ecdd",
+        "devices": [
+          "vulkan:0",
+          "vulkan:1"
+        ],
+        "layer_shares": [
+          1,
+          1
+        ]
+      },
+      "rows": 247,
+      "scored_targets": 246,
+      "continuous_nll": {
+        "hf": 2.375093767374276,
+        "runtime": 2.3719942462470156,
+        "signed_delta": -0.0030995211272601964,
+        "absolute_delta": 0.0030995211272601964,
+        "bound": 0.01,
+        "passed": true,
+        "headroom": 0.006900478872739804
+      },
+      "diagnostic": {
+        "strict_top1_matches": 246,
+        "top1_mismatch_positions": [
+          35
+        ],
+        "strict_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 9,
+          "5": 238
+        },
+        "adjusted_top5_histogram": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 247
+        },
+        "adjusted_top5_mismatch_positions": [],
+        "worst_error": {
+          "max_abs": 2.3732261657714844,
+          "position": 115,
+          "token": 21636,
+          "runtime": -6.242846488952637,
+          "hf": -8.616072654724121
+        },
+        "rms_error": 0.10205850233854286,
+        "mean_abs_error": 0.038063684313486265,
+        "mean_signed_error": 0.015738934372423023
+      },
+      "mismatch_details": [
+        {
+          "position": 35,
+          "strict_top1_match": false,
+          "hf_top1_gap": 0.017473220825195312,
+          "hf_gap_to_runtime_choice": 0.017473220825195312,
+          "runtime_top1_gap": 0.036098480224609375,
+          "strict_top5_overlap": 5,
+          "adjusted_top5_overlap": 5,
+          "missing_hf_top5": [],
+          "extra_runtime_top5": [],
+          "hf_top1_id": 438,
+          "runtime_top1_id": 323
+        }
+      ],
+      "all_rows": {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/comparison/results/mi50-f32-decode-rows.json",
+        "sha256": "e0f8f318069afb7fd27726e638063265f4c18347061c467dfc16d9c5db587b96",
+        "bytes": 344669
+      }
+    }
+  ],
+  "diagnostic_ranking_rule": {
+    "owner": "tests/common.py:top5_overlap",
+    "margin": 0.1,
+    "scope": "Existing adjustment retained for diagnostics; no new all-row ranking acceptance rule.",
+    "gap_derivation": "Missing/extra gaps are subtractions of the retained HF/runtime top10 logits; ranks are one-based, positions zero-based."
+  },
+  "commands": {
+    "hf_worker": [
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\.reference-venv\\Scripts\\python.exe",
+      "-X",
+      "utf8",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\real247\\run.py",
+      "--plan",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\real247\\plan.json",
+      "--worker"
+    ],
+    "offline_comparator": [
+      "python3",
+      "-B",
+      "-u",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/hf-reference247-20261003/compare.py",
+      "--hf-output",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/hf-reference247-20261003/input/logits.f32",
+      "--hf-metadata",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/hf-reference247-20261003/input/worker-complete.json",
+      "--hf-complete",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/hf-reference247-20261003/input/complete.json",
+      "--source",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/hf-reference247-20261003/source",
+      "--output",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/hf-reference247-20261003/results"
+    ]
+  },
+  "completion": {
+    "hf_returncode": 0,
+    "hf_seconds_including_hashing": 180.76600000000326,
+    "hf_worker_seconds": 179.7970000000205,
+    "all_48_layers_visited": true,
+    "processes_verified_absent": [
+      38436,
+      42164
+    ],
+    "comparator_returncode": 0,
+    "comparator_started": 1791013116.9046817,
+    "comparator_completed": 1791013215.4073415,
+    "comparator_owned_container_terminal": true
+  },
+  "memory": {
+    "actual_worker_peak_working_set_bytes": 3345321984,
+    "worker_os_counters": {
+      "PeakWorkingSetSize": 3345321984,
+      "WorkingSetSize": 600494080,
+      "PeakPagefileUsage": 3865657344,
+      "PrivateUsage": 1110552576,
+      "PageFaultCount": 107303420
+    },
+    "original_launcher_samples": 361,
+    "limitation": "Original live samples followed the Windows venv launcher, not its actual worker. Supplemental monitor found the worker already exited and took no samples. Worker OS-reported lifetime peak proves the completed run remained below8GiB; no live memory-abort coverage is claimed. No timeout/abort occurred.",
+    "scope": "Original memory.jsonl samples are launcher evidence, not worker memory. The worker OS lifetime peak bounds this completed run; no effective live worker-abort test or OS memory cap is claimed."
+  },
+  "established_check": "file-exact continuous mean NLL only, 246 next-token targets",
+  "all_six_continuous_nll_passed": true,
+  "limitations": [
+    "All-row ranks and logit errors have no new pass/fail bound. This is not the standard prompt/window suite.",
+    "HF F32 eager/no cache versus runtime F16 KV. No selected-F16 oracle, window resets or 64-step HF greedy reference.",
+    "The source/model/metadata pins identify this captured run; subsequent HF tool portability changes are not claimed tested by it.",
+    "All six strict top1 counts are246/247; all-row ranking misses and gaps remain diagnostic. No new tolerance or acceptance rule is set.",
+    "Standard six short prompts and six distinct reset windows remain missing.",
+    "Original supplemental CPU/device failure, half-weight numerical hold and original CPU31 allocation failure remain retained. This record supplies no waiver or merge claim."
+  ],
+  "server_correction": {
+    "head": "da38d13a82ed07fb77b97944bd0e501f3a97314f",
+    "published_remotes": [
+      "gitea",
+      "github"
+    ],
+    "verified_heads": [
+      "da38d13a82ed07fb77b97944bd0e501f3a97314f",
+      "da38d13a82ed07fb77b97944bd0e501f3a97314f"
+    ],
+    "ci_run": 37104221441,
+    "ci_jobs_passed": 7,
+    "landing_evidence": {
+      "path": ".tmp-server-host-resume-witness-run-20261003/landing.json",
+      "sha256": "2e3d56e1231167e6b925c13b3fc93d08a86be3ed4404d1af053b6e844df5e801"
+    },
+    "ci_evidence": {
+      "path": ".tmp-server-host-resume-witness-run-20261003/ci/complete.json",
+      "sha256": "f18a94f0a825ee53adb0ef31b9451064289abcd79b7133d74cf457a36958a2bb"
+    }
+  },
+  "raw_evidence": {
+    ".tmp-hf-moe-file-exact-evidence-20261003/comparison/results/analysis.json": {
+      "sha256": "2853ddd9065618c100e530e0c56f3a0bfc72672fc0793c72550532e6f20c182d",
+      "bytes": 39865
+    },
+    ".tmp-hf-moe-file-exact-evidence-20261003/comparison/vectors.json": {
+      "sha256": "c8e78351560b7a2e257acf84dcff2bec562dc09868a9da5f4d640148bf9e94b8",
+      "bytes": 12763
+    },
+    ".tmp-hf-moe-file-exact-evidence-20261003/comparison/compare.py": {
+      "sha256": "3fc7659337c1cf24f6463f5ea5ca4aa8325579f0a3900e9f4e59aa22b4e2d226",
+      "bytes": 11684
+    },
+    ".tmp-hf-moe-file-exact-evidence-20261003/comparison/rig-terminal.json": {
+      "sha256": "883b59b1c139ac02aa85932c2e4e5e9d895774373510ac8ce8c7948d31f8a003",
+      "bytes": 1722
+    },
+    ".tmp-hf-moe-file-exact-evidence-20261003/real247/execution/worker-complete.json": {
+      "sha256": "98c0232cd716f8eda1e2bebbfcdfae5f3a2058788336cd50500927c2a7400506",
+      "bytes": 7461
+    },
+    ".tmp-hf-moe-file-exact-evidence-20261003/real247/execution/complete.json": {
+      "sha256": "c251f2d23ddb36cfa85f66c5aea4400885b23252bdb5c644ba15d4f307ef2344",
+      "bytes": 432
+    },
+    ".tmp-hf-moe-file-exact-evidence-20261003/real247/execution/qualification.json": {
+      "sha256": "442feaf65527b8d6919481a2b49f0aa00ca4798aedc047c10a5f8c176da36243",
+      "bytes": 943
+    },
+    ".tmp-hf-moe-file-exact-evidence-20261003/real247/execution/start.json": {
+      "sha256": "2ac5363cafa71b57bee9b6f4d5c23a56a660fd6411f48f3440a68aca7924a147",
+      "bytes": 600
+    },
+    ".tmp-hf-moe-file-exact-evidence-20261003/real247/execution/plan.json": {
+      "sha256": "6c466601a94677c08c5b301beca23a71ea3c242905da26110df2aded8f302572",
+      "bytes": 5870
+    },
+    ".tmp-hf-moe-file-exact-evidence-20261003/real247/execution/memory.jsonl": {
+      "sha256": "2fb4b41519c847278bff9ddd4c3dc84c91b2ae9880c3352a71e8f6533c88903c",
+      "bytes": 74224
+    },
+    ".tmp-hf-moe-file-exact-evidence-20261003/real247/execution/progress.jsonl": {
+      "sha256": "2b27c2f54ea0fec837b6d0ecc1365e0bcc1e86470bb7531780e6e7804bdfa2d8",
+      "bytes": 18849
+    },
+    ".tmp-hf-moe-file-exact-evidence-20261003/real247/launcher-diagnosis.json": {
+      "sha256": "027cca657752e12c80ba23da9f17568e5978ab792619ddbc2a326fca6a5863f1",
+      "bytes": 2202
+    }
+  }
+}

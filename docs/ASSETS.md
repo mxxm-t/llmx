@@ -875,7 +875,7 @@ diagnostic. Hosted jobs do not provision this pinned HF environment, so they do
 not run that hand check.
 
 The pinned 30B UD file needs 113.741 GiB for all widened weights, or 2.321 GiB for
-its largest decoder layer. One fixed 247-token independent F32 HF forward has completed, with its source, output hash, memory evidence and sampling limitation recorded in STATUS. Standard prompt and reset-window goldens have not been generated.
+its largest decoder layer. One fixed 247-token independent F32 HF forward has completed, with its source, output hash, memory evidence and sampling limitation recorded in STATUS. Six standard prompt and six distinct reset-window references have now been generated locally; the standard file-exact baseline checks pass on CPU and two MI50s at their unchanged bounds. The separate supplemental full-vocabulary criterion remains unresolved.
 The supplemental CPU/device criterion and its retained failures remain unchanged;
 adding a reference generator does not approve that file or alter any bound.
 

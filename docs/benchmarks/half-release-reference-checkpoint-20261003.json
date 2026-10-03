@@ -1,0 +1,1227 @@
+{
+  "scope": "Completed rebase native checks, twelve file-exact HF references, standard30B CPU/two-MI50 consumers and published tools dependency; original supplemental numerical hold and half exact-head CI remain open.",
+  "tested_runtime_head": "0eadcb88ffe3bc3fd3359513d98957b4f7b4a39c",
+  "source_composition": {
+    "path": ".tmp-half-release-20261003/source-proof.json",
+    "bytes": 11991,
+    "sha256": "4b642bfcaacb1d1bfb3e44adaf3a9322efb6dc68eebdd14ab18ec10b313ebd8b"
+  },
+  "native": {
+    "linux": {
+      "evidence": {
+        "path": ".tmp-half-release-20261003/linux/rig-complete.json",
+        "bytes": 36936,
+        "sha256": "91bfa249760c20aa831bbf5ed2d19295ae1c87fa42a68a8811045cddb36675af"
+      },
+      "head": "0eadcb88ffe3bc3fd3359513d98957b4f7b4a39c",
+      "version": "llmx 0.1.0+g0eadcb88ffe3",
+      "compiler": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "native": {
+        "passed": 43,
+        "failed": 0,
+        "skipped": 0
+      },
+      "binaries": {
+        "llmx": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build/llmx",
+          "bytes": 4957576,
+          "sha256": "6a74916c5025afe52aae057585fadd9ae17772d30fafcfdd6f818a104db6a2f7"
+        },
+        "llmx-model-logits": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build/llmx-model-logits",
+          "bytes": 4176192,
+          "sha256": "4f6f1cb03284b06f6d3df9aeaaf4c82bb69401dd8cf52367bf205ec84a4dd45c"
+        },
+        "llmx-split-check": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build/llmx-split-check",
+          "bytes": 4266488,
+          "sha256": "4cd06b4d4a41a0ca67afa952c39f9d1dfee879a34d8c298dbfd315484bebfbd2"
+        },
+        "llmx-decode-probe": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build/llmx-decode-probe",
+          "bytes": 4191800,
+          "sha256": "3a4dab07460a506ae3d6d67d1902140bca45cff9293091d07f328f7ce25cb797"
+        },
+        "llmx-cpu-f32-check": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build/llmx-cpu-f32-check",
+          "bytes": 1163632,
+          "sha256": "bcb5eec703a1fa3fc4b6171de70cc8b3f3f0be79cb9e3e9bd8daf4a8373fec54"
+        },
+        "llmx-backend-vulkan-test": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build/llmx-backend-vulkan-test",
+          "bytes": 3897888,
+          "sha256": "d63328b09cefe105eb611b10d1ae2806c05c4862b0c94bdf582505055a73152c"
+        },
+        "llmx-half-weights-test": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build/llmx-half-weights-test",
+          "bytes": 393736,
+          "sha256": "ee11e3300e0e6c02946a9daa36c7527b5c8eb45ddc3d0e27a144a44169e2909c"
+        }
+      },
+      "build_artifacts": {
+        "libllmx-vulkan.a": {
+          "bytes": 3170766,
+          "sha256": "4df0aa735b0aaad3e9df90e3162ec5c8dd411c881d166fbb62bcfb9445e72ef3"
+        },
+        "generated/config.hpp": {
+          "bytes": 590,
+          "sha256": "491660170fc92e8abfacfc8144606ffc56f159069514c2a1684738c532e0b57c"
+        },
+        "CMakeCache.txt": {
+          "bytes": 15631,
+          "sha256": "106231443e7fce23b7cbadf20d58ffca46e326711ee135f0da6d201977f28ff9"
+        },
+        "CMakeFiles/llmx.dir/flags.make": {
+          "bytes": 516,
+          "sha256": "6e6d08cabe2d976c7186435a625bbd639b3fbc37706db878ef36d3e6683863e4"
+        },
+        "CMakeFiles/llmx.dir/link.txt": {
+          "bytes": 145,
+          "sha256": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+        }
+      },
+      "shaders": {
+        "comparison_head": "09638ba2d8bd3e31d118e59c9a60087f6d231737",
+        "main_count": 117,
+        "candidate_count": 117,
+        "all_old_identical": true,
+        "new": []
+      },
+      "commands": [
+        {
+          "label": "configure",
+          "command": [
+            "docker",
+            "exec",
+            "--workdir",
+            "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/source",
+            "llmx-xdev-vulkan-weight-dispatch-20261002",
+            "prlimit",
+            "--core=0:0",
+            "--",
+            "timeout",
+            "--kill-after=10",
+            "180",
+            "cmake",
+            "-S",
+            "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/source",
+            "-B",
+            "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DLLMX_HAS_BACKEND_VULKAN=ON"
+          ],
+          "returncode": 0
+        },
+        {
+          "label": "build",
+          "command": [
+            "docker",
+            "exec",
+            "--workdir",
+            "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/source",
+            "llmx-xdev-vulkan-weight-dispatch-20261002",
+            "prlimit",
+            "--core=0:0",
+            "--",
+            "timeout",
+            "--kill-after=10",
+            "1800",
+            "cmake",
+            "--build",
+            "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build",
+            "--parallel",
+            "4"
+          ],
+          "returncode": 0
+        },
+        {
+          "label": "ctest",
+          "command": [
+            "docker",
+            "exec",
+            "--workdir",
+            "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/source",
+            "llmx-xdev-vulkan-weight-dispatch-20261002",
+            "prlimit",
+            "--core=0:0",
+            "--",
+            "timeout",
+            "--kill-after=10",
+            "1800",
+            "ctest",
+            "--test-dir",
+            "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build",
+            "--parallel",
+            "2",
+            "--output-on-failure"
+          ],
+          "returncode": 0
+        }
+      ],
+      "source_and_binaries_unchanged_after_tests": true,
+      "terminal_processes": "PID                 STAT                COMMAND\n3617039             Ss                  docker-init\n3617053             S                   sleep",
+      "gpu_released_after_native": true
+    },
+    "windows": {
+      "evidence": {
+        "path": ".tmp-half-release-20261003/windows/execution/complete.json",
+        "bytes": 13725,
+        "sha256": "4d78be951e74b26d6458aceb6044f4e7db67fb5f9ee55ae5480af508aef7952c"
+      },
+      "head": "0eadcb88ffe3bc3fd3359513d98957b4f7b4a39c",
+      "version": "llmx 0.1.0+g0eadcb88ffe3",
+      "compiler": {
+        "id": "MSVC",
+        "version": "19.50.35728.0",
+        "architecture": "x64",
+        "path": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe",
+        "description": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build\\CMakeFiles\\4.3.1\\CMakeCXXCompiler.cmake",
+        "description_sha256": "265b5199e868a8bec1db656b918f8d90ff303859996616b8161b6dd478d46d3a",
+        "executable_sha256": "194ddf4aafcb74452218a982309a97de30e0adb33edf4af02904ee107213e782"
+      },
+      "native": {
+        "cpu": 39,
+        "vulkan": 5,
+        "total": 44,
+        "skipped": 0,
+        "expected_ordinary_subcase_exclusions": 7488,
+        "preserving_subcase_exclusions": 0
+      },
+      "artifacts": {
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build\\Release\\llmx.exe": {
+          "bytes": 4433920,
+          "sha256": "bec95907bc4cbd8252e7c23dfd248d4245d019197784460ae3da674605f59f3f"
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build\\Release\\llmx-model-logits.exe": {
+          "bytes": 3756032,
+          "sha256": "4ee7c382d7fa85e806d2927897093b6ed342915d142969aeab83140171c7069c"
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build\\Release\\llmx-vulkan.lib": {
+          "bytes": 4735610,
+          "sha256": "9f8e12c4af5d73feccd308d90c54c5f3b7adcf022f8949c381296fdcb3f223a2"
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build\\generated\\config.hpp": {
+          "bytes": 605,
+          "sha256": "b5de92ffb78768a726a4030c7e5961c582ab1d7876a647f82dff9aa5691583fb"
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build\\CMakeCache.txt": {
+          "bytes": 16438,
+          "sha256": "18d769cfcbbe16287908940fefbf7562d917e7761f97cab93d0c05c0a4a85243"
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build\\llmx.vcxproj": {
+          "bytes": 88299,
+          "sha256": "7417b6037c1fd0f4789982d48ff6351aa2f3299e8f0da5a5d02c44d2ebe8d63b"
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build\\llmx-vulkan.vcxproj": {
+          "bytes": 82334,
+          "sha256": "12119481338b08940dc927a06eb5fd542261db54ae169cbd5f5f69b2970d1166"
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build\\CMakeFiles\\4.3.1\\CMakeCXXCompiler.cmake": {
+          "bytes": 6480,
+          "sha256": "265b5199e868a8bec1db656b918f8d90ff303859996616b8161b6dd478d46d3a"
+        }
+      },
+      "gpu0": "apiVersion         = 1.3.260\n\tdriverVersion      = 2.0.279\n\tvendorID           = 0x1002\n\tdeviceID           = 0x66af\n\tdeviceType         = PHYSICAL_DEVICE_TYPE_DISCRETE_GPU\n\tdeviceName         = AMD Radeon VII\n\tdriverID           = DRIVER_ID_AMD_PROPRIETARY\n\tdriverName         = AMD proprietary driver\n\tdriverInfo         = 26.5.2 (AMD proprietary shader compiler)\n\tconformanceVersion = 1.3.3.1\n\tdeviceUUID         = 00000000-2d00-0000-0000-000000000000\n\tdriverUUID         = 414d442d-5749-4e2d-4452-560000000000",
+      "all_117_shader_modules_identical": true,
+      "commands": [
+        {
+          "label": "configure",
+          "command": [
+            "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/bin/cmake.exe",
+            "-S",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\source",
+            "-B",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build",
+            "-G",
+            "Visual Studio 18 2026",
+            "-DLLMX_HAS_BACKEND_VULKAN=ON",
+            "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+            "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include"
+          ],
+          "returncode": 0
+        },
+        {
+          "label": "build",
+          "command": [
+            "C:/Users/Marko/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/bin/cmake.exe",
+            "--build",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build",
+            "--config",
+            "Release",
+            "--parallel",
+            "2"
+          ],
+          "returncode": 0
+        },
+        {
+          "label": "native-cpu",
+          "command": [
+            "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\cmake\\data\\bin\\ctest.exe",
+            "--test-dir",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build",
+            "-C",
+            "Release",
+            "--output-on-failure",
+            "--parallel",
+            "2",
+            "-E",
+            "vulkan"
+          ],
+          "returncode": 0
+        },
+        {
+          "label": "native-vulkan",
+          "command": [
+            "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\cmake\\data\\bin\\ctest.exe",
+            "--test-dir",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build",
+            "-C",
+            "Release",
+            "--output-on-failure",
+            "--parallel",
+            "1",
+            "-R",
+            "vulkan"
+          ],
+          "returncode": 0
+        },
+        {
+          "label": "docs-dead-code",
+          "command": [
+            "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "-X",
+            "utf8",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\source\\tests\\run_tests.py",
+            "--exe",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-release-20261003\\windows\\build\\Release\\llmx.exe",
+            "--only",
+            "docs,dead-code"
+          ],
+          "returncode": 0
+        }
+      ],
+      "logs": {
+        "build.log": {
+          "bytes": 26772,
+          "sha256": "7a7d3b37df56d69aa2ea6c7c181f4f2e466cb36e77b41fff6ce69eb728fe2cb6"
+        },
+        "configure.log": {
+          "bytes": 909,
+          "sha256": "e5002eafa77949d9fe9ecfa67ecbeaedfab0e6a58738c24c36f085a653aa2e63"
+        },
+        "docs-dead-code.log": {
+          "bytes": 251,
+          "sha256": "c34eabda061b76d0f69a4a870f09abc9a1e08174d208eba7d345f8e0e66304bb"
+        },
+        "native-cpu.log": {
+          "bytes": 4065,
+          "sha256": "7839b65da69bc6a9f90dda94350ecb5339c74d9c627deb649b286ea23184632f"
+        },
+        "native-vulkan.log": {
+          "bytes": 670,
+          "sha256": "0ebd59acd099066073e8802cc6e56dc39e3da074a28dcae50073a67b5c70dd0a"
+        }
+      },
+      "source_and_artifacts_unchanged": true,
+      "ordinary_subcase_exclusions": "7488 ordinary nonpreserving-module subcases intentionally omitted exactly as before; preserving variants have zero exclusions. All44 native test cases pass."
+    }
+  },
+  "hf_reference": {
+    "source_commit": "d9c37b072b27c0dfab6218233c978aab4aeb8fca",
+    "policy": "Independent GGUF spec decoding; exact file weights widened to F32; HF Qwen3Moe eager CPU forward, F32 activations and sums, no KV cache. Twelve new full-input forwards (six prompts and six reset windows), reusing verified247 output. Not literal-F16 or F16-KV reference.",
+    "versions": {
+      "torch": "2.5.1+cpu",
+      "transformers": "4.55.2",
+      "numpy": "2.2.6"
+    },
+    "model": {
+      "file": "Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+      "sha256": "25693e28926e2277d9edd0f55d33ddb6fea8f10e344105b02e4bf328f37f1c3a",
+      "bytes": 35989944896,
+      "repo": "unsloth/Qwen3-30B-A3B-GGUF",
+      "revision": "d5b1d57bd0b504ac62ae6c725904e96ef228dc74",
+      "types": {
+        "BF16": 1980,
+        "F32": 241,
+        "Q8_0": 16646
+      },
+      "tensors": 18867,
+      "decoder": "tests/spec_decode.py, numpy form",
+      "source_tensors": 579,
+      "source_tensor_types": {
+        "BF16": 75,
+        "F32": 241,
+        "Q8_0": 263
+      }
+    },
+    "metadata_repo": "Qwen/Qwen3-30B-A3B",
+    "metadata_revision": "ad44e777bcd18fa416d9da3bd8f70d33ebb85d39",
+    "metadata_revision_scope": "Pinned fetched config/tokenizer revision, not proven original conversion revision. Exact GGUF payload supplies all weights.",
+    "source_files": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tools\\gen_baseline.py": "d261e900c69cff075791fba6eaff4f434dfafd8966685cec6212bdc4d4a07927",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tools\\gen_layered_reference.py": "60b745627d754081a5130fab6a80e2ebcffa9034c448ed71b97f8e04ef703e21",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tests\\spec_decode.py": "0e6ae071f9e60919af54f037e62fbaf5d2d4563bb7249e3b246d585b107cfcd6",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tests\\f32.py": "a1b5b805d1c7f5adb6ac40cae23c9cf3cfe26c73212d3a55bde5395e3d3de503",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tests\\moe.py": "30be6aaf2818d3f1d45a53c983da0579cf5eec30da4f3a8e97aaddaa923ba3d5",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tests\\qwen35.py": "609937df85bd8cdfce8181f35e228ef09772b7ca2382f9df2432ffe588436835",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-20261003\\tests\\common.py": "01877fcbe5d04c333baf28e4e5e61d2d2caffbfdd5121d1d39430eb3b42d7c1c"
+    },
+    "supervisor_evidence": {
+      "path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/complete.json",
+      "bytes": 425,
+      "sha256": "2677c960c161609504daf57d78c298b8f9b95c842f16be1ee7cc90f22d59370c"
+    },
+    "worker_evidence": {
+      "path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/worker-complete.json",
+      "bytes": 16088,
+      "sha256": "ad61a2e1a5c816107b338a6a43f3c1a8a4b0162cc811ddb315550e21ed785366"
+    },
+    "plan_evidence": {
+      "path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/launch-plan.json",
+      "bytes": 22489,
+      "sha256": "8366d6b2daf240a04b644d7fb140ff82b3f1d43fc92bd3035c78c67b8913939c"
+    },
+    "memory_samples_evidence": {
+      "path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/memory.jsonl",
+      "bytes": 726487,
+      "sha256": "4e4d5e55d1330b7512e6cde6294a76bae597314afcdaa040154f3f905ec37bf0"
+    },
+    "new_forward_count": 12,
+    "short_prompts": 6,
+    "distinct_reset_windows": 6,
+    "new_input_tokens": 543,
+    "captures": [
+      {
+        "case": 0,
+        "labels": [
+          "logits 0"
+        ],
+        "shape": [
+          5,
+          151936
+        ],
+        "bytes": 3038720,
+        "sha256": "e579110fdd801ce15c1ef399f75bc842ae820b5e1ac1acb1af4009e31908f6ae",
+        "input_ids_sha256_le_u32": "5d2eb20a2c858ea86a32b984887767141c5b02b7530bdcc42b0fa31d31cee0d0",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-00.f32"
+      },
+      {
+        "case": 1,
+        "labels": [
+          "logits 1"
+        ],
+        "shape": [
+          3,
+          151936
+        ],
+        "bytes": 1823232,
+        "sha256": "0de5aa3568fd28643933d53696ec45e32b98b2d3197a1d1e33dfb18d7157e637",
+        "input_ids_sha256_le_u32": "2c4845e617ab4f59f46856da70c923a851178b37d3e3ed284128db19164e7ba4",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-01.f32"
+      },
+      {
+        "case": 2,
+        "labels": [
+          "logits 2"
+        ],
+        "shape": [
+          6,
+          151936
+        ],
+        "bytes": 3646464,
+        "sha256": "a9a61b23cda43f79fb95777a31bec860ef3376388c06feea49c4cc9544578da1",
+        "input_ids_sha256_le_u32": "b0fa8beb3543c656d269a8b6da5f4242e8ca323e1cf852ecc5e137e03e408044",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-02.f32"
+      },
+      {
+        "case": 3,
+        "labels": [
+          "logits 3"
+        ],
+        "shape": [
+          7,
+          151936
+        ],
+        "bytes": 4254208,
+        "sha256": "dab87c1e45943d39e03277f330e367201d7e61c4ae95e3538a142ec1ab91f5ce",
+        "input_ids_sha256_le_u32": "d2e18f7967c7506f934f71670b68a30a13f6834e9f6152144e0287594b130cfa",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-03.f32"
+      },
+      {
+        "case": 4,
+        "labels": [
+          "logits 4"
+        ],
+        "shape": [
+          12,
+          151936
+        ],
+        "bytes": 7292928,
+        "sha256": "043db7b620d867ca0f9ec8e7ebb706a3558999f1f9c602403cb10fed39e75e6a",
+        "input_ids_sha256_le_u32": "17ce84c47ec70a4aada7693b7c37f30dbb1a9b9979531ea6a3a80619bd22557b",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-04.f32"
+      },
+      {
+        "case": 5,
+        "labels": [
+          "logits 5"
+        ],
+        "shape": [
+          17,
+          151936
+        ],
+        "bytes": 10331648,
+        "sha256": "78e52b0dc25c39437a5d15161590f6bd4769f8286a48a530d1f8d00c4c69c49f",
+        "input_ids_sha256_le_u32": "cc6c88b117febf3b8674bc48a8879ab45df1a7d163ae3b5edc2be5a136a80f9a",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-05.f32"
+      },
+      {
+        "case": 7,
+        "labels": [
+          "perplexity 64/0 [0, 64)",
+          "perplexity 64/2 [0, 64)"
+        ],
+        "shape": [
+          64,
+          151936
+        ],
+        "bytes": 38895616,
+        "sha256": "ee55e4b99068297e0670e98397cbff8e5096fc2451bcbe967d50fbfe47006138",
+        "input_ids_sha256_le_u32": "8750dde8eb1aacf94820f652b38249dc1e691b7645e966914ae2f3075b26d99c",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-07.f32"
+      },
+      {
+        "case": 8,
+        "labels": [
+          "perplexity 64/0 [64, 128)",
+          "perplexity 64/2 [64, 128)"
+        ],
+        "shape": [
+          64,
+          151936
+        ],
+        "bytes": 38895616,
+        "sha256": "ec86e98d931fe846cf2b809bbcd3e3fe68fb3865e0a60bbf9c80fa23a3faf128",
+        "input_ids_sha256_le_u32": "3df8d72818e5f965903fe0a3780110ef1140f34024663628d000eaff56828d71",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-08.f32"
+      },
+      {
+        "case": 9,
+        "labels": [
+          "perplexity 64/0 [128, 192)"
+        ],
+        "shape": [
+          64,
+          151936
+        ],
+        "bytes": 38895616,
+        "sha256": "100d4f097ff804b903574bcf5a40fd34323b9bd669fd8becc5a9fff89dde8658",
+        "input_ids_sha256_le_u32": "ab193d09a085c7e905e943272d5b10dafb05c2be6c9e94c2726136ffecad54c5",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-09.f32"
+      },
+      {
+        "case": 10,
+        "labels": [
+          "perplexity 64/0 [192, 247)"
+        ],
+        "shape": [
+          55,
+          151936
+        ],
+        "bytes": 33425920,
+        "sha256": "c93fe7a3c5c926bce13e7c17c38ef1f83d8da23b9ce135e1d669bbd0e78b0ebf",
+        "input_ids_sha256_le_u32": "9ab2036e95ae32feb1ee3bd476339ebee52a2fa72a532c6bbc1bfa46e421f4b8",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-10.f32"
+      },
+      {
+        "case": 11,
+        "labels": [
+          "perplexity 123/0 [0, 123)"
+        ],
+        "shape": [
+          123,
+          151936
+        ],
+        "bytes": 74752512,
+        "sha256": "f0a5f272ec7e7cd0fa3fcf09314db88a1331b848bc924bbcd5a0d9724c94ad51",
+        "input_ids_sha256_le_u32": "156334ea6cc3438fd2c4a9a4af054033fbbfb78fff0fca452d4fdebc335ce906",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-11.f32"
+      },
+      {
+        "case": 12,
+        "labels": [
+          "perplexity 123/0 [123, 246)"
+        ],
+        "shape": [
+          123,
+          151936
+        ],
+        "bytes": 74752512,
+        "sha256": "be007ea9443641a50dcca2c08c15ad2fb2fc586ee085b6169a635ece2707749b",
+        "input_ids_sha256_le_u32": "1f4f83742120d103b9335be1f0f22144613cc4e4f932fa3351fc7ecf04436126",
+        "raw_path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/case-12.f32"
+      }
+    ],
+    "reuse": {
+      "worker_complete": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\real247\\execution\\worker-complete.json",
+      "logits": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\real247\\execution\\logits.f32",
+        "sha256": "2e1d01f1ba0320412b8223d11cc125104de0af629783bf12c34290725dade650",
+        "bytes": 150112768,
+        "shape": [
+          247,
+          151936
+        ],
+        "storage": "little-endian IEEE binary32"
+      },
+      "manifest_files": {
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\real247\\execution\\worker-complete.json": "98c0232cd716f8eda1e2bebbfcdfae5f3a2058788336cd50500927c2a7400506",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\real247\\execution\\complete.json": "c251f2d23ddb36cfa85f66c5aea4400885b23252bdb5c644ba15d4f307ef2344",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\real247\\execution\\qualification.json": "442feaf65527b8d6919481a2b49f0aa00ca4798aedc047c10a5f8c176da36243"
+      },
+      "scope": "All247 original input rows reused from the completed F32 HF reference; no repeat forward."
+    },
+    "goldens": [
+      {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/baseline_logits.json",
+        "bytes": 4095,
+        "sha256": "2f36b8350261a2bc641a2ee85b57dea5ec793b5b413cb43e21dfd2516fd13a86"
+      },
+      {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/remaining-cases/execution/baseline_perplexity.json",
+        "bytes": 5509,
+        "sha256": "c38a7e03be03bc2d77bd0d936ace7a9c442bb641fddfaad85915fa6b0921ae89"
+      }
+    ],
+    "terminal": {
+      "complete": true,
+      "passed": true,
+      "returncode": 0,
+      "actual_worker_exited": true,
+      "seconds_supervised": 1737.3439999999828,
+      "seconds_worker": 1736.0160000000033,
+      "actual_worker_samples": 3468,
+      "peak_working_set_bytes": 3544649728,
+      "peak_working_set_gib": 3.3012123107910156,
+      "sampling_limit": "0.5-second sampled abort after actual-worker handshake; transient overshoot remains possible",
+      "memory_contract": "Actual worker PID/parent/nonce/creation-time handshake before model work;0.5-second sampled abort at8GiB lifetime peak/3600s. Transient overshoot remains possible; no OS memory cap claimed."
+    },
+    "limits": [
+      "No new precision bound and no automatic runtime pass/fail from this reference alone.",
+      "Selected token IDs already match metadata tokenization; BOS/PAD defaults differ outside this unpadded no-special-token case.",
+      "No model assets are downloaded; missing pins fail.",
+      "Timeout or memory failure is retained with no automatic retry."
+    ]
+  },
+  "runtime_comparison": {
+    "state_at_checkpoint": "Standard file-exact baseline consumer completed PASS on CPU and two-MI50 at tested0ead. The separate original supplemental30B criterion remains unresolved.",
+    "head": "0eadcb88ffe3bc3fd3359513d98957b4f7b4a39c",
+    "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build/llmx",
+    "exe_sha256": "6a74916c5025afe52aae057585fadd9ae17772d30fafcfdd6f818a104db6a2f7",
+    "version": "llmx 0.1.0+g0eadcb88ffe3",
+    "retained_plan": {
+      "path": ".tmp-half-release-20261003/docs-review/reference-checkpoint/consumer-plan-snapshot.json",
+      "bytes": 10342,
+      "sha256": "ee802f1883835d4104e4d5334b3a2f38f2c852fa4ab66f89bf24bb56905f1b71"
+    },
+    "remote_root": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/hf30b-file-exact-consumer-02",
+    "bounds": {
+      "top5_overlap": 5,
+      "continuous_nll": 0.01,
+      "window_nll": 0.02
+    },
+    "devices": {
+      "cpu": {
+        "device": "cpu",
+        "allowed_matrix_paths": [
+          "f32"
+        ]
+      },
+      "mi50-split": {
+        "device": "vulkan:0,vulkan:1",
+        "allowed_matrix_paths": [
+          "f32",
+          "block-int16"
+        ]
+      }
+    },
+    "settings": "Default activation policy, F16 KV, auto loading, ubatch512. Standard baseline owner unchanged.",
+    "first_preflight": {
+      "evidence": {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/runtime-consumer/preflight-01/complete.json",
+        "bytes": 615,
+        "sha256": "042d4899e9c0f9ba32ea74ce28f6a8c85ebb70c9b5f7b4330f6378773d28c9ca"
+      },
+      "passed": false,
+      "model_arms_started": 0,
+      "cause": "48GiB host admission check failed before any model or cap change; original attempt retained."
+    },
+    "revised_admission": {
+      "minimum_host_available_bytes": 17179869184,
+      "basis": "At0ead, model/layer_split.hpp skips resident weight bytes for a reads_in_place backend (line117). CPU maps this file; the40GiB cgroup cap is not a reservation.16GiB free headroom covers anonymous cache/activations/staging while clean mapped pages remain reclaimable. No performance claim.",
+      "owned_memory_and_swap_cap_bytes": 42949672960,
+      "restore_after_owned_children_drain_bytes": 34359738368,
+      "restored_after_owned_children_drained": true
+    },
+    "original_mandatory_30b_failure_unchanged": true,
+    "results": {
+      "cpu": {
+        "evidence": {
+          "path": ".tmp-hf-moe-file-exact-evidence-20261003/runtime-consumer/execution/cpu/complete.json",
+          "bytes": 23332,
+          "sha256": "450d3b58b1360dde984c89244f67ffec1c068030aca6e0540de02d2e586726a1"
+        },
+        "consumer_stdout": {
+          "path": ".tmp-hf-moe-file-exact-evidence-20261003/runtime-consumer/execution/host/cpu.stdout",
+          "bytes": 1150,
+          "sha256": "00ac33d80211a906fd5a71688d5ade20a45a9bc02af42b10262a3c3d424310e1"
+        },
+        "consumer_stderr": {
+          "path": ".tmp-hf-moe-file-exact-evidence-20261003/runtime-consumer/execution/host/cpu.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "passed": true,
+        "consumer_returncode": 0,
+        "wrapper_invariants_passed": true,
+        "version": "llmx 0.1.0+g0eadcb88ffe3",
+        "plan_sha256": "ee802f1883835d4104e4d5334b3a2f38f2c852fa4ab66f89bf24bb56905f1b71",
+        "consumer_argv": [
+          "tests/baseline.py",
+          "--exe",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build/llmx",
+          "--device",
+          "cpu",
+          "--file-exact",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/hf30b-file-exact-consumer-02/goldens",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/cache/models--unsloth--Qwen3-30B-A3B-GGUF/snapshots/d5b1d57bd0b504ac62ae6c725904e96ef228dc74/Qwen3-30B-A3B-UD-Q8_K_XL.gguf"
+        ],
+        "cli_calls": [
+          {
+            "index": 0,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 1,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 2,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 3,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 4,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 5,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 6,
+            "command": "tokenize",
+            "returncode": 0
+          },
+          {
+            "index": 7,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 8,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 9,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 10,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 11,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 12,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 13,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 14,
+            "command": "perplexity",
+            "returncode": 0
+          }
+        ],
+        "cli_output_hashes": "Every call stdout/stderr hash is retained in the verified download manifest and arm completion record named above.",
+        "completed_cli_calls": 15,
+        "unexecuted_cli_calls": 0,
+        "skips": 0,
+        "reported_checks_passed": 9,
+        "completed_matrix_witnesses": 14,
+        "all_witnesses_equal": true,
+        "matrix_witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "short_prompts": {
+          "top1_exact": 6,
+          "top5_set_exact": 6,
+          "top5_order_exact": 6,
+          "total": 6
+        },
+        "nll_results": [
+          {
+            "window_tokens": 0,
+            "chunks": 1,
+            "mode": "batched",
+            "runtime_ppl_reported": 10.724,
+            "hf_ppl_reported": 10.752,
+            "absolute_nll_delta_reported": 0.002614,
+            "bound": 0.01,
+            "headroom_from_reported_delta": 0.007386
+          },
+          {
+            "window_tokens": 0,
+            "chunks": 1,
+            "mode": "per-token",
+            "runtime_ppl_reported": 10.7202,
+            "hf_ppl_reported": 10.752,
+            "absolute_nll_delta_reported": 0.002964,
+            "bound": 0.01,
+            "headroom_from_reported_delta": 0.007036
+          },
+          {
+            "window_tokens": 64,
+            "chunks": 4,
+            "mode": "batched",
+            "runtime_ppl_reported": 19.2214,
+            "hf_ppl_reported": 19.215,
+            "absolute_nll_delta_reported": 0.000337,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.019663
+          },
+          {
+            "window_tokens": 64,
+            "chunks": 4,
+            "mode": "per-token",
+            "runtime_ppl_reported": 19.2241,
+            "hf_ppl_reported": 19.215,
+            "absolute_nll_delta_reported": 0.000467,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.019533
+          },
+          {
+            "window_tokens": 64,
+            "chunks": 2,
+            "mode": "batched",
+            "runtime_ppl_reported": 13.9836,
+            "hf_ppl_reported": 14.0047,
+            "absolute_nll_delta_reported": 0.001503,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.018497
+          },
+          {
+            "window_tokens": 64,
+            "chunks": 2,
+            "mode": "per-token",
+            "runtime_ppl_reported": 13.9865,
+            "hf_ppl_reported": 14.0047,
+            "absolute_nll_delta_reported": 0.001303,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.018697
+          },
+          {
+            "window_tokens": 123,
+            "chunks": 2,
+            "mode": "batched",
+            "runtime_ppl_reported": 13.2309,
+            "hf_ppl_reported": 13.2621,
+            "absolute_nll_delta_reported": 0.002349,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.017651
+          },
+          {
+            "window_tokens": 123,
+            "chunks": 2,
+            "mode": "per-token",
+            "runtime_ppl_reported": 13.2272,
+            "hf_ppl_reported": 13.2621,
+            "absolute_nll_delta_reported": 0.002629,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.017371
+          }
+        ],
+        "max_continuous_nll_delta_reported": 0.002964,
+        "continuous_bound": 0.01,
+        "continuous_headroom_from_reported_delta": 0.007036,
+        "max_window_nll_delta_reported": 0.002629,
+        "window_bound": 0.02,
+        "window_headroom_from_reported_delta": 0.017371,
+        "rounding_scope": "NLL values retain the six decimals printed by the unchanged baseline owner; full raw CLI records are retained."
+      },
+      "mi50-split": {
+        "evidence": {
+          "path": ".tmp-hf-moe-file-exact-evidence-20261003/runtime-consumer/execution/mi50-split/complete.json",
+          "bytes": 25578,
+          "sha256": "1ace96a52c728fa7e0fe69a1778dc91e0c0ce6379f4eb548a5c6007d7d57a5e1"
+        },
+        "consumer_stdout": {
+          "path": ".tmp-hf-moe-file-exact-evidence-20261003/runtime-consumer/execution/host/mi50-split.stdout",
+          "bytes": 1150,
+          "sha256": "c0162d07fc190172998a84fb2639ed95c60c2d2aa6444c570e26ecf7dc86cdef"
+        },
+        "consumer_stderr": {
+          "path": ".tmp-hf-moe-file-exact-evidence-20261003/runtime-consumer/execution/host/mi50-split.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "passed": true,
+        "consumer_returncode": 0,
+        "wrapper_invariants_passed": true,
+        "version": "llmx 0.1.0+g0eadcb88ffe3",
+        "plan_sha256": "ee802f1883835d4104e4d5334b3a2f38f2c852fa4ab66f89bf24bb56905f1b71",
+        "consumer_argv": [
+          "tests/baseline.py",
+          "--exe",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/build/llmx",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--file-exact",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-release-20261003/hf30b-file-exact-consumer-02/goldens",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/cache/models--unsloth--Qwen3-30B-A3B-GGUF/snapshots/d5b1d57bd0b504ac62ae6c725904e96ef228dc74/Qwen3-30B-A3B-UD-Q8_K_XL.gguf"
+        ],
+        "cli_calls": [
+          {
+            "index": 0,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 1,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 2,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 3,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 4,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 5,
+            "command": "logits",
+            "returncode": 0
+          },
+          {
+            "index": 6,
+            "command": "tokenize",
+            "returncode": 0
+          },
+          {
+            "index": 7,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 8,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 9,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 10,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 11,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 12,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 13,
+            "command": "perplexity",
+            "returncode": 0
+          },
+          {
+            "index": 14,
+            "command": "perplexity",
+            "returncode": 0
+          }
+        ],
+        "cli_output_hashes": "Every call stdout/stderr hash is retained in the verified download manifest and arm completion record named above.",
+        "completed_cli_calls": 15,
+        "unexecuted_cli_calls": 0,
+        "skips": 0,
+        "reported_checks_passed": 9,
+        "completed_matrix_witnesses": 14,
+        "all_witnesses_equal": true,
+        "matrix_witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ],
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "short_prompts": {
+          "top1_exact": 6,
+          "top5_set_exact": 6,
+          "top5_order_exact": 6,
+          "total": 6
+        },
+        "nll_results": [
+          {
+            "window_tokens": 0,
+            "chunks": 1,
+            "mode": "batched",
+            "runtime_ppl_reported": 10.7445,
+            "hf_ppl_reported": 10.752,
+            "absolute_nll_delta_reported": 0.000694,
+            "bound": 0.01,
+            "headroom_from_reported_delta": 0.009306
+          },
+          {
+            "window_tokens": 0,
+            "chunks": 1,
+            "mode": "per-token",
+            "runtime_ppl_reported": 10.7244,
+            "hf_ppl_reported": 10.752,
+            "absolute_nll_delta_reported": 0.002564,
+            "bound": 0.01,
+            "headroom_from_reported_delta": 0.007436
+          },
+          {
+            "window_tokens": 64,
+            "chunks": 4,
+            "mode": "batched",
+            "runtime_ppl_reported": 19.25,
+            "hf_ppl_reported": 19.215,
+            "absolute_nll_delta_reported": 0.001817,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.018183
+          },
+          {
+            "window_tokens": 64,
+            "chunks": 4,
+            "mode": "per-token",
+            "runtime_ppl_reported": 19.2236,
+            "hf_ppl_reported": 19.215,
+            "absolute_nll_delta_reported": 0.000447,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.019553
+          },
+          {
+            "window_tokens": 64,
+            "chunks": 2,
+            "mode": "batched",
+            "runtime_ppl_reported": 14.0233,
+            "hf_ppl_reported": 14.0047,
+            "absolute_nll_delta_reported": 0.001327,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.018673
+          },
+          {
+            "window_tokens": 64,
+            "chunks": 2,
+            "mode": "per-token",
+            "runtime_ppl_reported": 13.9852,
+            "hf_ppl_reported": 14.0047,
+            "absolute_nll_delta_reported": 0.001393,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.018607
+          },
+          {
+            "window_tokens": 123,
+            "chunks": 2,
+            "mode": "batched",
+            "runtime_ppl_reported": 13.2506,
+            "hf_ppl_reported": 13.2621,
+            "absolute_nll_delta_reported": 0.000869,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.019131
+          },
+          {
+            "window_tokens": 123,
+            "chunks": 2,
+            "mode": "per-token",
+            "runtime_ppl_reported": 13.2261,
+            "hf_ppl_reported": 13.2621,
+            "absolute_nll_delta_reported": 0.002719,
+            "bound": 0.02,
+            "headroom_from_reported_delta": 0.017281
+          }
+        ],
+        "max_continuous_nll_delta_reported": 0.002564,
+        "continuous_bound": 0.01,
+        "continuous_headroom_from_reported_delta": 0.007436,
+        "max_window_nll_delta_reported": 0.002719,
+        "window_bound": 0.02,
+        "window_headroom_from_reported_delta": 0.017281,
+        "rounding_scope": "NLL values retain the six decimals printed by the unchanged baseline owner; full raw CLI records are retained."
+      }
+    },
+    "download_manifest": {
+      "path": ".tmp-hf-moe-file-exact-evidence-20261003/runtime-consumer/execution/download-sha256.json",
+      "bytes": 6645,
+      "sha256": "32c3593436bf13763227879f9914b29a7ca9a52232b460ef8d4ed493e4c25b21"
+    },
+    "all_downloaded_artifacts_hash_verified": 69,
+    "host_terminal": {
+      "evidence": {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/runtime-consumer/execution/host/complete.json",
+        "bytes": 60137,
+        "sha256": "327f32649b688b20610134788b7f771337beeb484cc4f5369508ea33d3bc2d33"
+      },
+      "complete": true,
+      "passed": true,
+      "caps_restored": true,
+      "memory_and_swap_bytes": 34359738368,
+      "terminal_processes": "      1 docker-init\n      7 sleep\n   2287 ps\n",
+      "pressure_evidence": {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/runtime-consumer/execution/host/pressure.jsonl",
+        "bytes": 249156,
+        "sha256": "4077c131024fd14ebd2ae19db35a3c118bb4c787c340b7a7df38e112bf0fe539"
+      },
+      "end_resources_evidence": {
+        "path": ".tmp-hf-moe-file-exact-evidence-20261003/runtime-consumer/execution/host/end-resources.json",
+        "bytes": 2876,
+        "sha256": "984812bb716a02d367e0fc46207df8b408677fd400c4a330e3c0befa294e831d"
+      }
+    },
+    "limitations": [
+      "Standard six-prompt rankings and continuous/reset-window NLL pass at original bounds.",
+      "The fourteen completed witnesses per arm exclude only the tokenizer-only call; individual CLI stderr retains path diagnostics while aggregate consumer stderr is empty.",
+      "This is neither a rerun nor a waiver of the retained supplemental CPU/device full-vocabulary criterion; no Radeon30B or blanket release pass is claimed.",
+      "No new performance measurements or bound changes."
+    ]
+  },
+  "hosted_ci": {
+    "prior_in_progress_snapshot": {
+      "path": ".tmp-half-release-20261003/docs-review/reference-checkpoint/tools-ci-snapshot.json",
+      "bytes": 47657,
+      "sha256": "916f9e59c8ff0aa380fd967e2f076ef12d21bb1bdba8a3c3d53579a5fd352989"
+    },
+    "completion_evidence": {
+      "path": ".tmp-hf-moe-file-exact-evidence-20261003/ci/complete.json",
+      "bytes": 48185,
+      "sha256": "2bbeb038db48aeb188de1c392b86705f8598204f2ce95d00adeeadeb3ad2d287"
+    },
+    "landing_evidence": {
+      "path": ".tmp-hf-moe-file-exact-evidence-20261003/landing.json",
+      "bytes": 574,
+      "sha256": "303f5d2493f05a6847b478149608c0e8a85aff2b79c814b72e78a4e0b385baaf"
+    },
+    "tools_run": 37109015725,
+    "head": "d9c37b072b27c0dfab6218233c978aab4aeb8fca",
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/37109015725",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "head_sha": "d9c37b072b27c0dfab6218233c978aab4aeb8fca",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "head_sha": "d9c37b072b27c0dfab6218233c978aab4aeb8fca",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "head_sha": "d9c37b072b27c0dfab6218233c978aab4aeb8fca",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "HF reference (CPU)",
+        "head_sha": "d9c37b072b27c0dfab6218233c978aab4aeb8fca",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "head_sha": "d9c37b072b27c0dfab6218233c978aab4aeb8fca",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "head_sha": "d9c37b072b27c0dfab6218233c978aab4aeb8fca",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (Linux UBSan)",
+        "head_sha": "d9c37b072b27c0dfab6218233c978aab4aeb8fca",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "published_main": {
+      "gitea": "d9c37b072b27c0dfab6218233c978aab4aeb8fca",
+      "github": "d9c37b072b27c0dfab6218233c978aab4aeb8fca"
+    },
+    "temporary_tools_gate_deleted": true,
+    "integration_exact_head_run": "Not launched at this checkpoint; half integration CI is separate from published tools CI."
+  },
+  "limits": [
+    "No new performance or identity measurement in this checkpoint.",
+    "Original6c Windows25/26 server-assertion failure, subsequent separate correction and all prior evidence remain retained.",
+    "The fixed247 lifetime-peak limitation remains historical; the new twelve-input run has actual-worker sampling.",
+    "Independent F32 HF/noKV references do not themselves prove default runtime correctness or waive the retained30B CPU/device failure."
+  ]
+}

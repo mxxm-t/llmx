@@ -1,0 +1,4309 @@
+{
+  "scope": "Combined tile64 selection and native F16 widening validation at 6c5e21aa; selected completed local evidence, pending release evidence explicit.",
+  "release_status": "incomplete_windows_server_assertion_and_existing_30b_numerical_hold",
+  "source": {
+    "head": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01",
+    "tree": "0e825751ba5d8730253fde10199dca66b96a6a54",
+    "main": "b7a6d235078572ca1643a55be77eaca6fa33f79d",
+    "dependency": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+    "tile_head": "5e1c6f7d4bc903d8116efc6ecc7773d30a599724",
+    "branch": "integrate/half-final-20261003",
+    "bundle_sha256": "7f9dde62a1ceac74349599908155ee382bcd2bcdca6a2f5867aefe0b40726672",
+    "bundle_bytes": 198284
+  },
+  "source_composition": {
+    "source_only_passed": true,
+    "allowed_changed_paths": [
+      "src/backends/vulkan/shaders/f16.glsl",
+      "src/backends/vulkan/vulkan_backend.cpp",
+      "tests/backend_vulkan.cpp"
+    ],
+    "source_files": {
+      "src/backends/vulkan/vulkan_backend.cpp": {
+        "reference": "db1f2c8eb9e73fcc98ace9bdb65c715c3944c27e",
+        "sha256": "11666eb380f25d5f254e1d4ed7ed0763d51cc145eaceea11b7ff83c27d329f02"
+      },
+      "src/backends/vulkan/shaders/f16.glsl": {
+        "reference": "13967462f0ce66e9edb7c79763072be69ed1bc03",
+        "sha256": "ee0aad28940bc77dcb1ad1101ac1ec298dbbb8b5db227023766e80592ac514f0"
+      },
+      "tests/backend_vulkan.cpp": {
+        "reference": "13967462f0ce66e9edb7c79763072be69ed1bc03",
+        "sha256": "361f877201c7646fbb1c0cf4d160675bb573cbabce318a2cbe44342b998971fe"
+      }
+    },
+    "source_conflicts": [],
+    "proof_raw_sha256": "a7ba970da739f7d2e19d5d7a820237dcc3ad94b8d86e0ab9a03328ef110bcaa5",
+    "proof_lf_sha256": "ff208088acb98043c9e10c78849a31d4ffe906036fbe092ace2da89b1037a7b3",
+    "proof_newline_note": "Raw CRLF and normalized LF hashes differ; parsed report and source payload pins are unchanged.",
+    "numerical_hold_unchanged": true
+  },
+  "docs_reconciliation": {
+    "total": 88,
+    "unchanged": 84,
+    "changed": 4,
+    "compared_to": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+    "changed_pages": [
+      "AGENTS.md",
+      "docs/STATUS.md",
+      "docs/VULKAN.md",
+      "docs/src/backends-vulkan.md"
+    ],
+    "scope": "Retained composition review against d31: 84 pages byte-identical and four changed pages reconciled. Not a fresh full-source audit."
+  },
+  "builds_and_native": {
+    "linux": {
+      "status": "passed",
+      "input_artifact": "linux/results/complete.json",
+      "version": "llmx 0.1.0+g6c5e21aa9201",
+      "compiler": "c++ (Debian 14.2.0-19) 14.2.0",
+      "cmake": "cmake version 3.31.6",
+      "binaries": {
+        "llmx": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx",
+          "bytes": 4957576,
+          "sha256": "17256900ba1e9660baf2907983196e852298d14d5b5c2311ddb93800a21f0974"
+        },
+        "llmx-model-logits": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-model-logits",
+          "bytes": 4176192,
+          "sha256": "8fb186e9d6ce92c6ad7d8e18b95038aed46e5fb3e85798745d870fe47cb5b9fe"
+        },
+        "llmx-split-check": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-split-check",
+          "bytes": 4266488,
+          "sha256": "4cd06b4d4a41a0ca67afa952c39f9d1dfee879a34d8c298dbfd315484bebfbd2"
+        },
+        "llmx-decode-probe": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-decode-probe",
+          "bytes": 4191800,
+          "sha256": "3a4dab07460a506ae3d6d67d1902140bca45cff9293091d07f328f7ce25cb797"
+        },
+        "llmx-cpu-f32-check": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-cpu-f32-check",
+          "bytes": 1163632,
+          "sha256": "bcb5eec703a1fa3fc4b6171de70cc8b3f3f0be79cb9e3e9bd8daf4a8373fec54"
+        },
+        "llmx-backend-vulkan-test": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-backend-vulkan-test",
+          "bytes": 3897888,
+          "sha256": "d63328b09cefe105eb611b10d1ae2806c05c4862b0c94bdf582505055a73152c"
+        },
+        "llmx-half-weights-test": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-half-weights-test",
+          "bytes": 393736,
+          "sha256": "ee11e3300e0e6c02946a9daa36c7527b5c8eb45ddc3d0e27a144a44169e2909c"
+        }
+      },
+      "build_artifacts": {
+        "libllmx-vulkan.a": {
+          "bytes": 3170766,
+          "sha256": "4df0aa735b0aaad3e9df90e3162ec5c8dd411c881d166fbb62bcfb9445e72ef3"
+        },
+        "generated/config.hpp": {
+          "bytes": 590,
+          "sha256": "491660170fc92e8abfacfc8144606ffc56f159069514c2a1684738c532e0b57c"
+        },
+        "CMakeCache.txt": {
+          "bytes": 15619,
+          "sha256": "1435ec0556c8f9f68d00b9db2faaad0eba8d25754598f7532c4763042f41720b"
+        },
+        "CMakeFiles/llmx.dir/flags.make": {
+          "bytes": 512,
+          "sha256": "379da5620f2e3dc70ffab681f932256e9ae73247f0e3baf9f74e4de2740da9d5"
+        },
+        "CMakeFiles/llmx.dir/link.txt": {
+          "bytes": 145,
+          "sha256": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+        }
+      },
+      "native": {
+        "passed": 43,
+        "failed": 0,
+        "skipped": 0
+      },
+      "shader_identity": {
+        "comparison_head": "09638ba2d8bd3e31d118e59c9a60087f6d231737",
+        "main_count": 117,
+        "candidate_count": 117,
+        "all_old_identical": true,
+        "new": []
+      },
+      "source_blob_manifest_sha256": "23c0ae98e17bf9d96c892b45f8d96dc9f22923aa14ff588a7afbdb3274e7828a",
+      "allocation": {
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "cpu_set": "0-3",
+        "quota_cores": 4,
+        "memory_gib": 32,
+        "gpu_node": "renderD136",
+        "gpu_pci": "0000:03:00.0"
+      },
+      "source_and_binaries_unchanged": true
+    },
+    "windows": {
+      "status": "passed_with_retained_wrapper_adjudication",
+      "input_artifact": "windows/execution/native-qualified.json",
+      "version": "llmx 0.1.0+g6c5e21aa9201",
+      "compiler": {
+        "id": "MSVC",
+        "version": "19.50.35728.0",
+        "architecture": "x64",
+        "executable_sha256": "194ddf4aafcb74452218a982309a97de30e0adb33edf4af02904ee107213e782"
+      },
+      "artifacts": {
+        "llmx.exe": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx.exe",
+          "bytes": 4433920,
+          "sha256": "941e4238d0e8950465ece3df95a0265a4f9b2c436abf029c209cd29035c59963"
+        },
+        "llmx-model-logits.exe": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx-model-logits.exe",
+          "bytes": 3756032,
+          "sha256": "168b07fb2afb41d5edc4285c83f6dd6e09db008b77ccc5a2e91f699b889ce954"
+        },
+        "llmx-vulkan.lib": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx-vulkan.lib",
+          "bytes": 4735606,
+          "sha256": "4f88260cb9fe8c55df202d245424a82216a0d14979e427e0d1cbd1ba75698b91"
+        },
+        "config.hpp": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\generated\\config.hpp",
+          "bytes": 605,
+          "sha256": "b5de92ffb78768a726a4030c7e5961c582ab1d7876a647f82dff9aa5691583fb"
+        },
+        "CMakeCache.txt": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\CMakeCache.txt",
+          "bytes": 16426,
+          "sha256": "07f0d8d9be198b96b11585433126322f19f123e245e689c82f39ea1c827b46cc"
+        },
+        "llmx.vcxproj": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\llmx.vcxproj",
+          "bytes": 88137,
+          "sha256": "3c88d1681514b46565dc63bce038b41f81c4fecfd01d50e75ae357a6ccfef485"
+        },
+        "llmx-vulkan.vcxproj": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\llmx-vulkan.vcxproj",
+          "bytes": 82198,
+          "sha256": "79c4ca548893b2fa7902a68fb3c6aba19e6497c562545bceaf8333eaa531797f"
+        },
+        "CMakeCXXCompiler.cmake": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\CMakeFiles\\4.3.1\\CMakeCXXCompiler.cmake",
+          "bytes": 6480,
+          "sha256": "265b5199e868a8bec1db656b918f8d90ff303859996616b8161b6dd478d46d3a"
+        }
+      },
+      "source_manifest_sha256": "c089f294fa6f0a5fc8ae8d322e6bed13fd24e9aa35bd961618a773450ef5cb7f",
+      "native": {
+        "cpu": 39,
+        "vulkan": 5,
+        "total": 44,
+        "skipped": 0
+      },
+      "all_117_shader_modules_identical": true,
+      "source_and_artifacts_unchanged": true,
+      "qualification": {
+        "original_manifest_sha256": "2e1701bd9cd258aa8fc31dc911f775855a77ee86aeebe4179e7481501ff7669a",
+        "baseline_details_sha256": "2b1d39524f1a460304fbe98b32af1d4188d3b91795092d28b5c65671d04ed63f",
+        "final_details_sha256": "cefe372a84b24e5cc0fb3ef82136f94832d027c19b049eafe8677451b28470ea",
+        "expected_ordinary_module_skip_lines": [
+          "vulkan-quantization: width 32, 24864 activation reconstruction values, 0 failed, 2496 skipped without float preservation",
+          "vulkan-quantization: width 64, 49728 activation reconstruction values, 0 failed, 4992 skipped without float preservation"
+        ],
+        "preserving_module_values": 82080,
+        "preserving_module_skips": 0,
+        "reason": "The unchanged test deliberately omits subnormal consumer reconstruction only for its ordinary nonpreserving shader variant. Its preserving variant checks all values. The baseline has exactly the same exclusions; all 44 CTests completed successfully. No test or build rerun, source, tolerance or hardware policy change.",
+        "original_failure": "Wrapper asserted on ordinary nonpreserving activation-reconstruction subcase omission messages after all 44 CTests passed.",
+        "original_traceback_retained_in": "windows/execution/native-qualified.json"
+      }
+    }
+  },
+  "timings": {
+    "linux_mi50": {
+      "status": "completed",
+      "input_artifact": "timing-linux/results/summary.json",
+      "heads": {
+        "base": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+        "candidate": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01"
+      },
+      "executables": {
+        "base": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/build/llmx",
+          "sha256": "448ab1850505787f893ba60a59a462f9de535e321c04e83fa437be2f28e79905",
+          "version": "llmx 0.1.0+gd31f0113317e",
+          "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-tile64-mi50-20261003/base/source"
+        },
+        "candidate": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx",
+          "sha256": "17256900ba1e9660baf2907983196e852298d14d5b5c2311ddb93800a21f0974",
+          "version": "llmx 0.1.0+g6c5e21aa9201",
+          "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/source"
+        }
+      },
+      "settings": {
+        "threads": 4,
+        "ubatch": 512,
+        "cache_k": "f32",
+        "cache_v": "f32",
+        "dtype": "auto",
+        "repeats": 1,
+        "phase_scope": "Each phase resets history; decode is not continuation after prefill. One warmup of each phase precedes r1.",
+        "context": "Both llmx arms use model logical context262144 with lazy backing and matching token histories."
+      },
+      "calls": [
+        {
+          "number": 1,
+          "arm": "base",
+          "direction": "forward",
+          "prompt": 64,
+          "decode": 128,
+          "status": "passed",
+          "returncode": 0,
+          "start": 1791005883.1350849,
+          "end": 1791005891.1183345,
+          "rates": {
+            "pp64": 266.87,
+            "tg128": 56.99
+          },
+          "resources": {
+            "wall_seconds": 7.847320556640625,
+            "cpu_seconds": 5.362698,
+            "major_faults": 0,
+            "minor_faults": 74363,
+            "input_blocks": 0,
+            "max_rss_kib": 311168,
+            "average_cpu_cores": 0.6833795002119459,
+            "cgroup_deltas": {
+              "cpu.stat": {
+                "usage_usec": 5432353,
+                "user_usec": 757189,
+                "system_usec": 4675164,
+                "nr_throttled": 0,
+                "throttled_usec": 0
+              },
+              "memory.stat": {
+                "pgfault": 77024,
+                "pgmajfault": 0,
+                "workingset_refault_file": 0,
+                "pgscan": 0,
+                "pgsteal": 0
+              },
+              "memory.events": {
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0
+              }
+            },
+            "unknown_cgroup_fields": {
+              "before": {},
+              "after": {}
+            }
+          },
+          "child_rusage": {
+            "ru_utime": 0.698793,
+            "ru_stime": 4.663905,
+            "ru_maxrss": 311168,
+            "ru_minflt": 74363,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 1,
+            "ru_nvcsw": 994,
+            "ru_nivcsw": 894
+          },
+          "activity": {
+            "intervals": 9,
+            "observation_samples": 10,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 3,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 108,
+              "missed_process_observations": 6,
+              "appeared_processes": 108,
+              "disappeared_processes": 54
+            },
+            "gpu_observations_unavailable": false,
+            "cpu_percent_by_role_range": {
+              "benchmark": [
+                0,
+                210.82279441007623
+              ],
+              "unrelated": [
+                212.82464037768435,
+                491.25115482805677
+              ],
+              "monitor": [
+                3.9980229658473827,
+                9.9916016308093
+              ],
+              "supervisor": [
+                0,
+                0.9993233403332918
+              ]
+            },
+            "gpu_busy_vram_min_max_known_unknown": {
+              "card0": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card1": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card2": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  25713475584.0,
+                  25713475584.0,
+                  10,
+                  0
+                ]
+              ],
+              "card3": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  25713479680.0,
+                  25713479680.0,
+                  10,
+                  0
+                ]
+              ],
+              "card4": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card5": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card6": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card7": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card8": [
+                [
+                  0.0,
+                  100.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  8244404224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card9": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "number": 2,
+          "arm": "candidate",
+          "direction": "forward",
+          "prompt": 64,
+          "decode": 128,
+          "status": "passed",
+          "returncode": 0,
+          "start": 1791005891.1191874,
+          "end": 1791005898.6954784,
+          "rates": {
+            "pp64": 272.53,
+            "tg128": 60.61
+          },
+          "resources": {
+            "wall_seconds": 7.464357376098633,
+            "cpu_seconds": 5.104492,
+            "major_faults": 0,
+            "minor_faults": 74381,
+            "input_blocks": 0,
+            "max_rss_kib": 311292,
+            "average_cpu_cores": 0.6838488221832627,
+            "cgroup_deltas": {
+              "cpu.stat": {
+                "usage_usec": 5158572,
+                "user_usec": 715453,
+                "system_usec": 4443119,
+                "nr_throttled": 0,
+                "throttled_usec": 0
+              },
+              "memory.stat": {
+                "pgfault": 77054,
+                "pgmajfault": 0,
+                "workingset_refault_file": 0,
+                "pgscan": 0,
+                "pgsteal": 0
+              },
+              "memory.events": {
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0
+              }
+            },
+            "unknown_cgroup_fields": {
+              "before": {},
+              "after": {}
+            }
+          },
+          "child_rusage": {
+            "ru_utime": 0.682352,
+            "ru_stime": 4.42214,
+            "ru_maxrss": 311292,
+            "ru_minflt": 74381,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 1,
+            "ru_nvcsw": 981,
+            "ru_nivcsw": 761
+          },
+          "activity": {
+            "intervals": 9,
+            "observation_samples": 10,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 1,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 113,
+              "missed_process_observations": 1,
+              "appeared_processes": 113,
+              "disappeared_processes": 59
+            },
+            "gpu_observations_unavailable": false,
+            "cpu_percent_by_role_range": {
+              "benchmark": [
+                0,
+                203.84460501312478
+              ],
+              "unrelated": [
+                18.991078144636322,
+                221.83089369075344
+              ],
+              "monitor": [
+                4.995921369692195,
+                6.995730672590989
+              ],
+              "supervisor": [
+                0,
+                0.9993233403332918
+              ]
+            },
+            "gpu_busy_vram_min_max_known_unknown": {
+              "card0": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card1": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card2": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  25713475584.0,
+                  25713475584.0,
+                  10,
+                  0
+                ]
+              ],
+              "card3": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  25713479680.0,
+                  25713479680.0,
+                  10,
+                  0
+                ]
+              ],
+              "card4": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card5": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card6": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card7": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card8": [
+                [
+                  0.0,
+                  99.0,
+                  10,
+                  0
+                ],
+                [
+                  4375408640.0,
+                  8263299072.0,
+                  10,
+                  0
+                ]
+              ],
+              "card9": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "number": 3,
+          "arm": "candidate",
+          "direction": "reverse",
+          "prompt": 64,
+          "decode": 128,
+          "status": "passed",
+          "returncode": 0,
+          "start": 1791005898.696434,
+          "end": 1791005906.3869,
+          "rates": {
+            "pp64": 272.85,
+            "tg128": 59.56
+          },
+          "resources": {
+            "wall_seconds": 7.587931394577026,
+            "cpu_seconds": 5.153468,
+            "major_faults": 0,
+            "minor_faults": 74371,
+            "input_blocks": 0,
+            "max_rss_kib": 311120,
+            "average_cpu_cores": 0.6791663935816686,
+            "cgroup_deltas": {
+              "cpu.stat": {
+                "usage_usec": 5208963,
+                "user_usec": 715420,
+                "system_usec": 4493543,
+                "nr_throttled": 0,
+                "throttled_usec": 0
+              },
+              "memory.stat": {
+                "pgfault": 77109,
+                "pgmajfault": 0,
+                "workingset_refault_file": 0,
+                "pgscan": 0,
+                "pgsteal": 0
+              },
+              "memory.events": {
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0
+              }
+            },
+            "unknown_cgroup_fields": {
+              "before": {},
+              "after": {}
+            }
+          },
+          "child_rusage": {
+            "ru_utime": 0.6962229999999999,
+            "ru_stime": 4.457245,
+            "ru_maxrss": 311120,
+            "ru_minflt": 74371,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 1,
+            "ru_nvcsw": 1078,
+            "ru_nivcsw": 1545
+          },
+          "activity": {
+            "intervals": 9,
+            "observation_samples": 10,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 0,
+              "disk_activity": 5,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 125,
+              "missed_process_observations": 10,
+              "appeared_processes": 125,
+              "disappeared_processes": 62
+            },
+            "gpu_observations_unavailable": false,
+            "cpu_percent_by_role_range": {
+              "benchmark": [
+                0,
+                201.84445846284711
+              ],
+              "unrelated": [
+                13.989219893464654,
+                459.7625813981354
+              ],
+              "monitor": [
+                4.997488896880345,
+                7.9958709808371395
+              ],
+              "supervisor": [
+                0,
+                0.9993139619023205
+              ]
+            },
+            "gpu_busy_vram_min_max_known_unknown": {
+              "card0": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card1": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card2": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  25713475584.0,
+                  25713475584.0,
+                  10,
+                  0
+                ]
+              ],
+              "card3": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  25713479680.0,
+                  25713479680.0,
+                  10,
+                  0
+                ]
+              ],
+              "card4": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card5": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card6": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card7": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card8": [
+                [
+                  0.0,
+                  99.0,
+                  10,
+                  0
+                ],
+                [
+                  8058777600.0,
+                  8244404224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card9": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "number": 4,
+          "arm": "base",
+          "direction": "reverse",
+          "prompt": 64,
+          "decode": 128,
+          "status": "passed",
+          "returncode": 0,
+          "start": 1791005906.3879154,
+          "end": 1791005914.42189,
+          "rates": {
+            "pp64": 266.67,
+            "tg128": 57.02
+          },
+          "resources": {
+            "wall_seconds": 7.9161696434021,
+            "cpu_seconds": 5.182892,
+            "major_faults": 0,
+            "minor_faults": 74367,
+            "input_blocks": 0,
+            "max_rss_kib": 311140,
+            "average_cpu_cores": 0.6547221994313616,
+            "cgroup_deltas": {
+              "cpu.stat": {
+                "usage_usec": 5237654,
+                "user_usec": 732662,
+                "system_usec": 4504992,
+                "nr_throttled": 0,
+                "throttled_usec": 0
+              },
+              "memory.stat": {
+                "pgfault": 77029,
+                "pgmajfault": 0,
+                "workingset_refault_file": 0,
+                "pgscan": 0,
+                "pgsteal": 0
+              },
+              "memory.events": {
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0
+              }
+            },
+            "unknown_cgroup_fields": {
+              "before": {},
+              "after": {}
+            }
+          },
+          "child_rusage": {
+            "ru_utime": 0.695206,
+            "ru_stime": 4.487686,
+            "ru_maxrss": 311140,
+            "ru_minflt": 74367,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 1,
+            "ru_nvcsw": 1202,
+            "ru_nivcsw": 1111
+          },
+          "activity": {
+            "intervals": 9,
+            "observation_samples": 10,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 6,
+              "disk_activity": 2,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 115,
+              "missed_process_observations": 2,
+              "appeared_processes": 115,
+              "disappeared_processes": 67
+            },
+            "gpu_observations_unavailable": false,
+            "cpu_percent_by_role_range": {
+              "benchmark": [
+                0,
+                202.87274869360394
+              ],
+              "unrelated": [
+                124.92164328423887,
+                439.7474552600875
+              ],
+              "monitor": [
+                4.997454132035844,
+                7.993500467848884
+              ],
+              "supervisor": [
+                0,
+                0.9994260346820173
+              ]
+            },
+            "gpu_busy_vram_min_max_known_unknown": {
+              "card0": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card1": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card2": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  25713475584.0,
+                  25713475584.0,
+                  10,
+                  0
+                ]
+              ],
+              "card3": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  25713479680.0,
+                  25713479680.0,
+                  10,
+                  0
+                ]
+              ],
+              "card4": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card5": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card6": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card7": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card8": [
+                [
+                  0.0,
+                  99.0,
+                  10,
+                  0
+                ],
+                [
+                  8125886464.0,
+                  8244404224.0,
+                  10,
+                  0
+                ]
+              ],
+              "card9": [
+                [
+                  0.0,
+                  0.0,
+                  10,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  10,
+                  0
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "number": 5,
+          "arm": "base",
+          "direction": "forward",
+          "prompt": 512,
+          "decode": 32,
+          "status": "passed",
+          "returncode": 0,
+          "start": 1791005914.4231732,
+          "end": 1791005921.0997021,
+          "rates": {
+            "pp512": 387.64,
+            "tg32": 57.33
+          },
+          "resources": {
+            "wall_seconds": 6.586270093917847,
+            "cpu_seconds": 4.748470999999999,
+            "major_faults": 0,
+            "minor_faults": 74391,
+            "input_blocks": 0,
+            "max_rss_kib": 311032,
+            "average_cpu_cores": 0.7209651186921441,
+            "cgroup_deltas": {
+              "cpu.stat": {
+                "usage_usec": 4800873,
+                "user_usec": 638762,
+                "system_usec": 4162111,
+                "nr_throttled": 0,
+                "throttled_usec": 0
+              },
+              "memory.stat": {
+                "pgfault": 77069,
+                "pgmajfault": 0,
+                "workingset_refault_file": 0,
+                "pgscan": 0,
+                "pgsteal": 0
+              },
+              "memory.events": {
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0
+              }
+            },
+            "unknown_cgroup_fields": {
+              "before": {},
+              "after": {}
+            }
+          },
+          "child_rusage": {
+            "ru_utime": 0.61027,
+            "ru_stime": 4.138201,
+            "ru_maxrss": 311032,
+            "ru_minflt": 74391,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 1,
+            "ru_nvcsw": 1027,
+            "ru_nivcsw": 1059
+          },
+          "activity": {
+            "intervals": 7,
+            "observation_samples": 8,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 0,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 124,
+              "missed_process_observations": 1,
+              "appeared_processes": 124,
+              "disappeared_processes": 23
+            },
+            "gpu_observations_unavailable": false,
+            "cpu_percent_by_role_range": {
+              "benchmark": [
+                0,
+                192.8409307031385
+              ],
+              "unrelated": [
+                120.90027261699356,
+                335.7270196496529
+              ],
+              "monitor": [
+                5.995704676570624,
+                7.993500467848884
+              ],
+              "supervisor": [
+                0,
+                0
+              ]
+            },
+            "gpu_busy_vram_min_max_known_unknown": {
+              "card0": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card1": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card2": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  25713475584.0,
+                  25713475584.0,
+                  8,
+                  0
+                ]
+              ],
+              "card3": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  25713479680.0,
+                  25713479680.0,
+                  8,
+                  0
+                ]
+              ],
+              "card4": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card5": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card6": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card7": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card8": [
+                [
+                  0.0,
+                  100.0,
+                  8,
+                  0
+                ],
+                [
+                  4215312384.0,
+                  8587255808.0,
+                  8,
+                  0
+                ]
+              ],
+              "card9": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "number": 6,
+          "arm": "candidate",
+          "direction": "forward",
+          "prompt": 512,
+          "decode": 32,
+          "status": "passed",
+          "returncode": 0,
+          "start": 1791005921.1006916,
+          "end": 1791005927.37616,
+          "rates": {
+            "pp512": 437.99,
+            "tg32": 61.56
+          },
+          "resources": {
+            "wall_seconds": 6.172606706619263,
+            "cpu_seconds": 4.8738399999999995,
+            "major_faults": 0,
+            "minor_faults": 74386,
+            "input_blocks": 0,
+            "max_rss_kib": 311300,
+            "average_cpu_cores": 0.7895918582944031,
+            "cgroup_deltas": {
+              "cpu.stat": {
+                "usage_usec": 4927010,
+                "user_usec": 607232,
+                "system_usec": 4319777,
+                "nr_throttled": 0,
+                "throttled_usec": 0
+              },
+              "memory.stat": {
+                "pgfault": 77057,
+                "pgmajfault": 0,
+                "workingset_refault_file": 0,
+                "pgscan": 0,
+                "pgsteal": 0
+              },
+              "memory.events": {
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0
+              }
+            },
+            "unknown_cgroup_fields": {
+              "before": {},
+              "after": {}
+            }
+          },
+          "child_rusage": {
+            "ru_utime": 0.574139,
+            "ru_stime": 4.299701,
+            "ru_maxrss": 311300,
+            "ru_minflt": 74386,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 1,
+            "ru_nvcsw": 800,
+            "ru_nivcsw": 1111
+          },
+          "activity": {
+            "intervals": 8,
+            "observation_samples": 9,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 1,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 123,
+              "missed_process_observations": 3,
+              "appeared_processes": 123,
+              "disappeared_processes": 26
+            },
+            "gpu_observations_unavailable": false,
+            "cpu_percent_by_role_range": {
+              "benchmark": [
+                0,
+                200.87929041124826
+              ],
+              "unrelated": [
+                132.92551199924813,
+                184.8612764163718
+              ],
+              "monitor": [
+                4.9973915465333265,
+                10.992366034146055
+              ],
+              "supervisor": [
+                0,
+                0.9993994547823297
+              ]
+            },
+            "gpu_busy_vram_min_max_known_unknown": {
+              "card0": [
+                [
+                  0.0,
+                  0.0,
+                  9,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  9,
+                  0
+                ]
+              ],
+              "card1": [
+                [
+                  0.0,
+                  0.0,
+                  9,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  9,
+                  0
+                ]
+              ],
+              "card2": [
+                [
+                  0.0,
+                  0.0,
+                  9,
+                  0
+                ],
+                [
+                  25713475584.0,
+                  25713475584.0,
+                  9,
+                  0
+                ]
+              ],
+              "card3": [
+                [
+                  0.0,
+                  0.0,
+                  9,
+                  0
+                ],
+                [
+                  25713479680.0,
+                  25713479680.0,
+                  9,
+                  0
+                ]
+              ],
+              "card4": [
+                [
+                  0.0,
+                  0.0,
+                  9,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  9,
+                  0
+                ]
+              ],
+              "card5": [
+                [
+                  0.0,
+                  0.0,
+                  9,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  9,
+                  0
+                ]
+              ],
+              "card6": [
+                [
+                  0.0,
+                  0.0,
+                  9,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  9,
+                  0
+                ]
+              ],
+              "card7": [
+                [
+                  0.0,
+                  0.0,
+                  9,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  9,
+                  0
+                ]
+              ],
+              "card8": [
+                [
+                  0.0,
+                  100.0,
+                  9,
+                  0
+                ],
+                [
+                  4215312384.0,
+                  8587255808.0,
+                  9,
+                  0
+                ]
+              ],
+              "card9": [
+                [
+                  0.0,
+                  0.0,
+                  9,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  9,
+                  0
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "number": 7,
+          "arm": "candidate",
+          "direction": "reverse",
+          "prompt": 512,
+          "decode": 32,
+          "status": "passed",
+          "returncode": 0,
+          "start": 1791005927.377243,
+          "end": 1791005933.7032123,
+          "rates": {
+            "pp512": 437.89,
+            "tg32": 61.5
+          },
+          "resources": {
+            "wall_seconds": 6.194305896759033,
+            "cpu_seconds": 4.914059999999999,
+            "major_faults": 0,
+            "minor_faults": 74396,
+            "input_blocks": 0,
+            "max_rss_kib": 311156,
+            "average_cpu_cores": 0.7933189096410495,
+            "cgroup_deltas": {
+              "cpu.stat": {
+                "usage_usec": 4967988,
+                "user_usec": 589101,
+                "system_usec": 4378887,
+                "nr_throttled": 0,
+                "throttled_usec": 0
+              },
+              "memory.stat": {
+                "pgfault": 77164,
+                "pgmajfault": 0,
+                "workingset_refault_file": 0,
+                "pgscan": 0,
+                "pgsteal": 0
+              },
+              "memory.events": {
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0
+              }
+            },
+            "unknown_cgroup_fields": {
+              "before": {},
+              "after": {}
+            }
+          },
+          "child_rusage": {
+            "ru_utime": 0.561398,
+            "ru_stime": 4.352662,
+            "ru_maxrss": 311156,
+            "ru_minflt": 74396,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 1,
+            "ru_nvcsw": 812,
+            "ru_nivcsw": 1121
+          },
+          "activity": {
+            "intervals": 7,
+            "observation_samples": 8,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 0,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 124,
+              "missed_process_observations": 0,
+              "appeared_processes": 124,
+              "disappeared_processes": 28
+            },
+            "gpu_observations_unavailable": false,
+            "cpu_percent_by_role_range": {
+              "benchmark": [
+                0,
+                193.79798709490115
+              ],
+              "unrelated": [
+                123.92040752339297,
+                191.86782265769506
+              ],
+              "monitor": [
+                5.993752178192819,
+                10.992366034146055
+              ],
+              "supervisor": [
+                0,
+                0.999358125188653
+              ]
+            },
+            "gpu_busy_vram_min_max_known_unknown": {
+              "card0": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card1": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card2": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  25713475584.0,
+                  25713475584.0,
+                  8,
+                  0
+                ]
+              ],
+              "card3": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  25713479680.0,
+                  25713479680.0,
+                  8,
+                  0
+                ]
+              ],
+              "card4": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card5": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card6": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card7": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card8": [
+                [
+                  0.0,
+                  100.0,
+                  8,
+                  0
+                ],
+                [
+                  8058777600.0,
+                  8587255808.0,
+                  8,
+                  0
+                ]
+              ],
+              "card9": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "number": 8,
+          "arm": "base",
+          "direction": "reverse",
+          "prompt": 512,
+          "decode": 32,
+          "status": "passed",
+          "returncode": 0,
+          "start": 1791005933.7043517,
+          "end": 1791005940.379768,
+          "rates": {
+            "pp512": 387.25,
+            "tg32": 57.54
+          },
+          "resources": {
+            "wall_seconds": 6.557629346847534,
+            "cpu_seconds": 4.862092,
+            "major_faults": 0,
+            "minor_faults": 74394,
+            "input_blocks": 0,
+            "max_rss_kib": 311276,
+            "average_cpu_cores": 0.7414405027843431,
+            "cgroup_deltas": {
+              "cpu.stat": {
+                "usage_usec": 4921142,
+                "user_usec": 610842,
+                "system_usec": 4310301,
+                "nr_throttled": 0,
+                "throttled_usec": 0
+              },
+              "memory.stat": {
+                "pgfault": 77072,
+                "pgmajfault": 0,
+                "workingset_refault_file": 0,
+                "pgscan": 0,
+                "pgsteal": 0
+              },
+              "memory.events": {
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0
+              }
+            },
+            "unknown_cgroup_fields": {
+              "before": {},
+              "after": {}
+            }
+          },
+          "child_rusage": {
+            "ru_utime": 0.5669029999999999,
+            "ru_stime": 4.295189,
+            "ru_maxrss": 311276,
+            "ru_minflt": 74394,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 1,
+            "ru_nvcsw": 831,
+            "ru_nivcsw": 809
+          },
+          "activity": {
+            "intervals": 7,
+            "observation_samples": 8,
+            "unbracketed_seconds": 0.17381596565246582,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 0,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 44,
+              "missed_process_observations": 9,
+              "appeared_processes": 44,
+              "disappeared_processes": 32
+            },
+            "gpu_observations_unavailable": false,
+            "cpu_percent_by_role_range": {
+              "benchmark": [
+                0,
+                208.76186282501143
+              ],
+              "unrelated": [
+                122.8617926467683,
+                186.81148702777776
+              ],
+              "monitor": [
+                5.9932581778911365,
+                11.986327052153767
+              ],
+              "supervisor": [
+                0,
+                0
+              ]
+            },
+            "gpu_busy_vram_min_max_known_unknown": {
+              "card0": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card1": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card2": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  25713475584.0,
+                  25713475584.0,
+                  8,
+                  0
+                ]
+              ],
+              "card3": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  25713479680.0,
+                  25713479680.0,
+                  8,
+                  0
+                ]
+              ],
+              "card4": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card5": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card6": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card7": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ],
+              "card8": [
+                [
+                  0.0,
+                  100.0,
+                  8,
+                  0
+                ],
+                [
+                  8058777600.0,
+                  8587255808.0,
+                  8,
+                  0
+                ]
+              ],
+              "card9": [
+                [
+                  0.0,
+                  0.0,
+                  8,
+                  0
+                ],
+                [
+                  10932224.0,
+                  10932224.0,
+                  8,
+                  0
+                ]
+              ]
+            }
+          }
+        }
+      ],
+      "matrix": [
+        {
+          "prompt": 64,
+          "decode": 128,
+          "phase": "pp64",
+          "call_numbers": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "raw_forward_reverse": {
+            "base": [
+              266.87,
+              266.67
+            ],
+            "candidate": [
+              272.53,
+              272.85
+            ]
+          },
+          "means": {
+            "base": 266.77,
+            "candidate": 272.69
+          },
+          "ranges": {
+            "base": [
+              266.67,
+              266.87
+            ],
+            "candidate": [
+              272.53,
+              272.85
+            ]
+          },
+          "candidate_vs_base_ratios_forward_reverse": [
+            1.0212088282684453,
+            1.023174710316121
+          ],
+          "candidate_vs_base_percent_forward_reverse": [
+            2.120882826844528,
+            2.317471031612106
+          ],
+          "paired_percent_range": [
+            2.120882826844528,
+            2.317471031612106
+          ],
+          "mean_paired_percent": 2.219176929228317,
+          "ratio_of_means_percent": 2.219140083217752
+        },
+        {
+          "prompt": 64,
+          "decode": 128,
+          "phase": "tg128",
+          "call_numbers": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "raw_forward_reverse": {
+            "base": [
+              56.99,
+              57.02
+            ],
+            "candidate": [
+              60.61,
+              59.56
+            ]
+          },
+          "means": {
+            "base": 57.005,
+            "candidate": 60.085
+          },
+          "ranges": {
+            "base": [
+              56.99,
+              57.02
+            ],
+            "candidate": [
+              59.56,
+              60.61
+            ]
+          },
+          "candidate_vs_base_ratios_forward_reverse": [
+            1.0635199157746973,
+            1.0445457734128376
+          ],
+          "candidate_vs_base_percent_forward_reverse": [
+            6.351991577469729,
+            4.454577341283761
+          ],
+          "paired_percent_range": [
+            4.454577341283761,
+            6.351991577469729
+          ],
+          "mean_paired_percent": 5.403284459376745,
+          "ratio_of_means_percent": 5.40303482150688
+        },
+        {
+          "prompt": 512,
+          "decode": 32,
+          "phase": "pp512",
+          "call_numbers": [
+            5,
+            6,
+            7,
+            8
+          ],
+          "raw_forward_reverse": {
+            "base": [
+              387.64,
+              387.25
+            ],
+            "candidate": [
+              437.99,
+              437.89
+            ]
+          },
+          "means": {
+            "base": 387.445,
+            "candidate": 437.94
+          },
+          "ranges": {
+            "base": [
+              387.25,
+              387.64
+            ],
+            "candidate": [
+              437.89,
+              437.99
+            ]
+          },
+          "candidate_vs_base_ratios_forward_reverse": [
+            1.1298885563925292,
+            1.1307682375726276
+          ],
+          "candidate_vs_base_percent_forward_reverse": [
+            12.988855639252916,
+            13.076823757262757
+          ],
+          "paired_percent_range": [
+            12.988855639252916,
+            13.076823757262757
+          ],
+          "mean_paired_percent": 13.032839698257837,
+          "ratio_of_means_percent": 13.032817561202226
+        },
+        {
+          "prompt": 512,
+          "decode": 32,
+          "phase": "tg32",
+          "call_numbers": [
+            5,
+            6,
+            7,
+            8
+          ],
+          "raw_forward_reverse": {
+            "base": [
+              57.33,
+              57.54
+            ],
+            "candidate": [
+              61.56,
+              61.5
+            ]
+          },
+          "means": {
+            "base": 57.435,
+            "candidate": 61.53
+          },
+          "ranges": {
+            "base": [
+              57.33,
+              57.54
+            ],
+            "candidate": [
+              61.5,
+              61.56
+            ]
+          },
+          "candidate_vs_base_ratios_forward_reverse": [
+            1.0737833594976454,
+            1.0688216892596454
+          ],
+          "candidate_vs_base_percent_forward_reverse": [
+            7.378335949764536,
+            6.882168925964538
+          ],
+          "paired_percent_range": [
+            6.882168925964538,
+            7.378335949764536
+          ],
+          "mean_paired_percent": 7.130252437864537,
+          "ratio_of_means_percent": 7.1297989031078535
+        }
+      ],
+      "activity_flags": {
+        "system_idle_below_percent": 25,
+        "iowait_above_percent": 5,
+        "unrelated_cpu_at_least_percent": 100,
+        "disk_bytes_per_second_above": 50000000,
+        "sample_gap_above_seconds": 2.5
+      },
+      "activity_totals": {
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 11,
+          "disk_activity": 6,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 778,
+          "missed_process_observations": 29,
+          "appeared_processes": 778,
+          "disappeared_processes": 298
+        }
+      },
+      "completed_execution_all_calls": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "activity_by_arm": {
+        "base": {
+          "call_numbers": [
+            1,
+            4,
+            5,
+            8
+          ],
+          "activity_unavailable_call_numbers": [],
+          "flag_interval_totals_with_boundary_overlap": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 9,
+            "disk_activity": 2,
+            "sample_gap": 0
+          }
+        },
+        "candidate": {
+          "call_numbers": [
+            2,
+            3,
+            6,
+            7
+          ],
+          "activity_unavailable_call_numbers": [],
+          "flag_interval_totals_with_boundary_overlap": {
+            "cpu_busy": 0,
+            "iowait": 0,
+            "unrelated_cpu": 2,
+            "disk_activity": 5,
+            "sample_gap": 0
+          }
+        }
+      },
+      "coverage": {
+        "first_sample_start": 1791005881.1627667,
+        "last_sample_start": 1791005940.205952,
+        "call_unbracketed_seconds": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0.17381596565246582
+        }
+      },
+      "samples": 60,
+      "intervals": 59,
+      "monitor_exit": 0,
+      "limitations": [
+        "Two calls per workload/arm in forward/reverse order; no statistical certainty from two samples.",
+        "Both measured arms use the same Linux image/container and physical MI50 with four CPU threads, matched F32 KV, auto dtype/loading and ubatch512.",
+        "Both arms share model logical context and identical independent-reset prompt/decode histories. Decode is not generated after the reported prefill.",
+        "Loading and warmups lie outside reported rates but inside process activity windows. Unknown activity stays unknown.",
+        "No mx or implementation-control arm in this bounded combined check. Earlier control/reference results are separate context, not a new layout band or mx comparison.",
+        "These speed calls do not independently establish HF, model identity, split or server correctness.",
+        "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+        "All eight calls retained. Two samples per arm/workload; r1 SD0 is not repeatability evidence.",
+        "Whole-call activity and rusage include loading, warmup and both phases; no phase-specific attribution.",
+        "Boundary samples can overlap calls. Arm totals cannot be summed into unique observations.",
+        "Missing/new/departed processes remain unknown. GPU ranges have no process attribution.",
+        "No pass threshold, previous-control pooling, mx comparison, layout-band or causal claim."
+      ]
+    },
+    "windows_radeon": {
+      "status": "completed",
+      "input_artifact": "timing-windows/summary.json",
+      "arms": {
+        "base": {
+          "compiled_head": "b0b303fb926254e9112d7c0bf992ddfd7bedd707",
+          "checkout_head": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+          "version": "llmx 0.1.0+gb0b303fb9262",
+          "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build\\Release\\llmx.exe",
+          "exe_sha256": "14aa74993cd02888831b0ca11b75d73ee2f44433084d9a888895eae6024c7a29",
+          "tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build\\Release\\llmx-model-logits.exe",
+          "tool_sha256": "b72b4c921e6dc7073c29432ab773138566a1879b60b44e110cd53263dc565df8",
+          "build_manifest": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\complete.json",
+          "build_manifest_sha256": "42bfce57135403c52dc6028bf1627c99bd8e4a7f49e29c12036de58c41805b02"
+        },
+        "candidate": {
+          "compiled_head": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01",
+          "checkout_head": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01",
+          "version": "llmx 0.1.0+g6c5e21aa9201",
+          "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx.exe",
+          "exe_sha256": "941e4238d0e8950465ece3df95a0265a4f9b2c436abf029c209cd29035c59963",
+          "tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx-model-logits.exe",
+          "tool_sha256": "168b07fb2afb41d5edc4285c83f6dd6e09db008b77ccc5a2e91f699b889ce954",
+          "build_manifest": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\execution\\build-complete.json",
+          "build_manifest_sha256": "81198f06fbe31aaa005559c02d84bea7a710db914405a7f734257ac9f78ea339"
+        }
+      },
+      "settings": {
+        "threads": 4,
+        "ubatch": 512,
+        "kv": "f32",
+        "dtype": "auto",
+        "repeats": 1,
+        "device": {
+          "index": 0,
+          "name": "Radeon VII",
+          "uuid": "00000000-2d00-0000-0000-000000000000"
+        }
+      },
+      "calls": [
+        {
+          "number": 1,
+          "arm": "base",
+          "direction": "forward",
+          "prompt": 64,
+          "decode": 128,
+          "returncode": 0,
+          "started": "2026-10-03T05:41:17.109745+00:00",
+          "ended": "2026-10-03T05:41:27.671076+00:00",
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 64,
+              "tokens_per_second": 238.26,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 39.57,
+              "sd": 0.0
+            }
+          ],
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "activity": {
+            "overlapping_samples": 12,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 12,
+              "unrelated_cpu_samples": 9,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 0,
+              "unrelated_gpu_samples": 2
+            },
+            "unknown_process_observations": 1520,
+            "unknown_unique_pids": 134,
+            "peak_system_cpu_percent": 23.619015594216318,
+            "peak_disk_MiB_per_second": 2.6821886409076465,
+            "peak_unrelated_gpu_engine_percent": 58.24098116722949,
+            "unbracketed_start_seconds": 0,
+            "unbracketed_end_seconds": 0
+          }
+        },
+        {
+          "number": 2,
+          "arm": "candidate",
+          "direction": "forward",
+          "prompt": 64,
+          "decode": 128,
+          "returncode": 0,
+          "started": "2026-10-03T05:41:27.682076+00:00",
+          "ended": "2026-10-03T05:41:38.506278+00:00",
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 64,
+              "tokens_per_second": 281.72,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 41.69,
+              "sd": 0.0
+            }
+          ],
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "activity": {
+            "overlapping_samples": 12,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 12,
+              "unrelated_cpu_samples": 8,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 3,
+              "unrelated_gpu_samples": 3
+            },
+            "unknown_process_observations": 1517,
+            "unknown_unique_pids": 131,
+            "peak_system_cpu_percent": 25.50786479308964,
+            "peak_disk_MiB_per_second": 3848.6121376247215,
+            "peak_unrelated_gpu_engine_percent": 43.6193484930114,
+            "unbracketed_start_seconds": 0,
+            "unbracketed_end_seconds": 0
+          }
+        },
+        {
+          "number": 3,
+          "arm": "candidate",
+          "direction": "reverse",
+          "prompt": 64,
+          "decode": 128,
+          "returncode": 0,
+          "started": "2026-10-03T05:41:38.516278+00:00",
+          "ended": "2026-10-03T05:41:47.935935+00:00",
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 64,
+              "tokens_per_second": 282.65,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 41.74,
+              "sd": 0.0
+            }
+          ],
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "activity": {
+            "overlapping_samples": 10,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 10,
+              "unrelated_cpu_samples": 5,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 1,
+              "unrelated_gpu_samples": 2
+            },
+            "unknown_process_observations": 1269,
+            "unknown_unique_pids": 131,
+            "peak_system_cpu_percent": 24.2797426672815,
+            "peak_disk_MiB_per_second": 103.61626681388526,
+            "peak_unrelated_gpu_engine_percent": 37.79722504684612,
+            "unbracketed_start_seconds": 0,
+            "unbracketed_end_seconds": 0
+          }
+        },
+        {
+          "number": 4,
+          "arm": "base",
+          "direction": "reverse",
+          "prompt": 64,
+          "decode": 128,
+          "returncode": 0,
+          "started": "2026-10-03T05:41:47.946933+00:00",
+          "ended": "2026-10-03T05:41:58.534466+00:00",
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 64,
+              "tokens_per_second": 238.14,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 39.65,
+              "sd": 0.0
+            }
+          ],
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "activity": {
+            "overlapping_samples": 12,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 12,
+              "unrelated_cpu_samples": 5,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 3,
+              "unrelated_gpu_samples": 2
+            },
+            "unknown_process_observations": 1535,
+            "unknown_unique_pids": 138,
+            "peak_system_cpu_percent": 24.63485341954419,
+            "peak_disk_MiB_per_second": 3931.689366369702,
+            "peak_unrelated_gpu_engine_percent": 58.04689839555065,
+            "unbracketed_start_seconds": 0,
+            "unbracketed_end_seconds": 0
+          }
+        },
+        {
+          "number": 5,
+          "arm": "base",
+          "direction": "forward",
+          "prompt": 512,
+          "decode": 32,
+          "returncode": 0,
+          "started": "2026-10-03T05:41:58.544466+00:00",
+          "ended": "2026-10-03T05:42:06.167215+00:00",
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 331.52,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 32,
+              "tokens_per_second": 40.01,
+              "sd": 0.0
+            }
+          ],
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "activity": {
+            "overlapping_samples": 9,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 9,
+              "unrelated_cpu_samples": 6,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 0,
+              "unrelated_gpu_samples": 3
+            },
+            "unknown_process_observations": 1154,
+            "unknown_unique_pids": 138,
+            "peak_system_cpu_percent": 30.17458900293085,
+            "peak_disk_MiB_per_second": 1.9651389138648625,
+            "peak_unrelated_gpu_engine_percent": 58.552952582963194,
+            "unbracketed_start_seconds": 0,
+            "unbracketed_end_seconds": 0
+          }
+        },
+        {
+          "number": 6,
+          "arm": "candidate",
+          "direction": "forward",
+          "prompt": 512,
+          "decode": 32,
+          "returncode": 0,
+          "started": "2026-10-03T05:42:06.178153+00:00",
+          "ended": "2026-10-03T05:42:13.012424+00:00",
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 424.23,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 32,
+              "tokens_per_second": 42.17,
+              "sd": 0.0
+            }
+          ],
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "activity": {
+            "overlapping_samples": 7,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 7,
+              "unrelated_cpu_samples": 5,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 1,
+              "unrelated_gpu_samples": 1
+            },
+            "unknown_process_observations": 892,
+            "unknown_unique_pids": 134,
+            "peak_system_cpu_percent": 22.167144971736697,
+            "peak_disk_MiB_per_second": 190.39013235918878,
+            "peak_unrelated_gpu_engine_percent": 58.552952582963194,
+            "unbracketed_start_seconds": 0,
+            "unbracketed_end_seconds": 0
+          }
+        },
+        {
+          "number": 7,
+          "arm": "candidate",
+          "direction": "reverse",
+          "prompt": 512,
+          "decode": 32,
+          "returncode": 0,
+          "started": "2026-10-03T05:42:13.022945+00:00",
+          "ended": "2026-10-03T05:42:19.874663+00:00",
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 424.89,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 32,
+              "tokens_per_second": 42.08,
+              "sd": 0.0
+            }
+          ],
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "activity": {
+            "overlapping_samples": 8,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 8,
+              "unrelated_cpu_samples": 5,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 0,
+              "unrelated_gpu_samples": 1
+            },
+            "unknown_process_observations": 1013,
+            "unknown_unique_pids": 131,
+            "peak_system_cpu_percent": 22.94562926632381,
+            "peak_disk_MiB_per_second": 2.2029417152492914,
+            "peak_unrelated_gpu_engine_percent": 58.344643121699654,
+            "unbracketed_start_seconds": 0,
+            "unbracketed_end_seconds": 0
+          }
+        },
+        {
+          "number": 8,
+          "arm": "base",
+          "direction": "reverse",
+          "prompt": 512,
+          "decode": 32,
+          "returncode": 0,
+          "started": "2026-10-03T05:42:19.884663+00:00",
+          "ended": "2026-10-03T05:42:27.496289+00:00",
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 330.36,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 32,
+              "tokens_per_second": 40.03,
+              "sd": 0.0
+            }
+          ],
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "activity": {
+            "overlapping_samples": 9,
+            "flags": {
+              "unknown_counter_samples": 1,
+              "unknown_process_samples": 9,
+              "unrelated_cpu_samples": 5,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 0,
+              "unrelated_gpu_samples": 1
+            },
+            "unknown_process_observations": 1136,
+            "unknown_unique_pids": 128,
+            "peak_system_cpu_percent": 22.694114422755728,
+            "peak_disk_MiB_per_second": 1.6438240768821253,
+            "peak_unrelated_gpu_engine_percent": 58.077059197602786,
+            "unbracketed_start_seconds": 0,
+            "unbracketed_end_seconds": 0
+          }
+        }
+      ],
+      "matrix": [
+        {
+          "phase": "pp",
+          "tokens": 64,
+          "base_rates": [
+            238.26,
+            238.14
+          ],
+          "candidate_rates": [
+            281.72,
+            282.65
+          ],
+          "base_mean": 238.2,
+          "candidate_mean": 282.185,
+          "base_range": [
+            238.14,
+            238.26
+          ],
+          "candidate_range": [
+            281.72,
+            282.65
+          ],
+          "directional_percent": [
+            18.240577520355927,
+            18.6906861510036
+          ],
+          "ratio_of_means_percent": 18.465575146935365,
+          "mean_paired_percent": 18.465631835679766
+        },
+        {
+          "phase": "tg",
+          "tokens": 128,
+          "base_rates": [
+            39.57,
+            39.65
+          ],
+          "candidate_rates": [
+            41.69,
+            41.74
+          ],
+          "base_mean": 39.61,
+          "candidate_mean": 41.715,
+          "base_range": [
+            39.57,
+            39.65
+          ],
+          "candidate_range": [
+            41.69,
+            41.74
+          ],
+          "directional_percent": [
+            5.3575941369724545,
+            5.271122320302668
+          ],
+          "ratio_of_means_percent": 5.314314567028533,
+          "mean_paired_percent": 5.314358228637561
+        },
+        {
+          "phase": "pp",
+          "tokens": 512,
+          "base_rates": [
+            331.52,
+            330.36
+          ],
+          "candidate_rates": [
+            424.23,
+            424.89
+          ],
+          "base_mean": 330.94,
+          "candidate_mean": 424.56,
+          "base_range": [
+            330.36,
+            331.52
+          ],
+          "candidate_range": [
+            424.23,
+            424.89
+          ],
+          "directional_percent": [
+            27.965130308880326,
+            28.614239011986918
+          ],
+          "ratio_of_means_percent": 28.28911585181604,
+          "mean_paired_percent": 28.289684660433622
+        },
+        {
+          "phase": "tg",
+          "tokens": 32,
+          "base_rates": [
+            40.01,
+            40.03
+          ],
+          "candidate_rates": [
+            42.17,
+            42.08
+          ],
+          "base_mean": 40.019999999999996,
+          "candidate_mean": 42.125,
+          "base_range": [
+            40.01,
+            40.03
+          ],
+          "candidate_range": [
+            42.08,
+            42.17
+          ],
+          "directional_percent": [
+            5.398650337415645,
+            5.121159130652009
+          ],
+          "ratio_of_means_percent": 5.259870064967531,
+          "mean_paired_percent": 5.259904734033826
+        }
+      ],
+      "activity_flags": {
+        "unrelated_cpu_percent_one_core": 25,
+        "disk_busy_percent": 80,
+        "disk_bytes_per_second": 104857600,
+        "unrelated_gpu_engine_percent": 10,
+        "unknown": "Missing counters, inaccessible/new process deltas and invalid samples are unknown, never zero"
+      },
+      "activity_totals": {
+        "overlapping_samples": 74,
+        "flags": {
+          "unknown_counter_samples": 8,
+          "unknown_process_samples": 74,
+          "unrelated_cpu_samples": 45,
+          "disk_busy_samples": 0,
+          "disk_rate_samples": 8,
+          "unrelated_gpu_samples": 11
+        },
+        "unknown_process_observations": 9397,
+        "unknown_unique_pids": 171,
+        "peak_system_cpu_percent": 30.17458900293085,
+        "peak_disk_MiB_per_second": 3931.689366369702,
+        "peak_unrelated_gpu_engine_percent": 58.552952582963194,
+        "unbracketed_start_seconds": 0,
+        "unbracketed_end_seconds": 0
+      },
+      "activity_by_arm": {
+        "base": {
+          "overlapping_samples": 41,
+          "flags": {
+            "unknown_counter_samples": 6,
+            "unknown_process_samples": 41,
+            "unrelated_cpu_samples": 24,
+            "disk_busy_samples": 0,
+            "disk_rate_samples": 3,
+            "unrelated_gpu_samples": 7
+          },
+          "unknown_process_observations": 5216,
+          "unknown_unique_pids": 157,
+          "peak_system_cpu_percent": 30.17458900293085,
+          "peak_disk_MiB_per_second": 3931.689366369702,
+          "peak_unrelated_gpu_engine_percent": 58.552952582963194,
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "candidate": {
+          "overlapping_samples": 35,
+          "flags": {
+            "unknown_counter_samples": 6,
+            "unknown_process_samples": 35,
+            "unrelated_cpu_samples": 21,
+            "disk_busy_samples": 0,
+            "disk_rate_samples": 5,
+            "unrelated_gpu_samples": 6
+          },
+          "unknown_process_observations": 4439,
+          "unknown_unique_pids": 147,
+          "peak_system_cpu_percent": 25.50786479308964,
+          "peak_disk_MiB_per_second": 3848.6121376247215,
+          "peak_unrelated_gpu_engine_percent": 58.552952582963194,
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        }
+      },
+      "samples": 74,
+      "monitor_exit": 0,
+      "maximum_collection_seconds": 0.05564949999097735,
+      "maximum_sample_gap_seconds": 1.00108309998177,
+      "gpu_activity_attribution": "All recorded unrelated GPU flags name System/PID4; no user-workload or kernel-cause attribution.",
+      "clock_policy": "Unverified; no clock controls changed.",
+      "limitations": [
+        "Two samples per workload/arm with one internal repetition; retain both directional comparisons and all background/unknown activity.",
+        "No reference arm and no new same-owner control in this final combination screen; earlier separate optimization controls remain separate evidence.",
+        "b0 executable is the retained clean-commit build; current d31 checkout differs only docs/STATUS.md and its checkpoint benchmark JSON. Both builds use clean detached commits, different revision strings and source paths.",
+        "Source proof metadata had a CRLF/LF hash discrepancy already resolved by parent; compiled content composition unchanged.",
+        "Clock policy unverified; no clock controls changed. Ordinary background activity is allowed and recorded; owned competing builds/tests/transfers must end before explicit handoff.",
+        "GPU0 identification and completed matrix-path record establish selected device/arithmetic; this unprofiled screen does not attribute time to individual kernels.",
+        "Native44passed; native-qualified.json retains the original wrapper failure and adjudication of ordinary-module nonpreserving subcase omissions already present in baseline.",
+        "No pooling with earlier timing blocks or between phases; SD 0 at r1 is not a repeatability estimate.",
+        "Intervals overlap call boundaries. Arm/call counts are not additive; every monitor sample remains retained.",
+        "Per-call coverage includes load/warmup, not just timed kernels. System GPU engines and aggregate disk counters do not identify a cause.",
+        "Missing counter values and inaccessible/new process CPU deltas remain unknown; no sample is discarded for activity.",
+        "Earlier mx values used six threads, different time and an earlier llmx arm; no cross-round ratios or current parity claim."
+      ]
+    }
+  },
+  "output_identities": [
+    {
+      "label": "linux-mi50",
+      "status": "passed",
+      "input_artifact": "identity/linux-mi50-complete.json",
+      "heads": {
+        "base": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+        "candidate": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01"
+      },
+      "settings": {
+        "dtype": "auto",
+        "load_mode": "auto",
+        "cache": "f32",
+        "ubatch": 512,
+        "cpu_threads": 6,
+        "greedy_tokens": 64,
+        "excerpt_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c"
+      },
+      "placement": {
+        "label": "mi50",
+        "device": "vulkan:0",
+        "shares": "",
+        "cpu_experts": 0
+      },
+      "model": "4b-f16",
+      "model_sha256": "336228a2810f17724ecd6e9e2e40e8381eee81e886316fee311ade2899c31030",
+      "token_count": 247,
+      "token_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+      "all_greedy_ids_exact": true,
+      "greedy_count": 64,
+      "greedy_ids_sha256": "3a377035eca0cc21b63cc7c32f3154cfa78223f856967b827ca6107493437602",
+      "greedy_hash_encoding": "ASCII compact JSON array, no trailing newline",
+      "all_metadata_except_version_exact": true,
+      "vocab": 151936,
+      "float32_values_compared": 84780288,
+      "phase_rows": {
+        "batched": 247,
+        "decode": 247,
+        "greedy": 64
+      },
+      "phase_payloads_identical": {
+        "batched": {
+          "bytes": 150112768,
+          "sha256": "27853ef0ad2fa643d6e55d1c1a3879948d6615540b9e95d39e41b565f8beb8b2"
+        },
+        "decode": {
+          "bytes": 150112768,
+          "sha256": "902695fb87e47580920be52f47e15c3765fc9abff85471ffd4683439e70f393d"
+        },
+        "greedy": {
+          "bytes": 38895616,
+          "sha256": "2c5892c8f07054a458d54523bca8046b30f2174c55bb21e0a2656bbfdaa5fbee"
+        }
+      },
+      "completed_matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "f32"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "resolved_dtype": "f16",
+      "arms": {
+        "base": {
+          "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-native-widen-20261003/base/source",
+          "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-native-widen-20261003/base/build/llmx",
+          "exe_sha256": "448ab1850505787f893ba60a59a462f9de535e321c04e83fa437be2f28e79905",
+          "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-native-widen-20261003/base/build/llmx-model-logits",
+          "tool_sha256": "4d60e6deb7f8cbad280f35a02d7c6add78db8baea96284e40ab8fe7a9ba3093e",
+          "version": "llmx 0.1.0+gd31f0113317e"
+        },
+        "candidate": {
+          "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/source",
+          "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx",
+          "exe_sha256": "17256900ba1e9660baf2907983196e852298d14d5b5c2311ddb93800a21f0974",
+          "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-model-logits",
+          "tool_sha256": "8fb186e9d6ce92c6ad7d8e18b95038aed46e5fb3e85798745d870fe47cb5b9fe",
+          "version": "llmx 0.1.0+g6c5e21aa9201"
+        }
+      },
+      "versions": {
+        "base": "0.1.0+gd31f0113317e",
+        "candidate": "0.1.0+g6c5e21aa9201"
+      },
+      "retained_base": {
+        "manifest": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-native-widen-20261003/qualification/execution/captures/complete.json",
+        "manifest_sha256": "73709b6c2014884b3daa639a50241111f5ae4cc3f26a309485d6c66d9481c473",
+        "prefix": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-native-widen-20261003/qualification/execution/captures/4b-f16-mi50-base",
+        "stdout_sha256": "e8413ec4f54d3bd9b46255e97d72d1c22524f7ed165bfa1c90f07b87f6959605",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "executed_now": false
+      },
+      "scope": "Same-backend before/after identity; not a cross-backend equality or independent HF comparison."
+    },
+    {
+      "label": "linux-cpu",
+      "status": "passed",
+      "input_artifact": "identity/linux-cpu-complete.json",
+      "heads": {
+        "base": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+        "candidate": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01"
+      },
+      "settings": {
+        "dtype": "auto",
+        "load_mode": "auto",
+        "cache": "f32",
+        "ubatch": 512,
+        "cpu_threads": 6,
+        "greedy_tokens": 64,
+        "excerpt_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c"
+      },
+      "placement": {
+        "label": "cpu",
+        "device": "cpu",
+        "shares": "",
+        "cpu_experts": 0
+      },
+      "model": "4b-f16",
+      "model_sha256": "336228a2810f17724ecd6e9e2e40e8381eee81e886316fee311ade2899c31030",
+      "token_count": 247,
+      "token_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+      "all_greedy_ids_exact": true,
+      "greedy_count": 64,
+      "greedy_ids_sha256": "3a377035eca0cc21b63cc7c32f3154cfa78223f856967b827ca6107493437602",
+      "greedy_hash_encoding": "ASCII compact JSON array, no trailing newline",
+      "all_metadata_except_version_exact": true,
+      "vocab": 151936,
+      "float32_values_compared": 84780288,
+      "phase_rows": {
+        "batched": 247,
+        "decode": 247,
+        "greedy": 64
+      },
+      "phase_payloads_identical": {
+        "batched": {
+          "bytes": 150112768,
+          "sha256": "7487baedd413b8a1adf6e93e4e2925b36ef02dbaa25538c0d62cc74c9b22ecf7"
+        },
+        "decode": {
+          "bytes": 150112768,
+          "sha256": "226f0ee84bf08b33b79360ef1543e2cff85a3b810ecd9eda439b5f1d3e4a8385"
+        },
+        "greedy": {
+          "bytes": 38895616,
+          "sha256": "5442edba33adce2c8d21f531de861f21a07957c17a5b6cf396193e67f6a2f7cf"
+        }
+      },
+      "completed_matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "f32"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "resolved_dtype": "f16",
+      "arms": {
+        "base": {
+          "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-native-widen-20261003/base/source",
+          "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-native-widen-20261003/base/build/llmx",
+          "exe_sha256": "448ab1850505787f893ba60a59a462f9de535e321c04e83fa437be2f28e79905",
+          "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-native-widen-20261003/base/build/llmx-model-logits",
+          "tool_sha256": "4d60e6deb7f8cbad280f35a02d7c6add78db8baea96284e40ab8fe7a9ba3093e",
+          "version": "llmx 0.1.0+gd31f0113317e"
+        },
+        "candidate": {
+          "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/source",
+          "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx",
+          "exe_sha256": "17256900ba1e9660baf2907983196e852298d14d5b5c2311ddb93800a21f0974",
+          "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-model-logits",
+          "tool_sha256": "8fb186e9d6ce92c6ad7d8e18b95038aed46e5fb3e85798745d870fe47cb5b9fe",
+          "version": "llmx 0.1.0+g6c5e21aa9201"
+        }
+      },
+      "versions": {
+        "base": "0.1.0+gd31f0113317e",
+        "candidate": "0.1.0+g6c5e21aa9201"
+      },
+      "retained_base": null,
+      "scope": "Same-backend before/after identity; not a cross-backend equality or independent HF comparison."
+    },
+    {
+      "label": "windows-radeon",
+      "status": "passed",
+      "input_artifact": "identity/windows-radeon-results/complete.json",
+      "heads": {
+        "base": "d31f0113317e6de38bb19b2aa30bfbbf35c3b10d",
+        "candidate": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01"
+      },
+      "settings": {
+        "dtype": "auto",
+        "load_mode": "auto",
+        "cache": "f32",
+        "ubatch": 512,
+        "cpu_threads": 6,
+        "greedy_tokens": 64,
+        "excerpt_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c"
+      },
+      "placement": {
+        "label": "radeon",
+        "device": "vulkan:0",
+        "shares": "",
+        "cpu_experts": 0
+      },
+      "model": "4b-f16",
+      "model_sha256": "336228a2810f17724ecd6e9e2e40e8381eee81e886316fee311ade2899c31030",
+      "token_count": 247,
+      "token_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+      "all_greedy_ids_exact": true,
+      "greedy_count": 64,
+      "greedy_ids_sha256": "3a377035eca0cc21b63cc7c32f3154cfa78223f856967b827ca6107493437602",
+      "greedy_hash_encoding": "ASCII compact JSON array, no trailing newline",
+      "all_metadata_except_version_exact": true,
+      "vocab": 151936,
+      "float32_values_compared": 84780288,
+      "phase_rows": {
+        "batched": 247,
+        "decode": 247,
+        "greedy": 64
+      },
+      "phase_payloads_identical": {
+        "batched": {
+          "bytes": 150112768,
+          "sha256": "d6badc5ce45b73425a00394e200711d868e2c89e62bf933692b8d301c20bee9a"
+        },
+        "decode": {
+          "bytes": 150112768,
+          "sha256": "220479ac7ff2bd05b1e0b9faa332e37d7ef3da493ce15f4768f3c0d2754b9b1f"
+        },
+        "greedy": {
+          "bytes": 38895616,
+          "sha256": "83e3820e4e39fd92fda87a28cab2932373de984ee598abeaa580a8250fab88ae"
+        }
+      },
+      "completed_matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "f32"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "resolved_dtype": "f16",
+      "arms": {
+        "base": {
+          "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\source",
+          "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build\\Release\\llmx.exe",
+          "exe_sha256": "14aa74993cd02888831b0ca11b75d73ee2f44433084d9a888895eae6024c7a29",
+          "tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build\\Release\\llmx-model-logits.exe",
+          "tool_sha256": "b72b4c921e6dc7073c29432ab773138566a1879b60b44e110cd53263dc565df8",
+          "version": "llmx 0.1.0+gb0b303fb9262"
+        },
+        "candidate": {
+          "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\source",
+          "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx.exe",
+          "exe_sha256": "941e4238d0e8950465ece3df95a0265a4f9b2c436abf029c209cd29035c59963",
+          "tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx-model-logits.exe",
+          "tool_sha256": "168b07fb2afb41d5edc4285c83f6dd6e09db008b77ccc5a2e91f699b889ce954",
+          "version": "llmx 0.1.0+g6c5e21aa9201"
+        }
+      },
+      "versions": {
+        "base": "0.1.0+gb0b303fb9262",
+        "candidate": "0.1.0+g6c5e21aa9201"
+      },
+      "retained_base": {
+        "manifest": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-native-widen-20261003\\windows-identity\\complete.json",
+        "manifest_sha256": "9fa38af31cd7c79091a57c4da091f19a2ac968d62a6815d08edf77f3339b3c5d",
+        "prefix": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-native-widen-20261003\\windows-identity\\4b-f16-radeon-base",
+        "stdout_sha256": "333d2ea437fec045363b5fbf533e66491bd76fabaea5c84eac1b3205ff493d59",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "executed_now": false
+      },
+      "scope": "Same-backend before/after identity; not a cross-backend equality or independent HF comparison."
+    }
+  ],
+  "strict_suites": {
+    "linux_mi50": {
+      "status": "passed",
+      "input_artifact": "suites/linux-complete.json",
+      "head": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01",
+      "version": "llmx 0.1.0+g6c5e21aa9201",
+      "returncode": 0,
+      "summary": {
+        "components": [
+          [
+            "dead-code",
+            "PASS"
+          ],
+          [
+            "docs",
+            "PASS"
+          ],
+          [
+            "arch-boundary",
+            "PASS"
+          ],
+          [
+            "version",
+            "PASS"
+          ],
+          [
+            "cli",
+            "PASS"
+          ],
+          [
+            "reference-generator",
+            "PASS"
+          ],
+          [
+            "reference-consumer",
+            "PASS"
+          ],
+          [
+            "device-reference",
+            "PASS"
+          ],
+          [
+            "roundtrip",
+            "PASS"
+          ],
+          [
+            "raw-blocks",
+            "PASS"
+          ],
+          [
+            "perf",
+            "PASS"
+          ],
+          [
+            "tokenizer",
+            "PASS"
+          ],
+          [
+            "perplexity",
+            "PASS"
+          ],
+          [
+            "f32",
+            "PASS"
+          ],
+          [
+            "half-weights",
+            "PASS"
+          ],
+          [
+            "moe",
+            "PASS"
+          ],
+          [
+            "mxfp4",
+            "PASS"
+          ],
+          [
+            "qwen35",
+            "PASS"
+          ],
+          [
+            "split",
+            "PASS"
+          ],
+          [
+            "decode-probe",
+            "PASS"
+          ],
+          [
+            "shards",
+            "PASS"
+          ],
+          [
+            "server",
+            "PASS"
+          ],
+          [
+            "server-load",
+            "PASS"
+          ],
+          [
+            "chat",
+            "PASS"
+          ],
+          [
+            "threads",
+            "PASS"
+          ],
+          [
+            "baseline",
+            "PASS"
+          ]
+        ],
+        "passed": 26,
+        "failed": 0,
+        "skipped_components": 0,
+        "subcase_skip_lines": [
+          "OK (skipped=1)"
+        ],
+        "unexpected_skip_lines": [],
+        "half_weight_lines": [
+          "half-weights: 24 exact full-vocabulary capture sets and 64-token replies; dense/MoE, tied/untied, F16/BF16/mixed, identical across ubatch 3/16; auto activation policy, 0 unavailable formats  [ok]"
+        ]
+      },
+      "binaries": {
+        "llmx": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx",
+          "sha256": "17256900ba1e9660baf2907983196e852298d14d5b5c2311ddb93800a21f0974"
+        },
+        "llmx-model-logits": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-model-logits",
+          "sha256": "8fb186e9d6ce92c6ad7d8e18b95038aed46e5fb3e85798745d870fe47cb5b9fe"
+        },
+        "llmx-split-check": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-split-check",
+          "sha256": "4cd06b4d4a41a0ca67afa952c39f9d1dfee879a34d8c298dbfd315484bebfbd2"
+        },
+        "llmx-decode-probe": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-decode-probe",
+          "sha256": "3a4dab07460a506ae3d6d67d1902140bca45cff9293091d07f328f7ce25cb797"
+        },
+        "llmx-cpu-f32-check": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-final-20261003/build/llmx-cpu-f32-check",
+          "sha256": "bcb5eec703a1fa3fc4b6171de70cc8b3f3f0be79cb9e3e9bd8daf4a8373fec54"
+        }
+      },
+      "log_sha256": "1a919a8894875d43083ad9f4e2754d264f0676ee319f2ba49bb61c0ab222b1ad",
+      "fixtures": [
+        {
+          "family": "qwen3",
+          "repo": "Qwen/Qwen3-0.6B-GGUF",
+          "file": "Qwen3-0.6B-Q8_0.gguf",
+          "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
+          "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+          "size": 639446688,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen3",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "file": "Qwen3-0.6B-Q4_0.gguf",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+          "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+          "size": 382156480,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen3",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "file": "Qwen3-0.6B-Q5_K_M.gguf",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+          "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+          "size": 444415680,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen3",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "file": "Qwen3-0.6B-Q4_K_M.gguf",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+          "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+          "size": 396705472,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen3",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "file": "Qwen3-0.6B-UD-Q8_K_XL.gguf",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+          "sha256": "523982b2bb2ce75857aa0de6763c41e46ef2be5f79c26867f73be143f2ba8bad",
+          "size": 844288704,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen35",
+          "repo": "unsloth/Qwen3.5-0.8B-GGUF",
+          "file": "Qwen3.5-0.8B-Q8_0.gguf",
+          "revision": "6ab461498e2023f6e3c1baea90a8f0fe38ab64d0",
+          "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+          "size": 811843840,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen35",
+          "repo": "unsloth/Qwen3.5-0.8B-GGUF",
+          "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+          "revision": "6ab461498e2023f6e3c1baea90a8f0fe38ab64d0",
+          "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+          "size": 532517120,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        }
+      ],
+      "settings": {
+        "device": "vulkan:0",
+        "dtype": "auto",
+        "require_baseline": true,
+        "require_tools": true,
+        "require_device_types": [
+          "F16",
+          "BF16"
+        ],
+        "no_perf_floor": true
+      },
+      "allowed_subcase_skip_explanation": "reference_generator.ReferenceGenerator Windows short-path-alias test is Windows-only (line410).",
+      "scope": "Full strict 26-component suite on the named Vulkan backend; suite perf is diagnostic, not a speed comparison."
+    },
+    "windows_radeon": {
+      "status": "failed",
+      "input_artifact": "suites/windows-results/complete.json",
+      "head": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01",
+      "version": "llmx 0.1.0+g6c5e21aa9201",
+      "returncode": 1,
+      "summary": {
+        "components": [
+          [
+            "dead-code",
+            "PASS"
+          ],
+          [
+            "docs",
+            "PASS"
+          ],
+          [
+            "arch-boundary",
+            "PASS"
+          ],
+          [
+            "version",
+            "PASS"
+          ],
+          [
+            "cli",
+            "PASS"
+          ],
+          [
+            "reference-generator",
+            "PASS"
+          ],
+          [
+            "reference-consumer",
+            "PASS"
+          ],
+          [
+            "device-reference",
+            "PASS"
+          ],
+          [
+            "roundtrip",
+            "PASS"
+          ],
+          [
+            "raw-blocks",
+            "PASS"
+          ],
+          [
+            "perf",
+            "PASS"
+          ],
+          [
+            "tokenizer",
+            "PASS"
+          ],
+          [
+            "perplexity",
+            "PASS"
+          ],
+          [
+            "f32",
+            "PASS"
+          ],
+          [
+            "half-weights",
+            "PASS"
+          ],
+          [
+            "moe",
+            "PASS"
+          ],
+          [
+            "mxfp4",
+            "PASS"
+          ],
+          [
+            "qwen35",
+            "PASS"
+          ],
+          [
+            "split",
+            "PASS"
+          ],
+          [
+            "decode-probe",
+            "PASS"
+          ],
+          [
+            "shards",
+            "PASS"
+          ],
+          [
+            "server",
+            "FAIL"
+          ],
+          [
+            "server-load",
+            "PASS"
+          ],
+          [
+            "chat",
+            "PASS"
+          ],
+          [
+            "threads",
+            "PASS"
+          ],
+          [
+            "baseline",
+            "PASS"
+          ]
+        ],
+        "passed": 25,
+        "failed": 1,
+        "skipped_components": 0,
+        "subcase_skip_lines": [
+          "roundtrip: file-size limit injection unavailable on this platform [skip]"
+        ],
+        "unexpected_skip_lines": [],
+        "half_weight_lines": [
+          "half-weights: 24 exact full-vocabulary capture sets and 64-token replies; dense/MoE, tied/untied, F16/BF16/mixed, identical across ubatch 3/16; auto activation policy, 0 unavailable formats  [ok]"
+        ]
+      },
+      "binaries": {
+        "llmx": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx.exe",
+          "sha256": "941e4238d0e8950465ece3df95a0265a4f9b2c436abf029c209cd29035c59963"
+        },
+        "llmx-model-logits": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx-model-logits.exe",
+          "sha256": "168b07fb2afb41d5edc4285c83f6dd6e09db008b77ccc5a2e91f699b889ce954"
+        },
+        "llmx-split-check": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx-split-check.exe",
+          "sha256": "64ffe44f5e0012cb9bc071c53a43199bae877c46fdbd9509db084f06cea74204"
+        },
+        "llmx-decode-probe": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx-decode-probe.exe",
+          "sha256": "e7ab69104058b9b9d8d0c89949d9013f93f123c96d47f716b1da8a5bd85a299c"
+        },
+        "llmx-cpu-f32-check": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx-cpu-f32-check.exe",
+          "sha256": "f1fc6787f3f580d2d99a2f95810f3159cc127e9fbd3e64d09d845d270af75a3f"
+        }
+      },
+      "log_sha256": "87a38c78b47b69a9b666295978f045e23d034b0134a4209fa690288dd4bae780",
+      "fixtures": [
+        {
+          "family": "qwen3",
+          "repo": "Qwen/Qwen3-0.6B-GGUF",
+          "file": "Qwen3-0.6B-Q8_0.gguf",
+          "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
+          "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+          "size": 639446688,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen3",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "file": "Qwen3-0.6B-Q4_0.gguf",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+          "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+          "size": 382156480,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen3",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "file": "Qwen3-0.6B-Q5_K_M.gguf",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+          "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+          "size": 444415680,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen3",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "file": "Qwen3-0.6B-Q4_K_M.gguf",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+          "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+          "size": 396705472,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen3",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "file": "Qwen3-0.6B-UD-Q8_K_XL.gguf",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+          "sha256": "523982b2bb2ce75857aa0de6763c41e46ef2be5f79c26867f73be143f2ba8bad",
+          "size": 844288704,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen35",
+          "repo": "unsloth/Qwen3.5-0.8B-GGUF",
+          "file": "Qwen3.5-0.8B-Q8_0.gguf",
+          "revision": "6ab461498e2023f6e3c1baea90a8f0fe38ab64d0",
+          "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+          "size": 811843840,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        },
+        {
+          "family": "qwen35",
+          "repo": "unsloth/Qwen3.5-0.8B-GGUF",
+          "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+          "revision": "6ab461498e2023f6e3c1baea90a8f0fe38ab64d0",
+          "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+          "size": 532517120,
+          "gate": true,
+          "hash_validation": "The unchanged baseline consumer verifies the pinned SHA256 during this suite."
+        }
+      ],
+      "settings": {
+        "device": "vulkan:0",
+        "dtype": "auto",
+        "require_baseline": true,
+        "require_tools": true,
+        "require_device_types": [
+          "F16",
+          "BF16"
+        ],
+        "no_perf_floor": true
+      },
+      "allowed_subcase_skip_explanation": "The file-size-limit injection uses POSIX resource limits.",
+      "scope": "Full strict 26-component suite on the named Vulkan backend; suite perf is diagnostic, not a speed comparison.",
+      "unresolved_failure": {
+        "component": "server",
+        "check": "check_uncapped",
+        "log_line": 102,
+        "observed_health": {
+          "status": "ok",
+          "active": 0,
+          "pauses": 2,
+          "paused": 0,
+          "recomputed": 0,
+          "taken_back": 0,
+          "host_hits": 3
+        },
+        "assertion_source": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01:tests/server.py:1133",
+        "assertion": "paused == 0 and (recomputed > 0 or taken_back > 0)",
+        "interpretation": "The witness omits host-cache restore; the recorded health has three host hits. The reply/logprob equality checks precede this assertion and completed in the failing run.",
+        "correction_status": "Separate uncommitted main-based tests-only correction has supplemental Vulkan and CPU check_uncapped passes; the original full suite was not rerun.",
+        "resolution": "Original 25/26 failure remains retained; supplemental passes do not rewrite it."
+      }
+    }
+  },
+  "exact_head_ci": {
+    "status": "passed",
+    "input_artifact": "ci/complete.json",
+    "observed": 1791007674.969883,
+    "run": {
+      "id": 37099339002,
+      "head_sha": "6c5e21aa92018ccbacb9dc89c308eb76548c3a01",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/37099339002"
+    },
+    "jobs": [
+      {
+        "name": "HF reference (CPU)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (Linux UBSan)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "scope": "Seven exact-head hosted jobs, including HF CPU; this does not resolve the separately failed local Radeon server assertion."
+  },
+  "supplemental_corrected_server_checks": [
+    {
+      "status": "passed",
+      "input_artifact": "server-resume-corrected/complete.json",
+      "check": "check_uncapped",
+      "device": "vulkan:0",
+      "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx.exe",
+      "exe_sha256": "941e4238d0e8950465ece3df95a0265a4f9b2c436abf029c209cd29035c59963",
+      "test_source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-server-host-resume-witness-20261003",
+      "test_branch": "fix/server-host-resume-witness-20261003",
+      "test_change_status": "Separate main-based tests-only correction; not committed or landed at this checkpoint.",
+      "health_before_after": [
+        {
+          "status": "ok",
+          "active": 0,
+          "pauses": 0,
+          "paused": 0,
+          "recomputed": 0,
+          "taken_back": 0,
+          "host_hits": 0
+        },
+        {
+          "status": "ok",
+          "active": 0,
+          "pauses": 2,
+          "paused": 0,
+          "recomputed": 62,
+          "taken_back": 0,
+          "host_hits": 3
+        }
+      ],
+      "resume_counter_deltas": {
+        "pauses": 2,
+        "recomputed": 62,
+        "taken_back": 0,
+        "host_hits": 3
+      },
+      "reply_logprob_checks": "The existing check_uncapped reply/logprob comparisons completed; the terminal manifest reports passed.",
+      "teardown": {
+        "returncodes": [
+          1
+        ],
+        "explanation": "The diagnostic wrapper explicitly kills and waits for its owned server during teardown; this is not the check outcome."
+      },
+      "logs": [
+        "server-resume-corrected/server-46596.log"
+      ],
+      "limitations": [
+        "Supplemental single-check result, not a rerun of the original 26-component suite.",
+        "Both supplemental runs also incremented recomputed; neither isolates a host-restore-only witness.",
+        "The execution manifest pins the product EXE and test source directory, not a committed corrected-test revision."
+      ]
+    },
+    {
+      "status": "passed",
+      "input_artifact": "server-resume-cpu/complete.json",
+      "check": "check_uncapped",
+      "device": "cpu",
+      "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\build\\Release\\llmx.exe",
+      "exe_sha256": "941e4238d0e8950465ece3df95a0265a4f9b2c436abf029c209cd29035c59963",
+      "test_source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-server-host-resume-witness-20261003",
+      "test_branch": "fix/server-host-resume-witness-20261003",
+      "test_change_status": "Separate main-based tests-only correction; not committed or landed at this checkpoint.",
+      "health_before_after": [
+        {
+          "status": "ok",
+          "active": 0,
+          "pauses": 0,
+          "paused": 0,
+          "recomputed": 0,
+          "taken_back": 0,
+          "host_hits": 0
+        },
+        {
+          "status": "ok",
+          "active": 0,
+          "pauses": 2,
+          "paused": 0,
+          "recomputed": 649,
+          "taken_back": 0,
+          "host_hits": 0
+        }
+      ],
+      "resume_counter_deltas": {
+        "pauses": 2,
+        "recomputed": 649,
+        "taken_back": 0,
+        "host_hits": 0
+      },
+      "reply_logprob_checks": "The existing check_uncapped reply/logprob comparisons completed; the terminal manifest reports passed.",
+      "teardown": {
+        "returncodes": [
+          1
+        ],
+        "explanation": "The diagnostic wrapper explicitly kills and waits for its owned server during teardown; this is not the check outcome."
+      },
+      "logs": [
+        "server-resume-cpu/server-19264.log"
+      ],
+      "limitations": [
+        "Supplemental single-check result, not a rerun of the original 26-component suite.",
+        "Both supplemental runs also incremented recomputed; neither isolates a host-restore-only witness.",
+        "The execution manifest pins the product EXE and test source directory, not a committed corrected-test revision."
+      ]
+    }
+  ],
+  "q8_layer_decomposition": {
+    "status": "completed_diagnostic_only",
+    "input_artifact": "../.tmp-half-weight-fixture-20261002/q8-layer-decomposition/summary.json",
+    "source_head": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+    "position": 243,
+    "model": {
+      "bytes": 35989944896,
+      "sha256": "25693e28926e2277d9edd0f55d33ddb6fea8f10e344105b02e4bf328f37f1c3a"
+    },
+    "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+    "provenance": {
+      "oracle_sha256": "dad203e0a44d1d0890f08222cb27b8794238f61d13b639798a329ba333ca128c",
+      "analyzer_sha256": "08d4b1843fbd4e67b9f0f3c3cd99107dad79addcdc7ae9a09b850f6e46429587",
+      "manifests": {
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\q8-real-input-diagnostic\\manifest.json": "677ca88f5d1440a1053d300277f7b571ded0a3fe68d03455869c216a8a58cf74",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\q8-routing-diagnostic\\manifest.json": "23d7aa5b8bd82e33a291fa4083dfe5650b3fc302cbc619ff05312e2484fff9d2",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\q8-real-input-diagnostic\\results\\capture-complete.json": "08ee48f0f4969207aacdfd75d1e83a01548e0e8a3dc1bebce7372e16501ba414",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\q8-routing-diagnostic\\results\\capture-complete.json": "b062f50ca9eb64756bba700644ce13d0fecc2335cd6c6f88e460b39104a91725"
+      }
+    },
+    "layers": 6,
+    "expert_cases": 48,
+    "convention": "A=default, B=F32; align slots by expert ID. Route term=(rA-rB)*YB; all product terms weighted by rA.",
+    "equations": [
+      "YA-YB = W*(XA-XB) + W*(QA-XA) + (YA-W*QA) - (YB-W*XB), up to binary64 oracle rounding",
+      "afterA-afterB = beforeA-beforeB + sum(rA*(YA-YB)) + sum((rA-rB)*YB) + combineA-combineB"
+    ],
+    "per_layer": [
+      {
+        "layer": 3,
+        "observed_update_l2": 9.33551650402164e-05,
+        "input_state_l2": 8.344299162505201e-05,
+        "packing_l2": 3.4856459568885896e-05,
+        "default_arithmetic_l2": 6.885043915110589e-08,
+        "negative_f32_arithmetic_l2": 8.325146393762317e-08,
+        "oracle_linearity_l2": 3.9185391146458105e-16,
+        "route_weight_l2": 2.3975024242820286e-05,
+        "combine_rounding_l2": 2.0148945521659315e-07
+      },
+      {
+        "layer": 4,
+        "observed_update_l2": 0.00012592563021205044,
+        "input_state_l2": 0.00012304347654311888,
+        "packing_l2": 3.805538452216736e-05,
+        "default_arithmetic_l2": 8.103706367453576e-08,
+        "negative_f32_arithmetic_l2": 1.0091820730681628e-07,
+        "oracle_linearity_l2": 5.319912669693107e-16,
+        "route_weight_l2": 1.6504361221920722e-05,
+        "combine_rounding_l2": 2.3055055150501472e-07
+      },
+      {
+        "layer": 5,
+        "observed_update_l2": 0.00012582925800665767,
+        "input_state_l2": 0.00010695247595737543,
+        "packing_l2": 2.9295435432088247e-05,
+        "default_arithmetic_l2": 6.39918068642637e-08,
+        "negative_f32_arithmetic_l2": 7.938018744683025e-08,
+        "oracle_linearity_l2": 3.6921943710457057e-16,
+        "route_weight_l2": 4.775992554831074e-05,
+        "combine_rounding_l2": 1.9331478746815895e-07
+      },
+      {
+        "layer": 6,
+        "observed_update_l2": 0.0019811248752739704,
+        "input_state_l2": 0.0019641733168384618,
+        "packing_l2": 5.4484366043278495e-05,
+        "default_arithmetic_l2": 1.2080269587808473e-07,
+        "negative_f32_arithmetic_l2": 1.4425967943270757e-07,
+        "oracle_linearity_l2": 7.377856310207589e-16,
+        "route_weight_l2": 0.00048709410513182434,
+        "combine_rounding_l2": 2.82329112802838e-07
+      },
+      {
+        "layer": 7,
+        "observed_update_l2": 0.0019980712482974947,
+        "input_state_l2": 0.0018267411540769769,
+        "packing_l2": 5.7789024956417404e-05,
+        "default_arithmetic_l2": 1.2220732364618334e-07,
+        "negative_f32_arithmetic_l2": 1.4510838646618939e-07,
+        "oracle_linearity_l2": 6.962473648296912e-16,
+        "route_weight_l2": 0.000768736353880455,
+        "combine_rounding_l2": 2.778692282598535e-07
+      },
+      {
+        "layer": 8,
+        "observed_update_l2": 0.0016836515557997246,
+        "input_state_l2": 0.0015692760343279826,
+        "packing_l2": 4.617030029873063e-05,
+        "default_arithmetic_l2": 1.0205948185585323e-07,
+        "negative_f32_arithmetic_l2": 1.2480085351532752e-07,
+        "oracle_linearity_l2": 6.127687279928987e-16,
+        "route_weight_l2": 0.0005244457349683482,
+        "combine_rounding_l2": 3.042305456170233e-07
+      }
+    ],
+    "maximum_decomposition_closure": {
+      "weighted": 2.42861286636753e-17,
+      "product": 0.0
+    },
+    "attention_block6_interval": {
+      "before_l2": 0.000313584906982619,
+      "after_l2": 0.002474032596319163,
+      "increment_l2": 0.0024460697121539885,
+      "increment_max_abs": 0.00030083954334259033
+    },
+    "interpretation": "The observed policy-difference L2 increases across the attention-block6 interval. This localizes an interval for investigation, not a proven attention defect or isolated causal attribution.",
+    "scope": "All six retained layers 3-8 and eight experts each at position243; no inference, gate, tolerance change or counterfactual full-model claim.",
+    "limitations": [
+      "QKV, gate/up and earlier-history error are included in observed X differences but cannot be separated by these down-only captures. Binary64 dots are independent diagnostic oracles, not exact-real arithmetic.",
+      "Retained e98453f9 diagnostic data, not new inference or validation of the combined 6c5 source.",
+      "No acceptance bound, numerical criterion waiver, release pass or whole-model counterfactual follows from this decomposition."
+    ]
+  },
+  "pending": {
+    "windows_server_assertion": {
+      "status": "original_failure_retained_correction_not_landed",
+      "note": "Original strict suite remains 25/26; two corrected single-check passes are supplemental, and no full suite rerun is claimed."
+    },
+    "existing_30b_numerical_criterion": {
+      "status": "unresolved",
+      "note": "Prior numerical hold remains unchanged; these optimizations do not waive it."
+    }
+  },
+  "limitations": [
+    "All 16 final timing calls retained with both directions and every activity flag/unknown; no pooled prior controls/reference results and no performance pass threshold.",
+    "Windows base was compiled clean at b0b303fb; its current d31 checkout differs only by recorded checkpoint documentation. Linux base was compiled clean at d31.",
+    "Cross-platform rates are separate observations, never subtracted as a driver or operating-system effect.",
+    "The 4B output identities cover 247 batched rows, 247 one-token rows and 64 greedy rows/IDs on each backend; they do not replace independent HF gates.",
+    "Retained MI50 and Radeon base captures were reused after pin/settings checks; Linux CPU captured both arms anew.",
+    "Identity tool uses six workers on Linux CPU0-3/quota4; this is correctness only, not a six-core performance comparison.",
+    "The preexisting 30B numerical criterion hold is unchanged by these optimizations or their identities.",
+    "Raw machine/process/environment records remain in the hashed input artifacts; this record uses explicit selected fields only."
+  ],
+  "artifacts": {
+    "head.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\head.json",
+      "bytes": 546,
+      "sha256": "08cb1a14fc4256b822bac165cfc2b780922eba6a2fb42fc3777984d432501b6e"
+    },
+    "source-proof.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\source-proof.json",
+      "bytes": 17715,
+      "sha256": "a7ba970da739f7d2e19d5d7a820237dcc3ad94b8d86e0ab9a03328ef110bcaa5"
+    },
+    "linux/results/complete.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\linux\\results\\complete.json",
+      "bytes": 34318,
+      "sha256": "0e615ffb60f2e5adc3a271ce15d6acf374b5f06a65f29d21c223330ce960ab3b"
+    },
+    "windows/execution/native-qualified.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\windows\\execution\\native-qualified.json",
+      "bytes": 13546,
+      "sha256": "59738a33917073b0ac20c3cddede99a7999803e7715276c8c04acd38832f3af1"
+    },
+    "timing-linux/results/summary.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\timing-linux\\results\\summary.json",
+      "bytes": 120528,
+      "sha256": "77c16392dac3d238df6dbf2177830d382d93dfdbdf6cae77481ccd4ab086c4a4"
+    },
+    "timing-windows/summary.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\timing-windows\\summary.json",
+      "bytes": 49583,
+      "sha256": "56236cf94346bfb02db3848027b33041450c3183e46cbcad9d2fdd1d90d79da4"
+    },
+    "identity/linux-mi50-complete.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\identity\\linux-mi50-complete.json",
+      "bytes": 23596,
+      "sha256": "f61f9b91d391bae5e4c0ef136f023457ba30d6b818aee258c3e24fe060ba6072"
+    },
+    "identity/linux-cpu-complete.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\identity\\linux-cpu-complete.json",
+      "bytes": 24698,
+      "sha256": "50656f60dfd7bcc84bd8c0f131b529e02ee4e6b9ffc6be921d1e689922fcfb66"
+    },
+    "identity/windows-radeon-results/complete.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\identity\\windows-radeon-results\\complete.json",
+      "bytes": 25073,
+      "sha256": "0c4a90393be0bd6ba8dd49686610fb5668d5a6b639ad05e70d993d2d44e3dcd3"
+    },
+    "suites/linux-complete.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\suites\\linux-complete.json",
+      "bytes": 13607,
+      "sha256": "a0ad2fcde2b51ff4ba015f1ff77c21bd3050adbea08e5c8e9311c635dd91ec60"
+    },
+    "suites/windows-results/complete.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\suites\\windows-results\\complete.json",
+      "bytes": 15236,
+      "sha256": "44b271b76ff3ede2682446837d5f616d56643718bd1e554fa2f741e1773a8616"
+    },
+    "suites/windows-results/suite.log": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\suites\\windows-results\\suite.log",
+      "bytes": 19951,
+      "sha256": "87a38c78b47b69a9b666295978f045e23d034b0134a4209fa690288dd4bae780"
+    },
+    "server-resume-corrected/complete.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\server-resume-corrected\\complete.json",
+      "bytes": 3486,
+      "sha256": "165c9ebfac455d8cc9235d797b55297522823a6bb419b5b639982725a39856ff"
+    },
+    "server-resume-corrected/server-46596.log": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\server-resume-corrected\\server-46596.log",
+      "bytes": 2970,
+      "sha256": "efbada54e34652baf5141fceb315a07a964d30f2bda61df6be6118c68eef1ab6"
+    },
+    "server-resume-cpu/complete.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\server-resume-cpu\\complete.json",
+      "bytes": 3527,
+      "sha256": "75f38b62e385e1c53fcd18b92b6b7313199a80d1c7f99e6486ef3afc28b1d375"
+    },
+    "server-resume-cpu/server-19264.log": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\server-resume-cpu\\server-19264.log",
+      "bytes": 3685,
+      "sha256": "68fcc3ba42631437ee1e1a511e4a5aa3f5e061e48ca4c10c6fb84db51b5d6746"
+    },
+    "../.tmp-half-weight-fixture-20261002/q8-layer-decomposition/summary.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\..\\.tmp-half-weight-fixture-20261002\\q8-layer-decomposition\\summary.json",
+      "bytes": 3193,
+      "sha256": "4d7da871976c69e6b6110b1361a4dae5d7ae24074eeaaedf401fde54353608be"
+    },
+    "../.tmp-half-weight-fixture-20261002/q8-layer-decomposition/analysis.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\..\\.tmp-half-weight-fixture-20261002\\q8-layer-decomposition\\analysis.json",
+      "bytes": 101890,
+      "sha256": "7dc6ea33a179e397819198543c743c94fa14fe2a5e413a0e9bb719d883d6b9ef"
+    },
+    "ci/complete.json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\ci\\complete.json",
+      "bytes": 48620,
+      "sha256": "ae79f946fea4db4b9cc7e2604451b82b510ba2a0287f54e8418f989ee75bd04d"
+    },
+    "assemble-evidence.py": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-final-20261003\\assemble-evidence.py",
+      "bytes": 24306,
+      "sha256": "13fcccc4575e6105b3d5019c02ff982fb1de23db799876356b1fdb851a60d0aa"
+    }
+  }
+}

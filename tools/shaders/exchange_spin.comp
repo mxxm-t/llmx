@@ -1,0 +1,21 @@
+#version 450
+#extension GL_KHR_memory_scope_semantics : enable
+#ifdef LLMX_MM
+#pragma use_vulkan_memory_model
+#endif
+// Waits until every other member's flag for this epoch is in the member's own inbox, at most 2^16 reads a flag; a miss counts in result[0], and once one has, later waits return at once, so a chain stays far below the driver's ring timeout.
+layout(local_size_x = 1) in;
+layout(std430, binding = 1) buffer Own { uint u[]; } own;
+layout(std430, binding = 2) buffer Result { uint r[]; } result;
+#include "exchange.glsl"
+void main() {
+    if (atomicAdd(result.r[0], 0u, LLMX_SCOPE, gl_StorageSemanticsNone, gl_SemanticsRelaxed) != 0u) return;
+    for (uint m = 0u; m < pc.width; ++m) {
+        if (m == pc.member) continue;
+        uint spins = 0u;
+        while (atomicLoad(own.u[flag(m)], LLMX_SCOPE, gl_StorageSemanticsBuffer, gl_SemanticsAcquire | gl_SemanticsMakeVisible) != pc.epoch) {
+            if (++spins > 65536u) { atomicAdd(result.r[0], 1u, LLMX_SCOPE, gl_StorageSemanticsNone, gl_SemanticsRelaxed); return; }
+        }
+        atomicMax(result.r[1], spins, LLMX_SCOPE, gl_StorageSemanticsNone, gl_SemanticsRelaxed);
+    }
+}

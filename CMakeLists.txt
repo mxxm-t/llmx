@@ -444,8 +444,36 @@ if(BUILD_TESTING)
         target_link_libraries(llmx-moe-kernel-bench PRIVATE llmx-vulkan)
         list(APPEND LLMX_TARGETS llmx-moe-kernel-bench)
         # Not a test: the device queries and handoff timings of phase 0 in docs/MULTI-DEVICE.md, on the loader alone.
+        # Its exchange's kernels, in tools/shaders and not among the backend's: plain for the sync-file exchange, and with the Vulkan memory model at device and queue-family scope for the flag wait.
+        # Optimized, so the build validates every module; the memory model variants ask for the Vulkan memory model by pragma, which makes glslang declare the device-scope capability their atomics need.
+        set(LLMX_HANDOFF_SPV)
+        foreach(entry exchange_send exchange_sum
+                      exchange_send_dev=exchange_send=LLMX_SCOPE=gl_ScopeDevice exchange_flag_dev=exchange_flag=LLMX_SCOPE=gl_ScopeDevice
+                      exchange_spin_dev=exchange_spin=LLMX_SCOPE=gl_ScopeDevice exchange_sum_dev=exchange_sum=LLMX_SCOPE=gl_ScopeDevice
+                      exchange_send_qf=exchange_send=LLMX_SCOPE=gl_ScopeQueueFamily exchange_flag_qf=exchange_flag=LLMX_SCOPE=gl_ScopeQueueFamily
+                      exchange_spin_qf=exchange_spin=LLMX_SCOPE=gl_ScopeQueueFamily exchange_sum_qf=exchange_sum=LLMX_SCOPE=gl_ScopeQueueFamily)
+            string(REPLACE "=" ";" parts ${entry})
+            list(GET parts 0 shader)
+            set(source ${shader})
+            set(define)
+            list(LENGTH parts nparts)
+            if(nparts EQUAL 4)
+                list(GET parts 1 source)
+                list(GET parts 3 scope)
+                set(define -DLLMX_MM -DLLMX_SCOPE=${scope})
+            endif()
+            set(spv ${CMAKE_CURRENT_BINARY_DIR}/generated/handoff/${shader}.inc)
+            add_custom_command(OUTPUT ${spv}
+                COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/handoff
+                COMMAND ${LLMX_GLSLC} -fshader-stage=compute --target-env=vulkan1.2 -O -mfmt=num ${define} -o ${spv} ${CMAKE_CURRENT_SOURCE_DIR}/tools/shaders/${source}.comp
+                DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/shaders/${source}.comp ${CMAKE_CURRENT_SOURCE_DIR}/tools/shaders/exchange.glsl
+                COMMENT "glslc ${shader}")
+            list(APPEND LLMX_HANDOFF_SPV ${spv})
+        endforeach()
+        add_custom_target(llmx-vk-handoff-shaders DEPENDS ${LLMX_HANDOFF_SPV})
         add_executable(llmx-vk-handoff tools/vulkan_handoff.cpp)
-        target_include_directories(llmx-vk-handoff PRIVATE ${LLMX_VULKAN_INCLUDE_DIR})
+        add_dependencies(llmx-vk-handoff llmx-vk-handoff-shaders)
+        target_include_directories(llmx-vk-handoff PRIVATE ${LLMX_VULKAN_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/generated/handoff)
         target_link_libraries(llmx-vk-handoff PRIVATE ${CMAKE_DL_LIBS})
         list(APPEND LLMX_TARGETS llmx-vk-handoff)
         # Not a test: phase 0's concurrency, pipeline, group sum and expert exchange measurements through the backend, and a split model's stage times for the layer split's phase 3.

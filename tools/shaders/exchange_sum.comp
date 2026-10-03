@@ -1,0 +1,31 @@
+#version 450
+#extension GL_KHR_memory_scope_semantics : enable
+#ifdef LLMX_MM
+#pragma use_vulkan_memory_model
+#endif
+// The slots of the member's own inbox added in member order; a sum that is not the exact sum of the partials counts in result[3].
+layout(local_size_x = 256) in;
+layout(std430, binding = 1) buffer Own { uint u[]; } own;
+layout(std430, binding = 2) buffer Result { uint r[]; } result;
+layout(std430, binding = 3) writeonly buffer Out { float o[]; } outb;
+#include "exchange.glsl"
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.n) return;
+    float s = 0.0, want = 0.0;
+    for (uint m = 0u; m < pc.width; ++m) {
+#ifdef LLMX_MM
+        uint v = atomicLoad(own.u[slot(m, i)], LLMX_SCOPE, gl_StorageSemanticsBuffer, gl_SemanticsAcquire | gl_SemanticsMakeVisible);
+#else
+        uint v = own.u[slot(m, i)];
+#endif
+        s = m == 0u ? uintBitsToFloat(v) : s + uintBitsToFloat(v);
+        want = m == 0u ? partial(m, pc.epoch, i) : want + partial(m, pc.epoch, i);
+    }
+#ifdef LLMX_MM
+    if (s != want) atomicAdd(result.r[3], 1u, LLMX_SCOPE, gl_StorageSemanticsNone, gl_SemanticsRelaxed);
+#else
+    if (s != want) atomicAdd(result.r[3], 1u);
+#endif
+    outb.o[i] = s;
+}

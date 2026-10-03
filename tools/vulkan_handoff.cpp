@@ -9,7 +9,8 @@
 // peer-read: only B's copy out of A's exported memory, which is the handoff when A's output buffer is itself the exported one.
 // dma+sync-fd: as dma-buf, with B waiting on A's sync file rather than the host waiting between them.
 // `pingpong A B` bounces bytes between the two devices through dma-buf, with the host waiting on every hop and with the chain queued ahead through sync files.
-// Usage: llmx-vk-handoff probe | llmx-vk-handoff time A B [iterations] | llmx-vk-handoff pingpong A B [hops]
+// `exchange A,B[,C,D]` is a tensor group's all-reduce on 2 to 4 devices: sync files, the members' arrival spread and a flag wait under the Vulkan memory model (docs/TENSOR-SPLIT.md, step 0).
+// Usage: llmx-vk-handoff probe | llmx-vk-handoff time A B [iterations] | llmx-vk-handoff pingpong A B [hops] | llmx-vk-handoff exchange A,B[,C,D] [epochs] [device|host]
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -73,7 +74,22 @@ namespace {
     X(vkMapMemory) \
     X(vkCmdCopyBuffer) \
     X(vkCmdPipelineBarrier) \
-    X(vkGetDeviceGroupPeerMemoryFeatures)
+    X(vkGetDeviceGroupPeerMemoryFeatures) \
+    X(vkCreateShaderModule) \
+    X(vkCreateDescriptorSetLayout) \
+    X(vkCreatePipelineLayout) \
+    X(vkCreateComputePipelines) \
+    X(vkCreateDescriptorPool) \
+    X(vkAllocateDescriptorSets) \
+    X(vkUpdateDescriptorSets) \
+    X(vkCmdBindPipeline) \
+    X(vkCmdBindDescriptorSets) \
+    X(vkCmdPushConstants) \
+    X(vkCmdDispatch) \
+    X(vkCreateQueryPool) \
+    X(vkCmdResetQueryPool) \
+    X(vkCmdWriteTimestamp) \
+    X(vkGetQueryPoolResults)
 
 #define DECLARE(name) PFN_##name name = nullptr;
 PFN_vkGetInstanceProcAddr get_instance_proc = nullptr;
@@ -240,7 +256,7 @@ struct Device {
     VkDevice dev = VK_NULL_HANDLE;
     VkQueue queue = VK_NULL_HANDLE;
     VkCommandPool pool = VK_NULL_HANDLE;
-    bool host_import = false, sync_fd = false, dma_buf = false;
+    bool host_import = false, sync_fd = false, dma_buf = false, uncached = false, calibrated = false;
     VkDeviceSize host_alignment = 0;
     VkPhysicalDeviceMemoryProperties mem{};
 #define DECLARE(name) PFN_##name name = nullptr;
@@ -251,9 +267,11 @@ struct Device {
     PFN_vkImportSemaphoreFdKHR vkImportSemaphoreFdKHR = nullptr;
     PFN_vkGetMemoryFdKHR vkGetMemoryFdKHR = nullptr;
     PFN_vkGetMemoryFdPropertiesKHR vkGetMemoryFdPropertiesKHR = nullptr;
+    PFN_vkGetCalibratedTimestampsEXT vkGetCalibratedTimestampsEXT = nullptr;
 };
 
-Device open_device(VkPhysicalDevice pd) {
+// `memory_model` enables the Vulkan memory model, which the exchange's flag wait needs and the other modes do not ask of a device.
+Device open_device(VkPhysicalDevice pd, bool memory_model = false) {
     Device d;
     d.pd = pd;
     const auto exts = extensions(pd);
@@ -275,6 +293,15 @@ Device open_device(VkPhysicalDevice pd) {
         d.dma_buf = true;
     }
 #endif
+    // Uncached device memory for the exchange's inboxes, and timestamps the host can place on its own clock for the members' arrival.
+    if (has(exts, "VK_AMD_device_coherent_memory")) {
+        enable.push_back("VK_AMD_device_coherent_memory");
+        d.uncached = true;
+    }
+    if (has(exts, VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME)) {
+        enable.push_back(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
+        d.calibrated = true;
+    }
     if (d.host_import) {
         VkPhysicalDeviceExternalMemoryHostPropertiesEXT hp{};
         hp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_HOST_PROPERTIES_EXT;
@@ -294,6 +321,12 @@ Device open_device(VkPhysicalDevice pd) {
     VkPhysicalDeviceVulkan12Features f12{};
     f12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     f12.timelineSemaphore = VK_TRUE;
+    f12.vulkanMemoryModel = memory_model ? VK_TRUE : VK_FALSE;
+    f12.vulkanMemoryModelDeviceScope = memory_model ? VK_TRUE : VK_FALSE;
+    VkPhysicalDeviceCoherentMemoryFeaturesAMD coherent{};
+    coherent.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COHERENT_MEMORY_FEATURES_AMD;
+    coherent.deviceCoherentMemory = VK_TRUE;
+    if (d.uncached) f12.pNext = &coherent;
     VkDeviceCreateInfo ci{};
     ci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     ci.pNext = &f12;
@@ -309,6 +342,7 @@ Device open_device(VkPhysicalDevice pd) {
     LOAD(vkImportSemaphoreFdKHR)
     LOAD(vkGetMemoryFdKHR)
     LOAD(vkGetMemoryFdPropertiesKHR)
+    LOAD(vkGetCalibratedTimestampsEXT)
 #undef LOAD
     d.vkGetDeviceQueue(d.dev, qi.queueFamilyIndex, 0, &d.queue);
     VkCommandPoolCreateInfo pi{};
@@ -356,7 +390,8 @@ Buffer make_buffer(Device& d, VkDeviceSize bytes, VkMemoryPropertyFlags want, Vk
 }
 
 // A buffer over host memory the caller allocated, imported rather than copied, so two devices can address the same bytes.
-Buffer import_host(Device& d, void* host, VkDeviceSize bytes) {
+// `prefer` picks among the memory types the import allows, such as the device-uncached one the exchange's inboxes take.
+Buffer import_host(Device& d, void* host, VkDeviceSize bytes, VkMemoryPropertyFlags prefer = 0) {
     Buffer b;
     VkExternalMemoryBufferCreateInfo ext{};
     ext.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
@@ -380,7 +415,8 @@ Buffer import_host(Device& d, void* host, VkDeviceSize bytes) {
     ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     ai.pNext = &imp;
     ai.allocationSize = bytes;
-    ai.memoryTypeIndex = memory_type(d, hp.memoryTypeBits & req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    ai.memoryTypeIndex = memory_type(d, hp.memoryTypeBits & req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, prefer);
+    if (prefer) std::printf("  host import: memory type %u (flags 0x%x)\n", ai.memoryTypeIndex, d.mem.memoryTypes[ai.memoryTypeIndex].propertyFlags);
     check(d.vkAllocateMemory(d.dev, &ai, nullptr, &b.mem), "vkAllocateMemory (host pointer import)");
     check(d.vkBindBufferMemory(d.dev, b.buf, b.mem, 0), "vkBindBufferMemory (imported)");
     b.map = host;
@@ -427,7 +463,7 @@ Buffer export_dma_buf(Device& d, VkDeviceSize bytes, int& fd) {
 }
 
 // The memory another device exported, addressed from `d`; the descriptor passes to the driver.
-Buffer import_dma_buf(Device& d, int fd, VkDeviceSize bytes) {
+Buffer import_dma_buf(Device& d, int fd, VkDeviceSize bytes, VkMemoryPropertyFlags prefer = 0) {
     Buffer b;
     b.buf = external_buffer(d, bytes, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
     VkMemoryFdPropertiesKHR fp{};
@@ -443,7 +479,7 @@ Buffer import_dma_buf(Device& d, int fd, VkDeviceSize bytes) {
     ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     ai.pNext = &imp;
     ai.allocationSize = req.size;
-    ai.memoryTypeIndex = memory_type(d, fp.memoryTypeBits & req.memoryTypeBits, 0);
+    ai.memoryTypeIndex = memory_type(d, fp.memoryTypeBits & req.memoryTypeBits, 0, prefer);
     std::printf("  dma-buf import on B: memory type %u (%s)\n", ai.memoryTypeIndex, memory_flags(d.mem.memoryTypes[ai.memoryTypeIndex].propertyFlags).c_str());
     check(d.vkAllocateMemory(d.dev, &ai, nullptr, &b.mem), "vkAllocateMemory (dma-buf import)");
     check(d.vkBindBufferMemory(d.dev, b.buf, b.mem, 0), "vkBindBufferMemory (dma-buf import)");
@@ -1017,6 +1053,453 @@ int pingpong(int ia, int ib, int hops) {
 }
 #endif
 
+#if !defined(_WIN32)
+// The exchange's kernels (tools/shaders), compiled by CMake: plain for the sync-file exchange, and with the Vulkan memory model at device and at queue-family scope for the flag wait.
+const uint32_t kSend[] = {
+#include "exchange_send.inc"
+};
+const uint32_t kSum[] = {
+#include "exchange_sum.inc"
+};
+const uint32_t kSendDev[] = {
+#include "exchange_send_dev.inc"
+};
+const uint32_t kFlagDev[] = {
+#include "exchange_flag_dev.inc"
+};
+const uint32_t kSpinDev[] = {
+#include "exchange_spin_dev.inc"
+};
+const uint32_t kSumDev[] = {
+#include "exchange_sum_dev.inc"
+};
+const uint32_t kSendQf[] = {
+#include "exchange_send_qf.inc"
+};
+const uint32_t kFlagQf[] = {
+#include "exchange_flag_qf.inc"
+};
+const uint32_t kSpinQf[] = {
+#include "exchange_spin_qf.inc"
+};
+const uint32_t kSumQf[] = {
+#include "exchange_sum_qf.inc"
+};
+
+// The exchange's pipelines on one device, over one layout: the target inbox, the member's own inbox, the result counters and the sums.
+struct ExchangePipes {
+    VkDescriptorSetLayout set_layout = VK_NULL_HANDLE;
+    VkPipelineLayout layout = VK_NULL_HANDLE;
+    VkPipeline send = VK_NULL_HANDLE, sum = VK_NULL_HANDLE;
+    VkPipeline mm_send[2] = {}, mm_flag[2] = {}, mm_spin[2] = {}, mm_sum[2] = {};   // [0] device scope, [1] queue-family scope
+};
+
+ExchangePipes exchange_pipes(Device& d) {
+    ExchangePipes p;
+    VkDescriptorSetLayoutBinding b[4]{};
+    for (uint32_t i = 0; i < 4; ++i) {
+        b[i].binding = i;
+        b[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        b[i].descriptorCount = 1;
+        b[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    }
+    VkDescriptorSetLayoutCreateInfo dci{};
+    dci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    dci.bindingCount = 4;
+    dci.pBindings = b;
+    check(d.vkCreateDescriptorSetLayout(d.dev, &dci, nullptr, &p.set_layout), "vkCreateDescriptorSetLayout");
+    const VkPushConstantRange pr{VK_SHADER_STAGE_COMPUTE_BIT, 0, 16};
+    VkPipelineLayoutCreateInfo lci{};
+    lci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    lci.setLayoutCount = 1;
+    lci.pSetLayouts = &p.set_layout;
+    lci.pushConstantRangeCount = 1;
+    lci.pPushConstantRanges = &pr;
+    check(d.vkCreatePipelineLayout(d.dev, &lci, nullptr, &p.layout), "vkCreatePipelineLayout");
+    auto pipe = [&](const uint32_t* code, size_t bytes) {
+        VkShaderModuleCreateInfo sci{};
+        sci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        sci.codeSize = bytes;
+        sci.pCode = code;
+        VkShaderModule m;
+        check(d.vkCreateShaderModule(d.dev, &sci, nullptr, &m), "vkCreateShaderModule");
+        VkComputePipelineCreateInfo ci{};
+        ci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        ci.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        ci.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        ci.stage.module = m;
+        ci.stage.pName = "main";
+        ci.layout = p.layout;
+        VkPipeline pl;
+        check(d.vkCreateComputePipelines(d.dev, VK_NULL_HANDLE, 1, &ci, nullptr, &pl), "vkCreateComputePipelines");
+        return pl;
+    };
+    p.send = pipe(kSend, sizeof kSend);
+    p.sum = pipe(kSum, sizeof kSum);
+    p.mm_send[0] = pipe(kSendDev, sizeof kSendDev);
+    p.mm_flag[0] = pipe(kFlagDev, sizeof kFlagDev);
+    p.mm_spin[0] = pipe(kSpinDev, sizeof kSpinDev);
+    p.mm_sum[0] = pipe(kSumDev, sizeof kSumDev);
+    p.mm_send[1] = pipe(kSendQf, sizeof kSendQf);
+    p.mm_flag[1] = pipe(kFlagQf, sizeof kFlagQf);
+    p.mm_spin[1] = pipe(kSpinQf, sizeof kSpinQf);
+    p.mm_sum[1] = pipe(kSumQf, sizeof kSumQf);
+    return p;
+}
+
+// Exportable device memory of the uncached, device-coherent type, which bypasses the L2 of the card that owns it.
+Buffer export_uncached(Device& d, VkDeviceSize bytes, int& fd) {
+    Buffer b;
+    b.buf = external_buffer(d, bytes, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
+    VkMemoryRequirements req;
+    d.vkGetBufferMemoryRequirements(d.dev, b.buf, &req);
+    VkExportMemoryAllocateInfo ex{};
+    ex.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
+    ex.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+    VkMemoryAllocateInfo ai{};
+    ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    ai.pNext = &ex;
+    ai.allocationSize = req.size;
+    ai.memoryTypeIndex = memory_type(d, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD | VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD);
+    check(d.vkAllocateMemory(d.dev, &ai, nullptr, &b.mem), "vkAllocateMemory (uncached export)");
+    check(d.vkBindBufferMemory(d.dev, b.buf, b.mem, 0), "vkBindBufferMemory (uncached export)");
+    VkMemoryGetFdInfoKHR gi{};
+    gi.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
+    gi.memory = b.mem;
+    gi.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+    check(d.vkGetMemoryFdKHR(d.dev, &gi, &fd), "vkGetMemoryFdKHR");
+    return b;
+}
+
+// One submission waiting on every semaphore of `waits` and signalling the timeline to `value` and every semaphore of `signals`.
+void submit_all(Device& d, VkCommandBuffer cb, VkSemaphore timeline, uint64_t value, const std::vector<VkSemaphore>& waits, const std::vector<VkSemaphore>& signals) {
+    std::vector<VkSemaphore> sig(signals);
+    sig.push_back(timeline);
+    std::vector<uint64_t> sig_values(sig.size(), 0), wait_values(waits.size(), 0);
+    sig_values.back() = value;
+    const std::vector<VkPipelineStageFlags> stages(waits.size(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    VkTimelineSemaphoreSubmitInfo ti{};
+    ti.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+    ti.signalSemaphoreValueCount = (uint32_t)sig_values.size();
+    ti.pSignalSemaphoreValues = sig_values.data();
+    ti.waitSemaphoreValueCount = (uint32_t)wait_values.size();
+    ti.pWaitSemaphoreValues = wait_values.data();
+    VkSubmitInfo si{};
+    si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    si.pNext = &ti;
+    si.commandBufferCount = cb ? 1 : 0;
+    si.pCommandBuffers = &cb;
+    si.signalSemaphoreCount = (uint32_t)sig.size();
+    si.pSignalSemaphores = sig.data();
+    si.waitSemaphoreCount = (uint32_t)waits.size();
+    si.pWaitSemaphores = waits.data();
+    si.pWaitDstStageMask = stages.data();
+    check(d.vkQueueSubmit(d.queue, 1, &si, VK_NULL_HANDLE), "vkQueueSubmit");
+}
+
+VkCommandBuffer begin_commands(Device& d) {
+    VkCommandBufferAllocateInfo ai{};
+    ai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    ai.commandPool = d.pool;
+    ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    ai.commandBufferCount = 1;
+    VkCommandBuffer cb;
+    check(d.vkAllocateCommandBuffers(d.dev, &ai, &cb), "vkAllocateCommandBuffers");
+    VkCommandBufferBeginInfo bi{};
+    bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    check(d.vkBeginCommandBuffer(cb, &bi), "vkBeginCommandBuffer");
+    return cb;
+}
+
+void compute_barrier(Device& d, VkCommandBuffer cb) {
+    VkMemoryBarrier mb{};
+    mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+    mb.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+    d.vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+}
+
+// The all-reduce of a tensor group, measured on 2 to 4 devices (docs/TENSOR-SPLIT.md, step 0): in each epoch every member writes its F32 partial into slot `member` of every member's inbox, waits for the others and adds the slots in member order, every sum checked.
+// Inboxes are uncached device memory exported as dma-buf (`device`) or host memory imported into every member (`host`).
+// It times the dispatch floor with no peer, the exchange through sync files with one submission an epoch a member, and the members' arrival at each epoch on the host's clock, then tries a wait inside one submission on a flag written with the Vulkan memory model at device and at queue-family scope, which on RADV and gfx906 never sees a peer's writes (docs/TENSOR-SPLIT.md, section 2.6), so each spin is bounded at 2^16 reads and a timeout ends the chain's waits.
+int exchange(const std::vector<int>& ids, int epochs, bool host_inboxes) {
+    VkInstance inst = make_instance();
+    const auto pds = physical_devices(inst);
+    const uint32_t W = (uint32_t)ids.size();
+    if (W < 2 || W > 4) throw std::runtime_error("the exchange takes 2 to 4 devices");
+    std::vector<Device> dev;
+    for (size_t a = 0; a < ids.size(); ++a) {
+        if (ids[a] < 0 || ids[a] >= (int)pds.size()) throw std::runtime_error("no device " + std::to_string(ids[a]));
+        for (size_t b = 0; b < a; ++b)
+            if (ids[a] == ids[b]) throw std::runtime_error("a device is listed twice");
+        dev.push_back(open_device(pds[ids[a]], true));
+        const Device& d = dev.back();
+        if (!d.dma_buf || !d.sync_fd || !d.uncached || (host_inboxes && !d.host_import)) throw std::runtime_error("needs dma-buf, sync files and the inbox memory on every device");
+    }
+    std::printf("width %u:", W);
+    for (uint32_t m = 0; m < W; ++m) std::printf(" device %d (pci %s)", ids[m], identity(pds[ids[m]], extensions(pds[ids[m]])).pci.c_str());
+    std::printf(", %d epochs a chain, inboxes in %s\n", epochs, host_inboxes ? "host memory imported into every member" : "uncached device memory exported as dma-buf");
+    std::vector<ExchangePipes> pipes;
+    for (auto& d : dev) pipes.push_back(exchange_pipes(d));
+    const bool timestamps = std::all_of(dev.begin(), dev.end(), [](const Device& d) { return d.calibrated; });
+    uint64_t wrong_total = 0;   // wrong sums of the floor and the sync-file exchange, which fail the run; a flag wait's timeouts are its result
+    for (uint32_t n : {5120u, 40960u, 327680u, 2621440u}) {
+        // Whole 64 KiB, so host memory meets every device's import alignment.
+        const VkDeviceSize bytes = (((VkDeviceSize)2 * W * n + 2 * W * 64) * 4 + 65535) / 65536 * 65536;
+        // inbox[t][d]: member t's inbox as device d addresses it; result[d], out[d]: d's counters and sums.
+        std::vector<std::vector<Buffer>> inbox(W, std::vector<Buffer>(W));
+        std::vector<Buffer> result(W), out(W);
+        std::vector<void*> host(W, nullptr);
+        for (uint32_t t = 0; t < W; ++t) {
+            if (host_inboxes) {
+                host[t] = host_alloc((size_t)bytes, 1 << 16);
+                if (!host[t]) throw std::runtime_error("host allocation failed");
+                std::memset(host[t], 0, (size_t)bytes);
+                for (uint32_t d = 0; d < W; ++d)
+                    inbox[t][d] = import_host(dev[d], host[t], bytes, dev[d].uncached ? VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD | VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD : 0);
+                continue;
+            }
+            int fd = -1;
+            inbox[t][t] = export_uncached(dev[t], bytes, fd);
+            for (uint32_t d = 0; d < W; ++d) {
+                if (d == t) continue;
+                inbox[t][d] = import_dma_buf(dev[d], dup(fd), bytes, VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD | VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD);
+            }
+            close(fd);
+        }
+        for (uint32_t d = 0; d < W; ++d) {
+            result[d] = make_buffer(dev[d], 64, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+            out[d] = make_buffer(dev[d], (VkDeviceSize)n * 4, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        }
+        // sets[d][t]: device d with member t's inbox as its target.
+        std::vector<std::vector<VkDescriptorSet>> sets(W, std::vector<VkDescriptorSet>(W));
+        for (uint32_t d = 0; d < W; ++d) {
+            const VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4 * W};
+            VkDescriptorPoolCreateInfo pci{};
+            pci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+            pci.maxSets = W;
+            pci.poolSizeCount = 1;
+            pci.pPoolSizes = &ps;
+            VkDescriptorPool pool;
+            check(dev[d].vkCreateDescriptorPool(dev[d].dev, &pci, nullptr, &pool), "vkCreateDescriptorPool");
+            const std::vector<VkDescriptorSetLayout> layouts(W, pipes[d].set_layout);
+            VkDescriptorSetAllocateInfo dai{};
+            dai.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            dai.descriptorPool = pool;
+            dai.descriptorSetCount = W;
+            dai.pSetLayouts = layouts.data();
+            check(dev[d].vkAllocateDescriptorSets(dev[d].dev, &dai, sets[d].data()), "vkAllocateDescriptorSets");
+            for (uint32_t t = 0; t < W; ++t) {
+                const VkDescriptorBufferInfo bi[4] = {{inbox[t][d].buf, 0, VK_WHOLE_SIZE}, {inbox[d][d].buf, 0, VK_WHOLE_SIZE},
+                                                      {result[d].buf, 0, VK_WHOLE_SIZE}, {out[d].buf, 0, VK_WHOLE_SIZE}};
+                VkWriteDescriptorSet w[4]{};
+                for (uint32_t i = 0; i < 4; ++i) {
+                    w[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    w[i].dstSet = sets[d][t];
+                    w[i].dstBinding = i;
+                    w[i].descriptorCount = 1;
+                    w[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                    w[i].pBufferInfo = &bi[i];
+                }
+                dev[d].vkUpdateDescriptorSets(dev[d].dev, 4, w, 0, nullptr);
+            }
+        }
+        const uint32_t groups = (n + 255) / 256;
+        auto dispatch = [&](VkCommandBuffer cb, uint32_t d, uint32_t target, VkPipeline pl, uint32_t member, uint32_t e, uint32_t x) {
+            const uint32_t pc[4] = {n, e, member, W};
+            dev[d].vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, pl);
+            dev[d].vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_COMPUTE, pipes[d].layout, 0, 1, &sets[d][target], 0, nullptr);
+            dev[d].vkCmdPushConstants(cb, pipes[d].layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, 16, pc);
+            dev[d].vkCmdDispatch(cb, x, 1, 1);
+        };
+        // Member d's partial into every inbox, or with `local` every member's partial into d's own, which is the floor with no peer.
+        auto sends = [&](VkCommandBuffer cb, uint32_t d, uint32_t e, VkPipeline pl, bool local) {
+            for (uint32_t t = 0; t < W; ++t) dispatch(cb, d, local ? d : t, pl, local ? t : d, e, groups);
+            compute_barrier(dev[d], cb);
+        };
+        auto sum = [&](VkCommandBuffer cb, uint32_t d, uint32_t e, VkPipeline pl) {
+            dispatch(cb, d, d, pl, d, e, groups);
+            compute_barrier(dev[d], cb);
+        };
+        std::vector<VkSemaphore> tl(W);
+        std::vector<uint64_t> v(W, 0);
+        for (uint32_t d = 0; d < W; ++d) tl[d] = make_semaphore(dev[d], true);
+        uint32_t epoch = 1;
+        auto reset_results = [&]() { for (uint32_t d = 0; d < W; ++d) std::memset(result[d].map, 0, 64); };
+        auto counter = [&](uint32_t d, int i) { return ((const uint32_t*)result[d].map)[i]; };
+        auto mismatches = [&]() { uint64_t m = 0; for (uint32_t d = 0; d < W; ++d) m += counter(d, 3); return m; };
+        auto timeouts = [&]() { uint64_t m = 0; for (uint32_t d = 0; d < W; ++d) m += counter(d, 0); return m; };
+        auto run_one = [&](std::vector<VkCommandBuffer>& cb) {
+            const double t0 = now_us();
+            for (uint32_t d = 0; d < W; ++d) submit(dev[d], cb[d], tl[d], ++v[d]);
+            for (uint32_t d = 0; d < W; ++d) wait_value(dev[d], tl[d], v[d]);
+            return now_us() - t0;
+        };
+        // The floor: every epoch in one command buffer a member, no peer.
+        auto local_chain = [&]() {
+            std::vector<VkCommandBuffer> cb(W);
+            for (uint32_t d = 0; d < W; ++d) {
+                cb[d] = begin_commands(dev[d]);
+                for (int i = 0; i < epochs; ++i) {
+                    sends(cb[d], d, epoch + (uint32_t)i, pipes[d].send, true);
+                    sum(cb[d], d, epoch + (uint32_t)i, pipes[d].sum);
+                }
+                check(dev[d].vkEndCommandBuffer(cb[d]), "vkEndCommandBuffer");
+            }
+            epoch += (uint32_t)epochs;
+            return run_one(cb) / epochs;
+        };
+        // The flag wait: every epoch in one command buffer a member, its partial and flags released into the peers' inboxes and an acquiring spin on its own.
+        auto flag_chain = [&](int scope, int count) {
+            std::vector<VkCommandBuffer> cb(W);
+            for (uint32_t d = 0; d < W; ++d) {
+                cb[d] = begin_commands(dev[d]);
+                for (int i = 0; i < count; ++i) {
+                    const uint32_t e = epoch + (uint32_t)i;
+                    sends(cb[d], d, e, pipes[d].mm_send[scope], false);
+                    for (uint32_t t = 0; t < W; ++t)
+                        if (t != d) dispatch(cb[d], d, t, pipes[d].mm_flag[scope], d, e, 1);
+                    compute_barrier(dev[d], cb[d]);
+                    dispatch(cb[d], d, d, pipes[d].mm_spin[scope], d, e, 1);
+                    compute_barrier(dev[d], cb[d]);
+                    sum(cb[d], d, e, pipes[d].mm_sum[scope]);
+                }
+                check(dev[d].vkEndCommandBuffer(cb[d]), "vkEndCommandBuffer");
+            }
+            epoch += (uint32_t)count;
+            return run_one(cb) / count;
+        };
+        // Sync files: one submission an epoch a member, [sum of the epoch before, partial into every inbox, arrival timestamp], waiting on each peer's semaphore of the epoch before and signalling one to each peer.
+        std::vector<VkQueryPool> pools(W, VK_NULL_HANDLE);
+        if (timestamps)
+            for (uint32_t d = 0; d < W; ++d) {
+                VkQueryPoolCreateInfo qi{};
+                qi.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+                qi.queryType = VK_QUERY_TYPE_TIMESTAMP;
+                qi.queryCount = (uint32_t)epochs;
+                check(dev[d].vkCreateQueryPool(dev[d].dev, &qi, nullptr, &pools[d]), "vkCreateQueryPool");
+            }
+        std::vector<double> spread;
+        double deviation_us = 0;   // the calibrations' largest uncertainty, beside the spread it bounds
+        auto sync_chain = [&]() {
+            std::vector<std::vector<VkCommandBuffer>> cbs(W);
+            // sig[d][i][t]: d's semaphore for peer t after epoch i; wait[t][i][d]: t's import of it.
+            std::vector<std::vector<std::vector<VkSemaphore>>> sig(W), wt(W);
+            const uint32_t e0 = epoch;
+            for (uint32_t d = 0; d < W; ++d) {
+                sig[d].assign((size_t)epochs, std::vector<VkSemaphore>(W, VK_NULL_HANDLE));
+                wt[d].assign((size_t)epochs, std::vector<VkSemaphore>(W, VK_NULL_HANDLE));
+            }
+            for (uint32_t d = 0; d < W; ++d) {
+                for (int i = 0; i <= epochs; ++i) {
+                    VkCommandBuffer cb = begin_commands(dev[d]);
+                    if (i == 0 && timestamps) dev[d].vkCmdResetQueryPool(cb, pools[d], 0, (uint32_t)epochs);
+                    if (i > 0) sum(cb, d, e0 + (uint32_t)i - 1, pipes[d].sum);
+                    if (i < epochs) {
+                        sends(cb, d, e0 + (uint32_t)i, pipes[d].send, false);
+                        if (timestamps) dev[d].vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, pools[d], (uint32_t)i);
+                        for (uint32_t t = 0; t < W; ++t)
+                            if (t != d) {
+                                sig[d][(size_t)i][t] = make_semaphore(dev[d], false, true);
+                                wt[t][(size_t)i][d] = make_semaphore(dev[t], false);
+                            }
+                    }
+                    check(dev[d].vkEndCommandBuffer(cb), "vkEndCommandBuffer");
+                    cbs[d].push_back(cb);
+                }
+            }
+            epoch += (uint32_t)epochs;
+            const double t0 = now_us();
+            for (int i = 0; i <= epochs; ++i)
+                for (uint32_t d = 0; d < W; ++d) {
+                    std::vector<VkSemaphore> waits, signals;
+                    for (uint32_t t = 0; t < W; ++t) {
+                        if (t == d) continue;
+                        if (i > 0) waits.push_back(wt[d][(size_t)i - 1][t]);
+                        if (i < epochs) signals.push_back(sig[d][(size_t)i][t]);
+                    }
+                    submit_all(dev[d], cbs[d][(size_t)i], tl[d], ++v[d], waits, signals);
+                    for (uint32_t t = 0; i < epochs && t < W; ++t) {
+                        if (t == d) continue;
+                        VkSemaphoreGetFdInfoKHR gi{};
+                        gi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
+                        gi.semaphore = sig[d][(size_t)i][t];
+                        gi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+                        int fd = -1;
+                        check(dev[d].vkGetSemaphoreFdKHR(dev[d].dev, &gi, &fd), "vkGetSemaphoreFdKHR");
+                        VkImportSemaphoreFdInfoKHR ii{};
+                        ii.sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR;
+                        ii.semaphore = wt[t][(size_t)i][d];
+                        ii.flags = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT;
+                        ii.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+                        ii.fd = fd;
+                        check(dev[t].vkImportSemaphoreFdKHR(dev[t].dev, &ii), "vkImportSemaphoreFdKHR");
+                    }
+                }
+            for (uint32_t d = 0; d < W; ++d) wait_value(dev[d], tl[d], v[d]);
+            const double us = (now_us() - t0) / epochs;
+            if (!timestamps) return us;
+            // Each member's arrival placed on the host's clock through a calibration taken now, and the spread of the members' arrivals at every epoch.
+            std::vector<std::vector<double>> at(W, std::vector<double>((size_t)epochs));
+            for (uint32_t d = 0; d < W; ++d) {
+                std::vector<uint64_t> ts((size_t)epochs);
+                check(dev[d].vkGetQueryPoolResults(dev[d].dev, pools[d], 0, (uint32_t)epochs, ts.size() * 8, ts.data(), 8, VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT), "vkGetQueryPoolResults");
+                VkCalibratedTimestampInfoEXT ci[2]{};
+                ci[0].sType = ci[1].sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT;
+                ci[0].timeDomain = VK_TIME_DOMAIN_DEVICE_EXT;
+                ci[1].timeDomain = VK_TIME_DOMAIN_CLOCK_MONOTONIC_RAW_EXT;
+                uint64_t cal[2], deviation = 0;
+                check(dev[d].vkGetCalibratedTimestampsEXT(dev[d].dev, 2, ci, cal, &deviation), "vkGetCalibratedTimestampsEXT");
+                deviation_us = std::max(deviation_us, (double)deviation / 1000.0);
+                VkPhysicalDeviceProperties props;
+                vkGetPhysicalDeviceProperties(dev[d].pd, &props);
+                for (int i = 0; i < epochs; ++i)
+                    at[d][(size_t)i] = (double)cal[1] / 1000.0 + ((double)ts[(size_t)i] - (double)cal[0]) * props.limits.timestampPeriod / 1000.0;
+            }
+            for (int i = 0; i < epochs; ++i) {
+                double lo = at[0][(size_t)i], hi = lo;
+                for (uint32_t d = 1; d < W; ++d) lo = std::min(lo, at[d][(size_t)i]), hi = std::max(hi, at[d][(size_t)i]);
+                spread.push_back(hi - lo);
+            }
+            return us;
+        };
+        std::vector<double> floor_us, sync_us;
+        reset_results();
+        local_chain();
+        sync_chain();
+        spread.clear();
+        for (int r = 0; r < 5; ++r) {
+            floor_us.push_back(local_chain());
+            sync_us.push_back(sync_chain());
+        }
+        const uint64_t wrong = mismatches();
+        wrong_total += wrong;
+        std::printf("%9u floats (%7.1f KB): us an epoch, median of 5 chains: floor %.1f, sync files %.1f", n, n * 4 / 1024.0, stats(floor_us).median, stats(sync_us).median);
+        if (timestamps) std::printf("; members' arrival spread median %.1f, p90 %.1f, calibration uncertainty up to %.1f", stats(spread).median, stats(spread).p90, deviation_us);
+        std::printf("; wrong sums %llu\n", (unsigned long long)wrong);
+        for (int scope = 0; scope < 2; ++scope) {
+            reset_results();
+            const double us = flag_chain(scope, 8);
+            const uint64_t missed = timeouts();
+            std::printf("    flag wait, %s scope: %s", scope ? "queue-family" : "device", missed ? "the peers' flags never arrived inside the submission" : "the peers' flags arrived");
+            if (!missed) {
+                std::vector<double> t;
+                reset_results();
+                for (int r = 0; r < 5; ++r) t.push_back(flag_chain(scope, epochs));
+                std::printf(", %.1f us an epoch, median of 5 chains, %llu timeouts", stats(t).median, (unsigned long long)timeouts());
+            } else {
+                std::printf(" (8 epochs, %.0f us an epoch with the bounded spin)", us);
+            }
+            std::printf(", wrong sums %llu\n", (unsigned long long)mismatches());
+        }
+        // The buffers stay alive, imported host memory included, until the process ends.
+        for (auto& d : dev) d.vkDeviceWaitIdle(d.dev);
+    }
+    if (wrong_total) std::fprintf(stderr, "llmx-vk-handoff: %llu sums were wrong\n", (unsigned long long)wrong_total);
+    return wrong_total ? 1 : 0;
+}
+#endif
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1027,8 +1510,29 @@ int main(int argc, char** argv) {
         if (mode == "time" && argc >= 4) return time_handoff(std::atoi(argv[2]), std::atoi(argv[3]), argc > 4 ? std::atoi(argv[4]) : 200);
 #if !defined(_WIN32)
         if (mode == "pingpong" && argc >= 4) return pingpong(std::atoi(argv[2]), std::atoi(argv[3]), argc > 4 ? std::atoi(argv[4]) : 200);
+        if (mode == "exchange" && argc >= 3 && argc <= 5) {
+            // A whole decimal number in [lo, hi], or a usage error.
+            auto number = [](const std::string& t, long lo, long hi) {
+                char* end = nullptr;
+                const long v = t.empty() ? -1 : std::strtol(t.c_str(), &end, 10);
+                if (t.empty() || *end || v < lo || v > hi) throw std::runtime_error("not a number from " + std::to_string(lo) + " to " + std::to_string(hi) + ": " + t);
+                return (int)v;
+            };
+            std::vector<int> ids;
+            std::string list = argv[2];
+            for (size_t at = 0;;) {
+                const size_t comma = list.find(',', at);
+                ids.push_back(number(list.substr(at, comma - at), 0, 63));
+                if (comma == std::string::npos) break;
+                at = comma + 1;
+            }
+            const int epochs = argc > 3 ? number(argv[3], 1, 100000) : 200;
+            const std::string where = argc > 4 ? argv[4] : "device";
+            if (where != "device" && where != "host") throw std::runtime_error("inboxes are device or host");
+            return exchange(ids, epochs, where == "host");
+        }
 #endif
-        std::fprintf(stderr, "usage: llmx-vk-handoff probe | llmx-vk-handoff time A B [iterations] | llmx-vk-handoff pingpong A B [hops]\n");
+        std::fprintf(stderr, "usage: llmx-vk-handoff probe | llmx-vk-handoff time A B [iterations] | llmx-vk-handoff pingpong A B [hops] | llmx-vk-handoff exchange A,B[,C,D] [epochs] [device|host]\n");
         return 2;
     } catch (const std::exception& e) {
         std::fprintf(stderr, "llmx-vk-handoff: %s\n", e.what());

@@ -1,0 +1,13 @@
+#version 450
+#extension GL_KHR_memory_scope_semantics : enable
+#ifdef LLMX_MM
+#pragma use_vulkan_memory_model
+#endif
+// The member's flag for this epoch into the inbox bound as `target`, released after its partial.
+layout(local_size_x = 1) in;
+layout(std430, binding = 0) buffer Target { uint u[]; } target;
+#include "exchange.glsl"
+void main() {
+    memoryBarrier(LLMX_SCOPE, gl_StorageSemanticsBuffer, gl_SemanticsAcquireRelease | gl_SemanticsMakeAvailable | gl_SemanticsMakeVisible);
+    atomicStore(target.u[flag(pc.member)], pc.epoch, LLMX_SCOPE, gl_StorageSemanticsBuffer, gl_SemanticsRelease | gl_SemanticsMakeAvailable);
+}

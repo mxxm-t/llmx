@@ -90,12 +90,25 @@ An exchange is the all-reduce of width 2: each card writes its F32 partial into 
   The driver's ISA (`RADV_DEBUG=shaders`) shows why: the release stores and acquire loads become `buffer_store_dword` and `buffer_load_dword` with `glc` and `s_waitcnt`, which bypass only the L1, and nothing writes the L2 back or invalidates it, for which gfx906 has no shader instruction; device scope, the widest Vulkan gives, is satisfied inside one card's L2, and another card is outside every Vulkan scope.
   So on this driver and these cards a sum waits at a submission boundary; a driver that maps imported or shared memory uncached on the writer, as HIP's fine-grained memory does, would change that, and step 0 reruns the test on each driver it meets.
 
+Step 0 (2026-10-04), `llmx-vk-handoff exchange` on the four MI50s of one root complex (83:00, 86:00, 89:00, 8c:00), the same driver and clocks, 200 epochs a chain, median of 5 chains, every sum checked and none wrong, inboxes in uncached device memory exported as dma-buf:
+
+| width | 20 KB | 160 KB | 1.25 MB | 10 MB | members' arrival spread at 20 KB |
+|---:|---:|---:|---:|---:|---:|
+| 2 | 154 us | 166 us | 380 us | 2.2 ms | 60 us |
+| 3 | 224 us | 293 us | 933 us | 6.2 ms | 134 us |
+| 4 | 268 us | 433 us | 1.82 ms | 11.9 ms | 200 us |
+
+- The dispatch floor with no peer is 13 to 19 us at 20 to 160 KB; host memory imported into every member as the inboxes costs about the same at 20 KB (151, 170 and 278 us) and more for large messages, bound by host writes.
+- The flag wait under the Vulkan memory model, at device and queue-family scope, on both placements, never saw a peer's write inside a submission: at width 2 with modules validated by the build and declaring the device-scope capability, and earlier at widths 2 to 4 with modules that lacked it, which review found invalid and which count only as observations.
+- The sum grows with the width faster than a member's work shrinks: every member writes its partial into every inbox, so a member's link carries W - 1 copies each way.
+- Pass costs measured with `llmx bench` (ms a pass), the inputs of section 5: Qwen3.6-27B Q8_0 on one MI50 at 1, 8, 16, 32 and 64 rows 43.2, 107.2, 206.7, 438.2 and 1543, pp512 1972 a chunk and pp2048 8123; Qwen3-32B Q8_0 over two MI50s at one pass in flight, so the total work, 51.5, 141.4, 274.9, 496.8 and 1057, pp512 2503 and pp2048 6834, the last pipelined over the two stages.
+
 ### 2.7 What the research decides
 
 1. Two reductions a layer is the floor for every Qwen layer kind (attention, Gated DeltaNet, dense and MoE feed-forward); sequence parallelism doubles the synchronization points and is not taken.
 2. The reductions sit at part ends in llmx's modules, so the runtime can sum between parts and a module needs no mid-part hook.
 3. A fixed reduction order gives every member the same bits, as vLLM's one-shot and the fork's broadcast do; an algorithm or wire precision chosen by message size breaks batch invariance, as the fork's results and vLLM's batch-invariant mode show, and is not taken.
-4. On Vulkan here a reduction costs about 137 us at decode sizes, so a width-2 group pays about 17.5 ms of sums a token on a 64-layer model; that, not bandwidth, sets Vulkan's gain (section 5).
+4. On Vulkan here a reduction costs about 154 us at decode sizes at width 2 and 268 us at width 4 (step 0), so a width-2 group pays about 19.7 ms of sums a token on a 64-layer model; that, not bandwidth, sets Vulkan's gain (section 5).
 5. Widths above 4 lose on this hardware in every measurement found (the fork, MULTI-DEVICE's skew figures), and the staged form recovers them.
 
 ## 3. Words used here
@@ -166,7 +179,7 @@ Each member's arithmetic is the one-device kernel over its shard, so a group add
     Inboxes alternate by parity, so a member writes an inbox only after every peer has read its previous contents, which the wait chain guarantees, as MULTI-DEVICE's exchange epochs require.
     It is Linux-only, as sync files and dma-buf are; on Windows a group of Vulkan devices is refused by name and the Radeon VII, a single device, is untouched.
   - **ROCm,** when that backend exists: peer stores into fine-grained memory with flags, the fork's measured path, behind the same call.
-- **Cost on Vulkan:** about 137 us a reduction at decode sizes on two cards (section 2.6), 128 a token on a 64-layer model, about 17.5 ms; at 512 prompt rows about 2.0 ms a reduction.
+- **Cost on Vulkan:** about 154 us a reduction at decode sizes at width 2 and 268 us at width 4 (step 0, section 2.6), 128 a token on a 64-layer model, about 19.7 and 34.3 ms; at 512 prompt rows about 2.2 and 11.9 ms a reduction.
 - **If a device-side wait works** on some driver (step 0's first measurement) and that driver documents a cross-device visibility and ordering contract for the memory involved, the Vulkan collective keeps its call and its inboxes and replaces the sync files by a release store of a flag per peer after the partial and an acquire spin before the sum, bounded far below the ring timeout with an error flag the host checks; a member's work then stays in one submission per stage, as on one device, and a sum costs about the dispatch floor plus the PCIe write, an estimated 15 to 25 us (the measured three-dispatch floor is 13 us).
   A passing probe alone does not select flags: the Vulkan shader specification disallows the CrossDevice scope and gives each device its own Device-scope instance, so a probe shows one driver's behaviour, not a guarantee.
   Without both the contract and the probe, as on RADV and gfx906 today, the collective keeps API synchronization, the sync files, with a submission boundary at every sum.
@@ -200,16 +213,15 @@ Its sources here:
 - **Card variance:** clocks, temperature and link training differ per card (a link can train at Gen1 or Gen3), and a card beside another job runs slower.
 - **Topology:** a group across root complexes reads its peers at 1.1 GB/s instead of 9.2 and its 160 KB hop took 132 us instead of 72.
 
-**What it costs a token** on Qwen3-32B Q8_0 (64 layers, 128 sums), single request, from section 2.6 and the fork's skew figures; widths 4 to 8 add HIP's peer-store skew to the measured two-card Vulkan sum, an optimistic extrapolation and not a proven bound, until step 0 measures wider Vulkan groups:
+**What it costs a token** on Qwen3-32B Q8_0 (64 layers, 128 sums), single request, from step 0's measured sums (section 2.6) and its measured 51.5 ms of work a token, of which about 2.9 ms is the dispatch floor that does not split:
 
-| width | sum, us | sums a token, ms | share of a token |
+| width | sum at 20 KB | sums a token | share of a token |
 |---:|---:|---:|---:|
-| 2 | 137 (measured) | 17.5 | 35 percent |
-| 4 | 145 (est.) | 18.6 | 51 percent |
-| 6 | 150 (est.) | 19.2 | 60 percent |
-| 8 | 157 (est.) | 20.1 | 66 percent |
+| 2 | 154 us | 19.7 ms | 42 percent |
+| 3 | 224 us | 28.7 ms | 60 percent |
+| 4 | 268 us | 34.3 ms | 70 percent |
 
-Width 6 is not legal on Qwen3-32B (64 q heads) and shows the trend only.
+Width 3 is not legal on Qwen3-32B (64 q heads, 8 KV heads) and shows the trend only; widths past 4 are not measured, as this machine has four cards on one root complex.
 The exchange and its skew do not shrink with the width while the compute does, so past 4 the sums are most of a token on Vulkan, and on ROCm, where a sum costs 6 to 17 us plus skew, skew is the larger part at 8 (the fork's 27 percent of an 8-card token).
 
 **What each system does about it, and what llmx takes:**
@@ -223,7 +235,7 @@ The exchange and its skew do not shrink with the width while the compute does, s
 - **Bounded width, staged beyond it:** a group is at most 4 wide, and more cards form stages: 8 cards as 2 stages of 4 keep width 4's skew per sum, take the same time per token for one request (each token crosses both stages, each with half the layers), and with P = 2 serve twice the requests; the fork measured staged ahead of full width from 6 cards.
 
 **Recommended:** width at most 4, 2 on Vulkan unless step 0's 4-card measurement shows width 4 pays there, even shards, one root complex per group, a submitting thread per member from width 4, and stages beyond 4 cards.
-At 8 cards the model's optimistic figures favour width 8 for one request (section 5), but every measurement found puts width 8 below width 4 and the staged form above both from 6 cards, the figures leave out Vulkan's unmeasured skew at 8, one thread cannot record 8 members in time, the eight cards span two root complexes here (four at 83 to 8c, four at c3 to cc), and 2 stages of 4 serve twice the requests at P = 2; width 8 stays refused until step 0 measures a group of 8 on one complex, which this machine does not have.
+At 8 cards an extrapolation of HIP's skew would favour width 8 for one request, but step 0 measured the Vulkan sum growing from 154 us at width 2 to 268 us at width 4, every measurement found puts width 8 below width 4 and the staged form above both from 6 cards, the figures leave out Vulkan's unmeasured skew at 8, one thread cannot record 8 members in time, the eight cards span two root complexes here (four at 83 to 8c, four at c3 to cc), and 2 stages of 4 serve twice the requests at P = 2; width 8 stays refused until step 0 measures a group of 8 on one complex, which this machine does not have.
 **Gate:** at every width offered and at 2 stages of 4, the exposed wait a sum and a token, read from GPU timestamps on every member, and the per-token cost against the model above, recorded at each merge that touches the group's execution.
 
 ### 4.6 Placement, fit and flags
@@ -240,7 +252,7 @@ At 8 cards the model's optimistic figures favour width 8 for one request (sectio
 
 - **Passes:** the scheduler, the pass API and the policy core are unchanged; a stage is a group, P = S passes in flight by default, and every member of a stage runs each pass in lockstep, recorded by its submitter.
   A single group runs one pass at a time, so its host gap (sampling and the first recording of the next pass) is exposed as on one device.
-- **Width of a pass:** passes widen up to the decode kernel's columns as on one device, and a wider pass pays each sum once: on Qwen3-32B at width 2, a 32-row pass costs about 170 ms of member work and 32 ms of sums (640 KB a sum, between the measured 160 KB and 1.25 MB), 158 tok/s, where the 2-card layer split at P = 2 gives about 188 (estimates from the measured 8B curve scaled by bytes).
+- **Width of a pass:** passes widen up to the decode kernel's columns as on one device, and a wider pass pays each sum once: on Qwen3-32B at width 2, a 32-row pass projects to about 113 tok/s against the layer split's 116 at P = 2 on the same two cards, from step 0's measured pass costs and sums (section 5).
   So at 16 to 64 users the layer split keeps the throughput lead on Vulkan and the tensor split the latency lead; the staged form sits between, and the choice is the user's per deployment, as MULTI-DEVICE's Which split for which case says.
 - **Predicted stage time:** the cost model of a pass (phase 3, step 9) adds the group's sum cost per reduction and per row, measured at load, so assembly keeps passes level.
 - **Prefill beside decode:** unchanged; a 512-row chunk pays about 2.0 ms a sum on two cards, 0.26 s over a 64-layer model against about 0.78 s of member work, so long prompts prefer the layer split or the staged form until overlap (step 7) hides it.
@@ -285,21 +297,36 @@ One system, as SPECULATIVE section 3 requires: proposers over one verify, accept
 
 ## 5. What it would deliver
 
-Single-request decode on Qwen3-32B Q8_0, modeled from measured parts: a token is 61.7 ms of device work on two MI50s at one row (the layer split's measured pass), of which about 2.9 ms is the dispatch floor that does not split (about 10 dispatches a layer at 4.1 to 5 us); a member takes (61.7 - 2.9) / W + 2.9 ms, plus the sums of section 4.5.
+Modeled on 2026-10-04 from step 0's measured inputs (section 2.6): each pass's work W, measured at its row count, and the measured sum for the pass's message of rows x 20 KB, 128 sums a pass on both models; a member takes (W - F) / w + F plus the sums, F being the dispatch floor (about 3.3 ms on Qwen3.6-27B, 740 dispatches a pass, and 2.9 ms on Qwen3-32B).
+The inputs are measured; the rates are projections, not measurements of a tensor split, which does not exist, and they say nothing of its correctness or of a reference gate.
+The sums at 320 KB and 640 KB (16 and 32 rows) are interpolated linearly between the measured 160 KB and 1.25 MB; a group runs one pass at a time, a layer split of two stages two passes of half the rows (P = 2), and replicas each hold their share of the requests.
 
-| placement | tok/s, Vulkan sums (137 us measured at width 2, HIP skew added past it) | tok/s, a 15 us sum plus HIP's skew (ROCm peer stores) | measured references |
-|---|---:|---:|---|
-| layer split, 2 cards | 16.2 (measured) | | mx-llama.cpp layer 18.7, Vulkan reference 13.3 |
-| tensor split, width 2 | 20.1 | 29.2 | mx-llama.cpp tensor 33.6, vLLM AWQ TP 2 38.1 |
-| tensor split, width 4 | 27.6 (est.) | 48.6 (est.) | |
-| tensor split, width 8 (only where `ffn_down` is Q8_0) | 32.9 (est.); 13.5 to 27 with one recording thread | 67.7 (est.) | mx-llama.cpp: width 8 below width 4 on Qwen3-14B (54.3 against 76.5) |
-| 2 stages of 4, 8 cards, one request | 27.5 (est.) | 48.3 (est.) | mx-llama.cpp: staged ahead of full width from 6 cards |
+Decode, tok/s, with the alternative the same cards give beside it:
 
-- With a device-side wait at 15 to 25 us a sum, on a driver that documents it, Vulkan's figures would move to the ROCm column's: about 28 to 29 tok/s at width 2 and 46 to 49 at width 4 on Qwen3-32B Q8_0 (estimates), and the plan would build step 3 on flags; without it the Vulkan column stands.
-- On Vulkan a group of two gains about 1.24 times the layer split for one request, and width 4 about 1.7 times if the optimistic extrapolation holds; reaching the ROCm references needs a cheaper cross-card wait (the ROCm backend, or a Vulkan driver that maps imported memory uncached) and per-card decode near the fork's, whose 33.6 tok/s implies about 25 ms of member work against llmx's modeled 32.
-- At 16 to 64 users the layer split keeps the throughput lead on Vulkan (section 4.7); the staged form and the group are measured against it and the references there.
-- With speculative decoding the group's per-pass sums are shared by k + 1 verify rows, which is where the group's single-request lead grows most (section 4.8).
-- Every figure above but the measured ones is an estimate; step 0 and each step's timing replace them.
+| model, rows a pass | one card (27B) or layer split at P = 1 (32B), measured | 2 replicas (27B) or layer split at P = 2 (32B) | tensor split, width 2 | tensor split, width 4 |
+|---|---:|---:|---:|---:|
+| Qwen3.6-27B Q8_0, 1 | 23.1 | 23.1 | 23.3 | 21.0 |
+| Qwen3.6-27B Q8_0, 16 | 77.4 | 149.2 | 122.9 | 118.6 |
+| Qwen3.6-27B Q8_0, 32 | 73.0 | 154.8 | 126.1 | 131.4 (4 replicas 298) |
+| Qwen3.6-27B Q8_0, 64 | 41.5 | 146.0 | 77.9 | 103.0 (4 replicas 310) |
+| Qwen3-32B Q8_0, 1 | 19.4 | 19.4 | 21.3 | 20.3 |
+| Qwen3-32B Q8_0, 16 | 58.2 | 113.2 | 97.5 | 105.5 |
+| Qwen3-32B Q8_0, 32 | 64.4 | 116.4 | 113.1 | 124.1 (4-stage split about 226) |
+| Qwen3-32B Q8_0, 64 | 60.6 | 128.8 | 110.7 | 128.2 (4-stage split about 233) |
+
+One prompt's prefill, ms, measured against projected:
+
+| prompt | one card (27B) or layer split (32B) | tensor split, width 2 | tensor split, width 4 |
+|---|---:|---:|---:|
+| Qwen3.6-27B Q8_0, pp512 | 1972 | 1269 | 2016 |
+| Qwen3.6-27B Q8_0, pp2048 | 8123 | 5192 | 8123 |
+| Qwen3-32B Q8_0, pp512 | 2503 | 1534 | 2148 |
+| Qwen3-32B Q8_0, pp2048 | 6834 (pipelined) | 6135 | 8593 |
+
+- One request gains 1 percent (27B) to 10 percent (32B) at width 2, and width 4 gains less, since its sums grow faster than its work shrinks.
+- Batched decode beats one card, but loses to replicas or a layer split on the same cards from 16 rows on.
+- The clear gain is one prompt's time to first token: 1.55 times on a 512-token chunk of the 27B and 1.63 times on the 32B at width 2, and 1.11 times on a 2048-token prompt of the 32B against the pipelined layer split; it is a workload tradeoff to keep in view, not the purpose decision 7 gives the tensor split.
+- With a 15 us sum (ROCm peer stores, or a Vulkan wait inside a submission on a driver that documents it), the same model gives the 32B about 34 tok/s at width 2 and 55 at width 4 for one request.
 
 ## 6. Order of work
 
@@ -318,11 +345,11 @@ Each step is a branch from main, at most two commits, with a STATUS block opened
 | 7 | `perf/tp-overlap` | two micro-batches of a prompt pass, one exchanging while the other computes, only from the size where step 0 or step 3 measured a gain | prompt speed against step 3 at 512 to 16384 tokens with bits unchanged (the sum's order does not change) |
 | 8 | `feat/tp-moe` | if measured worth it: experts by rows where every down shard is whole blocks, else by member, with the router replicated | the MoE HF gate at width 2, Qwen3-30B-A3B and Qwen3.6-35B-A3B decode and serving against the layer split; not built if the measurement shows no gain |
 
-Steps 0 and 0b run first, in parallel, after this plan lands; steps 1 and 2 follow them and need no device beyond the probe's cards; step 3 is the first device merge; steps 5 and 6 follow the order of SPECULATIVE's own steps where they share files.
+Steps 0 and 0b ran first, in parallel, after this plan landed; step 0's outcome (section 8) defers steps 1 to 8. When the work reopens, steps 1 and 2 follow and need no device beyond the probe's cards; step 3 is the first device merge; steps 5 and 6 follow the order of SPECULATIVE's own steps where they share files.
 
 ## 7. Risks and how each is measured early
 
-1. **The Vulkan sum costs more than the group saves.** Measured at 137 us a sum on two cards (2.6); step 0 measures widths 3 and 4 and the spread before any Vulkan group code, and the user decides on the collective with those numbers.
+1. **The Vulkan sum costs more than the group saves.** Step 0 measured 154, 224 and 268 us a sum at widths 2, 3 and 4 (2.6), and its outcome defers the Vulkan group (section 8).
 2. **The host records too slowly for a group.** One thread records W members; step 0 measures recording per member a layer, and step 3 adds a submitting thread per member only where that measurement says the host limits.
 3. **A device-side wait stays closed on Vulkan.** Measured closed on RADV and gfx906, with and without the Vulkan memory model, and explained by the ISA (2.6); the design does not depend on it, and a driver or a ROCm backend that offers it enters behind the same collective.
 4. **Skew past width 4.** Bounded by the legality and width rules and measured at each merge (4.5).
@@ -346,6 +373,15 @@ The coordinator proposed answers in the shared development log (PROPOSAL re:tens
 6. **`runtime.hpp`:** a separate, minimal, move-only split by concern first, with its own gates (byte identity on the CPU and a device, CTest, the hosted run, and code-layout scrutiny of the hot path), so the group's bookkeeping lands in a file of its own.
 7. **The merge gate:** the tensor split's purpose and gate is its single-request and few-user gain over the layer split; every 16 to 64 user figure and every reference figure (mx-llama.cpp's ROCm tensor split, vLLM) is reported beside it, and a reference floor not met stays visibly open under the first-support policy of AGENTS.md, never called passed because the layer split is beaten.
    Every width-1 gate stays unchanged, and no dtype or half-weight prerequisite is waived by these choices.
+
+### The outcome of step 0 (2026-10-04)
+
+Decided by the coordinator and the other developer under the user's delegation (PROPOSAL re:tensor-split-step3 and ANSWER re:tensor-split-step3 in the shared development log):
+1. The Vulkan collective (step 3) is not built now: on Vulkan here a group gains 1 to 10 percent for one request and loses to replicas or a layer split from 16 rows on (section 5), which does not meet decision 7's purpose.
+2. Steps 1 and 2 are not built alone either, since shards and CPU groups give no user gain without a device collective; the design above stays as the plan the work reopens on.
+3. `llmx-vk-handoff exchange` lands as a mode of the existing diagnostic tool, since decision 2 requires the probe on every new driver; it adds no runtime code.
+4. The work reopens on any of: a ROCm backend, whose HIP peer stores into fine-grained memory sum in 6 to 17 us; a Vulkan driver with a documented cross-device visibility and ordering contract and a passing probe; or a sum at or below about 55 us at 20 KB measured by the tool at width 2, at which the model gives the 32B 1.5 times the layer split for one request.
+5. One prompt's time to first token, where a group of two gains 1.55 to 1.63 times on a 512-token chunk, stays a recorded tradeoff; it reopens the work only if the user asks for that workload.
 
 ## 9. Sources
 

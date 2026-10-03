@@ -14,6 +14,10 @@ gfx906 silicon, the Windows HIP SDK does not support it, and the Vulkan
 runtime is already present on the workstation. ROCm stays the first-class
 target on Linux; it comes after this and reuses the structure.
 
+## F16 and BF16 weight storage
+
+The backend retains these read-only weights in their file storage and widens them in separate builds of the existing F32 embedding, row and tile kernels. Storage precision is independent of activation `--dtype`; the weight descriptor selects the modules and existing crossovers. The CPU and device qualification status is in [STATUS](STATUS.md), and ownership and float-control details are in [the backend page](src/backends-vulkan.md).
+
 ## MXFP4 and activation precision
 
 The Vulkan backend reads MXFP4 through exact embedding, row and tile decoders. F32 uses original activations; BF16 tiles round inputs explicitly. F16 calls use block-int16 rows and, on integer-tile profiles, dense prompts with an exact float-scale copy. Routed prompts and projections beyond the bounded 256 MiB copy scratch take the wider F32 tile. Unsafe sums are recomputed in double from exact weights and the selected path's inputs; split partials stay double until reduction. Optional float preservation and double properties gate the type without raising other types' requirements. The backend advertises native F16 and resolves auto to it on the qualified MI50 and Radeon VII paths.

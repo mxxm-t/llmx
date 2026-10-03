@@ -17,6 +17,7 @@ import perf
 import tokenizer
 import perplexity
 import f32
+import half_weights
 import moe
 import mxfp4
 import qwen35
@@ -100,6 +101,7 @@ def main():
                   ("tokenizer", tokenizer.run),
                   ("perplexity", perplexity.run),
                   ("f32", f32.run),
+                  ("half-weights", lambda: half_weights.run(require=args.require_tools)),
                   ("moe", moe.run),
                   ("mxfp4", lambda: mxfp4.run(require=args.require_tools)),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),

@@ -12,12 +12,14 @@ namespace quant {
 static_assert(sizeof(size_t) >= sizeof(uint64_t), "llmx needs a 64-bit size_t");
 
 constexpr uint32_t GGML_TYPE_F32  = 0;
+constexpr uint32_t GGML_TYPE_F16  = 1;
 constexpr uint32_t GGML_TYPE_Q4_0 = 2;
 constexpr uint32_t GGML_TYPE_Q4_1 = 3;
 constexpr uint32_t GGML_TYPE_Q8_0 = 8;
 constexpr uint32_t GGML_TYPE_Q4_K = 12;
 constexpr uint32_t GGML_TYPE_Q5_K = 13;
 constexpr uint32_t GGML_TYPE_Q6_K = 14;
+constexpr uint32_t GGML_TYPE_BF16 = 30;
 constexpr uint32_t GGML_TYPE_MXFP4 = 39;
 
 constexpr size_t   Q4_0_BLOCK    = 32;   // values per block

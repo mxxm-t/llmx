@@ -319,7 +319,7 @@ Models are kept in the LM Studio model directory:
 C:\Users\Marko\.lmstudio\models\
 ```
 
-llmx decodes **Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / MXFP4 / F32** tensors (see
+llmx decodes **Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / MXFP4 / F32 / F16 / BF16** tensors (see
 `docs/src/quant-quant.md`). GGUF metadata inspection recognizes 35 storage layouts
 independently of these decoders; this does not make the other types executable.
 Dense Qwen3 Q4_K_M and Q5_K_M mixtures are supported;
@@ -332,7 +332,7 @@ embeddings, matrices and norms are supported, including tied output weights.
 | `Qwen\Qwen2-0.5B-Instruct-GGUF\...fp16.gguf`     | FP16   | Storage metadata recognized; inference not supported |
 | `lmstudio-community\...\Qwen3-30B...Q4_K_M.gguf` | Q4_K_M | `qwen3moe` implemented; this local file needs its own validation |
 | `lmstudio-community\...\Qwen3-Coder...Q4_K_M.gguf`| Q4_K_M | `qwen3moe` implemented; this local file needs its own validation |
-| `unsloth\...\Qwen3.5-4B-BF16.gguf`               | BF16   | Storage metadata recognized; inference not supported |
+| `unsloth\...\Qwen3.5-4B-BF16.gguf`               | BF16   | Matrix kernels implemented; this model still needs its own validation |
 | `unsloth\...\mmproj-F32.gguf`                    | F32    | Multimodal projector (not a main model) |
 
 These assets exercise both tensor-format coverage and architecture support
@@ -357,6 +357,7 @@ when an override is set; unsupported filenames are rejected.
 | Repo / file | Why this one |
 |---|---|
 | `Qwen/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q8_0.gguf` | Small enough to gate on, and the tokenizer golden's model |
+| `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-UD-Q8_K_XL.gguf` | F16 matrices beside Q8_0, under the same bounds as Q8_0: top-5 overlap 5, NLL delta 0.01 continuous and 0.02 per chunk. Same revision as the Q4_0 fixture |
 | `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q4_0.gguf` | **Load-bearing.** Mixed Q4_0/Q4_1/Q6_K/F32, and its Q6_K `token_embd` has a subnormal super-block scale. The Q8_0 fixture has almost no subnormal scales (0.0061% of blocks against 5.89% in Qwen3-8B), so without this model the logit gate is blind to the f16 subnormal bug class - it passed with that bug deliberately reintroduced until this was added. |
 | `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q5_K_M.gguf` | The K-quant path: 168 Q5_K, 29 Q6_K and 113 F32 tensors, so the fused Q5_K and Q6_K dots and the device K-quant kernels are under the HF gate. Same repo and revision as the Q4_0 file. Bounds set from the measured deltas plus margin: top-5 overlap 4, NLL delta 0.05 continuous, 0.16 per chunk |
 | `unsloth/Qwen3-0.6B-GGUF` / `Qwen3-0.6B-Q4_K_M.gguf` | The most common download's type: 168 Q4_K, 29 Q6_K and 113 F32 tensors, so Q4_K, which the suite otherwise checks only against a decode written from the format description, is under the HF gate end to end on every backend. Same repo and revision as the Q4_0 file (Qwen's own GGUF repo has no Q4_K_M). Bounds set by the Q5_K_M rule below: top-5 overlap 4, NLL delta 0.13 continuous, 0.25 per chunk |
@@ -379,15 +380,43 @@ Its logits give the HF top-1 on all six prompts, a top-5 overlap of 4, 4, 5, 4, 
 With f32 caches, as the HF job's second pass runs it, the largest deltas are 0.105454 continuous and 0.215150 per chunk, with the HF top-1 on all six prompts and a top-5 overlap of at least 4, so the bounds hold for both cache types (0.105454 + 0.024 still rounds up to 0.13).
 The same build measured Q5_K_M at 0.026144 and 0.027534 continuous and 0.129440 at most per chunk, the values its bounds were set from.
 
-Fetch and SHA-256 verify the gate's pinned snapshots with `python tools/fetch_test_models.py` (Python standard library only, about 3.2 GB for the six gate files).
+Fetch and SHA-256 verify the gate's pinned snapshots with `python tools/fetch_test_models.py` (Python standard library only, about 4.1 GB for the seven gate files).
 Repos, revisions, files, digests and sizes are recorded in `tests/data/fixtures.json`, the gate's models marked `gate`, which the downloader and `tests/baseline.py` both read, and each gate model's bounds in `tests/baseline.py`, or `tests/baseline_qwen35.py` for the qwen35 files.
 The numerical checks use those exact snapshots unless explicitly overridden.
+
+### Larger half-weight validation fixtures (2026-10-02)
+
+These files exercise the F16/BF16 weight-storage branch; they are not additional
+hosted HF fixtures. The 4B F16 and 8B mixed files were fetched with native
+`llmx pull` at clean `36fb1548`, verified against the pinned Hub size and SHA-256,
+then verified again after staging on the Linux rig. Both are also in the
+workspace's dedicated model cache. This acquisition record is not a correctness
+or performance verdict. STATUS records their validation.
+
+| Repository / file | Revision | Bytes | SHA-256 |
+|---|---|---:|---|
+| `unsloth/Qwen3-4B-Instruct-2507-GGUF` / `Qwen3-4B-Instruct-2507-F16.gguf` | `a06e946bb6b655725eafa393f4a9745d460374c9` | 8,051,285,344 | `336228a2810f17724ecd6e9e2e40e8381eee81e886316fee311ade2899c31030` |
+| `unsloth/Qwen3-8B-GGUF` / `Qwen3-8B-UD-Q8_K_XL.gguf` | `a6adef130ffb23ddaf1a62fec9dced968c9bc482` | 10,824,038,208 | `67df3caf1ccc9c9aacff028410e4d5ad9a3a4870f19822a22aa3ac14dcab051b` |
+
+The 4B file has 253 F16 matrices and 145 F32 vectors; the 8B file has 63 BF16
+matrices, 191 Q8_0 matrices and 145 F32 vectors. Each has 36 layers. The quant
+selector for the latter is `Q8_K_XL`, with `--file` selecting the exact filename;
+`UD-Q8_K_XL` is not a valid selector because the selector excludes hyphens.
+
+The required 30B-A3B mixed fixture is separately pinned to
+`unsloth/Qwen3-30B-A3B-GGUF` at `d5b1d57bd0b504ac62ae6c725904e96ef228dc74`,
+file `Qwen3-30B-A3B-UD-Q8_K_XL.gguf`, 35,989,944,896 bytes, SHA-256
+`25693e28926e2277d9edd0f55d33ddb6fea8f10e344105b02e4bf328f37f1c3a`.
+Native `llmx pull` at clean `36fb1548` fetched it directly on the rig with four
+streams. The transfer and an independent full-file size/SHA-256 check both
+passed. It is under `/zpool1/models/llmx-xdev-half-weights-20261002/cache`;
+its numerical and speed checks remain separate work.
 
 ### Type fixtures, spec decoders and file-exact references (2026-09-26)
 
 Six more files from the same repository and revision as the Q4_0 and Q5_K_M fixtures are pinned in `tests/data/fixtures.json`, for the tensor types the quantization plan adds.
 Their SHA-256 and sizes match the Hub's LFS records at `50968a4468ef4233ed78cd7c3de230dd1d61a56b`, and the downloader verified all six.
-Each has `gate` false, so none is in `BASELINE_MODELS`: each joins the gate with its type and the bounds measured then.
+UD-Q8_K_XL now has `gate` true and joins `BASELINE_MODELS` with the approved Q8_0 bounds; the other five keep `gate` false.
 `python tools/fetch_test_models.py --all` fetches them with the gate's files.
 `hosted` marks the three the hosted HF job is to fetch once their types join the gate (1.51 GB); the other three are checked by hand.
 `tests/baseline.py` refuses a gate model not marked `hosted`, since the job downloads and requires every gate model, so one of those three joins the gate only with a change that lets the job leave it out.
@@ -805,7 +834,7 @@ feature, and these correctness runs are not throughput measurements.
 The independent depth-only top-one classification (`common.hf_depth_top1`) is held to its separately named margin and top-two membership, with boundary and malformed-row checks. Its reference policy and reporting contract are in [PRECISION](PRECISION.md); these do not change the short-model or NLL rules here.
 It also runs the consumer over simulated passing outputs and requires 41 checks, each NLL case scored in both modes.
 It was the eleventh ordinary suite component when it was added.
-The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` cover the six gate models, the four Qwen3-0.6B files and the two Qwen3.5-0.8B files, and `tools/fetch_test_models.py --all` every file `tests/data/fixtures.json` pins, never the 8B.
+The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` cover the seven gate models, the five Qwen3-0.6B files and the two Qwen3.5-0.8B files, and `tools/fetch_test_models.py --all` every file `tests/data/fixtures.json` pins, never the 8B.
 
 ### The layered qwen35 reference
 

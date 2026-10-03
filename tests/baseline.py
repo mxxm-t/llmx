@@ -33,6 +33,8 @@ FIXTURES = os.path.join(HERE, "data", "fixtures.json")
 # Each model's bounds against the full-precision reference: the top-5 overlap it reaches, measured per model since coarser quantization reorders more of the tail, and its NLL deltas (docs/ASSETS.md).
 BOUNDS = {
     "Qwen3-0.6B-Q8_0.gguf": {"top5_overlap": 5, "continuous_nll": 0.01, "window_nll": 0.02},
+    # F16 matrices beside Q8_0 keep the Q8_0 fixture's approved bounds.
+    "Qwen3-0.6B-UD-Q8_K_XL.gguf": {"top5_overlap": 5, "continuous_nll": 0.01, "window_nll": 0.02},
     # Subnormal f16 scales: its token_embd is Q6_K with a subnormal super-block scale, which the Q8_0 fixture almost never has.
     "Qwen3-0.6B-Q4_0.gguf": {"top5_overlap": 4, "continuous_nll": 0.16, "window_nll": 0.20},
     # 168 Q5_K, 29 Q6_K and 113 F32 tensors: the K-quant path in every matmul and the Q6_K head, on both backends.

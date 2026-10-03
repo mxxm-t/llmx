@@ -13,6 +13,14 @@
 spirv_execution_mode(capabilities = [4466], 4461, 64);
 #endif
 #include "float_controls.glsl"
+#if defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
+#include "f16.glsl"
+#ifdef LLMX_WEIGHT_F16
+#define WEIGHT_FLOAT(h) f16_to_f32(h)
+#else
+#define WEIGHT_FLOAT(h) bf16_to_f32(h)
+#endif
+#endif
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
 #define TILE_COLS 64u
@@ -165,6 +173,11 @@ void main() {
         if (wseg == 0u) wrange[wrow] = row < p.nout && wide_row(e) ? 1u : 0u;
         for (uint i = 0u; i < WVALS; ++i)
             ws[wseg * WVALS + i][wrow] = row < p.nout ? wv[i] : 0.0;
+#elif defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
+        for (uint i = 0u; i < WVALS; ++i) {
+            uint k = k0 + wseg * WVALS + i;
+            ws[wseg * WVALS + i][wrow] = row < p.nout && k < p.nin ? WEIGHT_FLOAT(uint(w16[wr * p.nin + k])) : 0.0;
+        }
 #else
         if (row < p.nout) {
             if (p.type == TYPE_Q8_0) {

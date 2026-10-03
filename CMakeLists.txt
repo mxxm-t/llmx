@@ -101,7 +101,18 @@ if(LLMX_HAS_BACKEND_VULKAN)
         norm_rope_kv_kv16=norm_rope_kv=LLMX_K16+LLMX_V16
         matmul_tile_q6=matmul_tile_q=LLMX_Q6 matmul_tile_q8=matmul_tile_q=LLMX_Q8
         embed_ids=embed=LLMX_DEVICE_IDS embed_ids_mxfp4=embed=LLMX_DEVICE_IDS+LLMX_MXFP4
-        delta_rule_short=delta_rule=LLMX_SHORT)
+        delta_rule_short=delta_rule=LLMX_SHORT
+        embed_wf16=embed=LLMX_WEIGHT_F16 embed_wbf16=embed=LLMX_WEIGHT_BF16
+        embed_ids_wf16=embed=LLMX_DEVICE_IDS+LLMX_WEIGHT_F16 embed_ids_wbf16=embed=LLMX_DEVICE_IDS+LLMX_WEIGHT_BF16
+        matmul_row_wf16=matmul_row=LLMX_WEIGHT_F16 matmul_row_wbf16=matmul_row=LLMX_WEIGHT_BF16
+        matmul_tile_wf16=matmul_tile=LLMX_WEIGHT_F16
+        matmul_tile_wf16_preserve=matmul_tile=LLMX_WEIGHT_F16+LLMX_PRESERVE_F32
+        matmul_tile_wf16_bf16=matmul_tile=LLMX_WEIGHT_F16+LLMX_BF16
+        matmul_tile_wf16_bf16_preserve=matmul_tile=LLMX_WEIGHT_F16+LLMX_BF16+LLMX_PRESERVE_F32
+        matmul_tile_wbf16=matmul_tile=LLMX_WEIGHT_BF16
+        matmul_tile_wbf16_preserve=matmul_tile=LLMX_WEIGHT_BF16+LLMX_PRESERVE_F32
+        matmul_tile_wbf16_bf16=matmul_tile=LLMX_WEIGHT_BF16+LLMX_BF16
+        matmul_tile_wbf16_bf16_preserve=matmul_tile=LLMX_WEIGHT_BF16+LLMX_BF16+LLMX_PRESERVE_F32)
     set(LLMX_VK_SPV)
     foreach(entry IN LISTS LLMX_VK_SHADERS LLMX_VK_VARIANTS)
         string(REPLACE "=" ";" parts ${entry})
@@ -277,6 +288,11 @@ if(BUILD_TESTING)
     list(APPEND LLMX_TARGETS llmx-fp16-test)
     add_test(NAME fp16 COMMAND llmx-fp16-test)
     set_tests_properties(fp16 PROPERTIES TIMEOUT 60)
+    add_executable(llmx-half-weights-test tests/half_weights.cpp)
+    target_include_directories(llmx-half-weights-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    list(APPEND LLMX_TARGETS llmx-half-weights-test)
+    add_test(NAME half-weights COMMAND llmx-half-weights-test)
+    set_tests_properties(half-weights PROPERTIES TIMEOUT 60)
     add_executable(llmx-cpus-test tests/cpus.cpp)
     target_include_directories(llmx-cpus-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-cpus-test)

@@ -52,7 +52,7 @@ The CLI writes it once to stderr as the model is loaded; on the MI50 it reads, w
 
 A fallback adds `warning:` and names the dtype it replaced.
 `/v1/health` gives the same record as a `dtype` object: `requested`, `declared`, `effective` and `devices`, each with `device`, `how` and `paths`.
-Keep the implementation in the placement owner and existing backend dispatch owners. It needs a small plan/record, capabilities and one explicit connection to execution, not a second precision framework. The pre-approval `wip/dtype-auto` prototype only built a report. The current integration applies the resolved policy to execution and retains completed matrix-path witnesses; its remaining release gates are in STATUS.
+Keep the implementation in the placement owner and existing backend dispatch owners. It needs a small plan/record, capabilities and one explicit connection to execution, not a second precision framework. The pre-approval `wip/dtype-auto` prototype only built a report. The released implementation applies the resolved policy to execution and retains completed matrix-path witnesses; STATUS records its landing evidence and remaining measured speed gaps.
 
 ## 2. Capabilities and kernel classes
 
@@ -66,7 +66,7 @@ The auto-preference list advertises a dtype only after the backend implements th
 - `f32`, `f16`, `bf16`: activations in that type;
 - `block-int16`: blocks of 32 scaled to 16-bit integers, which may implement the F16 class once it passes the F16 budget and its exact range checks (rule 4);
 - `block-int8`: blocks scaled to 8-bit integers, which implements no class; under auto a path of this form moves to a 16-bit form (section 3), or is withdrawn.
-The groups name weight types (`MXFP4`), `quantized` for every type but F32, or a phase (`prompts`, `decode`).
+The groups name weight types (`MXFP4`), `quantized` for packed quantized weight formats excluding F32, F16 and BF16 storage, or a phase (`prompts`, `decode`).
 
 **Witnesses.** A static catalog describes possible paths; it does not prove which path a call executed. Tests use the actual dispatched path for the measured phase, shape and operation role, through a counter, kernel name or forced-path unit check. The selected plan alone never chooses a looser bound for a path that stayed F32. Check both sides of every threshold and grouped, routed and split callers. Existing Vulkan per-kernel timing names may provide this evidence without a new profiling system.
 

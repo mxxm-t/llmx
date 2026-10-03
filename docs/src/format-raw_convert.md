@@ -15,7 +15,7 @@ themselves are the quant layer's, reached through `quant::Registry`.
 - `quantize_raw(json, bin, out, type) -> tensor count`: the model as a GGUF file with every tensor quantized to `type` through the registry (`quant/quant.hpp`), written by `gguf::write_gguf`.
   The size of `model.bin` must match the shapes, and storage past what a vector or a stream can hold is refused before any allocation.
 - `dequantize_to_raw(in, json, bin)`: a GGUF file's tensors as raw F32, F32
-  tensors copied and quantized ones decoded through the registry, from the
+  tensors copied and half or quantized ones decoded through the registry, from the
   file's payload mapped in place (`gguf::map_payload`).
   Every tensor's decoder support is checked before mapping the payload or
   allocating decoded buffers; a known layout without a decoder is refused

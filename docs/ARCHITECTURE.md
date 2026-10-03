@@ -2,7 +2,7 @@
 
 **llmx** is a ground-up, dependency-free LLM inference runtime. It reads and
 writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers
-on x86 CPU with AVX2/FMA/F16C or on a Vulkan device, including read-only MXFP4 where the device provides its required float preservation and double arithmetic, and
+on x86 CPU with AVX2/FMA/F16C or on a Vulkan device, including read-only MXFP4 where the device provides its required float preservation and double arithmetic. Both backends also implement read-only F16/BF16 weight matrices, with release qualification tracked in STATUS. It
 is structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added without touching the core.
 
@@ -82,9 +82,14 @@ decoder registry in `quant/quant.hpp` takes its sizes from the same table;
 it contains only implemented types. Raw F32 conversion
 (`format/raw_convert.hpp`) opens files in the format layer and reaches the
 blocks through that registry, checking every decoder before mapping a GGUF
-payload or allocating decoded buffers. Dense F32 and
-supported block-quant matrices share the CPU float dot kernels; F32 rows
-need no dequantization buffer.
+payload or allocating decoded buffers. Dense F32, exactly widened F16/BF16 and
+supported block-quant matrices share the CPU float arithmetic. F32 rows
+need no dequantization buffer; half-weight decode widens inside the row dot,
+while prompt products use the registry and existing float scratch. Activation
+dtype is a separate call policy, with no new loader or model representation
+for half-weight storage. Vulkan retains compact weights and widens them in
+its embedding and the existing F32 row/tile shader families, selected by its
+private weight descriptor.
 
 ### Model architectures
 

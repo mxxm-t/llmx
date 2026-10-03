@@ -1,0 +1,592 @@
+{
+  "scope": "Clean integration of F16/BF16 weights with scheduler-only main; no arithmetic change.",
+  "head": "b0b303fb926254e9112d7c0bf992ddfd7bedd707",
+  "source_tree": "02c9f438d4f25daf3481d072833b00732851fa67",
+  "source_integration_proof": {
+    "base": "f22367c6fc8f3307abd76af756ba563bc80bfaaf",
+    "main": "b7a6d235078572ca1643a55be77eaca6fa33f79d",
+    "feature": "faac39150b4eb1d0d90b6dff3a224eb931e561f3",
+    "code_conflicts": [],
+    "documentation_conflicts": [
+      "docs/STATUS.md"
+    ],
+    "overlapping_changes": [
+      "AGENTS.md",
+      "docs/STATUS.md"
+    ],
+    "upstream_changes": [
+      "AGENTS.md",
+      "docs/SERVER.md",
+      "docs/STATUS.md",
+      "docs/src/server.md",
+      "src/server/scheduler.hpp",
+      "tests/server_resume.cpp"
+    ],
+    "verified_nonoverlapping_paths": 1854,
+    "scheduler_matches_main": true,
+    "retained_status_record_sha256": "81729a9768aa1e5f4648d7ae3069007d55f1e8a080d5f7f7c7cd9dca244e0ab8",
+    "gates_pending": [
+      "fresh Windows and Linux builds",
+      "native tests",
+      "integrated docs/dead-code",
+      "hosted CI"
+    ],
+    "numerical_hold_unchanged": true
+  },
+  "reports": {
+    "windows": {
+      "report_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\complete.json",
+      "report_sha256": "42bfce57135403c52dc6028bf1627c99bd8e4a7f49e29c12036de58c41805b02",
+      "result": {
+        "pid": 45404,
+        "head": "b0b303fb926254e9112d7c0bf992ddfd7bedd707",
+        "started": 1790994275.3570678,
+        "passed": true,
+        "steps": [
+          {
+            "name": "configure",
+            "argv": [
+              "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\cmake\\data\\bin\\cmake.exe",
+              "-S",
+              "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\source",
+              "-B",
+              "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build",
+              "-G",
+              "Visual Studio 18 2026",
+              "-DLLMX_HAS_BACKEND_VULKAN=ON",
+              "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+              "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include"
+            ],
+            "started": 1790994275.4520078,
+            "pid": 38204,
+            "returncode": 0,
+            "ended": 1790994279.958137
+          },
+          {
+            "name": "build",
+            "argv": [
+              "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\cmake\\data\\bin\\cmake.exe",
+              "--build",
+              "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build",
+              "--config",
+              "Release",
+              "--parallel",
+              "2"
+            ],
+            "started": 1790994279.959137,
+            "pid": 43468,
+            "returncode": 0,
+            "ended": 1790994387.7746613
+          },
+          {
+            "name": "native-cpu",
+            "argv": [
+              "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\cmake\\data\\bin\\ctest.exe",
+              "--test-dir",
+              "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build",
+              "-C",
+              "Release",
+              "--output-on-failure",
+              "--parallel",
+              "2",
+              "-E",
+              "vulkan"
+            ],
+            "started": 1790994389.4404008,
+            "pid": 39804,
+            "returncode": 0,
+            "ended": 1790994517.1253762
+          },
+          {
+            "name": "native-vulkan",
+            "argv": [
+              "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\cmake\\data\\bin\\ctest.exe",
+              "--test-dir",
+              "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build",
+              "-C",
+              "Release",
+              "--output-on-failure",
+              "--parallel",
+              "1",
+              "-R",
+              "vulkan"
+            ],
+            "started": 1790994517.2238853,
+            "pid": 19396,
+            "returncode": 0,
+            "ended": 1790994572.1543603
+          }
+        ],
+        "tree": "02c9f438d4f25daf3481d072833b00732851fa67",
+        "version": "llmx 0.1.0+gb0b303fb9262",
+        "artifacts": {
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build\\Release\\llmx.exe": {
+            "sha256": "14aa74993cd02888831b0ca11b75d73ee2f44433084d9a888895eae6024c7a29",
+            "bytes": 4433408
+          },
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build\\Release\\llmx-model-logits.exe": {
+            "sha256": "b72b4c921e6dc7073c29432ab773138566a1879b60b44e110cd53263dc565df8",
+            "bytes": 3755520
+          },
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build\\Release\\llmx-vulkan.lib": {
+            "sha256": "24895a184dcaa0b378993ada0801f0ecc61e76ff5eeaf05d1e1a5f7a9d846708",
+            "bytes": 4735154
+          },
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\windows\\build\\generated\\config.hpp": {
+            "sha256": "b5de92ffb78768a726a4030c7e5961c582ab1d7876a647f82dff9aa5691583fb",
+            "bytes": 605
+          }
+        },
+        "all_117_shader_modules_identical": true,
+        "native": {
+          "cpu": 39,
+          "vulkan": 5,
+          "total": 44,
+          "skipped": 0
+        },
+        "source_and_artifacts_unchanged": true,
+        "ended": 1790994572.2428846,
+        "source_git_blobs_sha256": "f08dedcb78527d95d21b7aeefde1597e26833dba530788989844d019447e4bf5"
+      }
+    },
+    "linux": {
+      "report_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\linux\\complete.json",
+      "report_sha256": "1d684c6024c33bbd9e8b6caf25911939287f8acaf305469ac7edf0c00cefe9a2",
+      "result": {
+        "pid": 454547,
+        "started": 1790994277.0069354,
+        "head": "b0b303fb926254e9112d7c0bf992ddfd7bedd707",
+        "steps": [
+          {
+            "label": "clone-base",
+            "command": [
+              "git",
+              "clone",
+              "--no-hardlinks",
+              "--no-checkout",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/source",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source"
+            ],
+            "started": 1790994277.2261312,
+            "pid": 454619,
+            "returncode": 0,
+            "finished": 1790994277.590856
+          },
+          {
+            "label": "bundle-verify",
+            "command": [
+              "git",
+              "-C",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+              "bundle",
+              "verify",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/head.bundle"
+            ],
+            "started": 1790994277.5911129,
+            "pid": 454651,
+            "returncode": 0,
+            "finished": 1790994277.5990233
+          },
+          {
+            "label": "fetch-head",
+            "command": [
+              "git",
+              "-C",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+              "fetch",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/head.bundle",
+              "HEAD"
+            ],
+            "started": 1790994277.599185,
+            "pid": 454653,
+            "returncode": 0,
+            "finished": 1790994277.8134854
+          },
+          {
+            "label": "line-endings",
+            "command": [
+              "git",
+              "-C",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+              "config",
+              "core.autocrlf",
+              "false"
+            ],
+            "started": 1790994277.8137643,
+            "pid": 454667,
+            "returncode": 0,
+            "finished": 1790994277.81752
+          },
+          {
+            "label": "checkout",
+            "command": [
+              "git",
+              "-C",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+              "checkout",
+              "--detach",
+              "b0b303fb926254e9112d7c0bf992ddfd7bedd707"
+            ],
+            "started": 1790994277.8176441,
+            "pid": 454668,
+            "returncode": 0,
+            "finished": 1790994278.1318235
+          },
+          {
+            "label": "source-diff",
+            "command": [
+              "git",
+              "-C",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+              "diff",
+              "--no-ext-diff",
+              "--exit-code",
+              "HEAD"
+            ],
+            "started": 1790994278.2371871,
+            "pid": 454676,
+            "returncode": 0,
+            "finished": 1790994278.301271
+          },
+          {
+            "label": "configure",
+            "command": [
+              "docker",
+              "exec",
+              "--workdir",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+              "llmx-xdev-vulkan-weight-dispatch-20261002",
+              "prlimit",
+              "--core=0:0",
+              "--",
+              "timeout",
+              "--kill-after=10",
+              "180",
+              "cmake",
+              "-S",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+              "-B",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/build",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_HAS_BACKEND_VULKAN=ON"
+            ],
+            "started": 1790994278.4429283,
+            "pid": 454745,
+            "returncode": 0,
+            "finished": 1790994279.1084337
+          },
+          {
+            "label": "build",
+            "command": [
+              "docker",
+              "exec",
+              "--workdir",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+              "llmx-xdev-vulkan-weight-dispatch-20261002",
+              "prlimit",
+              "--core=0:0",
+              "--",
+              "timeout",
+              "--kill-after=10",
+              "1800",
+              "cmake",
+              "--build",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/build",
+              "--parallel",
+              "4"
+            ],
+            "started": 1790994279.1088958,
+            "pid": 454827,
+            "returncode": 0,
+            "finished": 1790994481.5422223
+          },
+          {
+            "label": "ctest",
+            "command": [
+              "docker",
+              "exec",
+              "--workdir",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+              "llmx-xdev-vulkan-weight-dispatch-20261002",
+              "prlimit",
+              "--core=0:0",
+              "--",
+              "timeout",
+              "--kill-after=10",
+              "1800",
+              "ctest",
+              "--test-dir",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/build",
+              "--parallel",
+              "2",
+              "--output-on-failure"
+            ],
+            "started": 1790994482.1879737,
+            "pid": 460519,
+            "returncode": 0,
+            "finished": 1790994613.2770462
+          },
+          {
+            "label": "source-diff-after",
+            "command": [
+              "git",
+              "-C",
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/source",
+              "diff",
+              "--no-ext-diff",
+              "--exit-code",
+              "HEAD"
+            ],
+            "started": 1790994613.317957,
+            "pid": 466199,
+            "returncode": 0,
+            "finished": 1790994613.326021
+          }
+        ],
+        "passed": true,
+        "preflight": {
+          "container_id": "62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a",
+          "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "config": {
+            "Binds": [
+              "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002:/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002",
+              "/zpool1/models:/models:ro",
+              "/zpool1/llmx-xdev-validation/storage-types-20261002/deps:/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps:ro",
+              "/opt/claude-work/llmx-p2-x-mxfp4-cpu:/fixtures:ro"
+            ],
+            "ContainerIDFile": "",
+            "LogConfig": {
+              "Type": "json-file",
+              "Config": {}
+            },
+            "NetworkMode": "none",
+            "PortBindings": {},
+            "RestartPolicy": {
+              "Name": "no",
+              "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+              0,
+              0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": [],
+            "DnsSearch": [],
+            "ExtraHosts": null,
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 34359738368,
+            "NanoCpus": 4000000000,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": [],
+            "BlkioDeviceReadBps": [],
+            "BlkioDeviceWriteBps": [],
+            "BlkioDeviceReadIOps": [],
+            "BlkioDeviceWriteIOps": [],
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "0-3",
+            "CpusetMems": "",
+            "Devices": [
+              {
+                "PathOnHost": "/dev/dri/renderD136",
+                "PathInContainer": "/dev/dri/renderD136",
+                "CgroupPermissions": "rwm"
+              }
+            ],
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 34359738368,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": [
+              {
+                "Name": "core",
+                "Hard": 0,
+                "Soft": 0
+              }
+            ],
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+              "/proc/acpi",
+              "/proc/asound",
+              "/proc/interrupts",
+              "/proc/kcore",
+              "/proc/keys",
+              "/proc/latency_stats",
+              "/proc/sched_debug",
+              "/proc/scsi",
+              "/proc/timer_list",
+              "/proc/timer_stats",
+              "/sys/devices/virtual/powercap",
+              "/sys/firmware"
+            ],
+            "ReadonlyPaths": [
+              "/proc/bus",
+              "/proc/fs",
+              "/proc/irq",
+              "/proc/sys",
+              "/proc/sysrq-trigger"
+            ],
+            "Init": true
+          },
+          "processes": "PID                 STAT                COMMAND\n3617039             Ss                  docker-init\n3617053             S                   sleep",
+          "disk": "Filesystem        Size  Used Avail Use% Mounted on\nrpool/ROOT/pve-1  835G  620G  215G  75% /\nzpool1            3.5T  3.4T   95G  98% /zpool1",
+          "vram_bytes": 10932224,
+          "host_memory": "MemTotal:       65707356 kB\nMemFree:        19115644 kB\nMemAvailable:   20813544 kB\nBuffers:               0 kB\nCached:          2499652 kB\nSwapCached:            0 kB\nActive:          3173952 kB\nInactive:        1905500 kB\nActive(anon):    1339924 kB\nInactive(anon):  1392388 kB\nActive(file):    1834028 kB\nInactive(file):   513112 kB\nUnevictable:           0 kB\nMlocked:               0 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:               860 kB\nWriteback:             0 kB\nAnonPages:       2579424 kB\nMapped:           153488 kB\nShmem:            152672 kB\nKReclaimable:     461256 kB\nSlab:            1198728 kB\nSReclaimable:     461256 kB\nSUnreclaim:       737472 kB\nKernelStack:       23080 kB\nPageTables:        45392 kB\nSecPageTables:      2792 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:    32853676 kB\nCommitted_AS:    8798060 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:     2054176 kB\nVmallocChunk:          0 kB\nPercpu:            31232 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:              0 kB\nCmaFree:               0 kB\nUnaccepted:            0 kB\nBalloon:               0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:     4918724 kB\nDirectMap2M:    58906624 kB\nDirectMap1G:     4194304 kB\n",
+          "cgroup_cpu_max": "400000 100000"
+        },
+        "start_entry": "\n**[XDEV 2026-10-03 05:24 STATUS re:half-scheduler-integration] START: clean half-weight scheduler integration build and native tests**\n\nParent-pinned clean integration of main b7a6d235, preserving checkpoint faac3915; bundled over cached main f223 objects and checked out once with LF settings. Build all native targets and production tools, then full CTest on MI50 PCI03:00/renderD136. Same Release/Vulkan image2787625, CPU0-3/quota4/32GiB/4workers. Compare all117 inherited compiled SPIR-V modules to e984. No Python suite, model matrix or timing. Evidence: /zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003.\n",
+        "source_tree": "02c9f438d4f25daf3481d072833b00732851fa67",
+        "canonical_git_blob_manifest_sha256": "651189b88734ae551396a81cc3b62340c94a30ad98911aab2c485a8a8305560a",
+        "bundle_sha256": "d7bde46c9b007398a792f7c334f36ca8a1a27357813bae0fb0933d3978560f4e",
+        "compiler": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+        "cmake": "cmake version 3.31.6\n\nCMake suite maintained and supported by Kitware (kitware.com/cmake).",
+        "binaries": {
+          "llmx": {
+            "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/build/llmx",
+            "bytes": 4957576,
+            "sha256": "6151318aa81aefe3a29644a38c317b495a956b3e6c7134f1f84bbeee0bec3a86"
+          },
+          "llmx-model-logits": {
+            "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/build/llmx-model-logits",
+            "bytes": 4172096,
+            "sha256": "eb2c3c4e4a56f58c8b49e50daece68af726aa7c12762945f042539048d5d7135"
+          },
+          "llmx-split-check": {
+            "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/build/llmx-split-check",
+            "bytes": 4266488,
+            "sha256": "5c922fd8ad846032a675937625fdefd0f725336a895edeaf8bbdb4bc3cedf22f"
+          },
+          "llmx-decode-probe": {
+            "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/build/llmx-decode-probe",
+            "bytes": 4191800,
+            "sha256": "1ee2625783e932b7811b0eaca7211c4426ec66e91303e40e79d240139c2f17e6"
+          },
+          "llmx-cpu-f32-check": {
+            "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/build/llmx-cpu-f32-check",
+            "bytes": 1163632,
+            "sha256": "bcb5eec703a1fa3fc4b6171de70cc8b3f3f0be79cb9e3e9bd8daf4a8373fec54"
+          },
+          "llmx-backend-vulkan-test": {
+            "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/build/llmx-backend-vulkan-test",
+            "bytes": 3897344,
+            "sha256": "74a439f8f24febcb57a5f7eaf3b97b5307e5a99efff27e9fbd8d65f8e16b1443"
+          },
+          "llmx-half-weights-test": {
+            "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003/build/llmx-half-weights-test",
+            "bytes": 393736,
+            "sha256": "ee11e3300e0e6c02946a9daa36c7527b5c8eb45ddc3d0e27a144a44169e2909c"
+          }
+        },
+        "version": "llmx 0.1.0+gb0b303fb9262",
+        "source_clean_after_build": true,
+        "shaders": {
+          "comparison_head": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+          "main_count": 117,
+          "candidate_count": 117,
+          "all_old_identical": true,
+          "new": []
+        },
+        "native": {
+          "passed": 43,
+          "failed": 0,
+          "skipped": 0
+        },
+        "source_and_binaries_unchanged_after_tests": true,
+        "finished": 1790994613.3262,
+        "terminal_processes": "PID                 STAT                COMMAND\n3617039             Ss                  docker-init\n3617053             S                   sleep",
+        "allocation_retained_for_parent_handoff": true,
+        "gpu_released": true,
+        "end_entry": "\n**[XDEV 2026-10-03 05:30 RESULT re:half-scheduler-integration] END: clean half-weight integration native gate PASS**\n\nSupervisor 454547 terminal. Exact head, source/binary hashes, compiled shader identity and full native results retained. No full Python repeat, model matrix or timing. Container retained for parent handoff. Evidence: /zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-integrated-b7a6d235-20261003.\n"
+      }
+    }
+  },
+  "source_checks": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\integrated-docs-check.log",
+    "sha256": "682d1346dab54aa8298c748600ac3741b6867a97872852636f1bf87317f388e0",
+    "encoding": "utf-16",
+    "text": "dead-code: 7 findings (unused 1, test-only 5, shader 1) against the list; 18 planted faults; 6.9 s  [ok]\r\ndocs: 13 findings (line-pin 11, command 1, src-page 1) against the list; 16 planted faults; 4.6 s  [ok]\r\n\r\n  dead-code  PASS\r\n  docs       PASS\r\n"
+  },
+  "checkpoint_setup_failures": [
+    "First report assembly assumed a UTF-8 log; PowerShell wrote UTF-16. The reader now follows the BOM. No product test or file edit ran in that failed assembly."
+  ],
+  "markdown_review": {
+    "total": 88,
+    "comparisons": {
+      "feature": {
+        "revision": "faac3915",
+        "unchanged": 84,
+        "changed": [
+          "AGENTS.md",
+          "docs/SERVER.md",
+          "docs/STATUS.md",
+          "docs/src/server.md"
+        ]
+      },
+      "main": {
+        "revision": "b7a6d235",
+        "unchanged": 70,
+        "changed": [
+          "AGENTS.md",
+          "README.md",
+          "docs/ARCHITECTURE.md",
+          "docs/ASSETS.md",
+          "docs/CI.md",
+          "docs/PRECISION.md",
+          "docs/QWEN35.md",
+          "docs/ROADMAP.md",
+          "docs/STATUS.md",
+          "docs/USAGE.md",
+          "docs/VULKAN.md",
+          "docs/src/backends-cpu.md",
+          "docs/src/backends-vulkan.md",
+          "docs/src/core-bf16.md",
+          "docs/src/core-fp16.md",
+          "docs/src/format-raw_convert.md",
+          "docs/src/quant-quant.md",
+          "docs/src/quant-types.md"
+        ]
+      }
+    },
+    "result": "Only STATUS required updates; scheduler descriptions and half-weight owner pages match their code."
+  },
+  "limitations": [
+    "Native tests belong to the clean b0b303fb code. The subsequent edits only record this checkpoint.",
+    "No numerical or timing campaign was rerun for the conflict-free-code integration.",
+    "Hosted CI remains required on the final commit. The 30B numerical release hold is unchanged."
+  ],
+  "final_checkpoint_source_checks": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-integration-20261003\\final-docs-check.log",
+    "sha256": "d49949af888e257f45e9f57edb25be81c0badce621c0b895c81018c94a390449",
+    "text": "dead-code: 7 findings (unused 1, test-only 5, shader 1) against the list; 18 planted faults; 6.3 s  [ok]\r\ndocs: 13 findings (line-pin 11, command 1, src-page 1) against the list; 16 planted faults; 4.3 s  [ok]\r\n\r\n  dead-code  PASS\r\n  docs       PASS\r\n"
+  }
+}

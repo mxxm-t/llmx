@@ -398,15 +398,16 @@ public:
         if (nbatch && nout) record_matrix_path(dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
         const size_t rowbytes = quant::row_bytes(type, nin);
         const bool f32 = type == quant::GGML_TYPE_F32;
+        const bool float_type = f32 || type == quant::GGML_TYPE_F16 || type == quant::GGML_TYPE_BF16;
         // A decode row of a type with a float row dot takes it with no dequantized scratch, streaming each resident row once; prefill keeps the fused kernels that reuse weights across batch columns.
-        // F32 splits its rows as the batched float path below does, from DOT_ROWS rows per worker in whole DOT_ROWS chunks.
-        if (decode && (f32 || type == quant::GGML_TYPE_Q8_0 || is_kquant(type))) {
+        // Float storage splits its rows as the batched float path below does, from DOT_ROWS rows per worker in whole DOT_ROWS chunks.
+        if (decode && (float_type || type == quant::GGML_TYPE_Q8_0 || is_kquant(type))) {
             const auto dots = [&](size_t o0, size_t o1) {
                 for (size_t o = o0; o < o1; ++o)
                     for (size_t c = 0; c < nbatch; ++c)
                         Y[c * nout + o] = row_dot(type, data + o * rowbytes, X + c * nin, nin);
             };
-            if (f32) split_rows(nout, dots, DOT_ROWS, DOT_ROWS);
+            if (float_type) split_rows(nout, dots, DOT_ROWS, DOT_ROWS);
             else split_rows(nout, dots);
             return;
         }
@@ -1463,11 +1464,46 @@ private:
         }
     }
 
-    // One weight row against one activation row in float: a dense decode row of F32, Q8_0 or a K-quant, and a routed decode entry of any type, each through its fused dot where it has one.
+    // Widen each half weight before its FMA, with dot_f32's accumulator, reduction and tail order.
+    template<bool BF16>
+    static float dot_half(const uint8_t* row, const float* x, size_t n) {
+        const auto load = [&](size_t i) {
+            const __m128i h = _mm_loadu_si128((const __m128i*)(row + 2 * i));
+            if constexpr (BF16) return _mm256_castsi256_ps(_mm256_slli_epi32(_mm256_cvtepu16_epi32(h), 16));
+            else return _mm256_cvtph_ps(h);
+        };
+        __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
+        __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
+        size_t i = 0;
+        for (; i + 32 <= n; i += 32) {
+            s0 = _mm256_fmadd_ps(load(i +  0), _mm256_loadu_ps(x + i +  0), s0);
+            s1 = _mm256_fmadd_ps(load(i +  8), _mm256_loadu_ps(x + i +  8), s1);
+            s2 = _mm256_fmadd_ps(load(i + 16), _mm256_loadu_ps(x + i + 16), s2);
+            s3 = _mm256_fmadd_ps(load(i + 24), _mm256_loadu_ps(x + i + 24), s3);
+        }
+        __m256 acc = _mm256_add_ps(_mm256_add_ps(s0, s1), _mm256_add_ps(s2, s3));
+        for (; i + 8 <= n; i += 8)
+            acc = _mm256_fmadd_ps(load(i), _mm256_loadu_ps(x + i), acc);
+        __m128 lo = _mm256_castps256_ps128(acc);
+        __m128 hi = _mm256_extractf128_ps(acc, 1);
+        __m128 s = _mm_add_ps(lo, hi);
+        s = _mm_hadd_ps(s, s);
+        s = _mm_hadd_ps(s, s);
+        float out = _mm_cvtss_f32(s);
+        for (; i < n; ++i) {
+            const uint16_t h = (uint16_t)(row[2 * i] | ((uint16_t)row[2 * i + 1] << 8));
+            out = std::fma(BF16 ? bf16_to_f32(h) : f16_to_f32(h), x[i], out);
+        }
+        return out;
+    }
+
+    // One weight row against one activation row in float: a dense decode row of float storage, Q8_0 or a K-quant, and a routed decode entry of any type, each through its fused dot where it has one.
     // Types without one, routed Q4_0 and Q4_1 decode among them, take the dequantized dot in double, where their dense decode keeps the batched float path.
     float row_dot(uint32_t type, const uint8_t* row, const float* x, size_t nin) {
         switch (type) {
         case quant::GGML_TYPE_F32: return dot_f32((const float*)row, x, nin);
+        case quant::GGML_TYPE_F16: return dot_half<false>(row, x, nin);
+        case quant::GGML_TYPE_BF16: return dot_half<true>(row, x, nin);
         case quant::GGML_TYPE_Q8_0: return dot_row_impl(row, x, nin / quant::Q8_0_BLOCK);
         case quant::GGML_TYPE_Q4_K: case quant::GGML_TYPE_Q5_K: case quant::GGML_TYPE_Q6_K: {
             // A fused dot applies the block scale after sum(q*x), so a large activation can overflow the inner sum where dequantizing first stays finite (then d*Inf is Inf, and 0*Inf NaN).

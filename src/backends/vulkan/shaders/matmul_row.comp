@@ -3,7 +3,7 @@
 // Workgroups go to projections in order, so a workgroup's projection and buffers are uniform.
 // A subgroup takes `rows_per_sg` clusters of `cluster` lanes, each a row (ROWS rows in a two-row build) whose work units its lanes stride over, reducing with xor shuffles; a lane keeps up to MAX_COLS batch columns in registers.
 //
-// Quantized rows meet the activations as a signed 16-bit twin in blocks of 32 (xquant.glsl) with the block's scale and scaled sums; Q4 offsets and K-quant minima use the block sum; Q6_K's -32 is applied before its integer dot. F32 rows keep float activations. LLMX_FLOAT_X also reads quantized weights against the original F32 activations, using the shared qdecode.glsl values and this kernel's reduction.
+// Quantized rows meet the activations as a signed 16-bit twin in blocks of 32 (xquant.glsl) with the block's scale and scaled sums; Q4 offsets and K-quant minima use the block sum; Q6_K's -32 is applied before its integer dot. Float-weight rows keep float activations. LLMX_FLOAT_X also reads quantized weights against the original F32 activations, using the shared qdecode.glsl values and this kernel's reduction.
 //
 // One module per family of types, since one module for all of them raised every path's registers: as is for F32 and narrow Q8_0, LLMX_Q8W wide Q8_0, LLMX_Q4 Q4_0 and Q4_1, LLMX_K4 Q4_K, LLMX_K5 Q5_K, LLMX_KQUANT Q6_K.
 //
@@ -74,6 +74,23 @@ layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
 layout(constant_id = 9) const uint ROWS = 1;
 
 uint pi = 0u;
+#if defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
+#include "f16.glsl"
+#ifdef LLMX_WEIGHT_F16
+#define WEIGHT_FLOAT(h) f16_to_f32(h)
+#else
+#define WEIGHT_FLOAT(h) bf16_to_f32(h)
+#endif
+vec4 weight4(uint i) {
+    uint lo = w32s[pi].w32[2u * i], hi = w32s[pi].w32[2u * i + 1u];
+    return vec4(WEIGHT_FLOAT(lo & 65535u), WEIGHT_FLOAT(lo >> 16u), WEIGHT_FLOAT(hi & 65535u), WEIGHT_FLOAT(hi >> 16u));
+}
+#define WEIGHT4(i) weight4(i)
+#define WEIGHT1(i) WEIGHT_FLOAT(uint(w16s[pi].w16[i]))
+#else
+#define WEIGHT4(i) uintBitsToFloat(w128s[pi].w128[i])
+#define WEIGHT1(i) wfs[pi].wf[i]
+#endif
 #if defined(LLMX_FLOAT_X) || defined(LLMX_MXFP4)
 #define QBYTE(i) ((w32s[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #include "qdecode.glsl"
@@ -667,6 +684,7 @@ void main() {
         }
 #endif
 #if !defined(LLMX_MXFP4) && !defined(LLMX_Q8W) && !defined(LLMX_Q4) && !defined(LLMX_KQUANT) && !(defined(LLMX_K4) || defined(LLMX_K5))
+#if !defined(LLMX_WEIGHT_F16) && !defined(LLMX_WEIGHT_BF16)
         if (type == TYPE_Q8_0) {
             uint nblocks = p.nin / Q8_0_BLOCK;
             uint bbase = wrow * nblocks * Q8_0_BYTES;   // bytes
@@ -687,16 +705,18 @@ void main() {
 #endif
                 }
             }
-        } else if (p.nin % 4u == 0u) {
-            // F32 rows four values a load: the weights through the 16-byte view, X through the twin's vec4 view, which F32 rows have bound to X itself.
+        } else
+#endif
+        if (p.nin % 4u == 0u) {
+            // Float rows read four weights at a time and bind the original X through the twin's vec4 view.
             uint n4 = p.nin / 4u, wbase4 = wrow * n4;
             uint i = l, cl = p.cluster;
             // Four steps' weights loaded before any is used, so a small call's few waves wait on one latency rather than four; the sums keep their order.
             for (; i + 3u * cl < n4; i += 4u * cl) {
-                vec4 w0 = uintBitsToFloat(w128s[pi].w128[wbase4 + i]);
-                vec4 w1 = uintBitsToFloat(w128s[pi].w128[wbase4 + i + cl]);
-                vec4 w2 = uintBitsToFloat(w128s[pi].w128[wbase4 + i + 2u * cl]);
-                vec4 w3 = uintBitsToFloat(w128s[pi].w128[wbase4 + i + 3u * cl]);
+                vec4 w0 = WEIGHT4(wbase4 + i);
+                vec4 w1 = WEIGHT4(wbase4 + i + cl);
+                vec4 w2 = WEIGHT4(wbase4 + i + 2u * cl);
+                vec4 w3 = WEIGHT4(wbase4 + i + 3u * cl);
                 for (uint c = 0u; c < ncols; ++c) {
                     uint xb = XCOL(c) * n4 + i;
                     acc[c] += dot(w0, xt4[xb]);
@@ -706,13 +726,13 @@ void main() {
                 }
             }
             for (; i < n4; i += cl) {
-                vec4 w = uintBitsToFloat(w128s[pi].w128[wbase4 + i]);
+                vec4 w = WEIGHT4(wbase4 + i);
                 for (uint c = 0u; c < ncols; ++c) acc[c] += dot(w, xt4[XCOL(c) * n4 + i]);
             }
         } else {
             uint wbase = wrow * p.nin;
             for (uint i = l; i < p.nin; i += p.cluster) {
-                float w = wfs[pi].wf[wbase + i];
+                float w = WEIGHT1(wbase + i);
                 for (uint c = 0u; c < ncols; ++c) acc[c] += w * x[XCOL(c) * p.nin + i];
             }
         }

@@ -1,6 +1,8 @@
 # `src/quant/quant.hpp` - quantization kernels + registry
 
-Block quantization kernels, in namespace `quant`.
+Weight decoders, block quantization kernels and their registry, in namespace `quant`.
+
+- `dequantize_row_f16` / `dequantize_row_bf16`: read little-endian 16-bit words and widen exactly through `core/fp16.hpp` / `core/bf16.hpp`. Each block is one value in two bytes. Both formats are read-only; neither registry entry has a quantizer. These decoders serve raw conversion, CPU embedding and the CPU's batched float products. Registration does not add Vulkan weight kernels.
 
 - `quantize_row_q8_0(src, dst, nblocks)`: compress 32 floats into a 2-byte f16
   scale + 32 int8 values per block (clamped to [-127, 127]).
@@ -21,7 +23,7 @@ Block quantization kernels, in namespace `quant`.
   (de)quantize routines. The registry takes its name and sizes from
   `storage_type`, so it defines no second storage layout.
 - `Registry::instance().get(id)`: the implemented type for a GGML id, or null when llmx has no decoder for it.
-  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `MXFP4` and `F32` on first use and never changes after, so no caller sets it up and any thread may read it.
+  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `MXFP4`, `F32`, `F16` and `BF16` on first use and never changes after, so no caller sets it up and any thread may read it.
   `F32` is registered as a block of one value in 4 bytes.
 - `row_bytes(type, nin, rows = 1)` is owned by `types.hpp` and remains available
   through this header. It sizes any known storage layout, including types

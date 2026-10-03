@@ -299,6 +299,11 @@ The step numbers are those of the plan in STATUS.
 Type refusals below concern inference. `info`, `tokenize` and `detokenize`
 can open the known storage layouts, including BF16, F16, IQ4_NL and Q5_1,
 without those execution kernels; unknown type IDs are still refused at open.
+CPU and Vulkan F16/BF16 matrix support is implemented. Qwen3 dense/MoE,
+pinned BF16/F32 identity and device development checks are recorded in STATUS,
+alongside the remaining 30B correctness, memory and final integration gates.
+Those checks do not qualify every Qwen 3.5 family half-weight file. The table
+below retains the originally planned handling of those files.
 
 | files | arch | tensor types | handling |
 |---|---|---|---|

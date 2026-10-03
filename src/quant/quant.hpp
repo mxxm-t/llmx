@@ -5,16 +5,27 @@
 #include <cmath>
 #include <unordered_map>
 
+#include "core/bf16.hpp"
 #include "core/fp16.hpp"
 #include "quant/k_quants.hpp"
 #include "quant/mxfp4.hpp"
 #include "quant/types.hpp"
 
-// Block quantization: the Q8_0 and Q4_0 quantizers, the Q8_0, Q4_0 and Q4_1 dequantizers, and the registry pairing implemented types with their storage metadata (types.hpp) and kernels (the K-quants' are in k_quants.hpp).
+// Weight conversion: half widening, the Q8_0 and Q4_0 quantizers, the Q8_0, Q4_0 and Q4_1 dequantizers, and the registry pairing implemented types with their storage metadata (types.hpp) and kernels (the K-quants' are in k_quants.hpp).
 // A Q8_0 block holds 32 float values as a 2-byte f16 scale and 32 int8 values (Q8_0_TYPESIZE bytes per block).
 // The kernels serve the quantize command (float -> block) and the dequantize command and CPU inference path (block -> float).
 
 namespace quant {
+
+inline void dequantize_row_f16(const uint8_t* src, float* dst, size_t n) {
+    for (size_t i = 0; i < n; ++i)
+        dst[i] = f16_to_f32((uint16_t)(src[2 * i] | ((uint16_t)src[2 * i + 1] << 8)));
+}
+
+inline void dequantize_row_bf16(const uint8_t* src, float* dst, size_t n) {
+    for (size_t i = 0; i < n; ++i)
+        dst[i] = bf16_to_f32((uint16_t)(src[2 * i] | ((uint16_t)src[2 * i + 1] << 8)));
+}
 
 inline void quantize_row_q8_0(const float* src, uint8_t* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
@@ -156,6 +167,10 @@ private:
           { *storage_type(GGML_TYPE_Q6_K), nullptr, dequantize_row_q6_K } },
         { GGML_TYPE_MXFP4,
           { *storage_type(GGML_TYPE_MXFP4), nullptr, dequantize_row_mxfp4 } },
+        { GGML_TYPE_F16,
+          { *storage_type(GGML_TYPE_F16), nullptr, dequantize_row_f16 } },
+        { GGML_TYPE_BF16,
+          { *storage_type(GGML_TYPE_BF16), nullptr, dequantize_row_bf16 } },
         { GGML_TYPE_F32,
           { *storage_type(GGML_TYPE_F32), nullptr, nullptr } },
     } {}

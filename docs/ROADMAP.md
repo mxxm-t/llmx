@@ -29,6 +29,7 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
   tok/s. Fused Q5_K and Q6_K decode dots followed the same way; prefill is a
   different question since the batched path already reuses the dequantized row.
 - `MXFP4` is read-only on the CPU and on Vulkan devices with its required float preservation and double arithmetic.
+- `IQ4_NL` has a read-only CPU implementation with raw-format/native checks, independent tiny and 0.6B file-exact HF coverage, completed platform/byte-identity qualification and seven passing hosted jobs at support `24349888`. STATUS distinguishes fresh checks from unchanged device suites retained at their earlier source head and records the assessed performance tradeoffs, losses and remaining mx deficits. Original-weight quality approval and reconciliation/checks of the eventual landing head remain pending. IQ4_XS and Vulkan IQ4 remain unimplemented; the separate F16 packed-dot work is not part of this support checkpoint.
 - Next, planned in `docs/STATUS.md` (Quantization coverage): `F16` and `BF16` weight tensors, then `IQ4_NL` and `IQ4_XS`, then `Q3_K` and `Q2_K`, all read-only, on the CPU and on Vulkan. Activation dtype support does not implement those weight formats.
   Every type multiplies the per-backend kernel work (see #4b), so they are taken in the order of the files they open and how often those files are published, weighed against the effort.
   MXFP4 preceded IQ4 by the user's decision of 2026-09-25, although IQ4 opens far more files.
@@ -41,7 +42,7 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
 - K-quants are what most GGUF on the Hub actually uses; see #9b
 - Storage metadata is owned by `quant/types.hpp`: 35 active GGML layouts, with unknown and removed IDs refused. `TensorInfo::data_size()` uses its checked `row_bytes`; the decoder registry reads the same metadata. `gguf-validation` holds the Vulkan shaders' `q.glsl` declarations to it.
   This resolves the proposed `core/storage.hpp` owner in the existing quant layer. It does not implement new decoders, backend dispatch tables or the quantization plan's kernel-class work; those remain separate steps.
-- `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1, Q4_K, Q5_K, Q6_K, MXFP4, Q8_0 and Q4_0 from raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, each against a decoder written from the format description.
+- `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1, Q4_K, Q5_K, Q6_K, IQ4_NL, MXFP4, Q8_0 and Q4_0 from raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, each against a decoder written from the format description.
   Each new type joins it from raw blocks, since the planned types stay read-only, with no quantizer.
 
 ## 2. More model architectures

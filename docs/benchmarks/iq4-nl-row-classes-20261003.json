@@ -1,0 +1,233 @@
+{
+  "scope": "IQ4_NL CPU coverage follow-up; native row-class checks, explicit BF16 tiny HF and retained six-turn real-file prefix reuse. No runtime change or quality-bound adoption.",
+  "base": "1044b481f2de0d1b8a029492bfb86e63ab8673b0",
+  "native": {
+    "passed": true,
+    "decoded_exact": 32505856,
+    "range_dots": 11776,
+    "widened_f32_exact": 1414464,
+    "same_class_pairs": 17914,
+    "extent_count": 54,
+    "logical_rows": 4,
+    "dense_widths": [
+      256,
+      4096
+    ],
+    "policies": [
+      "f32",
+      "f16",
+      "bf16"
+    ],
+    "routed": "8 experts, top2; gate and weighted down residual",
+    "attention": "4 query rows,128-wide heads after70-token history",
+    "threads": 3,
+    "timeout_seconds": 60,
+    "elapsed_seconds_reported": 1.27,
+    "owner": "tests/row_classes.hpp; one IQ4 callback uses the local independent block encoder",
+    "limits": "Equality is required only within each declared row class, not between decode and prompt classes."
+  },
+  "retained_failure": {
+    "log": "row-class-check/native.stdout",
+    "exit_code": 8,
+    "message": "IQ4_NL arithmetic witness differs",
+    "cause": "The new generic checker left accumulated F32/BF16 path evidence before the existing product witness checks.",
+    "correction": "Run the independent row-class check after the existing products, retaining every arithmetic assertion and runtime path."
+  },
+  "bf16_hf": {
+    "passed": true,
+    "cases": 150,
+    "nll_checks": 12,
+    "kv": "f32",
+    "golden": "tests/data/baseline_iq4_nl.json",
+    "golden_sha256": "4731d106ca131da01549696695005ce34c59998278ca31a7ecbab6e395129ba1",
+    "budget_owner": "common.hf_bounds, unchanged frozen completed-path budget",
+    "observations": [
+      {
+        "fixture": "dense-untied",
+        "logit_error_reported": 0.00652981,
+        "logit_bound": 0.05409973859786987,
+        "nll_error_reported": 0.00109135,
+        "nll_bound": 0.007924573802609913
+      },
+      {
+        "fixture": "dense-tied",
+        "logit_error_reported": 0.00889421,
+        "logit_bound": 0.05409973859786987,
+        "nll_error_reported": 0.00093351,
+        "nll_bound": 0.007924573802609913
+      },
+      {
+        "fixture": "moe",
+        "logit_error_reported": 0.0069627,
+        "logit_bound": 0.05409973859786987,
+        "nll_error_reported": 0.00101932,
+        "nll_bound": 0.007924573802609913
+      }
+    ],
+    "logit_headroom": 0.04520552859786987,
+    "nll_headroom": 0.006833223802609914,
+    "limit": "Existing original-F32 HF reference; no new BF16 oracle or numerical bound."
+  },
+  "prefix_reuse": {
+    "passed": true,
+    "turns": 6,
+    "prompt_reused_pairs": [
+      [
+        125,
+        0
+      ],
+      [
+        263,
+        0
+      ],
+      [
+        405,
+        256
+      ],
+      [
+        543,
+        384
+      ],
+      [
+        685,
+        512
+      ],
+      [
+        823,
+        640
+      ]
+    ],
+    "settings": "CPU, six threads, auto dtype, F16 KV, auto loading for server and CLI",
+    "check": "server.check_conversation, unchanged assertions; six turns, context 1024, 16 generated tokens per turn",
+    "model": {
+      "path": "C:/Users/Marko/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-IQ4_NL.gguf",
+      "bytes": 381566656,
+      "sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+      "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+    },
+    "final_health": {
+      "active": 0,
+      "in_flight": 0,
+      "pauses": 0,
+      "prefix_hits": 4,
+      "prefix_tokens": 1792
+    },
+    "owned_drained": true,
+    "source_pins": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-20261003\\tests\\server.py": "d2f3e10e42e3b32292adfebbb093525b3965d0caf4151da1679e39fec7969b18",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-20261003\\tests\\common.py": "01877fcbe5d04c333baf28e4e5e61d2d2caffbfdd5121d1d39430eb3b42d7c1c",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-20261003\\tests\\data\\baseline_perplexity.json": "7a7a310054bbcd6e4a558adea4f06f007fc0cee80766b6edacd14542cecef15c",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\check-reuse.py": "c037ffc93513f796b73994a3dbf8d62717d0c756985d210f2326a8bbd5d2caba"
+    },
+    "raw_pins": {
+      "plan.json": "39d768b99095dfdbfd68321b3fd09211e03ebb646c8c8b38df9e5bf2585de979",
+      "events.json": "401e583d07efdd4fbb41add12582c7910592b38e822d00e5eb00c7edb5806e81",
+      "complete.json": "cc7bf5da09d94a611adf764eae5f4591ab66788e236052264ac9b25e9aeebe4e",
+      "summary.md": "d9820b3adbfedf480033273e49b267d70320f026e52ebf83b2a68239b5bab884"
+    },
+    "limits": "Correctness only; no timing or peak-memory claim. CLI timeout 180s, each existing HTTP request timeout 300s."
+  },
+  "binaries": {
+    "llmx": {
+      "path": "..\\.tmp-iq4-nl-checks-20261003\\build\\Release\\llmx.exe",
+      "sha256": "3dc5f097d8ca5dd32c9f957de988e2475c146388f3f4d7d79bcf4256dc9f87df",
+      "version": "0.1.0+gd9c37b072b27.dirty",
+      "unchanged": true
+    },
+    "native_test": {
+      "path": "..\\.tmp-iq4-nl-checks-20261003\\build\\Release\\llmx-iq4-nl-test.exe",
+      "sha256": "ed7ea78ee7ef8e1cf2554f6abae141663600203a7c735ec1aff8d12e9f5f1dff",
+      "target": "llmx-iq4-nl-test",
+      "build": "MSVC19.50 / VS18 x64 Release,2workers; only this target rebuilt",
+      "version_interface": false
+    }
+  },
+  "sources": {
+    "tests/iq4_nl.cpp": "13f0c47c0357e5e5e96435c86c99a9bd3b2b03ccadcf6940e73dd4a40c0784ad",
+    "tests/row_classes.hpp": "ca5c41047460f3450805d6276a8f296f7c286edc57f826f57eebca402d3d0190",
+    "tests/matrix_precision.hpp": "56331d8a5f575617ae977e6ee2248c3fdf68bb527ba8fbb438fa9fb770fec803",
+    "tests/common.py": "01877fcbe5d04c333baf28e4e5e61d2d2caffbfdd5121d1d39430eb3b42d7c1c"
+  },
+  "unchanged_file_exact_goldens": {
+    "baseline_logits.json": {
+      "sha256": "b1bc376d57d9c717766aaff973149008eb7c8bce7c13d90f958f816bf258374a",
+      "original_path": "..\\.tmp-iq4-nl-evidence-20261003\\real-hf-reference\\baseline_logits.json",
+      "bytes": 3655
+    },
+    "baseline_perplexity.json": {
+      "sha256": "c1f9b8d2c2c97dc5e4350b8b3650c0ebdd7a98db257fc97cbf3f5f32d189a59c",
+      "original_path": "..\\.tmp-iq4-nl-evidence-20261003\\real-hf-reference\\baseline_perplexity.json",
+      "bytes": 4899
+    }
+  },
+  "logs": {
+    "bf16.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "bf16.stdout": {
+      "sha256": "3fe3a4069ade9c8936dd6e4e5cbd54d19bb29eac7992844f9e87750b8b083b3a",
+      "bytes": 1074
+    },
+    "build-r2.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "build-r2.stdout": {
+      "sha256": "411eb94f7212b84845b467ca95ded00702746fbb0d4a3727ab60faab4af2cc1a",
+      "bytes": 650
+    },
+    "build.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "build.stdout": {
+      "sha256": "411eb94f7212b84845b467ca95ded00702746fbb0d4a3727ab60faab4af2cc1a",
+      "bytes": 650
+    },
+    "native-r2.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "native-r2.stdout": {
+      "sha256": "7ab7fee117f9bc52480492b8c69916c4c6483d3e16d0a0989de0d320b31055a6",
+      "bytes": 2332
+    },
+    "native.stderr": {
+      "sha256": "172c0b0603881792841936e3107971ba5f4d2f935737e7c8d33fb3e3112bba97",
+      "bytes": 736
+    },
+    "native.stdout": {
+      "sha256": "58c2502104ac60f5aa6273cdf8363f033bdb3622301f8c51dfcc5d1d76794b40",
+      "bytes": 2212
+    },
+    "checkpoint.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "checkpoint.stdout": {
+      "sha256": "e7577b15e8be9df1cad486250ae9eefb14ec08416d39921a162dbb32c9c34476",
+      "bytes": 504
+    }
+  },
+  "logs_root": ".tmp-iq4-nl-evidence-20261003/row-class-check",
+  "remaining": "Performance/full CPU gates and original-weight quality proposal still pending; Vulkan separate.",
+  "checkpoint_checks": {
+    "docs": {
+      "passed": true,
+      "findings": 13,
+      "planted_faults": 16
+    },
+    "dead_code": {
+      "passed": true,
+      "findings": 7,
+      "planted_faults": 18
+    },
+    "markdown": {
+      "pages": 88,
+      "changed_pages": 3,
+      "sha256": "47f4943ef1543ffced37d6f33ef12a0f2e4b8d8d5790800af8efedf0520fc2ac"
+    },
+    "window": "Ran only after CPU agent explicitly reported SIMD timing END and no owned workload."
+  }
+}

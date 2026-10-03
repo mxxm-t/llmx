@@ -400,7 +400,7 @@ public:
         const bool f32 = type == quant::GGML_TYPE_F32;
         // A decode row of a type with a float row dot takes it with no dequantized scratch, streaming each resident row once; prefill keeps the fused kernels that reuse weights across batch columns.
         // F32 splits its rows as the batched float path below does, from DOT_ROWS rows per worker in whole DOT_ROWS chunks.
-        if (decode && (f32 || type == quant::GGML_TYPE_Q8_0 || is_kquant(type))) {
+        if (decode && (f32 || type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_IQ4_NL || is_kquant(type))) {
             const auto dots = [&](size_t o0, size_t o1) {
                 for (size_t o = o0; o < o1; ++o)
                     for (size_t c = 0; c < nbatch; ++c)
@@ -1463,9 +1463,11 @@ private:
         }
     }
 
-    // One weight row against one activation row in float: a dense decode row of F32, Q8_0 or a K-quant, and a routed decode entry of any type, each through its fused dot where it has one.
+    // One weight row against one activation row in float: a dense decode row of F32, Q8_0, IQ4_NL or a K-quant, and a routed decode entry of any type, each through its fused dot where it has one.
     // Types without one, routed Q4_0 and Q4_1 decode among them, take the dequantized dot in double, where their dense decode keeps the batched float path.
     float row_dot(uint32_t type, const uint8_t* row, const float* x, size_t nin) {
+        if (type == quant::GGML_TYPE_IQ4_NL)
+            return dot_row_iq4_nl(row, x, nin / quant::IQ4_NL_BLOCK);
         switch (type) {
         case quant::GGML_TYPE_F32: return dot_f32((const float*)row, x, nin);
         case quant::GGML_TYPE_Q8_0: return dot_row_impl(row, x, nin / quant::Q8_0_BLOCK);
@@ -1843,6 +1845,31 @@ private:
     // f16 -> f32 through F16C.
     float half_to_float(uint16_t h) const {
         return _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128((int)h)));
+    }
+
+    // Lookup and scale weights before the FMA, retaining dot_f32's four accumulators and reduction order.
+    float dot_row_iq4_nl(const uint8_t* row, const float* x, size_t nblocks) {
+        __m256 s0 = _mm256_setzero_ps(), s1 = _mm256_setzero_ps();
+        __m256 s2 = _mm256_setzero_ps(), s3 = _mm256_setzero_ps();
+        const __m128i table = _mm_loadu_si128((const __m128i*)quant::IQ4_NL_VALUES);
+        const __m128i mask = _mm_set1_epi8(15);
+        for (size_t b = 0; b < nblocks; ++b) {
+            const uint8_t* w = row + b * quant::IQ4_NL_TYPESIZE;
+            const __m256 d = _mm256_set1_ps(f16_to_f32(uint16_t(w[0] | (uint16_t(w[1]) << 8))));
+            const __m128i packed = _mm_loadu_si128((const __m128i*)(w + 2));
+            const __m128i lo = _mm_shuffle_epi8(table, _mm_and_si128(packed, mask));
+            const __m128i hi = _mm_shuffle_epi8(table, _mm_and_si128(_mm_srli_epi16(packed, 4), mask));
+            const __m256 f0 = _mm256_mul_ps(d, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(lo)));
+            const __m256 f1 = _mm256_mul_ps(d, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(lo, 8))));
+            const __m256 f2 = _mm256_mul_ps(d, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(hi)));
+            const __m256 f3 = _mm256_mul_ps(d, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(hi, 8))));
+            const float* xp = x + b * quant::IQ4_NL_BLOCK;
+            s0 = _mm256_fmadd_ps(f0, _mm256_loadu_ps(xp), s0);
+            s1 = _mm256_fmadd_ps(f1, _mm256_loadu_ps(xp + 8), s1);
+            s2 = _mm256_fmadd_ps(f2, _mm256_loadu_ps(xp + 16), s2);
+            s3 = _mm256_fmadd_ps(f3, _mm256_loadu_ps(xp + 24), s3);
+        }
+        return hsum256(_mm256_add_ps(_mm256_add_ps(s0, s1), _mm256_add_ps(s2, s3)));
     }
 
     // Dot product of one Q8_0 row (nblocks blocks, nin = nblocks*32) with x, AVX2 fused dequant+FMA.

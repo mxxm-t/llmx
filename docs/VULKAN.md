@@ -172,7 +172,7 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   Every other type's `embed` decode takes a zero's sign from the driver's arithmetic, which the drivers tested keep today; of backend-vulkan's exact embed checks only the Q6_K rows decode a -0, so for Q8_0, Q4_1, Q4_K and Q5_K nothing checks it.
   A model holding a type without a kernel is refused before any weight is adopted, naming the tensor and its type (`Backend::supports_type`).
   A direct matmul, routed product or embed of such a type is refused before it records a dispatch, naming the type by its numeric id.
-  Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, plus MXFP4 on devices with its required properties. Other known storage layouts remain metadata-only.
+  Today: F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, plus MXFP4 on devices with its required properties. Other known storage layouts remain unavailable on Vulkan, including the CPU's IQ4_NL development reader; they are refused during placement.
 - **matmul, decode** (`nbatch` small): each row takes a cluster of lanes, the subgroup's width or fewer for a short row and at most `k45_row_lanes` in the Q4_K/Q5_K integer-dot families, each lane accumulating a stride of blocks and the cluster meeting in an xor-shuffle reduction at the end. Rows
   are the outer loop and the batch the inner, as on the CPU, so a weight
   block is read once per chunk of a build's columns, eight, or on the MI50

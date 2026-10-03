@@ -165,7 +165,8 @@ float32 data in `out.bin`. JSON output escapes path and tensor-name quotes,
 backslashes and control characters, preserving UTF-8 tensor names. Reusing this
 output with `quantize` requires the shape rules above: GGUF can also hold scalar,
 zero-sized or F32 tensors whose rows do not contain whole quantization blocks.
-The decoder types are F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and MXFP4.
+The decoder types are F32, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K, IQ4_NL and MXFP4.
+IQ4_NL is read-only on the CPU, with primitive, tiny/0.6B file-exact HF, native, existing-type byte-identity and hosted coverage recorded at support `24349888`. STATUS retains the assessed performance tradeoffs and earlier device-suite scopes; original-weight quality approval and eventual landing-head checks remain pending. Vulkan refuses it at load.
 A known storage layout without a decoder, including F16 and BF16, is refused
 by tensor name before mapping the payload or allocating decoded buffers;
 existing output files remain unchanged.

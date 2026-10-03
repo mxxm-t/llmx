@@ -24,7 +24,8 @@ Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS
 | F32, Q8_0, Q4_0 | Supported | Supported | Q8_0, Q4_0 |
 | Q4_1, Q4_K, Q5_K, Q6_K (so Q4_K_M and Q5_K_M files) | Supported | Supported | No |
 | MXFP4 | Supported | Supported on devices with the required float preservation and double arithmetic | No |
-| F16, BF16, IQ4_NL, IQ4_XS, Q3_K, Q2_K | Planned | Planned | No |
+| IQ4_NL | CPU reader; correctness/CI checks passed at 24349888, original-weight quality and landing checks pending | Planned | No |
+| F16, BF16, IQ4_XS, Q3_K, Q2_K | Planned | Planned | No |
 
 Inference requires each used tensor's type to be supported by its assigned backend; a device never falls back to the CPU on its own. `info`, `tokenize` and `detokenize` also accept known storage layouts without execution support, including F16 and BF16. Recognizing a layout does not add a decoder or kernel; [storage metadata](docs/src/quant-types.md) lists that boundary.
 Activation precision is selected with `--dtype auto|f16|bf16|f32`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices. This does not add F16 or BF16 weight execution; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.

@@ -1,0 +1,426 @@
+{
+  "scope": "Focused Windows CPU IQ4_NL server concurrency, not throughput or the complete format release gate.",
+  "passed": true,
+  "source_head": "e287af4c5c661510d1788a3aa176d9f891f183af",
+  "runtime_head": "d9e8a393e0b0c363e40b09185f9508f3a0cf884e",
+  "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-checks-20261003\\build\\Release\\llmx.exe",
+  "exe_sha256": "3dc5f097d8ca5dd32c9f957de988e2475c146388f3f4d7d79bcf4256dc9f87df",
+  "version": "llmx 0.1.0+gd9c37b072b27.dirty",
+  "model": {
+    "path": "C:/Users/Marko/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-IQ4_NL.gguf",
+    "bytes": 381566656,
+    "sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+    "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+  },
+  "owner": "tools/server_mix_check.py, assertions and workload unchanged",
+  "argv": [
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-20261003\\tools\\server_mix_check.py",
+    "--exe",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-checks-20261003\\build\\Release\\llmx.exe",
+    "--model",
+    "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-IQ4_NL.gguf",
+    "--text",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-20261003\\tests\\data\\wiki.test.raw",
+    "--device",
+    "cpu",
+    "--cache-type",
+    "f16",
+    "--requests",
+    "16",
+    "--max-seqs",
+    "8",
+    "--ctx-size",
+    "32768",
+    "--seed",
+    "1",
+    "--cli",
+    "4",
+    "--fresh-phases",
+    "--logprobs",
+    "--ids",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\server-mix\\execution\\phases.json"
+  ],
+  "appended_child_flags": [
+    "--threads",
+    "6",
+    "--dtype",
+    "auto",
+    "--load-mode",
+    "auto"
+  ],
+  "settings": {
+    "device": "cpu",
+    "threads": 6,
+    "dtype": "auto",
+    "effective_dtype": "f16",
+    "cache_k": "f16",
+    "cache_v": "f16",
+    "load_mode": "auto",
+    "requests": 16,
+    "max_seqs": 8,
+    "context_pool": 32768,
+    "fresh_phases": true,
+    "logprobs": true,
+    "sampled": false,
+    "seed": 1
+  },
+  "results": {
+    "alone_requests": 16,
+    "alone_tokens": 928,
+    "together_exact": 16,
+    "skewed_exact": 12,
+    "successful_early_leavers": 4,
+    "repeat_exact": 1,
+    "cli_text_exact": 4,
+    "together_compared_tokens": 928,
+    "skewed_compared_tokens": 696
+  },
+  "comparisons": "Together, completed skewed requests and the fresh repeat require exact IDs, every reported log-probability and all reported top-five values. CLI comparisons require exact generated text.",
+  "health": {
+    "alone": {
+      "active": 0,
+      "checkpoints": 0,
+      "donors": 8,
+      "dtype": {
+        "declared": "bf16",
+        "devices": [
+          {
+            "device": "cpu",
+            "effective": "f16",
+            "how": "native",
+            "paths": "block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+          }
+        ],
+        "effective": "f16",
+        "requested": "auto"
+      },
+      "host_bytes": 0,
+      "host_bytes_moved": 0,
+      "host_donors": 0,
+      "host_hits": 0,
+      "in_flight": 0,
+      "model": "Qwen3-0.6B-IQ4_NL.gguf",
+      "passes": 1,
+      "paused": 0,
+      "pauses": 0,
+      "prefix_hits": 0,
+      "prefix_tokens": 0,
+      "queued": 0,
+      "recomputed": 0,
+      "reprefill_cancels": 0,
+      "reprefill_rows": 0,
+      "reprefills": 0,
+      "stalls": 0,
+      "status": "ok",
+      "taken_back": 0,
+      "waits": 0
+    },
+    "together": {
+      "active": 0,
+      "checkpoints": 0,
+      "donors": 8,
+      "dtype": {
+        "declared": "bf16",
+        "devices": [
+          {
+            "device": "cpu",
+            "effective": "f16",
+            "how": "native",
+            "paths": "block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+          }
+        ],
+        "effective": "f16",
+        "requested": "auto"
+      },
+      "host_bytes": 0,
+      "host_bytes_moved": 0,
+      "host_donors": 0,
+      "host_hits": 0,
+      "in_flight": 0,
+      "model": "Qwen3-0.6B-IQ4_NL.gguf",
+      "passes": 1,
+      "paused": 0,
+      "pauses": 0,
+      "prefix_hits": 0,
+      "prefix_tokens": 0,
+      "queued": 0,
+      "recomputed": 0,
+      "reprefill_cancels": 0,
+      "reprefill_rows": 0,
+      "reprefills": 0,
+      "stalls": 0,
+      "status": "ok",
+      "taken_back": 0,
+      "waits": 0
+    },
+    "skewed": {
+      "active": 0,
+      "checkpoints": 0,
+      "donors": 8,
+      "dtype": {
+        "declared": "bf16",
+        "devices": [
+          {
+            "device": "cpu",
+            "effective": "f16",
+            "how": "native",
+            "paths": "block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+          }
+        ],
+        "effective": "f16",
+        "requested": "auto"
+      },
+      "host_bytes": 0,
+      "host_bytes_moved": 0,
+      "host_donors": 0,
+      "host_hits": 0,
+      "in_flight": 0,
+      "model": "Qwen3-0.6B-IQ4_NL.gguf",
+      "passes": 1,
+      "paused": 0,
+      "pauses": 0,
+      "prefix_hits": 0,
+      "prefix_tokens": 0,
+      "queued": 0,
+      "recomputed": 0,
+      "reprefill_cancels": 0,
+      "reprefill_rows": 0,
+      "reprefills": 0,
+      "stalls": 0,
+      "status": "ok",
+      "taken_back": 0,
+      "waits": 0
+    },
+    "repeat": {
+      "active": 0,
+      "checkpoints": 0,
+      "donors": 1,
+      "dtype": {
+        "declared": "bf16",
+        "devices": [
+          {
+            "device": "cpu",
+            "effective": "f16",
+            "how": "native",
+            "paths": "block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+          }
+        ],
+        "effective": "f16",
+        "requested": "auto"
+      },
+      "host_bytes": 0,
+      "host_bytes_moved": 0,
+      "host_donors": 0,
+      "host_hits": 0,
+      "in_flight": 0,
+      "model": "Qwen3-0.6B-IQ4_NL.gguf",
+      "passes": 1,
+      "paused": 0,
+      "pauses": 0,
+      "prefix_hits": 0,
+      "prefix_tokens": 0,
+      "queued": 0,
+      "recomputed": 0,
+      "reprefill_cancels": 0,
+      "reprefill_rows": 0,
+      "reprefills": 0,
+      "stalls": 0,
+      "status": "ok",
+      "taken_back": 0,
+      "waits": 0
+    }
+  },
+  "capacity": {
+    "kind": "capacity",
+    "time": 1791025973.8426652,
+    "prompt_plus_output": [
+      159,
+      497,
+      1433,
+      2841,
+      59,
+      374,
+      1351,
+      2801,
+      94,
+      413,
+      1440,
+      2590,
+      37,
+      344,
+      1387,
+      2761
+    ],
+    "worst_eight_rounded_256": 17664,
+    "pool": 32768
+  },
+  "memory_admission": {
+    "free_physical": 12764114944,
+    "free_commit": 10833514496
+  },
+  "limits": {
+    "whole_seconds": 3600,
+    "cli_seconds": 600,
+    "server_start_seconds": 1800,
+    "request_seconds": 1800,
+    "phase_drain_seconds": 120
+  },
+  "teardown": {
+    "owned_drained": true,
+    "children": [
+      {
+        "pid": 31100,
+        "returncode": 1
+      },
+      {
+        "pid": 39728,
+        "returncode": 1
+      },
+      {
+        "pid": 32068,
+        "returncode": 1
+      },
+      {
+        "pid": 29516,
+        "returncode": 1
+      },
+      {
+        "pid": 47948,
+        "returncode": 0
+      },
+      {
+        "pid": 37820,
+        "returncode": 0
+      },
+      {
+        "pid": 48052,
+        "returncode": 0
+      },
+      {
+        "pid": 39804,
+        "returncode": 0
+      }
+    ],
+    "worker": {
+      "worker_pid": 32732,
+      "worker_returncode": 0,
+      "worker_drained": true,
+      "timed_out": false,
+      "ended": 1791026343.983364
+    },
+    "fresh_pid_query": "All nine worker/child PIDs absent immediately after terminal result.",
+    "server_exit_note": "The four server return codes of 1 follow common.stop_server deliberately calling proc.kill() and proc.wait(), as the recorded server-stopped events show after healthy drained phases. They are expected Windows harness termination, not spontaneous server errors. The four CLI children exited 0."
+  },
+  "source_pins": {
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\server-mix\\run.py": "48bb8a17e3f34a9355816ef0ae0532adce4ec93607348b7a5fb80252a5650503",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-20261003\\tools\\server_mix_check.py": "44449be1dcdd182c2849130a11ed9380d208bdd39503f18137290bfc595ced8a",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-20261003\\tests\\common.py": "01877fcbe5d04c333baf28e4e5e61d2d2caffbfdd5121d1d39430eb3b42d7c1c",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-20261003\\tests\\data\\wiki.test.raw": "4f3e427e4aff23acff917a8a51aeae21bf12832256e26914c8fc250dcef4103c"
+  },
+  "raw_root": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\server-mix\\execution",
+  "raw_files": {
+    "cli-0.stderr": {
+      "bytes": 164,
+      "sha256": "cb277e197160d4960064736ac1a56e97ffd94a349e4fabd427ab016c6f9450d8"
+    },
+    "cli-0.stdout": {
+      "bytes": 571,
+      "sha256": "db81daeadcc6eaecf9c349b1f48ad71b36b3dfe4d4f9abdd6f5ac48b5b052ef6"
+    },
+    "cli-1.stderr": {
+      "bytes": 164,
+      "sha256": "cb277e197160d4960064736ac1a56e97ffd94a349e4fabd427ab016c6f9450d8"
+    },
+    "cli-1.stdout": {
+      "bytes": 732,
+      "sha256": "947d183c390bcba7c9a2517e188281893048b12f2ddeb84f679ca5727bf19d47"
+    },
+    "cli-2.stderr": {
+      "bytes": 164,
+      "sha256": "cb277e197160d4960064736ac1a56e97ffd94a349e4fabd427ab016c6f9450d8"
+    },
+    "cli-2.stdout": {
+      "bytes": 489,
+      "sha256": "b52b294c8bc8e3bdb8f0c2575766b1d353212bf833624f2692b333303f254947"
+    },
+    "cli-3.stderr": {
+      "bytes": 164,
+      "sha256": "cb277e197160d4960064736ac1a56e97ffd94a349e4fabd427ab016c6f9450d8"
+    },
+    "cli-3.stdout": {
+      "bytes": 667,
+      "sha256": "75deef4d0fbff6910a413c1eb286f72f8f34c452b06f3cd78dd39345c8b43232"
+    },
+    "complete.json": {
+      "bytes": 744,
+      "sha256": "c0f1302899b58d6075d0d19e08036eca7a4f975dafc71aa7e1540197cb5fe746"
+    },
+    "consumer.stderr": {
+      "bytes": 81,
+      "sha256": "0b23ec51a783ca38ae1d9c7d5aec093a6a773afd1651b8107cfe67e5ece1befb"
+    },
+    "consumer.stdout": {
+      "bytes": 3392,
+      "sha256": "2c5c105440a9d045e51973d0662510130016aa6b837dfafd27a936c39fe9d28b"
+    },
+    "events.jsonl": {
+      "bytes": 28110,
+      "sha256": "2d195c11ebb4ee11bb76664b6370a39106c2db5c99d7750163cca25ff894c6a2"
+    },
+    "phases.json": {
+      "bytes": 519795,
+      "sha256": "f60b0e01565f5ea0ce3f7ed5c332263b049ed72850f95fa63a66073ac535c0f4"
+    },
+    "plan.json": {
+      "bytes": 2984,
+      "sha256": "7081746f847e126ec6fbd392d9016dcf4e7a19099cd4e03d81df2a168818d764"
+    },
+    "requests.json": {
+      "bytes": 81054,
+      "sha256": "53922b2f76f76565d017b4811d17b7a90671103069a68c2f8f96c125577eff24"
+    },
+    "server-29516.log": {
+      "bytes": 2731,
+      "sha256": "a1695704e103212d26f1819f4fe80ede10463006d4b1cc4a64d021e32a66421c"
+    },
+    "server-31100.log": {
+      "bytes": 4381,
+      "sha256": "b95be6a21ab241f12f2c0315c9b789c8386ce4bc4c0c5280cbd265e7e915f390"
+    },
+    "server-32068.log": {
+      "bytes": 4417,
+      "sha256": "b380f0d0438e8a02bf329d39c8e776a0d062c8d225af7426c013967c5e4e04d2"
+    },
+    "server-39728.log": {
+      "bytes": 4420,
+      "sha256": "e5dd3a989c5f28dafae920b59ea761baa46b9e53baa8543ba7a4e490ac82fb05"
+    },
+    "supervisor.json": {
+      "bytes": 108,
+      "sha256": "df89d62e6fa38c3307adcfb31641b2b3de41d879589813b79141be4fbbfd8b87"
+    },
+    "terminal.json": {
+      "bytes": 137,
+      "sha256": "024163d299922ed9e47dccb3b15e5ae89913e2488067f988390bcf6cad77aab6"
+    }
+  },
+  "limitations": [
+    "No performance or peak-memory claim.",
+    "Completed donors remain (8/8/8/1); no donor is reused and no request pauses.",
+    "Health dtype is the resolved catalog, not a completed matrix-path record.",
+    "The dirty development CLI has the native checkpoint runtime; all runtime/CMake sources and pinned test owners stayed unchanged.",
+    "Original-weight quality approval and the remaining release gates remain separate."
+  ],
+  "attempts": "One invocation, no retry, no timeout, no runtime or harness failure. The git source-equivalence check retained an unrelated global-ignore read warning.",
+  "checkpoint": {
+    "markdown_pages_reviewed": 88,
+    "changed_pages": 2,
+    "docs_pass": true,
+    "dead_code_pass": true,
+    "logs": {
+      "checkpoint.stdout": "36be2589f149c3993bfa4ebf04c8f36ceab5babf4b1b0a51d10961dfbb570f0d",
+      "checkpoint.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "review_sha256": "711c1a0e6d42804c1cc799378ce146c587aff7d013b54cc72469d7f211f61f9f"
+  }
+}

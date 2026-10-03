@@ -1,0 +1,691 @@
+{
+  "scope": "Targeted CPU split/recompute integration of IQ4_NL using the existing split component.",
+  "passed": true,
+  "plan": {
+    "argv": [
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-20261003\\tests\\run_tests.py",
+      "--exe",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-checks-20261003\\build\\Release\\llmx.exe",
+      "--only",
+      "split",
+      "--require-tools",
+      "--dtype",
+      "auto"
+    ],
+    "source_head": "f65dd194d83ad45c09ce2de5fd508f10b7977c7b",
+    "runtime_head": "d9e8a393e0b0c363e40b09185f9508f3a0cf884e",
+    "source_pins": {
+      "tests/split.py": "9b1b47b723d40b633d957d5c5e75290b7c8575735e17ce1af55cb6483b0b1202",
+      "tests/common.py": "01877fcbe5d04c333baf28e4e5e61d2d2caffbfdd5121d1d39430eb3b42d7c1c",
+      "tests/block_fixture.py": "ac23a60d09cb44f271ead5528a343200446102b6df4953b74b959d5e327abb64",
+      "tests/iq4_nl.py": "5fd2f8eb6d3139e9129d306f1d2bae68009c88e19b1ed7d6bd439ad3dcd05e93",
+      "tests/mxfp4.py": "48ff50d75864d41dbdc1596c1048e3e90dd3126c2a84991bd636e03897dcd712",
+      "tests/f32.py": "a1b5b805d1c7f5adb6ac40cae23c9cf3cfe26c73212d3a55bde5395e3d3de503",
+      "tests/moe.py": "30be6aaf2818d3f1d45a53c983da0579cf5eec30da4f3a8e97aaddaa923ba3d5",
+      "tests/qwen35.py": "609937df85bd8cdfce8181f35e228ef09772b7ca2382f9df2432ffe588436835",
+      "tests/spec_decode.py": "0e6ae071f9e60919af54f037e62fbaf5d2d4563bb7249e3b246d585b107cfcd6",
+      "tools/split_check.cpp": "c4d57688fa890ff00a86b353997a84453a258c8ecd9f5fccc97b31118a2ec966"
+    },
+    "tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-checks-20261003\\build\\Release\\llmx-split-check.exe",
+    "tool_sha256": "c021e6f0381ab047c59d50985bbc0371784bd55829f2c8aa189feb986cf52bef",
+    "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-checks-20261003\\build\\Release\\llmx.exe",
+    "exe_sha256": "3dc5f097d8ca5dd32c9f957de988e2475c146388f3f4d7d79bcf4256dc9f87df",
+    "cli_version": "llmx 0.1.0+gd9c37b072b27.dirty",
+    "build_command": [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-checks-20261003\\build",
+      "--config",
+      "Release",
+      "--target",
+      "llmx-split-check",
+      "--parallel",
+      "2"
+    ],
+    "helper_version": "No --version API; fresh target compile and runtime source identity recorded.",
+    "expected_valid_calls": 108,
+    "expected_iq4_calls": 18,
+    "expected_argument_refusals": 3,
+    "existing_child_timeout_seconds": 120,
+    "pid": 41452,
+    "started": 1791027146.192718
+  },
+  "result": {
+    "valid_calls": 108,
+    "existing_calls": 90,
+    "new_iq4_calls": 18,
+    "expected_argument_refusals": 3,
+    "skipped": 0,
+    "failures": 0,
+    "component_returncode": 0
+  },
+  "iq4_coverage": {
+    "variants": [
+      "dense-untied",
+      "dense-tied",
+      "moe"
+    ],
+    "backends": "cpu versus cpu,cpu",
+    "ubatches": [
+      1,
+      3,
+      16
+    ],
+    "kv_types": [
+      "f16",
+      "f32"
+    ],
+    "request_dtype": "auto",
+    "effective_dtype": "f16",
+    "prompt_tokens": 13,
+    "greedy_steps": 3,
+    "prompt_vocab": 257,
+    "mixed_passes": 3,
+    "mixed_rows": 18,
+    "in_flight_passes": {
+      "P2": 9,
+      "P3": 18,
+      "P4": 18
+    },
+    "whole_recompute": true,
+    "fork_recompute": false,
+    "draft_verify_rounds": 0,
+    "exact_completed_paths": [
+      "f32"
+    ]
+  },
+  "iq4_cases": [
+    {
+      "index": 45,
+      "model": "tiny-iq4-nl-dense-untied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "1",
+        "f16",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "61f5addc8237e09a4689366725a4d85dfe279a25dcb79746f0632919166323b5",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 46,
+      "model": "tiny-iq4-nl-dense-untied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "1",
+        "f32",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "1b92238a4952ad0b67f82aa02d984af4f528aa93294c197c8a96fd933b4dbee4",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 47,
+      "model": "tiny-iq4-nl-dense-untied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "3",
+        "f16",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "32d1608acc2f834908155dea21d8543b98509e0fcfd5c8c6d91fde709337e1be",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 48,
+      "model": "tiny-iq4-nl-dense-untied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "3",
+        "f32",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "fb2711ac4d5719b45b0983b1b619362e5cae749678a430f76550ad3e79906878",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 49,
+      "model": "tiny-iq4-nl-dense-untied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "16",
+        "f16",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "17415b05e7b24db9cd53debadec54e9cfb0b4df5af86f8147d83b0230962856a",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 50,
+      "model": "tiny-iq4-nl-dense-untied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "16",
+        "f32",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "4c5cf7fd27ce27f8a994e9e197e06d18d3710c5b2416eef15d13bc7695a3eeaf",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 51,
+      "model": "tiny-iq4-nl-dense-tied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "1",
+        "f16",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "4ff6a293d4218abe0c64246e6100ba50b600f5f32e3ddfbbc9a0b3fd09002f8a",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 52,
+      "model": "tiny-iq4-nl-dense-tied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "1",
+        "f32",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "ad808dcd4ff0036fdc0c12b11641c3bfe88cbd8d58eb94446d93eb73dd2b1970",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 53,
+      "model": "tiny-iq4-nl-dense-tied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "3",
+        "f16",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "4352f766e53702e2d32edef58c7a4d7d5654f4855466ddf337c28cd9a7292458",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 54,
+      "model": "tiny-iq4-nl-dense-tied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "3",
+        "f32",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "2e2348b7aefcd245f2893fe68835ade424818a89628b9a567d92f89dcce6f1c6",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 55,
+      "model": "tiny-iq4-nl-dense-tied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "16",
+        "f16",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "a7394435f0b71c5ec815faaf826f894e6109f9be9c37e0af74b868935581f3eb",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 56,
+      "model": "tiny-iq4-nl-dense-tied.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "16",
+        "f32",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "2e2348b7aefcd245f2893fe68835ade424818a89628b9a567d92f89dcce6f1c6",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 57,
+      "model": "tiny-iq4-nl-moe.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "1",
+        "f16",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "582e1b00d4dd58ce1aa8ad61b42b9bd426324608f1616aeb12b28e1e6d7e1f0d",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 58,
+      "model": "tiny-iq4-nl-moe.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "1",
+        "f32",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "81d5eaef2b3f3a2723b24a5b8aa6b1cc7b7a88da5169dafecdc1e5d2e477ae27",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 59,
+      "model": "tiny-iq4-nl-moe.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "3",
+        "f16",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "dc91811458b85685e7aeb23d244cc4f378e3713f8b052eb27a621db1cdb18783",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 60,
+      "model": "tiny-iq4-nl-moe.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "3",
+        "f32",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "01002fb8a9a31234b5aa834172224867e634d527dddb4f6a7a4e025297c106e8",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 61,
+      "model": "tiny-iq4-nl-moe.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "16",
+        "f16",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "9e21a02c9567968061e87eccef165749c21a4a16fe439dea026d87d90379b708",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    },
+    {
+      "index": 62,
+      "model": "tiny-iq4-nl-moe.gguf",
+      "arguments_after_text": [
+        "cpu",
+        "cpu,cpu",
+        "3",
+        "16",
+        "f32",
+        "auto"
+      ],
+      "paths": [
+        [
+          "single",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "0",
+          "f32"
+        ],
+        [
+          "split",
+          "1",
+          "f32"
+        ]
+      ],
+      "stdout_sha256": "61a74146c809e5daf6d1337be96f4a19c1972d0d0d041b77268520a8c7519b58",
+      "stderr_sha256": "65f58f27a45560ced85c84db0a70b73dd08ff4cd331f761873d2e46563884df2"
+    }
+  ],
+  "teardown": {
+    "owned_drained": true,
+    "child_count": 111,
+    "worker_pid": 41452
+  },
+  "raw_root": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\split-check",
+  "raw_pins": {
+    "run.py": "6de74d0823392f8a76c6fbea843f1556940c1cee9da52d9da2952399ee27a4e8",
+    "build.stdout": "d54904d16380eb2253f362e8c1e84ee38013e6a04944b9ff57d3a9d3d587e37f",
+    "build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "consumer.stdout": "bda2c6258fc8654707150ba5ab668ebb7d0ca911300f53c36351f721778ebb52",
+    "consumer.stderr": "6f8756c5df189bf94966399e969be706ab2ba62aa8bb779686e138b189406784",
+    "plan.json": "3be54157001a58cbc112e62e64f5fecf0cf53c7c47a1e762737fc047f946b0af",
+    "calls.json": "6152b0d88a0204f60486dfbde724867cbd2b0850e4b439a6653bb4acf8745615",
+    "complete.json": "df7026efbac25d29627923d900b941a26633b777a53e4d9c257230ce336019df"
+  },
+  "limitations": [
+    "CPU only; no Vulkan IQ4 claim or added GPU gate.",
+    "Tiny IQ4 context covers whole replay; block-fork and draft-verify coverage stays in the existing longer Q8 cases.",
+    "This compares placements exactly, not HF or throughput; existing full release conditions remain open.",
+    "The helper has no version API; its fresh compile, hash, build configuration and exact runtime source identity are recorded beside the unchanged CLI version."
+  ],
+  "attempts": "One fresh build of the previously missing helper and one component invocation. No failed or retried case. An unrelated git global-ignore read warning remains in stderr.",
+  "checkpoint": {
+    "markdown_pages_reviewed": 88,
+    "changed_pages": 3,
+    "docs_pass": true,
+    "dead_code_pass": true,
+    "raw_pins": {
+      "checkpoint.stdout": "e7577b15e8be9df1cad486250ae9eefb14ec08416d39921a162dbb32c9c34476",
+      "checkpoint.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "docs-review.json": "e36720d2d62a1e3f3eee49457ad93463c52d43dd8a91f8585243313cbf729f20"
+    }
+  }
+}

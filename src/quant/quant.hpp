@@ -10,7 +10,7 @@
 #include "quant/mxfp4.hpp"
 #include "quant/types.hpp"
 
-// Block quantization: the Q8_0 and Q4_0 quantizers, the Q8_0, Q4_0 and Q4_1 dequantizers, and the registry pairing implemented types with their storage metadata (types.hpp) and kernels (the K-quants' are in k_quants.hpp).
+// Block quantizers, decoders and the registry linking each implemented type to its storage metadata and kernels.
 // A Q8_0 block holds 32 float values as a 2-byte f16 scale and 32 int8 values (Q8_0_TYPESIZE bytes per block).
 // The kernels serve the quantize command (float -> block) and the dequantize command and CPU inference path (block -> float).
 
@@ -120,6 +120,21 @@ inline void dequantize_row_q4_1(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
+inline constexpr int8_t IQ4_NL_VALUES[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};
+
+// IQ4_NL keeps the low nibbles in the first half of the block and the high nibbles in the second.
+inline void dequantize_row_iq4_nl(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; ++b) {
+        const uint8_t* y = src + b * IQ4_NL_TYPESIZE;
+        float* x = dst + b * IQ4_NL_BLOCK;
+        const float d = f16_to_f32(uint16_t(y[0] | (uint16_t(y[1]) << 8)));
+        for (size_t j = 0; j < IQ4_NL_BLOCK / 2; ++j) {
+            x[j] = d * float(IQ4_NL_VALUES[y[2 + j] & 15]);
+            x[j + IQ4_NL_BLOCK / 2] = d * float(IQ4_NL_VALUES[y[2 + j] >> 4]);
+        }
+    }
+}
+
 // An implemented type: its storage metadata and block-wise (de)quantize routines; F32 is copied directly.
 struct QuantType : StorageType {
     void (*quantize)(const float*, uint8_t*, size_t) = nullptr;
@@ -156,6 +171,8 @@ private:
           { *storage_type(GGML_TYPE_Q6_K), nullptr, dequantize_row_q6_K } },
         { GGML_TYPE_MXFP4,
           { *storage_type(GGML_TYPE_MXFP4), nullptr, dequantize_row_mxfp4 } },
+        { GGML_TYPE_IQ4_NL,
+          { *storage_type(GGML_TYPE_IQ4_NL), nullptr, dequantize_row_iq4_nl } },
         { GGML_TYPE_F32,
           { *storage_type(GGML_TYPE_F32), nullptr, nullptr } },
     } {}

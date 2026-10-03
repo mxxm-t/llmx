@@ -5,10 +5,10 @@ backend can execute. This is the lowest header of the quant layer.
 
 - Type ids, the numbers GGUF files and the backends' kernels name the types
   by: `GGML_TYPE_F32=0`, `GGML_TYPE_Q4_0=2`, `Q4_1=3`, `Q8_0=8`, `Q4_K=12`,
-  `Q5_K=13`, `Q6_K=14`, `MXFP4=39`.
+  `Q5_K=13`, `Q6_K=14`, `IQ4_NL=20`, `MXFP4=39`.
 - The block constants of each implemented quantized type, values per block and bytes per block
   (`*_BLOCK`, `*_TYPESIZE`): 32/18 (Q4_0), 32/20 (Q4_1), 32/34 (Q8_0),
-  256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K), 32/17 (MXFP4).
+  256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K), 32/18 (IQ4_NL), 32/17 (MXFP4).
 - `StorageType` holds a name, values per block and bytes per block.
   `storage_type(id)` returns that metadata for 35 active GGML layouts through
   ID 42, including F16, BF16, the K-quants, IQ and ternary formats, integer

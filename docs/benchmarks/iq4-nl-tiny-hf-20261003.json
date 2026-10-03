@@ -1,0 +1,281 @@
+{
+  "scope": "Tiny IQ4_NL HF and shared MXFP4 fixture regression; CPU development checkpoint, no real-file, performance or release claim",
+  "source_base": "d9e8a393e0b0c363e40b09185f9508f3a0cf884e",
+  "generator": {
+    "mode": "iq4-nl",
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "numpy": "2.2.6",
+    "dtype": "float32",
+    "attention": "eager",
+    "threads": 1,
+    "independent_decode": "tests/spec_decode.py",
+    "minimum_moe_routing_gap": 0.003225764923895605,
+    "required_routing_gap": 0.0001
+  },
+  "golden": {
+    "path": "tests/data/baseline_iq4_nl.json",
+    "sha256": "4731d106ca131da01549696695005ce34c59998278ca31a7ecbab6e395129ba1",
+    "fixtures": [
+      {
+        "name": "dense-untied",
+        "config": {
+          "block_count": 2,
+          "embedding_length": 96,
+          "feed_forward_length": 160,
+          "attention.head_count": 2,
+          "attention.head_count_kv": 1,
+          "attention.key_length": 32,
+          "context_length": 16
+        },
+        "weights_sha256": "370721c164b93783b9cbdea19f0062edc94e9ccc1d581c28b0bd94a7ae836668",
+        "packed_sha256": "f230adf0d96361fb8eba423d55034784330506933852390ee185e07c4e750131",
+        "min_routing_gap": null
+      },
+      {
+        "name": "dense-tied",
+        "config": {
+          "block_count": 2,
+          "embedding_length": 96,
+          "feed_forward_length": 160,
+          "attention.head_count": 2,
+          "attention.head_count_kv": 1,
+          "attention.key_length": 32,
+          "context_length": 16
+        },
+        "weights_sha256": "cccabc76a3ed4de6647fd34d6d5b2e6134cd7409f7048adeaf0fcc59bafebead",
+        "packed_sha256": "3d1a3a857a981769d492ffe273d238729fa4f779e3ae92ea7f7baf3211c0f517",
+        "min_routing_gap": null
+      },
+      {
+        "name": "moe",
+        "config": {
+          "block_count": 2,
+          "embedding_length": 96,
+          "feed_forward_length": 160,
+          "attention.head_count": 2,
+          "attention.head_count_kv": 1,
+          "attention.key_length": 32,
+          "context_length": 16,
+          "expert_count": 4,
+          "expert_used_count": 2,
+          "expert_feed_forward_length": 160
+        },
+        "weights_sha256": "5db240e1d5e0c548f9b10d7f0ef7a3ce1b470ec6016e77dae897507eb51ed141",
+        "packed_sha256": "0a76e2eb4cea3e2546752b50fe546ab8201d2cfe5e412b42ef196410400e83cc",
+        "min_routing_gap": 0.003225764923895605
+      }
+    ]
+  },
+  "policies": {
+    "auto": {
+      "passed": true,
+      "logit_cases": 150,
+      "logits_per_case": 257,
+      "nll_checks": 12,
+      "bounds": {
+        "logits": 2e-05,
+        "nll": 1e-05
+      },
+      "observations": [
+        {
+          "fixture": "dense-untied",
+          "max_abs_logit_error_reported": 1.12e-06,
+          "max_mean_nll_error_reported": 3.54e-06
+        },
+        {
+          "fixture": "dense-tied",
+          "max_abs_logit_error_reported": 1.28e-06,
+          "max_mean_nll_error_reported": 3.92e-06
+        },
+        {
+          "fixture": "moe",
+          "max_abs_logit_error_reported": 9.4e-07,
+          "max_mean_nll_error_reported": 1.06e-06
+        }
+      ],
+      "logit_bound_used_percent": 6.4,
+      "nll_bound_used_percent": 39.2
+    },
+    "f32": {
+      "passed": true,
+      "logit_cases": 150,
+      "logits_per_case": 257,
+      "nll_checks": 12,
+      "bounds": {
+        "logits": 2e-05,
+        "nll": 1e-05
+      },
+      "observations": [
+        {
+          "fixture": "dense-untied",
+          "max_abs_logit_error_reported": 1.12e-06,
+          "max_mean_nll_error_reported": 3.54e-06
+        },
+        {
+          "fixture": "dense-tied",
+          "max_abs_logit_error_reported": 1.28e-06,
+          "max_mean_nll_error_reported": 3.92e-06
+        },
+        {
+          "fixture": "moe",
+          "max_abs_logit_error_reported": 9.4e-07,
+          "max_mean_nll_error_reported": 1.06e-06
+        }
+      ],
+      "logit_bound_used_percent": 6.4,
+      "nll_bound_used_percent": 39.2
+    }
+  },
+  "reference_generator": {
+    "passed": true,
+    "tests": 43,
+    "mxfp4_variants_and_contexts": 6
+  },
+  "raw_blocks": {
+    "passed": true,
+    "numpy_present": true
+  },
+  "reference_consumer": {
+    "passed": true,
+    "tests": 46,
+    "nested_tests": 9
+  },
+  "mxfp4": {
+    "passed": true,
+    "original_f32_cases": 150,
+    "max_control_error_reported": 1.43e-06,
+    "production_cases": 258,
+    "nll_checks": 30,
+    "max_production_logit_error_reported": 0.0001265,
+    "max_nll_error_reported": 4.92e-06,
+    "final_skips": 0,
+    "original_skip": "First production regression passed but skipped missing original-F32 helper; retained, followed by its fresh targeted build and the complete required regression."
+  },
+  "cache_f16": {
+    "exit_code": 0,
+    "component_status": "SKIP",
+    "compared": 0
+  },
+  "binaries": {
+    "llmx": {
+      "path": ".tmp-iq4-nl-checks-20261003/build/Release/llmx.exe",
+      "sha256": "3dc5f097d8ca5dd32c9f957de988e2475c146388f3f4d7d79bcf4256dc9f87df",
+      "version": "0.1.0+gd9c37b072b27.dirty",
+      "unchanged_runtime_from_cpu_checkpoint": true
+    },
+    "llmx-cpu-f32-check": {
+      "path": ".tmp-iq4-nl-checks-20261003/build/Release/llmx-cpu-f32-check.exe",
+      "sha256": "95ab0885e558f75815d6cea8e4765a5dd8823e3dc4f6ffef54f2c6194b7fe146",
+      "fresh_target_build": true,
+      "version_interface": false
+    }
+  },
+  "logs_root": ".tmp-iq4-nl-evidence-20261003/tiny-hf-run",
+  "logs": {
+    "auto.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "auto.stdout": {
+      "sha256": "cb65d89a8c4738e3e8f3a1b60dcc3e6b3ce56f7a8065f385e5aa9c69fb6f82d2",
+      "bytes": 3254
+    },
+    "build-f32-control.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "build-f32-control.stdout": {
+      "sha256": "0c9793a4373fde54e915e0c9458de80f1cd6eba80440cd6ec55343590552849c",
+      "bytes": 672
+    },
+    "cache-f16.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "cache-f16.stdout": {
+      "sha256": "f4adac67c673323d3dfad7e63bb36ad6702bced7ffb2f9686394ab08a896898a",
+      "bytes": 214
+    },
+    "f32.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "f32.stdout": {
+      "sha256": "8a4cedb39cc69a7cea57d018945480c77ac560171cf98c7137efc85717fed77f",
+      "bytes": 900
+    },
+    "generate.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "generate.stdout": {
+      "sha256": "628f57d4d00177011d3879feaeb1a1e63c80f1121e18749fec9996d20590be82",
+      "bytes": 338
+    },
+    "mxfp4-control.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "mxfp4-control.stdout": {
+      "sha256": "ff6f6627f8840b4608e3f762afa82b8c5dc93bde8fa020368571568af062257a",
+      "bytes": 1874
+    },
+    "mxfp4.stderr": {
+      "sha256": "e940c6ca4c271796a3ac447b0781e9e7e6dff6ba5aad2ed1d16b95b31629e2a5",
+      "bytes": 872
+    },
+    "mxfp4.stdout": {
+      "sha256": "720450ef771fc34290b8b010125678c5385c0e996510ef5a0f6d90e2eee37a6a",
+      "bytes": 2466
+    },
+    "checkpoint.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "checkpoint.stdout": {
+      "sha256": "deca32876d16537b8dd353210857388c614f7aca6d82b0d59179b82542258e59",
+      "bytes": 666
+    }
+  },
+  "preserved_mxfp4_goldens": {
+    "baseline_mxfp4.json": "910f84e9607f1fe9a1a43e8cb3c0b8fcbb0a7524742cb1a0213859c919fbdeb0",
+    "baseline_mxfp4_prompt.json": "c44a26afa462ba397c9750a90c548a9ed939e912c5d6984a4afaa8cc00832392"
+  },
+  "limits": [
+    "Original-F32 HF tiny fixtures; no new BF16-policy reference or bound.",
+    "No IQ4_NL real-file HF, byte identity, GPU or full release gate is claimed.",
+    "Existing runtime executable was retained, not rebuilt for Python-only changes."
+  ],
+  "checkpoint_checks": {
+    "docs": {
+      "passed": true,
+      "known_findings": 13,
+      "planted_faults": 16
+    },
+    "dead_code": {
+      "passed": true,
+      "known_findings": 7,
+      "planted_faults": 18
+    },
+    "arch_boundary": {
+      "passed": true,
+      "findings": 0
+    },
+    "markdown_review": {
+      "count": 88,
+      "changed_count": 9,
+      "record": ".tmp-iq4-nl-evidence-20261003/tiny-hf-run/docs-review.json",
+      "sha256": "f81f8463d99228e6257495c3bab9791cd02cbab4f6b58fd246b1049061823c5f"
+    }
+  },
+  "source_files_sha256": {
+    "tests/block_fixture.py": "ac23a60d09cb44f271ead5528a343200446102b6df4953b74b959d5e327abb64",
+    "tests/iq4_nl.py": "5fd2f8eb6d3139e9129d306f1d2bae68009c88e19b1ed7d6bd439ad3dcd05e93",
+    "tests/mxfp4.py": "48ff50d75864d41dbdc1596c1048e3e90dd3126c2a84991bd636e03897dcd712",
+    "tests/reference_generator.py": "b6e1b5d9ece53181af10368a2dc5c5b88084c3b1f475b7ca8386c11948714812",
+    "tests/run_tests.py": "9754fef8774c7a8cf5a6ec79578309f34ce77e984ac199a9e5e335e3ec90308f",
+    "tools/gen_baseline.py": "dd565d24ae433a85d8a8c997ac3b05a23f30e91792a1eec36aa19410677dbadd",
+    "tools/cpu_f32_check.cpp": "07062fb2a58ce26a80649268a845ef0e2ba211221e1472d104d5c16fe715ca94"
+  }
+}

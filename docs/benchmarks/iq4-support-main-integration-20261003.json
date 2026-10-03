@@ -1,0 +1,146 @@
+{
+  "scope": "Code-conflict-free IQ4 support integration on runtime main bd05390a plus docs-only main6a365411; no F16 optimization or half-weight stack.",
+  "tested_head": "9d65d77750b11657f7bb37bf37b936cd6a637559",
+  "tested_tree": "8f1cfe4f3683121dd47d8a7f9e385a02acf50e5c",
+  "arms": {
+    "main": {
+      "head": "bd05390a3f46179d9f657857d49987f8a7bf2e10",
+      "tree": "8308c5da4c6a0edf53c0bf5acb4fdb38a027334e",
+      "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\release-main-bd053\\windows\\main\\source",
+      "build": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\release-main-bd053\\windows\\main\\build",
+      "version": "llmx 0.1.0+gbd05390a3f46",
+      "binaries": {
+        "llmx-model-logits.exe": {
+          "bytes": 3629568,
+          "sha256": "ec465eb5fb20e091d57a6461fe588038274bf9c8a4e6467537580a9ee3329518"
+        },
+        "llmx.exe": {
+          "bytes": 4358144,
+          "sha256": "53fdbef62403866c795f18ab1de6feb4e93c909796a6d0c56b3bf14217dcc678"
+        }
+      }
+    },
+    "candidate": {
+      "head": "9d65d77750b11657f7bb37bf37b936cd6a637559",
+      "tree": "8f1cfe4f3683121dd47d8a7f9e385a02acf50e5c",
+      "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\release-main-bd053\\windows\\candidate\\source",
+      "build": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\release-main-bd053\\windows\\candidate\\build",
+      "version": "llmx 0.1.0+g9d65d77750b1",
+      "binaries": {
+        "llmx-model-logits.exe": {
+          "bytes": 3631104,
+          "sha256": "db29efa8fbf3f5efcc69a849596095c884a9b34a25401588aa9580c96cb6714a"
+        },
+        "llmx.exe": {
+          "bytes": 4360192,
+          "sha256": "7719a683742c354ae1295c31ec8280690d157ed2c1cda4b0266b2557f67b20cc"
+        }
+      }
+    }
+  },
+  "source_proof": {
+    "path": "source-freeze\\source-proof.json",
+    "sha256": "b3ab7ed5654f719170365c1a3165158708a337fae0c3e55a8c5e983144d53eaa"
+  },
+  "native": {
+    "cpu": 40,
+    "vulkan": 5,
+    "total": 45,
+    "skipped": 0,
+    "expected_ordinary_subcase_exclusions": 7488,
+    "preserving_subcase_exclusions": 0
+  },
+  "shader_modules_identical": 103,
+  "build_native_docs": {
+    "path": "windows\\execution\\complete.json",
+    "sha256": "7a82d133a2ac5c0cb7edb375394ad25f95ab1d895b8dc26239afa8ce06b89e87"
+  },
+  "native_device_logs": {
+    "native-vulkan.log": {
+      "bytes": 702,
+      "sha256": "df42de4dc6783df7352e56669bdd38f576be985cab80c20bddb02e0c3fdd5fb0"
+    },
+    "native-vulkan-details.log": {
+      "bytes": 23833,
+      "sha256": "f758b3f50c114da053b95cbbf9890571ff3a073025d3158e344a7cc7c1273456"
+    }
+  },
+  "quick_identity": {
+    "record": {
+      "path": "windows\\identity\\execution\\complete.json",
+      "sha256": "19d0b7aeb52fd0c177f84757a1534a277630cd8d51fc29f60247f3bc1a65171a"
+    },
+    "passed": true,
+    "calls": 6,
+    "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+    "ids_sha256": "e68287079c102f53893ada2d7913acd00abd0ad2f8238e14c1318826a152793a",
+    "settings": {
+      "dtype": "auto",
+      "load_mode": "auto",
+      "cache": "f16",
+      "ubatch": 128,
+      "cpu_threads": 6,
+      "greedy_tokens": 64
+    },
+    "captures_per_arm": {
+      "batched": {
+        "bytes": 150112768,
+        "sha256": "0480d91c9cee17fb0708ba6619026bc3ec666c3787b5099496bb066e2bf6ff29"
+      },
+      "decode": {
+        "bytes": 150112768,
+        "sha256": "4c8f23ac7091459c95cc3ef55654afcf132f626b92f739df897e5d4134e9c404"
+      },
+      "greedy": {
+        "bytes": 38895616,
+        "sha256": "e1c3ab74d96ed2c9cb53e67e4ab2b341ab3725e9c51898d0e0e2b618217df246"
+      }
+    },
+    "all_bytes_ids_metadata_equal_except_version": true,
+    "drain": {
+      "path": "windows\\identity\\drain.json",
+      "sha256": "f7007cb13b43776e3bbd7f923994c89d854130dff7625fc25255615e8ea0163f"
+    }
+  },
+  "preparation_observations": [
+    "Identity sealing initially refused an overbroad empty-process list before any model launch. Retained admission and subsequent 1-second CPU observation establish reusable MSBuild idle and a reused Firefox PID; no process stopped.",
+    "Later drain query reused an already-waited model PID as PowerShell; matching executable and creation time distinguish it from the original child. All six Popen handles returned zero and were waited."
+  ],
+  "gate_applicability": {
+    "rule": "AGENTS.md:906-915: once-complete campaign; conflict-free code rebase reruns builds, CTest and hosted workflow.",
+    "linux_coverage_pending": ".github/workflows/ci.yml:52-56 fresh Linux CPU build/CTest;139-148 fresh Vulkan-enabled build/CTest/CPU suite;90-98 GCC14 UBSan.",
+    "physical_device_coverage": "Fresh Windows Radeon five native tests above; hosted Vulkan explicitly has no device. Prior pinned MI50 strict suite and identity remain scoped to their original heads and unchanged device implementation.",
+    "decision": "Exact-final-head hosted completion plus these Windows checks and source proof fulfills the integration refresh; do not duplicate a rig build/full native campaign solely for rebasing."
+  },
+  "markdown": {
+    "pages": 89,
+    "canonical_carry": 86,
+    "direct": [
+      "AGENTS.md",
+      "docs/USAGE.md",
+      "docs/STATUS.md"
+    ],
+    "new_page": "Published main TENSOR-SPLIT.md carried by exact canonical identity; unrelated implementation claims remain scoped to its plan."
+  },
+  "remaining": [
+    "Original-weight quality proposal remains unapproved; no bounds adopted.",
+    "Exact-final-head hosted workflow and current-main recheck before any parent-owned landing."
+  ],
+  "runtime_file_exact_bounds": {
+    "continuous_nll": 0.01,
+    "window_nll": 0.02
+  },
+  "publication": "Private integration only; no public merge or quality waiver.",
+  "docs_main_reconciliation": {
+    "base": "6a365411a11e2e6bcad9412bd7f379cc88a6f12d",
+    "base_runtime": "bd05390a3f46179d9f657857d49987f8a7bf2e10",
+    "main_changed_files": [
+      "docs/MULTI-DEVICE.md",
+      "docs/STATUS.md",
+      "docs/TENSOR-SPLIT.md"
+    ],
+    "runtime_tests_tools_build_unchanged_from_tested_head": true,
+    "published_main_pages_preserved": true,
+    "both_remote_refs_record": "main-refs-6a365411.json"
+  }
+}

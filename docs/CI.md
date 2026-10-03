@@ -51,7 +51,8 @@ The CPU backend currently uses x86 intrinsics, and CMake enables AVX2/FMA/F16C.
 The kernels use them with no runtime check, so that binary does not run on older CPUs.
 Intel macOS is intentional; ARM and a portable scalar build are not covered.
 
-The CPU jobs' limit is 15 minutes, 25 on macOS and 20 on Windows, whose job ran 13 min 54 s to 14 min 52 s on main's last three runs (build 2 min 46 s to 3 min 41 s, the native tests and the suite 9 to 9.5 minutes), so a slower runner or a few more seconds of tests ended it at the limit with every step passed.
+The CPU jobs' limit is 15 minutes, 40 on macOS and 20 on Windows, whose job ran 13 min 54 s to 14 min 52 s on main's last three runs (build 2 min 46 s to 3 min 41 s, the native tests and the suite 9 to 9.5 minutes), so a slower runner or a few more seconds of tests ended it at the limit with every step passed.
+The macOS allowance is based on the retained [timeout comparison](#macos-intel-timeout-2026-10-03); individual test timeouts and checks are unchanged.
 The Vulkan backend has its build job above; a job that runs its kernels
 needs a device, which hosted runners do not have. Actual GPU numerical and
 performance results require the corresponding hardware; compilation alone
@@ -232,6 +233,22 @@ gh api --allow-escape-sequences repos/mxxm-t/llmx/actions/jobs/JOB/logs
 Capture the second command's output and strip terminal control sequences before displaying excerpts. Without that flag, `gh` can refuse a readable log because it contains escape sequences; that refusal does not establish a GitHub permission failure. Check annotations can identify a failed step but may contain only its exit code, so they do not replace the log.
 
 Use an existing authenticated `gh` session, or supply an existing Git credential as `GH_TOKEN` only in the child process environment. Do not print the credential, put it in command arguments or save it in the evidence. A successful read of one run does not establish that a different commit passed.
+
+## macOS Intel timeout (2026-10-03)
+
+The [half-weight job at 325479c9](https://github.com/mxxm-t/llmx/actions/runs/37112245232/job/111172258256) was cancelled during the Python suite. Its check annotation says "The job has exceeded the maximum execution time of 25m0s"; the build and all 38 native tests had passed, with no observed test assertion failure. The [preceding main job at d9c37b07](https://github.com/mxxm-t/llmx/actions/runs/37109015725/job/111163128251) passed in 14m15s.
+
+| Stage | Previous main | Half-weight head |
+|---|---:|---:|
+| Build | 3m56s | 15m08s |
+| Native checks | 3m21s, 37 passed | 6m28s, 38 passed |
+| Python suite | 6m13s, passed | Cancelled after 2m42s |
+
+Both jobs used macos-15 image 20260824.0482.1 and AppleClang 17.0.0.17000013 on different hosted runners. The added half-weight native test took 5.32s. Common native tests rose from 200.69s to 382.12s, while dead-code rose from 18.8s to 35.4s and docs from 15.0s to 22.4s. Broad runner slowness is plausible, but no machine telemetry establishes its cause or excludes additional build cost.
+
+The finite 40-minute macOS limit allows for the observed 21m36s build/native work plus about 11m50s if the earlier complete Python suite takes the common-native 1.90x time. Setup and cleanup bring that estimate to about 35 minutes, leaving roughly five minutes of margin. This is a scheduling estimate, not a measured completed run. Windows remains at 20 minutes and ordinary Linux CPU at 15; no test, assertion, individual test timeout or retry policy changes. The cancelled attempt remains incomplete, and the new workflow still needs hosted validation.
+
+The full logs, check annotations and all native durations remain in `.tmp-half-release-20261003/ci/macos-cancelled-111172258256/`. The annotation JSON has SHA-256 `3a05e83d61338ae9fd58df8f5e814dcb5ffa89488591351d500909b901ba0794`; the full stage/native comparison JSON has SHA-256 `ab8a4014b35eec691b8cc03279fb973a844bca88fc7cc38d9e77df590fd72c06`.
 
 ## Exact reduction test compilation
 

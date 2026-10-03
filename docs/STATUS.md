@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## macOS Intel CI timeout (2026-10-03, branch fix/ci-macos-timeout-20261003)
+
+- **Goal:** give the complete macOS Intel job a finite 40-minute budget after its 25-minute limit cancelled a run whose build and native checks had passed.
+- **Done:** the workflow changes only the macOS budget from 25 to 40 minutes. GitHub's check annotation confirms the timeout. Compared with the preceding passing main run, the build took 15m08s instead of 3m56s, and native checks took 6m28s instead of 3m21s. The added half-weight native test took only 5.32s; other native and Python checks also slowed. The dated evidence in [CI.md](CI.md#macos-intel-timeout-2026-10-03) records the observations and the bounded estimate.
+- **Checks:** docs and dead-code passed with their unchanged known-finding and planted-fault counts. All 88 tracked Markdown pages were reconciled with the published-main review: 86 unchanged pages carried forward, and the affected CI/STATUS claims checked directly. The workflow diff is exactly one value; runtime, tests, build commands and individual test timeouts are unchanged. No local build or model test was run for this scheduling change.
+- **Left:** exact-head hosted CI before fast-forward landing. The cancelled integration run remains retained; this checkpoint does not claim the longer job has completed.
+- **Gotchas:** no failed or unfinished check becomes a pass. Preserve the cancelled run, keep every test and its own timeout, and leave Windows, Linux and HF job budgets unchanged. Hosted runner slowness is plausible, not proven by machine telemetry. The separate half-weight numerical hold is unaffected.
+
 ## Qwen3-MoE file-exact HF reference (in development)
 
 - **Goal:** generate independent file-exact Qwen3-MoE references with the existing spec decoder and layered HF owner, holding only one decoder layer in memory. Branch `test/hf-moe-file-exact-20261003` started at `b7a6d235` and is integrated onto main `da38d13a`; only the two STATUS introductions conflicted, and both records are retained.

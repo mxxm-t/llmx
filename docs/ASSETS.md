@@ -807,6 +807,49 @@ It also runs the consumer over simulated passing outputs and requires 41 checks,
 It was the eleventh ordinary suite component when it was added.
 The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` cover the six gate models, the four Qwen3-0.6B files and the two Qwen3.5-0.8B files, and `tools/fetch_test_models.py --all` every file `tests/data/fixtures.json` pins, never the 8B.
 
+### Qwen3-MoE file-exact references
+
+`tools/gen_baseline.py file-exact` maps `qwen3moe` through the same expert/router
+mapper as the tiny Q8 MoE reference. `tests/spec_decode.py` widens each stored
+weight independently. Expert stacks give views of one decoded stack, without
+copying a complete model into a second state dictionary.
+
+For a large file, use `tools/gen_layered_reference.py goldens --file-exact` with
+its pinned `--repo`, `--revision`, `--gguf` and `--output-dir`. Qwen3-MoE uses
+CPU torch 2.5.1+cpu, transformers 4.55.2 and numpy 2.2.6, the existing tiny-MoE
+reference versions. Other versions are refused. Config and tokenizer files must
+already be cached at that revision; original checkpoint weights are not needed
+for this file-exact path. No model asset is downloaded by the layered tool.
+Its loads explicitly require cached files, including when the Hub was already
+imported. Peak memory reporting uses the Windows lifetime working-set counter
+or the platform's POSIX maximum-RSS units.
+
+HF runs its own full forward. Temporary hooks load and release the embedding,
+each decoder layer, final norm and head; global rotary buffers stay materialized.
+Failure removes every hook and releases module weights. Each distinct input
+sequence rereads the weights, trading extra reference-generation I/O for bounded
+memory without reconstructing HF's masks or attention. The Qwen3.5 runner keeps
+its existing layer-outer execution. Output metadata distinguishes decoded HF
+parameter counts from the GGUF's source tensor counts: each expert stack yields
+several parameters. All reference arithmetic remains float32 with eager
+attention and no KV cache; this is not a literal-F16 reference.
+
+`tests/reference_generator.py`, in the hosted reference-generator component,
+checks mixed F32/BF16/Q8 expert order and router mapping plus version refusal,
+offline loading and platform memory reporting.
+`python tests/layered_moe_reference.py` is a separate hand check in the pinned
+HF environment: complete tiny outputs must match full HF byte for byte, with
+only the active layer resident, global rotary buffers present, and exact
+recovery after an injected failure. It preserves the existing Q8 goldens and
+checks their gated variant at its existing F32 bound; the near-tie variant stays
+diagnostic. Hosted jobs do not provision this pinned HF environment, so they do
+not run that hand check.
+
+The pinned 30B UD file needs 113.741 GiB for all widened weights, or 2.321 GiB for
+its largest decoder layer. One fixed 247-token independent F32 HF forward has completed, with its source, output hash, memory evidence and sampling limitation recorded in STATUS. Standard prompt and reset-window goldens have not been generated.
+The supplemental CPU/device criterion and its retained failures remain unchanged;
+adding a reference generator does not approve that file or alter any bound.
+
 ### The layered qwen35 reference
 
 From the 9B up, a qwen35 model's float32 forward does not fit the Linux host's free memory whole, so `tools/gen_layered_reference.py` runs HF's own modules one decoder layer at a time (STATUS, Qwen 3.5, 3.6 and 3.8, Decided 2).

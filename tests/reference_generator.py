@@ -152,6 +152,42 @@ class ReferenceGenerator(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 generator.gguf_state(path, numpy=False)
 
+    def test_qwen3moe_mixed_stacks_are_split_in_expert_order(self):
+        import spec_decode
+        experts, rows, width = 3, 2, 32
+        # Each slot/row has different values; the F32 router is not an expert.
+        gate = [float(i - 71) for i in range(experts * rows * width)]
+        up = [float((i % 31) - 15) / 8 for i in range(len(gate))]
+        down = [float((i % 255) - 127) / 16 for i in range(len(gate))]
+        router = [float(i) / 8 for i in range(experts * width)]
+        written = [
+            ("blk.0.ffn_gate_exps.weight", [width, rows, experts], spec_decode.F32, struct.pack("<%df" % len(gate), *gate)),
+            ("blk.0.ffn_up_exps.weight", [width, rows, experts], spec_decode.BF16,
+             b"".join(struct.pack("<I", struct.unpack("<I", struct.pack("<f", v))[0])[2:] for v in up)),
+            ("blk.0.ffn_down_exps.weight", [width, rows, experts], spec_decode.Q8_0,
+             b"".join(struct.pack("<e32b", 1 / 16, *[int(v * 16) for v in down[i:i + 32]]) for i in range(0, len(down), 32))),
+            ("blk.0.ffn_gate_inp.weight", [width, experts], spec_decode.F32, struct.pack("<%df" % len(router), *router)),
+        ]
+        with tempfile.TemporaryDirectory(prefix="llmx_qwen3moe_mapping_") as directory:
+            path = os.path.join(directory, "mixed.gguf")
+            spec_decode.write_gguf(path, {"general.architecture": (8, "qwen3moe")}, written)
+            state, types = generator.gguf_state(path, numpy=False)
+            self.assertEqual(types, {"F32": 4, "BF16": 3, "Q8_0": 3})
+            self.assertEqual(len(state), 10)
+            for projection, values in (("gate", gate), ("up", up), ("down", down)):
+                for expert in range(experts):
+                    key = "model.layers.0.mlp.experts.%d.%s_proj.weight" % (expert, projection)
+                    self.assertEqual(state[key], ([rows, width], values[expert * rows * width:(expert + 1) * rows * width]))
+            self.assertEqual(state["model.layers.0.mlp.gate.weight"], ([experts, width], router))
+            if importlib.util.find_spec("numpy"):
+                arrays, types_np = generator.gguf_state(path)
+                self.assertEqual(types_np, types)
+                self.assertEqual({k: (shape, list(values)) for k, (shape, values) in arrays.items()}, state)
+            spec_decode.write_gguf(path, {"general.architecture": (8, "qwen3moe")},
+                                   [(written[0][0], [width, rows * experts], written[0][2], written[0][3])])
+            with self.assertRaisesRegex(SystemExit, "three dimensions"):
+                generator.gguf_state(path, numpy=False)
+
     def test_fixtures_are_pinned_once(self):
         import baseline
         import baseline_qwen35
@@ -170,7 +206,8 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual([spec["file"] for spec in baseline.BASELINE_MODELS], [spec["file"] for spec in pinned if spec["gate"] and spec["family"] == "qwen3"])
         self.assertEqual([spec["file"] for spec in pinned if spec["gate"] and spec["family"] == "qwen35"],
                          [spec["file"] for spec in pinned if spec["family"] == "qwen35" and spec["hosted"] and baseline_qwen35.bounds_for(spec)])
-        # The six Qwen3 files pinned ahead of their types join the gate with them: the hosted HF job is to download UD-Q8_K_XL, IQ4_XS and Q2_K, and the other three are checked by hand. The 8B BF16 file is a manual MXFP4 writer input.
+        # The six Qwen3 files pinned ahead of their types join the gate with them: the hosted HF job is to download UD-Q8_K_XL, IQ4_XS and Q2_K, and the other three are checked by hand.
+        # The 8B BF16 file is a manual MXFP4 writer input.
         later = [spec for spec in pinned if not spec["gate"] and spec["family"] == "qwen3"]
         self.assertEqual(sorted(spec["file"] for spec in later if spec["hosted"]),
                          ["Qwen3-0.6B-IQ4_XS.gguf", "Qwen3-0.6B-Q2_K.gguf", "Qwen3-0.6B-UD-Q8_K_XL.gguf"])
@@ -641,7 +678,72 @@ class LayeredReference(unittest.TestCase):
                 self.assertEqual(layered.peak_gib(), 1.25)
                 resource.getrusage.assert_called_once_with(resource.RUSAGE_SELF)
 
+    def test_snapshot_sets_offline_before_hub_import(self):
+        import builtins
+        original = builtins.__import__
+        download = MagicMock(return_value=os.path.join("cache", "revision", "config.json"))
+        seen = []
 
+        def importing(name, *args, **kwargs):
+            if name == "huggingface_hub":
+                seen.append((os.environ.get("HF_HUB_OFFLINE"), os.environ.get("TRANSFORMERS_OFFLINE")))
+                return SimpleNamespace(hf_hub_download=download)
+            return original(name, *args, **kwargs)
+
+        with patch.dict(os.environ), patch.object(builtins, "__import__", importing):
+            os.environ.pop("HF_HUB_OFFLINE", None)
+            os.environ.pop("TRANSFORMERS_OFFLINE", None)
+            self.assertEqual(layered.snapshot("a/model", "b" * 40), os.path.join("cache", "revision"))
+        self.assertEqual(seen, [("1", "1")])
+        download.assert_called_once_with("a/model", "config.json", revision="b" * 40, local_files_only=True)
+
+    def test_layered_tokenizer_loads_are_explicitly_offline(self):
+        loader = MagicMock(side_effect=RuntimeError("stopped before reference setup"))
+        transformers = SimpleNamespace(AutoTokenizer=SimpleNamespace(from_pretrained=loader))
+        with tempfile.TemporaryDirectory(prefix="llmx_layered_offline_") as directory:
+            Path(directory, "config.json").write_text(json.dumps({"model_type": "qwen3_moe"}))
+            gguf = Path(directory, "model.gguf")
+            gguf.write_bytes(b"GGUF")
+            args = SimpleNamespace(repo="a/model", revision="b" * 40, threads=1, file_exact=True,
+                                   gguf=str(gguf), gguf_repo="a/gguf", gguf_revision="c" * 40)
+            for entry in (layered.goldens, layered.equality):
+                with self.subTest(entry=entry.__name__), patch.object(layered, "snapshot", return_value=directory), \
+                     patch.object(layered, "runtime", return_value=(None, transformers)), \
+                     patch.dict(sys.modules, {"transformers": transformers}), contextlib.redirect_stdout(io.StringIO()), \
+                     self.assertRaisesRegex(RuntimeError, "stopped before reference setup"):
+                    entry(args)
+                loader.assert_called_with(args.repo, revision=args.revision, local_files_only=True)
+
+    def test_tokenizer_writer_can_use_the_cached_file_without_hub(self):
+        tok = SimpleNamespace(encode=lambda text, add_special_tokens: SimpleNamespace(ids=[len(text)]))
+        tokenizers = SimpleNamespace(Tokenizer=SimpleNamespace(from_file=MagicMock(return_value=tok)))
+        hub = SimpleNamespace(hf_hub_download=MagicMock(return_value="downloaded.json"))
+        with tempfile.TemporaryDirectory(prefix="llmx_layered_tokenizer_") as directory, \
+             patch.dict(sys.modules, {"tokenizers": tokenizers, "huggingface_hub": hub}), \
+             contextlib.redirect_stdout(io.StringIO()):
+            args = SimpleNamespace(repo="a/model", revision="b" * 40, gguf_repo="a/gguf", gguf_file="model.gguf", output_dir=directory)
+            generator.gen_tokenizer(args, "cached.json")
+            hub.hf_hub_download.assert_not_called()
+            tokenizers.Tokenizer.from_file.assert_called_with("cached.json")
+            offline = Path(directory, "baseline_tokenizer.json").read_bytes()
+            generator.gen_tokenizer(args)
+            hub.hf_hub_download.assert_called_once_with(args.repo, "tokenizer.json", revision=args.revision)
+            tokenizers.Tokenizer.from_file.assert_called_with("downloaded.json")
+            self.assertEqual(Path(directory, "baseline_tokenizer.json").read_bytes(), offline)
+
+    def test_qwen3moe_runtime_keeps_its_existing_reference_versions(self):
+        versions = {"torch": "2.5.1+cpu", "transformers": "4.55.2", "numpy": "2.2.6"}
+        modules = {name: SimpleNamespace(__version__=version) for name, version in versions.items()}
+        modules["torch"].set_num_threads = MagicMock()
+        with tempfile.TemporaryDirectory(prefix="llmx_moe_environment_") as directory, \
+             patch.dict(os.environ), patch.dict(sys.modules, modules):
+            Path(directory, "config.json").write_text(json.dumps({"model_type": "qwen3_moe"}))
+            self.assertEqual(layered.runtime(2, directory), (modules["torch"], modules["transformers"]))
+            modules["torch"].set_num_threads.assert_called_once_with(2)
+            self.assertEqual((os.environ["HF_HUB_OFFLINE"], os.environ["TRANSFORMERS_OFFLINE"]), ("1", "1"))
+            for name, module in modules.items():
+                with self.subTest(name=name), patch.object(module, "__version__", "unsupported"), self.assertRaisesRegex(SystemExit, name):
+                    layered.runtime(2, directory)
     def test_arguments(self):
         with tempfile.TemporaryDirectory(prefix="llmx_layered_args_") as directory:
             gguf = os.path.join(directory, "model.gguf")
@@ -771,7 +873,10 @@ class LayeredReference(unittest.TestCase):
 
     def test_config_chooses_the_model_and_cuts_its_layers(self):
         def config_class(kind):
-            return SimpleNamespace(from_pretrained=lambda directory: SimpleNamespace(kind=kind, num_hidden_layers=4, layer_types=["linear_attention"] * 3 + ["full_attention"]))
+            def load(directory, local_files_only):
+                self.assertTrue(local_files_only)
+                return SimpleNamespace(kind=kind, num_hidden_layers=4, layer_types=["linear_attention"] * 3 + ["full_attention"])
+            return SimpleNamespace(from_pretrained=load)
         transformers = SimpleNamespace(Qwen3_5TextConfig=config_class("dense"), Qwen3_5ForCausalLM="dense model",
                                        Qwen3_5MoeTextConfig=config_class("moe"), Qwen3_5MoeForCausalLM="moe model")
         with tempfile.TemporaryDirectory(prefix="llmx_layered_config_") as directory:

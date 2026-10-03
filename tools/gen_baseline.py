@@ -12,7 +12,7 @@ Another model requires --repo, --revision (full commit SHA), --output-dir, --ggu
 The GGUF arguments are labels, not proof of the converted model's provenance.
 Real-model logits/PPL use CPU float32 eager attention and --threads (default 6).
 qwen35 writes the logit, chat and PPL goldens of a pinned Qwen3.5 checkpoint (QWEN35_MODELS) into tests/data/<its directory>, and is not part of all.
-file-exact writes the logit and PPL goldens of the reference model holding a qwen3 or qwen35 GGUF file's own weights, every tensor decoded to f32 by tests/spec_decode.py and, for qwen35, the converter's changes undone, so llmx can be held on that file to Q8_0-class bounds.
+file-exact writes the logit and PPL goldens of the reference model holding a qwen3, qwen3moe or qwen35 GGUF file's own weights, every tensor decoded to f32 by tests/spec_decode.py and, for qwen35, the converter's changes undone, so llmx can be held on that file to Q8_0-class bounds.
 The independent synthetic f32, moe and mxfp4 fixtures use one thread; only --output-dir applies to those modes.
 moe-q8 writes the goldens of tests/moe.py's Q8_0 model, HF holding each variant's file's own weights as tests/spec_decode.py decodes them, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
 all includes f32 and moe regardless of --repo; mxfp4 is generated explicitly.
@@ -147,10 +147,12 @@ def ppl_window_bounds(n_tokens, context, limit):
     return bounds
 
 
-def gen_tokenizer(args):
+def gen_tokenizer(args, tokenizer_file=None):
     from tokenizers import Tokenizer
-    from huggingface_hub import hf_hub_download
-    tok = Tokenizer.from_file(hf_hub_download(args.repo, "tokenizer.json", revision=args.revision))
+    if tokenizer_file is None:
+        from huggingface_hub import hf_hub_download
+        tokenizer_file = hf_hub_download(args.repo, "tokenizer.json", revision=args.revision)
+    tok = Tokenizer.from_file(tokenizer_file)
     cases = [{"text": t, "ids": tok.encode(t, add_special_tokens=False).ids}
              for t in CASES]
     doc = {
@@ -235,6 +237,10 @@ def gen_tokenizer_qwen35(output_dir):
 def load_reference(args):
     if args.family == "qwen35":
         return load_qwen35(args)
+    if args.weights_gguf:
+        import spec_decode
+        if spec_decode.GGUF(args.weights_gguf).value("general.architecture") == "qwen3moe":
+            qwen3moe_environment()
     import torch
     import transformers
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -333,17 +339,45 @@ def qwen35_tensors(model, numpy, tensors=None):
         yield hf, shape, values, spec_decode.type_name(t.type)
 
 
+def qwen3moe_tensors(model, numpy, tensors=None):
+    """Qwen3-MoE parameters, splitting each expert-major stack into views of its decoded values; routers keep their own HF names."""
+    import spec_decode
+    from f32 import hf_name
+    seen = set()
+    for t in model.tensors if tensors is None else tensors:
+        if t.name in seen:
+            raise SystemExit("duplicate GGUF tensor %s" % t.name)
+        seen.add(t.name)
+        shape = list(reversed(t.shape))
+        values = model.decode(t, numpy=numpy)
+        kind = spec_decode.type_name(t.type)
+        experts = re.fullmatch(r"blk\.(\d+)\.ffn_(gate|up|down)_exps\.weight", t.name)
+        if experts:
+            if len(shape) != 3:
+                raise SystemExit("%s: an expert stack needs three dimensions" % t.name)
+            size = math.prod(shape[1:])
+            for e in range(shape[0]):
+                yield ("model.layers.%s.mlp.experts.%d.%s_proj.weight" % (experts[1], e, experts[2]),
+                       shape[1:], values[e * size:(e + 1) * size], kind)
+        else:
+            router = re.fullmatch(r"blk\.(\d+)\.ffn_gate_inp\.weight", t.name)
+            yield "model.layers.%s.mlp.gate.weight" % router[1] if router else hf_name(t.name), shape, values, kind
+
+
 def gguf_tensors(path, numpy=True):
-    """A qwen3, qwen35 or qwen35moe GGUF file's tensors as the HF parameters they hold, each decoded to f32 by tests/spec_decode.py, in file order: (HF name, HF shape, flat values, type name).
+    """A supported GGUF file's tensors as the HF parameters they hold, each decoded to f32 by tests/spec_decode.py, in file order: (HF name, HF shape, flat values, type name).
     GGUF lists a matrix's dimensions fastest first, so the HF shape is the reverse; qwen3 files store the projections unpermuted, and qwen35 ones come back with the converter's changes undone."""
     import spec_decode
     model = spec_decode.GGUF(path)
     architecture = model.value("general.architecture")
+    if architecture == "qwen3moe":
+        yield from qwen3moe_tensors(model, numpy)
+        return
     if architecture in ("qwen35", "qwen35moe"):
         yield from qwen35_tensors(model, numpy)
         return
     if architecture != "qwen3":
-        raise SystemExit("%s holds a %s model; file-exact references map qwen3, qwen35 and qwen35moe tensors only" % (path, architecture))
+        raise SystemExit("%s holds a %s model; file-exact references map qwen3, qwen3moe, qwen35 and qwen35moe tensors only" % (path, architecture))
     from f32 import hf_name
     for t in model.tensors:
         yield hf_name(t.name), list(reversed(t.shape)), model.decode(t, numpy=numpy), spec_decode.type_name(t.type)
@@ -513,6 +547,20 @@ def qwen35_environment():
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
     return qwen35_runtime()
+
+
+def qwen3moe_environment():
+    """The existing tiny-MoE reference environment, kept offline for file-exact generation."""
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    import torch
+    import transformers
+    import numpy
+    for name, module, expected in (("torch", torch, "2.5.1+cpu"), ("transformers", transformers, "4.55.2"),
+                                   ("numpy", numpy, "2.2.6")):
+        if module.__version__ != expected:
+            raise SystemExit("qwen3moe reference requires %s %s, found %s" % (name, expected, module.__version__))
+    return torch, transformers
 
 
 # The qwen35 checkpoints whose real-model goldens `qwen35` writes from HF's full forward in float32.
@@ -891,24 +939,12 @@ def gen_moe(output_dir=OUT_DIR):
 def moe_q8_state(path, torch):
     """A qwen3moe GGUF file's tensors as HF Qwen3MoeForCausalLM parameters, each decoded to f32 by tests/spec_decode.py's numpy form: a stacked expert tensor split into its experts' projections and the router named as HF names it."""
     import spec_decode
-    from f32 import hf_name
     model = spec_decode.GGUF(path)
     if model.value("general.architecture") != "qwen3moe":
         raise SystemExit("%s does not hold a qwen3moe model" % path)
-    state = {}
-    for t in model.tensors:
-        if t.name == "unused.weight":
-            continue
-        shape = list(reversed(t.shape))
-        values = model.decode(t).reshape(shape)
-        experts = re.fullmatch(r"blk\.(\d+)\.ffn_(gate|up|down)_exps\.weight", t.name)
-        if experts:
-            for e in range(shape[0]):
-                state["model.layers.%s.mlp.experts.%d.%s_proj.weight" % (experts[1], e, experts[2])] = torch.from_numpy(values[e].copy())
-            continue
-        router = re.fullmatch(r"blk\.(\d+)\.ffn_gate_inp\.weight", t.name)
-        state["model.layers.%s.mlp.gate.weight" % router[1] if router else hf_name(t.name)] = torch.from_numpy(values.copy())
-    return state
+    tensors = [t for t in model.tensors if t.name != "unused.weight"]
+    return {key: torch.from_numpy(values).reshape(shape)
+            for key, shape, values, _ in qwen3moe_tensors(model, True, tensors)}
 
 
 def gen_moe_q8(output_dir=OUT_DIR):
@@ -1327,7 +1363,7 @@ def parse_args(argv=None):
     parser.add_argument("--gguf-repo", help="associated GGUF repository label; required with --gguf-file")
     parser.add_argument("--gguf-file", help="associated GGUF filename label; required for another model")
     parser.add_argument("--threads", type=int, help="HF CPU threads for real-model logits/PPL (default: 6)")
-    parser.add_argument("--weights-gguf", help="file-exact: the qwen3 or pinned qwen35 GGUF whose weights the reference model takes, which labels the goldens")
+    parser.add_argument("--weights-gguf", help="file-exact: the qwen3, qwen3moe or pinned qwen35 GGUF whose weights the reference model takes, which labels the goldens")
     parser.add_argument("--model", choices=sorted(QWEN35_MODELS), help="qwen35: the pinned checkpoint whose goldens to write")
     args = parser.parse_args(argv)
     args.family = "qwen3"

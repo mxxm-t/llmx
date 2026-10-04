@@ -1832,6 +1832,26 @@ FloatOps float_ops(const std::string& text) {
 
 // RADV's preserved reciprocal normalizes its operand before the reciprocal and restores it after.
 // These multiplies belong to integer address division, not the row's products.
+// A backend made to time its work gives in device_ms the time of every dispatch since its last reading, however many: the server's --timing reads each stage every 32 rounds, which on a large model is many times the 4096 dispatches one query pool holds, and a reading of only the first dispatches showed a busy stage as mostly idle.
+size_t check_timing_coverage() {
+    backend::BackendPtr tb = backend::make_vulkan_backend(0, true);
+    const size_t n = 1024;
+    const std::vector<float> x = uniform(n, 7);
+    const auto xb = tb->adopt(x.data(), n * sizeof(float));
+    const auto yb = tb->alloc(n * sizeof(float), backend::Memory::device);
+    tb->device_ms();
+    tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n);
+    tb->device_ms();
+    const size_t per = backend::vulkan_timed_dispatches(*tb);
+    require(per >= 1, "a timed dispatch was not timed");
+    const size_t calls = 6000;
+    for (size_t i = 0; i < calls; ++i) tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n);
+    const double ms = tb->device_ms();
+    require(backend::vulkan_timed_dispatches(*tb) == calls * per, "device timing missed the dispatches past one query pool");
+    require(ms > 0.0, "device timing read no time");
+    return calls * per;
+}
+
 void check_float_ops() {
     const std::string divide =
         "v_mul_f32_e32 v16, v21, v16\n"
@@ -3173,6 +3193,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";
         std::cout << "backend-vulkan: " << check_float_workspace(*b) << " exact products across bounded float workspace slices\n";
+        std::cout << "backend-vulkan: " << check_timing_coverage() << " dispatches timed between two readings, past one query pool\n";
         std::cout << "backend-vulkan: " << check_bf16_batch_split(*b) << " BF16 outputs invariant across physical tile boundaries\n";
         const size_t columns = check_decode_columns(*b);
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";

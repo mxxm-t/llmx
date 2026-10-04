@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## Disk tier step 2: the store (2026-10-04, branch feat/disk-tier-store, step 2 of DISK-TIER, lands by fast-forward)
+
+- **Goal:** the disk tier's store alone, which moves bytes and holds no policy ([DISK-TIER](DISK-TIER.md), Interface; Crash safety and cleanup; Order of work, step 2); nothing calls it yet.
+- **Done:**
+  - `server::DiskStore` (`server/disk_store.hpp`): a directory of its own under the root, its owner's alone, locked for its life; entries written on a thread of its own through a page-aligned 4 MiB chunk into a temporary file, each chunk's CRC32C in a header with the store's identity, the blob and the runs' bytes, flushed and renamed into place; reads before writes, every chunk checked, a failing entry deleted; the free-space floor before every write; cancel and evict; a sweep at start and every ten idle minutes removing directories whose lock is free, adoption under keep of the entries whose identity matches; at a clean exit the directory removed, or left marked kept.
+  - Direct I/O where the file system takes it at the entries' 1 MiB alignment; writes direct only where a 32 MiB probe at start finds them no slower, as the plan's measurement asked (`/zpool1` wrote buffered four times faster).
+  - `format::FileWriter` (`format/file_writer.hpp`) and `core::crc32c` (`core/crc32c.hpp`).
+  - The store's `directory`, `evict`, `file_bytes` and `used_bytes` are listed in `tests/data/known_findings.txt` until step 3 calls them.
+- **Where each concern lives:** what is kept, demoted, read back or dropped stays the scheduler's (step 3); the store holds the files, their format, the lock, the sweep and adoption; writing at offsets is the format layer's, beside `FileReader`; the checksum `core`'s.
+- **A choice the plan left open:** a directory a server left kept is removed by another server's sweep only once older than the age limit (`Options::max_age`, by the marker's time), so a restart under keep finds it, and adoption leaves out entries past the limit; the age limit on the server's own entries is the scheduler's, in step 5.
+- **Tests:** `disk-store` (CTest), on Windows locally: round trip, layout, missing, cancel and evict, keep and adoption by identity, a flipped byte and a truncated file, cleanup without keep, the sweep of crashed, kept and expired directories, a live directory held by a child process, the floor.
+- **Gates** (server tier): on the MI50 machine's CPU at deb55e1b, both arms built the same way from detached trees, CTest 39/39 with `disk-store`, the CPU suite all PASS and Qwen3-0.6B Q8_0 greedy ids and logits identical to main, and the linked dead-code check passing; on Windows at c9a2290e, CTest 41/41, the CPU suite all PASS with `--require-tools` and the 0.6B identical to main's code; the hosted macOS build took `F_FULLFSYNC`, macOS having no `fdatasync`. Rebased onto main 893a46eb, with step 1 landed, without a conflict in code, the builds, CTest and the hosted run were run again. Nothing calls the store, so no numerics or timing change. Lands by fast-forward.
+
 ## Disk tier step 1: identity and layout (2026-10-04, branch feat/disk-tier-identity, step 1 of DISK-TIER, lands by fast-forward)
 
 - **Goal:** what a disk tier entry must carry to be read back only by a server that gives the same bits ([DISK-TIER](DISK-TIER.md), The entry file; Order of work, step 1); nothing writes an entry yet.

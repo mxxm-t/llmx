@@ -49,8 +49,9 @@ The lifetime and packed-quantization tests include the implementation and use te
   timestamps it the backend also times the
   dispatches: `vulkan_kernel_times` returns device milliseconds per kernel
   since the last reading, waiting for the queue, and
-  `vulkan_timed_dispatches` how many dispatches that reading covered, the
-  query pool sampling a long interval's first ones (`bench --profile`).
+  `vulkan_timed_dispatches` how many dispatches that reading covered, every
+  one since the reading before, in as many query pools as the interval needs
+  (`bench --profile`, `serve --timing`).
   Such a backend also times where it holds its caller (`host_times`): its
   ticket waits, its wait for a free ring slot in `open`, its wait for a
   half of staging in `upload`, and its writes apart from those waits;

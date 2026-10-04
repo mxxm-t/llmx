@@ -37,8 +37,8 @@ struct VulkanLifetimeTest {
         return b.args(data, bytes);
     }
     static VkPipeline kernel(VulkanBackend& b) { return b.kernel(K_ADD).pipeline; }
-    static bool query_empty(VulkanBackend& b) { return b.queries_ == VK_NULL_HANDLE; }
-    static void clear_query(VulkanBackend& b) { b.queries_ = VK_NULL_HANDLE; }
+    static bool query_empty(VulkanBackend& b) { return b.queries_.empty(); }
+    static void clear_query(VulkanBackend& b) { b.queries_.clear(); }
     static void prepare_drop(VulkanBackend& b) {
         b.open();
         std::vector<std::shared_ptr<VulkanBuffer>> pending;

@@ -1260,7 +1260,7 @@ public:
         for (auto& a : arena_) a.buffer.reset();
         for (auto& variants : kernels_)
             for (Kernel& k : variants) destroy_kernel(k);
-        if (queries_) d.fn.vkDestroyQueryPool(d.device, queries_, nullptr);
+        for (VkQueryPool q : queries_) d.fn.vkDestroyQueryPool(d.device, q, nullptr);
         staging_.reset();
         if (timeline_) d.fn.vkDestroySemaphore(d.device, timeline_, nullptr);
         for (VkEvent e : hold_.events) if (e) d.fn.vkDestroyEvent(d.device, e, nullptr);
@@ -1688,19 +1688,21 @@ public:
     }
 
     // Device time per kernel since the last call, in milliseconds, for a diagnostics backend whose queue timestamps; reading them waits for the queue.
-    // Dispatches whose time was sampled: the query pool bounds it, so a long run samples its first dispatches.
+    // Dispatches the last reading timed: every one since the reading before it.
     size_t timed_dispatches() const { return last_timed_; }
 
     std::vector<std::pair<std::string, double>> kernel_times() {
         std::vector<std::pair<std::string, double>> out;
-        if (!dev_->timestamps || !queries_) return out;
+        if (!dev_->timestamps || queries_.empty()) return out;
         sync();
         std::vector<uint64_t> stamps(query_next_);
-        if (query_next_ &&
-            dev_->fn.vkGetQueryPoolResults(dev_->device, queries_, 0, query_next_,
-                                           stamps.size() * sizeof(uint64_t), stamps.data(),
-                                           sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT)
-                == VK_SUCCESS) {
+        bool read = true;
+        for (size_t at = 0; at < query_next_ && read; at += kQueries) {
+            const uint32_t count = (uint32_t)std::min<size_t>(kQueries, query_next_ - at);
+            read = dev_->fn.vkGetQueryPoolResults(dev_->device, queries_[at / kQueries], 0, count, count * sizeof(uint64_t), stamps.data() + at,
+                                                  sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT) == VK_SUCCESS;
+        }
+        if (query_next_ && read) {
             for (size_t i = 0; i + 1 < query_kernel_.size() * 2 && i + 1 < stamps.size(); i += 2) {
                 const int k = query_kernel_[i / 2];
                 kernel_ns_[k] += double(stamps[i + 1] - stamps[i]) * dev_->timestamp_ns;
@@ -1716,7 +1718,7 @@ public:
         std::fill(std::begin(kernel_calls_), std::end(kernel_calls_), size_t(0));
         query_kernel_.clear();
         query_next_ = 0;
-        queries_stale_ = true;
+        pools_reset_ = 0;
         return out;
     }
 
@@ -3109,24 +3111,26 @@ private:
                                            (uint32_t)writes.size(), writes.data());
         dev_->fn.vkCmdPushConstants(cmd, k.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                     (uint32_t)push_bytes, push);
-        if (dev_->timestamps && query_next_ + 2 <= kQueries) {
-            if (!queries_) {
+        if (dev_->timestamps) {
+            // A reading interval takes as many pools as its dispatches need, each reset as the interval first reaches it.
+            const size_t pool = query_next_ / kQueries;
+            if (pool == queries_.size()) {
                 VkQueryPoolCreateInfo qp{};
                 qp.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
                 qp.queryType = VK_QUERY_TYPE_TIMESTAMP;
                 qp.queryCount = kQueries;
                 VkQueryPool queries = VK_NULL_HANDLE;
                 check(dev_->fn.vkCreateQueryPool(dev_->device, &qp, nullptr, &queries), "vkCreateQueryPool");
-                queries_ = queries;
-                queries_stale_ = true;
+                queries_.push_back(queries);
             }
-            if (queries_stale_) {
-                dev_->fn.vkCmdResetQueryPool(cmd, queries_, 0, kQueries);
-                queries_stale_ = false;
+            if (pool == pools_reset_) {
+                dev_->fn.vkCmdResetQueryPool(cmd, queries_[pool], 0, kQueries);
+                ++pools_reset_;
             }
-            dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queries_, query_next_);
+            const uint32_t q = (uint32_t)(query_next_ % kQueries);
+            dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queries_[pool], q);
             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
-            dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries_, query_next_ + 1);
+            dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries_[pool], q + 1);
             query_kernel_.push_back(id * kVariants + variant);
             query_next_ += 2;
         } else {
@@ -3233,10 +3237,10 @@ private:
     Ticket staged_[2] = {};                   // the last copy out of each half of staging
     size_t next_half_ = 0;                    // the half of staging the next upload fills first
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
-    VkQueryPool queries_ = VK_NULL_HANDLE;    // timestamps, only for a diagnostics backend
-    static constexpr uint32_t kQueries = 8192;    // two per dispatch; a reading empties the pool, which the next dispatch resets
-    uint32_t query_next_ = 0;
-    bool queries_stale_ = false;   // the pool holds a read interval's stamps, reset by the next dispatch
+    std::vector<VkQueryPool> queries_;        // timestamps, only for a diagnostics backend, as many pools as a reading interval has needed
+    static constexpr uint32_t kQueries = 8192;    // a pool's queries, two per dispatch
+    size_t query_next_ = 0;        // the next query of the reading interval, across its pools
+    size_t pools_reset_ = 0;       // the pools this interval has reset; a reading empties them all
     size_t last_timed_ = 0;        // dispatches the last reading covered
     std::vector<int> query_kernel_;   // id * kVariants + variant
     double kernel_ns_[K_COUNT * kVariants] = {0};

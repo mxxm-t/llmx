@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## serve --timing reads a busy stage as busy (2026-10-04, branch fix/timing-idle, lands by fast-forward)
+
+- **Goal:** `serve --timing`'s `stage_idle` and `device_bound_rows_per_s` measure every dispatch of a stage. On Qwen3-32B Q8_0 over two MI50s, 32 users of 512-token prompts and 128-token replies, it read 0.72 and 0.70 idle where both cards' `gpu_busy_percent` read 95 to 100 percent busy for the whole load (devlog 2026-10-04 15:45).
+- **Cause:** a backend made to time its work kept one query pool of 8192 timestamps, two a dispatch, and the scheduler reads each stage every 32 rounds; past the pool's 4096 dispatches nothing more was timed, so a large model's span counted only its first dispatches.
+- **Done:** the test first (`backend-vulkan`: 6000 dispatches between two readings must all be timed, which main fails at 4096), then the fix: a reading interval takes as many query pools as its dispatches need, each reset as the interval first reaches it, and a reading empties them all.
+- **Checks** (MI50s, cores 4 to 7): `backend-vulkan` fails at the test commit 1a066c14 ("device timing missed the dispatches past one query pool") and passes with the fix (6000 dispatches timed between two readings); CTest 43 of 43 with the fix, `vulkan-lifetime`'s query-pool failure and teardown cases among them. The same load as the finding, `serve --timing` with the fix, Qwen3-32B Q8_0 over two MI50s, 32 users of 512/128: `stage_idle` 0.049 and 0.018 (main read 0.72 and 0.70), `device_bound_rows_per_s` 288.7, the rows the load actually carried (main read 933), throughput 57.5 tok/s, as without `--timing`.
+- **Gotchas:** a backend made to time its work and never read keeps adding pools, about 64 KB each (8192 timestamps of 8 bytes) per 4096 dispatches, without bound; the server reads every 32 rounds and bench after each phase, so neither grows far.
+- **Landing:** the coordinator reviewed and approved it; the hosted run is green at its head; it lands by fast-forward.
+
 ## Tensor shards (2026-10-04, branch feat/tp-shard, step 1 of TENSOR-SPLIT, lands by fast-forward)
 
 - **Goal:** step 1 of `docs/TENSOR-SPLIT.md`: each role of qwen3 and qwen35 declares how it splits over a tensor group (section 4.2), `src/model/shard.hpp` turns a declaration into each member's spans with the legality checks and their refusals, packs a member's bytes for every storage type and gives its KV and state heads, `footprint` counts a member, and the loader streams a member's runs into its storage; nothing places a group yet, which step 2 does.

@@ -79,7 +79,8 @@ The host tier stays the window of the newest entries and the disk tier keeps wha
 - **Prefetch on submit.** When a request is submitted, not when it is admitted, the scheduler looks for a disk entry sharing more whole blocks than every device and host entry; if one does, its read is queued at once, so the read overlaps the request's wait in the queue.
 - **Reading.** A reader thread reads the file with direct I/O into host slabs taken as a promotion takes room (by the order under Demotion, never waiting for a write), verifying each chunk; then the entry is a host entry like any other, and the request's admission promotes it to the devices as now.
 - **While it loads** the request is not admitted, but it keeps its place: requests behind it that fit may be admitted past it, the one exception to admission by arrival, since admitting it now would recompute what is about to arrive. Once the entry is in host memory it is admitted first.
-- **Bounds.** At most two reads in flight and at most `--max-seqs` waiting; a read waits at most as long as recomputing its tokens would take at the measured prompt rate, and past that, or on any error, the request is admitted without it; a cancelled request's read completes and leaves a host entry.
+- **Bounds.** At most two reads in flight and at most `--max-seqs` waiting; a read waits at most as long as recomputing its tokens would take at the measured prompt rate, from passes of 64 prompt rows or more, and without a bound until a pass has measured one; past that, or on any error, the request is admitted without it; a cancelled request's read completes and leaves a host entry.
+- **Holders.** A copy in host memory holding a boundary's rows becomes the newest as the boundary's read starts, so the room the read takes goes to other entries first.
 - **Boundaries** load with the copy that holds their conversation's blocks: a boundary whose copy is on disk loads both, the copy first.
 
 ## Crash safety and cleanup

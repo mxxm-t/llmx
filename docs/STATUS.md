@@ -1,5 +1,28 @@
 # llmx - Development Status
 
+## Disk tier step 4: restore (2026-10-04, branch feat/disk-tier-restore, step 4 of DISK-TIER, on step 3, lands by fast-forward after it)
+
+- **Goal:** entries on disk read back for the requests whose histories they hold, through host memory and the existing promotion ([DISK-TIER](DISK-TIER.md), Restore; Order of work, step 4).
+- **Done:**
+  - The scheduler: `prefetch` reads, for a waiting request, the entry on disk sharing more whole blocks than any history in memory, at most two at once, a boundary with the copy holding its rows where memory holds none, into slabs of the entry's layout (`Model::alloc_host`) taken as a write-back takes room; the request keeps its place while later ones that fit pass it, waits at most the shared tokens at the measured prompt rate (passes of 64 prompt rows or more, `measure_prompt`), and an entry read back becomes a host entry of a conversation that came back, its file kept; a failed read deletes the entry and the request computes its history.
+  - A request submitted after a round began is looked for again right before admission, so it never reaches admission unlooked-for; the loop no longer turns while every waiting request waits for a read, and wakes at the earliest bound.
+  - `DiskTier::read`; `/v1/health`'s `disk_hits`, `disk_bytes_read`, `disk_waits` and `disk_wait_ms`; `DiskStore::Options::pace` holds reads too.
+  - `Model::alloc_host`, the slab allocation `save_host` now calls before its copies.
+  - `DiskStore::get` has its product caller, and its line leaves the findings list.
+- **Tests:** `server-resume` (Windows locally): a conversation read back on the dense and the hybrid model, one CPU and two; a request waiting while a later one passes; a failed checksum; a read past its bound; message boundaries read back.
+- **Measured** with steps 3 to 5 together (d30e0cb5 and fcfdf3ec, the latter with the room order of this commit), Qwen3.8-27B Q8_0 on one MI50 at default clocks, cores 12-15, the default host tier, both arms built the same way from detached trees, time to first token p50 / p99:
+
+  | workload | arm | follow-up turns | regenerates | edits | whole re-reads |
+  |---|---|---|---|---|---|
+  | 24 users of 20 turns, more than the host tier holds | main 9091ee2e | 2.64 / 43.16 s | 5.29 / 8.45 s | 5.28 / 6.64 s | 302 of 504 |
+  | | disk tier, 64 GiB on `/zpool1` | 2.20 / 4.55 s | 5.25 / 6.26 s | 5.26 / 6.53 s | 115 of 504 |
+  | 6 users of 20 turns, which the host tier holds | main 9091ee2e | 2.35 / 3.71 s | 2.01 / 4.25 s | 3.07 / 4.28 s | 3 of 126 |
+  | | disk tier (d30e0cb5) | 2.35 / 3.69 s | 2.28 / 4.49 s | 3.06 / 4.28 s | 3 of 126 |
+
+  With 24 users the disk tier wrote 257.3 GB ahead and read back 168.8 GB for 585 entries (296 requests waited for a read, 174.3 s in all, no error): the wear is 1.5 bytes written for each byte that served a request. With 6 users it wrote 11.9 GB and read back 1.1 GB, every request forking what main forked; the regenerates' 0.25 s were boundaries released ahead of superseded copies, the order fixed before the 24-user run. The reference server and the NVMe pool are step 6's.
+- **Gotchas:** admission in `Scheduler::run` now lets requests pass one whose history is being read, but `server-passes` restates the round's order with the disk tier off, so its random schedules never cover a request waiting for a disk read; step 6 adds disk reads (a random read time, a failed read, a read past its bound) to that simulation where it fits without a second owner of the round (coordinator's review).
+- **Gates** (device tier, for `Model::alloc_host`), the change at ced5605d against step 3's code (f6d0ac91), both built the same way on Windows with Vulkan: CTest 46/46, the Vulkan tests on the Radeon VII among them; the CPU suite all PASS; the suite on the Radeon VII all PASS but the synthetic `perf` prefill floor, missed at 851 tok/s in the suite and passed on a rerun of both builds (1994 and 2046 tok/s), as with step 3; Qwen3-0.6B Q8_0 greedy ids and logits identical to step 3 on the CPU and on the Radeon VII; `bench --model` on the 0.6B on the Radeon VII level, pp64 1020.5 and 1017.9 tok/s on step 3 against 1021.4 and 1011.1, tg64 206.8 and 205.8 against 206.0 and 206.3; rebased onto main a2f32b8f without a conflict in code, Windows CTest 46/46 with the Radeon VII, the linked dead-code check on the rig and the hosted run were run again. That hosted run (37241614788) failed `server-resume`'s boundaries-through-disk case on the hosted CPU jobs: there the digest and the store's probe ended only after the six turns, so no boundary was written before host room took it; the case now waits for the store (`Stats::disk_ready`) before its turns and for the writes after each (`Stats::disk_in_flight`), and passes four times in a row on the rig's CPU and on Windows. Its next hosted run (37246868334) passed every test and was cancelled at the Vulkan job's 15-minute limit in that job's linked dead-code step, main's own Vulkan job having taken 14 min 17 s, so this commit gives that job 25 minutes (`docs/CI.md`). Rebased then onto main 1cb7a2a4 (the layer split's phase 4) without a conflict, the builds, CTest, the linked dead-code check and the hosted run were run again. Lands by fast-forward on the coordinator's review.
+
 ## Disk tier step 3: demotion (2026-10-04, branch feat/disk-tier-demotion, step 3 of DISK-TIER, on steps 1 and 2, lands by fast-forward after them)
 
 - **Goal:** what the host tier would drop goes to disk by its ranking, through the store, with the cap, the floor, stopping on errors, the in-memory index and the health counters ([DISK-TIER](DISK-TIER.md), Demotion; Disk eviction and room; Order of work, step 3); nothing reads an entry back yet (step 4).

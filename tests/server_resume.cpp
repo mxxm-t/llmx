@@ -639,17 +639,26 @@ void hybrid_checkpoints(const gguf::GGUFModel& weights, const bpe::Tokenizer& to
 
 // Message boundaries (docs/SPECULATIVE.md, section 2, Host tier): a hybrid model with three checkpoint slots and a host tier, a conversation of six turns, each a 300-token prompt or 50 more tokens after the ids its last reply's job read, a 100-token reply and two closing ids, read again, so each job's donor supersedes the one before, whose state goes to host memory as it leaves the devices, thinned to four for the conversation, the first kept.
 // A 2000-token request then evicts every donor, the last job's to host memory whole; an edit of turn 2, its prompt the first job's ids with another message, forks the first boundary's tokens with the last job's blocks, promoted from host memory, and a regenerated turn 6 forks the newest boundary's, each giving its reply on a fresh model.
-void message_boundaries(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
-    auto model = make(2048, 0);
+// With a disk tier under a host tier of two copies a device (docs/DISK-TIER.md), the boundaries the host tier lets go stay on disk, and the edit's and the regenerated turn's are read back, each read with the copy holding its rows where no history in memory holds them.
+void message_boundaries(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what, size_t host = (size_t)1 << 30,
+                        const server::DiskOptions& disk = {}) {
+    // Under a disk tier its prompts read in passes of 16 rows, which measure no prompt rate, so its requests wait for their reads however fast the model computes.
+    const int ub = disk.bytes ? 16 : 0;
+    auto model = make(2048, ub);
     std::vector<std::vector<uint32_t>> prompts, nexts;
     Reply edit_reply, regen_reply;
     std::vector<uint32_t> edit;
     size_t edit_reused = 0, regen_reused = 0;
     server::Scheduler::Stats after_long, stats;
     {
-        server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, host, nullptr, 0, false, disk);
         std::thread runner([&] { sched.run(); });
         try {
+            // The disk tier writes nothing until the model file's digest is known and its store made, which a slow runner reaches only after the turns would have ended.
+            for (const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60); disk.bytes && !sched.stats().disk_ready;) {
+                require(std::chrono::steady_clock::now() < until, what + ": the disk tier was not made in 60 seconds");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
             std::vector<uint32_t> prompt = prompt_of(5, 300, vocab);
             for (size_t turn = 1; turn <= 6; ++turn) {
                 prompts.push_back(prompt);
@@ -665,12 +674,21 @@ void message_boundaries(const Make& make, const bpe::Tokenizer& tok, uint32_t vo
                     require(std::chrono::steady_clock::now() < until, what + ": a reply was not read again in 60 seconds");
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
+                // Under a disk tier each turn's writes end before the next turn, so what reaches the disk does not hang on how fast the turns come.
+                while (disk.bytes && sched.stats().disk_in_flight) {
+                    require(std::chrono::steady_clock::now() < until, what + ": the disk tier's writes did not end in 60 seconds");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
                 prompt = next;
                 const std::vector<uint32_t> tail = prompt_of(10 + (int)turn, 50, vocab);
                 prompt.insert(prompt.end(), tail.begin(), tail.end());
             }
             const std::vector<uint32_t> long_prompt = prompt_of(9, 2000, vocab);
             drain(*sched.submit(long_prompt, params_of(Req{long_prompt, 40})));
+            for (const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60); disk.bytes && sched.stats().disk_in_flight;) {
+                require(std::chrono::steady_clock::now() < until, what + ": the disk tier's writes did not end in 60 seconds");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
             after_long = sched.stats();
             edit = nexts[0];
             const std::vector<uint32_t> other = prompt_of(30, 50, vocab);
@@ -691,14 +709,16 @@ void message_boundaries(const Make& make, const bpe::Tokenizer& tok, uint32_t vo
         sched.stop();
         runner.join();
     }
-    require(after_long.boundaries == 4, what + ": " + std::to_string(after_long.boundaries) + " boundaries in host memory, against 4");
+    require(disk.bytes || after_long.boundaries == 4, what + ": " + std::to_string(after_long.boundaries) + " boundaries in host memory, against 4");
+    require(!disk.bytes || (stats.disk_hits >= 1 && stats.disk_errors == 0), what + ": " + std::to_string(stats.disk_hits) + " entries read back from disk");
     const size_t first = nexts[0].size() / kBlock * kBlock, newest = nexts[4].size() / kBlock * kBlock;
     require(edit_reused == first, what + ": the edit of turn 2 reused " + std::to_string(edit_reused) + " tokens, against " + std::to_string(first));
     require(regen_reused == newest, what + ": the regenerated turn 6 reused " + std::to_string(regen_reused) + " tokens, against " + std::to_string(newest));
-    require(stats.boundary_hits == 2, what + ": " + std::to_string(stats.boundary_hits) + " requests forked a boundary, against 2");
-    auto fresh = make(2048, 0);
+    // Under a disk tier a request may also fork a boundary read back where the history it would fork has left memory.
+    require(disk.bytes ? stats.boundary_hits >= 2 : stats.boundary_hits == 2, what + ": " + std::to_string(stats.boundary_hits) + " requests forked a boundary, against 2");
+    auto fresh = make(2048, ub);
     same(serve(*fresh, tok, 3, {{Req{edit, 32}}})[0], edit_reply, what + ", the edit of turn 2");
-    fresh = make(2048, 0);
+    fresh = make(2048, ub);
     same(serve(*fresh, tok, 3, {{Req{prompts[5], 32}}})[0], regen_reply, what + ", the regenerated turn 6");
 }
 
@@ -1741,6 +1761,163 @@ void disk_never_blocks(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
     }
 }
 
+// Six conversations of a 300-token prompt and a 20-token reply in turn through a host tier of four copies, each turn's writes waited for, so the first conversation's copy is on disk alone; then that conversation's follow-up, its prompt, reply and 30 tokens more (docs/DISK-TIER.md, Restore).
+struct Demoted {
+    std::vector<Req> turns;
+    std::vector<Reply> replies;
+    Req follow;
+};
+Demoted demote(server::Scheduler& sched, uint32_t vocab, const std::string& what) {
+    Demoted d;
+    for (uint32_t k = 0; k < 6; ++k) d.turns.push_back(Req{prompt_of(30 + k, 300, vocab), 20});
+    for (size_t k = 0; k < d.turns.size(); ++k) {
+        d.replies.push_back(drain(*sched.submit(d.turns[k].prompt, params_of(d.turns[k]))));
+        const size_t written = k >= 4 ? k - 3 : 0;
+        within_a_minute([&] { return sched.stats().disk_entries == written; }, what + ": " + std::to_string(written) + " entries on disk after turn " + std::to_string(k));
+    }
+    d.follow.prompt = d.turns[0].prompt;
+    for (uint32_t id : ids_of(d.replies[0])) d.follow.prompt.push_back(id);
+    const std::vector<uint32_t> more = prompt_of(50, 30, vocab);
+    d.follow.prompt.insert(d.follow.prompt.end(), more.begin(), more.end());
+    d.follow.cap = 32;
+    return d;
+}
+
+// A conversation demoted through host memory to disk and asked for again: its follow-up's history is read back into host memory, promoted and forked at the copy's 256 tokens, with the reply it gives on a fresh model, on the synthetic Q8_0 model and on the hybrid one with checkpoint slots, on one CPU and over two.
+// Its prompts read in passes of 16 rows measure no prompt rate, so the follow-up waits for its read however fast the model computes.
+void disk_restore(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t devices, const std::string& what) {
+    DiskRoot disk("restore");
+    auto model = make(2048, 16);
+    Demoted d;
+    Reply got;
+    size_t reused = 0;
+    server::Scheduler::Stats stats;
+    {
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * devices * ((size_t)64 << 20), nullptr, 0, false, disk.options(uint64_t(1) << 30));
+        std::thread runner([&] { sched.run(); });
+        try {
+            d = demote(sched, vocab, what);
+            const auto h = sched.submit(d.follow.prompt, params_of(d.follow));
+            got = drain(*h);
+            reused = h->reused();
+            stats = sched.stats();
+            ledger(stats, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(reused == 2 * kBlock, what + ": the follow-up reused " + std::to_string(reused) + " tokens, against " + std::to_string(2 * kBlock));
+    require(stats.disk_hits == 1 && stats.disk_waits == 1 && stats.disk_bytes_read > 0 && stats.host_hits == 1,
+            what + ": " + std::to_string(stats.disk_hits) + " entries read from disk for " + std::to_string(stats.disk_waits) + " waits and " + std::to_string(stats.host_hits) +
+                " promotions, against 1, 1 and 1");
+    auto fresh = make(2048, 16);
+    same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
+}
+
+// A request waiting for its read keeps its place (docs/DISK-TIER.md, Restore): with every read held two seconds a chunk, the follow-up of a conversation on disk waits while an unrelated request submitted after it runs to its end, then is admitted, forking the copy read back; and a follow-up whose read fails its checksum, a byte of its file flipped, computes its history, the entry gone and the failure counted; every reply its reply alone.
+void disk_read_waits(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    for (const bool corrupt : {false, true}) {
+        const std::string what = corrupt ? "a read failing its checksum" : "a request waiting for its read";
+        DiskRoot disk(corrupt ? "corrupt" : "wait");
+        auto model = make(2048, 16);
+        Demoted d;
+        const Req other{prompt_of(55, 300, vocab), 20};
+        Reply got, other_got;
+        size_t reused = 0;
+        double other_ms = 0, follow_ms = 0;
+        server::Scheduler::Stats stats;
+        {
+            server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false,
+                                    disk.options(uint64_t(1) << 30, corrupt ? std::chrono::milliseconds(0) : std::chrono::milliseconds(2000)));
+            std::thread runner([&] { sched.run(); });
+            try {
+                d = demote(sched, vocab, what);
+                if (corrupt) {
+                    // The oldest entry is the first conversation's: its payload's first byte, past the header's first mebibyte at most, flipped in place.
+                    std::vector<fs::path> files = disk.files(".kv");
+                    std::sort(files.begin(), files.end(), [](const fs::path& a, const fs::path& b) {
+                        return std::stoull(a.stem().u8string().substr(6)) < std::stoull(b.stem().u8string().substr(6));
+                    });
+                    std::fstream f(files.at(0), std::ios::in | std::ios::out | std::ios::binary);
+                    f.seekg(-(std::streamoff)server::DiskStore::kAlign, std::ios::end);
+                    const char byte = (char)f.peek();
+                    f.seekp(-(std::streamoff)server::DiskStore::kAlign, std::ios::end);
+                    f.put((char)(byte ^ 0x5a));
+                }
+                const auto start = std::chrono::steady_clock::now();
+                const auto h = sched.submit(d.follow.prompt, params_of(d.follow));
+                const auto o = sched.submit(other.prompt, params_of(other));
+                other_got = drain(*o);
+                other_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+                got = drain(*h);
+                follow_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+                reused = h->reused();
+                stats = sched.stats();
+                ledger(stats, *model, what);
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+        }
+        if (corrupt) {
+            require(reused == 0 && stats.disk_hits == 0 && stats.disk_errors == 1,
+                    what + ": the follow-up reused " + std::to_string(reused) + " tokens, " + std::to_string(stats.disk_hits) + " entries read, " +
+                        std::to_string(stats.disk_errors) + " errors");
+        } else {
+            require(other_ms < 1500 && follow_ms >= 1900, what + ": the later request ended after " + std::to_string(other_ms) + " ms and the follow-up after " + std::to_string(follow_ms));
+            require(reused == 2 * kBlock && stats.disk_hits == 1 && stats.disk_waits == 1 && stats.disk_wait_ms >= 1900,
+                    what + ": the follow-up reused " + std::to_string(reused) + " tokens after " + std::to_string(stats.disk_wait_ms) + " ms waiting");
+        }
+        auto fresh = make(2048, 16);
+        same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
+        fresh = make(2048, 16);
+        same(serve(*fresh, tok, 1, {{other}})[0], other_got, what + ", the later request");
+    }
+}
+
+// A read past its bound (docs/DISK-TIER.md, Restore): prompts read in passes of the default size measure the prompt rate, by which recomputing the follow-up's 256 tokens takes far less than a read held two seconds a chunk, so the follow-up is admitted without it, computes its history and ends before the read could, with its reply alone.
+void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a read past its bound";
+    DiskRoot disk("bound");
+    auto model = make(2048, 0);
+    Demoted d;
+    Reply got;
+    size_t reused = 0;
+    double ms = 0;
+    server::Scheduler::Stats stats;
+    {
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, disk.options(uint64_t(1) << 30, std::chrono::milliseconds(2000)));
+        std::thread runner([&] { sched.run(); });
+        try {
+            d = demote(sched, vocab, what);
+            const auto start = std::chrono::steady_clock::now();
+            const auto h = sched.submit(d.follow.prompt, params_of(d.follow));
+            got = drain(*h);
+            ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+            reused = h->reused();
+            stats = sched.stats();
+            ledger(stats, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(reused == 0 && ms < 1900 && stats.disk_waits == 1,
+            what + ": the follow-up reused " + std::to_string(reused) + " tokens in " + std::to_string(ms) + " ms after " + std::to_string(stats.disk_waits) + " waits");
+    auto fresh = make(2048, 0);
+    same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1785,6 +1962,17 @@ int main(int argc, char** argv) {
             for (size_t devices = 1; devices <= 2; ++devices) disk_demotion(on(weights, [devices] { return cpus(devices); }), tok, vocab, devices);
             disk_superseded(one, tok, vocab);
             disk_never_blocks(one, tok, vocab);
+            for (size_t devices = 1; devices <= 2; ++devices) {
+                const std::string on_cpus = std::to_string(devices) + " CPU" + (devices > 1 ? "s" : "");
+                DiskRoot bounds_disk("boundaries");
+                message_boundaries(on(mixed, [devices] { return cpus(devices); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab,
+                                   "message boundaries read back from disk on " + on_cpus, 3 * devices * ((size_t)64 << 20), bounds_disk.options(uint64_t(1) << 30));
+                disk_restore(on(weights, [devices] { return cpus(devices); }), tok, vocab, devices, "a conversation read back from disk on " + on_cpus);
+                disk_restore(on(mixed, [devices] { return cpus(devices); }, 3, 2), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices,
+                             "a hybrid conversation read back from disk on " + on_cpus);
+            }
+            disk_read_waits(one, tok, vocab);
+            disk_read_bound(one, tok, vocab);
             for (size_t devices = 1; devices <= 2; ++devices)
                 host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices, 1, HostFault::none,
                           "a hybrid model's donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));

@@ -163,6 +163,8 @@ private:
                   ",\"host_bytes_moved\":" + std::to_string(s.host_bytes_moved) + ",\"boundaries\":" + std::to_string(s.boundaries) +
                   ",\"boundary_hits\":" + std::to_string(s.boundary_hits) + ",\"disk_entries\":" + std::to_string(s.disk_entries) +
                   ",\"disk_bytes\":" + std::to_string(s.disk_bytes) + ",\"disk_bytes_written\":" + std::to_string(s.disk_bytes_written) +
+                  ",\"disk_hits\":" + std::to_string(s.disk_hits) + ",\"disk_bytes_read\":" + std::to_string(s.disk_bytes_read) +
+                  ",\"disk_waits\":" + std::to_string(s.disk_waits) + ",\"disk_wait_ms\":" + std::to_string((uint64_t)s.disk_wait_ms) +
                   ",\"disk_errors\":" + std::to_string(s.disk_errors) + ",\"disk_writing\":" + (s.disk_writing ? "true" : "false") +
                   ",\"reprefills\":" + std::to_string(s.reprefills) +
                   ",\"reprefill_rows\":" + std::to_string(s.reprefill_rows) + ",\"reprefill_cancels\":" + std::to_string(s.reprefill_cancels) +

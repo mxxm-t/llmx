@@ -56,5 +56,4 @@ command | docs/VULKAN.md | llmx devices | 1 | a planned listing written in the l
 
 # Source files no docs/src page's title names.
 src-page | src/backends/cpu/q8_dots.hpp | no page | 1 | described inside docs/src/backends-cpu.md, whose title names cpu_backend.hpp; gets docs/src/backends-cpu-q8_dots.md with cleanup/known-findings
-linked-test-only | src/server/disk_store.hpp | server::DiskStore::get(unsigned long, std::vector, unsigned long, std::function) | 1 | reading an entry back; disk tier step 4 (docs/DISK-TIER.md, Order of work) gives it its product caller
 linked-test-only | src/server/disk_store.hpp | server::DiskStore::adopted() const | 1 | the entries adopted under --disk-cache-keep; disk tier step 5 (docs/DISK-TIER.md, Order of work) gives it its product caller

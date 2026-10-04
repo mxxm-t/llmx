@@ -49,10 +49,10 @@ inline void check_disk_cache(DiskOptions& o, size_t host_cap) {
 
 class DiskTier {
 public:
-    // A write the store has finished: its key, whether the file is in place, and why not.
+    // A call the store has finished: its key, whether it was a read, whether it succeeded, and why not.
     struct Finished {
         uint64_t key = 0;
-        bool ok = false;
+        bool read = false, ok = false;
         std::string error;
     };
 
@@ -121,21 +121,35 @@ public:
 
     // Starts the write of host history `h` with `blob` and returns its key, after can_write; `h`'s slabs must not change until finished reports the key.
     uint64_t write(std::string blob, const infer::HostHistory& h, size_t slab) {
-        std::vector<StoreRun> runs(h.slabs.size());
-        for (size_t i = 0; i < h.slabs.size(); ++i) {
-            runs[i].slabs = h.slabs[i];
-            runs[i].bytes = h.device_bytes[i];
-        }
+        std::vector<StoreRun> runs = runs_of(h);
         std::lock_guard<std::mutex> lk(m_);
         // The key is not known until put returns, so the callback names the write in flight, which no other write replaces before finished has reported it.
         in_flight_ = store_->put(std::move(blob), std::move(runs), slab, [this](bool ok, const std::string& error) {
             {
                 std::lock_guard<std::mutex> l(m_);
-                done_.push_back(Finished{in_flight_, ok, error});
+                done_.push_back(Finished{in_flight_, false, ok, error});
             }
             if (wake_) wake_();
         });
         return in_flight_;
+    }
+
+    // Starts the read of entry `key` into host history `h`, whose layout must be the entry's, after the store is made; finished reports it, a read that fails having deleted the entry.
+    void read(uint64_t key, const infer::HostHistory& h, size_t slab) {
+        std::lock_guard<std::mutex> lk(m_);
+        store_->get(key, runs_of(h), slab, [this, key](bool ok, const std::string& error) {
+            {
+                std::lock_guard<std::mutex> l(m_);
+                done_.push_back(Finished{key, true, ok, error});
+            }
+            if (wake_) wake_();
+        });
+    }
+
+    // Whether reads may start: the store made.
+    bool readable() const {
+        std::lock_guard<std::mutex> lk(m_);
+        return store_ != nullptr;
     }
 
     // Stops write `key`, which finishes cancelled unless its file is already in place.
@@ -162,6 +176,10 @@ public:
         std::vector<Finished> out;
         out.swap(done_);
         for (const Finished& f : out) {
+            if (f.read) {
+                if (!f.ok) ++errors_;
+                continue;
+            }
             in_flight_ = 0;
             if (f.ok) continue;
             if (f.error.find("cancel") != std::string::npos) continue;
@@ -186,6 +204,15 @@ public:
     }
 
 private:
+    static std::vector<StoreRun> runs_of(const infer::HostHistory& h) {
+        std::vector<StoreRun> runs(h.slabs.size());
+        for (size_t i = 0; i < h.slabs.size(); ++i) {
+            runs[i].slabs = h.slabs[i];
+            runs[i].bytes = h.device_bytes[i];
+        }
+        return runs;
+    }
+
     DiskOptions options_;
     std::function<void()> wake_;
     std::thread starter_;

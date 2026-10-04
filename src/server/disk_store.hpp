@@ -47,7 +47,7 @@ public:
         uint64_t floor = 0;          // free space the file system keeps after every write (--disk-cache-floor)
         bool keep = false;           // at a clean exit leave the entries for the next server, and at start adopt those other servers left (--disk-cache-keep)
         uint64_t max_age = 0;        // seconds after an entry's last use when sweeps and adoption delete it, 0 for never (--disk-cache-max-age)
-        std::chrono::milliseconds pace{0};   // a pause after each chunk written, cut short by a cancel, which tests hold a write in flight with
+        std::chrono::milliseconds pace{0};   // a pause after each chunk written or read, a write's cut short by a cancel, which tests hold a call in flight with
     };
     // What a finished call reports: whether it succeeded, and if not, why.
     using Done = std::function<void(bool ok, const std::string& error)>;
@@ -570,6 +570,10 @@ private:
                     if (r->read(h->size + c * kChunk, staging_.data(), padded) < n) return "an entry shorter than its header says";
                     if (core::crc32c(0, staging_.data(), n) != h->crcs[c]) return "an entry that fails its checksum";
                     stream(j, c * kChunk, staging_.data(), n, true);
+                    if (options_.pace.count()) {
+                        std::unique_lock<std::mutex> lk(m_);
+                        cv_.wait_for(lk, options_.pace, [&] { return stopping_; });
+                    }
                 }
                 return "";
             } catch (const std::exception& e) {

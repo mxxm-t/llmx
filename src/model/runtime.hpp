@@ -608,6 +608,7 @@ public:
     std::optional<size_t> checkpoint(const Sequence& s) const;
     size_t host_bytes(size_t length, bool blocks = true) const;
     std::string host_identity() const;
+    void alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks = true);
     void save_host(Sequence& s, size_t length, HostHistory& out, size_t limit, bool blocks = true);
     size_t host_allocated() const;
     bool caches_on_devices() const;

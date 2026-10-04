@@ -292,6 +292,8 @@ GET  /v1/health      {"status": "ok", "model": "...", "active": n, "queued": m,
                       "host_bytes_moved": m, "boundaries": k,
                       "boundary_hits": q, "disk_entries": D,
                       "disk_bytes": S, "disk_bytes_written": W,
+                      "disk_hits": R, "disk_bytes_read": Q,
+                      "disk_waits": V, "disk_wait_ms": T,
                       "disk_errors": E, "disk_writing": true,
                       "reprefills": j, "reprefill_rows": n,
                       "reprefill_cancels": y, "passes": P, "in_flight": f}

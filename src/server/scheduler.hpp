@@ -12,6 +12,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -209,6 +210,10 @@ private:
     size_t read_alone_ = 0;        // prompt rows it read while it was alone, which prompt_slice brings back to a whole ubatch once company comes; 0 after that
     bool finished_ = false;        // it has left the active set for good
     uint64_t parked_ = 0;          // the donor it left as it finished
+    // The disk entry whose read it waits for before admission, which requests behind it that fit may pass (docs/DISK-TIER.md, Restore); when the wait began and the most it lasts, its tokens recomputed at the measured prompt rate; and whether its match on disk was looked for.
+    uint64_t disk_wait_ = 0;
+    std::chrono::steady_clock::time_point disk_since_, disk_until_;
+    bool disk_checked_ = false;
     // A job (docs/SPECULATIVE.md, section 2, Idle re-prefill): an internal request whose prompt, whole blocks, is what the conversation's next turn begins with after request `of_`'s reply, read as prompt rows of one class and kept as a donor that replaces the ones it supersedes; `whole_` once those ids follow the whole reply rather than the part written so far.
     bool job_ = false, whole_ = false;
     bool writing_ = false;         // a job begun while its reply was written, which keeps taking a busy pass's leftover budget once the reply has ended
@@ -358,7 +363,12 @@ public:
         size_t host_hits = 0;                     // donors promoted from host memory for a request
         size_t host_bytes_moved = 0;              // bytes copied between the devices and host memory, both ways
         size_t boundaries = 0, boundary_hits = 0; // message boundaries' states held in host memory now, and the requests that forked one
-        size_t disk_entries = 0, disk_errors = 0; // entries on disk now, and writes that failed
+        size_t disk_entries = 0, disk_errors = 0; // entries on disk now, and writes and reads that failed
+        size_t disk_hits = 0, disk_waits = 0;     // entries read back for a request, and requests that waited for a read
+        uint64_t disk_bytes_read = 0;             // their bytes
+        double disk_wait_ms = 0;                  // the time requests waited for reads
+        size_t disk_in_flight = 0;                // the write and the reads the disk tier has in flight now
+        bool disk_ready = false;                  // the disk tier's store made, once the model file's digest is known
         uint64_t disk_bytes = 0, disk_bytes_written = 0;   // their files' bytes, and every finished write's
         bool disk_writing = false;                // a disk tier that has not stopped writing
         std::vector<size_t> drafted{}, kept{};    // by draft position, the drafts verifies fed and those they kept
@@ -383,6 +393,12 @@ public:
         s.disk_bytes_written = disk_written_;
         s.disk_errors = disk_ ? disk_->errors() : 0;
         s.disk_writing = disk_ && disk_->writing();
+        s.disk_hits = disk_hits_;
+        s.disk_waits = disk_waits_;
+        s.disk_bytes_read = disk_read_bytes_;
+        s.disk_wait_ms = disk_wait_ms_;
+        s.disk_in_flight = (disk_key_ ? 1 : 0) + disk_reads_.size();
+        s.disk_ready = disk_ && disk_->readable();
         s.drafted = tally_.drafted();
         s.kept = tally_.kept();
         return s;
@@ -395,10 +411,13 @@ public:
         for (;;) {
             {
                 std::unique_lock<std::mutex> lk(m_);
-                cv_.wait(lk, [&] {
-                    return stopping_ || disk_wake_ || flying() || !queue_.empty() || !paused_.empty() || !follows_.empty() || (!jobs_.empty() && active.size() < max_seqs_) ||
+                const auto due = [&] {
+                    return stopping_ || disk_wake_ || flying() || ready(queue_) || ready(paused_) || !follows_.empty() || (!jobs_.empty() && active.size() < max_seqs_) ||
                            std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return working(*r); });
-                });
+                };
+                const auto bound = next_disk_bound();
+                if (bound) cv_.wait_until(lk, *bound, due);
+                else cv_.wait(lk, due);
                 if (stopping_) break;
                 disk_round();
                 // A waiting request whose client left ends wherever it waits, queued or paused, not only once admission reaches it, which may be after every active request has finished.
@@ -443,15 +462,20 @@ public:
                     // Room goes by first admission: nothing resumes or is admitted while a request that could not grow sits out the pass, paused requests resume oldest first and stop at the first that does not fit, and new requests come in queue order only once none is paused.
                     // A client can leave after the sweep, while the requests before its own are admitted; its request ends here, before any donor gives blocks up for it or it forks one.
                     const bool stalled = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
-                    while (!stalled && !paused_.empty() && active.size() < max_seqs_) {
-                        if (paused_.front()->cancel_.load()) { leave(paused_, paused_.begin()); continue; }
-                        if (!enter(paused_.front(), active)) break;
-                        paused_.pop_front();
+                    // A request whose history is being read from disk keeps its place, and those behind it that fit pass it (docs/DISK-TIER.md, Restore); one submitted since the round began is looked for first.
+                    if (disk_) prefetch();
+                    for (size_t i = 0; !stalled && i < paused_.size() && active.size() < max_seqs_;) {
+                        if (paused_[i]->cancel_.load()) { leave(paused_, paused_.begin() + (std::ptrdiff_t)i); continue; }
+                        if (reading(*paused_[i])) { ++i; continue; }
+                        if (!enter(paused_[i], active)) break;
+                        paused_.erase(paused_.begin() + (std::ptrdiff_t)i);
                     }
-                    while (!stalled && paused_.empty() && !queue_.empty() && active.size() < max_seqs_) {
-                        if (queue_.front()->cancel_.load()) { leave(queue_, queue_.begin()); continue; }
-                        if (!enter(queue_.front(), active)) break;
-                        queue_.pop_front();
+                    const bool resumed = std::none_of(paused_.begin(), paused_.end(), [&](const std::shared_ptr<Request>& r) { return !reading(*r); });
+                    for (size_t i = 0; !stalled && resumed && i < queue_.size() && active.size() < max_seqs_;) {
+                        if (queue_[i]->cancel_.load()) { leave(queue_, queue_.begin() + (std::ptrdiff_t)i); continue; }
+                        if (reading(*queue_[i])) { ++i; continue; }
+                        if (!enter(queue_[i], active)) break;
+                        queue_.erase(queue_.begin() + (std::ptrdiff_t)i);
                     }
                     active_count_.store(requests(active));
                     paused_count_.store(paused_.size());
@@ -485,6 +509,11 @@ public:
         disk_writing_ = disk_key_ = 0;
         for (infer::HostHistory& h : disk_parked_) model_.release_host(h);
         disk_parked_.clear();
+        for (DiskRead& rd : disk_reads_) {
+            host_held_ -= rd.history.held;
+            model_.release_host(rd.history);
+        }
+        disk_reads_.clear();
         for (auto* waiting : {&queue_, &paused_}) {
             for (auto& r : *waiting) r->end("cancel");
             waiting->clear();
@@ -811,6 +840,7 @@ private:
         // A pass's cost is the time the server gave it: from its formation through its retract, which on a model that keeps a state reruns the kept rows, or, with passes in flight, since the pass before it retired, which is less, less the chains drafted meanwhile, which the price counts apart.
         const double since_retired = retired_ ? ms_since(last_retired_) - chain_ms_ : std::numeric_limits<double>::infinity();
         if (f.generated) times_.pass(f.generated, std::min(ms_since(f.begun), since_retired));
+        else measure_prompt(f, since_retired);
         last_retired_ = Clock::now();
         retired_ = true;
         chain_ms_ = 0;
@@ -1611,6 +1641,10 @@ private:
         disk_wake_ = false;
         if (!disk_) return;
         for (const DiskTier::Finished& f : disk_->finished()) {
+            if (f.read) {
+                finish_read(f.key, f.ok);
+                continue;
+            }
             if (f.key != disk_key_) continue;
             if (f.ok && disk_cancelled_) {
                 disk_->remove(f.key);
@@ -1629,7 +1663,208 @@ private:
             for (infer::HostHistory& h : disk_parked_) model_.release_host(h);
             disk_parked_.clear();
         }
+        prefetch();
         write_ahead();
+    }
+
+    // The most reads from disk in flight (docs/DISK-TIER.md, Restore).
+    static constexpr size_t kDiskReads = 2;
+
+    // Whether a waiting request has something for the round: no read to wait for, its wait past its bound, or its client gone.
+    static bool ready(const std::deque<std::shared_ptr<Request>>& q) {
+        const auto now = std::chrono::steady_clock::now();
+        return std::any_of(q.begin(), q.end(), [&](const std::shared_ptr<Request>& r) { return !r->disk_wait_ || now >= r->disk_until_ || r->cancel_.load(); });
+    }
+
+    // The earliest bound of a request waiting for a read, which wakes the loop.
+    std::optional<std::chrono::steady_clock::time_point> next_disk_bound() const {
+        std::optional<std::chrono::steady_clock::time_point> t;
+        for (const auto* q : {&queue_, &paused_})
+            for (const auto& r : *q)
+                if (r->disk_wait_ && r->disk_until_ != std::chrono::steady_clock::time_point::max() && (!t || r->disk_until_ < *t)) t = r->disk_until_;
+        return t;
+    }
+
+    // Whether r waits for its read; past its bound it stops waiting and computes what the read would have given.
+    // Under the lock.
+    bool reading(Request& r) {
+        if (!r.disk_wait_) return false;
+        if (std::chrono::steady_clock::now() < r.disk_until_) return true;
+        end_wait(r);
+        return false;
+    }
+    void end_wait(Request& r) {
+        disk_wait_ms_ += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - r.disk_since_).count();
+        r.disk_wait_ = 0;
+    }
+
+    // Read `key` finished: an entry read whole becomes a host entry of a conversation that came back, its file kept and renewed, and anything else releases its slabs, a failed read's entry being gone; the requests waiting for it go on.
+    // Under the lock.
+    void finish_read(uint64_t key, bool ok) {
+        size_t i = 0;
+        while (i < disk_reads_.size() && disk_reads_[i].key != key) ++i;
+        if (i == disk_reads_.size()) return;
+        infer::HostHistory h = std::move(disk_reads_[i].history);
+        disk_reads_.erase(disk_reads_.begin() + (std::ptrdiff_t)i);
+        const DiskEntry* e = find_disk(key);
+        if (ok && e) {
+            const size_t length = h.length;
+            const double mib = (double)h.bytes / (1 << 20);
+            ++disk_hits_;
+            disk_read_bytes_ += h.bytes;
+            if (e->boundary) {
+                bounds_.emplace_back();
+                Boundary& b = bounds_.back();
+                b.id = ++donor_ids_;
+                b.tokens = e->tokens;
+                b.classes = e->classes;
+                b.state = std::move(h);
+                b.disk = key;
+            } else {
+                host_.emplace_back();
+                HostDonor& d = host_.back();
+                d.id = ++donor_ids_;
+                d.tokens = e->tokens;
+                d.classes = e->classes;
+                d.history = std::move(h);
+                d.back = true;
+                d.disk = key;
+            }
+            renew_disk(key, true);
+            std::fprintf(stderr, "server: an entry of %zu tokens read from disk, %.1f MiB\n", length, mib);
+        } else {
+            host_held_ -= h.held;
+            model_.release_host(h);
+            if (!ok) forget_disk(key);
+        }
+        for (auto* q : {&queue_, &paused_})
+            for (auto& r : *q)
+                if (r->disk_wait_ == key) end_wait(*r);
+    }
+
+    // Reads for waiting requests whose history an entry on disk shares more whole blocks of than any history on the devices or in host memory, each request looked for once, at most kDiskReads in flight and max_seqs requests waiting; a boundary is read with the copy that holds its rows where no history on the devices or in host memory does, the copy first.
+    // A request waits at most as long as recomputing the shared tokens would take at the measured prompt rate, and for its read alone until a pass has measured one.
+    // Under the lock.
+    void prefetch() {
+        if (disk_index_.empty() || !disk_->readable()) return;
+        size_t waiting = 0;
+        for (const auto* q : {&queue_, &paused_})
+            for (const auto& r : *q) waiting += r->disk_wait_ != 0;
+        for (auto* q : {&paused_, &queue_})
+            for (auto& r : *q) {
+                if (r->disk_checked_ || r->disk_wait_ || r->cancel_.load() || waiting >= max_seqs_) continue;
+                size_t tokens = 0;
+                const size_t i = best_disk(*r, tokens);
+                size_t shared = 0, more = 0;
+                best_donor(*r, shared);
+                best_host(*r, more);
+                shared = std::max(shared, more);
+                best_bound(*r, more);
+                shared = std::max(shared, more);
+                if (i == disk_index_.size() || tokens <= shared) {
+                    r->disk_checked_ = true;
+                    continue;
+                }
+                std::vector<uint64_t> keys;
+                const DiskEntry& e = disk_index_[i];
+                if (e.boundary) {
+                    bool held = false;
+                    for (const Donor& d : donors_) held = held || holds(e.tokens, e.classes, e.length, d.tokens, d.classes, d.seq.length());
+                    // A copy in host memory holding its rows becomes the newest, so the room the reads take goes to others first.
+                    for (size_t h = 0; !held && h < host_.size(); ++h)
+                        if (holds(e.tokens, e.classes, e.length, host_[h].tokens, host_[h].classes, host_[h].history.length)) {
+                            if (host_[h].disk) renew_disk(host_[h].disk, host_[h].back);
+                            std::rotate(host_.begin() + (std::ptrdiff_t)h, host_.begin() + (std::ptrdiff_t)h + 1, host_.end());
+                            held = true;
+                        }
+                    for (size_t c = 0; !held && c < disk_index_.size(); ++c)
+                        if (!disk_index_[c].boundary && holds(e.tokens, e.classes, e.length, disk_index_[c].tokens, disk_index_[c].classes, disk_index_[c].length)) {
+                            keys.push_back(disk_index_[c].key);
+                            held = true;
+                        }
+                    if (!held) {
+                        r->disk_checked_ = true;
+                        continue;
+                    }
+                }
+                keys.push_back(e.key);
+                size_t fresh = 0;
+                for (uint64_t k : keys) fresh += !being_read(k);
+                if (disk_reads_.size() + fresh > kDiskReads) continue;
+                r->disk_checked_ = true;
+                bool started = true;
+                for (uint64_t k : keys) started = started && start_read(k);
+                if (!started) continue;
+                const auto now = std::chrono::steady_clock::now();
+                r->disk_wait_ = keys.back();
+                r->disk_since_ = now;
+                r->disk_until_ = prompt_ms_row_ > 0 ? now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double, std::milli>((double)tokens * prompt_ms_row_))
+                                                    : std::chrono::steady_clock::time_point::max();
+                ++disk_waits_;
+                ++waiting;
+            }
+    }
+
+    // Starts the read of entry `key` into slabs it takes host room for as a write-back does; true where it is being read.
+    // Under the lock.
+    bool start_read(uint64_t key) {
+        if (being_read(key)) return true;
+        const DiskEntry* e = find_disk(key);
+        if (!e) return false;
+        const size_t length = e->length;
+        const bool blocks = !e->boundary;
+        const size_t bytes = model_.host_bytes(length, blocks);
+        if (bytes > host_cap_) return false;
+        while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
+        release_written(bytes);
+        while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
+        while (!host_.empty() && host_held_ + bytes > host_cap_) drop_host(0);
+        if (host_held_ + bytes > host_cap_) return false;
+        DiskRead rd;
+        rd.key = key;
+        try {
+            model_.alloc_host(length, rd.history, host_cap_ + parked_held(), blocks);
+        } catch (const std::exception& x) {
+            std::fprintf(stderr, "server: an entry of %zu tokens was not read from disk (%s)\n", length, x.what());
+            return false;
+        }
+        host_held_ += rd.history.held;
+        disk_->read(key, rd.history, infer::Model::host_slab_bytes());
+        disk_reads_.push_back(std::move(rd));
+        return true;
+    }
+
+    bool being_read(uint64_t key) const {
+        for (const DiskRead& rd : disk_reads_)
+            if (rd.key == key) return true;
+        return false;
+    }
+    const DiskEntry* find_disk(uint64_t key) const {
+        for (const DiskEntry& e : disk_index_)
+            if (e.key == key) return &e;
+        return nullptr;
+    }
+
+    // The entry on disk sharing the most whole blocks with r's history, by best_donor's rule at its length on a model that keeps a state and for a boundary; disk_index_.size() when none shares a block.
+    size_t best_disk(const Request& r, size_t& tokens) const {
+        size_t best = disk_index_.size();
+        tokens = 0;
+        for (size_t i = 0; i < disk_index_.size(); ++i) {
+            const DiskEntry& e = disk_index_[i];
+            const size_t n = model_.keeps_state() || e.boundary ? shareable(r, e.tokens, e.classes, e.length, std::optional<size_t>(e.length))
+                                                                : shareable(r, e.tokens, e.classes, e.length, std::nullopt);
+            if (n > tokens) { tokens = n; best = i; }
+        }
+        return best;
+    }
+
+    // A pass of prompt rows measures the prompt rate a read's bound takes, a moving mean over passes of 64 rows or more.
+    void measure_prompt(const Slot& f, double since_retired) {
+        size_t rows = 0;
+        for (size_t n : f.rows) rows += n;
+        if (rows < 64) return;
+        const double per = std::min(ms_since(f.begun), since_retired) / (double)rows;
+        prompt_ms_row_ = prompt_ms_row_ > 0 ? 0.75 * prompt_ms_row_ + 0.25 * per : per;
     }
 
     // Once host entries not on disk hold more than three quarters of the host tier, the one it would drop next goes to disk while it stays a host entry: boundaries, oldest first, then copies whose conversations did not come back, oldest first, then the oldest copies; never a superseded copy, and one at a time.
@@ -1693,6 +1928,7 @@ private:
         };
         // The order, as ranks: an entry of a rank the newcomer may not take is left.
         const auto rank = [&](const DiskEntry& e) -> int {
+            if (being_read(e.key)) return -1;
             if (orphan(e)) return 0;
             if (e.boundary) return back ? 1 : -1;
             if (!e.back) return 2;
@@ -2246,6 +2482,16 @@ private:
     std::vector<infer::HostHistory> disk_parked_;
     uint64_t disk_written_ = 0;
     bool disk_wake_ = false;
+    // Reads from disk in flight, each into slabs counted in host_held_, and what they gave.
+    struct DiskRead {
+        uint64_t key = 0;
+        infer::HostHistory history;
+    };
+    std::deque<DiskRead> disk_reads_;
+    size_t disk_hits_ = 0, disk_waits_ = 0;
+    uint64_t disk_read_bytes_ = 0;
+    double disk_wait_ms_ = 0;
+    double prompt_ms_row_ = 0;         // the scheduler thread's, a pass's milliseconds a prompt row, measured; 0 until a pass has
     std::unique_ptr<DiskTier> disk_;   // after the lock and the condition, which its threads' callbacks take
 };
 

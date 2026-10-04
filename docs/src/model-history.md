@@ -59,6 +59,9 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   pass, and only the model that wrote the copy restores it; a throw from a
   pool, a slot or a copy leaves nothing held. `host_bytes(length)` gives
   the slabs a copy of `length` tokens takes.
+  `alloc_host(length, out, limit)` takes the slabs a copy of `length`
+  tokens takes, holding nothing yet, as `save_host` takes them before its
+  copies, so the server's disk tier reads an entry back into them.
   `wait_host(host)` waits for the copies into and out of a copy's slabs, so
   the host can read its bytes, as the server's disk tier does before it
   writes them to a file.

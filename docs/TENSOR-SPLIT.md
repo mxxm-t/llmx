@@ -103,6 +103,45 @@ Step 0 (2026-10-04), `llmx-vk-handoff exchange` on the four MI50s of one root co
 - The sum grows with the width faster than a member's work shrinks: every member writes its partial into every inbox, so a member's link carries W - 1 copies each way.
 - Pass costs measured with `llmx bench` (ms a pass), the inputs of section 5: Qwen3.6-27B Q8_0 on one MI50 at 1, 8, 16, 32 and 64 rows 43.2, 107.2, 206.7, 438.2 and 1543, pp512 1972 a chunk and pp2048 8123; Qwen3-32B Q8_0 over two MI50s at one pass in flight, so the total work, 51.5, 141.4, 274.9, 496.8 and 1057, pp512 2503 and pp2048 6834, the last pipelined over the two stages.
 
+### 2.8 The reference's tensor split on ROCm and CUDA (2026-10-04)
+
+Read in the fork's tree (`ggml/src/ggml-cuda/tp-allreduce.cu`, `ggml-cuda.cu`, `ggml-backend-meta.cpp`) and notes (`tp-notes/TENSOR_PARALLEL.md`, `tp-notes/ENV_VARS.md`, `tp-notes/research/mi50-decode-bandwidth-roofline.md`, `mi50-meta-parallel-lane-dispatch.md`), at its HEAD `1cebb44883` and its newest all-reduce branch tip `19d784ad0e`.
+
+**How a sum becomes visible on the other cards without the host:**
+- Every rank writes its F32 partial as wide stores straight into each peer's staging buffer (peer stores, not peer loads), then `__threadfence_system`, then an entry barrier; each rank then reads the peers' slots in its own staging with non-temporal loads and adds every slot in rank order, so every rank keeps the same bits, then an exit barrier (`k_broadcast_reduce`, `tp-allreduce.cu` lines 227 to 345).
+- The staging is fine-grained device memory (`hipDeviceMallocFinegrained`) and the flags are uncached (`hipDeviceMallocUncached`); with `HSA_FORCE_FINE_GRAIN_PCIE=1` the kernel's peer stores are write-through and leave the writer's L2, which gfx906 cannot write back from a shader (no `buffer_wbl2`), so they reach the peer's memory inside the kernel; without it the fork falls to a one-shot path with an N x N event handshake, 24 driver calls a sum on 4 cards.
+- A rank never writes its own slot locally: a local store to fine-grained memory stays in its L2 and the non-temporal load misses it, which cost about 2 perplexity points before it was found.
+- The barriers are per-block flags, a monotonic epoch, start and end arrays alternating, stored into each peer's slot with system-scope release atomics and spun on with system-scope acquire loads; relaxed ordering gave garbage on these cards.
+- One kernel a rank a sum, 16 blocks of 512 threads on HIP; a two-shot form (reduce-scatter and gather by peer writes) above a size and width crossover; messages past the size gate (32768 elements at width 2) go to RCCL in BF16, so a prompt's sums and a decode token's take different paths and wire precisions.
+- On CUDA the same kernels run on plain device memory with `st.release.sys` and `ld.acquire.sys`, peer access required on every pair, NCCL as the fallback.
+
+**What a sum costs there:** implied about 42 us on 2 cards and 58 on 3 (Qwen3-14B Q8_0, no profiler), a protocol floor of 17 us; under the profiler on 4 cards a mean of 69 us of which about 95 percent is waiting at the entry barrier, the ranks starting 90 us apart because one host thread launches them in turn.
+
+**What it does about skew:** a dispatch thread a card (`GGML_META_PARALLEL_DISPATCH`, mean sum 50 to 31 us, start spread 59 to 32 us), the whole token captured as one HIP graph (`GGML_META_TOKEN_GRAPH`), two-shot at 5, 8 and 10 ranks (+18.6 and +20.8 percent decode at 8 and 10), and staged groups past 4 cards (Qwen3.6-27B on 9 cards: 33.6 tok/s at 3 stages of 3 against 16.7 at width 9).
+
+**Its environment:** the image `mxxm/mx-llama.cpp:gfx906` (`eefc4e732`) sets `GGML_ENABLE_CUSTOM_AR=1`, `HSA_FORCE_FINE_GRAIN_PCIE=1`, `GPU_MAX_HW_QUEUES=8`, `HSA_OVERRIDE_GFX_VERSION=9.0.6` and `LLAMA_ENABLE_MTP_OPT=1`; `tp-notes/ENV_VARS.md` adds `GGML_META_XFER_RCCL=1` for staged transfers; the image's library was built with HIP graphs and carries the lane dispatch and the token graph, on by default (Qwen3-32B Q8_0 at width 2: tg128 33.55 tok/s as shipped, 33.67 with dispatch, graph and RCCL transfers set, 32.14 with dispatch and graph off); `NCCL_MIN_NCHANNELS=8` gave pp512 573.2 against 569.8 and tg128 33.87 against 33.63, within noise; `GGML_TP_AR_BCAST_DB` is not read by this build, and the notes list it as stale and never promoted.
+No script, docker file, Dockerfile or note of the fork carries a commented-out export; of the variables its notes recommend beyond the image's environment, HIP graphs (`-DGGML_HIP_GRAPHS=ON`) are built into the image, `GGML_TP_AR_BCAST_DB` is not read by this build, `NCCL_PROTO=LL` is neutral for decode beside the custom all-reduce and costs 24.5 percent of pp4096, and `NCCL_MIN_NCHANNELS=8` made no difference here.
+The verbose log of every run below reads `TP custom AllReduce: initialized for 2 GPUs, path = broadcast F32 + twoshot F32 (peer-write, size-adaptive, lossless)` and `token graph owns the token`, the fast path; its kernel timing (`GGML_TP_AR_KTIMING=1`) counts 128 sums a token on the 32B, about 80 percent of each in its barriers.
+
+**Measured here on 2026-10-04,** the same MI50s of one root complex (83:00, 86:00, 8c:00), HIP devices pinned by passing only their render nodes, default clocks, `-sm tensor -ngl 99 -fa 1 -lm dio`, `llama-bench -p 512 -n 128 -r 3`, and `llama-server -np 64 -c 65536 -cram 0` under `tools/server_load.py` with 512-token prompts and 128-token replies (output tok/s, best of two rounds); beside them llmx at main `e8995d76` on Vulkan on the same cards and workload (`llmx serve`, 64 sequences, 16 on one card, whose states do not leave room for more):
+
+| Qwen3.6-27B Q8_0 | pp512 | tg128 | 1 user | 4 | 16 | 32 | 64 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| reference tensor split, 2 cards | 626 | 36.7 | 28.5 | 49.3 | 53.5 | 56.8 | 61.7 |
+| reference tensor split, 3 cards | 779 | 41.5 | 34.7 | 54.9 | 63.6 | 68.9 | 72.0 |
+| llmx, one card | 260 | 23.1 | 15.4 | 31.5 | 33.1 | 33.5 | 33.1 |
+| llmx layer split, 2 cards | | | 17.0 | 42.5 | 62.9 | 61.6 | 66.7 |
+
+| Qwen3-32B Q8_0 | pp512 | tg128 | 1 user | 4 | 16 | 32 | 64 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| reference tensor split, 2 cards | 570 | 33.6 | 26.7 | 55.2 | 65.5 | 75.8 | 87.5 |
+| reference tensor split, 3 cards | 731 | 43.7 | 34.4 | 69.5 | 81.5 | 102.3 | 110.8 |
+| llmx layer split, 2 cards | 205 | 19.4 | 13.6 | 34.4 | 51.3 | 48.9 | 50.9 |
+
+- The reference's server first ran with its default 8 GiB host prompt cache, which on the hybrid 27B evicted an entry every 0.3 s and gave 8.7 tok/s at 32 users; `-cram 0` gave the rates above, and is the arm shown.
+- Width 4 on one complex waits for the fourth card; it is recorded when measured.
+- On this prompt-heavy load both runtimes are bound by prefill: llmx's layer split serves about 0.4 requests a second, near one 512-token prefill of 2.5 s at a time, so its stages do not overlap different requests' prompts here.
+
 ### 2.7 What the research decides
 
 1. Two reductions a layer is the floor for every Qwen layer kind (attention, Gated DeltaNet, dense and MoE feed-forward); sequence parallelism doubles the synchronization points and is not taken.
@@ -179,6 +218,12 @@ Each member's arithmetic is the one-device kernel over its shard, so a group add
     Inboxes alternate by parity, so a member writes an inbox only after every peer has read its previous contents, which the wait chain guarantees, as MULTI-DEVICE's exchange epochs require.
     It is Linux-only, as sync files and dma-buf are; on Windows a group of Vulkan devices is refused by name and the Radeon VII, a single device, is untouched.
   - **ROCm,** when that backend exists: peer stores into fine-grained memory with flags, the fork's measured path, behind the same call.
+- **The reference's mechanism against Vulkan:** the reference reaches visibility because its peer stores are write-through and its flags uncached in the writer's own mapping of the peer's memory, which HIP sets for fine-grained allocations.
+  Under Vulkan the nearest equivalents were all tried with `llmx-vk-handoff exchange`'s flag wait: device-local memory of the `VK_AMD_device_coherent_memory` uncached type on the exporting card and an uncached type on the importing card, the same in system memory shared by dma-buf, and host memory imported into both cards, which RADV offers only as a cached type; at device and queue-family scope with the memory model's release and acquire, every wait timed out (section 2.6 and STATUS), and the ISA shows no instruction that could write the L2 back.
+  The reference's exact memory was then tried too (2026-10-04): the inbox allocated through `/dev/kfd` as VRAM with COHERENT and UNCACHED, mapped MTYPE_UC on both the owning card and, through the kernel's copy of those flags, every card that imports its dma-buf, so the memory is the reference's; the sums were correct, but the in-submission flag wait still timed out at width 2.
+  The cause is the second one the driver research found: RADV imports a dma-buf as an implicit-sync buffer, so a submission on one card that names another card's imported inbox waits for that card's submission to finish rather than running beside it, and the two cards serialize; the reference avoids this because its compute queues carry no implicit synchronization at all.
+  So neither the memory type nor the Vulkan memory model opens an in-submission cross-card wait on gfx906 with RADV: it needs a driver that imports a peer buffer without implicit sync and maps it uncached (a RADV change, or AMDVLK, which maps imports cached the same way), and until then the sync-file collective stands.
+  The reference's path is a ROCm backend's, behind the same collective call.
 - **Cost on Vulkan:** about 154 us a reduction at decode sizes at width 2 and 268 us at width 4 (step 0, section 2.6), 128 a token on a 64-layer model, about 19.7 and 34.3 ms; at 512 prompt rows about 2.2 and 11.9 ms a reduction.
 - **If a device-side wait works** on some driver (step 0's first measurement) and that driver documents a cross-device visibility and ordering contract for the memory involved, the Vulkan collective keeps its call and its inboxes and replaces the sync files by a release store of a flag per peer after the partial and an acquire spin before the sum, bounded far below the ring timeout with an error flag the host checks; a member's work then stays in one submission per stage, as on one device, and a sum costs about the dispatch floor plus the PCIe write, an estimated 15 to 25 us (the measured three-dispatch floor is 13 us).
   A passing probe alone does not select flags: the Vulkan shader specification disallows the CrossDevice scope and gives each device its own Device-scope instance, so a probe shows one driver's behaviour, not a guarantee.
@@ -222,7 +267,7 @@ Its sources here:
 | 4 | 268 us | 34.3 ms | 70 percent |
 
 Width 3 is not legal on Qwen3-32B (64 q heads, 8 KV heads) and shows the trend only; widths past 4 are not measured, as this machine has four cards on one root complex.
-The exchange and its skew do not shrink with the width while the compute does, so past 4 the sums are most of a token on Vulkan, and on ROCm, where a sum costs 6 to 17 us plus skew, skew is the larger part at 8 (the fork's 27 percent of an 8-card token).
+The exchange and its skew do not shrink with the width while the compute does, so past 4 the sums are most of a token on Vulkan, and on ROCm, where a whole sum costs about 42 us at width 2 and 58 at width 3 against a protocol floor of 17 us without waiting (2.8), skew is the larger part at 8 (the fork's 27 percent of an 8-card token).
 
 **What each system does about it, and what llmx takes:**
 - **Fewer reductions:** two a layer is the floor for these models (2.7); sequence parallelism and per-two-layer schemes add synchronization points or change the math, so llmx keeps two a layer, fused with the residual add.
@@ -235,14 +280,35 @@ The exchange and its skew do not shrink with the width while the compute does, s
 - **Bounded width, staged beyond it:** a group is at most 4 wide, and more cards form stages: 8 cards as 2 stages of 4 keep width 4's skew per sum, take the same time per token for one request (each token crosses both stages, each with half the layers), and with P = 2 serve twice the requests; the fork measured staged ahead of full width from 6 cards.
 
 **Recommended:** width at most 4, 2 on Vulkan unless step 0's 4-card measurement shows width 4 pays there, even shards, one root complex per group, a submitting thread per member from width 4, and stages beyond 4 cards.
-At 8 cards an extrapolation of HIP's skew would favour width 8 for one request, but step 0 measured the Vulkan sum growing from 154 us at width 2 to 268 us at width 4, every measurement found puts width 8 below width 4 and the staged form above both from 6 cards, the figures leave out Vulkan's unmeasured skew at 8, one thread cannot record 8 members in time, the eight cards span two root complexes here (four at 83 to 8c, four at c3 to cc), and 2 stages of 4 serve twice the requests at P = 2; width 8 stays refused until step 0 measures a group of 8 on one complex, which this machine does not have.
+At 8 cards an extrapolation of HIP's skew would favour width 8 for one request, but step 0 measured the Vulkan sum growing from 154 us at width 2 to 268 us at width 4, the reference's Qwen3-14B figures put width 8 below width 4 and its staged form ahead from 6 cards, the figures leave out Vulkan's unmeasured skew at 8, one thread cannot record 8 members in time, the eight cards span two root complexes here (four at 83 to 8c, four at c3 to cc), and 2 stages of 4 serve twice the requests at P = 2; width 8 stays refused until a width-8 Vulkan sum is measured with `llmx-vk-handoff exchange`, which this machine cannot do on one complex.
+The reference itself decodes Qwen3.6-27B Q8_0 faster at width 8 than at width 4 (tg256 57.2 tok/s with two-shot, `5f65f9fa38`, against tg128 51.7 at width 4 with whole-token graphs), so the cap is a measured limit of the Vulkan sum, not a rule of the design: it opens once a width-8 Vulkan sum is measured and the model of 4.5 says width 8 pays, and the 8-card comparison is against the reference's best shape at 8 cards, width 8 or staged, whichever is faster on the load measured.
 **Gate:** at every width offered and at 2 stages of 4, the exposed wait a sum and a token, read from GPU timestamps on every member, and the per-token cost against the model above, recorded at each merge that touches the group's execution.
 
 ### 4.6 Placement, fit and flags
 
-- **Flag:** `--group-width N` (MULTI-DEVICE's sketch) forms groups of N consecutive devices of the `--device` list; the list's length must be a multiple of N, and the groups become the stages, so `--device vulkan:0,vulkan:1,vulkan:2,vulkan:3 --group-width 2` is 2 stages of 2 and `--group-width 4` one stage of 4.
-  `--layer-shares` gives one share per group.
-  The flag means the same on every backend or is refused, and it is added to `docs/USAGE.md` and `print_usage` with its branch.
+**Flags.** One flag is added, beside the two a split already has:
+
+- `--device A,B,...` lists the devices, as today;
+- `--tensor-width N` (proposed; the plan's decision 4 named it `--group-width`) splits every layer across N devices: the listed devices form groups of N consecutive devices, and the groups are the stages of a layer split, so the width and the list's length give the whole shape; 1, the default, is today's layer split;
+- `--layer-shares A,B,...` gives each stage its share of the layers, one number a group, as today one a device.
+
+`--tensor-width` says what the user chooses, how many devices each layer is split across, where `--group-width` names an internal word; both stay self-explanatory beside `--layer-shares`, and no separate mode flag is needed, since the width alone tells a layer split (1), a tensor split (the whole list) and a staged one (anything between).
+The rename goes to the other developer with the rest of this revision.
+
+| cards | layer split | tensor split | staged tensor split |
+|---|---|---|---|
+| 2 | `--device vulkan:0,vulkan:1` | `--device vulkan:0,vulkan:1 --tensor-width 2` | not applicable |
+| 4 | `--device vulkan:0,vulkan:1,vulkan:2,vulkan:3` | `--device vulkan:0,vulkan:1,vulkan:2,vulkan:3 --tensor-width 4` | `--device vulkan:0,vulkan:1,vulkan:2,vulkan:3 --tensor-width 2` (2 stages of 2) |
+| 8 | `--device vulkan:0,...,vulkan:7` | refused until a width-8 Vulkan sum is measured (section 8) | `--device vulkan:0,...,vulkan:7 --tensor-width 4` (2 stages of 4), or `--tensor-width 2` (4 stages of 2) |
+
+Refused, each before a model file is read and with the flag named, a usage error (status 2) where the command line alone is wrong:
+- a device list whose length is not a multiple of the width: "--tensor-width 2 needs a device list of whole groups: 3 devices listed";
+- a width above 4: "--tensor-width 8: at most 4 devices a group; list more devices to form stages";
+- `--layer-shares` with another count than the groups: "--layer-shares gives one share a group: 2 groups, 4 shares";
+- a group mixing backends or device profiles, or the CPU with a card: "--tensor-width 2: vulkan:0 and cpu cannot form a group";
+- a backend without a collective: the CPU has one from step 2, which adds the flag, and Vulkan from step 3 (section 6); until a backend's step lands the refusal names it and points to the plan: "--tensor-width 2: the vulkan backend has no cross-device sum yet (docs/TENSOR-SPLIT.md, section 6)".
+Refused once the model is read, with the projection named: a width that does not divide its heads, KV heads, K or V heads, or a column split off whole quant blocks.
+The flag means the same on every backend or is refused, reads nothing from the environment, and is added to `docs/USAGE.md` and `print_usage` with its branch.
 - **Fit:** the fit treats a group as one device whose budget is the least member's free memory and whose footprint is a member's share: its rows and columns of each matrix, its heads' KV and state, the replicated tensors whole, its arena, its share of the logits rows, the collective's partial slot and inboxes, and, on member 0 of every stage but the last, the handoff buffers.
   The inboxes are counted at their peak live allocation for the rows the context reserves: with two parity slots and an inbox per peer, 2 (W - 1) x rows x E x 4 bytes a member (about 42 MiB at width 2 and 1088 rows of Qwen3-32B, 128 MiB at width 4), in checked arithmetic, with a hand count and a refusal case in the existing fit tests (`placement`) and no new fit owner.
   A group that does not fit is refused with the member and the bytes, as a device is today.
@@ -276,15 +342,40 @@ One system, as SPECULATIVE section 3 requires: proposers over one verify, accept
 
 ### 4.9 Code owners and the Backend interface
 
-- `model/shard.hpp` (new): the shard plan, its legality and refusals, and a member's footprint; one owner for how a model splits over a group.
-- `model/architecture.hpp` and the modules: a shard way per role, the member's head counts and partial slot in `Step`, and the residual block helper in `model/arch/blocks.hpp`.
-- `model/runtime.hpp`: groups in `Placement`, a part run per member and the sum between parts, per-member arenas, one pool per group, the head's slices into the shared host rows; the per-member bookkeeping goes into a file of its own if `runtime.hpp` (1379 lines) would otherwise grow by more than the hooks; decision 6 moves it out first, in step 0b.
-- `model/layer_split.hpp` and `model/place.hpp`: groups as fit units, the topology check, `PlacementRequest::group_width`.
+**One owner for the group, one narrow interface below it.** Everything that knows a model, its shards, its heads and its passes sits above the backend layer, once; a backend implements only how the members' partials meet.
+
+- `model/shard.hpp` (new): the shard plan (each role's spans per member), its legality and refusals, the KV and state geometry per member, and a member's footprint; the one owner of how a model splits over a group, whatever the backend.
+- `model/architecture.hpp` and the modules: a shard declaration per role, the member's head counts and partial slot in `Step`, and the residual block helper in `model/arch/blocks.hpp`.
+- `model/runtime.hpp` and `model/passes.hpp` (step 0b's file): groups in `Placement`, a part run per member and the sum between parts, per-member arenas, one pool per group, the head's slices into the shared host rows.
+- `model/layer_split.hpp` and `model/place.hpp`: groups as fit units, the topology check, the width in `PlacementRequest`.
 - `inference/load.hpp`: shard spans and packed column shards in the upload entries.
-- `backends/backend.hpp`: one interface, the group's collective (made once for a list of backends of one kind, giving each member's partial slot and summing a pass's rows into every member's residual), and an output row stride on `matmul_logits`; nothing else.
-- `backends/cpu/` and `backends/vulkan/`: the two collectives.
-- `cli/main.cpp`: `--group-width`.
+- `cli/main.cpp`: `--tensor-width`, read once and passed down; the server and the CLI hold no group logic.
 - `server/` and `inference/spec.hpp`: nothing new beyond the pass cost's sum term.
+
+**The interface,** in `backends/backend.hpp`, sketched:
+
+```
+// A tensor group's sum over backends of one kind, made once at load (docs/TENSOR-SPLIT.md, section 4.3).
+class Collective {
+public:
+    virtual ~Collective() = default;
+    // Where member m writes the partial rows of its next sum, storage the collective owns and every member reaches.
+    virtual Slice partial(size_t member) = 0;
+    // Each member's residual rows gain the sum of every member's partial rows, added in member order, enqueued on every member.
+    virtual void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) = 0;
+    // One id a row from each member's best value and id over its vocabulary slice, the larger value and then the lower id winning.
+    virtual void argmax_join(const std::vector<CSlice>& best, Slice ids, size_t rows) = 0;
+};
+// Backend: a collective over `members`, all of this backend's kind and profile, for sums of up to `rows` rows of `width` floats; null where this backend has none.
+virtual std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width);
+```
+
+plus an output row stride on `matmul_logits`, so the members write their vocabulary slices into one host row; nothing else.
+
+**What a new backend implements:** `join` and the three calls, over its own transport, its partial storage, its waits and its epochs: the CPU's over host memory; Vulkan's over dma-buf inboxes and sync files, built now in step 3, a faster transport replacing the sync files behind the same interface once one passes the probe (section 8); a ROCm backend's over peer stores into fine-grained memory with in-kernel flags, the reference's mechanism (section 2.8).
+**What it gets for free:** the shard plan, the loader's shards, the fit, the runtime's part loop and passes in flight, the scheduler, speculative decoding, the flags and their refusals, and the test harness.
+**What its collective must pass before a group runs on it:** a `backend-*` CTest holding every member's sum to the bits of the fixed member order, at every size up to its reservation, with the refusals; for a backend with a cross-device transport, `llmx-vk-handoff exchange` or its equivalent, every sum checked, the members' arrival spread and the cost a sum at decode and prompt sizes; then the group gates: one stage against two stages at the same width bit for bit, the batch and row-class checks over a group, the HF reference at the bounds of its precision, and the device-reference criterion against one device of that backend.
+Nothing specific to a backend sits above the backend layer: a group refused on one backend and accepted on another differs only in `join` returning null.
 
 ### 4.10 Out of scope
 
@@ -328,6 +419,10 @@ One prompt's prefill, ms, measured against projected:
 - The clear gain is one prompt's time to first token: 1.55 times on a 512-token chunk of the 27B and 1.63 times on the 32B at width 2, and 1.11 times on a 2048-token prompt of the 32B against the pipelined layer split; it is a workload tradeoff to keep in view, not the purpose decision 7 gives the tensor split.
 - With a 15 us sum (ROCm peer stores, or a Vulkan wait inside a submission on a driver that documents it), the same model gives the 32B about 34 tok/s at width 2 and 55 at width 4 for one request.
 
+**A ROCm backend's tensor split, projected** the same way with the reference's measured sum (about 42 us at width 2; 31 to 69 us at width 4, with and without a dispatch thread a card) and llmx's own one-card work: Qwen3.6-27B Q8_0 about 35 tok/s at width 2 and 45 to 58 at width 4 for one request, Qwen3-32B Q8_0 about 31 and 42 to 53, against the reference's measured 36.7 and 41.5 (27B, widths 2 and 3) and 33.6 and 43.7 (32B).
+The rest of the gap to the reference is per-card work, not the sum: the reference's 33.6 tok/s on the 32B at width 2 leaves about 24 ms a token of work beside its sums, where llmx's member is modeled at 27 ms.
+On the prompt-heavy load of section 2.8 the reference serves 1.3 to 1.7 times llmx's layer split at 16 to 64 users on the 32B, which a group's 1.6 times faster prefill (section 5's prompt table) and a layer split that overlaps different requests' prompts each address.
+
 ## 6. Order of work
 
 Each step is a branch from main, at most two commits, with a STATUS block opened before its code; every step keeps width 1 byte-identical to main on the CPU, one MI50 and a layer split, with `llmx-split-check` bit-identical, and runs the merge gates of its tier in AGENTS.md.
@@ -337,15 +432,16 @@ Each step is a branch from main, at most two commits, with a STATUS block opened
 | 0 | `tools/tp-exchange` | `llmx-vk-handoff exchange`: the probe of section 2.6 as a mode of the existing tool, with N cards; measurements only | first, the device-side flag wait with the Vulkan memory model (release and acquire with MakeAvailable and MakeVisible at device and queue-family scope, both inbox placements, the spin bounded) and the ISA checked for an L2 writeback or invalidate, on every driver at hand, which with a documented driver contract for cross-device visibility and ordering decides flags, and otherwise keeps sync files, for step 3; then the exchange at widths 2, 3 and 4 on one root complex and at 2 across complexes, 20 KB to 10 MB, each sum checked; the members' arrival spread; recording time a member a layer on Qwen3-32B and Qwen3.6-27B; the numbers recorded in STATUS and section 5 updated; the decision on the Vulkan collective (decision 2) |
 | 0b | `refactor/runtime-split` | decision 6: a minimal move-only split of `model/runtime.hpp` by concern, in parallel with step 0, nothing renamed or changed in behaviour | byte identity against main on the CPU and one MI50 and a layer split, `llmx-split-check` bit-identical, CTest, the suite's docs and dead-code components, the hosted run, and a timing round against main with a perturbed-layout control on the hot path |
 | 1 | `feat/tp-shard` | the shard ways on the roles of qwen3 and qwen35, `model/shard.hpp` with legality and refusals, a member's footprint, the loader's shard spans and packed column shards | `model-validation` with each refusal's text in `tests/data/model_refusals.txt`; every member's shards reassemble each tensor's bytes, for every type, the fused q, k and v sections of `attn_qkv` and the tiled V heads on both axes (`ssm_out`'s columns included); the fit's member footprint against hand counts; width 1 unchanged; the dead-code list names step 2 for the interfaces it leaves to step 2 |
-| 2 | `feat/tp-cpu` | groups in `Placement`, parts per member and the sum between parts, the CPU collective, one pool per group, the head's slices, `--group-width`, staged groups with passes in flight, the fit over groups | hosted: tiny F32 fixtures with even shapes at width 2 against HF at the F32 bounds (`f32`, `qwen35`); 1 stage of width 2 against 2 stages of width 2 on four CPU backends bit for bit (`split`, `placement`); the row-class and batch checks over a group (slices, two sequences, P = S and 2S, failures mid-pass); `server-passes-cpu` and `server-resume` over CPU groups; `cli` refusals; device-reference criterion against width 1 |
-| 3 | `feat/tp-vulkan` | the Vulkan collective (inboxes, sync files, parity), a submitting thread per member if step 0 asks for it, the topology check | `backend-vulkan`: the sum's bits equal on every member and to the CPU's order, every size and refusal; `vulkan-lifetime` for inboxes and semaphores; on two MI50s: HF gate (Qwen3-8B Q8_0 baseline, tiny fixtures), the 16k checks, the identity rules of 4.4, greedy agreement against one device reported; timing: Qwen3-8B and 32B Q8_0 decode at 1 to 8 users and pp512 to pp16384 against the layer split, mx-llama.cpp's ROCm tensor split and vLLM; the skew gate of 4.5; the Radeon VII and Windows builds unchanged |
+| 2 | `feat/tp-cpu` | groups in `Placement`, parts per member and the sum between parts, the CPU collective, one pool per group, the head's slices, `--tensor-width`, staged groups with passes in flight, the fit over groups | hosted: tiny F32 fixtures with even shapes at width 2 against HF at the F32 bounds (`f32`, `qwen35`); 1 stage of width 2 against 2 stages of width 2 on four CPU backends bit for bit (`split`, `placement`); the row-class and batch checks over a group (slices, two sequences, P = S and 2S, failures mid-pass); `server-passes-cpu` and `server-resume` over CPU groups; `cli` refusals; device-reference criterion against width 1 |
+| 3 | `feat/tp-vulkan` | the Vulkan collective (inboxes, sync files, parity), a submitting thread per member if step 0 asks for it, the topology check | `backend-vulkan`: the sum's bits equal on every member and to the CPU's order, every size and refusal; `vulkan-lifetime` for inboxes and semaphores; on two MI50s: HF gate (Qwen3-8B Q8_0 baseline, tiny fixtures), the 16k checks, the identity rules of 4.4, greedy agreement against one device reported; the performance gate of decision 7, the reference's ROCm tensor split on the same cards (section 2.8), at 1 to 64 users with inter-token p99, prompt speed and single-request decode, a cell below it listed in STATUS with the fast-transport recovery named; the skew gate of 4.5; the Radeon VII and Windows builds unchanged |
 | 4 | `feat/tp-staged-serve` | the server over groups and stages: the sum term in the pass cost, `--passes` over staged groups, the fit's checks of handoff and logits on groups | section 4.7's gates at 1 to 64 users on 2 and 4 MI50s and 2 stages of 4 on 8, with the skew gate at 8; `tools/server_mix_check.py`; server and CLI equal within one group shape |
 | 5 | `feat/tp-qwen35` | the linear attention's shards (K heads with their tiled V heads, conv channels, per-head state), states, checkpoints and marks per member | `qwen35` component at width 2 on CPU groups against HF; `arch-qwen35` checks over groups (forks at checkpoints, retract, marks, rerun) bit-identical within a group shape; Qwen3.6-27B Q8_0 on 2 and 4 MI50s: HF gate on the qwen35 gate files, 16k checks, timing against the layer split and the references |
 | 6 | `feat/tp-spec` | the embedded drafter's shards and the argmax exchange, the verify and rerun over groups in the CLI and the server | section 4.8's gates |
 | 7 | `perf/tp-overlap` | two micro-batches of a prompt pass, one exchanging while the other computes, only from the size where step 0 or step 3 measured a gain | prompt speed against step 3 at 512 to 16384 tokens with bits unchanged (the sum's order does not change) |
 | 8 | `feat/tp-moe` | if measured worth it: experts by rows where every down shard is whole blocks, else by member, with the router replicated | the MoE HF gate at width 2, Qwen3-30B-A3B and Qwen3.6-35B-A3B decode and serving against the layer split; not built if the measurement shows no gain |
 
-Steps 0 and 0b ran first, in parallel, after this plan landed; step 0's outcome (section 8) defers steps 1 to 8. When the work reopens, steps 1 and 2 follow and need no device beyond the probe's cards; step 3 is the first device merge; steps 5 and 6 follow the order of SPECULATIVE's own steps where they share files.
+Steps 0 and 0b ran first, in parallel, after this plan landed; step 0's outcome (section 8) deferred steps 1 to 8, and the user's direction of 2026-10-04 (section 8, Built on Vulkan now) reopened steps 1 to 3.
+Steps 1 and 2 follow and need no device beyond the probe's cards; step 3 is the first device merge; steps 5 and 6 follow the order of SPECULATIVE's own steps where they share files.
 
 ## 7. Risks and how each is measured early
 
@@ -371,7 +467,7 @@ The coordinator proposed answers in the shared development log (PROPOSAL re:tens
 4. **Flag:** `--group-width N`.
 5. **MoE:** deferred to step 8, where the routed and the shared expert's partials accumulate into one cleared partial slot before one sum, and width 1 keeps today's order of the two residual adds.
 6. **`runtime.hpp`:** a separate, minimal, move-only split by concern first, with its own gates (byte identity on the CPU and a device, CTest, the hosted run, and code-layout scrutiny of the hot path), so the group's bookkeeping lands in a file of its own.
-7. **The merge gate:** the tensor split's purpose and gate is its single-request and few-user gain over the layer split; every 16 to 64 user figure and every reference figure (mx-llama.cpp's ROCm tensor split, vLLM) is reported beside it, and a reference floor not met stays visibly open under the first-support policy of AGENTS.md, never called passed because the layer split is beaten.
+7. **The merge gate** is the reference's ROCm tensor split on the same cards, width, models and loads, with its best environment (the user, 2026-10-04; section 8, Built on Vulkan now): single-request decode, prompt speed, server output at 1 to 64 users, and inter-token p99, as measured in section 2.8; beating the layer split or one card is reported but is not the gate. A reference cell not met stays visibly open under the first-support policy of AGENTS.md, with the recovery work (the fast Vulkan transport) named and following at once, never called passed because the layer split is beaten.
    Every width-1 gate stays unchanged, and no dtype or half-weight prerequisite is waived by these choices.
 
 ### The outcome of step 0 (2026-10-04)
@@ -380,14 +476,41 @@ Decided by the coordinator and the other developer under the user's delegation (
 1. The Vulkan collective (step 3) is not built now: on Vulkan here a group gains 1 to 10 percent for one request and loses to replicas or a layer split from 16 rows on (section 5), which does not meet decision 7's purpose.
 2. Steps 1 and 2 are not built alone either, since shards and CPU groups give no user gain without a device collective; the design above stays as the plan the work reopens on.
 3. `llmx-vk-handoff exchange` lands as a mode of the existing diagnostic tool, since decision 2 requires the probe on every new driver; it adds no runtime code.
-4. The work reopens on any of: a ROCm backend, whose HIP peer stores into fine-grained memory sum in 6 to 17 us; a Vulkan driver with a documented cross-device visibility and ordering contract and a passing probe; or a sum at or below about 55 us at 20 KB measured by the tool at width 2, at which the model gives the 32B 1.5 times the layer split for one request.
+4. The work reopens as the Vulkan build below (the user, 2026-10-04); a faster transport, when one passes the probe, drops in behind the collective. A ROCm backend's peer stores (a whole sum about 42 us at width 2 and 58 at width 3, waiting included, against a protocol floor of 17 us without it; section 2.8) stay the longer-term route, after the Vulkan tensor split is done.
 5. One prompt's time to first token, where a group of two gains 1.55 to 1.63 times on a 512-token chunk, stays a recorded tradeoff; it reopens the work only if the user asks for that workload.
+
+### Built on Vulkan now, gated against the reference's ROCm tensor split (2026-10-04)
+
+The user reopened step 3 and gave two directions (2026-10-04): the tensor split is built on Vulkan now, not on a ROCm backend ("we should not start ROCm until it is done on Vulkan"), and its performance gate is the reference's ROCm tensor split ("just perf gate is mx llama rocm tensor split").
+Decided with the coordinator, the other developer away:
+
+1. **The gate** is the reference's ROCm tensor split on the same cards, width, models and loads, with its best environment, as measured in section 2.8: single-request decode, prompt speed, server output at 1 to 64 users, and inter-token p99.
+   Beating the layer split or one card is reported but is not the gate.
+   Under AGENTS.md's first-support rule a step may merge below that gate only with the cells below it listed in STATUS and the recovery work named and following at once; here the recovery work is the fast Vulkan transport (item 3), which the projection says the sync-file sum cannot reach (Qwen3-32B width 2 about 21 against 33.6 tok/s for one request), so it is required work, not optional.
+2. **Build steps 1 to 3 on Vulkan now** with the sync-file collective behind the narrow `Collective` interface (section 4.9), so a faster transport drops in later without touching the model code.
+   The measured reason to build it: a single prompt's time to first token is 1.55 to 1.63 times at width 2 (section 5), and one request about 10 percent faster on Qwen3-32B.
+3. **The fast Vulkan transport is required research beside the build.** The in-submission flag wait was tried with the Vulkan memory model, with device-uncached memory on both sides, and with the reference's own KFD-allocated uncached fine-grained VRAM (section 4.3); all failed, the last because RADV imports a dma-buf with implicit sync and serializes the two cards' submissions.
+   The routes still open, in order:
+   - **The kernel side first:** whether amdgpu's command-submission implicit sync can be avoided for the inbox through a uapi the kernel already has.
+     Read in the mainline source (Linux 7.3-rc5) and Mesa's main branch, the answer for a reader under RADV is no: every submission adds its fence at write usage to every buffer it lists, whatever the buffer's flags (`amdgpu_cs_submit`); a submission skips implicit sync only for a listed buffer carrying `AMDGPU_GEM_CREATE_EXPLICIT_SYNC`, and waits on every other device's fences otherwise (`amdgpu_cs_sync_rings`, `amdgpu_sync_test_fence`); RADV sets that flag on its own allocations, so the exporter's side is already explicit, but an import takes only the coherence and caching flags of an amdgpu exporter, never the explicit-sync one (`amdgpu_dma_buf_create_obj`), and RADV lists every imported buffer in each submission, so the reader always waits for the writer's whole submission.
+     A per-context opt-out (`AMDGPU_CTX_ALLOC_FLAGS_EXPLICIT_SYNC`, Faith Ekstrand's RFC of 2024-08-07) and a per-submission one (`AMDGPU_CS_NO_IMPLICIT_SYNC`, Bas Nieuwenhuizen's series of the same day, adding the fences at bookkeeping usage) were proposed and are not in mainline; KFD queues, which the reference uses, bypass this path because they submit without the command-submission ioctl.
+     What remains on this route: the smallest kernel change that would serve, an import inheriting `AMDGPU_GEM_CREATE_EXPLICIT_SYNC` from an amdgpu exporter beside the flags it already inherits, or one of the 2024 opt-outs revived, and a check with `llmx-vk-handoff exchange` on a kernel built with it before anything is proposed upstream.
+   - **An upstream RADV change,** the route users can actually get, since a privately patched Mesa is not a deliverable: an import without implicit sync and mapped uncached when asked, then the reference's in-kernel protocol works directly.
+     Since no existing uapi lets RADV drop the reader's implicit sync, a change inside RADV alone cannot do it; it needs one of the kernel changes above first, then a small RADV change to use it, so the path to users runs through a kernel release and a Mesa release.
+   - Host-relayed uncached events, which avoid dma-buf implicit sync altogether.
+   - A cheaper sync-file chain (pre-queued, ring or tree), which cuts the exchange but not toward the reference.
+   Whatever passes `llmx-vk-handoff exchange` goes behind `Collective`; the sync-file path stays the fallback.
+4. **The flag** is `--tensor-width N` in place of `--group-width N` (section 4.6), with the refusals listed there.
+5. **Width 4** of the reference on one root complex is measured once the fourth card is free, and added to section 2.8.
+6. **Width 8:** the cap of 4 (decision 3) opens once a width-8 Vulkan sum is measured with `llmx-vk-handoff exchange` and the per-token model says width 8 pays; the gate at 8 cards is the reference's best shape there, width 8 (Qwen3.6-27B Q8_0 tg256 57.2 tok/s with two-shot, against 51.7 at width 4) or staged, whichever is faster on the load measured, so llmx's 2 stages of 4 meet the reference's width 8 where that is its best.
 
 ## 9. Sources
 
+- mx-llama.cpp's ROCm and CUDA all-reduce: `ggml/src/ggml-cuda/tp-allreduce.cu` (kernels, flags, staging), `ggml/src/ggml-cuda/ggml-cuda.cu` (dispatch and size gate), `ggml/src/ggml-backend-meta.cpp` (lane dispatch, token graph), `tp-notes/ENV_VARS.md`, `tp-notes/research/mi50-decode-bandwidth-roofline.md`, `tp-notes/research/mi50-meta-parallel-lane-dispatch.md`, commits `093f2a38fc`, `5f65f9fa38`, `19d784ad0e`, `92607b5d1d`, `751b6114cd`, `28ce13af18`, `c93294e3de`, and the image `mxxm/mx-llama.cpp:gfx906` at `eefc4e732`.
 - Megatron-LM: Shoeybi et al., https://arxiv.org/pdf/1909.08053 ; Korthikanti et al., https://arxiv.org/pdf/2205.05198 ; Narayanan et al., https://arxiv.org/pdf/2104.04473 ; https://github.com/NVIDIA/Megatron-LM/blob/core_v0.19.2/megatron/core/tensor_parallel/
 - vLLM v0.30.0: https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/model_executor/layers/linear.py ; .../layers/vocab_parallel_embedding.py ; .../layers/mamba/gdn/qwen_gdn_linear_attn.py ; .../models/qwen3_moe.py ; .../models/qwen3_next.py ; .../distributed/device_communicators/custom_all_reduce.py ; https://github.com/vllm-project/vllm/blob/v0.30.0/csrc/custom_all_reduce.cuh ; .../model_executor/determinism/batch_invariant.py ; .../docs/serving/parallelism_scaling.md
 - SGLang v0.5.21: https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/layers/linear.py ; .../srt/layers/dp_attention.py ; .../srt/distributed/parallel_state.py ; .../docs/docs/advanced_features/deterministic_inference.mdx ; https://www.lmsys.org/blog/2024-12-04-sglang-v0-4/
+- amdgpu implicit sync: Linux 7.3-rc5 `drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c`, `amdgpu_sync.c`, `amdgpu_dma_buf.c`, `include/uapi/drm/amdgpu_drm.h` (https://github.com/torvalds/linux/tree/master/drivers/gpu/drm/amd/amdgpu); Mesa main `src/amd/vulkan/winsys/amdgpu/radv_amdgpu_bo.c` and `radv_amdgpu_cs.c` (https://gitlab.freedesktop.org/mesa/mesa); the dma-buf usage levels, https://docs.kernel.org/driver-api/dma-buf.html ; "[RFC] amdgpu: Add a context flag to disable implicit sync", https://www.mail-archive.com/amd-gfx@lists.freedesktop.org/msg110771.html ; "[PATCH 5/6] drm/amdgpu: Implement disabling implicit sync per submission", https://www.mail-archive.com/amd-gfx@lists.freedesktop.org/msg110795.html
 - Vulkan scopes (CrossDevice disallowed, a Device-scope instance per device): https://docs.vulkan.org/spec/latest/chapters/shaders.html
 - Batch invariance: https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/ ; tensor-parallel invariance at a cost: https://arxiv.org/html/2511.17826v2
 - llama.cpp's tensor split on PCIe cards: https://github.com/ggml-org/llama.cpp/pull/19378

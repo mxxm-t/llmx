@@ -89,7 +89,12 @@ namespace {
     X(vkCreateQueryPool) \
     X(vkCmdResetQueryPool) \
     X(vkCmdWriteTimestamp) \
-    X(vkGetQueryPoolResults)
+    X(vkGetQueryPoolResults) \
+    X(vkCreateEvent) \
+    X(vkCmdSetEvent) \
+    X(vkCmdWaitEvents) \
+    X(vkGetEventStatus) \
+    X(vkSetEvent)
 
 #define DECLARE(name) PFN_##name name = nullptr;
 PFN_vkGetInstanceProcAddr get_instance_proc = nullptr;
@@ -1222,6 +1227,7 @@ void compute_barrier(Device& d, VkCommandBuffer cb) {
 // The all-reduce of a tensor group, measured on 2 to 4 devices (docs/TENSOR-SPLIT.md, step 0): in each epoch every member writes its F32 partial into slot `member` of every member's inbox, waits for the others and adds the slots in member order, every sum checked.
 // Inboxes are uncached device memory exported as dma-buf (`device`) or host memory imported into every member (`host`).
 // It times the dispatch floor with no peer, the exchange through sync files with one submission an epoch a member, and the members' arrival at each epoch on the host's clock, then tries a wait inside one submission on a flag written with the Vulkan memory model at device and at queue-family scope, which on RADV and gfx906 never sees a peer's writes (docs/TENSOR-SPLIT.md, section 2.6), so each spin is bounded at 2^16 reads and a timeout ends the chain's waits.
+// With host inboxes it also times host-relayed events (docs/TENSOR-SPLIT.md, section 8): every epoch in one command buffer a member, its partials written into the inboxes, a barrier to the host, which the command processor's cache writeback serves, and an event the host polls; once every member's event of the epoch is set, a host thread sets each member's event that its sum waits on, so no member's submission waits on another's.
 int exchange(const std::vector<int>& ids, int epochs, bool host_inboxes) {
     VkInstance inst = make_instance();
     const auto pds = physical_devices(inst);
@@ -1463,18 +1469,72 @@ int exchange(const std::vector<int>& ids, int epochs, bool host_inboxes) {
             }
             return us;
         };
-        std::vector<double> floor_us, sync_us;
+        // Host-relayed events: done[d][i] set by member d after its partials of epoch i reach host memory, go[d][i] set by the host once every member's done[i] is, which d's sum of epoch i waits on.
+        // With `self` each member sets its own go event behind its done event, no host between them, which isolates what the barrier to the host and the events cost; such a chain does not order the members, so its sums are not counted.
+        // Without `to_host` the barrier to the host is left out, which tells its cost from the events'.
+        auto relay_chain = [&](bool self, bool to_host = true) {
+            std::vector<std::vector<VkEvent>> done(W, std::vector<VkEvent>((size_t)epochs)), go(W, std::vector<VkEvent>((size_t)epochs));
+            VkEventCreateInfo eci{};
+            eci.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
+            std::vector<VkCommandBuffer> cb(W);
+            for (uint32_t d = 0; d < W; ++d) {
+                for (int i = 0; i < epochs; ++i) {
+                    check(dev[d].vkCreateEvent(dev[d].dev, &eci, nullptr, &done[d][(size_t)i]), "vkCreateEvent");
+                    check(dev[d].vkCreateEvent(dev[d].dev, &eci, nullptr, &go[d][(size_t)i]), "vkCreateEvent");
+                }
+                cb[d] = begin_commands(dev[d]);
+                for (int i = 0; i < epochs; ++i) {
+                    const uint32_t e = epoch + (uint32_t)i;
+                    sends(cb[d], d, e, pipes[d].send, false);
+                    VkMemoryBarrier out{};
+                    out.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+                    out.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                    out.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+                    if (to_host) dev[d].vkCmdPipelineBarrier(cb[d], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &out, 0, nullptr, 0, nullptr);
+                    dev[d].vkCmdSetEvent(cb[d], done[d][(size_t)i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+                    if (self) dev[d].vkCmdSetEvent(cb[d], go[d][(size_t)i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+                    VkMemoryBarrier in{};
+                    in.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+                    in.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+                    in.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    dev[d].vkCmdWaitEvents(cb[d], 1, &go[d][(size_t)i], VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 1, &in, 0, nullptr, 0, nullptr);
+                    sum(cb[d], d, e, pipes[d].sum);
+                }
+                check(dev[d].vkEndCommandBuffer(cb[d]), "vkEndCommandBuffer");
+            }
+            epoch += (uint32_t)epochs;
+            const double t0 = now_us();
+            for (uint32_t d = 0; d < W; ++d) submit(dev[d], cb[d], tl[d], ++v[d]);
+            for (int i = 0; !self && i < epochs; ++i) {
+                for (uint32_t d = 0; d < W; ++d)
+                    while (dev[d].vkGetEventStatus(dev[d].dev, done[d][(size_t)i]) != VK_EVENT_SET) {}
+                for (uint32_t d = 0; d < W; ++d) check(dev[d].vkSetEvent(dev[d].dev, go[d][(size_t)i]), "vkSetEvent");
+            }
+            for (uint32_t d = 0; d < W; ++d) wait_value(dev[d], tl[d], v[d]);
+            return (now_us() - t0) / epochs;
+        };
+        std::vector<double> floor_us, sync_us, relay_us, self_us, bare_us;
         reset_results();
         local_chain();
         sync_chain();
+        if (host_inboxes) relay_chain(false);
         spread.clear();
         for (int r = 0; r < 5; ++r) {
             floor_us.push_back(local_chain());
             sync_us.push_back(sync_chain());
+            if (host_inboxes) relay_us.push_back(relay_chain(false));
         }
         const uint64_t wrong = mismatches();
         wrong_total += wrong;
+        // The chains without the host do not order the members, so their sums go uncounted.
+        for (int r = 0; host_inboxes && r < 5; ++r) {
+            self_us.push_back(relay_chain(true));
+            bare_us.push_back(relay_chain(true, false));
+        }
+        reset_results();
         std::printf("%9u floats (%7.1f KB): us an epoch, median of 5 chains: floor %.1f, sync files %.1f", n, n * 4 / 1024.0, stats(floor_us).median, stats(sync_us).median);
+        if (host_inboxes) std::printf(", host-relayed events %.1f, the same barriers and events with no host between them %.1f, those events without the barrier to the host %.1f",
+                                      stats(relay_us).median, stats(self_us).median, stats(bare_us).median);
         if (timestamps) std::printf("; members' arrival spread median %.1f, p90 %.1f, calibration uncertainty up to %.1f", stats(spread).median, stats(spread).p90, deviation_us);
         std::printf("; wrong sums %llu\n", (unsigned long long)wrong);
         for (int scope = 0; scope < 2; ++scope) {

@@ -13,6 +13,16 @@
 - **Gotchas:** width 1 is byte-identical, since no declaration changes what a role reads or how it is adopted; `footprint` keeps one device's arena, handoff rows and mark rows for a member, an upper bound; the block-boundary rule applies span by span, so a tiled split is checked on each tile.
 - Lands by fast-forward on the coordinator's review, the other developer away.
 
+## Host-relayed events measured, and the kernel route proposed (2026-10-04, branch tools/tp-relay, tensor split transport research, lands by fast-forward)
+
+- **Goal:** the transport routes of `docs/TENSOR-SPLIT.md`, section 8, item 3, after the coordinator's direction (the kernel route proposed, not tried on the test machine, which hosts production; the host-relayed events and the cheaper sync-file chain measured).
+- **Done:** `llmx-vk-handoff exchange` with host inboxes also times host-relayed events: every epoch in one command buffer a member, its partials into the host inboxes, a barrier to the host and an event the host polls, and the host setting each member's event its sum waits on; and the same chain with each member setting its own event, with and without the barrier, which isolates the cost.
+  Two MI50s of one root complex (PCI 83:00 and 86:00), RADV Mesa 25.0.7, default clocks, 64 epochs a chain, median of 5 chains, three runs: at 20 KB host-relayed events 135.1 to 138.2 us an epoch, sync files 139.3 to 146.6, the members' own events 137.3 to 140.5 and without the barrier 138.7, over a floor of 19.5 to 19.8; level at 160 KB (181.6 to 184.2 against 163.1 to 182.4), 1.25 MB and 10 MB; every sum correct.
+  The plan records the result: the command processor's event set and wait costs about 118 us an epoch, which closes the host-relayed route and, at width 2, the cheaper sync-file chain; and it proposes the smallest kernel change, an import inheriting `AMDGPU_GEM_CREATE_EXPLICIT_SYNC` from an amdgpu exporter, with its rationale and risks, untried until the user decides how to test it.
+- **Checks:** a tools and docs change: the docs and dead-code components; the tool builds in the Vulkan configuration; the hosted run.
+- **Left:** none on this branch; the kernel route waits on the user.
+- **Gotchas:** the chains without the host do not order the members, so their sums are not counted; the members' arrival spread stays about 55 us at decode sizes on every chain.
+
 ## Disk tier (planned 2026-10-04, branch docs/disk-tier-plan, design only, lands by fast-forward once reviewed)
 
 - **Goal:** a disk tier under the host tier, so histories host memory can no longer hold are read back from a local disk in about half a second instead of recomputed ([DISK-TIER](DISK-TIER.md)).

@@ -120,7 +120,7 @@ One in flight completes its pass and is not sampled, since no one reads its toke
 The scheduler thread repeats a round over the model's pass API (`reserve_passes`, `begin_pass`, `run_pass_stage`, `pass_logits`, `end_pass`, `abort_pass`, [EXECUTION](EXECUTION.md)) in one context reserved at start for its passes in flight, each in a slot with its own handoff buffers, sized for at most one row per decoding request plus a ubatch of prompt or replay rows. Each new pass takes the ready decoders selected by `decode_share`, and each request wants one logits row at most.
 On a pipelined layer split it keeps one pass in flight per stage, so every stage works on some pass while the host samples one and forms the next; elsewhere it keeps one.
 `--passes N` sets another number, which a placement that is not pipelined refuses above one, and passes whose handoff buffers do not fit the memory are dropped at start, one at a time, with a line on stderr, never silently.
-The policy the round follows is in `server/policy.hpp`, free functions over plain data that the `server-passes` CTest runs the round over with a simulated executor: `Pools` for what positions take in the pools' blocks, `Growth` for what a request reserves at admission and as it grows, `make_room` for room, `round_steps` for which stages a round records and which passes it retires, `decode_share` for how many decode entries a pass takes, and `logit_rows`, `take_rows` and `give_rows` for the logits rows a context reserves and where a pass's rows go.
+The policy the round follows is in `server/policy.hpp`, free functions over plain data that the `server-passes` CTest runs the round over with a simulated executor: `Pools` for what positions take in the pools' blocks, `Growth` for what a request reserves at admission and as it grows, `make_room` for room, `round_steps` for which stages a round records and which passes it retires, `decode_share` for how many decode entries a pass takes, `prompt_slice` for how many rows a prompt slice takes, and `logit_rows`, `take_rows` and `give_rows` for the logits rows a context reserves and where a pass's rows go.
 
 ```
 round:
@@ -172,7 +172,15 @@ round:
            share, those that left flight earliest first; then for every
            other request not in flight a slice of the next stretch its
            cache lacks, at that stretch's extent, in order of first
-           admission, until the pass holds ubatch tokens, the generated
+           admission, each slice at most prompt_slice rows (for a
+           request alone on a split, nothing else active, queued or
+           paused after this round's admissions, about a 2 * stages-th
+           of what it lacks, 128 at least, so the stages read it
+           together; once company comes, the rows that bring what it
+           read alone back to a whole ubatch, before any other prompt's
+           slice and in a pass no other prompt shares), until the pass
+           holds
+           ubatch tokens, the generated
            tokens a resume recomputes at most 64 a request, each counting
            ubatch / 64, at least 1; the entry that
            ends a request's history wants logits, the others do not; the

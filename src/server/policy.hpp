@@ -153,6 +153,23 @@ inline Steps round_steps(const std::vector<Flight>& slots, size_t stages) {
 // Only passes that fill the stages share, since then a pass retires every round and a request held back joins the next; with fewer, a request held back could wait for most of a pass, and every ready one goes.
 inline size_t decode_share(size_t decoders, size_t passes, size_t stages) { return passes < stages ? decoders : (decoders + passes - 1) / passes; }
 
+// The most rows of a request's next prompt slice, and whether that slice closes its pass to other prompts' rows.
+struct PromptSlice {
+    size_t most;
+    bool closes;
+};
+
+// A request's next prompt slice when it lacks `waiting` prompt rows on `stages` stages, `alone` when no other request is active, queued or paused, having read `read_alone` prompt rows while it was: a ubatch, but for a lone request about a 2 * stages-th of what it lacks, a ubatch at most, so consecutive passes carry consecutive slices and every stage reads the prompt at once.
+// Once company comes, a prompt whose lone slices left it off a whole ubatch first takes the rows back to one, in a pass no other prompt shares and before any other prompt's slice, waiting for its pass in flight if it must: a prompt straddling two passes delays every prompt after it by the cut pass, and a short pass on stage 0 behind a full one leaves that stage idle while the host waits for the full one's logits (docs/STATUS.md, a lone prompt read by every stage).
+// Beside other requests the stages already have their passes, and smaller slices only cost the prompt tile; a slice keeps at least kMinSlice rows (docs/STATUS.md, a lone prompt read by every stage), and slices only change where a stretch is cut, never what a row computes.
+inline PromptSlice prompt_slice(size_t waiting, size_t stages, size_t ubatch, bool alone, size_t read_alone) {
+    static constexpr size_t kMinSlice = 128;
+    if (!alone) return read_alone % ubatch ? PromptSlice{ubatch - read_alone % ubatch, true} : PromptSlice{ubatch, false};
+    if (stages < 2) return {ubatch, false};
+    const size_t cut = (waiting + 2 * stages - 1) / (2 * stages);
+    return {std::min(ubatch, std::max(std::min(kMinSlice, ubatch), cut)), false};
+}
+
 // The logits rows of a context reserved for passes, which each pass takes a run of as it is formed: after the newest run, or from row 0 when that does not fit.
 // Runs come back oldest first, a run given back early, an aborted pass's, once every run taken before it has, so a run always fits while it and the runs held want at most half the rows, and when no run is held all of them.
 struct LogitRows {

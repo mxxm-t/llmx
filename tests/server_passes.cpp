@@ -34,6 +34,7 @@ struct Sim {
         uint64_t id = 0, admission = 0, donor = 0;   // donor: the one its last pause left, which it takes back if it is still there
         bool uncapped = false, stalled = false, cancel = false;
         size_t prompt = 0, max_tokens = 0, gen = 0, len = 0;   // len: what its cache holds, a pass in flight's rows not counted
+        size_t read_alone = 0;                                // prompt rows it read while alone (server::prompt_slice)
         size_t slot = npos;                                   // the slot of the pass it is in flight in
         uint64_t since = 0, cancelled = 0;                    // the round it last got a token or could not, and the round its cancel was first seen in
         uint64_t landed = 0;                                  // the formation order of the last pass it left flight from
@@ -451,17 +452,28 @@ struct Sim {
                     p.wants.push_back(1);
                     ++p.decoders;
                 }
-            for (const Req& r : active) {
-                if (r.decoding() || !ready(r) || !budget || r.len >= r.history()) continue;
-                const size_t n = std::min(budget, r.history() - r.len);
+            const bool alone = active.size() == 1 && queue.empty() && paused.empty();
+            bool held = false;
+            for (Req& r : active) {
+                if (r.decoding() || !budget || r.len >= r.history()) continue;
+                const server::PromptSlice s = server::prompt_slice(r.history() - r.len, S, ubatch, alone, r.read_alone);
+                if (r.slot != npos) {
+                    held = s.closes;
+                    if (held) break;
+                    continue;
+                }
+                if (!ready(r)) continue;
+                const size_t n = std::min({budget, s.most, r.history() - r.len});
                 budget -= n;
+                r.read_alone = alone && r.len + n < r.history() ? r.read_alone + n : 0;
                 p.ids.push_back(r.id);
                 p.rows.push_back(n);
                 p.wants.push_back(r.len + n == r.history());
+                if (s.closes) break;
             }
             if (p.ids.empty()) {
-                // No free slot idles while a request is ready: a pass comes out empty only when every active request is in flight or sits the round out.
-                for (const Req& r : active) require(!ready(r), at + ": a free slot idled while a request was ready");
+                // No free slot idles while a request is ready: a pass comes out empty only when every active request is in flight or sits the round out, or a prompt read alone, in flight, holds the passes for its slice back to a whole ubatch.
+                for (const Req& r : active) require(held || !ready(r), at + ": a free slot idled while a request was ready");
                 return;
             }
             for (char w : p.wants) p.want += (size_t)w;
@@ -636,6 +648,15 @@ void growth_by_hand() {
     require(server::decode_share(0, 3, 3) == 0 && server::decode_share(7, 1, 1) == 7 && server::decode_share(7, 3, 2) == 3 && server::decode_share(6, 3, 3) == 2 && server::decode_share(1, 4, 2) == 1,
             "the decode share was not the decoding requests over passes that fill the stages, rounded up");
     require(server::decode_share(7, 2, 3) == 7, "passes that do not fill the stages held a decoding request back");
+    const auto most = [](size_t waiting, size_t stages, size_t ubatch, bool alone) { return server::prompt_slice(waiting, stages, ubatch, alone, 0).most; };
+    require(most(512, 1, 512, true) == 512 && most(2048, 2, 512, true) == 512 && most(9000, 3, 512, true) == 512, "a prompt slice was cut on one stage or past the ubatch");
+    require(most(512, 2, 512, false) == 512 && most(300, 3, 512, false) == 512, "a prompt slice was cut beside other requests");
+    require(most(512, 2, 512, true) == 128 && most(1000, 2, 512, true) == 250 && most(1024, 2, 512, true) == 256 && most(900, 3, 512, true) == 150,
+            "a lone prompt's slices were not a 2 * stages-th of its rows");
+    require(most(300, 2, 512, true) == 128 && most(40, 2, 512, true) == 128 && most(100, 2, 64, true) == 64, "a prompt slice went below 128 rows, or past the ubatch");
+    const server::PromptSlice back = server::prompt_slice(384, 2, 512, false, 128), whole = server::prompt_slice(384, 2, 512, false, 1024), lone = server::prompt_slice(384, 2, 512, true, 128);
+    require(back.most == 384 && back.closes && whole.most == 512 && !whole.closes && !lone.closes,
+            "company did not bring a prompt read alone back to a whole ubatch in a pass of its own, or a prompt on one already, or alone, was held to one");
 }
 
 // The round by hand: each stage records its oldest waiting pass from the last stage down, one stage a pass, and passes past their last stage retire oldest first.

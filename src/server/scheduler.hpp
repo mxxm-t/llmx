@@ -206,6 +206,7 @@ private:
     size_t reached_ = 0;           // the longest history its cache has held, past which nothing is recomputed
     size_t recomputed_ = 0;        // rows its resumes computed again
     size_t keep_at_ = 0;           // on a model that keeps a state, where the slice that reaches it keeps the state as a checkpoint; 0 once kept or skipped
+    size_t read_alone_ = 0;        // prompt rows it read while it was alone, which prompt_slice brings back to a whole ubatch once company comes; 0 after that
     bool finished_ = false;        // it has left the active set for good
     uint64_t parked_ = 0;          // the donor it left as it finished
     // A job (docs/SPECULATIVE.md, section 2, Idle re-prefill): an internal request whose prompt, whole blocks, is what the conversation's next turn begins with after request `of_`'s reply, read as prompt rows of one class and kept as a donor that replaces the ones it supersedes; `whole_` once those ids follow the whole reply rather than the part written so far.
@@ -640,8 +641,28 @@ private:
             }
             add_entry(r, e);
         };
-        for (auto& r : active)
-            if (!r->job_ && !decoding(*r) && !r->seq_.in_flight() && budget) slice(r, budget);
+        // A lone request's prompt slices shrink so the stages of a split read it together (prompt_slice); alone means nothing else active, queued or paused after this round's admissions, and company that arrives mid-prompt brings whole slices back once the lone request's reading is back on a whole ubatch.
+        bool company;
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            company = !queue_.empty() || !paused_.empty();
+        }
+        const bool alone = active.size() == 1 && !active[0]->job_ && !company;
+        for (auto& r : active) {
+            if (r->job_ || decoding(*r) || !budget) continue;
+            const size_t waiting_rows = history_tokens(*r) - std::min(history_tokens(*r), r->seq_.length());
+            const PromptSlice s = prompt_slice(waiting_rows, model_.stage_count(), ubatch_, alone, r->read_alone_);
+            if (r->seq_.in_flight()) {
+                if (s.closes) break;
+                continue;
+            }
+            const size_t before = entries_.size();
+            slice(r, std::min(budget, s.most));
+            // What it read alone counts until company comes or its prompt has been sliced whole.
+            if (!alone || entries_.size() == before || r->seq_.length() + entries_.back().n >= history_tokens(*r)) r->read_alone_ = 0;
+            else r->read_alone_ += entries_.back().n;
+            if (s.closes) break;
+        }
         // Then a job: while no request is active, in flight in another pass or not, or, once it has read some of a reply while that reply was written, in the budget a pass leaves, at most kJobChunk rows of it.
         // A pass without request rows is not idle while a request is in flight beside it: its next token waits for this pass on every stage.
         const bool idle = std::none_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return !r->job_; });

@@ -144,6 +144,83 @@ void replayed(const Make& one, const std::function<Make(size_t)>& split, const b
     }
 }
 
+// A lone request's prompt slices on two CPU stages with a ubatch of 256 (prompt_slice): a burst of four 512-token prompts queued together takes whole ubatches, never a cut slice, and a lone 768-token prompt's slices shrink to a quarter of what it lacks until a request arrives, which the first pass's retirement submits, after which a slice in a pass of its own brings it back to a whole ubatch and its slices are whole ubatches again; every reply its reply alone.
+void slices(const Make& one, const std::function<Make(size_t)>& split, const bpe::Tokenizer& tok, uint32_t vocab) {
+    constexpr int kWide = 256;
+    const size_t pool = 32 * kBlock;
+    const auto run = [&](const std::vector<Req>& queued, const Req* arriving, std::vector<server::Scheduler::Retired>& passes,
+                         std::vector<std::shared_ptr<server::Request>>& handles) {
+        auto model = split(2)(pool, kWide);
+        std::vector<Reply> got;
+        server::Scheduler sched(*model, tok, kSeqs, 64, 2);
+        // The arriving request is submitted on the scheduler thread as the first pass retires, so it is queued before that round's admissions.
+        std::shared_ptr<server::Request> late;
+        std::atomic<bool> sent{false};
+        sched.on_retire = [&](const server::Scheduler::Retired& t) {
+            passes.push_back(t);
+            if (arriving && !sent.load()) {
+                late = sched.submit(arriving->prompt, params_of(*arriving));
+                sent.store(true);
+            }
+        };
+        for (const Req& r : queued) handles.push_back(sched.submit(r.prompt, params_of(r)));
+        std::thread runner([&] { sched.run(); });
+        try {
+            for (auto& h : handles) got.push_back(drain(*h));
+            if (arriving) {
+                while (!sent.load()) std::this_thread::yield();
+                handles.push_back(late);
+                got.push_back(drain(*late));
+            }
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+        return got;
+    };
+    const auto alone_on_one = [&](const Req& r) {
+        auto model = one(pool, kWide);
+        return serve(*model, tok, kSeqs, {{r}}, nullptr, 1)[0];
+    };
+    // The burst: every prompt slice a whole ubatch.
+    {
+        std::vector<Req> burst;
+        for (uint32_t i = 0; i < 4; ++i) burst.push_back({prompt_of(40 + i, 512, vocab), 4});
+        std::vector<server::Scheduler::Retired> passes;
+        std::vector<std::shared_ptr<server::Request>> handles;
+        const std::vector<Reply> got = run(burst, nullptr, passes, handles);
+        for (const auto& t : passes)
+            for (size_t e = 0; e < t.requests.size(); ++e)
+                require(t.rows[e] == 1 || t.rows[e] == (size_t)kWide, "a burst of four prompts took a cut slice of " + std::to_string(t.rows[e]) + " rows");
+        for (size_t i = 0; i < burst.size(); ++i) same(alone_on_one(burst[i]), got[i], "the burst, request " + std::to_string(i));
+    }
+    // The arrival mid-prompt: the lone prompt's first slice a quarter of its 768 rows, and after the second request's submission 64 rows in a pass no other prompt shares, then whole slices.
+    {
+        const Req lone{prompt_of(50, 768, vocab), 4}, late{prompt_of(51, 40, vocab), 4};
+        std::vector<server::Scheduler::Retired> passes;
+        std::vector<std::shared_ptr<server::Request>> handles;
+        const std::vector<Reply> got = run({lone}, &late, passes, handles);
+        std::vector<size_t> rows;
+        for (const auto& t : passes)
+            for (size_t e = 0; e < t.requests.size(); ++e)
+                if (t.requests[e] == handles[0].get() && t.rows[e] > 1) {
+                    rows.push_back(t.rows[e]);
+                    if (rows.size() == 2)
+                        for (size_t o = 0; o < t.requests.size(); ++o)
+                            require(o == e || t.rows[o] == 1, "the slice that brought the lone prompt back to a whole ubatch shared its pass with another prompt");
+                } else if (t.requests[e] == handles[1].get() && t.rows[e] > 1) {
+                    require(rows.size() >= 2, "the request that arrived took a prompt slice before the lone prompt was back on a whole ubatch");
+                }
+        require(rows.size() == 4 && rows[0] == 192, "the lone prompt's first slice was not a quarter of its rows");
+        require(rows[1] == 64 && rows[2] == (size_t)kWide && rows[3] == (size_t)kWide, "the lone prompt was not brought back to whole slices after a request arrived");
+        same(alone_on_one(lone), got[0], "the lone prompt");
+        same(alone_on_one(late), got[1], "the request that arrived mid-prompt");
+    }
+}
+
 // The steady load at every run without logprobs, so no row is copied out of a pass's logits: every id its id alone, where the row is copied for its values, and no values.
 void in_place(const Make& one, const std::function<Make(size_t)>& split, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 32 * kBlock;
@@ -326,6 +403,7 @@ void cases(const gguf::GGUFModel& weights, uint32_t vocab) {
     }
     paused(one, split, tok, vocab);
     replayed(one, split, tok, vocab);
+    slices(one, split, tok, vocab);
     in_place(one, split, tok, vocab);
     cancelled(weights, one, tok, vocab);
     failed(weights, one, tok, vocab);

@@ -28,6 +28,7 @@
 #include <windows.h>
 #else
 #include <dlfcn.h>
+#include <unistd.h>
 #endif
 
 namespace backend {
@@ -838,6 +839,13 @@ struct Device {
     // Host memory imported as device memory, which a copy reads in place (VK_EXT_external_memory_host), and the alignment of its address and size.
     PFN_vkGetMemoryHostPointerPropertiesEXT host_pointer_props = nullptr;
     size_t host_import_align = 0;
+    // A tensor group's exchange (docs/TENSOR-SPLIT.md, section 4.3): device memory shared as dma-buf and binary semaphores shared as sync files, which only Linux offers.
+    bool exchange = false;
+    std::string pci_root;   // the PCI root complex above the device (pci_root), empty where the system does not say
+    PFN_vkGetMemoryFdKHR get_memory_fd = nullptr;
+    PFN_vkGetMemoryFdPropertiesKHR memory_fd_props = nullptr;
+    PFN_vkGetSemaphoreFdKHR get_semaphore_fd = nullptr;
+    PFN_vkImportSemaphoreFdKHR import_semaphore_fd = nullptr;
     // The driver's per-kernel statistics (registers, occupancy), when it reports them.
     bool exec_stats = false;
     PFN_vkGetPipelineExecutablePropertiesKHR get_exec_props = nullptr;
@@ -876,6 +884,23 @@ struct Device {
         return (uint32_t)best;
     }
 };
+
+// The PCI root complex above the device at this address, as Linux's sysfs names it (pci0000:80), or empty where the system does not say: a tensor group stays under one (docs/TENSOR-SPLIT.md, section 4.5).
+inline std::string pci_root(uint32_t domain, uint32_t bus, uint32_t device, uint32_t function) {
+#if defined(__linux__)
+    char address[64];
+    std::snprintf(address, sizeof address, "/sys/bus/pci/devices/%04x:%02x:%02x.%x", domain, bus, device, function);
+    char resolved[4096];
+    if (!realpath(address, resolved)) return {};
+    const std::string path(resolved);
+    const size_t at = path.find("/pci");
+    if (at == std::string::npos) return {};
+    return path.substr(at + 1, path.find('/', at + 1) - at - 1);
+#else
+    (void)domain, (void)bus, (void)device, (void)function;
+    return {};
+#endif
+}
 
 class VulkanBuffer final : public Buffer {
 public:
@@ -923,7 +948,66 @@ public:
             throw;
         }
     }
-    // A copy source over host memory the device reads in place: `memory` imported as device memory of a type among `types`, both it and `bytes` on the import alignment.
+    // Device memory shared with other devices as a dma-buf (`fd` < 0, exported by this device), or another device's imported from `fd`, whose ownership the import takes (docs/TENSOR-SPLIT.md, section 4.3).
+    VulkanBuffer(std::shared_ptr<Device> dev, size_t bytes, int fd)
+        : dev_(std::move(dev)), size_(bytes) {
+        VkExternalMemoryBufferCreateInfo ei{};
+        ei.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
+        ei.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+        VkBufferCreateInfo bi{};
+        bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.pNext = &ei;
+        bi.size = (bytes + 3) & ~size_t(3);
+        bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        try {
+            check(dev_->fn.vkCreateBuffer(dev_->device, &bi, nullptr, &buffer_), "vkCreateBuffer");
+            VkMemoryRequirements req{};
+            dev_->fn.vkGetBufferMemoryRequirements(dev_->device, buffer_, &req);
+            VkExportMemoryAllocateInfo ex{};
+            ex.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
+            ex.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+            VkImportMemoryFdInfoKHR im{};
+            im.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
+            im.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+            im.fd = fd;
+            VkMemoryAllocateInfo ai{};
+            ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            ai.allocationSize = req.size;
+            uint32_t types = req.memoryTypeBits;
+            if (fd >= 0) {
+                VkMemoryFdPropertiesKHR fp{};
+                fp.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR;
+                check(dev_->memory_fd_props(dev_->device, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, fd, &fp), "vkGetMemoryFdPropertiesKHR");
+                types &= fp.memoryTypeBits;
+                ai.pNext = &im;
+                ai.memoryTypeIndex = dev_->memory_type(types, 0, 0, 0);
+            } else {
+                ai.pNext = &ex;
+                ai.memoryTypeIndex = dev_->memory_type(types, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+            }
+            check(dev_->fn.vkAllocateMemory(dev_->device, &ai, nullptr, &memory_), "vkAllocateMemory (shared)");
+            fd = -1;
+            check(dev_->fn.vkBindBufferMemory(dev_->device, buffer_, memory_, 0), "vkBindBufferMemory (shared)");
+        } catch (...) {
+#if !defined(_WIN32)
+            if (fd >= 0) close(fd);
+#endif
+            release();
+            throw;
+        }
+    }
+    // A dma-buf of this device's exported memory, which the caller owns.
+    int export_fd() const {
+        VkMemoryGetFdInfoKHR gi{};
+        gi.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
+        gi.memory = memory_;
+        gi.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+        int fd = -1;
+        check(dev_->get_memory_fd(dev_->device, &gi, &fd), "vkGetMemoryFdKHR");
+        return fd;
+    }
+    // A copy source or destination over host memory the device reads and writes in place: `memory` imported as device memory of a type among `types`, both it and `bytes` on the import alignment.
     VulkanBuffer(std::shared_ptr<Device> dev, void* memory, size_t bytes, uint32_t types)
         : dev_(std::move(dev)), size_(bytes) {
         VkExternalMemoryBufferCreateInfo ei{};
@@ -933,7 +1017,7 @@ public:
         bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bi.pNext = &ei;
         bi.size = bytes;
-        bi.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        bi.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         check(dev_->fn.vkCreateBuffer(dev_->device, &bi, nullptr, &buffer_), "vkCreateBuffer");
         try {
@@ -1058,15 +1142,25 @@ public:
         if (core_ext_count)
             fn.vkEnumerateDeviceExtensionProperties(d.physical, nullptr, &core_ext_count, core_exts.data());
         bool has_core_props = false;
-        for (const auto& e : core_exts)
+        bool has_pci = false;
+        for (const auto& e : core_exts) {
             if (std::strcmp(e.extensionName, "VK_AMD_shader_core_properties") == 0) has_core_props = true;
+            if (std::strcmp(e.extensionName, VK_EXT_PCI_BUS_INFO_EXTENSION_NAME) == 0) has_pci = true;
+        }
         VkPhysicalDeviceShaderCorePropertiesAMD core{};
         core.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_PROPERTIES_AMD;
         if (has_core_props) {
             core.pNext = p2.pNext;
             p2.pNext = &core;
         }
+        VkPhysicalDevicePCIBusInfoPropertiesEXT pci{};
+        pci.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PCI_BUS_INFO_PROPERTIES_EXT;
+        if (has_pci) {
+            pci.pNext = p2.pNext;
+            p2.pNext = &pci;
+        }
         fn.vkGetPhysicalDeviceProperties2(d.physical, &p2);
+        if (has_pci) d.pci_root = pci_root(pci.pciDomain, pci.pciBus, pci.pciDevice, pci.pciFunction);
         d.preserve_float32 = floats.shaderDenormPreserveFloat32 && floats.shaderSignedZeroInfNanPreserveFloat32;
         d.caps.subgroup_size = sg.subgroupSize;
         const bool has_units = has_core_props && core.shaderEngineCount && core.shaderArraysPerEngineCount &&
@@ -1138,8 +1232,13 @@ public:
         check(fn.vkEnumerateDeviceExtensionProperties(d.physical, nullptr, &ext_count, exts.data()),
               "vkEnumerateDeviceExtensionProperties");
         std::vector<const char*> enabled;
+        int exchange_exts = 0;
         for (const auto& e : exts)
-            if (std::strcmp(e.extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) == 0) {
+            if (std::strcmp(e.extensionName, VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME) == 0 ||
+                std::strcmp(e.extensionName, VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME) == 0 ||
+                std::strcmp(e.extensionName, VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME) == 0) {
+                ++exchange_exts;
+            } else if (std::strcmp(e.extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
                 d.push_descriptor = true;
             } else if (std::strcmp(e.extensionName, VK_KHR_SHADER_INTEGER_DOT_PRODUCT_EXTENSION_NAME) == 0) {
@@ -1164,6 +1263,14 @@ public:
                     d.host_import_align = (size_t)hp.minImportedHostPointerAlignment;
                 }
             }
+#if !defined(_WIN32)
+        if (exchange_exts == 3) {
+            enabled.push_back(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
+            enabled.push_back(VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME);
+            enabled.push_back(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
+            d.exchange = true;
+        }
+#endif
         VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR estat{};
         estat.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR;
         estat.pipelineExecutableInfo = VK_TRUE;
@@ -1217,6 +1324,13 @@ public:
         }
         if (d.host_import_align)
             d.host_pointer_props = (PFN_vkGetMemoryHostPointerPropertiesEXT)fn.vkGetDeviceProcAddr(d.device, "vkGetMemoryHostPointerPropertiesEXT");
+        if (d.exchange) {
+            d.get_memory_fd = (PFN_vkGetMemoryFdKHR)fn.vkGetDeviceProcAddr(d.device, "vkGetMemoryFdKHR");
+            d.memory_fd_props = (PFN_vkGetMemoryFdPropertiesKHR)fn.vkGetDeviceProcAddr(d.device, "vkGetMemoryFdPropertiesKHR");
+            d.get_semaphore_fd = (PFN_vkGetSemaphoreFdKHR)fn.vkGetDeviceProcAddr(d.device, "vkGetSemaphoreFdKHR");
+            d.import_semaphore_fd = (PFN_vkImportSemaphoreFdKHR)fn.vkGetDeviceProcAddr(d.device, "vkImportSemaphoreFdKHR");
+            d.exchange = d.get_memory_fd && d.memory_fd_props && d.get_semaphore_fd && d.import_semaphore_fd;
+        }
         if (!d.push_descriptor)
             throw VulkanUnavailable("vulkan: " + d.caps.device + " has no VK_KHR_push_descriptor");
         fn.vkCmdPushDescriptorSetKHR =
@@ -1534,6 +1648,16 @@ public:
         return ticket;
     }
 
+    // What a tensor group's exchange chains through (VulkanCollective): the next submission waits on `s`, and submit_signalling submits the open work signalling `signals` beside the timeline.
+    void wait_on(VkSemaphore s) { waits_.push_back(s); }
+    Ticket submit_signalling(const std::vector<VkSemaphore>& signals) {
+        const Ticket ticket = flush(signals);
+        if (hold_.on) hold_queue();
+        return ticket;
+    }
+    const std::shared_ptr<Device>& device() const { return dev_; }
+    std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
+
     // Holding (Backend::hold_between_submissions), while any holder remains: after each submit() the queue waits on an event the host sets at the next submission, or after kHoldMs, so the device stays busy, and its clock up, while another device runs its stage.
     void hold_between_submissions(bool on) override {
         if (!on) {
@@ -1591,8 +1715,8 @@ public:
         hold_.timeline = timeline;
     }
 
-    // The queue's submission of the open command buffer, after letting a held queue go.
-    Ticket flush() {
+    // The queue's submission of the open command buffer, after letting a held queue go, waiting on the semaphores a group's exchange left (wait_on) and signalling `signals` beside the timeline.
+    Ticket flush(const std::vector<VkSemaphore>& signals = {}) {
         if (hold_.on) {
             std::lock_guard<std::mutex> lk(hold_.mu);
             hold_release();
@@ -1601,18 +1725,29 @@ public:
         chunk_ = 0;
         check(dev_->fn.vkEndCommandBuffer(cmd), "vkEndCommandBuffer");
         const Ticket ticket = ++last_ticket_;
+        std::vector<VkSemaphore> signal{timeline_};
+        signal.insert(signal.end(), signals.begin(), signals.end());
+        std::vector<uint64_t> values(signal.size(), 0), wait_values(waits_.size(), 0);
+        values[0] = ticket;
+        const std::vector<VkPipelineStageFlags> stages(waits_.size(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
         VkTimelineSemaphoreSubmitInfo tsi{};
         tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-        tsi.signalSemaphoreValueCount = 1;
-        tsi.pSignalSemaphoreValues = &ticket;
+        tsi.signalSemaphoreValueCount = (uint32_t)values.size();
+        tsi.pSignalSemaphoreValues = values.data();
+        tsi.waitSemaphoreValueCount = (uint32_t)wait_values.size();
+        tsi.pWaitSemaphoreValues = wait_values.data();
         VkSubmitInfo si{};
         si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         si.pNext = &tsi;
         si.commandBufferCount = 1;
         si.pCommandBuffers = &cmd;
-        si.signalSemaphoreCount = 1;
-        si.pSignalSemaphores = &timeline_;
+        si.signalSemaphoreCount = (uint32_t)signal.size();
+        si.pSignalSemaphores = signal.data();
+        si.waitSemaphoreCount = (uint32_t)waits_.size();
+        si.pWaitSemaphores = waits_.data();
+        si.pWaitDstStageMask = stages.data();
         const VkResult r = dev_->fn.vkQueueSubmit(dev_->queue, 1, &si, VK_NULL_HANDLE);
+        waits_.clear();
         open_ = false;
         if (r != VK_SUCCESS) {
             --last_ticket_;
@@ -1726,8 +1861,9 @@ public:
         return out;
     }
 
+    // Open work and waits a group's exchange left (wait_on) are submitted first, so no semaphore a wait names outlives its use.
     void sync() noexcept override {
-        if (open_) {
+        if (open_ || !waits_.empty()) {
             try { flush(); } catch (const std::exception& e) {
                 std::fprintf(stderr, "vulkan: %s; the device is lost\n", e.what());
                 std::abort();
@@ -3219,6 +3355,7 @@ private:
     bool open_ = false;
     VkSemaphore timeline_ = VK_NULL_HANDLE;
     Ticket last_ticket_ = 0;
+    std::vector<VkSemaphore> waits_;          // what the next submission waits on (wait_on)
     static constexpr uint32_t kHolds = 4;       // hold submissions in flight; one is pending at a time
     static constexpr int kHoldMs = 100;         // the longest a held queue waits for its host
     struct {
@@ -3265,6 +3402,171 @@ private:
     Arena arena_[kRing];
     Kernel kernels_[K_COUNT][kVariants];
 };
+
+// A tensor group's sum over Vulkan devices (docs/TENSOR-SPLIT.md, section 4.3), through dma-buf and sync files.
+// Each member owns an inbox of a slot a member in each of two parities, exported as a dma-buf and imported into every peer; a sum copies each member's partial rows into its slot of every peer's inbox, submits each member's work signalling a binary semaphore a peer, and once every member has submitted imports each as a sync file into the peer, whose next submission waits on them, and adds the slots into every member's residual in member order, ((p0 + p1) + ...) + p(W-1), the CPU's order.
+// A parity is written again two sums later, behind the chain of waits that put the reads of the sum between them first.
+class VulkanCollective final : public Collective {
+public:
+    VulkanCollective(const std::vector<VulkanBackend*>& members, size_t rows, size_t width)
+        : members_(members), rows_(rows), width_(width) {
+        const size_t W = members.size(), bytes = size_mul(size_mul(rows, width), sizeof(float));
+        try {
+            for (VulkanBackend* m : members) {
+                partial_.push_back(m->alloc(bytes, Memory::device));
+                scratch_.push_back(m->alloc(bytes, Memory::device));
+            }
+            for (int p = 0; p < 2; ++p) {
+                inbox_[p].resize(W);
+                imported_[p].assign(W, std::vector<BufferPtr>(W));
+                for (size_t t = 0; t < W; ++t) {
+                    auto own = std::make_shared<VulkanBuffer>(members[t]->device(), size_mul(W, bytes), -1);
+                    inbox_[p][t] = own;
+                    for (size_t d = 0; d < W; ++d)
+                        if (d != t) imported_[p][t][d] = std::make_shared<VulkanBuffer>(members[d]->device(), size_mul(W, bytes), own->export_fd());
+                }
+            }
+            make_semaphores();
+        } catch (...) {
+            release();
+            throw;
+        }
+    }
+    ~VulkanCollective() override { release(); }
+
+    Slice partial(size_t member) override { return {partial_.at(member).get(), 0}; }
+
+    // A sum that fails part way drains the members and makes the semaphores again, so the collective is as new and the passes beside the failed one go on.
+    void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) override {
+        if (residual.size() != members_.size() || rows > rows_ || width != width_)
+            throw std::logic_error("backend: a sum of other members, rows or width than its collective was made for");
+        if (signal_.empty()) throw std::runtime_error("vulkan: a tensor group's semaphores could not be made again after a failed sum");
+        try {
+            sum(residual, rows, width);
+        } catch (...) {
+            release();
+            try { make_semaphores(); } catch (const std::exception&) { release(); }
+            throw;
+        }
+    }
+
+private:
+    void sum(const std::vector<Slice>& residual, size_t rows, size_t width) {
+        const size_t W = members_.size();
+        const size_t n = rows * width, bytes = n * sizeof(float), slot = rows_ * width_;
+        const int p = parity_;
+        parity_ ^= 1;
+        for (size_t m = 0; m < W; ++m)
+            for (size_t t = 0; t < W; ++t)
+                if (t != m) members_[m]->copy(*imported_[p][t][m], m * slot * sizeof(float), *partial_[m], 0, bytes);
+        for (size_t m = 0; m < W; ++m) {
+            std::vector<VkSemaphore> signals;
+            for (size_t t = 0; t < W; ++t)
+                if (t != m) signals.push_back(signal_[m][t]);
+            members_[m]->submit_signalling(signals);
+        }
+        // The waits go to each member's next submission only once every member has submitted, so no member's work toward this sum waits for another's.
+        for (size_t m = 0; m < W; ++m) {
+            for (size_t t = 0; t < W; ++t) {
+                if (t == m) continue;
+                const Device& from = *members_[m]->device();
+                const Device& to = *members_[t]->device();
+                VkSemaphoreGetFdInfoKHR gi{};
+                gi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
+                gi.semaphore = signal_[m][t];
+                gi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+                int fd = -1;
+                check(from.get_semaphore_fd(from.device, &gi, &fd), "vkGetSemaphoreFdKHR");
+                VkImportSemaphoreFdInfoKHR ii{};
+                ii.sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR;
+                ii.semaphore = wait_[t][m];
+                ii.flags = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT;
+                ii.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+                ii.fd = fd;
+                const VkResult r = to.import_semaphore_fd(to.device, &ii);
+                if (r != VK_SUCCESS) {
+#if !defined(_WIN32)
+                    if (fd >= 0) close(fd);
+#endif
+                    check(r, "vkImportSemaphoreFdKHR");
+                }
+                members_[t]->wait_on(wait_[t][m]);
+            }
+        }
+        for (size_t m = 0; m < W; ++m) {
+            VulkanBackend& b = *members_[m];
+            auto source = [&](size_t k) { return k == m ? CSlice{partial_[m].get(), 0} : CSlice{inbox_[p][m].get(), k * slot}; };
+            const CSlice first = source(0);
+            b.copy(*scratch_[m], 0, *first.buffer, first.offset * sizeof(float), bytes);
+            for (size_t k = 1; k < W; ++k) b.add(Slice{scratch_[m].get(), 0}, source(k), n);
+            b.add(residual[m], CSlice{scratch_[m].get(), 0}, n);
+        }
+    }
+
+    void make_semaphores() {
+        const size_t W = members_.size();
+        signal_.assign(W, std::vector<VkSemaphore>(W, VK_NULL_HANDLE));
+        wait_.assign(W, std::vector<VkSemaphore>(W, VK_NULL_HANDLE));
+        for (size_t m = 0; m < W; ++m)
+            for (size_t t = 0; t < W; ++t) {
+                if (t == m) continue;
+                signal_[m][t] = semaphore(*members_[m]->device(), true);
+                wait_[t][m] = semaphore(*members_[t]->device(), false);
+            }
+    }
+    static VkSemaphore semaphore(const Device& d, bool exported) {
+        VkExportSemaphoreCreateInfo ex{};
+        ex.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
+        ex.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+        VkSemaphoreCreateInfo si{};
+        si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        si.pNext = exported ? &ex : nullptr;
+        VkSemaphore s = VK_NULL_HANDLE;
+        check(d.fn.vkCreateSemaphore(d.device, &si, nullptr, &s), "vkCreateSemaphore");
+        return s;
+    }
+    // Every member drained first, so no submission still waits on, signals or reads what goes.
+    void release() noexcept {
+        for (VulkanBackend* m : members_) m->sync();
+        for (size_t a = 0; a < signal_.size(); ++a)
+            for (size_t b = 0; b < signal_[a].size(); ++b) {
+                if (signal_[a][b]) members_[a]->device()->fn.vkDestroySemaphore(members_[a]->device()->device, signal_[a][b], nullptr);
+                if (wait_[a][b]) members_[a]->device()->fn.vkDestroySemaphore(members_[a]->device()->device, wait_[a][b], nullptr);
+            }
+        signal_.clear();
+        wait_.clear();
+    }
+
+    std::vector<VulkanBackend*> members_;
+    size_t rows_, width_;
+    int parity_ = 0;
+    std::vector<BufferPtr> partial_, scratch_;
+    std::vector<std::shared_ptr<VulkanBuffer>> inbox_[2];          // [parity][member]: its own inbox
+    std::vector<std::vector<BufferPtr>> imported_[2];              // [parity][owner][importer]: the owner's inbox on the importer
+    std::vector<std::vector<VkSemaphore>> signal_, wait_;          // [member][peer]: what member signals to the peer; what member waits on from the peer
+};
+
+// A collective over Vulkan devices of one profile, each opened once, that share memory as dma-buf and semaphores as sync files; none where a device lacks them, as on Windows.
+std::unique_ptr<Collective> VulkanBackend::join(const std::vector<Backend*>& members, size_t rows, size_t width) {
+    if (members.empty() || members[0] != this) throw std::logic_error("backend: a collective is joined by its first member");
+    std::vector<VulkanBackend*> group;
+    for (Backend* b : members) {
+        auto* v = dynamic_cast<VulkanBackend*>(b);
+        if (!v) throw std::runtime_error("backend: a Vulkan collective over a backend that is not Vulkan");
+        if (v->dev_->caps.device != dev_->caps.device || v->dev_->caps.driver != dev_->caps.driver)
+            throw std::runtime_error("backend: a Vulkan collective over devices of different kinds");
+        for (VulkanBackend* other : group)
+            if (other->dev_->physical == v->dev_->physical) throw std::runtime_error("backend: a Vulkan collective over one device twice");
+        // Every sum crosses between the members, so they stay under one PCI root complex, whose links the measured costs assume (docs/TENSOR-SPLIT.md, section 4.5).
+        if (v->dev_->pci_root != dev_->pci_root)
+            throw std::runtime_error("backend: " + v->dev_->caps.device + " sits under PCI root " + (v->dev_->pci_root.empty() ? "unknown" : v->dev_->pci_root) +
+                                     " and the group's first device under " + (dev_->pci_root.empty() ? "unknown" : dev_->pci_root) +
+                                     "; a tensor group stays under one root complex");
+        if (!v->dev_->exchange) return nullptr;
+        group.push_back(v);
+    }
+    return std::make_unique<VulkanCollective>(group, rows, width);
+}
 
 inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s) {
     const int i = (s.k_type() == KVType::f16 ? 1 : 0) + (s.v_type() == KVType::f16 ? 2 : 0);

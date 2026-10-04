@@ -79,18 +79,21 @@ def consume(argv, description, select, refusals=()):
     parser.add_argument("--output-dir", required=True, type=Path, help="new directory for raw output and report")
     parser.add_argument("--device", help="run the commands that take --device on this device or comma-separated list, e.g. vulkan:0,vulkan:1")
     parser.add_argument("--layer-shares", help="with several devices in --device, their proportions of the layers, e.g. 1,1")
+    parser.add_argument("--tensor-width", help="with several devices in --device, split every layer across this many of them, e.g. 2 (docs/TENSOR-SPLIT.md)")
     args = parser.parse_args(argv)
     # The suite's own configuration, reaching the binary only as flags through device_args.
     if args.device:
         os.environ["LLMX_DEVICE"] = args.device
     if args.layer_shares:
         os.environ["LLMX_LAYER_SHARES"] = args.layer_shares
+    if args.tensor_width:
+        os.environ["LLMX_TENSOR_WIDTH"] = args.tensor_width
     exe, model, out = args.exe.resolve(), args.model.resolve(), args.output_dir.resolve()
     if out.exists():
         parser.error("output directory already exists; use a new path")
     out.mkdir(parents=True)
     report = {"status": "running", "threads": 6, "ubatch": 128,
-              "model": str(model), "executable": str(exe), "device": args.device or "cpu", "layer_shares": args.layer_shares,
+              "model": str(model), "executable": str(exe), "device": args.device or "cpu", "layer_shares": args.layer_shares, "tensor_width": args.tensor_width,
               "commands": [], "checks": []}
     name = None
 

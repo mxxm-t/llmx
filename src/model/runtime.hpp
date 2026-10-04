@@ -10,6 +10,7 @@
 #include <limits>
 #include <optional>
 
+#include "core/host_memory.hpp"
 #include "format/gguf.hpp"
 #include "backends/backend.hpp"
 #include "model/weights.hpp"
@@ -166,6 +167,7 @@ struct Pass {
     size_t logits_base = 0;                            // the context's logits row its head writes first
     size_t at = 0;                                     // the device its residual left the last stage from
     backend::Ticket sent = 0;                          // the submission that copied it out, after the last stage the head's
+    std::vector<backend::Ticket> sent_members;         // on a tensor split, after the last stage each member of the head's group's, whose copies of its logits rows the pass's logits wait for
     bool in_flight = false;                            // a slot's pass between begin_pass and end_pass or abort_pass
     size_t ran = 0;                                    // the stages run_pass_stage has recorded
 };
@@ -178,8 +180,12 @@ struct ExecContext {
     const float* logits(size_t i) {
         if (!logits_buf || i >= n_logits)
             throw std::out_of_range("inference: no such logits row");
-        if (pending) { backend->wait(ticket); pending = false; }
-        const void* p = logits_buf->host_ptr();
+        if (pending) {
+            backend->wait(ticket);
+            for (const auto& [b, t] : member_waits) b->wait(t);
+            pending = false;
+        }
+        const void* p = logits_host.data() ? logits_host.data() : logits_buf->host_ptr();
         if (!p) throw std::runtime_error("inference: logits are not host visible");
         return (const float*)p + i * width;
     }
@@ -187,6 +193,7 @@ struct ExecContext {
     size_t width = 0;
     backend::Ticket ticket = 0;
     backend::Backend* backend = nullptr;
+    std::vector<std::pair<backend::Backend*, backend::Ticket>> member_waits;   // on a tensor split, the head group's other members' submissions the logits also wait for
     bool pending = false;
 
     struct Scratch {
@@ -209,6 +216,9 @@ struct ExecContext {
     std::vector<std::unique_ptr<backend::Collective>> collectives;
     size_t collective_rows = 0;
     std::vector<backend::BufferPtr> member_logits;
+    // The logits rows in host memory every member of the head's group imports (logits_buf the first member's view of them, member_rows each member's), into which each copies its vocabulary slice of each row.
+    core::HostPages logits_host;
+    std::vector<backend::BufferPtr> member_rows;
 };
 
 // Prompt tokens a pass takes by default (Model::set_ubatch), and so the prompt rows a placement is fitted for.

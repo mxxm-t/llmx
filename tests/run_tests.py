@@ -55,6 +55,8 @@ def main():
     parser.add_argument("--dtype", choices=["auto", "f32", "f16", "bf16"], help="request this activation dtype on every model command")
     parser.add_argument("--layer-shares", default=None,
                         help="with several devices in --device, their proportions of the layers, e.g. 1,1")
+    parser.add_argument("--tensor-width", default=None,
+                        help="with several devices in --device, split every layer across this many of them, e.g. 2 (docs/TENSOR-SPLIT.md)")
     parser.add_argument("--cache-type", default=None, choices=["f32", "f16"],
                         help="store both KV cache sides as this type in every command that takes --cache-type-k/-v")
     parser.add_argument("--load-mode", default=None, choices=["auto", "mapped", "direct"],
@@ -82,6 +84,8 @@ def main():
         os.environ["LLMX_CACHE_TYPE"] = args.cache_type
     if args.layer_shares:
         os.environ["LLMX_LAYER_SHARES"] = args.layer_shares
+    if args.tensor_width:
+        os.environ["LLMX_TENSOR_WIDTH"] = args.tensor_width
     if args.load_mode:
         os.environ["LLMX_LOAD_MODE"] = args.load_mode
     if args.require_baseline:

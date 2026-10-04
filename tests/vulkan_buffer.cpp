@@ -47,6 +47,15 @@ struct VulkanLifetimeTest {
     }
     static size_t retained(VulkanBackend& b) { return b.pending_[b.ring_index_].size(); }
     static void drop(VulkanBackend& b, VulkanBuffer& buffer) { b.drop_padded(buffer); }
+    // Every submission retired, nothing open and no wait left for a next submission.
+    static bool idle(VulkanBackend& b) {
+        VkSemaphoreWaitInfo wi{};
+        wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        wi.semaphoreCount = 1;
+        wi.pSemaphores = &b.timeline_;
+        wi.pValues = &b.last_ticket_;
+        return !b.open_ && b.waits_.empty() && b.dev_->fn.vkWaitSemaphores(b.dev_->device, &wi, 0) == VK_SUCCESS;
+    }
 };
 }
 }
@@ -497,6 +506,168 @@ int queue_checks() {
 }
 
 namespace {
+// A tensor group's collective over devices 0 and 1 (VulkanCollective): its semaphores freed when a join fails part way, its members drained before any goes, and a sum that fails part way leaving it as new.
+struct CollectiveCalls;
+CollectiveCalls* collective_calls = nullptr;
+struct CollectiveCalls {
+    std::vector<backend::VulkanBackend*> members;
+    std::vector<backend::Fn> original;
+    std::vector<PFN_vkGetSemaphoreFdKHR> get_fd;
+    std::vector<PFN_vkImportSemaphoreFdKHR> import_fd;
+    int creates = 0, live = 0, fail_create = 0, fail_get = 0, fail_import = 0, gets = 0, imports = 0;
+    bool premature = false;
+    explicit CollectiveCalls(const std::vector<backend::VulkanBackend*>& m) : members(m) {
+        collective_calls = this;
+        for (auto* b : members) {
+            auto dev = backend::VulkanLifetimeTest::device(*b);
+            original.push_back(dev->fn);
+            get_fd.push_back(dev->get_semaphore_fd);
+            import_fd.push_back(dev->import_semaphore_fd);
+            dev->fn.vkCreateSemaphore = create;
+            dev->fn.vkDestroySemaphore = destroy;
+            dev->get_semaphore_fd = get;
+            dev->import_semaphore_fd = import;
+        }
+    }
+    ~CollectiveCalls() {
+        for (size_t i = 0; i < members.size(); ++i) {
+            auto dev = backend::VulkanLifetimeTest::device(*members[i]);
+            dev->fn = original[i];
+            dev->get_semaphore_fd = get_fd[i];
+            dev->import_semaphore_fd = import_fd[i];
+        }
+        collective_calls = nullptr;
+    }
+    size_t index(VkDevice d) const {
+        for (size_t i = 0; i < members.size(); ++i)
+            if (backend::VulkanLifetimeTest::device(*members[i])->device == d) return i;
+        std::abort();
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL create(VkDevice d, const VkSemaphoreCreateInfo* info, const VkAllocationCallbacks* alloc, VkSemaphore* out) {
+        auto& q = *collective_calls;
+        if (q.fail_create && ++q.creates == q.fail_create) return VK_ERROR_OUT_OF_HOST_MEMORY;
+        const VkResult r = q.original[q.index(d)].vkCreateSemaphore(d, info, alloc, out);
+        if (r == VK_SUCCESS) ++q.live;
+        return r;
+    }
+    static VKAPI_ATTR void VKAPI_CALL destroy(VkDevice d, VkSemaphore s, const VkAllocationCallbacks* alloc) {
+        auto& q = *collective_calls;
+        for (auto* b : q.members)
+            if (!backend::VulkanLifetimeTest::idle(*b)) q.premature = true;
+        --q.live;
+        q.original[q.index(d)].vkDestroySemaphore(d, s, alloc);
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL get(VkDevice d, const VkSemaphoreGetFdInfoKHR* info, int* fd) {
+        auto& q = *collective_calls;
+        if (++q.gets == q.fail_get) return VK_ERROR_TOO_MANY_OBJECTS;
+        return q.get_fd[q.index(d)](d, info, fd);
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL import(VkDevice d, const VkImportSemaphoreFdInfoKHR* info) {
+        auto& q = *collective_calls;
+        if (++q.imports == q.fail_import) return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+        return q.import_fd[q.index(d)](d, info);
+    }
+};
+
+int collective_checks() {
+    backend::BackendPtr first = backend::make_vulkan_backend(0), second;
+    try {
+        second = backend::make_vulkan_backend(1);
+    } catch (const std::exception& e) {
+        std::cout << "collective: no second device (" << e.what() << "), skipped\n";
+        return 0;
+    }
+    std::vector<backend::Backend*> members{first.get(), second.get()};
+    if (!first->join(members, 1, 1)) {
+        std::cout << "collective: the devices share no memory or semaphores, skipped\n";
+        return 0;
+    }
+    std::vector<backend::VulkanBackend*> vk{&dynamic_cast<backend::VulkanBackend&>(*first), &dynamic_cast<backend::VulkanBackend&>(*second)};
+    const size_t rows = 5, width = 64, n = rows * width;
+    int failures = 0;
+    uint32_t seed = 3;
+    auto value = [&] { seed = seed * 1664525u + 1013904223u; return float(int(seed >> 16) % 2001 - 1000) / 97.0f; };
+    // Sums back to back on fresh residuals, each member's partial written before its sum and nothing read between, the collective destroyed before the residuals are read; true when every member's residual is the chain of sums in member order.
+    auto chain = [&](std::unique_ptr<backend::Collective>& sum, size_t sums) {
+        std::vector<float> want(n);
+        for (float& v : want) v = value();
+        std::vector<backend::BufferPtr> x;
+        std::vector<backend::Slice> xs;
+        for (size_t m = 0; m < 2; ++m) {
+            x.push_back(members[m]->alloc(n * sizeof(float)));
+            members[m]->write(*x.back(), 0, want.data(), n * sizeof(float));
+            xs.push_back({x.back().get(), 0});
+        }
+        for (size_t k = 0; k < sums; ++k) {
+            std::vector<std::vector<float>> partial(2, std::vector<float>(n));
+            for (size_t m = 0; m < 2; ++m) {
+                for (float& v : partial[m]) v = value();
+                const backend::Slice p = sum->partial(m);
+                members[m]->write(*p.buffer, p.offset * sizeof(float), partial[m].data(), n * sizeof(float));
+            }
+            sum->sum_into(xs, rows, width);
+            for (size_t i = 0; i < n; ++i) want[i] = want[i] + (partial[0][i] + partial[1][i]);
+        }
+        sum.reset();
+        bool same = true;
+        for (size_t m = 0; m < 2; ++m) {
+            std::vector<float> got(n);
+            members[m]->read(*x[m], 0, got.data(), n * sizeof(float));
+            same = same && std::memcmp(got.data(), want.data(), n * sizeof(float)) == 0;
+        }
+        return same;
+    };
+    for (int kind = 1; kind <= 4; ++kind) {
+        bool threw = false, clean = false, summed = false;
+        {
+            CollectiveCalls q(vk);
+            q.fail_create = kind;
+            try { first->join(members, rows, width); }
+            catch (const std::exception&) { threw = true; }
+            clean = q.live == 0 && !q.premature;
+            q.fail_create = 0;
+            auto sum = first->join(members, rows, width);
+            summed = chain(sum, 3) && q.live == 0 && !q.premature;
+        }
+        const bool ok = threw && clean && summed;
+        std::cout << "collective_join_case=" << kind << " threw=" << threw << " clean=" << clean << " summed=" << summed << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
+    {
+        CollectiveCalls q(vk);
+        auto sum = first->join(members, rows, width);
+        const bool ok = chain(sum, 7) && q.live == 0 && !q.premature;
+        std::cout << "collective_in_flight sums=7" << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
+    for (int kind = 1; kind <= 4; ++kind) {
+        bool threw = false, drained = false, summed = false;
+        {
+            CollectiveCalls q(vk);
+            auto sum = first->join(members, rows, width);
+            const int live = q.live;
+            if (kind <= 2) q.fail_get = kind; else q.fail_import = kind - 2;
+            std::vector<backend::BufferPtr> x;
+            std::vector<backend::Slice> xs;
+            for (size_t m = 0; m < 2; ++m) {
+                x.push_back(members[m]->alloc(n * sizeof(float)));
+                xs.push_back({x.back().get(), 0});
+            }
+            try { sum->sum_into(xs, rows, width); }
+            catch (const std::exception&) { threw = true; }
+            drained = backend::VulkanLifetimeTest::idle(*vk[0]) && backend::VulkanLifetimeTest::idle(*vk[1]) && q.live == live && !q.premature;
+            q.fail_get = q.fail_import = 0;
+            summed = chain(sum, 3) && q.live == 0 && !q.premature;
+        }
+        const bool ok = threw && drained && summed;
+        std::cout << "collective_sum_case=" << kind << " threw=" << threw << " drained=" << drained << " summed=" << summed << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
+    return failures;
+}
+}
+
+namespace {
 enum class Failure { none, create, memory_type, allocate_device, allocate_host, bind, map };
 struct Calls {
     Failure failure = Failure::none;
@@ -613,7 +784,7 @@ int main(int argc, char** argv) {
     try {
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
-                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks();
+                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + collective_checks();
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;

@@ -14,6 +14,7 @@ Every request that runs to its end must give its ids alone, the CLI its text; a 
 --logprobs asks every request of these phases for its log-probabilities and top five too, which must equal alone's as its ids do.
 --ids writes every phase's ids, with --logprobs beside their values, so two builds can be compared byte for byte.
 --passes N serves with N passes in flight, which a layer split takes above one.
+--tensor-width W groups the devices in tensor groups of W, the server and the CLI alike.
 --drafter lookup|embedded|PATH serves with drafts, so every phase holds drafting to the replies without them: alone, together and skewed as the server gives them, and the CLI's run without drafts; it prints the drafts the server fed and kept, and fails where it fed none.
 --fresh-phases starts each capped phase and the final repeat on a fresh server and requires zero prefix reuse and pauses, isolating batching from history reuse.
 --ctx-size sets the server pool; leave enough room for every active request in this mode.
@@ -210,6 +211,7 @@ def main():
     p.add_argument("--text", required=True, help="text the prompts are cut from")
     p.add_argument("--device", default="cpu")
     p.add_argument("--layer-shares")
+    p.add_argument("--tensor-width", type=int, help="the devices form tensor groups of this many, on every server and CLI comparison")
     p.add_argument("--cache-type", choices=["f16", "f32"], help="KV cache type for both sides, on every server and CLI comparison; omitted uses the runtime default")
     p.add_argument("--requests", type=int, help="16, or 12 with --uncapped")
     p.add_argument("--max-seqs", type=int, help="8, or 6 with --uncapped")
@@ -235,6 +237,8 @@ def main():
     with open(args.text, encoding="utf-8", errors="replace") as f:
         text = f.read()
     flags = ["--device", args.device] + (["--layer-shares", args.layer_shares] if args.layer_shares else [])
+    if args.tensor_width:
+        flags += ["--tensor-width", str(args.tensor_width)]
     if args.cache_type:
         flags += ["--cache-type-k", args.cache_type, "--cache-type-v", args.cache_type]
     server_flags = flags + (["--passes", str(args.passes)] if args.passes else []) + (["--drafter", args.drafter] if args.drafter != "off" else [])

@@ -7,7 +7,7 @@ from common import run_f32_cache as cli
 
 
 def run():
-    if common.f32_cache_skip("shards"):
+    if common.f32_cache_skip("shards") or common.tensor_width_skip("shards"):
         return common.SKIPPED
     worst = 0.0
     cases = 0

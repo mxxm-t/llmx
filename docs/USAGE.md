@@ -366,7 +366,9 @@ Every command that takes `--device` takes a list.
 1, the default, is the layer split alone; a width that is the whole list is one group.
 A group sums its devices' partial products twice a layer in a fixed order, so its output is the same run to run and however a request is batched, and across stage counts at one width, but not the same bits as one device or another width.
 Refused before a model file is read: a list that is not whole groups, a width above 4, a share count other than the groups and a group of devices of different kinds; refused once the model is read: a width that does not divide its heads, KV heads (or is not a multiple of them), K or V heads or vocabulary rows, a column split off whole quant blocks, routed experts, a layer that keeps a recurrent state and an embedded drafter, which a group does not split yet.
-A device is listed once, so the command line forms groups of Vulkan devices; a backend without a sum across its devices on this build, today the Vulkan backend, is refused naming it.
+A device is listed once, so the command line forms groups of Vulkan devices, whose sum crosses the cards through dma-buf and sync files on Linux; a backend without a sum across its devices on this build or platform, the Vulkan backend on Windows, is refused naming it.
+A group's devices sit under one PCI root complex, and a group across root complexes is refused naming each device's root.
+On two MI50s a group of two decodes about as fast as one card on a model one card holds and reads a prompt 1.6 times as fast, and decodes a model too large for one card faster than a layer split; serving many users it is below the layer split for now, and docs/STATUS.md lists its speed gate as open.
 Groups of CPU backends, which hold the split's arithmetic to its rules on one host, are formed by the test tools rather than the command line (`llmx-split-check` with a tensor width, docs/TENSOR-SPLIT.md, step 2).
 
 One request at a time leaves each device idle while the others run their

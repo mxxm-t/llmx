@@ -513,6 +513,12 @@ Decided with the coordinator, the other developer away:
 5. **Width 4** of the reference on one root complex is measured once the fourth card is free, and added to section 2.8.
 6. **Width 8:** the cap of 4 (decision 3) opens once a width-8 Vulkan sum is measured with `llmx-vk-handoff exchange` and the per-token model says width 8 pays; the gate at 8 cards is the reference's best shape there, width 8 (Qwen3.6-27B Q8_0 tg256 57.2 tok/s with two-shot, against 51.7 at width 4) or staged, whichever is faster on the load measured, so llmx's 2 stages of 4 meet the reference's width 8 where that is its best.
 
+### Step 3 as built (2026-10-04)
+
+The sync-file collective measured above the projection of item 1 once each peer's wait went to its next submission rather than to its submission toward the same sum, which had run the members in turn: on two MI50s of one root complex, Qwen3-32B Q8_0 at width 2 gives tg128 29.7 tok/s against the projection's 21 and the reference's 33.6, and pp512 357.6 against 570; Qwen3-8B Q8_0 gives tg128 78.8 and pp512 1328 against one card's 77 and 837.
+Placing every inbox on the first member, so that a dma-buf import's implicit wait falls only on work the importer needs anyway, measured no faster, so the implicit sync of section 4.3 does not cost the sync-file collective, whose waits are at submission boundaries; it still rules out the in-submission flag wait.
+On the server load of section 2.8 the group is bound by its prompts from 16 users and serves 4 to 9 percent below the layer split on the same cards; the recovery work is a pass's prompt rows beside its decode rows and the prompt cells against the reference, then the kernel route of item 3.
+
 ## 9. Sources
 
 - mx-llama.cpp's ROCm and CUDA all-reduce: `ggml/src/ggml-cuda/tp-allreduce.cu` (kernels, flags, staging), `ggml/src/ggml-cuda/ggml-cuda.cu` (dispatch and size gate), `ggml/src/ggml-backend-meta.cpp` (lane dispatch, token graph), `tp-notes/ENV_VARS.md`, `tp-notes/research/mi50-decode-bandwidth-roofline.md`, `tp-notes/research/mi50-meta-parallel-lane-dispatch.md`, commits `093f2a38fc`, `5f65f9fa38`, `19d784ad0e`, `92607b5d1d`, `751b6114cd`, `28ce13af18`, `c93294e3de`, and the image `mxxm/mx-llama.cpp:gfx906` at `eefc4e732`.

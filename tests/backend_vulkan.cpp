@@ -3057,6 +3057,71 @@ size_t check_float_workspace(backend::Backend& vk) {
     return checked;
 }
 
+// A tensor group's collective over devices 0 and 1 (docs/TENSOR-SPLIT.md, section 4.3), where a second device opens and the platform shares memory and semaphores between them: six sums in a row, so each parity of the inboxes is written three times, at 1, 7 and 64 rows, every member's residual at an offset gaining ((p0 + p1)) in member order, the bits a float sum gives on the host, and the refusals of a collective joined by a member not first, over a backend that is not Vulkan and over one device twice.
+size_t check_collective(const backend::BackendPtr& first) {
+    backend::BackendPtr second;
+    try {
+        second = backend::make_vulkan_backend(1, false);
+    } catch (const std::exception& e) {
+        std::cout << "backend-vulkan: no second device for the collective (" << e.what() << ")\n";
+        return 0;
+    }
+    std::vector<backend::Backend*> members{first.get(), second.get()};
+    const size_t reserved = 64, width = 96, offset = 7;
+    std::unique_ptr<backend::Collective> sum = first->join(members, reserved, width);
+    if (!sum) {
+        std::cout << "backend-vulkan: the devices share no memory or semaphores, so no collective\n";
+        return 0;
+    }
+    size_t checks = 0;
+    uint32_t seed = 11;
+    for (size_t rows : {size_t(1), size_t(7), size_t(64), size_t(64), size_t(7), size_t(1)}) {
+        const size_t n = rows * width;
+        std::vector<std::vector<float>> partial(2, std::vector<float>(n));
+        std::vector<float> start(n);
+        for (size_t i = 0; i < n; ++i) {
+            for (size_t m = 0; m < 2; ++m) {
+                seed = seed * 1664525u + 1013904223u;
+                partial[m][i] = float(int(seed >> 16) % 2001 - 1000) / 97.0f;
+            }
+            start[i] = float(int(seed >> 8) % 4001 - 2000) / 13.0f;
+        }
+        std::vector<backend::BufferPtr> x;
+        std::vector<backend::Slice> xs;
+        for (size_t m = 0; m < 2; ++m) {
+            x.push_back(members[m]->alloc((n + offset) * sizeof(float)));
+            members[m]->write(*x.back(), offset * sizeof(float), start.data(), n * sizeof(float));
+            const backend::Slice p = sum->partial(m);
+            members[m]->write(*p.buffer, p.offset * sizeof(float), partial[m].data(), n * sizeof(float));
+            xs.push_back({x.back().get(), offset});
+        }
+        sum->sum_into(xs, rows, width);
+        for (size_t m = 0; m < 2; ++m) {
+            members[m]->submit();
+            std::vector<float> got(n);
+            members[m]->read(*x[m], offset * sizeof(float), got.data(), n * sizeof(float));
+            for (size_t i = 0; i < n; ++i) {
+                const float want = start[i] + (partial[0][i] + partial[1][i]);
+                require(std::memcmp(&got[i], &want, sizeof(float)) == 0, "a member's residual is not the sum in member order");
+            }
+        }
+        ++checks;
+    }
+    auto refused = [](const std::function<void()>& f) {
+        try { f(); } catch (const std::exception&) { return true; }
+        return false;
+    };
+    std::vector<backend::Backend*> reversed{second.get(), first.get()};
+    require(refused([&] { first->join(reversed, 1, 1); }), "a collective joined by a member not first was made");
+    auto cpu = backend::make_cpu_backend();
+    std::vector<backend::Backend*> mixed{first.get(), cpu.get()};
+    require(refused([&] { first->join(mixed, 1, 1); }), "a Vulkan collective over the CPU was made");
+    std::vector<backend::Backend*> twice{first.get(), first.get()};
+    require(refused([&] { first->join(twice, 1, 1); }), "a Vulkan collective over one device twice was made");
+    std::cout << "backend-vulkan: the collective of devices 0 and 1, " << checks << " sums in member order and its refusals\n";
+    return checks + 3;
+}
+
 int main(int argc, char** argv) {
     const std::string isa_dir = argc == 3 && std::strcmp(argv[1], "--isa") == 0 ? argv[2] : "";
     backend::BackendPtr b;
@@ -3070,7 +3135,7 @@ int main(int argc, char** argv) {
         check_float_ops();
         check_decode_contraction();
         std::cout << "backend-vulkan: " << backend::vulkan_device_name(*b) << "\n";
-        size_t checks = 0;
+        size_t checks = check_collective(b);
         // The backend's identity names the device and its driver, and a second backend of the same device has the same one.
         require(b->identity().rfind("vulkan ", 0) == 0 && b->identity().find(backend::vulkan_device_name(*b)) != std::string::npos &&
                     backend::make_vulkan_backend(0, false)->identity() == b->identity(),

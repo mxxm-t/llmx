@@ -55,6 +55,10 @@ def device_args(args, cache=None):
         shares = os.environ.get("LLMX_LAYER_SHARES")
         if shares and "--layer-shares" not in args and not synthetic:
             args += ["--layer-shares", shares]
+        # LLMX_TENSOR_WIDTH, set by run_tests.py --tensor-width, splits every layer across that many of the configured devices (docs/TENSOR-SPLIT.md).
+        width = os.environ.get("LLMX_TENSOR_WIDTH")
+        if width and "--tensor-width" not in args and not synthetic:
+            args += ["--tensor-width", width]
     # LLMX_CACHE_TYPE, set by run_tests.py --cache-type, runs the same commands with both cache sides stored as that type; test configuration like LLMX_DEVICE, reaching the binary only as flags.
     # `cache` is a component asking for a type because its fixtures need it, which an explicit LLMX_CACHE_TYPE overrides.
     dtype = os.environ.get("LLMX_DTYPE")
@@ -350,6 +354,16 @@ def f32_cache_skip(component):
     if cache == "f32":
         return False
     print("%s: SKIP - its exact comparisons are made with f32 caches (LLMX_CACHE_TYPE=%s)" % (component, cache))
+    return True
+
+
+def tensor_width_skip(component):
+    """True, after reporting the skip, when LLMX_TENSOR_WIDTH splits every layer across devices.
+    The component's synthetic fixtures have widths a tensor group refuses (an odd feed-forward width, one head, rows of part of a block); tensor-split's fixtures split whole at widths 2 and 4, and the real-model gate runs on groups."""
+    width = os.environ.get("LLMX_TENSOR_WIDTH", "1")
+    if width == "1":
+        return False
+    print("%s: SKIP - its synthetic fixtures do not split whole at tensor width %s (LLMX_TENSOR_WIDTH)" % (component, width))
     return True
 
 

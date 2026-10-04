@@ -43,6 +43,8 @@ def replies(case, turns=None):
 
 
 def run():
+    if common.tensor_width_skip("chat"):
+        return common.SKIPPED
     fixture = f32.golden("baseline_chat.json")
     weights = fixture["weights"]
     assert [case["spec"] for case in fixture["cases"]] == CASES

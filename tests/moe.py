@@ -189,7 +189,7 @@ def check_q8(directory, golden):
 
 
 def run():
-    if common.f32_cache_skip("moe"):
+    if common.f32_cache_skip("moe") or common.tensor_width_skip("moe"):
         return common.SKIPPED
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_moe.json"), encoding="utf-8") as f:
         golden = json.load(f)

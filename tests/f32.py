@@ -223,7 +223,7 @@ def check_logits_input(directory, model, cases):
 
 
 def run():
-    if common.f32_cache_skip("f32"):
+    if common.f32_cache_skip("f32") or common.tensor_width_skip("f32"):
         return common.SKIPPED
     worst = 0.0
     with tempfile.TemporaryDirectory(prefix="llmx_f32_") as directory:

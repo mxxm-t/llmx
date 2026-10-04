@@ -177,7 +177,7 @@ def check_draft_models(directory):
 
 
 def run(require=False):
-    if common.f32_cache_skip("drafters"):
+    if common.f32_cache_skip("drafters") or common.tensor_width_skip("drafters"):
         return common.SKIPPED
     tool = decode_probe.tool_path()
     if not os.path.exists(pack_path()) or not os.path.exists(tool):

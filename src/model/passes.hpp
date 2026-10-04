@@ -70,7 +70,8 @@ inline const float* Model::pass_logits(ExecContext& ctx, size_t slot, size_t i) 
     if (p.ran < stages_.size()) throw std::logic_error("inference: the logits of a pass before its last stage");
     if (i >= p.want) throw std::out_of_range("inference: no such logits row");
     devices_[(size_t)place_.output_device]->b->wait(p.sent);
-    const void* host = ctx.logits_buf->host_ptr();
+    for (size_t m = 1; m < p.sent_members.size(); ++m) devices_[(size_t)place_.output_device + m]->b->wait(p.sent_members[m]);
+    const void* host = ctx.logits_host.data() ? ctx.logits_host.data() : ctx.logits_buf->host_ptr();
     if (!host) throw std::runtime_error("inference: logits are not host visible");
     return (const float*)host + (p.logits_base + i) * ctx.width;
 }
@@ -300,21 +301,17 @@ inline void Model::group_stage(ExecContext& ctx, Pass& p, size_t s) {
         send(ctx, g, p.handoff, 0, p.rows);
         p.at = g;
     } else if (p.want) {
-        // Each member's vocabulary rows of every row that wants logits, then gathered by the first member into the context's rows.
+        // Each member's vocabulary rows of every row that wants logits, each copied by its member into its slice of the rows in host memory the members import, behind no wait; the pass's logits wait for every member's submission.
         const size_t V = plan_.vocab;
-        for (size_t m = 0; m < W; ++m) {
+        for (size_t m = 0, at = 0; m < W; ++m) {
             HeadStep head{part(ctx, g + m, pass_row(m), 0, 0, p.rows, all), p.pick.data(), p.want,
                           backend::RowRuns{p.head_runs.data(), p.head_runs.size()}, {ctx.member_logits[g + m].get(), 0}};
             head.width = W;
             arch_->head(head);
-        }
-        for (size_t m = 0, at = 0; m < W; ++m) {
-            backend::Backend& b = *devices_[g + m]->b;
             const size_t n = head_rows(m);
-            b.wait(b.submit());
-            const uint8_t* rows = (const uint8_t*)ctx.member_logits[g + m]->host_ptr();
             for (size_t r = 0; r < p.want; ++r)
-                devices_[g]->b->write(*ctx.logits_buf, ((p.logits_base + r) * V + at) * sizeof(float), rows + r * n * sizeof(float), n * sizeof(float));
+                devices_[g + m]->b->copy(*ctx.member_rows[g + m], ((p.logits_base + r) * V + at) * sizeof(float), *ctx.member_logits[g + m],
+                                         r * n * sizeof(float), n * sizeof(float));
             at += n;
         }
     }
@@ -328,6 +325,7 @@ inline void Model::end_stage(ExecContext& ctx, Pass& p, size_t s, size_t cur) {
     for (size_t d : st.touches)
         for (size_t m = d; m < d + width_; ++m) ctx.tickets[m] = devices_[m]->b->submit();
     p.sent = ctx.tickets[cur];
+    p.sent_members.assign(ctx.tickets.begin() + (std::ptrdiff_t)cur, ctx.tickets.begin() + (std::ptrdiff_t)(cur + width_));
     for (size_t e = 0; e < p.entries.size(); ++e) {
         Sequence& q = *p.entries[e].seq;
         if (storage >= 0) q.kv_[(size_t)storage].commit();
@@ -374,6 +372,8 @@ inline void Model::finish(ExecContext& ctx, const Pass& p) {
     ctx.n_logits = p.want;
     ctx.backend = devices_[(size_t)place_.output_device]->b.get();
     ctx.ticket = p.sent;
+    ctx.member_waits.clear();
+    for (size_t m = 1; m < p.sent_members.size(); ++m) ctx.member_waits.push_back({devices_[(size_t)place_.output_device + m]->b.get(), p.sent_members[m]});
     ctx.pending = p.want > 0;
 }
 
@@ -441,10 +441,23 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
     }
     if (want && (!ctx.logits_buf || ctx.logit_rows < want)) {
         // The head writes here and the host reads it in place once the pass has retired: the one point per pass that must be host visible, and the one wait per pass.
-        backend::BufferPtr logits = devices_[(size_t)place_.output_device]->b->alloc(
-            mul(mul(want, plan_.vocab), sizeof(float)), backend::Memory::host_visible);
-        if (ctx.logits_buf) devices_[(size_t)place_.output_device]->b->wait(ctx.tickets[(size_t)place_.output_device]);
-        ctx.logits_buf = std::move(logits);
+        // On a tensor split it is host memory each member of the head's group imports, so each copies its slice of the rows there.
+        const size_t o = (size_t)place_.output_device, bytes = mul(mul(want, plan_.vocab), sizeof(float));
+        if (ctx.logits_buf)
+            for (size_t m = o; m < o + width_; ++m) devices_[m]->b->wait(ctx.tickets[m]);
+        if (width_ == 1) {
+            ctx.logits_buf = devices_[o]->b->alloc(bytes, backend::Memory::host_visible);
+        } else {
+            core::HostPages pages(bytes);
+            std::vector<backend::BufferPtr> views(devices_.size());
+            for (size_t m = o; m < o + width_; ++m) {
+                views[m] = devices_[m]->b->wrap_host(pages.data(), pages.size());
+                if (!views[m]) throw std::runtime_error("inference: a device of the head's tensor group cannot import the host memory of the logits rows");
+            }
+            ctx.logits_buf = views[o];
+            ctx.member_rows = std::move(views);
+            ctx.logits_host = std::move(pages);
+        }
         ctx.logit_rows = want;
         ctx.width = plan_.vocab;
     }

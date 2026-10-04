@@ -1380,7 +1380,7 @@ def check_departed(model):
 def run():
     if not server_mix_tool.run():
         return False
-    if common.f32_cache_skip("server"):
+    if common.f32_cache_skip("server") or common.tensor_width_skip("server"):
         return common.SKIPPED
     with tempfile.TemporaryDirectory(prefix="llmx_server_") as directory:
         # Every reply that names the model carries its file name, so the synthetic model's holds a byte that is not UTF-8 where the file system takes one (Linux), and characters beyond ASCII elsewhere.

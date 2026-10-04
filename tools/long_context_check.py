@@ -214,6 +214,7 @@ def main():
     ap.add_argument("--model", required=True)
     ap.add_argument("--device", required=True, help="the backend under test, e.g. vulkan:0")
     ap.add_argument("--baseline", default="cpu", help="the backend that reads the device's tokens")
+    ap.add_argument("--tensor-width", type=int, default=1, help="split every layer of the device under test across this many devices of its --device list (docs/TENSOR-SPLIT.md)")
     ap.add_argument("--dtype", choices=("auto", "f16", "bf16", "f32"), default="auto",
                     help="activation dtype for generation and scoring on both backends")
     ap.add_argument("--tokens", type=int, default=16384, help="target prompt tokens")
@@ -234,18 +235,20 @@ def main():
     if args.threads:
         extra += ["--threads", str(args.threads)]
     ctx = args.ctx_size or (args.tokens + args.max_tokens + 512)
+    # The device under test's flags: the baseline reads on one device.
+    device_extra = extra + (["--tensor-width", str(args.tensor_width)] if args.tensor_width > 1 else [])
 
     # 1. The device twice, each from a fresh server, or a fresh process with --cli; the first run also sizes the message.
     runs = []
     prompt = None
     if args.cli:
-        n, prompt = build_prompt_cli(args.exe, args.model, args.device, args.tokens, extra)
+        n, prompt = build_prompt_cli(args.exe, args.model, args.device, args.tokens, device_extra)
         print(f"prompt: {n} tokens, {len(prompt)} characters", flush=True)
     for i in range(2):
         if args.cli:
-            got = generate_cli(args.exe, args.model, args.device, prompt, args.max_tokens, extra)
+            got = generate_cli(args.exe, args.model, args.device, prompt, args.max_tokens, device_extra)
         else:
-            proc, port, log = serve(args.exe, args.model, args.device, ctx, extra)
+            proc, port, log = serve(args.exe, args.model, args.device, ctx, device_extra)
             try:
                 if prompt is None:
                     n, prompt = build_prompt(port, args.tokens)
@@ -262,7 +265,7 @@ def main():
     if not reply:
         raise SystemExit("the device generated nothing")
     # The device reads its own tokens too, for a position past the margin, where both readings tell a near-tie from a wrong kernel; it does so now, so the device is free while the baseline reads.
-    device_rows = baseline_logits(args.exe, args.model, args.device, prompt, reply, extra)
+    device_rows = baseline_logits(args.exe, args.model, args.device, prompt, reply, device_extra)
     print(f"{args.device} read its own {len(reply)} tokens; the baseline reads them next", flush=True)
 
     # 2. The baseline reads the prompt and the device's tokens.

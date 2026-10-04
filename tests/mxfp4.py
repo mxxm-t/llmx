@@ -96,6 +96,8 @@ def device_skip(model):
 def run(require=False):
     if common.f32_cache_skip("mxfp4"):
         return True
+    if common.tensor_width_skip("mxfp4"):
+        return common.SKIPPED
     path = os.path.join(os.path.dirname(__file__), "data", "baseline_mxfp4.json")
     with open(path, encoding="utf-8") as f:
         goldens = json.load(f)

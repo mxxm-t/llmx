@@ -4,6 +4,8 @@ import re
 import struct
 import tempfile
 
+import common
+
 from common import run as cli, perplexity_fields
 from tokenizer import build_byte_vocab, w_str
 
@@ -49,6 +51,8 @@ def build_model(path):
 
 
 def run():
+    if common.tensor_width_skip("perplexity"):
+        return common.SKIPPED
     with tempfile.TemporaryDirectory(prefix="llmx_ppl_boundaries_") as directory:
         model = os.path.join(directory, "analytic.gguf")
         build_model(model)

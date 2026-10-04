@@ -30,6 +30,14 @@ QWEN35 = {"name": "split", "v_heads": 12, "tied": False, "mtp": False, "v_head":
                      "attention.key_length": 16, "attention.value_length": 16, "rope.dimension_count": 8,
                      "ssm.state_size": 12, "ssm.group_count": 4}}
 WIDTHS = ((2, "cpu,cpu"), (4, "cpu,cpu,cpu,cpu"))
+
+
+def groups():
+    """The one device and the groups the captures run on: CPU backends, or with run_tests.py --device and --tensor-width (LLMX_DEVICE, LLMX_TENSOR_WIDTH) that list's first device and its devices as groups of that width."""
+    device, width = os.environ.get("LLMX_DEVICE"), os.environ.get("LLMX_TENSOR_WIDTH")
+    if device and width and int(width) > 1:
+        return device.split(",")[0], ((int(width), device),)
+    return "cpu", WIDTHS
 GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "baseline_tensor_split.json")
 
 
@@ -89,6 +97,7 @@ def run(require=False):
     if common.f32_cache_skip("tensor-split"):
         return common.SKIPPED
     doc = golden()
+    single, widths = groups()
     worst_logit = worst_nll = 0.0
     with tempfile.TemporaryDirectory(prefix="llmx_tensor_split_") as directory:
         ids = os.path.join(directory, "ids.txt")
@@ -98,9 +107,9 @@ def run(require=False):
             name = "tied" if fixture["tied"] else "untied"
             model = f32.write_model(os.path.join(directory, "split-%s.gguf" % name), f32.tensors(fixture["tied"], config=CONFIG, vocab=VOCAB),
                                     config=dict(CONFIG, context_length=128), tokens=TOKENS)
-            one_meta, one = capture(tool, model, ids, os.path.join(directory, name + "-1"), "cpu", 1)
+            one_meta, one = capture(tool, model, ids, os.path.join(directory, name + "-1"), single, 1)
             held_to_hf("qwen3 %s, one device" % name, one_meta, one, fixture)
-            for width, devices in WIDTHS:
+            for width, devices in widths:
                 meta, rows = capture(tool, model, ids, os.path.join(directory, "%s-%d" % (name, width)), devices, width)
                 logit, nll = held_to_hf("qwen3 %s, width %d" % (name, width), meta, rows, fixture)
                 worst_logit, worst_nll = max(worst_logit, logit), max(worst_nll, nll)
@@ -109,10 +118,10 @@ def run(require=False):
                 common.check_device_greedy(one["greedy"], rows["greedy"], one_meta["greedy"], meta["greedy"])
         spec = QWEN35
         model = qwen35.write_fixture(directory, dict(spec, config=dict(spec["config"], context_length=128)), tokens=TOKENS)
-        meta, rows = capture(tool, model, ids, os.path.join(directory, "qwen35-1"), "cpu", 1)
+        meta, rows = capture(tool, model, ids, os.path.join(directory, "qwen35-1"), single, 1)
         held_to_hf("qwen35, one device", meta, rows, doc["qwen35"])
-    print("tensor-split: the qwen3 fixtures, tied and untied, at widths 2 and 4 against HF, max logit error %.8f and NLL error %.8f, and against one device by the device-reference criterion; the qwen35 fixture on one device  [ok]"
-          % (worst_logit, worst_nll))
+    print("tensor-split: the qwen3 fixtures, tied and untied, on %s against HF, max logit error %.8f and NLL error %.8f, and against %s by the device-reference criterion; the qwen35 fixture on %s  [ok]"
+          % (" and ".join("%s as width %d" % (devices, width) for width, devices in widths), worst_logit, worst_nll, single, single))
     return True
 
 

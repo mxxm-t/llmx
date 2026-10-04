@@ -300,13 +300,14 @@ inline Sequence Model::restore_host(HostHistory& h) {
             if ((st || d.states) && h.slabs[i].empty()) throw std::logic_error("inference: a host history of another layout");
             detail::HostSpan span{*d.b, h.slabs[i], kHostSlab, false};
             if (st) {
+                // A tensor group's members copy into the blocks its first member, before them, took from the pool they share.
                 const size_t n = h.length / st->block_tokens();
                 KVSequence& kv = s.kv_[(size_t)d.storage_index];
-                kv.prepare(h.length);
+                if (!d.member) kv.prepare(h.length);
                 const int32_t* blocks = kv.view(nullptr).blocks;
                 if (n) st->ensure((size_t)*std::max_element(blocks, blocks + n));
                 span.blocks(*st, blocks, n);
-                kv.commit();
+                if (!d.member) kv.commit();
             }
             if (d.states) span.slot(*d.states, slot);
             if (d.carry && state_layers_) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));

@@ -38,7 +38,7 @@ def hf_name(name):
     raise ValueError("GGUF tensor %s has no HF Qwen3 parameter" % name)
 
 
-def tensors(tied, seed=12345, config=CONFIG):
+def tensors(tied, seed=12345, config=CONFIG, vocab=VOCAB):
     state = seed
     result = []
     width, ff, hd = config["embedding_length"], config["feed_forward_length"], config["attention.key_length"]
@@ -53,7 +53,7 @@ def tensors(tied, seed=12345, config=CONFIG):
             values.append(1.0 + value if norm else value)
         result.append((name, hf_name(name), shape, values))
 
-    add("token_embd.weight", [width, VOCAB])
+    add("token_embd.weight", [width, vocab])
     add("output_norm.weight", [width], True)
     for layer in range(config["block_count"]):
         name = "blk.%d." % layer
@@ -64,7 +64,7 @@ def tensors(tied, seed=12345, config=CONFIG):
                               ("ffn_down", [ff, width])):
             add(name + tensor + ".weight", shape)
     if not tied:
-        add("output.weight", [width, VOCAB])
+        add("output.weight", [width, vocab])
     return result
 
 
@@ -96,7 +96,7 @@ def metadata_value(value):
 
 
 def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config=CONFIG, arch="qwen3", tokens=None, quantized=()):
-    # `tokens` replaces the VOCAB token strings, one a byte and then <|endoftext|> by default, and `quantized` adds tensors already encoded, as (name, shape, GGUF type, bytes).
+    # `tokens` replaces the VOCAB token strings, one a byte and then <|endoftext|> by default, by as many as a fixture's vocabulary holds, and `quantized` adds tensors already encoded, as (name, shape, GGUF type, bytes).
     # A 34-byte Q8 tensor exposes unaligned F32 rows if the loader discards file padding without preserving float alignment in its in-memory blob.
     entries = [("unused.weight", [32], 8, b"\0" * 34)]
     entries += [(name, shape, 0, struct.pack("<%df" % len(v), *v))
@@ -129,9 +129,8 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config
                 f.write(struct.pack("<II", 4, eos_id))
             if index == 0:
                 vocab = build_byte_vocab() + ["<|endoftext|>"] if tokens is None else tokens
-                assert len(vocab) == VOCAB, len(vocab)
                 w_str(f, "tokenizer.ggml.tokens")
-                f.write(struct.pack("<IIQ", 9, 8, VOCAB))
+                f.write(struct.pack("<IIQ", 9, 8, len(vocab)))
                 for token in vocab:
                     w_str(f, token)
             offset = 0

@@ -16,6 +16,7 @@
 #include "model/architecture.hpp"
 #include "model/kv_cache.hpp"
 #include "model/layer_split.hpp"
+#include "model/shard.hpp"
 #include "backends/cpu/cpu_backend.hpp"
 
 // The model runtime: sequences, passes over batches of them, stages over devices, the activation arena and the crossings between devices, running an architecture's plan and parts (model/architecture.hpp).
@@ -58,6 +59,8 @@ struct Placement {
     // By the prompt's whole length (BatchEntry::extent), so every row a prompt computes takes one path however the prompt is sliced or batched; a server forks a donor's rows only where that path is the new prompt's (row_class).
     // Zero keeps every run on the host, and neither a generated token nor a one-token prompt, both of extent 1, streams, so 1 streams what 2 does: one row cannot pay for moving a layer's experts.
     size_t stream_from = 0;
+    // A tensor split (docs/TENSOR-SPLIT.md): each device named above is the first member of a group of `width` consecutive backends that run its roles together, each member its shard of every split role; 1 is one device a name.
+    size_t width = 1;
 };
 
 // Choices made once at construction, before the caches are allocated: how each cache side is stored (backend.hpp KVType, the CLI's --cache-type-k and --cache-type-v), the same on every backend or refused.
@@ -201,6 +204,10 @@ struct ExecContext {
     std::vector<backend::RowRun> entry_runs;   // the run list a part may rebuild (Step::scratch)
     std::vector<backend::Ticket> tickets;      // per device
     std::vector<backend::CSlice> carry;        // per entry, the row an embedded drafter's first context row reads (DraftRowsStep::carry)
+    // On a tensor split (Placement::width): per device, a group's collective on its first member, for the rows the arenas hold, and each member of the head's group its slice of the logits rows, which the first member gathers into logits_buf.
+    std::vector<std::unique_ptr<backend::Collective>> collectives;
+    size_t collective_rows = 0;
+    std::vector<backend::BufferPtr> member_logits;
 };
 
 // Prompt tokens a pass takes by default (Model::set_ubatch), and so the prompt rows a placement is fitted for.
@@ -244,13 +251,33 @@ public:
         if (place_.mixer_device.size() != n_layer ||
             place_.ffn_device.size() != n_layer)
             throw std::runtime_error("inference: placement does not cover every layer");
+        // A tensor group is named by its first member, its other members the backends after it (Placement::width).
+        width_ = place_.width;
+        if (!width_ || backends.size() % width_)
+            throw std::runtime_error("inference: a tensor width of " + std::to_string(width_) + " needs whole groups of devices, and " + std::to_string(backends.size()) + " were given");
         auto device_index = [&](int d) {
             if (d < 0 || (size_t)d >= backends.size())
                 throw std::runtime_error("inference: placement names a device the model does not have");
+            if ((size_t)d % width_) throw std::runtime_error("inference: placement names a device that is not the first of its tensor group");
             return (size_t)d;
         };
         device_index(place_.embed_device);
         device_index(place_.output_device);
+        if (width_ > 1) {
+            shard::check_plan(plan_, weights.tensors, width_);
+            if (std::any_of(plan_.layers.begin(), plan_.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; }))
+                throw std::runtime_error("inference: a tensor width of " + std::to_string(width_) + " does not split a layer that keeps a recurrent state yet");
+            if (place_.stream_from) throw std::logic_error("inference: a tensor group streams no layer");
+            // A group's members are one kind of device, whose weight types and ops its first member's checks below stand for, with a collective among them.
+            for (size_t g = 0; g < backends.size(); g += width_) {
+                std::vector<backend::Backend*> members;
+                for (size_t m = g; m < g + width_; ++m) {
+                    if (backends[m]->is_cpu() != backends[g]->is_cpu()) throw std::runtime_error("inference: a tensor group's devices are of one kind");
+                    members.push_back(backends[m].get());
+                }
+                if (!backends[g]->join(members, 1, 1)) throw std::runtime_error("inference: the backends of a tensor group have no cross-device sum");
+            }
+        }
         std::vector<bool> used(weights.tensors.size(), false);
         auto type_name = [](uint32_t id) {
             const quant::StorageType* type = quant::storage_type(id);
@@ -371,6 +398,22 @@ public:
             at = f;
         }
         if ((size_t)place_.output_device != at) devices_[at]->sends = true;
+        // A tensor group's other members hold the layers and caches its first member does and run what it runs, each on its shards; the residual leaves the group from its first member.
+        if (width_ > 1) {
+            bool beside = place_.embed_device == (int)stages_.front().device && place_.output_device == (int)stages_.back().device;
+            for (size_t l = 0; l < n_layer; ++l) beside = beside && place_.ffn_device[l] == place_.mixer_device[l];
+            if (!beside) throw std::runtime_error("inference: a tensor split runs the embedding on the first stage's group, the head on the last's and each feed-forward block beside its mixer");
+            for (size_t d = 0; d < devices_.size(); ++d) {
+                Device& m = *devices_[d];
+                const Device& first = *devices_[d - d % width_];
+                m.member = d % width_;
+                if (!m.member) continue;
+                m.used = first.used;
+                m.mixer_layers = first.mixer_layers;
+                m.kv_layers = first.kv_layers;
+                m.local_layer = first.local_layer;
+            }
+        }
 
         try {
             resolve_tensors(weights, adopt);
@@ -388,9 +431,14 @@ public:
                         throw std::runtime_error("inference: cache blocks of " + std::to_string(a) + " and " + std::to_string(b) +
                                                  " tokens in one model; a split needs one size to divide the other");
                 }
-                d.storage = d.b->kv_alloc((size_t)d.kv_layers, plan_.kv_heads, plan_.head_dim,
+                // A tensor group's members each keep their KV heads, in blocks of the one pool its first member holds, so one block table serves them all.
+                d.storage = d.b->kv_alloc((size_t)d.kv_layers, shard::kv_heads(plan_, width_), plan_.head_dim,
                                           budget, options_.kv_k, options_.kv_v);
                 if (options_.kv_backed) d.storage->back_all();
+                if (d.member) {
+                    d.storage_index = devices_[(size_t)(&dp - devices_.data()) - d.member]->storage_index;
+                    continue;
+                }
                 d.pool.configure(d.storage->max_blocks());
                 d.storage_index = (int)storages_.size();
                 storages_.push_back(&d);
@@ -737,6 +785,7 @@ private:
         bool used = false;
         bool holding = false;                    // this model asked the backend to hold between submissions
         bool sends = false;                      // the residual leaves it, so it keeps handoff buffers
+        size_t member = 0;                       // its place in its tensor group, 0 for the first member, which a placement names
         int mixer_layers = 0;
         int kv_layers = 0;                       // its mixer layers whose cache is KV
         int state_layers = 0;                    // and those whose cache is a state
@@ -778,6 +827,11 @@ private:
     ModelPlan plan_;
     std::vector<Weight> pass_;                  // the pass's roles by role id, on the embedding's and the head's devices
     std::vector<std::vector<Weight>> home_;     // per layer, its roles by role id, each on the device of its part
+    // A tensor group's other members' rows (Placement::width): per member past the first, the pass's and per layer the layer's, each weight that member's shard, and the packed copies of the shards the model adopted without a hook, which it keeps.
+    size_t width_ = 1;
+    std::vector<std::vector<Weight>> member_pass_;
+    std::vector<std::vector<std::vector<Weight>>> member_home_;
+    std::vector<std::vector<uint8_t>> packed_;
     // A routed layer run beside its mixer for a long prompt (Placement::stream_from): the device it runs on, or -1, and home_'s row with its copy roles adopted on that device and its window roles in that device's windows.
     std::vector<int> stream_device_;
     std::vector<std::vector<Weight>> stream_;
@@ -792,6 +846,16 @@ private:
     Sequence seq_;
     ExecContext ctx_;
 
+    // The weights member m of the group a part runs on reads: the pass's, and layer l's.
+    const Weight* pass_row(size_t m) const { return m ? member_pass_[m - 1].data() : pass_.data(); }
+    const Weight* home_row(size_t m, size_t l) const { return m ? member_home_[m - 1][l].data() : home_[l].data(); }
+    // The vocabulary rows member m of the head's group computes, its share of the head's matrix.
+    size_t head_rows(size_t m) const {
+        for (const Role& role : plan_.pass)
+            if (role.part == Part::head && role.kind == RoleKind::matrix) return pass_row(m)[role.id].nout;
+        throw std::logic_error("inference: a plan without a head");
+    }
+
     size_t device_of(Part part, size_t l) const {
         if (part == Part::embed) return (size_t)place_.embed_device;
         if (part == Part::head || part == Part::draft) return (size_t)place_.output_device;
@@ -804,7 +868,7 @@ private:
     void resolve_tensors(const ModelWeights& weights, const AdoptWeight& adopt) {
         const size_t n_devices = devices_.size();
         std::vector<backend::BufferPtr> taken(weights.tensors.size() * n_devices);
-        auto resolve = [&](const Role& role, size_t device) -> Weight {
+        auto resolve = [&](const Role& role, size_t device, size_t member = 0) -> Weight {
             if (!role.tensor) throw TensorIndex::missing(role.alias.empty() ? role.name : role.alias);
             const size_t i = *role.tensor;
             const TensorView& t = weights.tensors[i];
@@ -823,11 +887,25 @@ private:
                 for (size_t d = norm ? 1 : 2; d < t.shape.size(); ++d) valid = valid && t.shape[d] == 1;
             }
             if (!valid) throw std::runtime_error("inference: incompatible tensor layout " + t.name);
-            backend::BufferPtr& buffer = taken[i * n_devices + device];
-            if (!buffer) {
-                backend::Backend& b = *devices_[device]->b;
-                buffer = adopt ? adopt(i, b) : b.adopt(t.data, t.bytes);
+            backend::Backend& b = *devices_[device + member]->b;
+            // A member of a tensor group takes its shard of a split role, a buffer of its own even where another role reads the whole tensor there, as a tied head beside the embedding does.
+            if (width_ > 1 && role.shard.axis != Axis::none) {
+                const std::vector<shard::Run> runs = shard::runs(role, t, width_, member);
+                backend::BufferPtr buffer;
+                if (adopt) {
+                    buffer = adopt(i, b, runs);
+                } else {
+                    packed_.emplace_back(shard::bytes(runs));
+                    shard::pack(runs, t.data, packed_.back().data());
+                    buffer = b.adopt(packed_.back().data(), packed_.back().size());
+                }
+                size_t n = 0;
+                for (const shard::Span& span : shard::spans(role, width_, member)) n += (size_t)span.count;
+                const bool rows = role.shard.axis == Axis::rows;
+                return Weight{t.type, buffer, rows ? (size_t)role.in : n, rows ? n : (size_t)role.out};
             }
+            backend::BufferPtr& buffer = taken[i * n_devices + device + member];
+            if (!buffer) buffer = adopt ? adopt(i, b, {}) : b.adopt(t.data, t.bytes);
             return Weight{t.type, buffer, (size_t)role.in, (size_t)role.out};
         };
         pass_.assign(plan_.role_ids, Weight{});
@@ -849,6 +927,14 @@ private:
             stream_[l] = row;
             for (const Role& role : layer.roles)
                 if (role.stream == Stream::copy) stream_[l][role.id] = resolve(role, a);
+        }
+        // Each other member of a tensor group gets its own rows, in the same order.
+        member_pass_.assign(width_ - 1, std::vector<Weight>(plan_.role_ids));
+        member_home_.assign(width_ - 1, std::vector<std::vector<Weight>>(n_layer, std::vector<Weight>(plan_.role_ids)));
+        for (size_t m = 1; m < width_; ++m) {
+            for (const Role& role : plan_.pass) member_pass_[m - 1][role.id] = resolve(role, device_of(role.part, 0), m);
+            for (size_t l = 0; l < n_layer; ++l)
+                for (const Role& role : plan_.layers[l].roles) member_home_[m - 1][l][role.id] = resolve(role, device_of(role.part, l), m);
         }
         // The windows are allocated with the weights, so a pass never fails for want of one.
         std::vector<std::vector<size_t>> sizes(n_devices);
@@ -901,6 +987,8 @@ private:
     // Defined in model/passes.hpp, the owner of a pass and its stages.
     void begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries, size_t logits_base = 0);
     void run_stage(ExecContext& ctx, Pass& p, size_t s);
+    void group_stage(ExecContext& ctx, Pass& p, size_t s);
+    void end_stage(ExecContext& ctx, Pass& p, size_t s, size_t cur);
     void draft_context(ExecContext& ctx, Pass& p, size_t s);
     void finish(ExecContext& ctx, const Pass& p);
     void roll_back(Pass& p) noexcept;

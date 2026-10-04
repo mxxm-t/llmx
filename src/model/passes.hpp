@@ -147,7 +147,7 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     p.pick.resize(want);
     p.runs.resize(n_entries);
     p.head_runs.clear();
-    p.views.resize(storages_.size());
+    p.views.resize(storages_.size() * width_);
     for (auto& v : p.views) v.resize(n_entries);
     if (state_layers_) {
         p.states.resize(devices_.size());
@@ -194,12 +194,18 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
     struct Paths {
         const std::vector<std::unique_ptr<Device>>& devices;
         const std::vector<size_t>& touches;
+        size_t width;
         void swap() const noexcept {
-            for (size_t d : touches) devices[d]->b->swap_matrix_paths(devices[d]->matrix_paths);
+            for (size_t d : touches)
+                for (size_t m = d; m < d + width; ++m) devices[m]->b->swap_matrix_paths(devices[m]->matrix_paths);
         }
         ~Paths() { swap(); }
-    } paths{devices_, st.touches};
+    } paths{devices_, st.touches, width_};
     paths.swap();
+    if (width_ > 1) {
+        group_stage(ctx, p, s);
+        return;
+    }
     Device& home = *devices_[st.device];
     const int storage = home.storage_index;
     for (size_t e = 0; storage >= 0 && e < p.entries.size(); ++e) {
@@ -248,13 +254,86 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
                                  backend::RowRuns{p.head_runs.data(), p.head_runs.size()},
                                  {ctx.logits_buf.get(), p.logits_base * plan_.vocab}});
     }
-    for (size_t d : st.touches) ctx.tickets[d] = devices_[d]->b->submit();
+    end_stage(ctx, p, s, cur);
+}
+
+// Stage s on a tensor group (docs/TENSOR-SPLIT.md, section 4.3): every member runs each part on its shards over its own residual, the group's collective sums the members' partial rows into every member's residual after each part, the residual comes in to every member and leaves from the first, and after the last stage each member's slice of the logits rows is gathered into the context's.
+// The placement holds the embedding on the first stage's group, the head on the last's and every feed-forward block beside its mixer, and a group runs no layer that keeps a state (the constructor's checks).
+inline void Model::group_stage(ExecContext& ctx, Pass& p, size_t s) {
+    const Stage& st = stages_[s];
+    const size_t g = st.device, W = width_;
+    const int storage = devices_[g]->storage_index;
+    for (size_t e = 0; storage >= 0 && e < p.entries.size(); ++e) {
+        KVSequence& kv = p.entries[e].seq->kv_[(size_t)storage];
+        kv.prepare(p.entries[e].n);
+        for (size_t m = 0; m < W; ++m) {
+            backend::KVView& v = p.views[(size_t)storage * W + m][e];
+            v = kv.view(devices_[g + m]->storage.get());
+            v.extent = p.runs[e].extent;
+        }
+    }
+    const backend::RowRuns all{p.runs.data(), p.runs.size()};
+    backend::Collective& sum = *ctx.collectives[g];
+    std::vector<backend::Slice> x(W);
+    for (size_t m = 0; m < W; ++m) x[m] = slot(ctx, g + m, 0);
+    for (size_t m = 0; m < W; ++m) {
+        if (s == 0) arch_->embed(part(ctx, g + m, pass_row(m), 0, 0, p.rows, all), p.ids.data());
+        else receive(ctx, p.at, p.handoff, p.sent, g + m, 0, p.rows);
+    }
+    for (int l = st.first; l < st.end; l++) {
+        for (size_t m = 0; m < W; ++m) {
+            Step step = mixer_part(ctx, p, g + m, l);
+            step.width = W;
+            step.partial = sum.partial(m);
+            arch_->mixer(step);
+        }
+        sum.sum_into(x, p.rows, plan_.residual);
+        for (size_t m = 0; m < W; ++m) {
+            Step step = part(ctx, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all);
+            step.width = W;
+            step.partial = sum.partial(m);
+            arch_->ffn(step);
+        }
+        sum.sum_into(x, p.rows, plan_.residual);
+    }
+    if (s + 1 < stages_.size()) {
+        send(ctx, g, p.handoff, 0, p.rows);
+        p.at = g;
+    } else if (p.want) {
+        // Each member's vocabulary rows of every row that wants logits, then gathered by the first member into the context's rows.
+        const size_t V = plan_.vocab;
+        for (size_t m = 0; m < W; ++m) {
+            HeadStep head{part(ctx, g + m, pass_row(m), 0, 0, p.rows, all), p.pick.data(), p.want,
+                          backend::RowRuns{p.head_runs.data(), p.head_runs.size()}, {ctx.member_logits[g + m].get(), 0}};
+            head.width = W;
+            arch_->head(head);
+        }
+        for (size_t m = 0, at = 0; m < W; ++m) {
+            backend::Backend& b = *devices_[g + m]->b;
+            const size_t n = head_rows(m);
+            b.wait(b.submit());
+            const uint8_t* rows = (const uint8_t*)ctx.member_logits[g + m]->host_ptr();
+            for (size_t r = 0; r < p.want; ++r)
+                devices_[g]->b->write(*ctx.logits_buf, ((p.logits_base + r) * V + at) * sizeof(float), rows + r * n * sizeof(float), n * sizeof(float));
+            at += n;
+        }
+    }
+    end_stage(ctx, p, s, g);
+}
+
+// The end of stage s, the residual or the head last on device `cur`: every device the stage recorded on submits, each member of a tensor group, the pass's ticket that of `cur`, and each entry's history commits the stage.
+inline void Model::end_stage(ExecContext& ctx, Pass& p, size_t s, size_t cur) {
+    const Stage& st = stages_[s];
+    const int storage = devices_[st.device]->storage_index;
+    for (size_t d : st.touches)
+        for (size_t m = d; m < d + width_; ++m) ctx.tickets[m] = devices_[m]->b->submit();
     p.sent = ctx.tickets[cur];
     for (size_t e = 0; e < p.entries.size(); ++e) {
         Sequence& q = *p.entries[e].seq;
         if (storage >= 0) q.kv_[(size_t)storage].commit();
         else q.length_[s] += p.entries[e].n;
-        for (size_t d : st.touches) q.last_[d] = ctx.tickets[d];
+        for (size_t d : st.touches)
+            for (size_t m = d; m < d + width_; ++m) q.last_[m] = ctx.tickets[m];
         if (!state_layers_) continue;
         q.from_[s] = p.kept[e].held() ? p.kept[e].slot() : Sequence::kLive;
         // Once every stage holds it, the checkpoint is the sequence's, and the one it replaces goes: a later write of that slot is enqueued after every read of it on each device's stream.
@@ -369,6 +448,29 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
         ctx.logit_rows = want;
         ctx.width = plan_.vocab;
     }
+    if (width_ == 1) return;
+    // A tensor group's collective for the rows the arenas now hold, and each member of the head's group its slice of the logits rows.
+    ctx.collectives.resize(devices_.size());
+    ctx.member_logits.resize(devices_.size());
+    for (size_t g = 0; g < devices_.size(); g += width_) {
+        if (!devices_[g]->used || (ctx.collectives[g] && ctx.collective_rows >= rows)) continue;
+        std::vector<backend::Backend*> members;
+        for (size_t m = g; m < g + width_; ++m) {
+            members.push_back(devices_[m]->b.get());
+            devices_[m]->b->wait(ctx.tickets[m]);
+        }
+        ctx.collectives[g] = devices_[g]->b->join(members, rows, plan_.residual);
+        if (!ctx.collectives[g]) throw std::runtime_error("inference: the backends of a tensor group have no cross-device sum");
+    }
+    ctx.collective_rows = std::max(ctx.collective_rows, rows);
+    const size_t o = (size_t)place_.output_device;
+    for (size_t m = 0; want && m < width_; ++m) {
+        backend::BufferPtr& b = ctx.member_logits[o + m];
+        const size_t bytes = mul(mul(want, head_rows(m)), sizeof(float));
+        if (b && b->size() >= bytes) continue;
+        devices_[o + m]->b->wait(ctx.tickets[o + m]);
+        b = devices_[o + m]->b->alloc(bytes, backend::Memory::host_visible);
+    }
 }
 
 // The residual stream moves from one device's x slot to another's through host memory, `rows` rows from `base`; a few kilobytes on a decode token.
@@ -442,9 +544,9 @@ inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t k
 inline Step Model::mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const {
     const Device& d = *devices_[dev];
     const LayerPlan& layer = plan_.layers[(size_t)l];
-    Step s = part(ctx, dev, home_[(size_t)l].data(), layer.kind, 0, p.rows, {p.runs.data(), p.runs.size()});
+    Step s = part(ctx, dev, home_row(d.member, (size_t)l), layer.kind, 0, p.rows, {p.runs.data(), p.runs.size()});
     if (layer.cache == Cache::kv) {
-        s.views = p.views[(size_t)d.storage_index].data();
+        s.views = p.views[(size_t)d.storage_index * width_ + d.member].data();
         s.n_views = p.entries.size();
         s.kv_layer = (size_t)d.local_layer[(size_t)l];
     } else if (layer.cache == Cache::state) {

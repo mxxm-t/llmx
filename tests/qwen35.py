@@ -50,15 +50,20 @@ def full_attention(layer):
     return (layer + 1) % CONFIG["full_attention_interval"] == 0
 
 
+def fixture_config(fixture):
+    """CONFIG with the keys a fixture of other shapes overrides (its "config"), and its V head width and vocabulary, which default to V_HEAD and VOCAB."""
+    return dict(CONFIG, **fixture.get("config", {})), fixture.get("v_head", V_HEAD), fixture.get("vocab", VOCAB)
+
+
 def gguf_config(fixture):
     """The qwen35 or qwen35moe metadata the converter writes for `fixture`, whose MTP block, when it has one, is one more block."""
-    config = dict(CONFIG)
+    config, v_head, _ = fixture_config(fixture)
     if fixture.get("moe"):
         del config["feed_forward_length"]
         config.update(MOE)
     config["block_count"] = LAYERS + fixture["mtp"]
     config["ssm.time_step_rank"] = fixture["v_heads"]
-    config["ssm.inner_size"] = fixture["v_heads"] * V_HEAD
+    config["ssm.inner_size"] = fixture["v_heads"] * v_head
     if fixture["mtp"]:
         config["nextn_predict_layers"] = 1
     return config
@@ -69,9 +74,10 @@ def raw_weights(fixture):
     One fixed sequence makes them, so the file with an MTP block holds the weights of the one without it, then the block's."""
     state = 24680
     result = []
-    width, ff, hd = CONFIG["embedding_length"], CONFIG["feed_forward_length"], CONFIG["attention.key_length"]
-    heads, kv_heads = CONFIG["attention.head_count"], CONFIG["attention.head_count_kv"]
-    k_heads, k_width, v_heads = CONFIG["ssm.group_count"], CONFIG["ssm.state_size"], fixture["v_heads"]
+    config, V_HEAD, VOCAB = fixture_config(fixture)
+    width, ff, hd = config["embedding_length"], config["feed_forward_length"], config["attention.key_length"]
+    heads, kv_heads = config["attention.head_count"], config["attention.head_count_kv"]
+    k_heads, k_width, v_heads = config["ssm.group_count"], config["ssm.state_size"], fixture["v_heads"]
     conv = 2 * k_heads * k_width + v_heads * V_HEAD
 
     # A value is a multiple of 1/8192 in [-1/16, 1/16), times `scale`, plus `offset`.
@@ -100,7 +106,7 @@ def raw_weights(fixture):
             add(prefix + "linear_attn.in_proj_z.weight", [v_heads * V_HEAD, width])
             add(prefix + "linear_attn.in_proj_b.weight", [v_heads, width], scale=16.0)
             add(prefix + "linear_attn.in_proj_a.weight", [v_heads, width], scale=8.0)
-            add(prefix + "linear_attn.conv1d.weight", [conv, 1, CONFIG["ssm.conv_kernel"]], scale=8.0)
+            add(prefix + "linear_attn.conv1d.weight", [conv, 1, config["ssm.conv_kernel"]], scale=8.0)
             add(prefix + "linear_attn.dt_bias", [v_heads], scale=32.0)
             add(prefix + "linear_attn.A_log", [v_heads], scale=32.0)
             add(prefix + "linear_attn.norm.weight", [V_HEAD], offset=1.0)
@@ -199,8 +205,9 @@ def gguf_tensors(fixture, raw):
     """The GGUF tensors the converter writes from `raw`, as tests/f32.py's writer takes them: (GGUF name, HF name, GGUF shape, values).
     A GGUF shape lists HF's dimensions fastest first, and the conv kernel drops HF's middle axis, so tap 3 is the one that multiplies the current token.
     HF's fused experts' gate_up_proj splits into the gate and up stacks, each expert's first half of rows the gate, and the shared expert's gate of [1, E] is written as a vector of E."""
-    k_heads, v_heads = CONFIG["ssm.group_count"], fixture["v_heads"]
-    qk = 2 * k_heads * CONFIG["ssm.state_size"]
+    config = fixture_config(fixture)[0]
+    k_heads, v_heads = config["ssm.group_count"], fixture["v_heads"]
+    qk = 2 * k_heads * config["ssm.state_size"]
     out = []
     for name, shape, values in raw:
         match = re.fullmatch(r"(?:model\.layers\.(\d+)|mtp\.layers\.0)\.(.+)", name)
@@ -253,10 +260,11 @@ def golden():
     return doc
 
 
-def write_fixture(directory, fixture):
+def write_fixture(directory, fixture, tokens=None):
+    """The fixture's GGUF in `directory`, its vocabulary `tokens` where it holds more than VOCAB."""
     path = os.path.join(directory, "tiny-qwen35-%s.gguf" % fixture["name"])
     return write_model(path, gguf_tensors(fixture, raw_weights(fixture)), eos_id=EOS, config=gguf_config(fixture),
-                       arch="qwen35moe" if fixture.get("moe") else "qwen35")
+                       arch="qwen35moe" if fixture.get("moe") else "qwen35", tokens=tokens)
 
 
 def check_serve(directory):

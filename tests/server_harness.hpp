@@ -308,9 +308,10 @@ using Make = std::function<std::unique_ptr<infer::Model>(size_t pool, int ubatch
 
 // A hybrid model holds `state_slots` recurrent states, which bounds the requests a scheduler over it runs at once, and `checkpoints` states kept for prefix reuse; the others hold none.
 // With `marks` the model marks that many sequences at once for verifies of up to `mark_rows` rows, and with `drafter` it loads the embedded drafter its file carries.
+// With a `width` above 1 the backends form tensor groups of that many, the stages (docs/TENSOR-SPLIT.md).
 inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend::BackendPtr>()> backends, size_t state_slots = 8, size_t checkpoints = 0,
-               size_t marks = 0, size_t mark_rows = 0, bool drafter = false) {
-    return [&weights, backends, state_slots, checkpoints, marks, mark_rows, drafter](size_t pool, int ubatch) {
+               size_t marks = 0, size_t mark_rows = 0, bool drafter = false, size_t width = 1) {
+    return [&weights, backends, state_slots, checkpoints, marks, mark_rows, drafter, width](size_t pool, int ubatch) {
         infer::ModelOptions options;
         options.kv_tokens = pool;
         options.state_slots = state_slots;
@@ -321,7 +322,8 @@ inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend
         infer::PlacementRequest request;
         request.drafter = drafter;
         for (size_t i = 0; i < b.size(); ++i) request.names.push_back("device " + std::to_string(i));
-        if (b.size() > 1) request.shares.assign(b.size(), 1);
+        if (b.size() > width) request.shares.assign(b.size() / width, 1);
+        request.width = width;
         request.ubatch = ubatch;
         return std::move(infer::place_model(infer::gguf_weights(weights), std::move(b), request, options).model);
     };

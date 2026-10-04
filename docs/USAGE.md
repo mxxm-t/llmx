@@ -201,7 +201,7 @@ comma-separated list on one line.
 
 Decode a comma- or whitespace-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> ("<text>" | --file <path>) [--chat] [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
+## `llmx logits <in.gguf> ("<text>" | --file <path>) [--chat] [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -274,6 +274,7 @@ Flags:
 | `-ctk`, `--cache-type-k T` / `-ctv`, `--cache-type-v T` | KV cache storage per side, `f16` (default) or `f32` |
 | `--device D`    | backend: `cpu`, or `vulkan:N` in a build with it |
 | `--layer-shares A,B` | with several devices, their proportions of the layers |
+| `--tensor-width N` | devices each layer is split across, the listed devices forming groups of `N` (default 1, below) |
 | `--n-cpu-moe N`, `--cpu-moe` | experts of the first `N` routed layers, or of all, on the CPU beside a device |
 | `--moe-stream-from N` | run those experts on the device for a prompt of at least `N` tokens, two at the least (default 0, never) |
 | `--load-mode M` | how the weights are read: `auto` (default), `mapped` or `direct` (below) |
@@ -358,6 +359,15 @@ as a device to give it layers. `bench` without `--model` measures the
 first device listed.
 `--profile` takes one Vulkan device and is refused with a list or layer shares.
 Every command that takes `--device` takes a list.
+
+### Tensor split (`--tensor-width N`)
+
+`--tensor-width N` splits every layer across `N` devices (`docs/TENSOR-SPLIT.md`): the listed devices form groups of `N` consecutive devices, each device of a group holding its share of every layer's heads and hidden rows and of the head's vocabulary, and the groups are the stages of a layer split, so `--layer-shares` gives one share a group.
+1, the default, is the layer split alone; a width that is the whole list is one group.
+A group sums its devices' partial products twice a layer in a fixed order, so its output is the same run to run and however a request is batched, and across stage counts at one width, but not the same bits as one device or another width.
+Refused before a model file is read: a list that is not whole groups, a width above 4, a share count other than the groups and a group of devices of different kinds; refused once the model is read: a width that does not divide its heads, KV heads (or is not a multiple of them), K or V heads or vocabulary rows, a column split off whole quant blocks, routed experts, a layer that keeps a recurrent state and an embedded drafter, which a group does not split yet.
+A device is listed once, so the command line forms groups of Vulkan devices; a backend without a sum across its devices on this build, today the Vulkan backend, is refused naming it.
+Groups of CPU backends, which hold the split's arithmetic to its rules on one host, are formed by the test tools rather than the command line (`llmx-split-check` with a tensor width, docs/TENSOR-SPLIT.md, step 2).
 
 One request at a time leaves each device idle while the others run their
 layers, and a card left at its automatic clock level drops its clock in
@@ -501,6 +511,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
 | `--device D`            | backend: `cpu`, or `vulkan:N` in a build with it     | `cpu`   |
 | `--layer-shares A,B`    | with several devices, their proportions of the layers | fitted to free memory |
+| `--tensor-width N`      | devices each layer is split across, the listed devices forming groups of `N` | 1 |
 | `--n-cpu-moe N`         | experts of the first `N` routed layers on the CPU    | 0       |
 | `--cpu-moe`             | experts of every routed layer on the CPU             | off     |
 | `--moe-stream-from N`   | prompt length, two at the least, from which those experts run on the device | 0 (never) |
@@ -589,7 +600,7 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--state-checkpoints N] [--host-cache-bytes N] [--timing] [--ctx-size N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--state-checkpoints N] [--host-cache-bytes N] [--timing] [--ctx-size N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -746,7 +757,7 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --max-queue 256
 python tools/server_load.py --input-len-range 64:1024 --output-len 128 --rate 1 2 4 8 inf --num-prompts 200 --json open.json
 ```
 
-## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--profile] [--drafter D]`
+## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--profile] [--drafter D]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an

@@ -1232,8 +1232,73 @@ void passes_refused() {
 }
 }
 
+// A tensor split (docs/TENSOR-SPLIT.md, step 2): one stage of width 2 against two stages of width 2 on four CPU backends, bit for bit, through a prompt, decode steps, a second prompt, every scored row and a two-sequence pass, with the prompt in slices of the ubatch; and against one device within an F32 bound, the sums regrouped.
+void tensor_groups() {
+    auto grouped = [](const gguf::GGUFModel& weights, size_t devices, const std::vector<int>& shares, int ubatch) {
+        std::vector<backend::BackendPtr> cpus;
+        for (size_t i = 0; i < devices; ++i) {
+            cpus.push_back(std::make_shared<backend::CpuBackend>());
+            cpus.back()->set_threads(1);
+        }
+        infer::PlacementRequest request;
+        request.names.assign(devices, "cpu");
+        request.shares = shares;
+        request.ubatch = ubatch;
+        request.width = 2;
+        return infer::place_model(infer::gguf_weights(weights), std::move(cpus), request, infer::ModelOptions{});
+    };
+    for (bool tied : {true, false}) {
+        const auto weights = tiny_qwen(3, 2 * 128, tied);
+        infer::PlacedModel one_stage = grouped(weights, 2, {}, 3), two_stages = grouped(weights, 4, {1, 2}, 3), whole = grouped(weights, 2, {}, 13);
+        infer::Model& a = *one_stage.model;
+        infer::Model& b = *two_stages.model;
+        auto cpu = std::make_shared<backend::CpuBackend>();
+        cpu->set_threads(1);
+        infer::Model single(infer::gguf_weights(weights), cpu);
+        single.set_ubatch(3);
+        const size_t V = a.n_vocab();
+        require(b.stage_count() == 2 && b.pipelined() && a.stage_count() == 1, "the groups did not form the stages asked for");
+        auto close = [](const std::vector<float>& x, const std::vector<float>& y) {
+            bool ok = x.size() == y.size();
+            for (size_t i = 0; ok && i < x.size(); ++i) ok = std::fabs(x[i] - y[i]) <= 1e-4f * (1.0f + std::fabs(y[i]));
+            return ok;
+        };
+        const std::vector<float> first = a.prefill(kPrompt);
+        exact(first, b.prefill(kPrompt), "two stages of width 2 differ from one stage of width 2 on a prompt");
+        exact(first, whole.model->prefill(kPrompt), "a prompt in slices of the ubatch differs from the prompt in one pass on a group");
+        require(close(first, single.prefill(kPrompt)), "a group's prompt is not one device's within the F32 bound");
+        for (int t : {7, 9, 3}) {
+            const std::vector<float> x = a.step(t);
+            exact(x, b.step(t), "a decode step differs between one and two stages of width 2");
+            require(close(x, single.step(t)), "a group's decode step is not one device's within the F32 bound");
+        }
+        const std::vector<uint32_t> more{2, 7, 1, 8, 2, 8, 1};
+        exact(a.prefill(more), b.prefill(more), "a prompt continuing a history differs between one and two stages of width 2");
+        std::vector<float> scored;
+        a.score(kPrompt, [&](size_t, const float* logits) { scored.insert(scored.end(), logits, logits + V); });
+        bool same = true;
+        b.score(kPrompt, [&](size_t pos, const float* logits) { same = same && !std::memcmp(logits, &scored[pos * V], V * sizeof(float)); });
+        require(same, "a scored row differs between one and two stages of width 2");
+        a.reset();
+        b.reset();
+        infer::Sequence sa = a.make_sequence(), ta = a.make_sequence(), sb = b.make_sequence(), tb = b.make_sequence();
+        infer::ExecContext xa, xb;
+        const infer::BatchEntry ha{&sa, kPrompt.data(), 4, false}, hb{&sb, kPrompt.data(), 4, false};
+        a.forward(xa, &ha, 1);
+        b.forward(xb, &hb, 1);
+        const uint32_t next = 6;
+        const infer::BatchEntry ea[2] = {{&sa, &next, 1, true}, {&ta, more.data(), more.size(), true}};
+        const infer::BatchEntry eb[2] = {{&sb, &next, 1, true}, {&tb, more.data(), more.size(), true}};
+        a.forward(xa, ea, 2);
+        b.forward(xb, eb, 2);
+        for (size_t r = 0; r < 2; ++r) require(!std::memcmp(xa.logits(r), xb.logits(r), V * sizeof(float)), "a two-sequence pass differs between one and two stages of width 2");
+        checked += 6;
+    }
+}
+
 int main() {
     try {
+        tensor_groups();
         host_scratch_fits();
         split_matches_single();
         layer_split_fits();

@@ -421,7 +421,9 @@ private:
     void full_attention(const Step& s, backend::Slice h) const {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
-        const size_t E = (size_t)cfg_.n_embd, D = (size_t)cfg_.head_dim, Hq = (size_t)cfg_.n_head, Hkv = (size_t)cfg_.n_head_kv;
+        // On a tensor group each member runs its share of the heads, a KV head replicated where the width is a multiple of them.
+        const size_t E = (size_t)cfg_.n_embd, D = (size_t)cfg_.head_dim, Hq = (size_t)cfg_.n_head / s.width;
+        const size_t Hkv = (size_t)cfg_.n_head_kv >= s.width ? (size_t)cfg_.n_head_kv / s.width : 1;
         const backend::Slice r = s.slot(2), k = s.slot(3), v = s.slot(4), q = s.slot(5), o = s.slot(6);
         b.matmul_group({blocks::projection(w[attn_q], r), blocks::projection(w[attn_k], k), blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs, s.dtype);
         const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
@@ -431,7 +433,7 @@ private:
         b.kv_write(s.kv_layer, s.views, s.n_views, k, v);
         b.attention(q, s.kv_layer, s.views, s.n_views, o, (int)Hq, (int)Hkv, (int)D);
         b.sigmoid_mul(o, o, backend::CSlice{r.buffer, r.offset + D}, s.rows, Hq, D, 2 * Hq * D, 2 * D, s.runs);
-        b.matmul_add(w[attn_output].type, w[attn_output].slice(), o, s.x, w[attn_output].nin, w[attn_output].nout, s.rows, s.runs, s.dtype);
+        blocks::join(s, w[attn_output], o);
     }
 
     // The gated delta net (docs/QWEN35.md, Linear attention): the raw q, k and v rows, z, alpha and beta; the state's update (recur), the causal conv over the raw rows and the state's carried ones and the recurrence from the sequence's state; the gated norm by z; and the output projection joining the residual.
@@ -446,7 +448,7 @@ private:
                        h, E, s.rows, s.runs, s.dtype);
         recur(s);
         b.gated_rms_norm(o, o, z, w[ssm_norm].slice(), s.rows, Hv, (size_t)cfg_.v_dim, cfg_.rms_eps, s.runs);
-        b.matmul_add(w[ssm_out].type, w[ssm_out].slice(), o, s.x, w[ssm_out].nin, w[ssm_out].nout, s.rows, s.runs, s.dtype);
+        blocks::join(s, w[ssm_out], o);
     }
 };
 

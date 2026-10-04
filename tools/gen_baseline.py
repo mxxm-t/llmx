@@ -769,21 +769,22 @@ def load_tiny_weights(model, weights, torch, tied=False):
     model.load_state_dict(state, strict=True)
 
 
-def tiny_qwen3(tied, seed=12345):
-    """The tiny dense model of tests/f32.py as an HF Qwen3ForCausalLM with eager attention, holding the weights f32.tensors builds from `seed`; returns the model and those weights."""
+def tiny_qwen3(tied, seed=12345, config=None, vocab=None):
+    """The tiny dense model of tests/f32.py, or one of `config` and `vocab`, as an HF Qwen3ForCausalLM with eager attention, holding the weights f32.tensors builds from `seed`; returns the model and those weights."""
     import torch
     from transformers import Qwen3Config, Qwen3ForCausalLM
-    from f32 import CONFIG, VOCAB, tensors
+    import f32
+    config, vocab = config or f32.CONFIG, vocab or f32.VOCAB
 
-    config = Qwen3Config(vocab_size=VOCAB, hidden_size=CONFIG["embedding_length"],
-                         intermediate_size=CONFIG["feed_forward_length"], num_hidden_layers=CONFIG["block_count"],
-                         num_attention_heads=CONFIG["attention.head_count"],
-                         num_key_value_heads=CONFIG["attention.head_count_kv"], head_dim=CONFIG["attention.key_length"],
-                         max_position_embeddings=CONFIG["context_length"], rope_theta=10000.0,
-                         rms_norm_eps=1e-6, tie_word_embeddings=tied, attention_dropout=0.0)
-    config._attn_implementation = "eager"
-    model = Qwen3ForCausalLM(config).float().eval()
-    weights = tensors(tied, seed)
+    hf = Qwen3Config(vocab_size=vocab, hidden_size=config["embedding_length"],
+                     intermediate_size=config["feed_forward_length"], num_hidden_layers=config["block_count"],
+                     num_attention_heads=config["attention.head_count"],
+                     num_key_value_heads=config["attention.head_count_kv"], head_dim=config["attention.key_length"],
+                     max_position_embeddings=config["context_length"], rope_theta=10000.0,
+                     rms_norm_eps=1e-6, tie_word_embeddings=tied, attention_dropout=0.0)
+    hf._attn_implementation = "eager"
+    model = Qwen3ForCausalLM(hf).float().eval()
+    weights = f32.tensors(tied, seed, config, vocab)
     load_tiny_weights(model, weights, torch, tied)
     return model, weights
 
@@ -1017,8 +1018,8 @@ QWEN35_GREEDY_GAP = 1e-4
 
 def qwen35_hf_config(fixture):
     """The HF text config of a tiny qwen35 or qwen35moe fixture, from the metadata tests/qwen35.py writes to its GGUF."""
-    from f32 import VOCAB
-    from qwen35 import CONFIG, LAYERS, MOE, V_HEAD, full_attention
+    from qwen35 import LAYERS, MOE, fixture_config, full_attention
+    CONFIG, V_HEAD, VOCAB = fixture_config(fixture)
     head = CONFIG["attention.key_length"]
     moe = {"architectures": ["Qwen3_5MoeForCausalLM"], "model_type": "qwen3_5_moe_text", "num_experts": MOE["expert_count"],
            "num_experts_per_tok": MOE["expert_used_count"], "moe_intermediate_size": MOE["expert_feed_forward_length"],
@@ -1248,6 +1249,44 @@ def gen_qwen35_tiny(output_dir=OUT_DIR):
     print("wrote %s (%d fixtures)" % (path, len(fixtures)))
 
 
+def gen_tensor_split(output_dir=OUT_DIR):
+    """The goldens of tests/tensor_split.py's fixtures, whose every split falls whole at widths 2 and 4, in the qwen35 environment, which runs both architectures: the qwen3 one, tied and untied, through HF Qwen3ForCausalLM's full forward, and the qwen35 one through HF's token-by-token cached forward, as the tiny references take them."""
+    torch, transformers, modeling = qwen35_environment()
+    from safetensors.torch import save_file
+    import qwen35
+    import tensor_split
+    from f32 import weight_hash
+
+    torch.set_num_threads(1)
+    dense = []
+    for tied in (False, True):
+        model, weights = tiny_qwen3(tied, config=tensor_split.CONFIG, vocab=tensor_split.VOCAB)
+        cases, perplexity = reference_outputs(model, torch)
+        dense.append({"tied": tied, "weights_sha256": weight_hash(weights), "cases": cases, "perplexity": perplexity})
+    spec = tensor_split.QWEN35
+    raw = qwen35.raw_weights(spec)
+    record = {"spec": spec, "weights_sha256": weight_hash(qwen35.hashed(raw))}
+    with counted_delta_rules(modeling) as calls, torch.no_grad(), tempfile.TemporaryDirectory(prefix="llmx_tensor_split_hf_") as directory:
+        with open(os.path.join(directory, "config.json"), "w", encoding="utf-8") as f:
+            json.dump(qwen35_hf_config(spec), f)
+        tensors = {name: torch.tensor(values, dtype=torch.float32).reshape(shape) for name, shape, values in raw}
+        save_file(tensors, os.path.join(directory, "model.safetensors"), metadata={"format": "pt"})
+        model, record["unused_keys"] = load_qwen35_tiny(directory, list(tensors), torch, transformers)
+        state = model.state_dict()
+        if any(not torch.equal(state[name], tensor) for name, tensor in tensors.items() if name in state):
+            raise SystemExit("tensor-split: the qwen35 fixture holds other values than its checkpoint")
+        calls.update(recurrent=0, chunk=0, log_decay=0.0)
+        goldens, _, _ = qwen35_goldens(model, torch, transformers, calls)
+        record.update(goldens)
+        record["recurrent_steps"] = calls["recurrent"]
+    path = os.path.join(output_dir, "baseline_tensor_split.json")
+    _write(path, {
+        "_comment": "Generated by tools/gen_baseline.py tensor-split using HF Qwen3ForCausalLM and Qwen3_5ForCausalLM with deterministic synthetic weights whose every split falls whole at widths 2 and 4.",
+        "torch_version": torch.__version__, "transformers_version": transformers.__version__, "dtype": "float32", "attention": "eager",
+        "config": tensor_split.CONFIG, "vocab": tensor_split.VOCAB, "qwen3": dense, "qwen35": record})
+    print("wrote %s (qwen3 tied and untied, qwen35)" % path)
+
+
 # The prompts of the assembled MTP reference: one and two tokens, so row 0's zero row and the first carried row are both reached, and longer ones; each leaves the context room for the draft steps.
 QWEN35_MTP_PROMPTS = ["a", "ab", "hello", "the quick br"]
 QWEN35_MTP_STEPS = 2
@@ -1356,7 +1395,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "mxfp4", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "mxfp4", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "tensor-split", "qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1467,6 +1506,8 @@ def main(argv=None):
         gen_qwen35_tiny(args.output_dir)
     if args.kind == "qwen35-mtp":
         gen_qwen35_mtp(args.output_dir)
+    if args.kind == "tensor-split":
+        gen_tensor_split(args.output_dir)
     if args.kind == "qwen35":
         loaded = load_reference(args)
         gen_logits(args, loaded)

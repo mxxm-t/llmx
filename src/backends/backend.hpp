@@ -278,9 +278,25 @@ inline const char* op_name(Op op) {
     return "an unknown op";
 }
 
+// A tensor group's sum over backends of one kind, made once at load (docs/TENSOR-SPLIT.md, section 4.3): each member writes the partial rows of a row-parallel product where partial() says, and sum_into adds every member's partial rows to every member's residual rows, in member order, so every member keeps the same bits.
+class Collective {
+public:
+    virtual ~Collective() = default;
+    // Where member `member` writes the partial rows of its next sum: storage the collective owns, on that member, for the rows and width it was made for.
+    virtual Slice partial(size_t member) = 0;
+    // Each member's residual rows, `rows` rows of `width` floats at residual[m], gain ((p0 + p1) + ...) + p(W-1) of the members' partial rows, enqueued on every member.
+    virtual void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) = 0;
+};
+
 class Backend {
 public:
     virtual ~Backend() = default;
+
+    // A collective over `members`, this backend first, every one of this backend's kind, for sums of up to `rows` rows of `width` floats; null where this backend has none on this platform.
+    virtual std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) {
+        (void)members, (void)rows, (void)width;
+        return nullptr;
+    }
 
     // Complete native policies, preferred first; emulation alone does not add a policy to auto's choices.
     virtual std::vector<Dtype> native_dtypes() const { return {Dtype::f32}; }

@@ -166,6 +166,7 @@ A compile without them stops at one `#error` at the top of the header.
   addresses, reaches an expert's matrix inside the stacked tensor).
 - `memory_available()`: the host memory the process can still take, the host's available physical memory or less where a cgroup or job object memory limit leaves less (`core/host_memory.hpp`). Weights on the CPU read the mapped file in place, so what counts against it is caches, activations and what a loader materializes. `scratch_reserve(free)` keeps a twentieth of that reported room for page tables, allocator overhead and kernel workspaces; the fit counts this beside its explicit buffers. `reads_in_place()` is true: `adopt` aliases the caller's bytes. `is_cpu()` is true, so experts on the CPU beside it stay on it.
 - `row_class(extent)`: two classes, a generated token (extent 1), which takes the decode dots, and every longer extent, which takes the prompt path whose rows compute the same however they are batched.
+- `join(members, rows, width)`: a tensor group of CPU backends in this process, joined by its first member and refused over a backend that is not the CPU; each member's partial rows sit in host memory allocated on that member, and `sum_into` reads them in member order on the first member's workers, adding the one sum to every member's residual, eight floats a step and the tail one at a time in the same order.
 - `make_cpu_backend()` factory.
 
 The AVX-512 path is deferred (no dev hardware to benchmark/prove lossless); a

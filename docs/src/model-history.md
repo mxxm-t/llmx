@@ -30,6 +30,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   that fails part way, takes its entries back the same way, since a pass
   writes the live state in place. `checkpoint(sequence)`
   gives its position.
+- On a tensor group each member's storage is copied on its own; `restore_host` takes the blocks from the pool on the group's first member, before the others, which copy into the same blocks.
 - `save_host(sequence, length, out, limit)` and `restore_host(host)`: a
   history's first `length` tokens, whole blocks of every storage, copied
   into a `HostHistory` in host memory and back (`docs/SPECULATIVE.md`,

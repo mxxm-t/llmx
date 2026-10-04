@@ -207,12 +207,13 @@ public:
 
     void embed(const Step& s, const uint32_t* ids) const override { blocks::embed(s, s.w[token_embd], ids); }
 
-    // The slots are those of slot_widths.
+    // The slots are those of slot_widths; on a tensor group of s.width members each runs its share of the heads, a KV head replicated where the width is a multiple of them.
     void mixer(const Step& s) const override {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
         const size_t E = (size_t)cfg_.n_embd, half = (size_t)cfg_.head_dim / 2;
-        const size_t Q = (size_t)cfg_.n_head * cfg_.head_dim, KV = (size_t)cfg_.n_head_kv * cfg_.head_dim;
+        const int n_head = cfg_.n_head / (int)s.width, n_head_kv = cfg_.n_head_kv >= (int)s.width ? cfg_.n_head_kv / (int)s.width : 1;
+        const size_t Q = (size_t)n_head * cfg_.head_dim, KV = (size_t)n_head_kv * cfg_.head_dim;
         const backend::Slice x = s.x, h = s.slot(1), q = s.slot(2), k = s.slot(3), v = s.slot(4), attn = s.slot(5);
 
         b.rms_norm_rows(h, x, w[attn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
@@ -223,14 +224,13 @@ public:
 
         const backend::Backend::RopeArgs rope{{s.tables[0].get(), 0}, {s.tables[1].get(), 0},
                                               half, s.pos, cfg_.rms_eps};
-        b.norm_rope_kv(q, Q, cfg_.n_head, w[attn_q_norm].slice(),
-                       k, v, KV, cfg_.n_head_kv, w[attn_k_norm].slice(),
+        b.norm_rope_kv(q, Q, n_head, w[attn_q_norm].slice(),
+                       k, v, KV, n_head_kv, w[attn_k_norm].slice(),
                        rope, s.rows, s.kv_layer, s.views, s.n_views);
         b.attention(q, s.kv_layer, s.views, s.n_views, attn,
-                    cfg_.n_head, cfg_.n_head_kv, cfg_.head_dim);
+                    n_head, n_head_kv, cfg_.head_dim);
 
-        b.matmul_add(w[attn_output].type, w[attn_output].slice(), attn, x,
-                     w[attn_output].nin, w[attn_output].nout, s.rows, s.runs, s.dtype);
+        blocks::join(s, w[attn_output], attn);
     }
 
     // The rows of the residual from s.x, through the scratch slots from their start, reading whichever row of weights the runtime hands it: the layer's own, or on its mixer device a streamed layer's copies and windows.

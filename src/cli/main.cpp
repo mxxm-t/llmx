@@ -76,6 +76,7 @@ struct ExecOptions {
     std::string device = "cpu";   // cpu, or vulkan:N when built with it; several, comma separated, split the model by layers over them
     std::optional<backend::Dtype> dtype; // empty selects auto
     std::string layer_shares;     // with several devices, their proportions of the layers, comma separated; empty fits them to the devices' free memory
+    int tensor_width = 1;         // devices each layer is split across: the listed devices form groups of this many, the stages of the layer split (docs/TENSOR-SPLIT.md)
     int threads = 0;              // CPU workers, decode's where a command tells the phases apart; 0 selects automatically
     int threads_batch = 0;        // CPU workers for a prompt's batched passes; 0 takes the decode count
     int ubatch = 0;               // prompt tokens a pass takes; 0 is infer::kDefaultUbatch
@@ -378,6 +379,24 @@ std::vector<int> layer_shares(const std::string& value) {
     return shares;
 }
 
+// A device spec's kind: cpu, or the backend before its index.
+std::string kind_of(const std::string& spec) { return spec.substr(0, spec.find(':')); }
+
+// --tensor-width over the listed devices (docs/TENSOR-SPLIT.md, section 4.6), refused as the command line gives it: whole groups of at most 4 devices of one kind, and one layer share a group.
+void tensor_groups(const ExecOptions& exec, const std::vector<std::string>& specs) {
+    const size_t w = (size_t)exec.tensor_width;
+    if (w == 1) return;
+    const std::string flag = "--tensor-width " + std::to_string(w);
+    if (w > 4) throw UsageError(flag + ": at most 4 devices a group; list more devices to form stages");
+    if (specs.size() % w) throw UsageError(flag + " needs a device list of whole groups: " + std::to_string(specs.size()) + " devices listed");
+    const size_t shares = layer_shares(exec.layer_shares).size();
+    if (shares && shares != specs.size() / w)
+        throw UsageError("--layer-shares gives one share a group: " + std::to_string(specs.size() / w) + " groups, " + std::to_string(shares) + " shares");
+    for (size_t g = 0; g < specs.size(); g += w)
+        for (size_t m = g + 1; m < g + w; ++m)
+            if (kind_of(specs[m]) != kind_of(specs[g])) throw UsageError(flag + ": " + specs[g] + " and " + specs[m] + " cannot form a group");
+}
+
 // The load mode after `flag`, checked as it is read, so an unknown name is refused before any model file is read.
 infer::LoadMode load_mode_arg(int argc, char** argv, int& i, const std::string& flag) {
     const std::string name = flag_value(argc, argv, i, flag);
@@ -396,6 +415,7 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
     const std::string_view f = long_spelling(a);
     if (f == "--device") exec.device = flag_value(argc, argv, i, a);
     else if (f == "--layer-shares") { exec.layer_shares = nonempty_value(argc, argv, i, a, "a share for each device"); layer_shares(exec.layer_shares); }
+    else if (f == "--tensor-width") exec.tensor_width = int_arg(argc, argv, i, a, 1);
     else if (f == "--n-cpu-moe") exec.cpu_moe = int_arg(argc, argv, i, a, 0);
     else if (f == "--cpu-moe") exec.cpu_moe = -1;
     else if (f == "--moe-stream-from") exec.moe_stream_from = int_arg(argc, argv, i, a, 0);
@@ -448,12 +468,22 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
     if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     const auto specs = backend::device_specs(exec.device);
+    tensor_groups(exec, specs);
     auto backends = shared.empty() ? backend::make_backends(specs, profiled != nullptr || timed) : shared;
+    // A group needs a sum across its devices, which the backend of its kind may not have on this build or platform yet.
+    for (size_t g = 0; exec.tensor_width > 1 && g < backends.size(); g += (size_t)exec.tensor_width) {
+        std::vector<backend::Backend*> members;
+        for (size_t m = g; m < g + (size_t)exec.tensor_width; ++m) members.push_back(backends[m].get());
+        if (!backends[g]->join(members, 1, 1))
+            throw std::runtime_error("--tensor-width " + std::to_string(exec.tensor_width) + ": the " + kind_of(specs[g]) +
+                                     " backend has no cross-device sum yet (docs/TENSOR-SPLIT.md, section 6)");
+    }
     if (profiled) *profiled = backends.front().get();
     infer::PlacementRequest request;
     request.names = specs;
     request.dtype = exec.dtype;
     request.shares = layer_shares(exec.layer_shares);
+    request.width = (size_t)exec.tensor_width;
     request.cpu_moe = exec.cpu_moe;
     request.stream_from = (size_t)exec.moe_stream_from;
     request.ubatch = exec.ubatch;
@@ -1090,6 +1120,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --dtype T               Matmul inputs: auto (default), f16, bf16 or f32;\n"
             << "                          emulation or F32 fallback is reported per device\n"
             << "  --layer-shares A,B      With several devices, their proportions of the layers\n"
+            << "  --tensor-width N        Devices each layer is split across: the listed devices\n"
+            << "                          form groups of N, the stages of the layer split (default: " << defaults.tensor_width << ")\n"
             << "  --threads N             CPU workers; 0 takes the fewest of the hardware threads\n"
             << "                          and the CPUs the affinity and the CPU quota allow,\n"
             << "                          at most 64 (default: " << defaults.threads << ")\n";

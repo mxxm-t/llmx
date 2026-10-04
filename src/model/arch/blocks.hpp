@@ -49,6 +49,12 @@ inline backend::Projection projection(const Weight& w, backend::Slice out) {
     return {w.type, {w.data.get(), 0}, out, w.nout};
 }
 
+// A part's last projection, whose output joins the residual: added to it on one device, and on a tensor group written as the member's partial rows, which the runtime sums into every member's residual (Step::partial).
+inline void join(const Step& s, const Weight& w, backend::CSlice in) {
+    if (s.width > 1) s.b.matmul(w.type, w.slice(), in, s.partial, w.nin, w.nout, s.rows, s.runs, s.dtype);
+    else s.b.matmul_add(w.type, w.slice(), in, s.x, w.nin, w.nout, s.rows, s.runs, s.dtype);
+}
+
 // The rows of `table` the ids name, into the residual.
 inline void embed(const Step& s, const Weight& table, const uint32_t* ids) {
     s.b.embed(s.x, table.type, table.slice(), table.nin, table.nout, ids, s.rows);
@@ -61,7 +67,7 @@ inline void swiglu(const Step& s, const Weight& gate, const Weight& up, const We
     s.b.matmul_group({projection(gate, g), projection(up, u)}, h, gate.nin, s.rows, s.runs, s.dtype);
     s.b.silu_mul(act, g, u, s.rows * gate.nout, s.runs);
     if (row_gate) s.b.sigmoid_mul(act, act, *row_gate, s.rows, gate.nout, 1, 1, 0, s.runs);
-    s.b.matmul_add(down.type, down.slice(), act, s.x, down.nin, down.nout, s.rows, s.runs, s.dtype);
+    join(s, down, act);
 }
 
 // Routed experts over the normed rows `h`: the router's scores, a softmax's top k renormalized when `norm`, each token's k experts' SwiGLU through the slots `g`, `u` and `act`, each k expert rows a token wide, and the weighted sum of their down projections added to the residual.

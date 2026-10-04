@@ -276,6 +276,14 @@ public:
 
     BufferPtr wrap_host(void* memory, size_t bytes) override { return memory ? std::make_shared<CpuBuffer>(memory, bytes) : nullptr; }
 
+    // A tensor group of CPU backends in this process: each member's partial rows in its own host memory, and the sum read in member order on this backend's workers, every member's residual gaining the same sum.
+    std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override {
+        if (members.empty() || members[0] != this) throw std::logic_error("backend: a collective is joined by its first member");
+        for (Backend* m : members)
+            if (!m || !m->is_cpu() || !dynamic_cast<CpuBackend*>(m)) throw std::runtime_error("backend: a CPU collective over a backend that is not the CPU");
+        return std::make_unique<CpuCollective>(*this, members, rows, width);
+    }
+
     // Eager: an op has completed by the time it returns, so there is never anything outstanding to wait for, and a ticket only counts.
     Ticket submit() override { return ++ticket_; }
     void wait(Ticket) noexcept override {}
@@ -1569,6 +1577,46 @@ private:
         const size_t chunk = ((n + nt - 1) / nt + grain - 1) / grain * grain;
         run_parallel([&](int w) { work(std::min(n, (size_t)w * chunk), std::min(n, (size_t)(w + 1) * chunk)); });
     }
+
+    // The collective join makes: a partial buffer a member, allocated on that member, of the rows and width it was made for.
+    class CpuCollective final : public Collective {
+    public:
+        CpuCollective(CpuBackend& lead, const std::vector<Backend*>& members, size_t rows, size_t width) : lead_(lead), rows_(rows), width_(width) {
+            for (Backend* m : members) partials_.push_back(m->alloc(size_mul(size_mul(rows, width), sizeof(float))));
+        }
+        Slice partial(size_t member) override { return {partials_.at(member).get(), 0}; }
+        void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) override {
+            if (residual.size() != partials_.size() || rows > rows_ || width != width_)
+                throw std::logic_error("backend: a sum of other members, rows or width than its collective was made for");
+            const size_t n = size_mul(rows, width);
+            std::vector<float*> x;
+            for (const Slice& r : residual) {
+                if (!r.buffer) throw std::runtime_error("backend: operand without storage");
+                span(*r.buffer, size_mul(r.offset, sizeof(float)), size_mul(n, sizeof(float)));
+                x.push_back(at(r));
+            }
+            std::vector<const float*> p;
+            for (const BufferPtr& b : partials_) p.push_back((const float*)b->host_ptr());
+            lead_.chunk(n, [&](size_t begin, size_t end) {
+                size_t i = begin;
+                for (; i + 8 <= end; i += 8) {
+                    __m256 s = _mm256_loadu_ps(p[0] + i);
+                    for (size_t m = 1; m < p.size(); ++m) s = _mm256_add_ps(s, _mm256_loadu_ps(p[m] + i));
+                    for (float* xm : x) _mm256_storeu_ps(xm + i, _mm256_add_ps(_mm256_loadu_ps(xm + i), s));
+                }
+                for (; i < end; ++i) {
+                    float s = p[0][i];
+                    for (size_t m = 1; m < p.size(); ++m) s += p[m][i];
+                    for (float* xm : x) xm[i] += s;
+                }
+            });
+        }
+
+    private:
+        CpuBackend& lead_;
+        size_t rows_, width_;
+        std::vector<BufferPtr> partials_;
+    };
 
     int threads_ = 1;
     Ticket ticket_ = 0;

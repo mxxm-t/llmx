@@ -90,13 +90,21 @@ struct WeightPlan {
 
 // The adoption hook load_model builds the model with: a backend that reads in place adopts a weight where it lies and plan.host_reads[i] is set.
 // A backend that copies adopts the weight there and then unless `defer`; with `defer` it gets storage the loader streams the weight into once the model is built (Backend::alloc_weight), recorded in plan.uploads.
-// The model hands each tensor to each of `backends` at most once, and the records are sized for that before the model is built, so recording cannot fail while a buffer is held.
+// A tensor group's member takes its shard of a split role as storage of its own on every backend, streamed into like a copied weight, or with no `defer` packed from the mapping there and then.
+// The model hands each tensor to each of `backends` at most once whole and once as a shard, and the records are sized for that before the model is built, so recording cannot fail while a buffer is held.
 inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, WeightPlan& plan, bool defer) {
     plan.host_reads.assign(weights.tensors.size(), 0);
     plan.uploads.clear();
-    plan.uploads.reserve(defer ? weights.tensors.size() * backends : 0);
-    return [&weights, &plan, defer](size_t i, backend::Backend& b) {
+    plan.uploads.reserve(defer ? 2 * weights.tensors.size() * backends : 0);
+    return [&weights, &plan, defer](size_t i, backend::Backend& b, const std::vector<shard::Run>& runs) {
         const TensorView& t = weights.tensors[i];
+        if (!runs.empty()) {
+            backend::BufferPtr buffer = b.alloc_weight(shard::bytes(runs));
+            if (defer) plan.uploads.push_back({i, &b, buffer, runs});
+            else
+                for (const shard::Run& r : runs) b.write(*buffer, r.to, t.data + r.from, r.bytes);
+            return buffer;
+        }
         if (b.reads_in_place()) {
             plan.host_reads[i] = 1;
             return b.adopt(t.data, t.bytes);

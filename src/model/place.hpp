@@ -108,17 +108,35 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     return fp;
 }
 
-// The placement a layer split describes: each layer's mixer and feed-forward block on the device that runs it, the embedding and the head where the split put them.
-inline Placement placement_for(const LayerSplit& split) {
+// The placement a layer split describes: each layer's mixer and feed-forward block on the device that runs it, the embedding and the head where the split put them; over tensor groups of `width` devices each stage is a group, named by its first member (Placement::width).
+inline Placement placement_for(const LayerSplit& split, size_t width = 1) {
     Placement p;
     for (size_t d = 0; d < split.stages.size(); ++d)
         for (int i = 0; i < split.stages[d].count; ++i) {
-            p.mixer_device.push_back((int)d);
-            p.ffn_device.push_back((int)d);
+            p.mixer_device.push_back((int)(d * width));
+            p.ffn_device.push_back((int)(d * width));
         }
-    p.embed_device = split.embed_device;
-    p.output_device = split.output_device;
+    p.embed_device = split.embed_device * (int)width;
+    p.output_device = split.output_device * (int)width;
+    p.width = width;
     return p;
+}
+
+// What a tensor split's fit places over (docs/TENSOR-SPLIT.md, section 4.6): each group of `width` consecutive devices as one device, named by its members, with its least member's free memory, since every member holds a member's footprint (footprint with a width), and the host memory all its members' backends hold.
+inline std::vector<DeviceBudget> group_budgets(const std::vector<DeviceBudget>& devices, size_t width) {
+    if (width == 1) return devices;
+    std::vector<DeviceBudget> groups;
+    for (size_t g = 0; g + width <= devices.size(); g += width) {
+        DeviceBudget b = devices[g];
+        for (size_t m = g + 1; m < g + width; ++m) {
+            b.name += "+" + devices[m].name;
+            b.bytes = b.bytes && devices[m].bytes ? std::optional<size_t>(std::min(*b.bytes, *devices[m].bytes)) : std::nullopt;
+            b.host_side = backend::size_add(b.host_side, devices[m].host_side);
+            b.scratch = std::max(b.scratch, devices[m].scratch);
+        }
+        groups.push_back(std::move(b));
+    }
+    return groups;
 }
 
 // How a caller wants a model placed over the backends it made (docs/MULTI-DEVICE.md).
@@ -143,6 +161,8 @@ struct PlacementRequest {
     bool fit_marks = false;
     // The file's embedded drafter planned and loaded beside the model (Architecture::plan_drafter, docs/SPECULATIVE.md, section 7).
     bool drafter = false;
+    // Devices each layer is split across (docs/TENSOR-SPLIT.md): consecutive backends form groups of this many, and the groups are the stages of the layer split; 1 is the layer split alone.
+    size_t width = 1;
 };
 
 // The run's activation policy and each device's implementation, resolved once before model construction.
@@ -293,7 +313,8 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         o.kv_tokens = tokens;
         o.checkpoint_slots = kept;
         try {
-            split_layers(footprint(weights, *fitting, o), budgets, rows, request.shares, core::host_memory_available(), std::max<size_t>(1, request.slots), logits);
+            split_layers(footprint(weights, *fitting, o, request.width), group_budgets(budgets, request.width), rows, request.shares, core::host_memory_available(),
+                         std::max<size_t>(1, request.slots), logits);
             return true;
         } catch (const std::runtime_error& e) {
             why = e.what();
@@ -384,6 +405,9 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
 inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
                                ModelOptions options, const AdoptWeight& adopt = {}) {
     if (backends.empty()) throw std::runtime_error("placement: no device");
+    if (!request.width || backends.size() % request.width)
+        throw std::runtime_error("placement: a tensor width of " + std::to_string(request.width) + " needs whole groups of devices, and " + std::to_string(backends.size()) + " were given");
+    if (request.width > 1 && request.cpu_moe) throw std::runtime_error(std::string(request.cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe") + ": not with a tensor split");
     if (request.stream_from && !request.cpu_moe)
         throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
     const ModelPlan plan = plan_model(weights, request.drafter);
@@ -427,12 +451,12 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
         if (request.cpu_moe)
             throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
         const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
-        const Footprint fp = footprint(weights, plan, options);
+        const Footprint fp = footprint(weights, plan, options, request.width);
         std::optional<LayerSplit> split;
         std::exception_ptr refused;
         auto fit = [&] {
             try {
-                split = split_layers(fp, budgets, rows, request.shares, core::host_memory_available(), request.slots,
+                split = split_layers(fp, group_budgets(budgets, request.width), rows, request.shares, core::host_memory_available(), request.slots,
                                      request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
                 return true;
             } catch (const std::runtime_error&) {
@@ -447,8 +471,8 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
             settle(budgets, backends, request.names, fit, level_first(backends, request));
         }
         if (!split) std::rethrow_exception(refused);
-        placed.model = std::make_unique<Model>(weights, plan, std::move(backends), placement_for(*split), options, adopt);
-        placed.plan = split->describe(budgets);
+        placed.model = std::make_unique<Model>(weights, plan, std::move(backends), placement_for(*split, request.width), options, adopt);
+        placed.plan = split->describe(group_budgets(budgets, request.width));
     } else if (!adds_host_for_experts(backends, request)) {
         placed.model = std::make_unique<Model>(weights, plan, std::move(backends), Placement{}, options, adopt);
     } else {

@@ -1,7 +1,10 @@
 #include <string>
+#include <algorithm>
 #include <array>
 #include <cstring>
+#include <functional>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include "backends/cpu/cpu_backend.hpp"
 #include "quantizers.hpp"
@@ -9,6 +12,72 @@
 
 static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
+}
+
+// The CPU collective of a tensor group (docs/TENSOR-SPLIT.md, section 4.3): at widths 2, 3 and 4, at 1 and 6 workers, every member's residual gains ((p0 + p1) + ...) + p(W-1) of the members' partial rows, the oracle's float bits, at every row count up to the reservation and residuals at an offset; and the refusals of a collective joined by another member or over a backend not the CPU, and of a sum of other members, more rows or another width than it was made for, or past a residual's storage.
+// A CPU backend that says it is not the CPU, as a device sharing the host's memory would.
+struct NotCpu : backend::CpuBackend {
+    bool is_cpu() const override { return false; }
+};
+
+static size_t check_collective() {
+    size_t count = 0;
+    const size_t reserved = 41, width = 19;
+    for (size_t W : {size_t(2), size_t(3), size_t(4)})
+        for (int threads : {1, 6}) {
+            std::vector<std::unique_ptr<backend::CpuBackend>> cpus;
+            std::vector<backend::Backend*> members;
+            for (size_t m = 0; m < W; ++m) {
+                cpus.push_back(std::make_unique<backend::CpuBackend>());
+                cpus.back()->set_threads(threads);
+                members.push_back(cpus.back().get());
+            }
+            std::unique_ptr<backend::Collective> sum = cpus[0]->join(members, reserved, width);
+            require(sum != nullptr, "the CPU has no collective");
+            for (size_t rows = 0; rows <= reserved; rows += rows < 3 ? 1 : 7) {
+                const size_t n = rows * width, offset = 5;
+                std::vector<std::vector<float>> x(W, std::vector<float>(n + offset));
+                std::vector<backend::BufferPtr> xb;
+                std::vector<backend::Slice> xs;
+                std::vector<float> start(n);
+                for (size_t i = 0; i < n; ++i) start[i] = float(int((i * 2654435761u + rows) % 2001) - 1000) / 7.0f;
+                for (size_t m = 0; m < W; ++m) {
+                    std::copy(start.begin(), start.end(), x[m].begin() + (std::ptrdiff_t)offset);
+                    xb.push_back(cpus[m]->adopt(x[m].data(), x[m].size() * sizeof(float)));
+                    xs.push_back({xb.back().get(), offset});
+                    float* p = (float*)sum->partial(m).buffer->host_ptr();
+                    for (size_t i = 0; i < n; ++i) p[i] = float(int((i * 40503u + m * 977u + rows) % 4099) - 2049) * 1e-3f * float(1 + m * 1000);
+                }
+                std::vector<float> want(start);
+                for (size_t i = 0; i < n; ++i) {
+                    float s = ((const float*)sum->partial(0).buffer->host_ptr())[i];
+                    for (size_t m = 1; m < W; ++m) s += ((const float*)sum->partial(m).buffer->host_ptr())[i];
+                    want[i] += s;
+                }
+                sum->sum_into(xs, rows, width);
+                for (size_t m = 0; m < W; ++m)
+                    require(std::equal(want.begin(), want.end(), x[m].begin() + (std::ptrdiff_t)offset, [](float a, float b) { return std::memcmp(&a, &b, sizeof a) == 0; }), "a member's residual is not the sum in member order");
+                count += n * W;
+            }
+            auto refused = [&](const std::function<void()>& f) {
+                try { f(); } catch (const std::exception&) { return true; }
+                return false;
+            };
+            std::vector<float> small(reserved * width);
+            const backend::BufferPtr sb = cpus[0]->adopt(small.data(), small.size() * sizeof(float));
+            std::vector<backend::Slice> xs(W, backend::Slice{sb.get(), 0});
+            require(refused([&] { std::vector<backend::Slice> fewer(xs.begin(), xs.end() - 1); sum->sum_into(fewer, 1, width); }), "a sum of fewer members was taken");
+            require(refused([&] { sum->sum_into(xs, reserved + 1, width); }), "a sum past the reserved rows was taken");
+            require(refused([&] { sum->sum_into(xs, 1, width + 1); }), "a sum of another width was taken");
+            require(refused([&] { std::vector<backend::Slice> past(W, backend::Slice{sb.get(), 1}); sum->sum_into(past, reserved, width); }), "a sum past a residual's storage was taken");
+            std::vector<backend::Backend*> reversed(members.rbegin(), members.rend());
+            require(refused([&] { cpus[0]->join(reversed, 1, 1); }), "a collective joined by a member not first was made");
+            NotCpu other;
+            std::vector<backend::Backend*> mixed = members;
+            mixed.back() = &other;
+            require(refused([&] { cpus[0]->join(mixed, 1, 1); }), "a CPU collective over a backend not the CPU was made");
+        }
+    return count;
 }
 
 // Every column of the prompt's three-, two- and one-column dots against one oracle: FMAs per lane, the lanes added in order, then the tail's FMAs in order.
@@ -396,6 +465,7 @@ int main() {
         const size_t scales = check_q8_scales(cpu);
         const size_t reductions = check_prefill_reduction();
         const size_t magnitudes = check_magnitudes(cpu);
+        const size_t summed = check_collective();
         size_t values = 0, cases = 0;
         for (int threads : {1, 2, 6}) {
             cpu.set_threads(threads);
@@ -441,7 +511,7 @@ int main() {
         require(rejected, "projection without storage was accepted");
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
-                  << inputs << " Q8 products on original inputs; "
+                  << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; "
                   << classes << " pairs of extents of one class with the same bits; "
                   << scales << " exact finite Q8 scale/weight cases; "
                   << reductions << " ordered prefill reductions; "

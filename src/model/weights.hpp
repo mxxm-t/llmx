@@ -17,6 +17,7 @@
 namespace infer {
 
 class Architecture;
+namespace shard { struct Run; }
 
 // One tensor as a reader hands it to the model: its name, its dimensions with the fastest first, its storage type (the GGUF type id), and its bytes, where `data` is null when they are not in memory.
 struct TensorView {
@@ -65,9 +66,9 @@ private:
     std::unordered_map<std::string, size_t> index_;
 };
 
-// How the model's builder puts tensor `tensor` of its ModelWeights on backend `b`, returning the buffer the model reads.
-// The model calls it once for each backend that hosts a weight's role; without one it calls b.adopt(view.data, view.bytes).
-using AdoptWeight = std::function<backend::BufferPtr(size_t tensor, backend::Backend& b)>;
+// How the model's builder puts tensor `tensor` of its ModelWeights on backend `b`, returning the buffer the model reads: the whole tensor, or on a tensor group's member the bytes `runs` names, packed in their order (model/shard.hpp).
+// The model calls it once for each backend that hosts a weight's role; without one it adopts the view, or a member's packed copy, which the model keeps.
+using AdoptWeight = std::function<backend::BufferPtr(size_t tensor, backend::Backend& b, const std::vector<shard::Run>& runs)>;
 
 // A weight resolved once at load: type, storage and dimensions, which the forward pass reads from a row of resolved weights by role id rather than looking a tensor up by name.
 // A device backend recognizes a weight across calls by it, which residency needs (docs/DEVICE-EXECUTION.md).

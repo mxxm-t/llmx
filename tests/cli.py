@@ -158,7 +158,14 @@ def check_usage_errors():
                                (["generate", model, "a", "-n", "4", "--max-tokens", "8"], "generate", "-n and --max-tokens set the same thing"),
                                (["pull", "a/b:q8_0", "--revision", "a", "--revision", "b"], "pull", "--revision is given twice"),
                                (["generate", model, "a", "--cpu-moe", "--n-cpu-moe", "2"], "generate", "--cpu-moe and --n-cpu-moe set the same thing"),
-                               (["serve", model, "--n-cpu-moe", "1", "--cpu-moe"], "serve", "--n-cpu-moe and --cpu-moe set the same thing")):
+                               (["serve", model, "--n-cpu-moe", "1", "--cpu-moe"], "serve", "--n-cpu-moe and --cpu-moe set the same thing"),
+                               (["generate", model, "a", "--device", "vulkan:0,vulkan:1,vulkan:2", "--tensor-width", "2"], "generate",
+                                "--tensor-width 2 needs a device list of whole groups: 3 devices listed"),
+                               (["logits", model, "a", "--device", ",".join("vulkan:%d" % d for d in range(8)), "--tensor-width", "8"], "logits",
+                                "--tensor-width 8: at most 4 devices a group; list more devices to form stages"),
+                               (["serve", model, "--device", "vulkan:0,vulkan:1,vulkan:2,vulkan:3", "--tensor-width", "2", "--layer-shares", "1,1,1,1"], "serve",
+                                "--layer-shares gives one share a group: 2 groups, 4 shares"),
+                               (["generate", model, "a", "--device", "vulkan:0,cpu", "--tensor-width", "2"], "generate", "--tensor-width 2: vulkan:0 and cpu cannot form a group")):
         usage_error(args, page, reason)
     for command in (["generate", model, "a"], ["chat", model], ["logits", model, "a"], ["perplexity", model, "a"],
                     ["bench", "--model", model], ["serve", model]):
@@ -175,7 +182,7 @@ def check_usage_errors():
     numbers = [("-n", ["0", "-1", "x", ""]), ("--threads", ["-1", "-0", "x", "4x", "+4", "0x4", "1.5", "2147483648", ""]),
                ("-tb", ["-1"]), ("--ubatch", ["0", "-5"]), ("--topk", ["-1"]), ("--seed", ["-1", "0x10", "18446744073709551616"]),
                ("--temp", ["-0.5", "x", "nan", "inf", "1e39", "0x1p1", "1,5"]), ("--topp", ["1.5", "-0.1"]), ("--penalty", ["0.5"]),
-               ("--n-cpu-moe", ["-2"]), ("--moe-stream-from", ["-1"]), ("--layer-shares", ["1,x", "-1", "1000000"]),
+               ("--n-cpu-moe", ["-2"]), ("--tensor-width", ["0", "-1", "x"]), ("--moe-stream-from", ["-1"]), ("--layer-shares", ["1,x", "-1", "1000000"]),
                ("--cache-type-k", ["q8_0", "F16", ""]), ("-ctv", ["bf16"]), ("--load-mode", ["x", "Auto", "mmap", ""]), ("--dtype", ["x", "F16", "half", ""])]
     for flag, values in numbers:
         for value in values:

@@ -1073,8 +1073,9 @@ void writing_growth(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
 // With `fail` a copy into or out of host memory throws: a write-back that fails keeps nothing in host memory, a promotion that fails keeps its host entry and takes nothing on the devices, and every reply is still its reply alone.
 enum class HostFault { none, write_back, promotion };
 
+// With a `width` above 1 the devices form tensor groups of that many (docs/TENSOR-SPLIT.md), each member's storage copied to host memory and back on its own.
 void host_tier(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, size_t devices, size_t checkpoints, HostFault fault,
-               const std::string& what) {
+               const std::string& what, size_t width = 1) {
     std::shared_ptr<FailingCopies> failing;
     const Make make = on(weights, [&] {
         failing = std::make_shared<FailingCopies>();
@@ -1082,7 +1083,7 @@ void host_tier(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32
         std::vector<backend::BackendPtr> b{failing};
         for (size_t d = 1; d < devices; ++d) b.push_back(cpus(1)[0]);
         return b;
-    }, 3, checkpoints);
+    }, 3, checkpoints, 0, 0, false, width);
     const Req a{prompt_of(5, 300, vocab), 40}, b{prompt_of(7, 300, vocab), 40};
     const auto follow = [&](const Req& first, uint32_t seed) {
         auto model = make(512, 0);
@@ -1572,6 +1573,13 @@ int main(int argc, char** argv) {
             host_tier(weights, tok, vocab, 1, 0, HostFault::write_back, "donors in host memory, a write-back failing");
             host_tier(weights, tok, vocab, 1, 0, HostFault::promotion, "donors in host memory, a promotion failing");
             failed_promotion(one, tok, vocab);
+            // Over tensor groups of two CPUs (docs/TENSOR-SPLIT.md, step 2), each reply against its run alone on one group, since a group gives its own bits: pauses and resumes on one group and on two stages of groups, a donor taken back, a follow-up turn's fork, and donors in host memory, each member's storage copied on its own.
+            const Make group = on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 2);
+            three_uncapped(group, tok, vocab, "three uncapped requests on a group of two CPUs");
+            three_uncapped(on(weights, [] { return cpus(4); }, 8, 0, 0, 0, false, 2), tok, vocab, "three uncapped requests on two stages of groups of two CPUs");
+            take_back(group, tok, vocab);
+            follow_up_as_cli(group, tok, vocab, 200, kBlock, "a follow-up turn on a group of two CPUs against its prompt on a fresh model");
+            host_tier(weights, tok, vocab, 2, 0, HostFault::none, "donors in host memory on a group of two CPUs", 2);
             superseded_donor(one, tok, vocab);
             one_copy_per_conversation(one, tok, vocab);
             conversations_that_came_back(one, tok, vocab);

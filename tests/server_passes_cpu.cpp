@@ -1,4 +1,4 @@
-// The scheduler with passes in flight (docs/SERVER.md, the round) over the synthetic Q8_0 model and a hybrid one on one CPU and split over two and three, at P = 1, S, S + 1 and 2S: every request's ids and log-probabilities equal its run alone on one CPU with one pass in flight.
+// The scheduler with passes in flight (docs/SERVER.md, the round) over the synthetic Q8_0 model and a hybrid one on one CPU and split over two and three, at P = 1, S, S + 1 and 2S: every request's ids and log-probabilities equal its run alone on one CPU with one pass in flight, and over stages of tensor groups of two CPUs its run alone on one group.
 // The load mixes prompts longer than the ubatch with short ones, capped and uncapped requests on a pool that pauses them, and greedy and seeded sampling with top_logprobs 5.
 // A request cancelled from inside a stage ends cancelled with its reply so far, a stage that fails once ends only its own pass's requests with the error, and a stop from inside a stage ends every request cancelled, each leaving every block free.
 // The passes of a load that never pauses are replayed in their order through Model::forward on a fresh model of the same placement, every logits row bit for bit, and without logprobs, so no row is copied out of the passes' logits, it gives the same ids.
@@ -332,10 +332,20 @@ void cases(const gguf::GGUFModel& weights, uint32_t vocab) {
     stopped(weights, tok, vocab);
 }
 
+// The loads over tensor groups of two CPUs (docs/TENSOR-SPLIT.md, step 2): every reply on 1, 2 and 3 stages of width 2 at each P its reply alone on one group with one pass in flight, since a group gives its own bits, not one CPU's.
+void grouped(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const Make one = on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 2);
+    const auto split = [&weights](size_t stages) { return on(weights, [stages] { return cpus(2 * stages); }, 8, 0, 0, 0, false, 2); };
+    paused(one, split, tok, vocab);
+    replayed(one, split, tok, vocab);
+}
+
 } // namespace
 
 int main() {
     try {
+        grouped(served(kSplit), (uint32_t)kSplit.vocab);
         cases(served(kSplit), (uint32_t)kSplit.vocab);
         // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: without checkpoint slots it keeps no donor, and a stage may hold only states.
         cases(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);

@@ -67,7 +67,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   row so the part does not allocate, and for a layer whose cache is a state
   its views (`states`, one per entry, each reading and writing its
   sequence's slot after the history the stage has committed) and its index
-  in its device's state storage. `HeadStep` adds the
+  in its device's state storage. On a tensor group `width` is the group's and `partial` where the part's last projection writes the member's partial rows (`blocks::join`); a member's weights are its shards, `Weight::nin` and `nout` its share, and a module runs its share of the heads, the plan's divided by the width, a KV head replicated where the width is a multiple of them. `HeadStep` adds the
   rows that want logits, their runs and the slice their logits go to.
   `DraftRowsStep` adds the rows' token ids and, per entry, the row its first
   row reads as the target's row before it (the sequence's carried row, or

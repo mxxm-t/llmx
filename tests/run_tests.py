@@ -21,6 +21,7 @@ import moe
 import mxfp4
 import qwen35
 import split
+import tensor_split
 import decode_probe
 import drafters
 import shards
@@ -105,6 +106,7 @@ def main():
                   ("mxfp4", lambda: mxfp4.run(require=args.require_tools)),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),
                   ("split", lambda: split.run(require=args.require_tools)),
+                  ("tensor-split", lambda: tensor_split.run(require=args.require_tools)),
                   ("decode-probe", lambda: decode_probe.run(require=args.require_tools)),
                   ("drafters", lambda: drafters.run(require=args.require_tools)),
                   ("shards", shards.run),

@@ -144,6 +144,9 @@ struct Step {
     backend::Dtype dtype = backend::Dtype::f16;
     // Which of the layer's update phases a call of recur runs (LayerPlan::recur_phases), every one when -1, as the mixer runs it.
     int phase = -1;
+    // The tensor group the part runs on (docs/TENSOR-SPLIT.md, section 4.3): its width, each member's weights its shard (Role::shard) and its heads that share of the plan's, and where a part's last projection writes its partial rows, which the group then sums into every member's residual, in place of adding them to the residual itself (blocks::join).
+    size_t width = 1;
+    backend::Slice partial{};
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
 };
 

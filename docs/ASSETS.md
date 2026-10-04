@@ -1044,6 +1044,12 @@ full-corpus or long-context numerical correctness.
 
 ## F32 reference coverage
 
+### Tensor-split fixtures (2026-10-04)
+
+`tests/tensor_split.py` holds tiny models whose every split falls whole at widths 2 and 4: a dense Qwen3, tied and untied, of two layers, hidden width 40, FFN width 32, four heads of 16 over two KV heads, and a qwen35 of the tiny layer pattern with four K heads of 12, twelve V heads of 8 in three tiles, four heads of 16 over two KV heads and the same FFN, each over a vocabulary of 260 (the 256 bytes, `<|endoftext|>` and three reserved tokens).
+`tools/gen_baseline.py tensor-split` writes `tests/data/baseline_tensor_split.json` in the qwen35 venv below (torch 2.5.1+cpu, transformers 5.17.0, through `qwen35_environment`), offline with one thread, in float32 with eager attention: the dense model's full forward through HF `Qwen3ForCausalLM`, and the qwen35 one's token-by-token cached forward through `Qwen3_5ForCausalLM`, as the tiny references take them, with the weight hashes and shapes the test checks before it uses them.
+Generated on the Linux machine on 2026-10-04; llmx on groups of two and four CPU backends matched it within 3.4e-7 logits and 4e-8 NLL, against the F32 bounds of 2e-5 and 1e-5.
+
 `tests/f32.py` creates a small dense Qwen3 fixture using deterministic binary
 fractions. `tools/gen_baseline.py f32` generates its committed full-logit and
 NLL references with HF `Qwen3ForCausalLM`, float32 eager attention, torch

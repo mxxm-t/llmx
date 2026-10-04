@@ -1,6 +1,7 @@
 // A model on one device against the same model split by layers over several, compared as raw float logits: every position of a scored text through the prompt path, then a prefill in chunks of the ubatch, which a split pipelines over its stages, and greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phases 1 and 2).
 // Then the prompt and the steps replayed by class on each, as a paused request's resume recomputes them, which must give the decode's logits, and from a fork too unless the model keeps a recurrent state, which is not forked; verifies of drafts, the decode's tokens fed after a mark and retracted, which must give the same rows on both; and passes in flight through the pass API, which must give what the same passes give one after another.
-// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type] [dtype]; dtype is auto (the default), f16, bf16 or f32, a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default when left out.
+// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type] [dtype] [tensor width]; dtype is auto (the default), f16, bf16 or f32, a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default when left out.
+// With a tensor width W above 1 (docs/TENSOR-SPLIT.md) the single device is a list of W devices forming one tensor group, and the split's devices form groups of W, its stages, which must give the one group's bits.
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -250,8 +251,8 @@ static size_t verify(infer::Model& one, infer::Model& two, const std::vector<uin
 }
 
 int main(int argc, char** argv) {
-    if (argc < 3 || argc > 9) {
-        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch] [f16|f32] [auto|f16|bf16|f32]\n");
+    if (argc < 3 || argc > 10) {
+        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch] [f16|f32] [auto|f16|bf16|f32] [tensor width]\n");
         return 2;
     }
     try {
@@ -266,9 +267,12 @@ int main(int argc, char** argv) {
         // A mark for the verifies, of up to 17 rows.
         options.mark_slots = 1;
         options.mark_rows = 17;
+        const size_t width = argc > 9 ? (size_t)std::atoi(argv[9]) : 1;
+        if (!width) throw std::runtime_error("the tensor width is a whole number of at least 1");
         infer::PlacementRequest alone;
-        alone.names = {name(single)};
+        for (const std::string& d : core::comma_list(single)) alone.names.push_back(name(d));
         alone.ubatch = ubatch;
+        alone.width = width;
         const std::string dtype = argc > 8 ? argv[8] : "auto";
         if (dtype != "auto") {
             for (auto d : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16})
@@ -286,16 +290,15 @@ int main(int argc, char** argv) {
         // The split takes equal shares of the layers, placed as a device list with --layer-shares 1,1,... places them.
         // Each entry is a backend of its own, without the CLI's listed-once rule (backend::device_specs), so `cpu,cpu` splits over two CPU backends.
         infer::PlacementRequest request;
-        for (const std::string& d : core::comma_list(split)) {
-            request.names.push_back(name(d));
-            request.shares.push_back(1);
-        }
+        for (const std::string& d : core::comma_list(split)) request.names.push_back(name(d));
+        request.shares.assign(request.names.size() / width, 1);
+        request.width = width;
         request.ubatch = ubatch;
         request.dtype = alone.dtype;
         const auto second = infer::load_model(argv[1], backend::make_backends(request.names), request, options);
         infer::Model& two = *second->model;
         std::fputs(second->dtype.describe().c_str(), stderr);
-        std::printf("%s: %zu tokens, %s caches; single %s, split:\n%s", argv[1], ids.size(), backend::kv_type_name(options.kv_k), name(single).c_str(), second->plan.c_str());
+        std::printf("%s: %zu tokens, %s caches; single %s, split:\n%s", argv[1], ids.size(), backend::kv_type_name(options.kv_k), single.c_str(), second->plan.c_str());
 
         const size_t vocab = one.n_vocab();
         std::vector<float> scored(ids.size() * vocab);

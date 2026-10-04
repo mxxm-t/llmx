@@ -1,4 +1,5 @@
 // Full-vocabulary captures for the quantization plan's device-versus-CPU gate: every prompt position in batched and per-token execution, then 64 argmax steps after one prefill.
+// With a tensor width the devices form tensor groups of that many (docs/TENSOR-SPLIT.md), each listed device a backend of its own, so `cpu,cpu` is a group of two CPU backends, which the command line's listed-once rule does not form.
 #include <algorithm>
 #include <charconv>
 #include <cmath>
@@ -25,20 +26,25 @@ static int integer(const char* value, int minimum, const char* name) {
 }
 
 static int capture(int argc, const char* const* argv) {
-    if (argc != 8 && argc != 9) {
-        std::cerr << "usage: llmx-model-logits MODEL IDS OUTPUT_PREFIX DEVICE CACHE UBATCH CPU_EXPERTS [SHARES]\n"
+    if (argc < 8 || argc > 10) {
+        std::cerr << "usage: llmx-model-logits MODEL IDS OUTPUT_PREFIX DEVICE CACHE UBATCH CPU_EXPERTS [SHARES [TENSOR_WIDTH]]\n"
                   << "  CACHE: f16 or f32; UBATCH: positive; CPU_EXPERTS: -1 for all, otherwise a count; six CPU threads\n"
-                  << "  SHARES: comma-separated whole-number layer proportions, one per device; omitted uses automatic placement\n";
+                  << "  SHARES: comma-separated whole-number layer proportions, one per device or group; omitted or - uses automatic placement\n"
+                  << "  TENSOR_WIDTH: devices each layer is split across, 1 by default; above 1 a device may be listed more than once\n";
         return 2;
     }
     try {
         const std::string cache(argv[5]), prefix(argv[3]);
         if (cache != "f16" && cache != "f32") throw std::runtime_error("CACHE must be f16 or f32");
         infer::PlacementRequest request;
-        request.names = backend::device_specs(argv[4]);
+        request.width = argc > 9 ? (size_t)integer(argv[9], 1, "TENSOR_WIDTH") : 1;
+        if (request.width > 1)
+            for (const auto& d : core::comma_list(argv[4])) request.names.push_back(backend::canonical_device(d));
+        else
+            request.names = backend::device_specs(argv[4]);
         request.ubatch = integer(argv[6], 1, "UBATCH");
         request.cpu_moe = integer(argv[7], -1, "CPU_EXPERTS");
-        if (argc == 9)
+        if (argc > 8 && std::string(argv[8]) != "-")
             for (const auto& share : core::comma_list(argv[8])) request.shares.push_back(integer(share.c_str(), 0, "SHARES"));
         std::ifstream input(std::filesystem::u8path(argv[2]));
         if (!input) throw std::runtime_error("cannot read token IDs");

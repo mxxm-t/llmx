@@ -317,11 +317,11 @@ void reader_checks() {
         for (const auto& b : backends) ids.push_back(b.get());
         infer::WeightPlan plan;
         const infer::AdoptWeight record = infer::planning_adopt(weights, backends.size(), plan, true);
-        const infer::AdoptWeight adopt = [&](size_t i, backend::Backend& b) {
+        const infer::AdoptWeight adopt = [&](size_t i, backend::Backend& b, const std::vector<infer::shard::Run>& runs) {
             ++r.takes[i];
             const size_t id = size_t(std::find(ids.begin(), ids.end(), &b) - ids.begin());
             r.order += (r.order.empty() ? "" : " ") + weights.tensors[i].name + "@" + std::to_string(id);
-            return record(i, b);
+            return record(i, b, runs);
         };
         { infer::Model model(weights, std::move(backends), std::move(placement), {}, adopt); }
         for (size_t i = 0; i < plan.host_reads.size(); ++i)

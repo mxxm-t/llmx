@@ -832,6 +832,7 @@ struct Device {
     DeviceProfile profile{};      // what measuring its kernels said (backends/device_profile.hpp)
     bool mxfp4 = false; // exact weight range and wide partials require optional float preservation and double
     bool preserve_float32 = false; // optional matrix modules retain subnormal values
+    std::string identity;          // the device and the driver that compiles its kernels (Backend::identity)
     bool push_descriptor = false;
     bool memory_budget = false;   // the device reports what is free of each heap (VK_EXT_memory_budget)
     // Host memory imported as device memory, which a copy reads in place (VK_EXT_external_memory_host), and the alignment of its address and size.
@@ -1081,6 +1082,8 @@ public:
         fn.vkGetPhysicalDeviceProperties2(d.physical, &dp);
         d.caps.device = d.props.deviceName;
         d.caps.driver = drv.driverName;
+        d.identity = "vulkan " + std::to_string(d.props.vendorID) + ":" + std::to_string(d.props.deviceID) + " " + d.caps.device + "; " + d.caps.driver + " " +
+                     drv.driverInfo + " " + std::to_string(d.props.driverVersion);
         if (d.props.apiVersion < VK_API_VERSION_1_2)
             throw VulkanUnavailable("vulkan: " + d.caps.device + " is older than Vulkan 1.2");
 
@@ -1291,6 +1294,7 @@ public:
         return "f32";
     }
     const std::string& name() const { return dev_->caps.device; }
+    std::string identity() const override { return dev_->identity; }
     const DeviceProfile& profile() const { return dev_->profile; }
 
     // The driver's statistics for every kernel compiled so far, one line each: on AMD the vector and scalar register counts, scratch, shared memory and occupancy.

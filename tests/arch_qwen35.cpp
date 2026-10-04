@@ -556,7 +556,7 @@ void host_state_fork() {
     const size_t any = std::numeric_limits<size_t>::max();
     model.save_host(a, 128, st, any, false);
     model.save_host(a, 128, whole, any);
-    require(!st.blocks && st.length == 128 && st.held == model.host_bytes(128, false) && st.held <= whole.held && st.bytes < whole.bytes,
+    require(!st.blocks && st.length == 128 && st.held == model.host_bytes(128, false) && st.held <= whole.held && st.bytes < whole.bytes && st.device_bytes.size() == 1 && st.device_bytes[0] == st.bytes,
             "a state alone in host memory holds other bytes");
     infer::BatchEntry rest{&a, tail.data(), tail.size(), false};
     rest.extent = ids.size();

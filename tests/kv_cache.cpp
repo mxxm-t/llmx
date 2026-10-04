@@ -783,6 +783,56 @@ void host_round_trip() {
     fresh.reset(ref);
 }
 
+// What a history copied to host memory holds and how (Model::host_identity, docs/DISK-TIER.md, The entry file): two models of one file on two CPU backends give one identity, and each of another V cache type, another activation dtype, a backend of another identity, a backend of other row classes and a split over two backends gives another; the identity names each device's backend, its runs and the row classes.
+// A copy's runs (HostHistory::device_bytes) add up to its bytes, one a device.
+struct OtherCpu : backend::CpuBackend {
+    std::string identity() const override { return "another cpu"; }
+};
+struct OtherClasses : backend::CpuBackend {
+    size_t row_class(size_t extent) const override { return extent <= 64 ? 1 : 2; }
+};
+void host_identity() {
+    const auto weights = tiny_qwen(2, 512, true);
+    const infer::ModelWeights w = infer::gguf_weights(weights);
+    const auto cpu = [] {
+        auto c = std::make_shared<backend::CpuBackend>();
+        c->set_threads(1);
+        return c;
+    };
+    const auto identity = [&](backend::BackendPtr b, infer::ModelOptions o = {}) { return infer::Model(w, std::move(b), o).host_identity(); };
+    const std::string base = identity(cpu());
+    require(base == identity(cpu()), "two models of one file on two CPU backends gave two identities");
+    require(base.find("device 0 cpu; dtype f16") != std::string::npos && base.find("kv f16 f16") != std::string::npos && base.find("classes 1:1,0 2:2,0") != std::string::npos &&
+                base.find("tokens a block") != std::string::npos,
+            "the identity does not name the device, its dtype, the cache types, its runs and the row classes");
+    infer::ModelOptions f32_v;
+    f32_v.kv_v = backend::KVType::f32;
+    require(identity(cpu(), f32_v) != base, "another V cache type gave the same identity");
+    infer::ModelOptions f32_dtype;
+    f32_dtype.dtype = backend::Dtype::f32;
+    require(identity(cpu(), f32_dtype) != base, "another activation dtype gave the same identity");
+    require(identity(std::make_shared<OtherCpu>()) != base, "a backend of another identity gave the same identity");
+    require(identity(std::make_shared<OtherClasses>()) != base, "a backend of other row classes gave the same identity");
+    infer::Placement split;
+    split.mixer_device = {0, 1};
+    split.ffn_device = {0, 1};
+    split.output_device = 1;
+    const std::string two = infer::Model(w, {cpu(), cpu()}, split).host_identity();
+    require(two != base && two.find("device 1 cpu") != std::string::npos, "a split over two backends gave the identity of one");
+    infer::Model model(w, cpu());
+    infer::Sequence a = model.make_sequence();
+    std::vector<uint32_t> ids(300);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = (uint32_t)(1 + i % 15);
+    infer::ExecContext ctx;
+    const infer::BatchEntry e{&a, ids.data(), ids.size(), false};
+    model.forward(ctx, &e, 1);
+    infer::HostHistory h;
+    model.save_host(a, 256, h, std::numeric_limits<size_t>::max());
+    require(h.device_bytes.size() == 1 && h.device_bytes[0] == h.bytes, "a copy's runs do not add up to its bytes");
+    model.release_host(h);
+    model.reset(a);
+}
+
 // Which idle slabs a copy to host memory frees before it allocates (infer::detail::slabs_to_free), so the slabs alive stay within the limit across devices: none where the idle ones cover every need; on a split whose two devices each hold two idle slabs, under a limit of four, a copy needing three on the first and one on the second frees the second's spare one before allocating the first's third (the review's case, which kept five alive); and a copy whose shortfall the spare slabs cannot cover is refused.
 void host_slab_limit() {
     const auto drop = [](std::vector<size_t> need, std::vector<size_t> idle, size_t alive, size_t limit) {
@@ -972,6 +1022,7 @@ int main() {
         fork_shares_blocks();
         model_fork();
         host_round_trip();
+        host_identity();
         host_slab_limit();
         replay_by_class();
         std::cout << "KV cache: pool, sequence, ownership, on-demand storage, growth steps and peak, growth hooks, "

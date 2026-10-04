@@ -3,10 +3,11 @@
 `core::Sha` implements SHA-256 and SHA-1 with bounded block storage. `update`
 accepts byte spans; `hex` returns the digest without modifying the accumulated
 state. Input lengths are checked against the 64-bit bit-length representation.
+SHA-256 compresses whole blocks through `sha_detail::sha256_blocks`, which takes the SHA extensions (`sha256_extensions`, about 1.4 GB/s on an EPYC 7262 against 236 MB/s for `sha256_portable`) where the CPU has them (`sha_extensions`, CPUID leaf 7), since the AVX2 baseline does not imply them, and the portable code otherwise.
 Algorithms follow [FIPS 180-4](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf).
 
 The Hub downloader uses SHA-256 for LFS payload integrity and SHA-1 only for
 the existing Git blob identity protocol. The latter includes the Git blob
 header before payload bytes. This is not a general authentication/signature API.
 Native tests cover empty, short, multi-block and million-byte standard vectors
-with different update boundaries and repeated finalization.
+with different update boundaries and repeated finalization, and, where the CPU has the SHA extensions, their state against the portable code's over 1 to 33 random blocks.

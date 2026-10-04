@@ -126,6 +126,7 @@ class Model;
 struct HostHistory {
     const Model* owner = nullptr;
     size_t length = 0, bytes = 0, held = 0;
+    std::vector<size_t> device_bytes;   // per device, the bytes of its runs, in the order its slabs hold them
     bool blocks = true;   // false for a state alone, at `length`, whose blocks a history on the devices holds (Model::fork with a state)
     std::vector<std::vector<backend::BufferPtr>> slabs;
     std::vector<backend::Ticket> tickets;
@@ -596,6 +597,7 @@ public:
     bool keep(Sequence& s);
     std::optional<size_t> checkpoint(const Sequence& s) const;
     size_t host_bytes(size_t length, bool blocks = true) const;
+    std::string host_identity() const;
     void save_host(Sequence& s, size_t length, HostHistory& out, size_t limit, bool blocks = true);
     size_t host_allocated() const;
     bool caches_on_devices() const;

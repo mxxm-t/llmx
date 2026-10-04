@@ -349,6 +349,10 @@ public:
     // Whether this backend is the CPU itself, so experts placed on the CPU beside it are already where they run; a device may read in place and still not be the CPU.
     virtual bool is_cpu() const { return false; }
 
+    // What makes this backend's arithmetic its own, as text: with the same build, two backends of one identity give the same bits for the same work at the same row classes, so a history one computed continues on the other (docs/DISK-TIER.md, The entry file).
+    // A backend that cannot say gives an identity no other backend shares.
+    virtual std::string identity() const { return "unknown " + std::to_string((uintptr_t)this); }
+
     // The class of rows of this RowRun extent: rows of two extents of one class take the same arithmetic in every op of this backend, so they give the same bits.
     // A backend claims only what it proves, so by default every extent is a class of its own (docs/SPECULATIVE.md, section 1).
     virtual size_t row_class(size_t extent) const { return extent; }

@@ -3071,6 +3071,11 @@ int main(int argc, char** argv) {
         check_decode_contraction();
         std::cout << "backend-vulkan: " << backend::vulkan_device_name(*b) << "\n";
         size_t checks = 0;
+        // The backend's identity names the device and its driver, and a second backend of the same device has the same one.
+        require(b->identity().rfind("vulkan ", 0) == 0 && b->identity().find(backend::vulkan_device_name(*b)) != std::string::npos &&
+                    backend::make_vulkan_backend(0, false)->identity() == b->identity(),
+                "the backend's identity does not name its device or differs between two backends of it");
+        std::cout << "backend-vulkan: identity " << b->identity() << "\n";
 
         // Allocations are zeroed, on the device and in host-visible memory.
         const size_t mib = 1u << 20;

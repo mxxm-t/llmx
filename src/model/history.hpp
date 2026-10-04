@@ -243,6 +243,7 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
     h.owner = this;
     h.length = length;
     h.blocks = blocks;
+    h.device_bytes = bytes;
     h.slabs.resize(devices_.size());
     h.tickets.assign(devices_.size(), 0);
     try {
@@ -360,6 +361,42 @@ inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& sta
         throw;
     }
     return f;
+}
+
+// What a history copied to host memory holds and how, beyond the model file and the build: every device's identity and effective dtype, the cache types, each device's runs (its KV storage's layers, block tokens and K and V block bytes, its state layers and slot bytes, the carried row) and the placement, then the row classes from extent 1 to the most a history holds, given where they change.
+// Two models of one file and one build with equal identities hold the same bytes for the same history, and a fork of rows of equal classes gives the same bits on either, so a copy written by one is restored by the other (docs/DISK-TIER.md, The entry file).
+inline std::string Model::host_identity() const {
+    std::string s = "llmx-host-history 1\n";
+    const auto join = [](const std::vector<int>& v) {
+        std::string t;
+        for (int x : v) t += (t.empty() ? "" : ",") + std::to_string(x);
+        return t;
+    };
+    s += "kv " + std::string(backend::kv_type_name(options_.kv_k)) + " " + backend::kv_type_name(options_.kv_v) + "\n";
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        const Device& d = *devices_[i];
+        const backend::Dtype dtype = options_.device_dtypes.empty() ? options_.dtype : options_.device_dtypes[i];
+        s += "device " + std::to_string(i) + " " + d.b->identity() + "; dtype " + backend::dtype_name(dtype) + "; used " + std::to_string(d.used);
+        if (const auto* st = dynamic_cast<const backend::BlockKVStorage*>(d.storage.get()))
+            s += "; kv " + std::to_string(st->layers()) + " layers, " + std::to_string(st->block_tokens()) + " tokens a block, " + std::to_string(st->k_block_bytes()) + "+" +
+                 std::to_string(st->v_block_bytes()) + " bytes";
+        if (d.states) s += "; state " + std::to_string(d.states->layers()) + " layers, " + std::to_string(d.states->shape().slot_floats() * sizeof(float)) + " bytes";
+        if (d.carry && state_layers_) s += "; carry " + std::to_string(plan_.residual * sizeof(float)) + " bytes";
+        s += "\n";
+    }
+    s += "placement mixer " + join(place_.mixer_device) + " ffn " + join(place_.ffn_device) + " embed " + std::to_string(place_.embed_device) + " output " +
+         std::to_string(place_.output_device) + " stream " + std::to_string(place_.stream_from) + "\n";
+    const size_t limit = std::min((size_t)context_length(), kv_tokens_total());
+    std::vector<size_t> last;
+    s += "classes";
+    for (size_t e = 1; e <= limit; ++e) {
+        std::vector<size_t> c = row_class(e);
+        if (c == last) continue;
+        s += " " + std::to_string(e) + ":";
+        for (size_t k = 0; k < c.size(); ++k) s += (k ? "," : "") + std::to_string(c[k]);
+        last.swap(c);
+    }
+    return s + "\n";
 }
 
 // The slabs `h` holds left for the next copy on their devices once every copy into or out of them has retired; the pools' capacity is reserved as slabs are allocated, so this allocates nothing.

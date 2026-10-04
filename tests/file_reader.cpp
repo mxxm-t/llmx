@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -12,6 +13,8 @@
 #include <vector>
 
 #include "core/host_memory.hpp"
+#include "core/sha.hpp"
+#include "format/file_digest.hpp"
 #include "format/file_reader.hpp"
 
 namespace {
@@ -180,6 +183,46 @@ int main(int argc, char** argv) {
         } catch (const format::DirectUnavailable& e) {
             require(std::string(e.what()).find(path.u8string()) != std::string::npos, "a direct refusal does not name its file");
             std::cout << "file-reader: direct reads refused here: " << e.what() << "\n";
+        }
+        // A file's SHA-256 (format::file_sha256) is the digest of its bytes, over pieces of 64 MiB and for an empty file; the cache (format::cached_file_sha256) keeps it beside the file's stamp and returns the cached value while the stamp holds, which a planted digest shows, and reads the file again once it changes.
+        {
+            const std::filesystem::path file = dir / "digested.bin", cache = dir / "digests";
+            std::filesystem::remove_all(cache);
+            const std::vector<uint8_t> bytes = pattern((size_t(64) << 20) + 12345);
+            save(file, bytes);
+            core::Sha want(true);
+            want.update(bytes.data(), bytes.size());
+            require(format::file_sha256(file.u8string()) == want.hex(), "a file's SHA-256 is not the digest of its bytes");
+            const std::filesystem::path empty = dir / "empty.bin";
+            save(empty, {});
+            require(format::file_sha256(empty.u8string()) == core::Sha(true).hex(), "an empty file's SHA-256 is not the empty digest");
+            require(format::cached_file_sha256(cache.u8string(), file.u8string()) == want.hex(), "a digest computed for the cache differs");
+            std::filesystem::path entry;
+            for (const auto& e : std::filesystem::directory_iterator(cache)) entry = e.path();
+            require(!entry.empty(), "the digest was not cached");
+            std::string text;
+            {
+                std::ifstream in(entry, std::ios::binary);
+                text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+            }
+            const std::string planted(64, 'a');
+            const size_t at = text.rfind(want.hex());
+            require(at != std::string::npos, "the cached entry does not hold the digest");
+            text.replace(at, 64, planted);
+            {
+                std::ofstream out(entry, std::ios::binary | std::ios::trunc);
+                out << text;
+            }
+            require(format::cached_file_sha256(cache.u8string(), file.u8string()) == planted, "a cached digest was not used while the file's stamp held");
+            std::vector<uint8_t> changed = bytes;
+            changed.push_back(7);
+            save(file, changed);
+            core::Sha again(true);
+            again.update(changed.data(), changed.size());
+            require(format::cached_file_sha256(cache.u8string(), file.u8string()) == again.hex(), "a changed file's digest was taken from the cache");
+            require(format::cached_file_sha256(cache.u8string(), file.u8string()) == again.hex(), "the changed file's digest was not cached");
+            std::filesystem::remove(file);
+            std::filesystem::remove(empty);
         }
         std::cout << "file-reader: " << checks << " checks passed\n";
         return 0;

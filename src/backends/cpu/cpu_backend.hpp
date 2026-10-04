@@ -139,6 +139,8 @@ public:
     size_t scratch_reserve(size_t free) const override { return host_reserve(free); }
     bool reads_in_place() const override { return true; }
     bool is_cpu() const override { return true; }
+    // The same code on every x86 CPU of the AVX2 baseline, whatever its worker count, since every op is batch- and thread-invariant.
+    std::string identity() const override { return "cpu"; }
     // A generated token takes the decode dots and every longer extent the prompt path, whose rows compute the same however they are batched (each_run).
     size_t row_class(size_t extent) const override { return extent <= 1 ? 1 : 2; }
     bool implements(Op) const override { return true; }

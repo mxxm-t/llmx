@@ -1,7 +1,11 @@
 #include "hub/manifest.hpp"
 #include "core/sha.hpp"
 #include <iostream>
+#include <algorithm>
+#include <cstdio>
 #include <functional>
+#include <string>
+#include <vector>
 
 static void require(bool value, const char* message) {
     if (!value) throw std::runtime_error(message);
@@ -41,6 +45,26 @@ int main() {
                 require(hash.hex() == expected && hash.hex() == expected, "SHA standard vector differs");
             }
         }
+        // The SHA extensions' compression gives the portable code's state, block counts from 1 to 33 over random data, where the CPU has them.
+#ifdef LLMX_SHA_EXTENSIONS
+        if (core::sha_detail::sha_extensions()) {
+            uint64_t seed = 0x243f6a8885a308d3ULL;
+            std::vector<uint8_t> data(64 * 33);
+            for (auto& byte : data) {
+                seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+                byte = uint8_t(seed >> 56);
+            }
+            for (size_t n = 1; n <= 33; ++n) {
+                uint32_t portable[8] = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
+                uint32_t extensions[8];
+                std::copy(portable, portable + 8, extensions);
+                core::sha_detail::sha256_portable(portable, data.data(), n);
+                core::sha_detail::sha256_extensions(extensions, data.data(), n);
+                require(std::equal(portable, portable + 8, extensions), ("the SHA extensions' state differs from the portable code's after " + std::to_string(n) + " blocks").c_str());
+            }
+            std::printf("hub-manifest: SHA-256 checked with the SHA extensions\n");
+        }
+#endif
         const auto single = hub::select(metadata(file("Qwen-Q8_0.gguf")), "q8_0");
         require(single.files.size() == 1 && single.files[0].lfs && single.files[0].size == 42, "single selection");
         require(!hub::select(metadata(file("Qwen.F32.gguf", false)), "F32").files[0].lfs, "Git selection");

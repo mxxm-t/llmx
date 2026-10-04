@@ -161,7 +161,7 @@ delegated to a `backend::Backend`.
   - `step(ids, n) -> rows`: one entry of `n` tokens of extent 1 with every
     row's logits, as a verify of drafts feeds them, so every row takes the
     decode kernels and gives the bits single steps give; the rows stay
-    valid until the next pass. `mark()` and `retract(length)` act on the
+    valid until the next pass. `mark()`, `keep()` and `retract(length)` act on the
     model's own sequence.
   - `prefill(ids) -> logits`: the prompt in chunks of `ubatch()` tokens, one
     entry per chunk, inside one backend prefill scope, so each weight row is

@@ -5,7 +5,7 @@ Each entry also declares the GGUF architecture default activation dtype, BF16 fo
 The one place an architecture's name is read and accepted, in namespace
 `infer`, and the one step from a file's metadata to its architecture. It
 includes every module under `model/arch/`; the loader
-([load](inference-load.md)), the CLI's synthetic bench and the tests that
+([load](inference-load.md)), the drafter pairing ([pair](inference-pair.md)), the CLI's synthetic bench and the tests that
 build a model without the loader include it, and nothing else does. A module never compares names: the entry it is reached through says
 which variant it reads and under which prefix.
 
@@ -14,7 +14,8 @@ which variant it reads and under which prefix.
   name's prefix: `qwen3` (`qwen3::open_dense`) and `qwen3moe`
   (`qwen3::open_routed`), [qwen3](model-arch-qwen3.md), and `qwen35`
   (`qwen35::open_dense`) and `qwen35moe` (`qwen35::open_routed`),
-  [qwen35](model-arch-qwen35.md).
+  [qwen35](model-arch-qwen35.md). Its `dflash` says whether a DFlash
+  drafter drafts for the architecture's models (`infer::spec::pair`, [pair](inference-pair.md)), true for the qwen35 entries.
 - `architecture_of(file)`: the entry a file names. A file without
   `general.architecture` is read as qwen3, since the tests' fixtures write
   none; an unknown name, or one that is not a string, is refused

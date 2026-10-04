@@ -695,6 +695,7 @@ public:
 
     void reset() { reset(seq_); }
     size_t retract(size_t length) { return retract(seq_, length); }
+    bool keep() { return keep(seq_); }
 
     // Allocated is what the backends back; used is the committed history.
     // The gap is the paging cost in memory (docs/KV-CACHE.md).

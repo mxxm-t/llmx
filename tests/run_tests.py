@@ -22,6 +22,7 @@ import mxfp4
 import qwen35
 import split
 import decode_probe
+import drafters
 import shards
 import server
 import server_load_tool
@@ -105,6 +106,7 @@ def main():
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),
                   ("split", lambda: split.run(require=args.require_tools)),
                   ("decode-probe", lambda: decode_probe.run(require=args.require_tools)),
+                  ("drafters", lambda: drafters.run(require=args.require_tools)),
                   ("shards", shards.run),
                   ("server", server.run),
                   ("server-load", server_load_tool.run),

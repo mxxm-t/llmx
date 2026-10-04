@@ -439,13 +439,16 @@ std::string load_timing(const infer::LoadTimes& t) {
 // `history_tokens`, when given, is what each of the `decode_rows` sequences holds, and the cache grows to hold them all at once where its budget would not (infer::PlacementRequest::histories).
 // `slots` is the passes a server keeps in flight, whose handoff buffers and logits rows a split's fit counts, and a server fits its KV budget to the devices and backs it at load; with `timed` every device times its work (serve --timing).
 // `checkpoints` is the states a model that keeps one holds at a position (infer::ModelOptions::checkpoint_slots), -1 for the most a server's fit gives up to `decode_rows`.
+// With `drafter` the file's embedded drafter is loaded with the model, and a `drafter_file` beside it is paired with it (infer::spec::pair) and, holding its MTP blocks, loaded as that drafter.
+// `shared` are the backends of a model already open, which a draft model beside it is placed over rather than devices of its own.
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                                bool show_plan = false, backend::Backend** profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
-                                               bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false) {
+                                               bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
+                                               const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {}) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
     if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     const auto specs = backend::device_specs(exec.device);
-    auto backends = backend::make_backends(specs, profiled != nullptr || timed);
+    auto backends = shared.empty() ? backend::make_backends(specs, profiled != nullptr || timed) : shared;
     if (profiled) *profiled = backends.front().get();
     infer::PlacementRequest request;
     request.names = specs;
@@ -482,7 +485,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         std::cerr << "Reading model metadata...\n";
         shown = progress_bar();
     }
-    auto loaded = infer::load_model(path, std::move(backends), request, options, shown, exec.load_mode);
+    auto loaded = infer::load_model(path, std::move(backends), request, options, shown, exec.load_mode, drafter_file);
     std::cerr << loaded->dtype.describe();
     if (show_plan) std::cerr << loaded->plan << load_timing(loaded->times);
     if (threads > 0) loaded->model->set_threads(threads);
@@ -517,13 +520,14 @@ std::string chat_prompt(const chat::ChatFormat& format, const std::string& text)
 struct Drafts {
     std::unique_ptr<infer::spec::Proposer> proposer;
     bool embedded = false;
+    std::string file;   // a drafter file beside the model, `--drafter PATH`
     size_t draft_max = 3;
+    std::unique_ptr<infer::LoadedModel> beside;   // a draft model the file was, loaded as a model of its own
     // The rows of a verify a mark must save, none without a proposer.
-    size_t mark_rows() const { return proposer || embedded ? draft_max + 1 : 0; }
-    // The embedded drafter's proposer, over the model loaded with it.
-    void attach(infer::Model& model) {
-        if (embedded) proposer = std::make_unique<infer::spec::Embedded>(model);
-    }
+    size_t mark_rows() const { return proposer || embedded || !file.empty() ? draft_max + 1 : 0; }
+    // The proposer over what the model was loaded with: its embedded drafter or the MTP blocks the drafter file held, or the draft model the file was, opened on the same devices once the model has taken its room.
+    // A `server` takes no draft model, which drafts on its own history.
+    void attach(const infer::LoadedModel& loaded, const ExecOptions& exec, bool progress, bool server = false);
     // A request's drafting over the history it continues, or nothing without a proposer.
     std::unique_ptr<infer::spec::Drafting> drafting(const std::vector<uint32_t>& history) const {
         if (!proposer) return nullptr;
@@ -541,8 +545,9 @@ bool drafts_flag(int argc, char** argv, int& i, const std::string& a, std::strin
         const std::string d = flag_value(argc, argv, i, a);
         drafts.proposer.reset();
         drafts.embedded = d == "embedded";
+        drafts.file.clear();
         if (d == "lookup") drafts.proposer = std::make_unique<infer::spec::Lookup>();
-        else if (d != "off" && d != "embedded") throw UsageError("--drafter takes off, lookup or embedded, not '" + d + "'");
+        else if (d != "off" && d != "embedded") drafts.file = d;
         return true;
     }
     if (f == "--draft-max") {
@@ -552,13 +557,27 @@ bool drafts_flag(int argc, char** argv, int& i, const std::string& a, std::strin
     return false;
 }
 
+void Drafts::attach(const infer::LoadedModel& loaded, const ExecOptions& exec, bool progress, bool server) {
+    if (loaded.drafter == infer::spec::DrafterKind::mtp) embedded = true;
+    if (embedded) {
+        proposer = std::make_unique<infer::spec::Embedded>(*loaded.model);
+        return;
+    }
+    if (loaded.drafter != infer::spec::DrafterKind::model) return;
+    if (server)
+        throw std::runtime_error("serve: " + file + " is a draft model, which drafts in generate and chat; the server drafts with lookup, embedded, or MTP blocks in a file beside the model");
+    // A draft model that keeps a recurrent state keeps one where its drafts begin, so each draft goes back there (infer::spec::DraftModel); it shares the model's devices, so the two take turns on one queue a device.
+    beside = open_model(file, exec, progress, exec.threads, 0, false, nullptr, 0, 0, false, 1, 0, false, {}, loaded.backends);
+    proposer = std::make_unique<infer::spec::DraftModel>(*beside->model);
+}
+
 int cmd_generate(const std::string& model_path, const std::string& prompt, bool as_chat, const infer::GenParams& gp, const ExecOptions& exec,
                  Drafts& drafts) {
     const bool progress = show_progress(exec);
-    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 0, drafts.mark_rows(), drafts.embedded);
+    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 0, drafts.mark_rows(), drafts.embedded, drafts.file);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
-    drafts.attach(model);
+    drafts.attach(*loaded, exec, progress);
     const int decode_threads = model.threads_available();
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
@@ -681,10 +700,10 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
 int cmd_chat(const std::string& model_path, const std::string& system, const infer::GenParams& gp, const ExecOptions& exec, Drafts& drafts) {
     const bool progress = show_progress(exec);
     // A model that keeps a state keeps it where the next turn will begin, and two slots let a turn's checkpoint take over from the last one's.
-    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 2, drafts.mark_rows(), drafts.embedded);
+    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 2, drafts.mark_rows(), drafts.embedded, drafts.file);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
-    drafts.attach(model);
+    drafts.attach(*loaded, exec, progress);
     const chat::ChatFormat& format = loaded->chat;
     format.require();
     const int decode_threads = model.threads_available();
@@ -824,21 +843,27 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 
 // Time model execution over fixed IDs after warm-up; history setup and sampling are outside the timer.
 // Multi-sequence decode follows each sequence's prompt, while single-sequence runs may use the requested depth; see docs/USAGE.md.
-// What bench's `--drafter` asks for: the file's embedded drafter loaded, or none; it drafts nothing either way.
-bool bench_drafter(const std::string& d) {
-    if (d != "off" && d != "embedded") throw UsageError("bench --model takes --drafter off or embedded, not '" + d + "'");
-    return d == "embedded";
+// What bench's `--drafter` value `d` asks for: true for the file's embedded drafter, and `d` left naming MTP blocks in a file beside it, or emptied for embedded and off; it drafts nothing either way.
+bool bench_drafter(std::string& d) {
+    if (d == "lookup") throw UsageError("bench --model takes --drafter off, embedded or a drafter file, not 'lookup'");
+    const bool embedded = d == "embedded";
+    if (embedded || d == "off") d.clear();
+    return embedded;
 }
 
-// With `drafter` the file's embedded drafter is loaded and its context rows run in every pass, with no draft taken (docs/SPECULATIVE.md, section 7, the k = 0 gate).
-int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int G, int R, bool profile, int seqs = 1, int D = 0, bool drafter = false) {
+// With `drafter` the file's embedded drafter, or the MTP blocks `drafter_file` holds, is loaded and its context rows run in every pass, with no draft taken (docs/SPECULATIVE.md, section 7, the k = 0 gate).
+int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int G, int R, bool profile, int seqs = 1, int D = 0, bool drafter = false,
+                    const std::string& drafter_file = {}) {
+    drafter = drafter || !drafter_file.empty();
     // The drafter's rollback is timed after a verify of kRollbackDrafts drafts, which its mark holds, and a step after it: the prompt after the depth and those rows and one more.
     const size_t kRollbackDrafts = 3, rollback_reach = (size_t)D + (size_t)P + kRollbackDrafts + 2;
     // What each sequence holds at most: a batched one its prompt and its generated tokens, the one sequence its depth and the longer of its two tests, or the rollback's reach.
     const size_t reach = seqs > 1 ? (size_t)P + (size_t)G : std::max((size_t)D + (size_t)std::max(P, G), drafter ? rollback_reach : 0);
     backend::Backend* b = nullptr;   // the device --profile times
     const auto loaded = open_model(path, exec, false, exec.threads, (size_t)seqs, true, profile ? &b : nullptr, reach, 0, false, 0,
-                                   drafter ? kRollbackDrafts + 1 : 0, drafter);
+                                   drafter ? kRollbackDrafts + 1 : 0, !drafter_file.empty() ? false : drafter, drafter_file);
+    if (loaded->drafter == infer::spec::DrafterKind::model)
+        throw std::runtime_error("bench --model times a drafter's rows in the model's own passes, and " + drafter_file + " is a draft model");
     infer::Model& model = *loaded->model;
     // Ids below 1000, or below a smaller vocabulary's size, such as the test fixtures'.
     const uint32_t vocab = (uint32_t)std::min<size_t>(1000, model.n_vocab());
@@ -989,10 +1014,10 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     // Without --passes a pipelined split keeps a pass in flight per stage, and its stages are at most the devices listed.
     const size_t slots = cfg.passes ? cfg.passes : backend::device_specs(exec.device).size();
     const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
-                                   drafts.mark_rows(), drafts.embedded);
+                                   drafts.mark_rows(), drafts.embedded, drafts.file);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
-    drafts.attach(model);
+    drafts.attach(*loaded, exec, true, true);
     // A template the renderer refuses stops the server before it listens, as it stops chat before a turn.
     loaded->chat.require();
     server::Config c = cfg;
@@ -1101,9 +1126,10 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --stop TEXT             Stop when generated text contains TEXT\n"
             << "  --ignore-eos            Never end at the end-of-text token; run to -n or --stop\n"
             << "  --drafter D             Draft tokens to verify in one pass: off, lookup (the\n"
-            << "                          tokens that followed the last ones earlier) or embedded\n"
-            << "                          (the MTP block the file carries); the output is the same\n"
-            << "                          either way (default: off)\n"
+            << "                          tokens that followed the last ones earlier), embedded\n"
+            << "                          (the MTP block the file carries), or a drafter file beside\n"
+            << "                          the model: its MTP blocks or a draft model; the output is\n"
+            << "                          the same either way (default: off)\n"
             << "  --draft-max N           Most drafts a verify takes, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n"
             << "  --verbose               Show the prompt token count, progress and execution details" << (chat ? "" : ", and the generated ids") << "\n";
         if (chat) out
@@ -1126,8 +1152,9 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --host-cache-bytes N    Host memory for prefixes the devices evict; 0 keeps none (default: --max-seqs histories as long as a request may hold, within half of free host memory once the model is loaded, none with every cache on the CPU)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
             << "  --ctx-size N, -c        Most KV tokens in total, fitted to the devices at load (default: model context)\n"
-            << "  --drafter D             Draft tokens to verify beside other requests: off, lookup or embedded,\n"
-            << "                          where the passes' measured cost finds a gain; each reply the same either way (default: off)\n"
+            << "  --drafter D             Draft tokens to verify beside other requests: off, lookup, embedded,\n"
+            << "                          or a file of MTP blocks beside the model, where the passes' measured\n"
+            << "                          cost finds a gain; each reply the same either way (default: off)\n"
             << "  --draft-max N           Most drafts a verify takes, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
         model_options(false);
         out << "\nRoutes:\n"
@@ -1188,9 +1215,10 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --depth N               History of N tokens, filled untimed, that each test runs after (default: " << bench.depth << ")\n"
             << "                          It counts toward --moe-stream-from's prompt length.\n"
             << "  --profile               Real-model kernel timing and statistics on one Vulkan device\n"
-            << "  --drafter D             off, or embedded: load the MTP block the file carries, run\n"
-            << "                          its rows in every pass, drafting nothing, then time a\n"
-            << "                          round's rollback at each kept row (default: off)\n";
+            << "  --drafter D             off, embedded (the MTP block the file carries) or a file\n"
+            << "                          of MTP blocks beside it: load it, run its rows in every\n"
+            << "                          pass, drafting nothing, then time a round's rollback at\n"
+            << "                          each kept row (default: off)\n";
         model_options(false);
         out << "\nExecution options other than --device and --threads apply only with --model.\n"
             << "Example: llmx bench --model model.gguf --p 512 --n 128 --r 3\n";
@@ -1453,7 +1481,7 @@ int main(int argc, char** argv) {
         if (cmd == "bench") {
             BenchNumbers n;
             bool profile = false, drafter = false;
-            std::string model_path, model_only, synthetic_only;   // the first flag given that only a model run reads, and the first only the synthetic bench reads
+            std::string model_path, model_only, synthetic_only, drafter_file;   // the first flag given that only a model run reads, and the first only the synthetic bench reads
             ExecOptions exec;
             GivenFlags given;
             for (int i = 2; i < argc; i++) {
@@ -1470,7 +1498,7 @@ int main(int argc, char** argv) {
                 else if (f == "--seqs") { n.seqs = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
                 else if (f == "--depth") { n.depth = int_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
                 else if (f == "--profile") { profile = true; if (model_only.empty()) model_only = a; }
-                else if (f == "--drafter") { drafter = bench_drafter(flag_value(argc, argv, i, a)); if (model_only.empty()) model_only = a; }
+                else if (f == "--drafter") { drafter_file = flag_value(argc, argv, i, a); drafter = bench_drafter(drafter_file); if (model_only.empty()) model_only = a; }
                 else throw UsageError("unknown flag: " + a);
                 given.take(a, i > at);
             }
@@ -1485,7 +1513,7 @@ int main(int argc, char** argv) {
                 if (specs.size() != 1 || specs[0].rfind("vulkan:", 0) != 0 || !exec.layer_shares.empty())
                     throw UsageError("--profile times the kernels of one Vulkan device");
             }
-            if (!model_path.empty()) return cmd_bench_model(model_path, exec, n.prompt, n.decode, n.repeats, profile, n.seqs, n.depth, drafter);
+            if (!model_path.empty()) return cmd_bench_model(model_path, exec, n.prompt, n.decode, n.repeats, profile, n.seqs, n.depth, drafter, drafter_file);
             return cmd_bench(n.size, n.iters, exec.threads, n.prompt, n.decode, exec.device);
         }
         std::cerr << "unknown command: " << cmd << "\n";

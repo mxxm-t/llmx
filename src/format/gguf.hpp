@@ -1,5 +1,8 @@
 #pragma once
+#include <cctype>
 #include <cstdint>
+#include <functional>
+#include <optional>
 #include <cstring>
 #include <vector>
 #include <string>
@@ -311,11 +314,13 @@ inline void write_meta_value(std::ostream& os, const MetaValue& v) {
     write_typed_value(os, v);
 }
 
-inline void write_gguf(const GGUFModel& m, const std::string& path) {
+// Write `m`'s metadata and tensor table to `path`, tensor i's bytes taken from `data(i)`: by default its own, which a file's model has once map_payload maps it.
+inline void write_gguf(const GGUFModel& m, const std::string& path, const std::function<const uint8_t*(size_t)>& data = {}) {
     const uint32_t alignment = file_alignment(m);
+    const auto bytes_of = [&](size_t i) { return data ? data(i) : m.tensor_data(i); };
     // Refused before the output is opened, so a refusal leaves whatever is at `path` as it was.
     for (size_t i = 0; i < m.tensors.size(); i++)
-        if (!m.tensor_data(i) && m.tensor_bytes(i)) throw std::runtime_error("GGUF tensor is not mapped: " + m.tensors[i].name);
+        if (!bytes_of(i) && m.tensor_bytes(i)) throw std::runtime_error("GGUF tensor is not mapped: " + m.tensors[i].name);
     format::OutputFile output(path);
     output.write([&](std::ostream& os) {
         uint32_t magic = MAGIC;
@@ -346,7 +351,7 @@ inline void write_gguf(const GGUFModel& m, const std::string& path) {
         pad_to(os, alignment);
 
         for (size_t i = 0; i < m.tensors.size(); i++) {
-            os.write((const char*)m.tensor_data(i), (std::streamsize)m.tensor_bytes(i));
+            os.write((const char*)bytes_of(i), (std::streamsize)m.tensor_bytes(i));
             pad_to(os, alignment);
         }
     });
@@ -533,6 +538,40 @@ inline GGUFModel read_gguf(const std::string& path) {
         base = size_t(aligned_size(checked_add(base, size), alignof(float)));
     }
     return m;
+}
+
+// The tensors of `other`, a file read_gguf read, joined to `m`'s as files after its own, each in its file as before, so the two load as one payload; `other`'s metadata is not taken.
+// A name both hold is refused, and nothing changes.
+inline void append(GGUFModel& m, GGUFModel&& other) {
+    if (m.segments.empty() || other.segments.empty()) throw std::logic_error("GGUF: only the tensors of files are joined");
+    std::unordered_set<std::string> names;
+    for (const auto& t : m.tensors) names.insert(t.name);
+    for (const auto& t : other.tensors)
+        if (!names.insert(t.name).second) throw std::runtime_error("duplicate GGUF tensor: " + t.name);
+    const size_t base = size_t(aligned_size(m.payload_size(), alignof(float))), first = m.tensors.size();
+    for (size_t i = 0; i < other.tensors.size(); ++i) {
+        m.offsets.push_back(size_t(checked_add(base, other.offsets[i])));
+        m.tensors.push_back(std::move(other.tensors[i]));
+    }
+    for (auto& s : other.segments) {
+        s.base = size_t(checked_add(base, s.base));
+        s.first += first;
+        m.segments.push_back(std::move(s));
+    }
+}
+
+// The block a tensor named as GGUF names a block's tensors ("blk.N.") belongs to, or nothing for a tensor of no block.
+inline std::optional<size_t> block_of(const std::string& name) {
+    const std::string prefix = "blk.";
+    if (name.compare(0, prefix.size(), prefix)) return std::nullopt;
+    size_t i = prefix.size(), n = 0;
+    if (i == name.size() || !std::isdigit((unsigned char)name[i])) return std::nullopt;
+    for (; i < name.size() && std::isdigit((unsigned char)name[i]); ++i) {
+        if (n > (SIZE_MAX - 9) / 10) return std::nullopt;
+        n = n * 10 + size_t(name[i] - '0');
+    }
+    if (i == name.size() || name[i] != '.') return std::nullopt;
+    return n;
 }
 
 // The size read_gguf found the file at `path` to have, from its start to the end of its payload, which it must keep while the model is loaded.

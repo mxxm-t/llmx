@@ -100,6 +100,46 @@ private:
     std::vector<Model::DraftAsk> batch_;
 };
 
+// A draft model (docs/SPECULATIVE.md, step 6): a model of its own sharing the target's tokenizer, drafting greedily, ties to the lowest id, on its own history, which follows the one it is given.
+// A draft takes that history back to what it shares with the one given, feeds the rest in one pass, as generated tokens where it is no longer than a verify, keeps the state there on a model that keeps one, so the next draft goes back no further, then drafts a token a step; it drafts for the caller's one history, the model's own.
+class DraftModel final : public Proposer {
+public:
+    explicit DraftModel(Model& model) : model_(model) {}
+    void draft(Sequence* seq, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
+        out.clear();
+        if (seq) throw std::logic_error("inference: a draft model drafts for one history, not a sequence of another model");
+        if (h.empty() || !k) return;
+        size_t shared = 0;
+        while (shared < fed_.size() && shared < h.size() && fed_[shared] == h[shared]) ++shared;
+        // The last token is fed again where the history holds no more, since its logits are what the first draft is drawn from.
+        shared = std::min(shared, h.size() - 1);
+        if (shared < fed_.size()) fed_.resize(model_.retract(shared));
+        if (h.size() + k > (size_t)model_.context_length()) return;
+        const std::vector<uint32_t> rest(h.begin() + (std::ptrdiff_t)fed_.size(), h.end());
+        // What a verify kept and its pick, at most a verify's rows, go in as generated tokens through the decode kernels, a pass of a few rows the prompt path would take several times longer over; a longer rest, a new prompt, goes through the prompt path.
+        std::vector<float> logits;
+        if (rest.size() <= size_t(kMaxDrafts) + 1) {
+            const float* rows = model_.step(rest.data(), rest.size());
+            logits.assign(rows + (rest.size() - 1) * model_.n_vocab(), rows + rest.size() * model_.n_vocab());
+        } else {
+            logits = model_.prefill(rest);
+        }
+        fed_ = h;
+        if (model_.keeps_state()) model_.keep();
+        for (;;) {
+            const uint32_t d = (uint32_t)(std::max_element(logits.begin(), logits.end()) - logits.begin());
+            out.push_back(d);
+            if (out.size() == k) return;
+            logits = model_.step((int)d);
+            fed_.push_back(d);
+        }
+    }
+
+private:
+    Model& model_;
+    std::vector<uint32_t> fed_;   // the tokens the model's history holds
+};
+
 // A request's one acceptance figure (docs/SPECULATIVE.md, section 3): the average of the drafts its verifies kept, each verify moving it an eighth of the way to what that one kept, and below kBreakEven the request drafts nothing for its next 16 tokens, then verifies once more.
 // It also counts, by draft position, the drafts its verifies fed and those they kept.
 class Acceptance {

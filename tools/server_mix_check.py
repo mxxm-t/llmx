@@ -14,7 +14,7 @@ Every request that runs to its end must give its ids alone, the CLI its text; a 
 --logprobs asks every request of these phases for its log-probabilities and top five too, which must equal alone's as its ids do.
 --ids writes every phase's ids, with --logprobs beside their values, so two builds can be compared byte for byte.
 --passes N serves with N passes in flight, which a layer split takes above one.
---drafter lookup|embedded serves with drafts, so every phase holds drafting to the replies without them: alone, together and skewed as the server gives them, and the CLI's run without drafts; it prints the drafts the server fed and kept, and fails where it fed none.
+--drafter lookup|embedded|PATH serves with drafts, so every phase holds drafting to the replies without them: alone, together and skewed as the server gives them, and the CLI's run without drafts; it prints the drafts the server fed and kept, and fails where it fed none.
 --fresh-phases starts each capped phase and the final repeat on a fresh server and requires zero prefix reuse and pauses, isolating batching from history reuse.
 --ctx-size sets the server pool; leave enough room for every active request in this mode.
 
@@ -219,8 +219,8 @@ def main():
     p.add_argument("--logprobs", action="store_true", help="the capped phases compare log-probabilities and the top five beside the ids")
     p.add_argument("--sampled", action="store_true", help="the capped phases draw every request at the defaults with a seed of its own, in place of greedy")
     p.add_argument("--passes", type=int, help="passes in flight, the server's own number when not given")
-    p.add_argument("--drafter", choices=["off", "lookup", "embedded"], default="off",
-                   help="the server's drafter; the CLI runs without drafts, so its text holds the server's drafts to the reply without them")
+    p.add_argument("--drafter", default="off",
+                   help="the server's drafter: off, lookup, embedded or a file of MTP blocks beside the model; the CLI runs without drafts, so its text holds the server's drafts to the reply without them")
     p.add_argument("--fresh-phases", action="store_true", help="fresh server for each capped phase; fail on prefix reuse or pauses")
     p.add_argument("--cli", type=int, default=4,
                    help="requests also checked against the CLI; the first four cover every prompt length, the last two several ubatch chunks")

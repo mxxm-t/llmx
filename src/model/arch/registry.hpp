@@ -14,19 +14,20 @@
 
 namespace infer {
 
-// A general.architecture value and the reader of its files, which reads the configuration under the name's prefix.
+// A general.architecture value and the reader of its files, which reads the configuration under the name's prefix, and whether a DFlash drafter drafts for its models (spec::pair).
 struct ArchEntry {
     const char* name;
     std::shared_ptr<const Architecture> (*read)(const gguf::GGUFModel&, const std::string& prefix);
     backend::Dtype dtype;
+    bool dflash;
 };
 
 // GGUF has no source dtype; these are architecture defaults, not declarations inferred from weight storage.
 inline const ArchEntry kArchitectures[] = {
-    {"qwen3", qwen3::open_dense, backend::Dtype::bf16},
-    {"qwen3moe", qwen3::open_routed, backend::Dtype::bf16},
-    {"qwen35", qwen35::open_dense, backend::Dtype::bf16},
-    {"qwen35moe", qwen35::open_routed, backend::Dtype::bf16},
+    {"qwen3", qwen3::open_dense, backend::Dtype::bf16, false},
+    {"qwen3moe", qwen3::open_routed, backend::Dtype::bf16, false},
+    {"qwen35", qwen35::open_dense, backend::Dtype::bf16, true},
+    {"qwen35moe", qwen35::open_routed, backend::Dtype::bf16, true},
 };
 
 // The entry a file's general.architecture names; a file without the key is read as qwen3, since the tests' fixtures write none.

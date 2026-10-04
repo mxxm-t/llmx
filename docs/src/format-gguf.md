@@ -50,14 +50,18 @@ check their own type support; unknown and retired storage IDs are refused.
   A file's tensors are addressed in place, padding included, and `read_gguf`
   refuses a tensor offset that is not float-aligned; each shard's data
   starts at a float-aligned offset.
-- `read_gguf(path)` / `write_gguf(m, path)` with the on-disk layout:
+- `append(m, other)`: the tensors of `other`, a file `read_gguf` read, joined to `m`'s as files after its own, each tensor in its file as before, so the two load as one payload; `other`'s metadata is not taken, and a name both hold is refused with nothing changed. The loader joins a drafter's MTP blocks so (`infer::spec::join_blocks`).
+- `block_of(name)`: the block a tensor named as GGUF names a block's tensors (`blk.N.`) belongs to, or nothing for a tensor of no block.
+- `read_gguf(path)` / `write_gguf(m, path, data = {})` with the on-disk layout:
   header, metadata KVs, contiguous tensor infos, then an aligned data section
   with each tensor payload aligned to `general.alignment` (default `ALIGNMENT`).
   The reader and writer require a uint32 alignment that is positive and
   a multiple of eight; non-power-of-two values such as 24 are supported.
   Tensor infos have no individual padding. Before it opens the output,
   `write_gguf` refuses a model whose files are not mapped, so a refusal
-  leaves the file at `path` as it was.
+  leaves the file at `path` as it was. With `data`, tensor i's bytes are
+  `data(i)`, so a tool writes a subset of a mapped file's tensors
+  (`llmx-drafter-pack`).
   Writing uses `format::OutputFile` ([output_file](format-output_file.md)): checked writes and close precede replacement, so a preparation failure preserves the destination.
   - `read_gguf` reads the headers alone: it parses and checks them and lays
     out the segments, and maps nothing, so `info`, `tokenize` and

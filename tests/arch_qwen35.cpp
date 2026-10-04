@@ -956,6 +956,96 @@ gguf::GGUFModel tiny_mtp(const std::function<void(gguf::GGUFModel&)>& edit = {})
     });
 }
 
+// Drafting never lowers the budget the fit gives without it (docs/SPECULATIVE.md, section 3): on one device that holds the 512-token budget and nothing more, the embedded drafter and a mark are refused by their text, and so is a mark alone, as lookup asks; on one that holds the budget with the drafter and one mark beside it, the budget is the 512 tokens and one mark is taken.
+// An automatic checkpoint slot gives way: one byte short of the budget, the drafter, a mark and the one checkpoint asked for, the budget stays 512 tokens and the checkpoint goes, where the fit without drafts keeps it; a checkpoint asked for by number does not, and the placement is refused. Over two devices, the first holding only a linear-attention layer's states, roomy ones give the budget and the checkpoints of the fit without drafts.
+void drafting_fit() {
+    const gguf::GGUFModel m = tiny_mtp();
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    infer::PlacementRequest request;
+    request.names = {"device 0"};
+    request.fit_kv = request.fit_marks = request.drafter = true;
+    infer::ModelOptions options;
+    options.state_slots = 2;
+    options.mark_slots = 4;
+    options.mark_rows = 4;
+    const auto alone = [](size_t room) {
+        auto d = std::make_shared<Room>();
+        d->room = room;
+        return std::vector<backend::BackendPtr>{d};
+    };
+    // The least room that holds the model with the budget and `kept` checkpoints, with the drafter and `marks` marks beside it or with neither.
+    const auto least = [&](bool drafter, size_t marks, size_t kept = 0) {
+        const infer::ModelPlan plan = infer::plan_model(w, drafter);
+        infer::ModelOptions o = options;
+        o.mark_slots = marks;
+        o.checkpoint_slots = kept;
+        const auto holds = [&](size_t room) {
+            try {
+                infer::split_layers(infer::footprint(w, plan, o), infer::budgets_for(alone(room), request.names), infer::kDefaultUbatch, {},
+                                    core::host_memory_available());
+                return true;
+            } catch (const std::runtime_error&) {
+                return false;
+            }
+        };
+        size_t l = 1, h = size_t(1) << 30;
+        while (h - l > 1) {
+            const size_t mid = l + (h - l) / 2;
+            (holds(mid) ? h : l) = mid;
+        }
+        return h;
+    };
+    const size_t bare = least(false, 0);
+    refuses("the drafter beside a budget that fills the device", "drafting needs room beyond the KV budget of 512 tokens and 0 state checkpoints",
+            [&] { infer::place_model(w, alone(bare), request, options); });
+    infer::PlacementRequest lookup = request;
+    lookup.drafter = false;
+    refuses("a mark beside a budget that fills the device", "drafting needs room beyond the KV budget of 512 tokens",
+            [&] { infer::place_model(w, alone(bare), lookup, options); });
+    const infer::PlacedModel placed = infer::place_model(w, alone(least(true, 1)), request, options);
+    require(placed.model->kv_tokens_total() == 512 && placed.model->mark_slots() == 1,
+            "with room for the drafter and a mark beside the budget the fit took " + std::to_string(placed.model->kv_tokens_total()) + " KV tokens and " +
+                std::to_string(placed.model->mark_slots()) + " marks");
+
+    infer::PlacementRequest automatic = request;
+    automatic.fit_checkpoints = true;
+    infer::ModelOptions one = options;
+    one.checkpoint_slots = 1;
+    const size_t short_of = least(true, 1, 1) - 1;
+    infer::PlacementRequest plain = automatic;
+    plain.drafter = false;
+    infer::ModelOptions bare_options = one;
+    bare_options.mark_slots = 0;
+    const infer::PlacedModel without = infer::place_model(w, alone(short_of), plain, bare_options);
+    require(without.model->kv_tokens_total() == 512 && without.model->checkpoint_slots() == 1, "the fit without drafts lost its budget or its checkpoint");
+    const infer::PlacedModel gave = infer::place_model(w, alone(short_of), automatic, one);
+    require(gave.model->kv_tokens_total() == 512 && gave.model->checkpoint_slots() == 0 && gave.model->mark_slots() == 1,
+            "the automatic checkpoint did not give way to the drafter: " + std::to_string(gave.model->kv_tokens_total()) + " KV tokens, " +
+                std::to_string(gave.model->checkpoint_slots()) + " checkpoints, " + std::to_string(gave.model->mark_slots()) + " marks");
+    refuses("a checkpoint asked for by number beside the drafter", "drafting needs room beyond the KV budget of 512 tokens and 1 state checkpoints",
+            [&] { infer::place_model(w, alone(short_of), request, one); });
+
+    infer::PlacementRequest split = automatic;
+    split.names = {"device 0", "device 1"};
+    split.shares = {1, 4};
+    const auto roomy = [] {
+        auto a = std::make_shared<Room>(), b = std::make_shared<Room>();
+        a->room = b->room = size_t(1) << 30;
+        return std::vector<backend::BackendPtr>{a, b};
+    };
+    infer::PlacementRequest split_plain = split;
+    split_plain.drafter = false;
+    infer::ModelOptions four = options;
+    four.checkpoint_slots = 4;
+    infer::ModelOptions four_bare = four;
+    four_bare.mark_slots = 0;
+    const infer::PlacedModel split_without = infer::place_model(w, roomy(), split_plain, four_bare);
+    const infer::PlacedModel split_with = infer::place_model(w, roomy(), split, four);
+    require(split_with.model->kv_tokens_total() == split_without.model->kv_tokens_total() &&
+                split_with.model->checkpoint_slots() == split_without.model->checkpoint_slots() && split_with.model->checkpoint_slots() == 4,
+            "a split with the drafter took another budget or other checkpoints than without");
+}
+
 // A draft's ids and every draft row's logits.
 struct Drafted {
     std::vector<uint32_t> ids;
@@ -1484,6 +1574,7 @@ int main() {
         failed_admission_takes_no_slot();
         marks();
         drafts();
+        drafting_fit();
         slices(tiny());
         split_with_a_stage_of_states(tiny());
         experts();

@@ -247,7 +247,8 @@ inline void settle(std::vector<DeviceBudget>& budgets, const std::vector<backend
 // The options with the KV budget fitted (PlacementRequest::fit_kv): the most whole blocks of the largest block size, at most the options' budget, at which the fit of model/layer_split.hpp places the model on these devices and the host, and backed whole at load.
 // Beside a device with experts on the CPU, the device holds neither those layers' feed-forward blocks nor their experts; a device that cannot tell its free memory takes the options' budget.
 // Refused when not one block fits beside the weights, the activations and the recurrent state slots.
-// With fit_marks a model that keeps a state takes one mark slot, if the options ask for any, before the budget, and then the most more, up to the options', at which the budget and the checkpoint slots stay as they are, so marks past the first never cost the KV room or prefix reuse a server has without them.
+// Drafting never lowers the budget: the budget and the checkpoint slots are fitted without the embedded drafter and without a mark, and the drafter and the options' marks must then fit beside that budget, automatic checkpoint slots giving way to them, the most that still fit, and checkpoints asked for by number not, else the placement is refused with the numbers (docs/SPECULATIVE.md, section 3).
+// With fit_marks a model that keeps a state takes one mark slot there, if the options ask for any, and then the most more, up to the options', at which the budget and the checkpoint slots still fit.
 // With fit_checkpoints a model that keeps a state takes as checkpoint slots the fewer of the options' and the most at which the placement still holds three quarters of the budget it holds without them, so they take at most a quarter of the KV room, each count tried through the fit itself once the devices' free memory has settled (docs/SPECULATIVE.md, section 2); `given_up`, when given, gets the KV tokens the checkpoints took from the budget, and `read`, the devices' budgets the fit settled on, so a split places its layers by the same reading.
 inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
                               const PlacementRequest& request, ModelOptions options, size_t* given_up = nullptr,
@@ -257,12 +258,18 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         if (!b) throw std::runtime_error("inference: missing backend");
         block = std::max(block, b->kv_layout().block_tokens);
     }
-    ModelPlan held = plan;
-    if (adds_host_for_experts(backends, request))
-        for (size_t l = 0; l < held.layers.size(); ++l)
-            if (ffn_on_host(request, plan.layers, l))
-                for (Role& role : held.layers[l].roles)
-                    if (role.part == Part::ffn) role.tensor.reset();
+    // What the devices hold of a plan: beside experts on the CPU, not those layers' feed-forward blocks.
+    const auto held_of = [&](ModelPlan p) {
+        if (adds_host_for_experts(backends, request))
+            for (size_t l = 0; l < p.layers.size(); ++l)
+                if (ffn_on_host(request, plan.layers, l))
+                    for (Role& role : p.layers[l].roles)
+                        if (role.part == Part::ffn) role.tensor.reset();
+        return p;
+    };
+    // The no-drafter fit reads the plan without the embedded drafter, whose roles, cache and arena slots only drafting takes.
+    const ModelPlan held = held_of(plan), bare_plan = plan.drafter ? held_of(plan_model(weights)) : held;
+    const ModelPlan* fitting = &bare_plan;
     std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
     const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
     const std::optional<size_t> logits = request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt;
@@ -273,7 +280,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         o.kv_tokens = tokens;
         o.checkpoint_slots = kept;
         try {
-            split_layers(footprint(weights, held, o), budgets, rows, request.shares, core::host_memory_available(), std::max<size_t>(1, request.slots), logits);
+            split_layers(footprint(weights, *fitting, o), budgets, rows, request.shares, core::host_memory_available(), std::max<size_t>(1, request.slots), logits);
             return true;
         } catch (const std::runtime_error& e) {
             why = e.what();
@@ -297,7 +304,9 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     const bool choose = request.fit_checkpoints && kept && keeps_state;
     const size_t most_marks = options.mark_slots;
     const bool marks = request.fit_marks && most_marks > 1 && keeps_state;
-    if (marks) options.mark_slots = 1;
+    // The no-drafter fit: neither the embedded drafter nor a mark, which only drafting takes, so drafting never lowers the budget (docs/SPECULATIVE.md, section 3); only automatic checkpoint slots give way to it, below.
+    const bool drafter = plan.drafter.has_value();
+    options.mark_slots = 0;
     const size_t most_kept = kept;
     if (choose) kept = 0;
     size_t tokens = 0;
@@ -314,6 +323,23 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         }
         kept = lo;
         if (kept) tokens = most();
+    }
+    // Then the drafter and a mark, or every mark asked for where they are not fitted, beside that budget, which stays as it is: automatic checkpoint slots give way to them, the most of those that still fit, and checkpoints asked for by number do not, else a refusal that says what took the room.
+    if (tokens && (drafter || most_marks)) {
+        fitting = &held;
+        options.mark_slots = marks ? 1 : most_marks;
+        if (!fits(tokens) && choose) {
+            size_t lo = 0, hi = kept;
+            while (lo < hi) {
+                kept = lo + (hi - lo + 1) / 2;
+                if (fits(tokens)) lo = kept;
+                else hi = kept - 1;
+            }
+            kept = lo;
+        }
+        if (!fits(tokens))
+            throw std::runtime_error("placement: drafting needs room beyond the KV budget of " + std::to_string(tokens) + " tokens and " + std::to_string(kept) +
+                                     " state checkpoints, which leave none for it (" + why + "); a smaller budget or fewer checkpoints leaves the room");
     }
     // Then the marks past the first, by bisection, the most at which the budget and the checkpoint slots still fit.
     if (marks && tokens) {

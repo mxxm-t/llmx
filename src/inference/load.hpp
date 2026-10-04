@@ -19,6 +19,7 @@
 #include "format/gguf.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "inference/chat.hpp"
+#include "inference/pair.hpp"
 #include "model/runtime.hpp"
 #include "model/place.hpp"
 #include "model/arch/registry.hpp"
@@ -60,6 +61,8 @@ struct LoadedModel {
     std::string plan;                // what each device of a split was given (LayerSplit::describe), empty otherwise
     DtypePlan dtype;
     size_t checkpoint_kv_tokens = 0; // the KV tokens a server's fitted checkpoint slots took from its budget (PlacedModel)
+    std::optional<spec::DrafterKind> drafter;   // what the drafter file beside the model is (spec::pair), when one was given
+    std::vector<backend::BackendPtr> backends;  // the backends the caller gave, which a draft model beside the model shares
     LoadTimes times;
     std::vector<core::HostPages> host;   // a direct load's copy of each file, laid out as the file, for the weights a host reads in place
     std::unique_ptr<Model> model;
@@ -337,14 +340,27 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
 } // namespace detail
 
 // Load the model at `path`, a GGUF file or the first shard of a set, over the caller's `backends` as `request` places it, reading the weights as `mode` says: read the headers, build the tokenizer and the chat format, place the model, and fill the weights the backends copy, reporting the payload to `progress`.
+// A `drafter_file` beside it is read to its headers and paired with it first (spec::pair, docs/SPECULATIVE.md, step 6): MTP blocks are joined to the model and loaded as its embedded drafter, from their own file; a draft model is left for the caller to load as a model of its own; a DFlash drafter is refused, as nothing runs one yet.
 // The host's copy of the weights is then released when no host reads one in place, and otherwise the pages of every tensor no host reads leave its working set.
 inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vector<backend::BackendPtr> backends,
                                                const PlacementRequest& request, const ModelOptions& options = {},
-                                               const format::LoadProgress& progress = {}, LoadMode mode = LoadMode{}) {
+                                               const format::LoadProgress& progress = {}, LoadMode mode = LoadMode{},
+                                               const std::string& drafter_file = {}) {
     auto loaded = std::make_unique<LoadedModel>();
     gguf::GGUFModel& file = loaded->file;
     loaded->times.mode = mode;
     file = gguf::read_gguf(path);
+    PlacementRequest placing = request;
+    if (!drafter_file.empty()) {
+        gguf::GGUFModel side = gguf::read_gguf(drafter_file);
+        loaded->drafter = spec::pair(file, path, side, drafter_file);
+        if (*loaded->drafter == spec::DrafterKind::dflash)
+            throw std::runtime_error("inference: " + drafter_file + " is a DFlash drafter, which pairs with " + path + " but which this build does not run");
+        if (*loaded->drafter == spec::DrafterKind::mtp) {
+            spec::join_blocks(file, std::move(side));
+            placing.drafter = true;
+        }
+    }
     std::vector<size_t> every(file.tensors.size());
     for (size_t i = 0; i < every.size(); ++i) every[i] = i;
     const bool host = host_reads_in_place(backends, request);
@@ -384,9 +400,10 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     }
     WeightPlan plan;
     const size_t devices = backends.size();
+    loaded->backends = backends;
     const auto built = std::chrono::steady_clock::now();
     // The mapped mode copies each weight as the model resolves its role; the streamed ones give every copied weight storage first and stream the copies after.
-    PlacedModel placed = place_model(weights, std::move(backends), request, options,
+    PlacedModel placed = place_model(weights, std::move(backends), placing, options,
                                      planning_adopt(weights, devices, plan, mode != LoadMode::mapped));
     loaded->times.construct = detail::seconds_since(built);
     loaded->plan = std::move(placed.plan);

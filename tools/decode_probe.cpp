@@ -1,6 +1,6 @@
 // A reply's decode path on a real model: the prompt read as one prefill, then each forced id of a fixture fed as a decode step, as a request alone runs through the server.
 // Each step prints its greedy token and the forced one with their logits; after the last forced id it prints the step's five best, or every id of a smaller vocabulary, and the logits of the fixture's two tokens, where two builds' greedy replies parted.
-// A fixture's `draft`, a count, loads the file's embedded drafter and prints its drafts after the last step's greedy token, each draft row's id and every logit of its row (docs/SPECULATIVE.md, section 7); its `cache`, f16 or f32, stores both cache sides so, f16 when left out.
+// A fixture's `draft`, a count, loads the file's embedded drafter, or the MTP blocks its `drafter_file` holds beside it, and prints its drafts after the last step's greedy token, each draft row's id and every logit of its row (docs/SPECULATIVE.md, section 7); its `cache`, f16 or f32, stores both cache sides so, f16 when left out.
 // Usage: llmx-decode-probe <model.gguf> <fixture.json> [device]; the device is `cpu` or a Vulkan index, 0 when left out. It exits 1 where a forced id is not its step's greedy token, and 2 on a fixture entry that is not a whole number inside the vocabulary.
 #include <cmath>
 #include <cstdint>
@@ -43,14 +43,18 @@ int main(int argc, char** argv) {
             throw std::runtime_error("draft is not a whole number from 1 to 63");
         infer::PlacementRequest request;
         request.names = {device == "cpu" ? device : "vulkan:" + device};
-        request.drafter = draft != nullptr;
+        // A fixture's `drafter_file` holds the MTP blocks the draft takes, beside the model, rather than its own (infer::load_model).
+        const jmini::Value* drafter_file = fixture.get("drafter_file");
+        if (drafter_file && (!drafter_file->isString() || !draft)) throw std::runtime_error("drafter_file is not a path beside a draft count");
+        request.drafter = draft != nullptr && !drafter_file;
         infer::ModelOptions options;
         options.kv_tokens = 4096;
         if (const jmini::Value* cache = fixture.get("cache")) {
             if (!cache->isString()) throw std::runtime_error("cache is not a cache type");
             options.kv_k = options.kv_v = backend::kv_type_of(cache->asString());
         }
-        const auto loaded = infer::load_model(argv[1], backend::make_backends(request.names), request, options);
+        const auto loaded = infer::load_model(argv[1], backend::make_backends(request.names), request, options, {}, infer::LoadMode{},
+                                              drafter_file ? drafter_file->asString() : std::string());
         infer::Model& model = *loaded->model;
         const size_t vocab = model.n_vocab();
         std::vector<uint32_t> forced;

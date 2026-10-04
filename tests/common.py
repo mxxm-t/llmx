@@ -222,7 +222,7 @@ def generate_text(stdout):
 
 
 def check_drafts(name, model, prompt="ababab", n=9, chat=False, drafter="lookup"):
-    """Speculative decoding leaves output as it was (docs/SPECULATIVE.md, section 3): generate, greedy and seeded, with `--drafter lookup`, or the `drafter` given, at `--draft-max` 1, 4, 8 and 16 prints the bytes and the ids generate prints with drafts off, and with `chat` so does a chat of two turns; `n` tokens after `prompt` fit the model's context."""
+    """Speculative decoding leaves output as it was (docs/SPECULATIVE.md, section 3): generate, greedy and seeded, with `--drafter lookup`, or the `drafter` given, at `--draft-max` 1, 4, 8 and 16 prints the bytes and the ids generate prints with drafts off, and feeds drafts with any drafter but lookup, and with `chat` so does a chat of two turns; `n` tokens after `prompt` fit the model's context."""
     for sampling in (["--temp", "0"], ["--temp", "0.8", "--seed", "3"]):
         base = ["generate", model, prompt, "-n", str(n), "--ignore-eos", "--verbose"] + sampling
         off = run_process(base + ["--drafter", "off"])
@@ -233,7 +233,7 @@ def check_drafts(name, model, prompt="ababab", n=9, chat=False, drafter="lookup"
             assert on.returncode == 0, "%s generate with drafts failed: %s" % (name, on.stderr.decode("utf-8", "replace"))
             got = (generate_text(on.stdout), re.search(rb"^ids:.*$", cli_stdout(on.stdout), re.M)[0])
             fed = re.search(rb"^drafts kept:((?: \d+/\d+)*)$", cli_stdout(on.stdout), re.M)
-            assert drafter != "embedded" or fed and sum(int(c.split(b"/")[1]) for c in fed[1].split()) > 0, "%s: generate with the embedded drafter fed no draft" % name
+            assert drafter == "lookup" or fed and sum(int(c.split(b"/")[1]) for c in fed[1].split()) > 0, "%s: generate with the drafter %s fed no draft" % (name, drafter)
             assert got == want, "%s: generate %s with --draft-max %s gave %r, without drafts %r" % (name, sampling, k, got, want)
     if not chat:
         return

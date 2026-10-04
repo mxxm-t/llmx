@@ -22,6 +22,7 @@
 #include "inference/pair.hpp"
 #include "model/runtime.hpp"
 #include "model/place.hpp"
+#include "model/shard.hpp"
 #include "model/arch/registry.hpp"
 
 // Loading a model file, the one sequence every command and tool opens a model through (docs/src/inference-load.md).
@@ -73,10 +74,12 @@ struct LoadedModel {
 };
 
 // A weight a copying backend took: the storage the model's construction allocated for it (Backend::alloc_weight), filled from the file once the model is built.
+// A tensor group's member takes only its shard: the tensor's bytes in `runs`, each at its offset in the storage (model/shard.hpp); with no runs it takes the whole tensor.
 struct Upload {
     size_t tensor = 0;
     backend::Backend* backend = nullptr;
     backend::BufferPtr buffer;
+    std::vector<shard::Run> runs;
 };
 
 // What the loader's hook records while the model is built: per tensor whether a backend that reads in place took it, and every weight a copying backend took.
@@ -100,7 +103,7 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
         }
         if (!defer) return b.adopt(t.data, t.bytes);
         backend::BufferPtr buffer = b.alloc_weight(t.bytes);
-        plan.uploads.push_back({i, &b, buffer});
+        plan.uploads.push_back({i, &b, buffer, {}});
         return buffer;
     };
 }
@@ -301,12 +304,27 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
                     throw std::runtime_error(readers[p.file]->path() + " ended at " + std::to_string(p.offset + n) + " bytes, before its tensors");
                 for (const Upload* u : destinations[part.tensor]) {
                     const size_t t = target_of(u->backend);
-                    if (!p.into && !views[t].empty()) {
-                        u->backend->copy(*u->buffer, part.tensor_offset, *views[t][slot], part.piece_offset, part.bytes);
-                        copying[slot][t] = 1;
-                        times.copied += part.bytes;
-                    } else {
-                        u->backend->write(*u->buffer, part.tensor_offset, data + part.piece_offset, part.bytes);
+                    // `count` bytes of the part from `from` in the tensor, to `to` in the storage.
+                    auto send = [&](size_t from, size_t to, size_t count) {
+                        const size_t at = part.piece_offset + (from - part.tensor_offset);
+                        if (!p.into && !views[t].empty()) {
+                            u->backend->copy(*u->buffer, to, *views[t][slot], at, count);
+                            copying[slot][t] = 1;
+                            times.copied += count;
+                        } else {
+                            u->backend->write(*u->buffer, to, data + at, count);
+                        }
+                    };
+                    if (u->runs.empty()) {
+                        send(part.tensor_offset, part.tensor_offset, part.bytes);
+                        continue;
+                    }
+                    // A member's runs are in the tensor's order, so the ones the part reaches follow the first that ends past its start.
+                    const size_t lo = part.tensor_offset, hi = lo + part.bytes;
+                    auto r = std::upper_bound(u->runs.begin(), u->runs.end(), lo, [](size_t at, const shard::Run& x) { return at < x.from + x.bytes; });
+                    for (; r != u->runs.end() && r->from < hi; ++r) {
+                        const size_t from = std::max(lo, r->from), end = std::min(hi, r->from + r->bytes);
+                        send(from, r->to + (from - r->from), end - from);
                     }
                 }
                 bytes += part.bytes;

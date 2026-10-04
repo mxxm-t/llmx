@@ -1,7 +1,7 @@
 # The findings of the dead-code and docs checks (tests/dead_code.py, tests/docs_check.py) that the tree still has, and why each is still here.
 # One per line: check | file | name | times | reason, where times is how often the finding occurs.
 # A finding not listed here fails its check, and so do one that occurs another number of times than its line says and a line here whose finding no longer occurs, so the change that removes a finding removes its line (AGENTS.md, Dead code and stale docs).
-# Except for the Windows entry point, every line below goes with cleanup/known-findings, planned in docs/STATUS.md to follow refactor/arch-modules, but the qwen35 lines, which go with the steps of the Qwen 3.5, 3.6 and 3.8 plan they name.
+# Except for the Windows entry point, every line below goes with cleanup/known-findings, planned in docs/STATUS.md to follow refactor/arch-modules, but the qwen35 lines, which go with the steps of the Qwen 3.5, 3.6 and 3.8 plan they name, and the tensor split lines, which go with the step of docs/TENSOR-SPLIT.md they name.
 
 # Windows executable entry point, invoked by the C runtime.
 unused | tools/model_logits.cpp | wmain | 1 | the Windows C runtime calls this Unicode entry point; the name check recognizes main only; remove the entry if that check learns wmain or this tool no longer uses it
@@ -12,6 +12,8 @@ test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_name | 1 | th
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_profile | 1 | the device profile, which only the Vulkan test reads to predict the backend's kernel choice; kept as the test's probe or folded into it with cleanup/known-findings
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representations | 1 | the kernels' driver representations, which only the Vulkan test's --isa writes out; bench --profile captures them for nothing; decided with cleanup/known-findings
 test-only | src/backends/backend.hpp | Backend::state_copy | 1 | a slot copied to a slot, which the take-back resume and the checkpoints of the Qwen 3.5, 3.6 and 3.8 plan's step 8 call; goes with step 8b
+test-only | src/model/shard.hpp | check_plan | 1 | the legality of a tensor width over a model, which place_model calls before it places a group; tensor split, step 2
+test-only | src/model/shard.hpp | pack | 1 | a member's packed copy of a weight, which the adoption hook makes for a backend that reads a shard of several runs in place; tensor split, step 2
 
 # Shader switches that change nothing: no CMake entry sets the define, so only the default is ever built.
 shader | src/backends/vulkan/shaders/matmul_tile_q.comp | #ifndef STEP | 1 | the blocks staged per barrier as an overridable default, whose value the host code also assumes; becomes a plain constant with cleanup/known-findings

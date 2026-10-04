@@ -166,6 +166,7 @@ public:
         p.pass = {{token_embd, Part::embed, RoleKind::gather, "token_embd.weight", "", E, p.vocab},
                   {output, Part::head, RoleKind::matrix, "output.weight", "token_embd.weight", E, p.vocab},
                   {output_norm, Part::head, RoleKind::norm, "output_norm.weight", "", E}};
+        blocks::shard(p.pass, output, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
         p.layers.resize((size_t)c.n_layer);
         for (int l = 0; l < c.n_layer; ++l) {
             const std::string pre = "blk." + std::to_string(l) + ".";
@@ -192,6 +193,7 @@ public:
                                                        {ssm_out, Part::mixer, RoleKind::matrix, pre + "ssm_out.weight", "", V, E}});
                 layer.ops = {{Part::mixer, backend::Op::causal_conv_silu}, {Part::mixer, backend::Op::gated_delta_rule},
                              {Part::mixer, backend::Op::gated_rms_norm}};
+                shard_linear(layer);
                 layer.saved = {{2, (size_t)C}, {5, (size_t)Hv}, {5, (size_t)Hv, 1}};
                 // The conv's output and the recurrence's, the conv first, since the recurrence reads its output.
                 layer.recur_writes = {3, 6};
@@ -362,6 +364,26 @@ private:
                                                {attn_output, part, RoleKind::matrix, pre + "attn_output.weight", "", Q, E}});
         layer.ops.push_back({part, backend::Op::norm_rope_partial});
         layer.ops.push_back({part, backend::Op::sigmoid_mul});
+        // A tensor group splits it by heads, a q head with its gate, each member's q heads reading its KV heads.
+        const ShardSection heads{(uint64_t)cfg_.n_head, 2 * D, 1, "heads"}, kv_heads{(uint64_t)cfg_.n_head_kv, D, 1, "KV heads", true};
+        blocks::shard(layer.roles, attn_q, Axis::rows, {heads});
+        blocks::shard(layer.roles, attn_k, Axis::rows, {kv_heads});
+        blocks::shard(layer.roles, attn_v, Axis::rows, {kv_heads});
+        blocks::shard(layer.roles, attn_output, Axis::columns, {{(uint64_t)cfg_.n_head, D, 1, "heads"}});
+    }
+
+    // A tensor group splits a linear-attention layer by K heads, each member taking its K heads' q and k rows and, from every tile of K-head-many V heads, the V heads that read them (V head j reads K head j mod Hk): attn_qkv's sections and the conv's channels with them, z, alpha, beta, the decay and the time step by V head, and ssm_out's columns the same way.
+    void shard_linear(LayerPlan& layer) const {
+        const uint64_t Hk = (uint64_t)cfg_.k_heads, tiles = (uint64_t)(cfg_.v_heads / cfg_.k_heads), Kd = (uint64_t)cfg_.k_dim, Vd = (uint64_t)cfg_.v_dim;
+        const ShardSection k{Hk, Kd, 1, "K heads"}, v{Hk, Vd, tiles, "V heads"}, one{Hk, 1, tiles, "V heads"};
+        blocks::shard(layer.roles, attn_qkv, Axis::rows, {k, k, v});
+        blocks::shard(layer.roles, ssm_conv1d, Axis::rows, {k, k, v});
+        blocks::shard(layer.roles, attn_gate, Axis::rows, {v});
+        blocks::shard(layer.roles, ssm_alpha, Axis::rows, {one});
+        blocks::shard(layer.roles, ssm_beta, Axis::rows, {one});
+        blocks::shard(layer.roles, ssm_a, Axis::columns, {one});
+        blocks::shard(layer.roles, ssm_dt, Axis::columns, {one});
+        blocks::shard(layer.roles, ssm_out, Axis::columns, {v});
     }
 
     // A layer's feed-forward roles under `pre`, run with `part`: Qwen3's dense block, or on qwen35moe the router, the expert stacks and the shared expert with its gate, of which a routed layer run beside its mixer copies the norm, router and shared expert and writes its stacks into a window.
@@ -373,6 +395,7 @@ private:
                                                    {ffn_gate, part, RoleKind::matrix, pre + "ffn_gate.weight", "", E, F},
                                                    {ffn_up, part, RoleKind::matrix, pre + "ffn_up.weight", "", E, F},
                                                    {ffn_down, part, RoleKind::matrix, pre + "ffn_down.weight", "", F, E}});
+            blocks::shard_swiglu(layer.roles, ffn_gate, ffn_up, ffn_down, F);
             return;
         }
         const uint64_t X = (uint64_t)c.n_expert, Fe = (uint64_t)c.n_ff_exp, Fs = (uint64_t)c.n_ff_shexp;

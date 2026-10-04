@@ -17,6 +17,7 @@
 #include "model/architecture.hpp"
 #include "model/runtime.hpp"
 #include "model/layer_split.hpp"
+#include "model/shard.hpp"
 
 // Where a model runs: what it asks of each device's memory, counted from its plan, and the one place a model is placed over the backends its caller made.
 
@@ -26,26 +27,30 @@ namespace infer {
 // A layer lists the tensors its roles take in the file's order, each once and a product where a role reads it as a matrix, whatever its rank; a tensor no role takes costs nothing.
 // The embedding is the embed part's table, the output the head's matrix, tied when that role took its alias, and the output norm the head's norm; a pass role of any other part and kind, or a second role for one of those fields, has no field to count it in and is the plan's error.
 // A layer's cache is counted by its kind, KV for every position the options budget and a state for every slot they give; activations are the plan's arena slots, and a handoff row is a residual row.
-inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, const ModelOptions& options) {
-    auto matrix = [&](size_t i, bool product) {
+// For member `member` of a tensor group of `width` (docs/TENSOR-SPLIT.md, section 4.6), each split tensor counts the member's copy (model/shard.hpp), the caches its KV heads and its share of the state's heads, and the logits its vocabulary rows; the arena, the handoff rows and the rows a mark saves stay one device's, which bounds them.
+inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, const ModelOptions& options, size_t width = 1, size_t member = 0) {
+    auto matrix = [&](size_t i, bool product, const Role* role = nullptr) {
         const TensorView& t = weights.tensors[i];
-        Matrix w{t.type, t.shape.empty() ? 0 : (size_t)t.shape[0], 1, t.bytes, product};
-        for (size_t d = 1; d < t.shape.size(); ++d) w.rows *= (size_t)t.shape[d];
+        const bool split = role && width > 1 && role->shard.axis != Axis::none;
+        const std::vector<uint64_t> shape = split ? shard::shape(*role, t, width, member) : t.shape;
+        Matrix w{t.type, shape.empty() ? 0 : (size_t)shape[0], 1, split ? shard::bytes(shard::runs(*role, t, width, member)) : t.bytes, product};
+        for (size_t d = 1; d < shape.size(); ++d) w.rows *= (size_t)shape[d];
         return w;
     };
     Footprint fp;
     fp.layers.resize(plan.layers.size());
     for (size_t l = 0; l < plan.layers.size(); ++l) {
-        std::vector<std::pair<size_t, bool>> taken;
+        std::vector<std::pair<size_t, const Role*>> taken;
         for (const Role& role : plan.layers[l].roles)
-            if (role.tensor) taken.push_back({*role.tensor, role.kind == RoleKind::matrix});
-        std::sort(taken.begin(), taken.end());
+            if (role.tensor) taken.push_back({*role.tensor, &role});
+        std::stable_sort(taken.begin(), taken.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
         for (size_t k = 0; k < taken.size(); ++k) {
+            const bool product = taken[k].second->kind == RoleKind::matrix;
             if (k && taken[k].first == taken[k - 1].first) {
-                fp.layers[l].back().product = fp.layers[l].back().product || taken[k].second;
+                fp.layers[l].back().product = fp.layers[l].back().product || product;
                 continue;
             }
-            fp.layers[l].push_back(matrix(taken[k].first, taken[k].second));
+            fp.layers[l].push_back(matrix(taken[k].first, product, taken[k].second));
         }
     }
     std::vector<const Matrix*> counted;
@@ -58,7 +63,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             throw std::logic_error("footprint: no field of its own for the pass role " + role.name);
         counted.push_back(field);
         if (!role.tensor) continue;
-        *field = matrix(*role.tensor, field == &fp.output);
+        *field = matrix(*role.tensor, field == &fp.output, &role);
         if (field == &fp.output) fp.tied = role.aliased;
     }
     fp.logits_per_row = fp.output.rows * sizeof(float);
@@ -83,9 +88,17 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         fp.drafter_cache = backend::size_add(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(plan, options)),
                                              backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), plan.residual * sizeof(float)));
     }
+    // A member's caches hold its heads, one device's plan with the member's KV heads and state.
+    ModelPlan heads;
+    if (width > 1) {
+        heads.kv_heads = shard::kv_heads(plan, width);
+        heads.head_dim = plan.head_dim;
+        heads.state = shard::state(plan, width);
+    }
+    const ModelPlan& kept = width > 1 ? heads : plan;
     for (const LayerPlan& layer : plan.layers)
-        fp.cache.push_back(layer.cache == Cache::kv      ? kv_tokens(plan, options) * kv_bytes_per_position(plan, options)
-                           : layer.cache == Cache::state ? backend::size_add(plan.state.layer_bytes(backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots)),
+        fp.cache.push_back(layer.cache == Cache::kv      ? kv_tokens(plan, options) * kv_bytes_per_position(kept, options)
+                           : layer.cache == Cache::state ? backend::size_add(kept.state.layer_bytes(backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots)),
                                                                              backend::size_add(backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(saved_floats(layer), sizeof(float))),
                                                                                                options.mark_slots ? backend::size_mul(options.mark_rows, backend::size_mul(recur_floats(plan, layer), sizeof(float))) : 0))
                                                          : 0);

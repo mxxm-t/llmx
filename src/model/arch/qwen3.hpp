@@ -141,6 +141,9 @@ public:
         p.pass = {{token_embd, Part::embed, RoleKind::gather, "token_embd.weight", "", E, p.vocab},
                   {output, Part::head, RoleKind::matrix, "output.weight", "token_embd.weight", E, p.vocab},
                   {output_norm, Part::head, RoleKind::norm, "output_norm.weight", "", E}};
+        blocks::shard(p.pass, output, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
+        // A tensor group splits attention by heads, each member's q heads reading its KV heads, and the dense block by its hidden rows.
+        const ShardSection heads{(uint64_t)cfg.n_head, D, 1, "heads"}, kv_heads{(uint64_t)cfg.n_head_kv, D, 1, "KV heads", true};
         p.layers.resize((size_t)cfg.n_layer);
         bool any_dense = false;
         for (int l = 0; l < cfg.n_layer; ++l) {
@@ -171,7 +174,12 @@ public:
                 layer.roles.push_back({ffn_gate, Part::ffn, RoleKind::matrix, pre + "ffn_gate.weight", "", E, F});
                 layer.roles.push_back({ffn_up, Part::ffn, RoleKind::matrix, pre + "ffn_up.weight", "", E, F});
                 layer.roles.push_back({ffn_down, Part::ffn, RoleKind::matrix, pre + "ffn_down.weight", "", F, E});
+                blocks::shard_swiglu(layer.roles, ffn_gate, ffn_up, ffn_down, F);
             }
+            blocks::shard(layer.roles, attn_q, Axis::rows, {heads});
+            blocks::shard(layer.roles, attn_k, Axis::rows, {kv_heads});
+            blocks::shard(layer.roles, attn_v, Axis::rows, {kv_heads});
+            blocks::shard(layer.roles, attn_output, Axis::columns, {heads});
             any_dense = any_dense || !layer.routed;
         }
         p.context_length = (size_t)cfg.context_length;

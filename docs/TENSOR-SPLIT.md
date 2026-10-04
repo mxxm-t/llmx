@@ -344,7 +344,7 @@ One system, as SPECULATIVE section 3 requires: proposers over one verify, accept
 
 **One owner for the group, one narrow interface below it.** Everything that knows a model, its shards, its heads and its passes sits above the backend layer, once; a backend implements only how the members' partials meet.
 
-- `model/shard.hpp` (new): the shard plan (each role's spans per member), its legality and refusals, the KV and state geometry per member, and a member's footprint; the one owner of how a model splits over a group, whatever the backend.
+- `model/shard.hpp` (step 1): each role's spans per member, their legality and refusals, the bytes a member holds of each tensor and its KV and state heads, which `footprint` (`model/place.hpp`) counts for a member; the one owner of how a model splits over a group, whatever the backend.
 - `model/architecture.hpp` and the modules: a shard declaration per role, the member's head counts and partial slot in `Step`, and the residual block helper in `model/arch/blocks.hpp`.
 - `model/runtime.hpp` and `model/passes.hpp` (step 0b's file): groups in `Placement`, a part run per member and the sum between parts, per-member arenas, one pool per group, the head's slices into the shared host rows.
 - `model/layer_split.hpp` and `model/place.hpp`: groups as fit units, the topology check, the width in `PlacementRequest`.

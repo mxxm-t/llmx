@@ -424,8 +424,8 @@ void stream_checks(const std::string& path) {
     auto cpu = std::make_shared<CopyingBackend>();
     std::vector<infer::Upload> uploads;
     for (size_t i = 0; i < file.tensors.size(); ++i) {
-        uploads.push_back({i, cpu.get(), cpu->alloc_weight(file.tensor_bytes(i))});
-        if (i == 0) uploads.push_back({i, cpu.get(), cpu->alloc_weight(file.tensor_bytes(i))});
+        uploads.push_back({i, cpu.get(), cpu->alloc_weight(file.tensor_bytes(i)), {}});
+        if (i == 0) uploads.push_back({i, cpu.get(), cpu->alloc_weight(file.tensor_bytes(i)), {}});
     }
     auto streamed = [&](const std::string& p, gguf::GGUFModel& f) {
         std::vector<std::unique_ptr<format::FileReader>> readers;
@@ -490,7 +490,7 @@ void stream_checks(const std::string& path) {
             late->fail_write = std::max(failure, 0);
             late->wraps = failure != -1;
             std::vector<infer::Upload> copies;
-            for (size_t i = 0; i < file.tensors.size(); ++i) copies.push_back({i, late.get(), late->alloc_weight(file.tensor_bytes(i))});
+            for (size_t i = 0; i < file.tensors.size(); ++i) copies.push_back({i, late.get(), late->alloc_weight(file.tensor_bytes(i)), {}});
             std::vector<std::vector<const infer::Upload*>> destinations(file.tensors.size());
             for (const auto& u : copies) destinations[u.tensor].push_back(&u);
             infer::LoadTimes times;
@@ -498,6 +498,42 @@ void stream_checks(const std::string& path) {
             try { infer::detail::stream(pieces, readers, destinations, {}, times); } catch (const std::runtime_error& e) { error = e.what(); }
             require(failure > 0 ? error == "injected write failure" : error.empty() && holds_tensors(late->weights, source) && (late->copies == 0) == (failure == -1),
                     "a stream of many reads through the ring lost bytes, a late fill's failure, or refilled a slot before the copies out of it ran");
+        }
+        // Two members of a tensor group take their shards of every role (model/shard.hpp), runs crossing the 64-byte reads, attn_output's and ffn_down's columns a run a row: by copies, by writes and by copies that run only when waited for, each member's storage holds its packed shard and nothing of the poison.
+        {
+            const infer::ModelWeights weights = infer::gguf_weights(file);
+            const infer::ModelPlan plan = infer::plan_model(weights);
+            std::vector<const infer::Role*> roles;
+            for (const infer::Role& r : plan.pass) roles.push_back(&r);
+            for (const infer::LayerPlan& layer : plan.layers)
+                for (const infer::Role& r : layer.roles) roles.push_back(&r);
+            for (const int fill : {0, -1, -2}) {
+                auto member = fill == -2 ? std::make_shared<DeferredBackend>() : std::make_shared<CopyingBackend>();
+                member->wraps = fill != -1;
+                std::vector<infer::Upload> shards;
+                std::vector<std::vector<uint8_t>> wanted;
+                size_t split = 0;
+                for (const infer::Role* r : roles) {
+                    if (!r->tensor) continue;
+                    infer::TensorView t = weights.tensors[*r->tensor];
+                    t.data = source.tensor_data(*r->tensor);
+                    for (size_t m = 0; m < 2; ++m) {
+                        std::vector<infer::shard::Run> runs = infer::shard::runs(*r, t, 2, m);
+                        split += runs.size() > 1;
+                        wanted.emplace_back(infer::shard::bytes(runs));
+                        infer::shard::pack(runs, t.data, wanted.back().data());
+                        shards.push_back({*r->tensor, member.get(), member->alloc_weight(wanted.back().size()), std::move(runs)});
+                    }
+                }
+                require(split >= 4, "the fixture's members do not take shards of several runs");
+                std::vector<std::vector<const infer::Upload*>> destinations(file.tensors.size());
+                for (const auto& u : shards) destinations[u.tensor].push_back(&u);
+                infer::LoadTimes times;
+                infer::detail::stream(pieces, readers, destinations, {}, times);
+                for (size_t k = 0; k < shards.size(); ++k)
+                    require(shards[k].buffer->size() == wanted[k].size() && std::memcmp(shards[k].buffer->host_ptr(), wanted[k].data(), wanted[k].size()) == 0,
+                            "a member's streamed shard differs from its packed bytes");
+            }
         }
         // A read that fails on a reader thread, a direct read off its granule where the file system takes direct reads, comes out of the stream with the readers joined.
         try {

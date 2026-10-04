@@ -45,6 +45,11 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     prompt does with a role: nothing, a copy adopted on the mixer's device
     at load, or a copy written into that device's window in each pass that
     needs it.
+  - A `Shard` says how a role splits over a tensor group: its `Axis` (none,
+    output rows, or input columns) and the `ShardSection`s that cover it,
+    each tiles of units of rows or columns, a unit replicated over members
+    where the section allows; the architecture sets it after listing the
+    role, and [shard](model-shard.md) turns it into each member's spans.
   - The context length bounds every pass, sizes the tables and is the cache
     budget unless the options give one. The residual is the width of slot
     0, of a handoff row and of a crossing between devices.

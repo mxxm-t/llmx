@@ -386,3 +386,10 @@ a negative layer share: split: a negative layer share
 a prompt past the context: inference: context length exceeded (8 tokens)
 a step past the context: inference: context length exceeded (8 tokens)
 split loading failure: injected adoption failure
+tensor width heads: inference: a tensor width of 3 does not divide the 8 heads of blk.0.attn_q.weight
+tensor width KV heads: inference: a tensor width of 6 does not divide the 4 KV heads of blk.0.attn_k.weight, nor is a multiple of them
+tensor width quant blocks: inference: a tensor width of 8 splits blk.0.ffn_down.weight off whole Q4_K blocks
+tensor width vocabulary: inference: a tensor width of 2 does not divide the 15 vocabulary rows of output.weight
+tensor width routed layer: inference: a tensor width of 2 does not split layer 0's routed experts yet
+tensor width drafter: inference: a tensor width of 2 does not split an embedded drafter yet
+tensor width K heads: inference: a tensor width of 4 does not divide the 2 K heads of blk.0.attn_qkv.weight

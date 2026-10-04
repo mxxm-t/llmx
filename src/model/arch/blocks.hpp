@@ -1,6 +1,9 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <stdexcept>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "backends/backend.hpp"
@@ -22,6 +25,23 @@ inline void routed_ops(LayerPlan& layer, const TensorIndex& tensors, uint16_t ga
         if (tensor) (role.id == gate ? g : u) = &tensors.view(*tensor);
     }
     if (g && u && g->type != u->type) layer.ops.push_back({part, backend::Op::mixed_experts});
+}
+
+// Declare how role `id` of `roles` splits over a tensor group (Role::shard); a role the list lacks is the plan's error.
+inline void shard(std::vector<Role>& roles, uint16_t id, Axis axis, std::vector<ShardSection> sections) {
+    for (Role& role : roles)
+        if (role.id == id) {
+            role.shard = {axis, std::move(sections)};
+            return;
+        }
+    throw std::logic_error("inference: no role to split with id " + std::to_string(id));
+}
+
+// The SwiGLU block's split: the gate and up projections by their `ff` rows, the down projection by as many columns.
+inline void shard_swiglu(std::vector<Role>& roles, uint16_t gate, uint16_t up, uint16_t down, uint64_t ff) {
+    shard(roles, gate, Axis::rows, {{ff, 1, 1, "feed-forward rows"}});
+    shard(roles, up, Axis::rows, {{ff, 1, 1, "feed-forward rows"}});
+    shard(roles, down, Axis::columns, {{ff, 1, 1, "feed-forward columns"}});
 }
 
 // A weight's product into `out`, the buffer passed by raw pointer, not by handle, so building one copies no shared pointer on the per-token path.

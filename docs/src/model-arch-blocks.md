@@ -12,6 +12,8 @@ One owner). [qwen3](model-arch-qwen3.md) and [qwen35](model-arch-qwen35.md)
 run them.
 
 - `routed_ops(layer, tensors, gate, up)`: finds the two declared roles by id and adds the `mixed_experts` requirement of the part the gate role runs in (the feed-forward part, or an embedded drafter's) when both tensors exist with differing storage types. The down projection is separate. Missing tensors stay with the runtime's existing resolution errors; this helper performs no schema validation.
+- `shard(roles, id, axis, sections)`: declares role `id`'s split over a tensor group (`Role::shard`, [shard](model-shard.md)); a role the list lacks is the plan's error.
+  `shard_swiglu(roles, gate, up, down, ff)`: the SwiGLU block's split, the gate and up projections by their `ff` rows and the down projection by as many columns.
 - `projection(weight, out)`: a weight's product into `out` for
   `matmul_group` and `matmul_experts`, the buffer passed by raw pointer so
   building one copies no shared pointer on the per-token path.

@@ -948,6 +948,113 @@ void hook_checks() {
     }
 }
 
+// A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads neither divided nor a multiple, K heads, vocabulary rows, columns off whole quant blocks, and routed layers and an embedded drafter, which a group does not split yet.
+void shard_checks() {
+    // A two-layer dense qwen3 plan over views without bytes, F32 but for ffn_down's `down` type, with or without routed experts in its first layer.
+    auto dense = [](int heads, int kv, int dim, int ff, uint64_t vocab, uint32_t down, bool routed) {
+        infer::qwen3::Config c;
+        c.n_layer = 2, c.n_embd = 256, c.n_ff = ff, c.n_head = heads, c.n_head_kv = kv, c.head_dim = dim, c.context_length = 64;
+        if (routed) c.n_expert = 4, c.n_expert_used = 2, c.n_ff_exp = 64;
+        std::vector<infer::TensorView> v;
+        auto add = [&](const std::string& name, std::vector<uint64_t> shape, uint32_t type = quant::GGML_TYPE_F32) { v.push_back({name, std::move(shape), type, nullptr, 0}); };
+        const uint64_t E = 256, D = uint64_t(dim), Q = uint64_t(heads) * D, KV = uint64_t(kv) * D, F = uint64_t(ff);
+        add("token_embd.weight", {E, vocab});
+        add("output.weight", {E, vocab});
+        add("output_norm.weight", {E});
+        for (int l = 0; l < 2; ++l) {
+            const std::string pre = "blk." + std::to_string(l) + ".";
+            for (const char* n : {"attn_norm", "ffn_norm"}) add(pre + n + ".weight", {E});
+            for (const char* n : {"attn_q_norm", "attn_k_norm"}) add(pre + n + ".weight", {D});
+            add(pre + "attn_q.weight", {E, Q});
+            add(pre + "attn_k.weight", {E, KV});
+            add(pre + "attn_v.weight", {E, KV});
+            add(pre + "attn_output.weight", {Q, E});
+            if (routed && l == 0) {
+                add(pre + "ffn_gate_inp.weight", {E, 4});
+                add(pre + "ffn_gate_exps.weight", {E, 64, 4});
+                add(pre + "ffn_up_exps.weight", {E, 64, 4});
+                add(pre + "ffn_down_exps.weight", {64, E, 4});
+                continue;
+            }
+            add(pre + "ffn_gate.weight", {E, F});
+            add(pre + "ffn_up.weight", {E, F});
+            add(pre + "ffn_down.weight", {F, E}, down);
+        }
+        infer::ModelWeights w{std::make_shared<const infer::qwen3::Qwen3>(c), v};
+        return std::make_pair(infer::plan_model(w), w.tensors);
+    };
+    const uint32_t f32 = quant::GGML_TYPE_F32;
+    {
+        const auto pv = dense(8, 2, 128, 1024, 48, quant::GGML_TYPE_Q4_K, false);
+        const infer::ModelPlan& plan = pv.first;
+        const std::vector<infer::TensorView>& views = pv.second;
+        for (size_t width : {size_t(1), size_t(2), size_t(4)}) infer::shard::check_plan(plan, views, width);
+        ++checks;
+        rejects("tensor width heads", [&] { infer::shard::check_plan(plan, views, 3); });
+    }
+    {
+        const auto pv = dense(12, 4, 64, 1536, 48, f32, false);
+        const infer::ModelPlan& plan = pv.first;
+        const std::vector<infer::TensorView>& views = pv.second;
+        rejects("tensor width KV heads", [&] { infer::shard::check_plan(plan, views, 6); });
+    }
+    {
+        const auto pv = dense(8, 8, 128, 1024, 48, quant::GGML_TYPE_Q4_K, false);
+        const infer::ModelPlan& plan = pv.first;
+        const std::vector<infer::TensorView>& views = pv.second;
+        rejects("tensor width quant blocks", [&] { infer::shard::check_plan(plan, views, 8); });
+    }
+    {
+        const auto pv = dense(8, 2, 128, 1024, 15, f32, false);
+        const infer::ModelPlan& plan = pv.first;
+        const std::vector<infer::TensorView>& views = pv.second;
+        rejects("tensor width vocabulary", [&] { infer::shard::check_plan(plan, views, 2); });
+    }
+    {
+        const auto pv = dense(8, 2, 128, 1024, 48, f32, true);
+        const infer::ModelPlan& plan = pv.first;
+        const std::vector<infer::TensorView>& views = pv.second;
+        rejects("tensor width routed layer", [&] { infer::shard::check_plan(plan, views, 2); });
+    }
+    {
+        auto pv = dense(8, 2, 128, 1024, 48, f32, false);
+        infer::ModelPlan& plan = pv.first;
+        const std::vector<infer::TensorView>& views = pv.second;
+        plan.drafter = infer::LayerPlan{};
+        rejects("tensor width drafter", [&] { infer::shard::check_plan(plan, views, 2); });
+    }
+    {
+        // A qwen35 linear-attention layer of 2 K heads, then a full-attention layer, which 4 members cannot split by K head.
+        infer::qwen35::Config c;
+        c.n_layer = 2, c.n_embd = 256, c.n_ff = 1024, c.n_head = 4, c.n_head_kv = 4, c.head_dim = 128, c.rope_dim = 64, c.context_length = 64;
+        c.k_heads = 2, c.v_heads = 4, c.k_dim = 64, c.v_dim = 64;
+        c.full = {0, 1};
+        std::vector<infer::TensorView> v;
+        auto add = [&](const std::string& name, std::vector<uint64_t> shape) { v.push_back({name, std::move(shape), f32, nullptr, 0}); };
+        const uint64_t E = 256, V = 4 * 64, C = 2 * 2 * 64 + V;
+        add("token_embd.weight", {E, 48});
+        add("output.weight", {E, 48});
+        add("output_norm.weight", {E});
+        for (const char* n : {"attn_norm", "post_attention_norm"}) add(std::string("blk.0.") + n + ".weight", {E});
+        add("blk.0.attn_qkv.weight", {E, C});
+        add("blk.0.attn_gate.weight", {E, V});
+        add("blk.0.ssm_alpha.weight", {E, 4});
+        add("blk.0.ssm_beta.weight", {E, 4});
+        add("blk.0.ssm_conv1d.weight", {4, C});
+        add("blk.0.ssm_a", {4});
+        add("blk.0.ssm_dt.bias", {4});
+        add("blk.0.ssm_norm.weight", {64});
+        add("blk.0.ssm_out.weight", {V, E});
+        for (const char* n : {"ffn_gate", "ffn_up"}) add(std::string("blk.0.") + n + ".weight", {E, 1024});
+        add("blk.0.ffn_down.weight", {1024, E});
+        infer::ModelWeights w{std::make_shared<const infer::qwen35::Qwen35>(c), v};
+        const infer::ModelPlan plan = infer::plan_model(w);
+        infer::shard::check_plan(plan, w.tensors, 2);
+        ++checks;
+        rejects("tensor width K heads", [&] { infer::shard::check_plan(plan, w.tensors, 4); });
+    }
+}
+
 // With a list, every refusal must have its label and text; with --write, the refusals are written as that list.
 int main(int argc, char** argv) {
     try {
@@ -967,6 +1074,7 @@ int main(int argc, char** argv) {
         fit_width_checks();
         plan_checks();
         hook_checks();
+        shard_checks();
         if (write) {
             std::ofstream out(argv[2], std::ios::binary);
             for (const auto& r : refusals) out << r << '\n';

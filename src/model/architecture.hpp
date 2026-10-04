@@ -29,8 +29,25 @@ enum class RoleKind : uint8_t {
 // What a routed layer run beside its mixer for a long prompt (Placement::stream_from) does with a feed-forward role: nothing, a copy adopted on the mixer's device at load, or a copy written into that device's window in each pass that needs it.
 enum class Stream : uint8_t { none, copy, window };
 
+// The axis a role splits along over a tensor group's members (docs/TENSOR-SPLIT.md, section 4.2): none, its whole tensor on every member; its output rows, each member's product complete for its rows; or its input columns, each member's product a partial the group sums, a vector's elements being its columns.
+enum class Axis : uint8_t { none, rows, columns };
+
+// A run of the axis: `tiles` tiles of `units` units of `unit` rows or columns each, a member taking the same share of the units in every tile, so one tile is a contiguous split.
+// `what` names the units in a refusal, and `replicate` lets a width that is a multiple of the units give each unit to width / units members, as KV heads are.
+struct ShardSection {
+    uint64_t units = 0, unit = 1, tiles = 1;
+    const char* what = "rows";
+    bool replicate = false;
+};
+
+// How a role splits: its axis and the sections that cover it, in order (model/shard.hpp).
+struct Shard {
+    Axis axis = Axis::none;
+    std::vector<ShardSection> sections;
+};
+
 // A tensor the model reads: the id its resolved weight is indexed by, the part it runs with, how it is checked, its name and the name taken when that is absent (a tied head reads the embedding), its expected shape and what streaming does with it.
-// The architecture leaves the last two fields as they are; plan_model sets them.
+// plan_model sets `tensor` and `aliased`; `shard` is set by the architecture after the role is listed, and a role that keeps the default is whole on every member.
 struct Role {
     uint16_t id;
     Part part;
@@ -40,6 +57,7 @@ struct Role {
     Stream stream = Stream::none;
     std::optional<size_t> tensor = std::nullopt;   // the view it reads, its name's or else its alias's, absent when the file has neither
     bool aliased = false;                          // that view is its alias's
+    Shard shard{};
 };
 
 // What a layer keeps for each sequence from one pass to the next: keys and values for every position it has read, a recurrent state of fixed size, or nothing.

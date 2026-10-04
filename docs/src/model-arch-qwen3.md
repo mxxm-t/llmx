@@ -58,6 +58,7 @@ names it.
     `slot_widths` with the dense width counted when some layer is
     dense, and the two RoPE tables hold the context's positions at half a
     head each.
+    Each role declares its split over a tensor group ([shard](model-shard.md)): the head by its vocabulary rows, q by heads and k and v by KV heads, replicated where the width is a multiple of them, `attn_output` by the heads' columns, and the dense block by `blocks::shard_swiglu`; norms, the embedding and a routed layer's roles stay whole.
   - `fill_tables`: the RoPE cos and sin tables, `[pos*(head_dim/2) + i]`.
   - `embed`, `mixer`, `ffn` and `head`: the embedding gather; the attention
     (norm, grouped q, k and v projections, `norm_rope_kv`, `attention` and

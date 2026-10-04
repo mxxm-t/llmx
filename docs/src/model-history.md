@@ -41,7 +41,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   host-visible memory, enqueued on each device's stream behind the passes
   that wrote the history and not waited for, since whatever writes those
   blocks or that slot next comes after them on the same stream. The memory
-  comes in 64 MiB slabs that `release_host`, which waits for the copies
+  comes in 64 MiB slabs (`host_slab_bytes`) that `release_host`, which waits for the copies
   into and out of them, leaves to the model for the next copy, since
   allocating and pinning host memory costs far more than copying into it;
   the slabs alive, idle or holding a copy (`host_allocated`), stay within
@@ -59,6 +59,9 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   pass, and only the model that wrote the copy restores it; a throw from a
   pool, a slot or a copy leaves nothing held. `host_bytes(length)` gives
   the slabs a copy of `length` tokens takes.
+  `wait_host(host)` waits for the copies into and out of a copy's slabs, so
+  the host can read its bytes, as the server's disk tier does before it
+  writes them to a file.
   Without `blocks`, `save_host` copies the checkpoint's state alone (`HostHistory::blocks` false), and `fork(sequence, length, state)` continues from it: a second history sharing the source's blocks below `length`, as `fork` does whatever checkpoint the source holds, with the state copied back into a checkpoint slot of its own at `length`, which its first pass reads in place; the server keeps a conversation's message boundaries this way, the source a later history of the same conversation whose rows below `length` are the ones the state was computed after.
   With an embedded drafter the state alone carries the drafter's carried row of its slot too, and the fork copies it into its own slot, so it drafts as the history it was taken from.
   `restore_host` refuses a state alone, and a fork with a state refuses a whole history's copy or another length; a throw from the slot or a copy holds nothing.

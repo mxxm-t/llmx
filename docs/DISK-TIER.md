@@ -49,18 +49,19 @@ One file per entry, written once and never changed in place.
 ## Demotion: host to disk
 
 The host tier stays the window of the newest entries and the disk tier keeps what slides out of it.
-- **When.** Only when the host tier needs room: wherever `write_back`, `keep_boundary` or `promote` now drop a host entry (`drop_host`, `drop_bound`), an entry worth keeping is demoted instead. Nothing is written ahead of need, which keeps the disk's writes to what the host tier really loses (Hardware, wear).
-- **Which.** The host tier's ranking chooses, unchanged; the disk tier only decides whether the chosen entry is kept:
+- **When.** Just ahead of need: whenever the host entries not yet on disk hold more than three quarters of the host tier and no write is in flight, the entry the host tier would drop next goes to disk, one at a time, while it stays a host entry, readable and promotable. Once its file is in place the entry is marked on disk, and room the host tier needs later releases it at once (below).
+  Demoting only at the moment of need, as a first version of this plan had it, keeps nothing: the entry handed to the writer still holds its slabs, so the room the copy needs is never freed, and the room order below cancels that very write each time the tier is full. Writing ahead costs the writes of entries later promoted or superseded instead of dropped; superseded ones are deleted at once, promoted ones keep their file, and the writes stay bounded by what passes through the host tier's last quarter (Hardware, wear). Approved so, with the cost counted: `/v1/health`'s `disk_bytes_written` is every byte written ahead and `disk_bytes_read` every byte read back for a request, the disk's wear against its use.
+- **Which.** The host tier's ranking chooses which entry goes next: boundaries, oldest first, then copies whose conversations did not come back, oldest first, then the oldest copies; the disk tier only decides whether the chosen entry is kept:
   - a superseded copy is never written (it was never worth host room either);
   - a boundary is written, and so is a copy whose conversation came back;
   - a copy whose conversation never came back (one-time conversations, Age, below) is written only into free disk room and the room of other such entries, and is the first to go, the host tier's come-back rule carried down;
   - an entry already on disk with the same history, one promoted from disk earlier, is not written again: its file is renewed, as a host entry promoted to the devices is renewed now.
-- **How.** The entry leaves the host tier's index at once and its slabs are handed to the writer thread, which writes them to a temporary file chunk by chunk and gives them back through `release_host` when the file is renamed into place. Until then the slabs still count in `host_held_`, as an entry being written.
+- **How.** The scheduler hands the entry's slabs to the writer thread, which writes them to a temporary file chunk by chunk and renames it into place; the entry stays in the host tier's index meanwhile.
   The scheduler thread enqueues the write and returns; it never waits on a file.
 - **Writes never block admission.** Room the host tier needs now, for a device donor's write-back, a promotion or a read from disk, is taken in this order, and no step waits for a write:
   1. entries that need no write: superseded copies, and entries whose file is already on disk (renewed ones), which are simply released;
-  2. the host tier's ranking among the rest, each chosen entry demoted as above;
-  3. if the room is still short because entries being written hold it, the newest of those writes is cancelled: the writer stops at its current chunk, removes the temporary file, and the entry is not kept, as an entry dropped today is not. Its slabs return as the chunk in flight ends, at most 4 MiB, a few milliseconds at the measured rates; the room is counted free at once, and the copy that needed it is enqueued behind that chunk on the same slabs' release, so nothing waits on the scheduler thread.
+  2. the host tier's ranking among the rest, each chosen entry dropped as without a disk tier;
+  3. an entry so dropped while its write is in flight cancels the write: the writer stops at its current chunk, removes the temporary file, and the entry is not kept, as an entry dropped without a disk tier is not. Its slabs return as the chunk in flight ends, at most 4 MiB, a few milliseconds at the measured rates; the room is counted free at once, and the copy that needed it may take new slabs past the host tier's cap by the dropped entry's until they return, so nothing waits on the scheduler thread.
   A demotion that is still writing never delays an admission: the worst it costs is an entry not kept, which is what the host tier does without a disk tier.
 - **Write failure** (disk full, I/O error, file system read-only): the entry is dropped as today, the tier stops writing (below), and serving goes on.
 
@@ -157,9 +158,8 @@ So a 27B conversation of 800 MiB is written in 1.5 to 2.5 s on the writer thread
 One store interface behind the host tier's owner, so the scheduler keeps every decision of what is kept, renewed, demoted, promoted or dropped, and a store only moves bytes:
 - `put(key, header, slabs)`: write an entry, asynchronously, calling back with success or the error;
 - `get(key, slabs)`: read an entry into host slabs the caller provides, verifying it, asynchronously;
-- `has(key)`: whether a complete entry is there;
 - `evict(key)`: remove an entry;
-- `free_bytes()` and `used_bytes()`: what the caps and the floor read.
+- `free_bytes()`: what the floor reads; the bytes against the cap are the scheduler's index's.
 
 The index (tokens, row classes, ranking state) stays in the scheduler beside `host_` and `bounds_`; the store holds no policy.
 **First implementation:** a disk store in `src/server/`, over a direct-I/O file writer beside `format::FileReader` in `src/format/`, the lock and the sweep with it.

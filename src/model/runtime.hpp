@@ -613,6 +613,9 @@ public:
     bool caches_on_devices() const;
     Sequence restore_host(HostHistory& h);
     void release_host(HostHistory& h) noexcept;
+    void wait_host(const HostHistory& h) const noexcept;
+    // The bytes of each slab of a host history (HostHistory::slabs).
+    static constexpr size_t host_slab_bytes() { return kHostSlab; }
     // One sequence's draft in a batch of drafts (draft).
     struct DraftAsk {
         Sequence* seq;

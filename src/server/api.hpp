@@ -30,6 +30,7 @@ struct Config {
     int state_checkpoints = -1;   // on a model that keeps a state, the states kept for prefix reuse; -1 for the most the fit gives up to max_seqs
     bool timing = false;     // time the rounds and the stages for /v1/health, over backends made to time their work
     std::optional<size_t> host_cache_bytes;   // host memory for donors the devices evict (Scheduler); none given takes default_host_cache
+    DiskOptions disk;                         // the disk tier under the host tier (docs/DISK-TIER.md); its bytes 0 keeps none
     std::string model_name;
     infer::DtypePlan dtype;
     // The proposer a decoding request drafts with and its most drafts a verify (docs/SPECULATIVE.md, section 3); none drafts nothing.
@@ -160,7 +161,10 @@ private:
                   ",\"checkpoints\":" + std::to_string(s.checkpoints) + ",\"host_donors\":" + std::to_string(s.host_donors) +
                   ",\"host_bytes\":" + std::to_string(s.host_bytes) + ",\"host_hits\":" + std::to_string(s.host_hits) +
                   ",\"host_bytes_moved\":" + std::to_string(s.host_bytes_moved) + ",\"boundaries\":" + std::to_string(s.boundaries) +
-                  ",\"boundary_hits\":" + std::to_string(s.boundary_hits) + ",\"reprefills\":" + std::to_string(s.reprefills) +
+                  ",\"boundary_hits\":" + std::to_string(s.boundary_hits) + ",\"disk_entries\":" + std::to_string(s.disk_entries) +
+                  ",\"disk_bytes\":" + std::to_string(s.disk_bytes) + ",\"disk_bytes_written\":" + std::to_string(s.disk_bytes_written) +
+                  ",\"disk_errors\":" + std::to_string(s.disk_errors) + ",\"disk_writing\":" + (s.disk_writing ? "true" : "false") +
+                  ",\"reprefills\":" + std::to_string(s.reprefills) +
                   ",\"reprefill_rows\":" + std::to_string(s.reprefill_rows) + ",\"reprefill_cancels\":" + std::to_string(s.reprefill_cancels) +
                   ",\"passes\":" + std::to_string(s.passes) + ",\"in_flight\":" + std::to_string(s.in_flight) +
                   ",\"drafted\":" + counts_json(s.drafted) + ",\"kept\":" + counts_json(s.kept) +
@@ -710,7 +714,7 @@ private:
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format,
                   const Config& cfg, http::Listener& listener) {
     Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing, cfg.host_cache_bytes.value_or(default_host_cache(model, cfg.max_seqs)), cfg.proposer,
-                    cfg.draft_max);
+                    cfg.draft_max, true, cfg.disk);
     const Scheduler::Stats started = sched.stats();
     std::fprintf(stderr, "server: up to %zu pass%s in flight over %zu stage%s, %zu sampling thread%s beside the scheduler's\n", started.passes,
                  started.passes == 1 ? "" : "es", model.stage_count(), model.stage_count() == 1 ? "" : "s", started.samplers,

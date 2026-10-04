@@ -28,6 +28,11 @@ void require(bool ok, const std::string& what) {
 namespace fs = std::filesystem;
 constexpr size_t kSlab = size_t(1) << 20;
 
+// Whether entry `key`'s file is in place in the store's directory.
+bool in_place(const server::DiskStore& store, uint64_t key) {
+    return fs::exists(store.directory() / ("entry-" + std::to_string(key) + ".kv"));
+}
+
 // Runs of these byte counts over fresh host-visible slabs, filled from `seed` (or zero).
 std::vector<server::StoreRun> runs_of(backend::CpuBackend& cpu, const std::vector<size_t>& bytes, uint32_t seed) {
     std::vector<server::StoreRun> runs;
@@ -128,8 +133,8 @@ int main(int argc, char** argv) {
 #endif
             const Outcome put = wait_put(store, key, "the blob", written);
             require(put.ok, "an entry was not written: " + put.error);
-            require(store.has(key), "a written entry is not there");
-            require(store.used_bytes() == server::DiskStore::file_bytes(8, layout) && fs::file_size(store.directory() / ("entry-" + std::to_string(key) + ".kv")) == store.used_bytes(),
+            require(in_place(store, key), "a written entry is not there");
+            require(fs::file_size(store.directory() / ("entry-" + std::to_string(key) + ".kv")) == server::DiskStore::file_bytes(8, layout),
                     "an entry's file is not the size its layout gives");
             auto back = runs_of(cpu, layout, 0);
             const Outcome got = wait_get(store, key, back);
@@ -137,7 +142,7 @@ int main(int argc, char** argv) {
             // Another layout is refused and the entry deleted.
             uint64_t other_key = 0;
             require(wait_put(store, other_key, "x", runs_of(cpu, {kSlab}, 2)).ok, "a second entry was not written");
-            require(!wait_get(store, other_key, runs_of(cpu, {kSlab + 1}, 0)).ok && !store.has(other_key), "an entry read into another layout was not refused and deleted");
+            require(!wait_get(store, other_key, runs_of(cpu, {kSlab + 1}, 0)).ok && !in_place(store, other_key), "an entry read into another layout was not refused and deleted");
             // A missing entry is refused.
             require(!wait_get(store, 999, runs_of(cpu, {kSlab}, 0)).ok, "a missing entry was read");
             // A write cancelled while queued behind another is not kept.
@@ -147,10 +152,10 @@ int main(int argc, char** argv) {
             second = store.put("b", runs_of(cpu, {kSlab}, 4), kSlab, [&](bool ok, const std::string& e) { p2.set_value({ok, e}); });
             require(store.cancel(second), "a queued write was not found to cancel");
             const Outcome o1 = p1.get_future().get(), o2 = p2.get_future().get();
-            require(o1.ok && !o2.ok && o2.error == "cancelled" && !store.has(second) && !fs::exists(store.directory() / ("entry-" + std::to_string(second) + ".tmp")),
+            require(o1.ok && !o2.ok && o2.error == "cancelled" && !in_place(store, second) && !fs::exists(store.directory() / ("entry-" + std::to_string(second) + ".tmp")),
                     "a cancelled write left something: " + o2.error);
             store.evict(first);
-            require(!store.has(first) && !fs::exists(store.directory() / ("entry-" + std::to_string(first) + ".kv")), "an evicted entry is still there");
+            require(!in_place(store, first) && !fs::exists(store.directory() / ("entry-" + std::to_string(first) + ".kv")), "an evicted entry is still there");
             kept_dir = store.directory();
         }
         require(fs::exists(kept_dir / "kept") && fs::exists(kept_dir / ("entry-" + std::to_string(key) + ".kv")), "a store with keep did not leave its entries");
@@ -185,9 +190,9 @@ int main(int argc, char** argv) {
                 f.put('\x7f');
             }
             const Outcome flipped = wait_get(again, k2, runs_of(cpu, layout, 0));
-            require(!flipped.ok && flipped.error.find("checksum") != std::string::npos && !again.has(k2) && !fs::exists(f2), "a flipped byte was not caught: " + flipped.error);
+            require(!flipped.ok && flipped.error.find("checksum") != std::string::npos && !in_place(again, k2) && !fs::exists(f2), "a flipped byte was not caught: " + flipped.error);
             fs::resize_file(f3, server::DiskStore::kAlign + kSlab);
-            require(!wait_get(again, k3, runs_of(cpu, layout, 0)).ok && !again.has(k3), "a truncated entry was read");
+            require(!wait_get(again, k3, runs_of(cpu, layout, 0)).ok && !in_place(again, k3), "a truncated entry was read");
             kept_dir = again.directory();
         }
         {
@@ -273,7 +278,7 @@ int main(int argc, char** argv) {
             server::DiskStore store(o, identity(1));
             uint64_t k = 0;
             const Outcome floor = wait_put(store, k, "e", runs_of(cpu, {kSlab}, 9));
-            require(!floor.ok && floor.error.find("floor") != std::string::npos && !store.has(k) && store.used_bytes() == 0, "the floor did not stop a write: " + floor.error);
+            require(!floor.ok && floor.error.find("floor") != std::string::npos && !in_place(store, k), "the floor did not stop a write: " + floor.error);
         }
         fs::remove_all(base);
         std::cout << "disk-store: " << checks << " checks passed\n";

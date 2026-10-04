@@ -63,8 +63,6 @@ public:
     FileWriter(const FileWriter&) = delete;
     FileWriter& operator=(const FileWriter&) = delete;
 
-    const std::string& path() const { return path_; }
-    bool direct() const { return direct_; }
     // The unit a direct write starts and ends on, at least a page.
     size_t granule() const { return granule_; }
 

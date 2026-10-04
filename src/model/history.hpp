@@ -410,6 +410,13 @@ inline void Model::release_host(HostHistory& h) noexcept {
     h = HostHistory{};
 }
 
+// Waits for the copies into and out of h's slabs, so the host can read its bytes, as the disk tier's writes do.
+inline void Model::wait_host(const HostHistory& h) const noexcept {
+    if (h.owner == this)
+        for (size_t i = 0; i < h.slabs.size() && i < devices_.size(); ++i)
+            if (!h.slabs[i].empty()) devices_[i]->b->wait(h.tickets[i]);
+}
+
 // A sequence out of flight whose passes have retired, before it gives blocks or slots back.
 inline void Model::settle(Sequence& s, const char* what) {
     if (s.owner_ != this) throw std::runtime_error("inference: sequence of another model");

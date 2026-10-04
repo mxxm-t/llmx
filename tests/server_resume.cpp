@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 
@@ -1519,6 +1521,226 @@ void hybrid(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t 
     require(refused, "a scheduler of 4 requests at once over a hybrid model holding 3 states was not refused");
 }
 
+namespace fs = std::filesystem;
+
+// A disk tier's root for one case, removed after it, with a small file standing for the model, whose digest the entries' identity carries.
+struct DiskRoot {
+    fs::path root;
+    std::string model;
+    explicit DiskRoot(const std::string& name) {
+        root = fs::temp_directory_path() / ("llmx-server-resume-" + name + "-" + std::to_string(std::random_device{}()));
+        fs::remove_all(root);
+        fs::create_directories(root);
+        model = (root / "model.bin").u8string();
+        std::ofstream(root / "model.bin", std::ios::binary) << "a model file";
+    }
+    ~DiskRoot() {
+        std::error_code ec;
+        fs::remove_all(root, ec);
+    }
+    server::DiskOptions options(uint64_t bytes, std::chrono::milliseconds pace = std::chrono::milliseconds(0)) const {
+        server::DiskOptions o;
+        o.bytes = bytes;
+        o.dir = root.u8string();
+        o.floor = 0;
+        o.model_path = model;
+        o.pace = pace;
+        return o;
+    }
+    // The servers' directories under the root.
+    std::vector<fs::path> servers() const {
+        std::vector<fs::path> v;
+        for (const auto& e : fs::directory_iterator(root))
+            if (e.is_directory() && e.path().filename().u8string().rfind("server-", 0) == 0) v.push_back(e.path());
+        return v;
+    }
+    // The files of extension `ext` in the servers' directories, and their bytes.
+    std::vector<fs::path> files(const std::string& ext, uint64_t* bytes = nullptr) const {
+        std::vector<fs::path> v;
+        if (bytes) *bytes = 0;
+        for (const fs::path& d : servers())
+            for (const auto& e : fs::directory_iterator(d))
+                if (e.path().extension().u8string() == ext) {
+                    v.push_back(e.path());
+                    if (bytes) *bytes += (uint64_t)fs::file_size(e.path());
+                }
+        return v;
+    }
+};
+
+// Polls `done` for up to a minute.
+void within_a_minute(const std::function<bool()>& done, const std::string& what) {
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    while (!done()) {
+        require(std::chrono::steady_clock::now() < until, what + " within a minute");
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+}
+
+// Demotion to disk (docs/DISK-TIER.md): eight conversations of a 300-token prompt and a 20-token reply in turn, one at a time, so each finished turn's donor evicts the one before to a host tier of four copies.
+// Once four copies not on disk fill the host tier, the oldest is written to disk while it stays in host memory, and the next copy's room releases it at once, so after turn k the disk holds the k - 3 oldest; every reply is its reply alone, the files in the server's directory are the entries counted, and a clean exit leaves no directory.
+// With a disk tier of two entries the oldest files go as newer ones are written, so it holds the two newest, all four having been written.
+void disk_demotion(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t devices) {
+    uint64_t entry_bytes = 0;
+    for (const bool small : {false, true}) {
+        const std::string what = "demotion to disk on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : "") + (small ? ", a disk tier of two entries" : "");
+        DiskRoot disk("demotion");
+        auto model = make(2048, 0);
+        std::vector<Req> reqs;
+        for (uint32_t k = 0; k < 8; ++k) reqs.push_back(Req{prompt_of(20 + k, 300, vocab), 20});
+        std::vector<Reply> replies;
+        server::Scheduler::Stats stats;
+        uint64_t file_bytes = 0;
+        size_t kv_files = 0, tmp_files = 0;
+        {
+            const uint64_t cap = small ? 2 * entry_bytes + entry_bytes / 2 : uint64_t(1) << 30;
+            server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * devices * ((size_t)64 << 20), nullptr, 0, false, disk.options(cap));
+            std::thread runner([&] { sched.run(); });
+            try {
+                for (size_t k = 0; k < reqs.size(); ++k) {
+                    replies.push_back(drain(*sched.submit(reqs[k].prompt, params_of(reqs[k]))));
+                    const size_t written = k >= 4 ? k - 3 : 0, kept = small ? std::min<size_t>(written, 2) : written;
+                    within_a_minute([&] { const auto st = sched.stats(); return st.disk_entries == kept && (!entry_bytes || st.disk_bytes_written == written * entry_bytes); },
+                                    what + ": " + std::to_string(kept) + " entries on disk after turn " + std::to_string(k));
+                    if (!entry_bytes && written) {
+                        entry_bytes = sched.stats().disk_bytes;
+                        require(entry_bytes > 0, what + ": an entry of no bytes");
+                    }
+                }
+                stats = sched.stats();
+                ledger(stats, *model, what);
+                kv_files = disk.files(".kv", &file_bytes).size();
+                tmp_files = disk.files(".tmp").size();
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+        }
+        const size_t kept = small ? 2 : 4;
+        require(stats.disk_entries == kept && stats.host_donors == 4 && stats.disk_writing && stats.disk_errors == 0,
+                what + ": " + std::to_string(stats.disk_entries) + " entries on disk and " + std::to_string(stats.host_donors) + " in host memory, against " +
+                    std::to_string(kept) + " and 4");
+        require(stats.disk_bytes == kept * entry_bytes && stats.disk_bytes_written == 4 * entry_bytes,
+                what + ": " + std::to_string(stats.disk_bytes) + " bytes on disk and " + std::to_string(stats.disk_bytes_written) + " written");
+        require(kv_files == kept && file_bytes == stats.disk_bytes && tmp_files == 0,
+                what + ": " + std::to_string(kv_files) + " entry files of " + std::to_string(file_bytes) + " bytes and " + std::to_string(tmp_files) + " temporary files");
+        require(disk.servers().empty(), what + ": the server's directory is left after a clean exit");
+        for (size_t k = 0; k < reqs.size(); ++k) {
+            auto fresh = make(2048, 0);
+            same(serve(*fresh, tok, 1, {{reqs[k]}})[0], replies[k], what + ", turn " + std::to_string(k));
+        }
+    }
+}
+
+// A superseded entry leaves the disk (docs/DISK-TIER.md, Disk eviction and room): conversation A's first turn, its reply read again, leaves a job's donor of 384 tokens, which two unrelated turns B and C evict to a host tier of two copies, where, beside B's, it is written to disk.
+// A's second turn promotes it, the copy kept in host memory beside the file, and forks its 384 tokens; read again, its reply supersedes the first job's donor, whose file goes with its host copy; nothing else is written, and the second turn's reply is its reply alone.
+void disk_superseded(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a superseded entry on disk";
+    DiskRoot disk("superseded");
+    auto model = make(2048, 0);
+    const Req a{prompt_of(5, 300, vocab), 100}, b{prompt_of(7, 300, vocab), 20}, c{prompt_of(9, 300, vocab), 20};
+    Req a2;
+    Reply a2_reply;
+    size_t a2_reused = 0, kv_files = 0;
+    server::Scheduler::Stats before, stats;
+    {
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 2 * ((size_t)64 << 20), nullptr, 0, false, disk.options(uint64_t(1) << 30));
+        std::thread runner([&] { sched.run(); });
+        try {
+            const auto read_again = [&](const std::shared_ptr<server::Request>& h, const Req& r, size_t jobs) {
+                std::vector<uint32_t> next = r.prompt;
+                for (uint32_t id : ids_of(drain(*h))) next.push_back(id);
+                next.push_back(1);
+                next.push_back(2);
+                sched.follow(h, next, true);
+                within_a_minute([&] { return sched.stats().reprefills == jobs; }, what + ": reply " + std::to_string(jobs) + " read again");
+                return next;
+            };
+            const std::vector<uint32_t> next = read_again(sched.submit(a.prompt, params_of(a)), a, 1);
+            drain(*sched.submit(b.prompt, params_of(b)));
+            drain(*sched.submit(c.prompt, params_of(c)));
+            within_a_minute([&] { return sched.stats().disk_entries == 1; }, what + ": the first job's donor on disk");
+            a2.prompt = next;
+            const std::vector<uint32_t> tail = prompt_of(6, 30, vocab);
+            a2.prompt.insert(a2.prompt.end(), tail.begin(), tail.end());
+            a2.cap = 100;
+            const auto h2 = sched.submit(a2.prompt, params_of(a2));
+            a2_reply = drain(*h2);
+            a2_reused = h2->reused();
+            before = sched.stats();
+            std::vector<uint32_t> next2 = a2.prompt;
+            for (uint32_t id : ids_of(a2_reply)) next2.push_back(id);
+            next2.push_back(1);
+            next2.push_back(2);
+            sched.follow(h2, next2, true);
+            within_a_minute([&] { return sched.stats().reprefills == 2; }, what + ": the second reply read again");
+            stats = sched.stats();
+            ledger(stats, *model, what);
+            kv_files = disk.files(".kv").size();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(a2_reused == 3 * kBlock, what + ": the second turn reused " + std::to_string(a2_reused) + " tokens, against " + std::to_string(3 * kBlock));
+    require(before.host_hits == 1 && before.disk_entries == 1, what + ": " + std::to_string(before.host_hits) + " promotions and " + std::to_string(before.disk_entries) + " entries on disk, against 1 and 1");
+    require(stats.disk_entries == 0 && kv_files == 0, what + ": " + std::to_string(stats.disk_entries) + " entries and " + std::to_string(kv_files) + " files on disk once A's first job's donor was superseded");
+    require(stats.disk_bytes_written == before.disk_bytes, what + ": " + std::to_string(stats.disk_bytes_written) + " bytes written, against the first job's donor's " + std::to_string(before.disk_bytes));
+    auto fresh = make(2048, 0);
+    same(serve(*fresh, tok, 1, {{a2}})[0], a2_reply, what + ", A's second turn");
+}
+
+// Writes never hold up a request (docs/DISK-TIER.md, Demotion): with every write held in flight for a minute a chunk, the turn after the host tier of four copies fills starts the oldest copy's write, and the next turn's copy needs that room: the turn runs to its end in far less than the write would take, the write is cancelled, its temporary file gone and its entry not kept, the copy that needed the room is kept, and every reply is its reply alone.
+void disk_never_blocks(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a held write giving way";
+    DiskRoot disk("held");
+    auto model = make(2048, 0);
+    std::vector<Req> reqs;
+    for (uint32_t k = 0; k < 6; ++k) reqs.push_back(Req{prompt_of(40 + k, 300, vocab), 20});
+    std::vector<Reply> replies;
+    server::Scheduler::Stats stats;
+    double last_ms = 0;
+    bool first_tmp_left = true, first_kv = true;
+    {
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, disk.options(uint64_t(1) << 30, std::chrono::minutes(1)));
+        std::thread runner([&] { sched.run(); });
+        try {
+            for (size_t k = 0; k < 5; ++k) replies.push_back(drain(*sched.submit(reqs[k].prompt, params_of(reqs[k]))));
+            within_a_minute([&] { return !disk.files(".tmp").empty(); }, what + ": the oldest copy's write in flight");
+            const fs::path first = disk.files(".tmp")[0];
+            const auto start = std::chrono::steady_clock::now();
+            replies.push_back(drain(*sched.submit(reqs[5].prompt, params_of(reqs[5]))));
+            last_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+            within_a_minute([&] { return !fs::exists(first); }, what + ": the cancelled write's temporary file removed");
+            first_tmp_left = fs::exists(first);
+            first_kv = fs::exists(fs::path(first).replace_extension(".kv"));
+            stats = sched.stats();
+            ledger(stats, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(last_ms < 20000, what + ": the turn needing the write's room took " + std::to_string(last_ms) + " ms");
+    require(!first_tmp_left && !first_kv && stats.disk_entries == 0, what + ": the cancelled write left " + std::to_string(stats.disk_entries) + " entries");
+    require(stats.host_donors == 4 && stats.disk_errors == 0 && stats.disk_writing,
+            what + ": " + std::to_string(stats.host_donors) + " copies in host memory, against 4, " + std::to_string(stats.disk_errors) + " disk errors");
+    require(disk.servers().empty(), what + ": the server's directory is left after a clean exit");
+    for (size_t k = 0; k < reqs.size(); ++k) {
+        auto fresh = make(2048, 0);
+        same(serve(*fresh, tok, 1, {{reqs[k]}})[0], replies[k], what + ", turn " + std::to_string(k));
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1560,6 +1782,9 @@ int main(int argc, char** argv) {
                 message_boundaries(on(mixed, [devices] { return cpus(devices); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab,
                                    "message boundaries on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));
             for (const bool reads : {true, false}) boundary_faults(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, reads);
+            for (size_t devices = 1; devices <= 2; ++devices) disk_demotion(on(weights, [devices] { return cpus(devices); }), tok, vocab, devices);
+            disk_superseded(one, tok, vocab);
+            disk_never_blocks(one, tok, vocab);
             for (size_t devices = 1; devices <= 2; ++devices)
                 host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices, 1, HostFault::none,
                           "a hybrid model's donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));

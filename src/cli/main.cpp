@@ -1056,6 +1056,11 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     c.dtype = loaded->dtype;
     // Read once the model and its caches are in memory, so the default takes what they leave.
     if (!c.host_cache_bytes) c.host_cache_bytes = server::default_host_cache(model, c.max_seqs);
+    if (c.disk.bytes) {
+        c.disk.model_path = model_path;
+        if (c.disk.dir.empty()) c.disk.dir = (hub::default_cache("--disk-cache-dir") / "kv").u8string();
+        server::check_disk_cache(c.disk, *c.host_cache_bytes);
+    }
     c.proposer = drafts.proposer.get();
     c.draft_max = drafts.draft_max;
     http::Listener listener(c.host, c.port);
@@ -1182,6 +1187,9 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --passes N              Passes in flight; above 1 needs a layer split (default: its stages, else 1)\n"
             << "  --state-checkpoints N   States a recurrent model keeps for prefix reuse (default: fitted, up to --max-seqs)\n"
             << "  --host-cache-bytes N    Host memory for prefixes the devices evict; 0 keeps none (default: --max-seqs histories as long as a request may hold, within half of free host memory once the model is loaded, none with every cache on the CPU)\n"
+            << "  --disk-cache-bytes N    Disk for what the host cache drops; needs a host cache (default: 0, none)\n"
+            << "  --disk-cache-dir PATH   Where the disk cache lives (default: <home>/" << hub::cache_in_home << "/kv)\n"
+            << "  --disk-cache-floor N    Free space the disk keeps after every write (default: the larger of 16 GiB and a twentieth of the disk)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
             << "  --ctx-size N, -c        Most KV tokens in total, fitted to the devices at load (default: model context)\n"
             << "  --drafter D             Draft tokens to verify beside other requests: off, lookup, embedded,\n"
@@ -1500,6 +1508,9 @@ int main(int argc, char** argv) {
                 else if (f == "--passes") cfg.passes = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--state-checkpoints") cfg.state_checkpoints = int_arg(argc, argv, i, a, 0);
                 else if (f == "--host-cache-bytes") host_bytes = int_arg<uint64_t>(argc, argv, i, a, 0);
+                else if (f == "--disk-cache-bytes") cfg.disk.bytes = int_arg<uint64_t>(argc, argv, i, a, 0);
+                else if (f == "--disk-cache-dir") cfg.disk.dir = nonempty_value(argc, argv, i, a, "a path");
+                else if (f == "--disk-cache-floor") cfg.disk.floor = int_arg<uint64_t>(argc, argv, i, a, 0);
                 else if (f == "--timing") cfg.timing = true;
                 else if (f == "--ctx-size") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
                 else if (drafts_flag(argc, argv, i, a, f, drafts)) {}

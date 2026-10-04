@@ -34,7 +34,7 @@ The hash check also runs on cache hits. Git files include Git's blob header in
 their SHA1 input. Completion returns the first shard after every file is ready.
 Progress callbacks run on the caller and currently report phases per file.
 `max_parallel_streams` (16) is the most streams a file takes, the top of `PullOptions::parallel`'s range, which `pull` checks and the CLI reads `--parallel` against.
-`cache_in_home` (`.cache/llmx`) is the cache root inside the home directory, `USERPROFILE` on Windows and `HOME` elsewhere, which `pull` takes when `PullOptions::cache` is empty and the CLI's help prints as `--cache-dir`'s default.
+`cache_in_home` (`.cache/llmx`) is the cache root inside the home directory, `USERPROFILE` on Windows and `HOME` elsewhere, which `default_cache(flag)` gives, its error naming the flag that sets the path instead; `pull` takes it when `PullOptions::cache` is empty, the server's disk cache lives under it in `kv` unless `--disk-cache-dir` says otherwise, and the CLI's help prints both defaults.
 
 Temporary cleanup is best effort after failures. Forced process termination can
 leave a private temporary directory. Cache publication is atomic per file, not

@@ -26,12 +26,8 @@ struct PullOptions {
 };
 using PullProgress = std::function<void(const std::string&)>;
 
-namespace pull_detail {
-
-constexpr unsigned max_retry_after_seconds = 60;
-constexpr uint64_t max_metadata_bytes = 16 * 1024 * 1024;
-
-inline std::filesystem::path default_cache() {
+// The home directory's llmx cache, under which pull keeps models and the server its disk cache; without a home directory the error names `flag`, which sets the path instead.
+inline std::filesystem::path default_cache(const std::string& flag) {
 #ifdef _WIN32
     const DWORD count = GetEnvironmentVariableW(L"USERPROFILE", nullptr, 0);
     if (count) {
@@ -46,8 +42,13 @@ inline std::filesystem::path default_cache() {
     const char* home = std::getenv("HOME");
     if (home && *home) return std::filesystem::path(home) / cache_in_home;
 #endif
-    throw std::runtime_error("pull: home directory unavailable; use --cache-dir");
+    throw std::runtime_error("home directory unavailable; use " + flag);
 }
+
+namespace pull_detail {
+
+constexpr unsigned max_retry_after_seconds = 60;
+constexpr uint64_t max_metadata_bytes = 16 * 1024 * 1024;
 
 class Temporary {
 public:
@@ -235,7 +236,7 @@ inline std::filesystem::path pull(PullOptions options, const PullProgress& progr
     transport_detail::clean_text(options.revision);
     if (options.parallel < 1 || options.parallel > max_parallel_streams)
         throw std::runtime_error("pull: --parallel must be between 1 and " + std::to_string(max_parallel_streams));
-    if (options.cache.empty()) options.cache = default_cache();
+    if (options.cache.empty()) options.cache = default_cache("--cache-dir");
     std::filesystem::create_directories(options.cache);
     const auto root = std::filesystem::canonical(options.cache);
     Temporary temporary(root);

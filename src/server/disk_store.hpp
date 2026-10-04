@@ -47,6 +47,7 @@ public:
         uint64_t floor = 0;          // free space the file system keeps after every write (--disk-cache-floor)
         bool keep = false;           // at a clean exit leave the entries for the next server, and at start adopt those other servers left (--disk-cache-keep)
         uint64_t max_age = 0;        // seconds after an entry's last use when sweeps and adoption delete it, 0 for never (--disk-cache-max-age)
+        std::chrono::milliseconds pace{0};   // a pause after each chunk written, cut short by a cancel, which tests hold a write in flight with
     };
     // What a finished call reports: whether it succeeded, and if not, why.
     using Done = std::function<void(bool ok, const std::string& error)>;
@@ -134,12 +135,6 @@ public:
         cv_.notify_all();
     }
 
-    // Whether entry `key`'s file is in place.
-    bool has(uint64_t key) const {
-        std::lock_guard<std::mutex> lk(m_);
-        return sizes_.count(key) != 0;
-    }
-
     // Stops a queued or running write of `key`, whose `done` then reports the cancel; false when there is none.
     bool cancel(uint64_t key) {
         std::lock_guard<std::mutex> lk(m_);
@@ -150,6 +145,7 @@ public:
             }
         if (running_ && running_->put && running_->key == key) {
             running_->cancelled = true;
+            cv_.notify_all();
             return true;
         }
         return false;
@@ -168,14 +164,6 @@ public:
     void touch(uint64_t key) {
         std::error_code ec;
         std::filesystem::last_write_time(path(key, ".kv"), std::filesystem::file_time_type::clock::now(), ec);
-    }
-
-    // The bytes of the entries in place.
-    uint64_t used_bytes() const {
-        std::lock_guard<std::mutex> lk(m_);
-        uint64_t n = 0;
-        for (const auto& s : sizes_) n += s.second;
-        return n;
     }
 
     // What the file system has free for this process.
@@ -503,6 +491,10 @@ private:
                 std::memset(staging_.data() + n, 0, padded - n);
                 crcs[c] = core::crc32c(0, staging_.data(), n);
                 w.write(head + c * kChunk, staging_.data(), padded);
+                if (options_.pace.count()) {
+                    std::unique_lock<std::mutex> lk(m_);
+                    cv_.wait_for(lk, options_.pace, [&] { return j.cancelled.load() || stopping_; });
+                }
             }
             core::HostPages h(head);
             std::memset(h.data(), 0, head);

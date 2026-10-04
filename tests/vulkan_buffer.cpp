@@ -595,7 +595,17 @@ int device_need_checks() {
                         backend::attention_head_fits(192, 64) && backend::attention_head_fits(256, 64) && !backend::attention_head_fits(260, 64) &&
                         !backend::attention_head_fits(512, 64) && backend::attention_head_fits(64, 64) && backend::attention_head_fits(80, 32);
     std::cout << "attention head widths against 32- and 64-lane subgroups" << (widths ? " PASS\n" : " FAIL\n");
-    return failures + !widths;
+    // The integer-dot kernels (the Q8_0 decode kernel and the integer-dot tile, whose 16-bit and packed 8-bit dots need the integer dot product) run only under a profile that prefers the integer dot, which a device without the extension never gets, even where its row asks for it.
+    backend::DeviceCaps caps;
+    caps.device = "AMD Radeon Instinct MI60 / MI50 (RADV VEGA20)";
+    caps.driver = "radv Mesa";
+    caps.integer_dot = true;
+    const backend::DeviceProfile with = backend::profile_for(caps);
+    caps.integer_dot = false;
+    const backend::DeviceProfile without = backend::profile_for(caps);
+    const bool gate = with.prefer_integer_dot && with.mxfp4_integer_dot && !without.prefer_integer_dot && !without.mxfp4_integer_dot;
+    std::cout << "integer-dot kernels only with the integer dot product" << (gate ? " PASS\n" : " FAIL\n");
+    return failures + !widths + !gate;
 }
 }
 
@@ -632,7 +642,7 @@ int main(int argc, char** argv) {
         ++cases;
         if (calls.buffers || calls.memory || calls.maps || calls.bad_release) ++failures;
         failures += device_need_checks();
-        cases += 13;
+        cases += 14;
         std::cout << "vulkan-buffer: " << cases << " cases, " << failures << " failures (fake API; no device)\n";
         return failures ? 1 : 0;
     } catch (const backend::VulkanUnavailable& e) {

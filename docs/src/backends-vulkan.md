@@ -125,7 +125,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   families' `LLMX_DOT` builds over the same 16-bit twin.
   Q6_K centers its weights with a 16-bit offset so the dot operands stay 16-bit.
   Q4_K and Q5_K rows take at most `k45_row_lanes`. There Q8_0 rows
-  take `shaders/matmul_vec_q8.comp`, the four-wide dot over the 16-bit twin split into high and low bytes (`shaders/dot16.glsl`),
+  take `shaders/matmul_vec_q8.comp`, two-wide 16-bit dots of the weights widened to signed 16-bit pairs against the 16-bit twin (`shaders/dot16.glsl`, which the integer-dot tile shares),
   and F32 rows the plain build.
   The Q8_0 decode kernel is built for 1, 2, 4, 8, 16 and 32 columns (`kVecBuilds`), with the rows a subgroup takes, the steps of weights a lane loads ahead, its two forms and its column groups as specialization constants 9 to 13; `sg_rows` gives the rows a subgroup takes in any row kernel build, which a dispatch's rows per workgroup follow.
   The 32-column build is two 16-column groups over the same rows, and a dispatch gives each workgroup's rows two adjacent workgroups.
@@ -140,7 +140,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   `prefer_integer_dot`, every quantized type goes through the
   integer-dot tile (`shaders/matmul_tile_q.comp`, Q6_K in its own module
   `matmul_tile_q6` and Q8_0 in `matmul_tile_q8`) over the row kernels'
-  16-bit twin, its quants widened to signed 16-bit pairs. When one tile call reads a whole batch next (`tile_reads`),
+  16-bit twin, its quants widened to signed 16-bit pairs (`shaders/dot16.glsl`). When one tile call reads a whole batch next (`tile_reads`),
   the norm, the SiLU or the wide attention that wrote the batch writes
   the twin four values a lane (`xquant_word` in `shaders/xquant.glsl`);
   otherwise `tile_twin` makes it with

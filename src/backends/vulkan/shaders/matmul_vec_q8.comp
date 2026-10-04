@@ -1,5 +1,5 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b) for Q8_0 rows through the four-wide integer dots over 16-bit activations: the Q8_0 decode kernel on integer-dot devices, with the row kernel's bindings and push constants (matmul_row.comp).
+// Y[b*nout + o] = dot(row o, X column b) for Q8_0 rows through two-wide 16-bit integer dots over 16-bit activations, a weight word widened once for every column: the Q8_0 decode kernel on integer-dot devices, with the row kernel's bindings and push constants (matmul_row.comp).
 // A subgroup takes ROWS rows; lane l covers quarter l % 4 of blocks l / 4, l / 4 + S / 4 and on, so a step reads S / 4 consecutive blocks of a row, or with HALF half l % 2 of blocks l / 2, l / 2 + 32 and on.
 // A lane keeps MAX_COLS columns and loads each column's eight 16-bit activation values, sixteen with HALF, once for all the subgroup's rows.
 // Every other block's quants start two bytes into a word, so a lane loads the words its bytes touch and shifts.
@@ -9,6 +9,7 @@
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_integer_dot_product : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #extension GL_EXT_control_flow_attributes : require
 #include "dot16.glsl"
 #include "q.glsl"
@@ -133,21 +134,20 @@ void main() {
         const uint nin16 = p.nin / 16u;
 // Column g + J's products, one for each row, added to its accumulators.
 #define HALF_PRODUCTS(J) [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
-            int s = dot16(wq[r][0], dot16_parts(xa[J].xy)) + dot16(wq[r][1], dot16_parts(xa[J].zw)) + \
-                    dot16(wq[r][2], dot16_parts(xb[J].xy)) + dot16(wq[r][3], dot16_parts(xb[J].zw)); \
+            int s = dot_pairs(wq[r][3], xb[J].zw, dot_pairs(wq[r][2], xb[J].xy, dot_pairs(wq[r][1], xa[J].zw, dot_pairs(wq[r][0], xa[J].xy, 0)))); \
             precise float product = dw[r] * dx[J] * float(s); \
             acc[r][g + (J)] += product; \
         }
         for (uint bb = bh; bb < nblk; bb += 32u) {
-            uint wq[ROWS][4];
+            uvec2 wq[ROWS][4];
             float dw[ROWS];
             [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
                 uint t0 = w32s[pi].w32[lq + rw[r]], t1 = w32s[pi].w32[lq + rw[r] + 1u], t2 = w32s[pi].w32[lq + rw[r] + 2u], t3 = w32s[pi].w32[lq + rw[r] + 3u];
                 uint t4 = w32s[pi].w32[l5 + rw[r]];
-                wq[r][0] = odd ? (t0 >> 16u) | (t1 << 16u) : t0;
-                wq[r][1] = odd ? (t1 >> 16u) | (t2 << 16u) : t1;
-                wq[r][2] = odd ? (t2 >> 16u) | (t3 << 16u) : t2;
-                wq[r][3] = odd ? (t3 >> 16u) | (t4 << 16u) : t3;
+                wq[r][0] = weight16(odd ? (t0 >> 16u) | (t1 << 16u) : t0);
+                wq[r][1] = weight16(odd ? (t1 >> 16u) | (t2 << 16u) : t1);
+                wq[r][2] = weight16(odd ? (t2 >> 16u) | (t3 << 16u) : t2);
+                wq[r][3] = weight16(odd ? (t3 >> 16u) | (t4 << 16u) : t3);
                 uint sw = w32s[pi].w32[ls + rw[r]];
                 dw[r] = unpackHalf2x16(odd ? sw : sw >> 16u).x;
             }
@@ -178,14 +178,14 @@ void main() {
         uint b = lane >> 2u;
 // Column g + J's products of step d, one for each row, added to its accumulators.
 #define COLUMN_PRODUCTS(J) [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
-        int s = dot16(w0[d][r], dot16_parts(xa[J].xy)) + dot16(w1[d][r], dot16_parts(xa[J].zw)); \
+        int s = dot_pairs(w1[d][r], xa[J].zw, dot_pairs(w0[d][r], xa[J].xy, 0)); \
         precise float product = dw[d][r] * dx[J] * float(s); \
             acc[r][g + (J)] += product; \
     }
 // NS steps of a lane from block b: every row's words for all NS steps first, then per group of columns the NS steps in order, so each column still adds its blocks in order.
 // No branch separates the loads, so every weight load of the batch is issued before the first product.
 #define QUARTER_STEPS(NS) { \
-        uint w0[NS][ROWS], w1[NS][ROWS]; \
+        uvec2 w0[NS][ROWS], w1[NS][ROWS]; \
         float dw[NS][ROWS]; \
         [[unroll]] for (uint d = 0u; d < NS; ++d) \
             [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
@@ -194,8 +194,8 @@ void main() {
                 uint i = qb >> 2u; \
                 bool odd = (qb & 2u) != 0u; \
                 uint t0 = w32s[pi].w32[i], t1 = w32s[pi].w32[i + 1u], t2 = w32s[pi].w32[min(i + 2u, wlast)]; \
-                w0[d][r] = odd ? (t0 >> 16u) | (t1 << 16u) : t0; \
-                w1[d][r] = odd ? (t1 >> 16u) | (t2 << 16u) : t1; \
+                w0[d][r] = weight16(odd ? (t0 >> 16u) | (t1 << 16u) : t0); \
+                w1[d][r] = weight16(odd ? (t1 >> 16u) | (t2 << 16u) : t1); \
                 uint sw = w32s[pi].w32[ob >> 2u]; \
                 dw[d][r] = unpackHalf2x16((ob & 2u) != 0u ? sw >> 16u : sw).x; \
             } \

@@ -12,16 +12,7 @@
 #ifdef LLMX_Q8
 #extension GL_EXT_control_flow_attributes : require
 #endif
-// Four signed quants of a word, as the twin holds four values: values 0 and 2 in one pair of 16-bit halves, 1 and 3 in the other.
-uvec2 weight16(uint w) {
-    uint q0 = uint(int(w << 24u) >> 24), q1 = uint(int(w << 16u) >> 24);
-    uint q2 = uint(int(w << 8u) >> 24), q3 = uint(int(w) >> 24);
-    return uvec2((q0 & 65535u) | (q2 << 16u), (q1 & 65535u) | (q3 << 16u));
-}
-// Four products of 16-bit values added to acc through two two-wide dots, exact in 32 bits; acc goes in first, so each dot takes the sum so far as its accumulator.
-int dot_pairs(uvec2 w, uvec2 x, int acc) {
-    return acc + dotEXT(unpack16(int(w.x)), unpack16(int(x.x))) + dotEXT(unpack16(int(w.y)), unpack16(int(x.y)));
-}
+#include "dot16.glsl"
 #include "q.glsl"
 #ifdef LLMX_Q8MX
 #extension GL_ARB_gpu_shader_fp64 : require

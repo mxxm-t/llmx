@@ -1,5 +1,56 @@
 # llmx - Development Status
 
+## Q8_0 decode by two-wide 16-bit dots (2026-10-04, branch perf/q8-decode-5to8, lands by fast-forward)
+
+- **Goal:** a pass of 5 to 8 generated rows at the Q8_0 decode kernel's 4-column cost a column, so a depth-4 verify and 5 to 8 server users stop paying the step from the 4-column build to the 8-column build that the depth-4 finding measured (devlog 2026-10-04 06:03: a 5-row verify 82.7 ms against 66.2 for 4 rows, Qwen3.6-27B-MTP Q8_0 on one MI50).
+- **Cause found:** the builds of several columns were bound by their instructions, not their weight reads. Each product of a weight word and four 16-bit activations took two four-wide 8-bit dots over the activation's high and low bytes, a correction by the weights' sum and the shifts and masks that split every activation word, per column; the 8-column build issued 2337 vector instructions where the 4-column build issued 964 (RADV, MI50).
+- **Done:** `dot16.glsl` widens each weight word once per load to two pairs of signed 16-bit values and takes two two-wide 16-bit dots (`v_dot2_i32_i16`) per word for every column, each dot taking the sum so far as its accumulator; the integer-dot tile's own copy of the same widening and dots moved there, so it has one owner. The integer sums are exact either way, so every column computes the bits it did. Vector instructions per build (RADV, MI50): 1 column 240 to 226, 2 columns 360 to 288, 4 columns 964 to 724, 8 columns 2337 to 1474, 16 columns 5400 to 3440; the 1-column build takes 40 VGPRs against 32 (6 subgroups a SIMD against 8), the others unchanged.
+- **Tried and not kept** (`exp/q8-rows` on Gitea, never to land), each on the two-wide dots, Qwen3.6-27B-MTP Q8_0, one MI50, the 8-column build's sampled device time at 5 / 8 columns against 335 / 400 ms: 2 rows a subgroup 551 / 667 and 8 rows 363 / 415 (one subgroup a SIMD); two steps of weights loaded ahead 328 / 401; the subgroup reduction instead of the transposed one 350 / 410; a column group's activations staged once a workgroup in shared memory 345 / 396; workgroups of 512 355 / 411; 5 to 8 columns as the 4-column build twice over the same rows on adjacent workgroups 439 / 460. For 9 to 16 columns the 8-column build over two workgroups gave 647 / 761 ms at 9 / 16 columns against 659 / 832 for the 16-column build, too small at 9 to carry a change; for 17 to 32 it lost (1506 against 1335 ms at 32). So the step from 4 to 5 columns stays, at about 30 percent of the kernel's time, and every build of several columns is cheaper.
+- **Gates**, main e8995d76 (`llmx 0.1.0+ge8995d7682cf`, binary sha256 976c1a43feb6996f) against the change (723b4089, `llmx 0.1.0+g723b40890105`, d5478f1a9a82f715), both built the same way from detached clones, cores 4 to 7, each timed arm started below 55 C at default clocks:
+  - batch invariance: `backend-vulkan` with `--isa` passes on an MI50 (RADV), every decode column of every build bit for bit the column alone, and its instruction screens hold the six Q8_0 decode builds to the counts their shape and forms give; CTest 43 of 43 on an MI50; the suite on the CPU and on an MI50 with `--require-tools` passes but raw-blocks, which fails only for want of numpy in the image (CI installs it).
+  - byte identity: 28 of 28 Qwen3 cells (greedy, seeded, logits, the excerpt's last rows, perplexity batched and per token, chat) the same on one MI50 for Qwen3-0.6B Q8_0, Qwen3-8B Q8_0, Qwen3-8B Q4_K_M (the integer-dot tile) and Qwen3.6-27B-MTP Q8_0, 14 of 14 over two MI50s for the 27B and Qwen3-30B-A3B Q8_0 (the routed and grouped builds), and the suite's Qwen3-0.6B and Qwen3.5-0.8B cells 14 of 14 on the CPU and on the device.
+  - HF: the bits are main's, so the errors are main's; the device suite's Q8_0 MoE fixture, whose decode runs this kernel, is at most 0.000163 logits from HF against its 0.127 bound.
+  - Radeon VII (AMD driver, Windows): `backend-vulkan --isa` passes on both arms; its profile takes neither this kernel nor the integer-dot tile (its passes run `matmul_row_q8w` and the float tiles), so the change reaches no kernel there: Qwen3-8B Q8_0 `--seqs` 1 to 9 and pp512 / tg128 level with main (tg128 41.30 and 40.93 main, 41.17 and 41.01 the change).
+  - timing on one MI50, `bench --model` Qwen3.6-27B-MTP Q8_0, 64-token prompts and 32 generated tokens a sequence, two runs an arm, the change then main at each count, tok/s together and the Q8_0 decode kernel's sampled device time:
+
+    | sequences | main tok/s | change tok/s | change | main kernel ms | change kernel ms | build |
+    |---|---|---|---|---|---|---|
+    | 1 | 22.38 | 21.30 | -4.8% | 221.1 | 219.4 | 1 column |
+    | 2 | 36.03 | 35.29 | -2.1% | 247.2 | 248.0 | 2 columns |
+    | 3 | 47.78 | 52.80 | +10.5% | 280.9 | 249.0 | 4 columns |
+    | 4 | 58.54 | 69.28 | +18.3% | 296.7 | 252.2 | 4 columns |
+    | 5 | 60.24 | 66.31 | +10.1% | 379.5 | 329.9 | 8 columns |
+    | 6 | 65.40 | 74.02 | +13.2% | 412.2 | 351.8 | 8 columns |
+    | 7 | 69.82 | 79.48 | +13.8% | 440.0 | 376.9 | 8 columns |
+    | 8 | 72.70 | 85.34 | +17.4% | 485.0 | 403.2 | 8 columns |
+    | 9 | 52.94 | 64.08 | +21.0% | 827.9 | 658.7 | 16 columns |
+
+    At 1 and 2 sequences the kernel's time is the same in both arms and the totals differ within their runs' spread (+-0.46 at 1); the decode-only runs below settle one sequence. Per column, the 8-column build now costs 66.0 ms at 5 columns, 58.6 at 6, 53.8 at 7 and 50.4 at 8 against the 4-column build's 63.1 at 4, where main's 4-column build cost 74.2.
+    Qwen3-8B Q8_0 pp512 / tg128 on an MI50 (GPU[7]), two rounds: main 830.8 / 74.98 and 825.7 / 74.25, the change 833.3 / 77.13 and 830.2 / 77.25 (+0.4 / +3.4 percent); Qwen3-8B Q4_K_M, whose prompts run the integer-dot tile: main 775.4 / 87.88 and 768.9 / 87.69, the change 775.8 / 87.88 and 775.8 / 87.68.
+  - MTP and serving: generate greedy, 256 tokens with the end ignored, on the step-4 prompts, on one MI50 (GPU[1]), in the order main, change, change, main, the mean of each arm's two runs in tok/s; the ids are the same in every arm and at every depth of a prompt:
+
+    | prompt | main off | change off | main depth 3 | change depth 3 | main depth 4 | change depth 4 |
+    |---|---|---|---|---|---|---|
+    | copy | 21.03 | 20.94 (-0.4%) | 40.41 | 44.85 (+11.0%) | 38.00 | 42.12 (+10.8%) |
+    | explain | 20.99 | 21.21 (+1.0%) | 37.63 | 41.25 (+9.6%) | 33.89 | 37.23 (+9.9%) |
+    | code | 21.20 | 21.64 (+2.1%) | 43.34 | 48.51 (+11.9%) | 40.12 | 43.61 (+8.7%) |
+
+    Depth 4 still gives fewer tokens a second than depth 3, since the step at 5 columns stays (USAGE says so).
+    The server, `tools/server_load.py` on the 27B with `--max-seqs 8 --ctx-size 8192`, the eight fixed prompts, 256 tokens a reply, three rounds a level, output tok/s at 4, 5, 6, 7 and 8 users: drafts off, main 58.3, 52.4, 56.8, 61.2, 64.0 and the change 63.5, 58.9, 66.2, 71.8, 75.3 (+9 to +18 percent); `--drafter embedded --draft-max 3`, main 50.9, 51.2, 54.9, 58.3, 62.3 and the change 61.5, 61.5, 65.8, 71.4, 78.2 (+20 to +26 percent). At 4 users drafting gives less than drafts off in both arms (50.9 against 58.3 on main), which the pass price does not yet avoid; it is recorded, not part of this change.
+    A one-second monitor read a load average of up to 10.7 from other work on the host and the card at up to 105 C during the server levels; each arm started below 55 C. The first gate run's generate and drafting server arms did not run (the script's cooling loop overwrote the depth variable), and were run again in full; its drafts-off server levels for main, 61.0, 53.1, 56.4, 60.9 and 63.7, agree with the rerun's.
+- **Landing:** the coordinator reviewed the shaders, the device needs and the prefill round; XDEV's review was requested (devlog 2026-10-04 11:03), and with XDEV away it lands on the coordinator's review at the user's word; the hosted run is green at its head; it lands by fast-forward.
+- **Prefill** (the coordinator's review, since the integer-dot tile now takes its widening from `dot16.glsl`): `bench --model` on one MI50 (GPU[1]), three runs an arm, in the order main, change, change, main twice, each arm started below 55 C, tok/s, the mean of each arm's four:
+
+  | model | main pp512 | change pp512 | main pp2048 | change pp2048 |
+  |---|---|---|---|---|
+  | Qwen3-8B Q8_0 | 841.19 | 846.28 (+0.6%) | 771.12 | 775.26 (+0.5%) |
+  | Qwen3-8B Q4_K_M | 782.52 | 788.27 (+0.7%) | 719.51 | 719.98 (+0.1%) |
+  | Qwen3.6-27B-MTP Q8_0 | 258.42 | 260.08 (+0.6%) | 249.79 | 251.27 (+0.6%) |
+
+  The change is never the slower arm of a pair; every cell is well inside the layout band. A one-second monitor read the host's load average between 7.6 and 51 from other work (highest during the 8B pp2048 cells) and the card at up to 101 C.
+- **Device needs** (the coordinator's review): the kernel's 16-bit integer types are a need every Vulkan kernel declares (`missing_device_need`, "has no 16-bit integer arithmetic"), which `vulkan-buffer` refuses by name. Its 16-bit dots, like the packed 8-bit dots it took before and the tile's 16-bit dots, come under the integer dot product's one feature (`shaderIntegerDotProduct`, which grants `DotProductInputAll`); that is not a need but what chooses the kernel: only a profile that prefers the integer dot selects this kernel and the integer-dot tile, and `profile_for` keeps that only where the device has the extension. `vulkan-buffer` now checks the gate on a device's names and caps alone: the MI50 row with the integer dot prefers it, without it takes neither the integer dot nor MXFP4's; with the gate removed the check fails.
+- **Gotchas:** a driver that lowered `dotEXT` on 16-bit pairs to anything but a native dot would lose; `--isa` shows `v_dot2_i32_i16` on RADV.
+
 ## Drafter files beside a model (2026-10-03, branch feat/spec-drafters, step 6 of SPECULATIVE)
 
 - **Goal:** `--drafter PATH` loads a drafter from a file beside the model through the one proposer, verify, rollback and scheduler path, the pairing checked and refused by name, on the CPU and Vulkan alike ([SPECULATIVE](SPECULATIVE.md), step 6).
@@ -9544,6 +9595,7 @@ their own measurements; K-quant optimization remains separate work below.
 | GPU backends (Vulkan first to write, ROCm first-class) | Vulkan implemented and the recorded dense-model device gate passed on both platforms (forty-seventh checkpoint above): Radeon VII decode 102-115% and prefill 109-455% of the same-card reference Vulkan build; one MI50 decode 102-115% and prefill 102-267%. These are dated gate results, not new measurements from this documentation review. ROCm planned |
 | Multi-node / cluster                     | Planned  |
 | Two-row decode builds for the Q4 and K-quant rows | Done: merged at `b5cc467a` (block above) |
+| Q8_0 decode by two-wide 16-bit dots | Done (block above): bit-identical, 10 to 21 percent at 3 to 9 sequences on an MI50; lands by fast-forward |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |

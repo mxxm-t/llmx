@@ -463,6 +463,7 @@ The same test checks quantized decode and prompt range arithmetic through all si
 
 `vulkan-buffer` checks constructor cleanup on a fake device that supplies every Vulkan call it makes, so it needs no loader and runs wherever the backend builds.
 On property and feature values alone it checks that every device need the kernels declare is refused by name when missing, among them subgroup shuffles and 8- and 16-bit storage and integers, and that heads 128 and 256 wide fit the attention kernels on 32- and 64-lane devices alike, while a head of another width fits only up to four subgroup lanes' elements, 128 on a 32-lane device, and no head wider than 256 fits.
+It also checks that a device without the integer dot product gets a profile that takes no integer-dot kernel (the Q8_0 decode kernel and the integer-dot tile), even where its device's row asks for the integer dot.
 `vulkan-lifetime` opens a device, intercepts transfers and injects allocation failures to check queued storage ownership during KV growth, padded-copy creation/replacement/invalidation and argument-arena overflow. It also varies the integer tile preference independently of the MXFP4 row decoder preference over three free-memory budgets: a profile that cannot create a copied MXFP4 tile must release that copy capacity from its scratch reserve.
 It checks retry and unchanged KV accounting after failed growth.
 A buffer dropped right after `alloc` or `adopt` must outlive its zero fill or its upload.

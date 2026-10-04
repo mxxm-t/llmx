@@ -1,14 +1,12 @@
 #ifndef LLMX_DOT16_GLSL
 #define LLMX_DOT16_GLSL
-// Position pairs (0,2), (1,3) become four signed high bytes and four biased low bytes.
-uvec2 dot16_parts(uvec2 pairs) {
-    uint high = ((pairs.x >> 8u) & 0x00ff00ffu) | (pairs.y & 0xff00ff00u);
-    uint low = ((pairs.x & 0x00ff00ffu) | ((pairs.y << 8u) & 0xff00ff00u)) ^ 0x80808080u;
-    return uvec2(high, low);
+// Products of signed 8-bit weights and the 16-bit activation twin through two-wide 16-bit integer dots, exact in 32 bits; the includer enables the 16-bit integer types and the integer dot product.
+// Four signed quants of a word, as the twin holds four values: values 0 and 2 in one pair of 16-bit halves, 1 and 3 in the other.
+uvec2 weight16(uint w) {
+    return uvec2(pack32(i16vec2(unpack16(w << 8u)) >> int16_t(8)), pack32(i16vec2(unpack16(w)) >> int16_t(8)));
 }
-// Each signed value is 256 times its high byte plus its biased low byte plus 128.
-int dot16(uint weights, uvec2 parts) {
-    return 256 * dotPacked4x8EXT(int(weights), int(parts.x)) + dotPacked4x8EXT(int(weights), int(parts.y)) +
-           128 * dotPacked4x8EXT(int(weights), 0x01010101);
+// Four products of 16-bit values added to acc through two two-wide dots; acc goes in first, so each dot takes the sum so far as its accumulator.
+int dot_pairs(uvec2 w, uvec2 x, int acc) {
+    return acc + dotEXT(i16vec2(unpack16(w.x)), i16vec2(unpack16(x.x))) + dotEXT(i16vec2(unpack16(w.y)), i16vec2(unpack16(x.y)));
 }
 #endif

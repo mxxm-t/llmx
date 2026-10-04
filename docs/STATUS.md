@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Disk tier (planned 2026-10-04, branch docs/disk-tier-plan, design only, lands by fast-forward once reviewed)
+
+- **Goal:** a disk tier under the host tier, so histories host memory can no longer hold are read back from a local disk in about half a second instead of recomputed ([DISK-TIER](DISK-TIER.md)).
+- **Done:** the plan: what goes to disk (host-tier copies and message boundaries, bit-exact), demotion by the host tier's own ranking, writes that never block an admission, the cap and free-space floor, a bounded flush of memory at a clean exit for a restart that keeps entries, an age limit with one-time conversations going first, restore with prefetch on submit, crash safety (a locked directory a server, temporary files renamed into place, headers with identity and CRC32C, sweeps of unlocked directories), privacy, the disk speeds measured on the MI50 machine, one store interface with a remote store planned second, flags, health counters, tests, gates and six steps.
+- **Left:** the coordinator's last review of the keep and age additions; the user agreed to the three decisions; nothing is built.
+
 ## Q8_0 decode by two-wide 16-bit dots (2026-10-04, branch perf/q8-decode-5to8, lands by fast-forward)
 
 - **Goal:** a pass of 5 to 8 generated rows at the Q8_0 decode kernel's 4-column cost a column, so a depth-4 verify and 5 to 8 server users stop paying the step from the 4-column build to the 8-column build that the depth-4 finding measured (devlog 2026-10-04 06:03: a 5-row verify 82.7 ms against 66.2 for 4 rows, Qwen3.6-27B-MTP Q8_0 on one MI50).

@@ -175,6 +175,19 @@ T int_arg(int argc, char** argv, int& i, const std::string& flag, T lo, T hi = s
     return whole_number<T>(flag_value(argc, argv, i, flag), flag, lo, hi);
 }
 
+// The length of time after `flag`, in seconds: a whole number alone or followed by s, m, h or d.
+uint64_t seconds_arg(int argc, char** argv, int& i, const std::string& flag) {
+    const std::string text = flag_value(argc, argv, i, flag);
+    const char last = text.empty() ? '\0' : text.back();
+    const uint64_t unit = last == 'm' ? 60 : last == 'h' ? 3600 : last == 'd' ? 86400 : 1;
+    const bool suffix = last == 's' || unit > 1;
+    try {
+        return whole_number<uint64_t>(suffix ? text.substr(0, text.size() - 1) : text, flag, 0, std::numeric_limits<uint64_t>::max() / unit) * unit;
+    } catch (const UsageError&) {
+        throw UsageError(flag + ": '" + text + "' is not a length of time, a whole number of seconds or one followed by s, m, h or d");
+    }
+}
+
 // The decimal number after `flag`, from `lo` to `hi`: digits, a point and an exponent, so no infinity, NaN or hexadecimal form.
 float float_arg(int argc, char** argv, int& i, const std::string& flag, float lo, float hi = std::numeric_limits<float>::max()) {
     const std::string text = flag_value(argc, argv, i, flag);
@@ -1190,6 +1203,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --disk-cache-bytes N    Disk for what the host cache drops; needs a host cache (default: 0, none)\n"
             << "  --disk-cache-dir PATH   Where the disk cache lives (default: <home>/" << hub::cache_in_home << "/kv)\n"
             << "  --disk-cache-floor N    Free space the disk keeps after every write (default: the larger of 16 GiB and a twentieth of the disk)\n"
+            << "  --disk-cache-keep       At a clean exit, write what memory holds to disk within " << server::kDiskFlush.count() << " s and keep it for the next server\n"
+            << "  --disk-cache-max-age TIME  Delete entries unused for longer than TIME: seconds, or a number followed by s, m, h or d; 0 for no limit (default: " << (server::DiskOptions{}.max_age / 3600) << "h)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
             << "  --ctx-size N, -c        Most KV tokens in total, fitted to the devices at load (default: model context)\n"
             << "  --drafter D             Draft tokens to verify beside other requests: off, lookup, embedded,\n"
@@ -1511,6 +1526,8 @@ int main(int argc, char** argv) {
                 else if (f == "--disk-cache-bytes") cfg.disk.bytes = int_arg<uint64_t>(argc, argv, i, a, 0);
                 else if (f == "--disk-cache-dir") cfg.disk.dir = nonempty_value(argc, argv, i, a, "a path");
                 else if (f == "--disk-cache-floor") cfg.disk.floor = int_arg<uint64_t>(argc, argv, i, a, 0);
+                else if (f == "--disk-cache-keep") cfg.disk.keep = true;
+                else if (f == "--disk-cache-max-age") cfg.disk.max_age = seconds_arg(argc, argv, i, a);
                 else if (f == "--timing") cfg.timing = true;
                 else if (f == "--ctx-size") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
                 else if (drafts_flag(argc, argv, i, a, f, drafts)) {}

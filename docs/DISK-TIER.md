@@ -102,7 +102,7 @@ With `--disk-cache-keep`, a restart of the same build and model should find the 
 **Clean exit.** Today `serve` has no handler for SIGTERM or SIGINT, so either ends the process at once; the plan adds one (on Windows the console's control events), which makes a clean exit:
 1. stop accepting connections and admitting requests;
 2. cancel the requests in flight once their pass has retired, as a cancelled client is today: a request keeps what its earlier turns left in the tiers, and its partial turn is not kept;
-3. with `--disk-cache-keep`, flush (below), then write the directory's index and unlock it; without it, remove the directory;
+3. with `--disk-cache-keep`, flush (below), then mark the directory kept and unlock it; without it, remove the directory;
 4. exit.
 
 **The flush.** Everything worth keeping that is not yet on disk is written, the most valuable first, the reverse of the order in which room takes entries:
@@ -115,7 +115,7 @@ At the measured rates 20 seconds write 6.8 GB on the NVMe pool and 11 GB on `/zp
 **SIGTERM against a crash.** SIGTERM and SIGINT take the clean exit and the flush. SIGKILL, a crash, an out-of-memory kill or a power loss keep only what is already on disk: every renamed `.kv` file is complete and every `.tmp` file is removed by the next sweep; the kernel releases the lock, so the directory is adoptable with `--disk-cache-keep` and removed without it.
 
 **What a restart adopts.** A server started with `--disk-cache-keep` adopts, from unlocked directories under its root, the entries whose identity matches:
-- after a clean exit it reads the directory's index (every entry's last use, whether its conversation came back, and which copy holds each boundary's blocks); after a crash, which leaves no index, it reads the headers, taking each entry's last use from its file's modification time and its come-back state from its header;
+- it reads every entry's header, after a clean exit and after a crash alike, which holds the entry's kind, whether its conversation came back, its tokens and its row classes, and takes its last use from its file's modification time, which every write and renewal sets to the entry's last use; no separate index file is written, the headers being one;
 - entries older than the age limit (Age, below) are deleted, and so is a boundary whose conversation has no copy left;
 - the rest are taken, the most valuable first by the flush's order, within its own cap and floor, and the remainder deleted;
 - the index is rebuilt in memory from what it took, so the first request of a returning conversation matches it as it would have before the restart.
@@ -174,7 +174,7 @@ The index (tokens, row classes, ranking state) stays in the scheduler beside `ho
 - `--disk-cache-floor N`: the free space the file system keeps after every write, by default the larger of 16 GiB and a twentieth of the file system.
 - At startup the server prints the directory, the file system's free space and the floor, and refuses to start when the cap plus the floor exceed the free space, naming the three numbers.
 - `--disk-cache-keep`: on a clean exit, flush what memory holds to disk within 20 seconds and keep the entries for the next server of the same build and model, which adopts them; without it nothing remains after a clean exit.
-- `--disk-cache-max-age T`: delete entries unused for longer than T, by default `24h`; `0` keeps them until room takes them.
+- `--disk-cache-max-age TIME`: delete entries unused for longer than TIME, by default `24h`; `0` keeps them until room takes them.
 - The tier needs the host tier: with `--host-cache-bytes 0`, or every cache on the CPU where the host tier's default is 0, a nonzero `--disk-cache-bytes` is refused with the reason.
 
 **`/v1/health`:** `disk_entries`, `disk_bytes`, `disk_hits`, `disk_bytes_written`, `disk_bytes_read`, `disk_waits` (requests that waited for a read) and `disk_wait_ms`, `disk_errors`, and `disk_writing` (false once the tier has stopped writing).

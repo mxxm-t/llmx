@@ -160,10 +160,10 @@ public:
         std::filesystem::remove(path(key, ".kv"), ec);
     }
 
-    // Records entry `key`'s last use now, which a restart's adoption and the age limit read.
-    void touch(uint64_t key) {
+    // Records entry `key`'s last use, which a restart's adoption and the age limit read.
+    void touch(uint64_t key, std::filesystem::file_time_type used) {
         std::error_code ec;
-        std::filesystem::last_write_time(path(key, ".kv"), std::filesystem::file_time_type::clock::now(), ec);
+        std::filesystem::last_write_time(path(key, ".kv"), used, ec);
     }
 
     // What the file system has free for this process.

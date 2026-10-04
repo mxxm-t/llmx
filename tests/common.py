@@ -287,7 +287,7 @@ def start_server(command, wait=120):
 
 def stop_server(proc, log):
     """Stop a server start_server started and close its log.
-    The server has no shutdown of its own to wait for, so it is killed."""
+    It is killed: the clean exit SIGTERM gives, which the disk tier's checks in tests/server.py wait for, only adds time here."""
     proc.kill()
     proc.wait()
     log.close()

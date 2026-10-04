@@ -3,7 +3,9 @@ import json
 import math
 import os
 import re
+import signal
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -1293,6 +1295,99 @@ def check_host_tier(model):
     return reused["1073741824"]
 
 
+def disk_flags(root, *extra, host=64 << 20, disk=256 << 20):
+    """A disk tier of `disk` bytes in `root` under a host tier of `host`, keeping no floor, small enough for any runner; the CPU holds no host tier unless one is given."""
+    return ("--host-cache-bytes", str(host), "--disk-cache-bytes", str(disk), "--disk-cache-dir", root, "--disk-cache-floor", "0") + tuple(extra)
+
+
+def servers_in(root):
+    return sorted(d for d in os.listdir(root) if d.startswith("server-"))
+
+
+def terminate(srv, seconds=60):
+    """SIGTERM, then the exit status once the server has exited cleanly within `seconds`."""
+    srv.proc.send_signal(signal.SIGTERM)
+    status = srv.proc.wait(timeout=seconds)
+    srv.log.close()
+    return status
+
+
+def check_disk_exit(model):
+    """The disk tier's directory over a server's life (docs/DISK-TIER.md, Crash safety and cleanup) on the synthetic model: a server stopped by SIGTERM exits with status 0 and leaves no directory; one killed leaves its directory, which the next server's sweep removes; under --disk-cache-keep SIGTERM leaves the directory marked kept, which the next server under keep adopts and removes; a cap and floor past the free space and a disk tier without a host tier are refused as the server starts."""
+    if sys.platform == "win32":
+        return False
+    with tempfile.TemporaryDirectory(prefix="llmx_disk_") as root:
+        srv = Server(model, *disk_flags(root))
+        srv.wait(lambda h: h["disk_writing"] and len(servers_in(root)) == 1, "a disk tier made", 60)
+        assert terminate(srv) == 0 and not servers_in(root), servers_in(root)
+        killed = Server(model, *disk_flags(root))
+        killed.wait(lambda h: len(servers_in(root)) == 1, "a disk tier made", 60)
+        left = servers_in(root)
+        killed.close()
+        assert servers_in(root) == left, servers_in(root)
+        srv = Server(model, *disk_flags(root))
+        srv.wait(lambda h: len(servers_in(root)) == 1 and servers_in(root) != left, "the killed server's directory swept", 60)
+        assert terminate(srv) == 0 and not servers_in(root), servers_in(root)
+        srv = Server(model, *disk_flags(root, "--disk-cache-keep"))
+        srv.wait(lambda h: len(servers_in(root)) == 1, "a disk tier made", 60)
+        assert terminate(srv) == 0, srv
+        kept = servers_in(root)
+        assert len(kept) == 1 and os.path.exists(os.path.join(root, kept[0], "kept")), kept
+        srv = Server(model, *disk_flags(root, "--disk-cache-keep"))
+        srv.wait(lambda h: len(servers_in(root)) == 1 and servers_in(root) != kept, "the kept directory adopted", 60)
+        srv.close()
+        for flags, reason in ((disk_flags(root)[:2] + ("--disk-cache-bytes", str(1 << 62), "--disk-cache-dir", root), "free in"),
+                              (("--host-cache-bytes", "0", "--disk-cache-bytes", str(256 << 20), "--disk-cache-dir", root), "host cache holds none")):
+            p = subprocess.run([common.exe_path()] + common.device_args(["serve", model] + list(flags) + ["--port", "0"], "f32"),
+                               capture_output=True, text=True, errors="replace", timeout=120)
+            assert p.returncode != 0 and reason in p.stderr, (flags, p.returncode, p.stderr[-400:])
+    return True
+
+
+def check_disk_keep(model):
+    """Entries kept across a restart on the real model (docs/DISK-TIER.md, Keeping entries across a restart): three conversations of about 500 tokens take turns on a 1024-token pool with one slot under --disk-cache-keep, and SIGTERM writes what memory holds; the next server adopts the entries, and each conversation's follow-up reads its history back, reusing it, with the CLI's greedy text; a server killed right after SIGTERM leaves only whole entries, which the next adopts without an error. Returns the tokens the follow-ups reused."""
+    if sys.platform == "win32":
+        return None
+    with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
+        text = f.read()
+    n = 16
+    with tempfile.TemporaryDirectory(prefix="llmx_keep_") as root:
+        flags = ("--ctx-size", "1024", "--max-seqs", "1") + disk_flags(root, "--disk-cache-keep", host=1 << 30, disk=4 << 30)
+        srv = Server(model, *flags)
+        first = []
+        try:
+            for part in (text[:2000], text[4000:6000], text[8000:10000]):
+                first.append(part + post_ok(srv, "/v1/generate", {"prompt": part, "max_tokens": n, "temperature": 0})["text"])
+            srv.wait(lambda h: h["disk_writing"], "a disk tier made", 60)
+        except BaseException:
+            srv.close()
+            raise
+        assert terminate(srv) == 0
+        srv = Server(model, *flags)
+        total = 0
+        try:
+            health = srv.wait(lambda h: h["disk_entries"] >= 3, "three entries adopted", 60)
+            for k, more in enumerate((text[2000:2400], text[6000:6400], text[10000:10400])):
+                prompt = first[k] + " " + more
+                reply = post_ok(srv, "/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
+                assert reply["text"] == cli_greedy_text(model, prompt, n), (k, reply["text"])
+                assert reply["reused_tokens"] > 0, (k, reply)
+                total += reply["reused_tokens"]
+            health = srv.get("/v1/health")
+            assert health["disk_hits"] >= 3 and health["disk_errors"] == 0, health
+        except BaseException:
+            srv.close()
+            raise
+        srv.proc.send_signal(signal.SIGTERM)
+        srv.close()
+        srv = Server(model, *flags)
+        try:
+            health = srv.wait(lambda h: h["disk_writing"], "a disk tier made", 60)
+            assert health["disk_errors"] == 0, health
+        finally:
+            srv.close()
+    return total
+
 # A client that leaves is noticed within seconds wherever its request is, though nothing written to it fails: a whole reply while it is generated, a streamed prompt while it is read, a request waiting for the one slot, and a whole reply whose client shuts only its sending side, which then gets no answer.
 # The server runs one slot and reads prompts one token a pass, so a second request queues and a long prompt stays in its prefill; the pool is POOL tokens.
 # Every request left behind would run for thousands of passes, a whole reply of LONG tokens or a prompt of about 6400, far past the seconds its departure has to be noticed in, so a server that notices nothing fails here on any device.
@@ -1417,6 +1512,10 @@ def run():
                 check_stream_reuse(directory)
                 print("server: synthetic MoE model, experts on the host and long prompts streamed, a prompt forking a finished prompt's block giving its values alone  [ok]")
         check_mxfp4(directory)
+        if check_disk_exit(model):
+            print("server: synthetic F32 model, a disk tier's directory gone after SIGTERM, a killed server's swept by the next, a kept one adopted, and a tier past the free space or without a host tier refused  [ok]")
+        else:
+            print("server: SKIP the disk tier's exit checks - no SIGTERM on Windows")
         k, n = check_ignore_eos_synthetic(directory)
         print("server: ignore_eos on the synthetic model, a greedy reply that ends at its end token after %d tokens running to %d through the CLI "
               "and the server, greedy and seeded, uncapped to the context, which the CLI given the room also fills, beside requests without it, and refused unless a boolean  [ok]" % (k, n))
@@ -1437,6 +1536,12 @@ def run():
         promoted = check_host_tier(real)
         print("server: %s, two conversations alternating on a pool that holds one, each follow-up promoting its donor from host memory (%d tokens reused) with the CLI's greedy text, none without the host tier  [ok]"
               % (os.path.basename(real), promoted))
+        kept = check_disk_keep(real)
+        if kept is None:
+            print("server: SKIP the disk tier's keep check - no SIGTERM on Windows")
+        else:
+            print("server: %s, three conversations written to disk at SIGTERM under --disk-cache-keep, adopted by the next server and read back (%d tokens reused) with the CLI's greedy text, and a server killed during its flush leaving only whole entries  [ok]"
+                  % (os.path.basename(real), kept))
         reused, first = check_reprefill(real)
         print("server: %s, a chat follow-up reusing %d tokens of a %d-token first turn and its reply, read again while idle, with its reply on a fresh server  [ok]"
               % (os.path.basename(real), reused, first))

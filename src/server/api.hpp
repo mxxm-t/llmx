@@ -712,7 +712,58 @@ private:
     std::atomic<uint64_t> next_id_{1};
 };
 
-// Serve until the listener is closed: the scheduler on its own thread, the accept loop here, one detached thread per connection.
+namespace detail {
+// The listener SIGTERM and SIGINT, or a console's Ctrl-C, Ctrl-Break and close, stop while serve runs.
+inline std::atomic<http::Listener*>& signalled_listener() {
+    static std::atomic<http::Listener*> l{nullptr};
+    return l;
+}
+#if defined(_WIN32)
+inline BOOL WINAPI on_console(DWORD) {
+    static std::atomic<int> seen{0};
+    http::Listener* l = signalled_listener().load();
+    if (!l || seen.fetch_add(1) > 0) return FALSE;
+    l->request_close();
+    return TRUE;
+}
+#else
+inline void on_signal(int) {
+    if (http::Listener* l = signalled_listener().load()) l->request_close();
+}
+#endif
+// While it lives, the first such signal stops the listener, as closing it does, so the server exits cleanly; the next ends the process.
+struct StopOnSignal {
+    explicit StopOnSignal(http::Listener& l) {
+        signalled_listener().store(&l);
+#if defined(_WIN32)
+        SetConsoleCtrlHandler(on_console, TRUE);
+#else
+        struct sigaction sa {};
+        sa.sa_handler = on_signal;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_RESETHAND;
+        sigaction(SIGTERM, &sa, &term_);
+        sigaction(SIGINT, &sa, &int_);
+#endif
+    }
+    ~StopOnSignal() {
+#if defined(_WIN32)
+        SetConsoleCtrlHandler(on_console, FALSE);
+#else
+        sigaction(SIGTERM, &term_, nullptr);
+        sigaction(SIGINT, &int_, nullptr);
+#endif
+        signalled_listener().store(nullptr);
+    }
+    StopOnSignal(const StopOnSignal&) = delete;
+    StopOnSignal& operator=(const StopOnSignal&) = delete;
+#if !defined(_WIN32)
+    struct sigaction term_ {}, int_ {};
+#endif
+};
+} // namespace detail
+
+// Serve until the listener is closed, or a signal stops it (detail::StopOnSignal): the scheduler on its own thread, the accept loop here, one detached thread per connection.
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format,
                   const Config& cfg, http::Listener& listener) {
     Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing, cfg.host_cache_bytes.value_or(default_host_cache(model, cfg.max_seqs)), cfg.proposer,
@@ -723,6 +774,7 @@ inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::Ch
                  started.samplers == 1 ? "" : "s");
     Api api(model, tok, format, sched, cfg);
     std::thread runner([&] { sched.run(); });
+    const detail::StopOnSignal stop_on_signal(listener);
     std::atomic<int> open{0};
     for (;;) {
         http::Connection c = listener.accept();

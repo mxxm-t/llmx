@@ -8,6 +8,7 @@
 #include <fstream>
 #include <future>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -62,20 +63,33 @@ std::vector<uint8_t> bytes_of(const std::vector<server::StoreRun>& runs) {
     return out;
 }
 
-// A call's outcome, waited for.
+// A call's outcome.
 struct Outcome {
     bool ok = false;
     std::string error;
 };
+// A store call's answer, waited for at most a minute, so a call that never ends fails the test instead of hanging it; the promise outlives the wait, as a late answer still sets it.
+struct Call {
+    std::shared_ptr<std::promise<Outcome>> p = std::make_shared<std::promise<Outcome>>();
+    std::future<Outcome> f = p->get_future();
+    server::DiskStore::Done done() const {
+        auto q = p;
+        return [q](bool ok, const std::string& e) { q->set_value({ok, e}); };
+    }
+    Outcome wait() {
+        if (f.wait_for(std::chrono::seconds(60)) != std::future_status::ready) throw std::runtime_error("a store call did not end in 60 seconds");
+        return f.get();
+    }
+};
 Outcome wait_put(server::DiskStore& store, uint64_t& key, std::string blob, std::vector<server::StoreRun> runs) {
-    std::promise<Outcome> p;
-    key = store.put(std::move(blob), std::move(runs), kSlab, [&](bool ok, const std::string& e) { p.set_value({ok, e}); });
-    return p.get_future().get();
+    Call c;
+    key = store.put(std::move(blob), std::move(runs), kSlab, c.done());
+    return c.wait();
 }
 Outcome wait_get(server::DiskStore& store, uint64_t key, std::vector<server::StoreRun> runs) {
-    std::promise<Outcome> p;
-    store.get(key, std::move(runs), kSlab, [&](bool ok, const std::string& e) { p.set_value({ok, e}); });
-    return p.get_future().get();
+    Call c;
+    store.get(key, std::move(runs), kSlab, c.done());
+    return c.wait();
 }
 
 std::array<uint8_t, 32> identity(uint8_t v) {
@@ -98,13 +112,17 @@ void age(const fs::path& file, int hours) {
 } // namespace
 
 int main(int argc, char** argv) {
-    // As a child of the test: hold directory argv[2]'s lock until a file named stop appears in it.
+    // As a child of the test: hold directory argv[2]'s lock until a file named stop appears in it, or two minutes pass, so a test that failed before writing stop leaves no process behind.
+    // The directory's name is written whole and then renamed into place, so the test never reads it half written.
     if (argc == 3 && std::string(argv[1]) == "hold") {
+        const fs::path dir = fs::u8path(argv[2]);
         server::DiskStore::Options o;
         o.root = argv[2];
         server::DiskStore held(o, identity(9));
-        std::ofstream(fs::u8path(argv[2]) / "held") << held.directory().u8string();
-        while (!fs::exists(fs::u8path(argv[2]) / "stop")) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        std::ofstream(dir / "held.tmp") << held.directory().u8string();
+        fs::rename(dir / "held.tmp", dir / "held");
+        const auto until = std::chrono::steady_clock::now() + std::chrono::minutes(2);
+        while (!fs::exists(dir / "stop") && std::chrono::steady_clock::now() < until) std::this_thread::sleep_for(std::chrono::milliseconds(20));
         return 0;
     }
     try {
@@ -147,11 +165,11 @@ int main(int argc, char** argv) {
             require(!wait_get(store, 999, runs_of(cpu, {kSlab}, 0)).ok, "a missing entry was read");
             // A write cancelled while queued behind another is not kept.
             uint64_t first = 0, second = 0;
-            std::promise<Outcome> p1, p2;
-            first = store.put("a", runs_of(cpu, {16 * kSlab}, 3), kSlab, [&](bool ok, const std::string& e) { p1.set_value({ok, e}); });
-            second = store.put("b", runs_of(cpu, {kSlab}, 4), kSlab, [&](bool ok, const std::string& e) { p2.set_value({ok, e}); });
+            Call c1, c2;
+            first = store.put("a", runs_of(cpu, {16 * kSlab}, 3), kSlab, c1.done());
+            second = store.put("b", runs_of(cpu, {kSlab}, 4), kSlab, c2.done());
             require(store.cancel(second), "a queued write was not found to cancel");
-            const Outcome o1 = p1.get_future().get(), o2 = p2.get_future().get();
+            const Outcome o1 = c1.wait(), o2 = c2.wait();
             require(o1.ok && !o2.ok && o2.error == "cancelled" && !in_place(store, second) && !fs::exists(store.directory() / ("entry-" + std::to_string(second) + ".tmp")),
                     "a cancelled write left something: " + o2.error);
             store.evict(first);
@@ -243,11 +261,16 @@ int main(int argc, char** argv) {
         fs::create_directories(root);
         {
             const std::string exe = fs::absolute(fs::u8path(argv[0])).u8string();
+            // The child writes nothing and keeps none of the test's output open, which CTest would otherwise wait on, and is told to stop however this case ends.
 #if defined(_WIN32)
-            const std::string command = "start \"\" /b \"" + exe + "\" hold \"" + root.u8string() + "\"";
+            const std::string command = "start \"\" /b \"" + exe + "\" hold \"" + root.u8string() + "\" >NUL 2>&1";
 #else
-            const std::string command = "\"" + exe + "\" hold \"" + root.u8string() + "\" &";
+            const std::string command = "\"" + exe + "\" hold \"" + root.u8string() + "\" >/dev/null 2>&1 </dev/null &";
 #endif
+            struct Stop {
+                fs::path file;
+                ~Stop() { std::ofstream(file) << "\n"; }
+            } stop{root / "stop"};
             require(std::system(command.c_str()) == 0, "the child holding a lock did not start");
             const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(30);
             while (!fs::exists(root / "held")) {

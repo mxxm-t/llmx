@@ -23,11 +23,13 @@
 
 namespace server {
 
-// The server's disk tier, from --disk-cache-bytes, --disk-cache-dir and --disk-cache-floor; `bytes` 0 keeps none.
+// The server's disk tier, from --disk-cache-bytes, --disk-cache-dir, --disk-cache-floor, --disk-cache-keep and --disk-cache-max-age; `bytes` 0 keeps none.
 struct DiskOptions {
     uint64_t bytes = 0;
     std::string dir;
     std::optional<uint64_t> floor;   // none takes the larger of 16 GiB and a twentieth of the file system (check_disk_cache)
+    bool keep = false;               // at a clean exit flush memory to disk and leave the entries for the next server, which adopts them
+    uint64_t max_age = 24 * 3600;    // seconds an entry may go unused before it is deleted, 0 for no limit
     std::string model_path;          // the model file whose digest every entry's identity carries
     std::chrono::milliseconds pace{0};   // DiskStore::Options::pace, for tests
 };
@@ -46,6 +48,9 @@ inline void check_disk_cache(DiskOptions& o, size_t host_cap) {
         throw std::runtime_error("server: a disk cache of " + std::to_string(o.bytes) + " bytes and a floor of " + std::to_string(*o.floor) + " bytes need more than the " +
                                  std::to_string(space.available) + " bytes free in " + root.u8string());
 }
+
+// How long a clean exit under --disk-cache-keep spends writing what memory holds to disk (docs/DISK-TIER.md, Keeping entries across a restart).
+constexpr std::chrono::seconds kDiskFlush{20};
 
 class DiskTier {
 public:
@@ -73,9 +78,12 @@ public:
                 DiskStore::Options o;
                 o.root = options_.dir;
                 o.floor = options_.floor.value_or(0);
+                o.keep = options_.keep;
+                o.max_age = options_.max_age;
                 o.pace = options_.pace;
                 store = std::make_unique<DiskStore>(o, identity);
-                std::fprintf(stderr, "server: disk cache in %s, writes %s the file cache\n", store->directory().u8string().c_str(), store->direct() ? "around" : "through");
+                std::fprintf(stderr, "server: disk cache in %s, writes %s the file cache, %zu entries adopted\n", store->directory().u8string().c_str(),
+                             store->direct() ? "around" : "through", store->adopted().size());
             } catch (const std::exception& e) {
                 std::fprintf(stderr, "server: no disk cache (%s)\n", e.what());
             }
@@ -103,6 +111,17 @@ public:
     DiskTier& operator=(const DiskTier&) = delete;
 
     uint64_t cap() const { return options_.bytes; }
+    bool keeps() const { return options_.keep; }
+    uint64_t max_age() const { return options_.max_age; }
+
+    // The entries the store adopted from servers that left them, once the store is made, and once.
+    std::vector<DiskStore::Adopted> take_adopted() {
+        std::lock_guard<std::mutex> lk(m_);
+        std::vector<DiskStore::Adopted> out;
+        if (store_ && !adopted_taken_) out = store_->adopted();
+        adopted_taken_ = adopted_taken_ || store_ != nullptr;
+        return out;
+    }
 
     // Whether a write may start now: the store made, writing not stopped and no write in flight.
     // Writing stopped by a failure starts again once a check, a minute after the last, finds the floor and a tenth of the cap free.
@@ -164,14 +183,14 @@ public:
         if (store_) store_->evict(key);
     }
 
-    // Records entry `key`'s use now.
-    void touch(uint64_t key) {
+    // Records entry `key`'s last use.
+    void touch(uint64_t key, std::filesystem::file_time_type used) {
         std::lock_guard<std::mutex> lk(m_);
-        if (store_) store_->touch(key);
+        if (store_) store_->touch(key, used);
     }
 
-    // The writes finished since the last call, and whether the store was made or refused since; a write that failed for any reason but a cancel stops writing, as a full or failing disk does (docs/DISK-TIER.md, Disk eviction and room).
-    std::vector<Finished> finished(bool* became_ready = nullptr) {
+    // The calls finished since the last call; a write that failed for any reason but a cancel stops writing, as a full or failing disk does (docs/DISK-TIER.md, Disk eviction and room).
+    std::vector<Finished> finished() {
         std::lock_guard<std::mutex> lk(m_);
         std::vector<Finished> out;
         out.swap(done_);
@@ -188,8 +207,6 @@ public:
             writing_ = false;
             stopped_ = std::chrono::steady_clock::now();
         }
-        if (became_ready) *became_ready = ready_ && !announced_;
-        if (ready_) announced_ = true;
         return out;
     }
 
@@ -218,7 +235,7 @@ private:
     std::thread starter_;
     mutable std::mutex m_;
     std::unique_ptr<DiskStore> store_;   // under m_, once made
-    bool ready_ = false, announced_ = false, writing_ = false;   // under m_
+    bool ready_ = false, writing_ = false, adopted_taken_ = false;   // under m_
     uint64_t in_flight_ = 0;             // under m_, the key of the write in flight
     size_t errors_ = 0;                  // under m_
     std::chrono::steady_clock::time_point stopped_;   // under m_, when writing stopped or was last checked

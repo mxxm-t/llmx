@@ -161,6 +161,13 @@ bool number_readers() {
         ok = ok && !read_flag({"--temp", bad}, temp);
     ok = ok && !read_flag({"--topk", "-1"}, topk) && !read_flag({"--penalty", "0.99"}, penalty) && !read_flag({"--penalty", "0"}, penalty);
     for (const char* bad : {"1.5", "1.0001", "-0.5"}) ok = ok && !read_flag({"--topp", bad}, topp);
+    // A length of time is seconds or a whole number with one unit, refused past what 64 bits of seconds hold.
+    const auto age = [](int argc, char** argv, int& i) { return seconds_arg(argc, argv, i, "--disk-cache-max-age"); };
+    ok = ok && read_flag({"--disk-cache-max-age", "0"}, age) == 0 && read_flag({"--disk-cache-max-age", "90"}, age) == 90 &&
+         read_flag({"--disk-cache-max-age", "90s"}, age) == 90 && read_flag({"--disk-cache-max-age", "30m"}, age) == 1800 &&
+         read_flag({"--disk-cache-max-age", "24h"}, age) == 86400 && read_flag({"--disk-cache-max-age", "7d"}, age) == 604800;
+    for (const char* bad : {"", "h", "-1h", "+1h", "1.5h", "1hh", "1 h", "1w", "1H", "213503982334602d", "18446744073709551616"})
+        ok = ok && !read_flag({"--disk-cache-max-age", bad}, age);
     // A flag at the end of the line has no value, for every reader.
     return ok && !read_flag({"--threads"}, threads) && !read_flag({"--temp"}, temp) && !read_flag({"--seed"}, seed) &&
            !read_flag({"--device"}, [](int argc, char** argv, int& i) { return flag_value(argc, argv, i, "--device"); });

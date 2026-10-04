@@ -351,6 +351,8 @@ public:
         }
         return Connection(kInvalid);
     }
+    // Ends every accept() within kCloseCheckMs and leaves the socket to close(); it only stores a flag, so a signal handler may call it.
+    void request_close() { closed_.store(true); }
     // Ends every accept(), then closes the socket once none uses it, which takes up to kCloseCheckMs while one waits for a client.
     void close() {
         closed_.store(true);

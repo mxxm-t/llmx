@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## The age-limit check follows the files it waits for (2026-10-06, branch fix/disk-age-wait, lands by fast-forward)
+
+- **Found:** `server-resume`'s age-limit check failed in hosted UBSan jobs with "1 entry files left", on branches that cannot reach it.
+- **Cause:** the test, not a window in the tier. An entry leaves the index and its file is deleted in one step under the scheduler's lock (`forget_disk`, `DiskStore::evict`), so no reader sees a file the index has dropped. But a copy whose entry the limit deleted is unwritten again and the writer writes it anew, so a new file may land at any moment; the test waited for the index to read zero and then counted every file in the directory, an instant later.
+- **Done:** the check takes the files the six turns left and waits, bounded as the other disk checks are, until both are gone.
+
 ## The kept-entries check's first turns pass 449 tokens (2026-10-06, branch fix/keep-check-split, lands by fast-forward)
 
 - **Found:** the suite's `server` component failed on one MI50 at main: in the kept-entries check (`check_disk_keep`), the third conversation's follow-up reused 0 tokens after the restart.

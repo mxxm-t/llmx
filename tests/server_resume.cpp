@@ -2011,12 +2011,14 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     }
 }
 
-// The age limit on a running server (docs/DISK-TIER.md, Age): with entries unused for two seconds deleted, the two copies six turns leave on disk are gone within a few seconds, their files with them, and the server writes on.
+// The age limit on a running server (docs/DISK-TIER.md, Age): with entries unused for five seconds deleted, the copies six turns leave on disk are gone within a few seconds, their files with them, and the server writes on.
+// It writes on at once: a copy whose entry the limit deleted is unwritten again, so the writer may land a new file at any moment, and the check follows the files the turns left rather than counting whatever the directory holds at one instant.
+// Five seconds, so that on a slow runner the first copy written still stands while the turns wait for the second; the files are taken as they are when the turns end, at least one, since a turn slower than the limit would already have lost the first.
 void disk_age(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "the age limit";
     DiskRoot disk("age");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
-    options.max_age = 2;
+    options.max_age = 5;
     auto model = make(2048, 16);
     size_t files = 1;
     server::Scheduler::Stats stats;
@@ -2025,8 +2027,11 @@ void disk_age(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
         std::thread runner([&] { sched.run(); });
         try {
             demote(sched, vocab, what);
-            within_a_minute([&] { return sched.stats().disk_entries == 0; }, what + ": the entries deleted");
-            files = disk.files(".kv").size();
+            const std::vector<fs::path> left = disk.files(".kv");
+            require(!left.empty(), what + ": no entry file after six turns");
+            const auto remaining = [&] { return (size_t)std::count_if(left.begin(), left.end(), [](const fs::path& f) { return fs::exists(f); }); };
+            within_a_minute([&] { return remaining() == 0; }, what + ": the entries deleted");
+            files = remaining();
             stats = sched.stats();
             ledger(stats, *model, what);
         } catch (...) {

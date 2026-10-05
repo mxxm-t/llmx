@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## The kept-entries check's first turns pass 449 tokens (2026-10-06, branch fix/keep-check-split, lands by fast-forward)
+
+- **Found:** the suite's `server` component failed on one MI50 at main: in the kept-entries check (`check_disk_keep`), the third conversation's follow-up reused 0 tokens after the restart.
+- **Bisected** on one MI50 with `--device vulkan:0 --only server`: `235375a9` and `a57b4e50` pass, `16bd1d6a` (disk tier step 5, which added the check) and every head since fail, so the check has failed on an MI50 since it landed; the server did not change under it.
+- **Cause:** the expectation, not the server. On a device a longer prompt forks a prompt's rows only where both take one tile split, from 449 tokens on; the check's third first turn is 442 tokens, so its follow-up of 552 forks nothing, as a prompt of another split does everywhere (`server-resume`, fork within a class). On the CPU every prompt is one class, so the check passed there.
+- **Done:** `954c7e03`, the test, requires each first turn to pass 449 tokens and fails on the CPU at main, so a hosted job sees it; the fix takes 2300 characters a conversation where it took 2000.
+- **Why the gates missed it:** step 5's device suite ran on the Radeon VII alone, where the check does not run (it sends signals, and returns at once on Windows), and its MI50 machine gate ran the `server` component on the CPU. The merge gates now ask a server or scheduler change for the `server` component on an MI50 (`AGENTS.md`, Merge gates).
+- **Production** serves a hybrid model over a two-card layer split and is not affected: nothing in the server is wrong or changed, and a model that keeps a state reuses a prefix through its checkpoints, at whole blocks, by the same row classes as before.
+
 ## `--dtype int8` at every row count (2026-10-05, branch feat/int8-prompt, option C step 2)
 
 - **Goal:** `--dtype int8`, never chosen by `auto`, following exactly the rule every `--dtype` value follows (the user's decision of 2026-10-05, relayed by the coordinator): it sets the input precision of every matrix product at every row count, prompt and decode alike, the output head included, with no threshold; a product or a device without an 8-bit build takes the next wider precision it has, reported per device in the record and `/v1/health` (docs/PRECISION.md, rule 2's warned fallback); routers stay F32 and attention and the KV cache stay outside `--dtype`, as for every value; `--help` and USAGE describe it in the same shape as the other values, with a table of what each covers. This replaces the first design, prompts of 128 tokens or more refused where they could not run, built and gated earlier the same day (Gotchas).

@@ -949,6 +949,7 @@ A branch runs the checks of what it can break, once, when it is complete; betwee
 - Docs only: the suite's `docs` and `dead-code` components, run on the tree that lands; the hosted run is not waited for, since only those two components read the Markdown.
 - Tests or tools only: CTest and the suite components they touch, on the CPU, and the hosted run.
 - CLI, server or other host logic: CTest, the CPU suite, Qwen3-0.6B byte identity against main, and the hosted run; host code specific to Windows also runs CTest and the suite on Windows.
+  A change to the server, the scheduler or the suite's `server` component also runs that component on an MI50 (`--device vulkan:0 --only server`): its checks that send signals do not run on Windows, so the Radeon VII does not cover them, and no hosted job has a device.
 - Model, kernel, device, loader or placement code: byte identity against main on the CPU and a device for the models the change reaches, the suite on a device, the Radeon VII check on Windows for device code, one timing round against main, and the hosted run.
   A change of numerics also records its error against the HF reference and the headroom to its bound.
 - A rebase without a conflict in code reruns the builds, CTest and the hosted run; a fix after review reruns what it touches.

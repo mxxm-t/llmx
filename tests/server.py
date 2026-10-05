@@ -1356,9 +1356,10 @@ def check_disk_keep(model):
         srv = Server(model, *flags)
         first = []
         try:
-            for part in (text[:2000], text[4000:6000], text[8000:10000]):
+            for part in (text[:2300], text[4000:6300], text[8000:10300]):
                 reply = post_ok(srv, "/v1/generate", {"prompt": part, "max_tokens": n, "temperature": 0})
                 # Past 449 tokens a device's tile takes one split whatever the length, so the follow-up, a longer prompt, may fork these rows on a device too.
+                # 449 is a measured edge, not a derived one: where an MI50's profile gives this fixture's matrices one split (`split_blocks` in the Vulkan backend), so another profile or fixture moves it.
                 assert reply["prompt_tokens"] >= 449, (part[:40], reply["prompt_tokens"])
                 first.append(part + reply["text"])
             srv.wait(lambda h: h["disk_writing"], "a disk tier made", 60)
@@ -1370,7 +1371,7 @@ def check_disk_keep(model):
         total = 0
         try:
             health = srv.wait(lambda h: h["disk_entries"] >= 3, "three entries adopted", 60)
-            for k, more in enumerate((text[2000:2400], text[6000:6400], text[10000:10400])):
+            for k, more in enumerate((text[2300:2700], text[6300:6700], text[10300:10700])):
                 prompt = first[k] + " " + more
                 reply = post_ok(srv, "/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
                 assert reply["text"] == cli_greedy_text(model, prompt, n), (k, reply["text"])

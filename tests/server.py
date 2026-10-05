@@ -1357,7 +1357,10 @@ def check_disk_keep(model):
         first = []
         try:
             for part in (text[:2000], text[4000:6000], text[8000:10000]):
-                first.append(part + post_ok(srv, "/v1/generate", {"prompt": part, "max_tokens": n, "temperature": 0})["text"])
+                reply = post_ok(srv, "/v1/generate", {"prompt": part, "max_tokens": n, "temperature": 0})
+                # Past 449 tokens a device's tile takes one split whatever the length, so the follow-up, a longer prompt, may fork these rows on a device too.
+                assert reply["prompt_tokens"] >= 449, (part[:40], reply["prompt_tokens"])
+                first.append(part + reply["text"])
             srv.wait(lambda h: h["disk_writing"], "a disk tier made", 60)
         except BaseException:
             srv.close()

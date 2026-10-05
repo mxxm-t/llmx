@@ -38,15 +38,19 @@ backends its caller made. It reads the plan
   set, as `serve` sets it: the options' budget where the fit of
   `split_layers` places the model on the backends given, one included, and
   the host; else, by bisection, the most whole blocks of the largest block
-  size that fit, one more not fitting. A budget short of the options' is
-  fitted again as `settle` reads the devices. With `fit_checkpoints`, on a
+  size that fit, one more not fitting. It fits on the first reading where
+  the devices hold the whole request, the options' budget beside every
+  checkpoint and mark asked for and the embedded drafter, and otherwise on
+  the reading `settle` ends at, since a card still giving back an ended
+  server's memory may hold the budget alone and not what goes beside it.
+  With `fit_checkpoints`, on a
   model that keeps a state, it then takes as checkpoint slots the fewer of
   the options' and the most at which the fit still holds three quarters
   of the budget it holds without them, so they take at most a quarter of
   the KV room, each count tried through the fit itself, so a device that
-  cannot hold one more slot gives none, and only once the budget without
-  them has settled, so a card still taking back an ended server's memory
-  does not leave a restarted server none (`docs/SPECULATIVE.md`, section 2);
+  cannot hold one more slot gives none, on that same reading, so a card
+  still taking back an ended server's memory does not leave a restarted
+  server fewer (`docs/SPECULATIVE.md`, section 2);
   the KV tokens they took go to `given_up` when given, and the devices'
   budgets it settled on to `read`, by which `place_model` then places a
   split's layers, so the budget and the split see one reading. The budget

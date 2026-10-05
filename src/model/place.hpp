@@ -341,7 +341,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         }
         return lo * block;
     };
-    // The budget without checkpoint slots first, read again while the devices' free memory rises, since a card still taking back an ended process's memory would leave room for none.
+    // The budget without checkpoint slots first, on a reading taken once the devices' free memory has settled, since a card still taking back an ended process's memory would leave room for none.
     const bool keeps_state = std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; });
     const bool choose = request.fit_checkpoints && kept && keeps_state;
     const size_t most_marks = options.mark_slots;
@@ -351,8 +351,22 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     options.mark_slots = 0;
     const size_t most_kept = kept;
     if (choose) kept = 0;
-    size_t tokens = 0;
-    settle(budgets, backends, request.names, [&] { return (tokens = most()) >= want; }, level_first(backends, request));
+    // Whether the devices hold the whole request: the options' budget beside every checkpoint and mark asked for and the embedded drafter.
+    // Only then is there nothing a later reading could add, so a reading short of it waits for the free memory to settle, as a card giving back an ended process's memory may hold the budget alone and not what goes beside it.
+    const auto whole = [&] {
+        const ModelPlan* was = fitting;
+        const size_t was_kept = kept, was_marks = options.mark_slots;
+        fitting = &held;
+        kept = most_kept;
+        options.mark_slots = most_marks;
+        const bool ok = fits(want);
+        fitting = was;
+        kept = was_kept;
+        options.mark_slots = was_marks;
+        return ok;
+    };
+    settle(budgets, backends, request.names, whole, level_first(backends, request));
+    size_t tokens = most();
     // Then the checkpoint slots, by bisection, since each more slot only adds to what a device holds: the most at which the placement holds three quarters of the blocks it holds without them, rounded up, so the slots take at most a quarter of the KV room; none where even one does not fit.
     const size_t bare = tokens;
     if (choose && tokens) {

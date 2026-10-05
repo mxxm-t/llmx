@@ -368,7 +368,8 @@ if(BUILD_TESTING)
     target_include_directories(llmx-arch-qwen35-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-arch-qwen35-test)
     add_test(NAME arch-qwen35 COMMAND llmx-arch-qwen35-test)
-    set_tests_properties(arch-qwen35 PROPERTIES TIMEOUT 60)
+    # Its fits on devices that cannot hold the whole request each wait five quiet seconds for their memory to settle, so it gets a longer timeout.
+    set_tests_properties(arch-qwen35 PROPERTIES TIMEOUT 120)
 
     add_executable(llmx-placement-test tests/placement.cpp)
     target_include_directories(llmx-placement-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

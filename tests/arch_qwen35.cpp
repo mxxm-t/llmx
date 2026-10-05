@@ -588,13 +588,13 @@ void host_state_fork() {
     require(model.checkpoints_free() == 2, "a fork with a state kept its checkpoint slot after its reset");
 }
 
-// A device reporting `room` bytes free that keeps copies of what it adopts, so the fit charges it the weights its layers take; its first `rise_after` reads report one byte, as a card still taking back an ended process's memory does.
+// A device reporting `room` bytes free that keeps copies of what it adopts, so the fit charges it the weights its layers take; its first `rise_after` reads report `early` bytes, one unless given, as a card still taking back an ended process's memory does.
 // With `device` it says it is not the CPU, as a card does.
 struct Room : backend::CpuBackend {
-    size_t room = 0;
+    size_t room = 0, early = 1;
     mutable int rise_after = 0;
     bool device = false;
-    std::optional<size_t> memory_available() const override { return rise_after-- > 0 ? 1 : room; }
+    std::optional<size_t> memory_available() const override { return rise_after-- > 0 ? early : room; }
     bool reads_in_place() const override { return false; }
     bool is_cpu() const override { return !device; }
 };
@@ -729,6 +729,51 @@ void checkpoint_fit() {
         require(settled->checkpoint_slots() == 4 && settled->kv_tokens_total() == 512 && placed_settled.checkpoint_kv_tokens == 0,
                 "a device whose memory settled after the first reads took " + std::to_string(settled->checkpoint_slots()) + " checkpoint slots beside " +
                     std::to_string(settled->kv_tokens_total()) + " KV tokens");
+    }
+    // A device whose free memory, when the fit first reads it, holds the whole budget alone but not the checkpoints or the marks asked for beside it, as a card still taking back an ended process's memory may: the fit waits for that memory as it does for a budget that falls short, and once it has settled takes the whole budget with every checkpoint and every mark.
+    {
+        const auto least = [&](const infer::ModelOptions& o) {
+            const auto holds = [&](size_t room) {
+                try {
+                    infer::split_layers(infer::footprint(w, plan, o), infer::budgets_for(alone(room), one.names), infer::kDefaultUbatch, {},
+                                        core::host_memory_available());
+                    return true;
+                } catch (const std::runtime_error&) {
+                    return false;
+                }
+            };
+            size_t l = 1, h = size_t(1) << 30;
+            while (h - l > 1) {
+                const size_t mid = l + (h - l) / 2;
+                (holds(mid) ? h : l) = mid;
+            }
+            return h;
+        };
+        const auto late = [](size_t early) {
+            auto d = std::make_shared<Room>();
+            d->room = size_t(1) << 30;
+            d->early = early;
+            d->rise_after = 2;
+            return std::vector<backend::BackendPtr>{d};
+        };
+        infer::ModelOptions bare = options;
+        bare.checkpoint_slots = 0;
+        const infer::PlacedModel kept = infer::place_model(w, late(least(bare)), one, options);
+        require(kept.model->checkpoint_slots() == 4 && kept.model->kv_tokens_total() == 512 && kept.checkpoint_kv_tokens == 0,
+                "a device whose memory first held the budget alone took " + std::to_string(kept.model->checkpoint_slots()) + " checkpoint slots beside " +
+                    std::to_string(kept.model->kv_tokens_total()) + " KV tokens once it had settled");
+        infer::PlacementRequest marked = one;
+        marked.fit_checkpoints = false;
+        marked.fit_marks = true;
+        infer::ModelOptions mo = bare;
+        mo.mark_slots = 6;
+        mo.mark_rows = 4;
+        infer::ModelOptions first = mo;
+        first.mark_slots = 1;
+        const infer::PlacedModel marks = infer::place_model(w, late(least(first)), marked, mo);
+        require(marks.model->mark_slots() == 6 && marks.model->kv_tokens_total() == 512,
+                "a device whose memory first held the budget and one mark took " + std::to_string(marks.model->mark_slots()) + " mark slots beside " +
+                    std::to_string(marks.model->kv_tokens_total()) + " KV tokens once it had settled");
     }
     // Two cards fitted to their free memory, the first's coming back in a step some two seconds after the fit first reads it, as when a split server restarts on the cards its predecessor held: the split, the KV budget and the checkpoints are those of idle cards, not the second card holding every layer.
     {

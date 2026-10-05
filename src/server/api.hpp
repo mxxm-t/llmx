@@ -325,6 +325,36 @@ private:
         return chat::stable_prefix(format_, tok_, messages_of(body), prompt, template_vars(body));
     }
 
+    // Where a chat request's last user message starts, on a model that keeps a state, where a message boundary would sit: the conversation before that message rendered with two different user messages after it, the text both renders and the prompt's `text` share, counted in the prompt's `ids` that lie wholly within it, so nothing is encoded again; 0 where the message before it is not a reply, a tool's result among them, or the template refuses the render.
+    size_t message_start_of(const jmini::Value& body, Route route, const std::string& text, const std::vector<uint32_t>& ids) const {
+        if (!model_.checkpoint_slots() || (route != Route::chat && route != Route::chat_completions)) return 0;
+        std::vector<chat::Message> messages = messages_of(body);
+        size_t last = messages.size();
+        while (last > 0 && messages[last - 1].role != "user") --last;
+        if (last < 2 || messages[last - 2].role != "assistant") return 0;
+        messages.resize(last - 1);
+        const std::vector<chat::TemplateVar> vars = template_vars(body);
+        std::string with[2];
+        try {
+            for (int i = 0; i < 2; ++i) {
+                std::vector<chat::Message> m = messages;
+                m.push_back({"user", i ? "b" : "a", std::nullopt});
+                with[i] = format_.render(m, true, vars);
+            }
+        } catch (const std::exception&) {
+            return 0;
+        }
+        size_t shared = 0;
+        while (shared < with[0].size() && shared < with[1].size() && shared < text.size() && with[0][shared] == with[1][shared] && with[0][shared] == text[shared]) ++shared;
+        size_t n = 0, at = 0;
+        for (uint32_t id : ids) {
+            at += tok_.decode({id}).size();
+            if (at > shared) break;
+            ++n;
+        }
+        return n;
+    }
+
     // The ids a chat request's next turn begins with after `text`, its reply as far as it is written, given back as the route gave it to the client: the content apart from the reasoning on the compatible route, the text whole on the native one (docs/SPECULATIVE.md, section 2, Idle re-prefill).
     // None while the reply's reasoning is still being written, which a next turn may drop.
     std::vector<uint32_t> next_turn(const jmini::Value& body, Route route, const std::string& prompt, const std::string& text, bool writing) const {
@@ -555,8 +585,8 @@ private:
 
         std::shared_ptr<Request> r;
         std::vector<uint32_t> ids = encode(prompt);
-        const size_t stable = stable_of(body, route, ids);
-        try { r = sched_.submit(std::move(ids), params, stable); }
+        const size_t stable = stable_of(body, route, ids), start = message_start_of(body, route, prompt, ids);
+        try { r = sched_.submit(std::move(ids), params, stable, start); }
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }

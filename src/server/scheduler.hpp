@@ -66,9 +66,10 @@ class Request {
 public:
     using Clock = std::chrono::steady_clock;
 
-    // `stable` is how much of the prompt a follow-up turn would begin with, the whole prompt for a text (docs/SPECULATIVE.md, section 2).
-    Request(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max())
-        : prompt_(std::move(prompt)), params_(std::move(params)), stable_(std::min(stable, prompt_.size())), submitted_(Clock::now()) {}
+    // `stable` is how much of the prompt a follow-up turn would begin with, the whole prompt for a text, and `message` where its last user message starts, 0 where that is not known (docs/SPECULATIVE.md, section 2).
+    Request(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max(), size_t message = 0)
+        : prompt_(std::move(prompt)), params_(std::move(params)), stable_(std::min(stable, prompt_.size())), message_(std::min(message, prompt_.size())),
+          submitted_(Clock::now()) {}
 
     // A sampled token as the channel delivers it; with logprobs asked, its log-probability and the most likely tokens at its position, most likely first.
     struct Token {
@@ -173,6 +174,7 @@ private:
     std::vector<uint32_t> prompt_;   // never changed but for a job's, which grows as the reply it follows is written
     SampleParams params_;   // never changed once made, since next reads it in the connection thread
     const size_t stable_;
+    const size_t message_;
     mutable std::mutex m_;
     std::condition_variable cv_;
     std::deque<Token> out_;
@@ -208,6 +210,8 @@ private:
     size_t taken_back_ = 0;        // resumes that took its donor back
     size_t reached_ = 0;           // the longest history its cache has held, past which nothing is recomputed
     size_t recomputed_ = 0;        // rows its resumes computed again
+    size_t boundary_at_ = 0;       // on a model that keeps a state, where the slice that reaches it keeps the state as a message boundary; 0 once kept or skipped
+    bool boundary_kept_ = false;   // its pass in flight keeps that state, which goes to host memory once the pass retires
     size_t keep_at_ = 0;           // on a model that keeps a state, where the slice that reaches it keeps the state as a checkpoint; 0 once kept or skipped
     size_t read_alone_ = 0;        // prompt rows it read while it was alone, which prompt_slice brings back to a whole ubatch once company comes; 0 after that
     bool finished_ = false;        // it has left the active set for good
@@ -296,7 +300,7 @@ public:
 
     // Queue a request; the handle's channel delivers its tokens.
     // A prompt the limit cannot hold is refused here, before it waits, and so is a request arriving at a full queue; an uncapped request's max_tokens is the room its prompt leaves.
-    std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max()) {
+    std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max(), size_t message = 0) {
         if (prompt.empty()) throw std::runtime_error("server: empty prompt");
         if (params.until_limit) {
             if (prompt.size() >= token_limit())
@@ -306,7 +310,7 @@ public:
         if (params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
         if (prompt.size() + (size_t)params.max_tokens > token_limit())
             throw TooLong("prompt plus max_tokens exceeds the " + std::to_string(token_limit()) + " tokens a request may hold");
-        auto r = std::make_shared<Request>(std::move(prompt), std::move(params), stable);
+        auto r = std::make_shared<Request>(std::move(prompt), std::move(params), stable, message);
         {
             std::lock_guard<std::mutex> lk(m_);
             if (queue_.size() >= max_queue_)
@@ -647,8 +651,9 @@ private:
             // A job's slice ends on a whole block where it can, so what it has read can be forked there.
             const size_t bt = model_.kv_block_tokens();
             if (r->job_ && (at + n) / bt * bt > at) n = (at + n) / bt * bt - at;
-            // A slice that would pass the request's checkpoint ends there, so its state can be kept there.
+            // A slice that would pass the request's checkpoint or its message boundary ends there, so its state can be kept there.
             if (r->keep_at_ > at && r->keep_at_ < at + n) n = r->keep_at_ - at;
+            if (r->boundary_at_ > at && r->boundary_at_ < at + n) n = r->boundary_at_ - at;
             if (c.extent == 1 && at < r->reached_) {
                 // Rows of extent 1 a resume computes again, generated tokens or a forked reply's: a pass takes at most kReplayRows of them, each costing ubatch / kReplayRows of the budget, which is at most the whole budget, so a request gets one while the budget is untouched.
                 // A one-token prompt read for the first time costs its row as any prompt does.
@@ -667,6 +672,13 @@ private:
                 e.keep = checkpoint_room(keeps, r->source_);
                 keeps += e.keep;
                 r->keep_at_ = 0;
+            }
+            // The boundary's checkpoint goes to host memory once its pass retires (keep_boundary), and the request's own at keep_at_ then takes its place, a sequence holding one.
+            if (r->boundary_at_ && r->boundary_at_ == at + n) {
+                e.keep = checkpoint_room(keeps, r->source_);
+                keeps += e.keep;
+                r->boundary_at_ = 0;
+                r->boundary_kept_ = e.keep;
             }
             add_entry(r, e);
         };
@@ -854,6 +866,11 @@ private:
             r.reached_ = std::max(r.reached_, to);
             r.landed_ = f.formed;
             if (r.job_) job_rows += f.rows[e];
+            if (r.boundary_kept_) {
+                r.boundary_kept_ = false;
+                std::lock_guard<std::mutex> lk(m_);
+                if (!r.cancel_.load()) keep_boundary(r.seq_, r.prompt_, r.classes_);
+            }
         }
         if (again || job_rows) {
             std::lock_guard<std::mutex> lk(m_);
@@ -1340,24 +1357,26 @@ private:
         uint64_t disk = 0;         // as HostDonor::disk
         std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // as HostDonor::used
     };
-    // The boundaries a conversation keeps: the first, the newest and, between them, those that leave the most even spacing.
+    // The boundaries a conversation keeps in host memory without a disk tier: the first, the newest and, between them, those that leave the most even spacing; with one, the host tier's room sends the older ones to disk instead.
     static constexpr size_t kBoundaries = 4;
 
-    // Job donor d's state kept as a boundary as its job completes, the copy enqueued behind the passes that wrote it, within the room the host tier's copies and the host's free memory leave, superseded copies and then the boundaries of the conversation that went longest unheard going first, and the conversation's boundaries thinned to kBoundaries; one already kept is renewed.
-    // So the state survives the donor's later fate: consumed by the follow-up turn that forks it, superseded by the next job's or evicted.
+    // Job donor d's state kept as a boundary as its job completes (keep_boundary below).
+    void keep_boundary(Donor& d) { keep_boundary(d.seq, d.tokens, d.classes); }
+    // The checkpoint of `seq`, holding `tokens` computed as `classes` record, kept as a boundary, the copy enqueued behind the passes that wrote it, within the room the host tier's copies and the host's free memory leave, superseded copies and then the boundaries of the conversation that went longest unheard going first, and without a disk tier the conversation's boundaries thinned to kBoundaries; one already kept is renewed.
+    // A job's donor keeps one as its job completes, and a request whose prompt passes its last user message's start keeps one there, so the state survives the history's later fate: consumed by the follow-up turn that forks it, superseded or evicted.
     // Under the lock.
-    void keep_boundary(Donor& d) {
+    void keep_boundary(infer::Sequence& seq, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes) {
         if (!host_cap_ || !model_.keeps_state()) return;
-        const std::optional<size_t> kept = model_.checkpoint(d.seq);
+        const std::optional<size_t> kept = model_.checkpoint(seq);
         const size_t bt = model_.kv_block_tokens();
-        if (!kept || !*kept || *kept % bt || *kept > d.tokens.size()) return;
+        if (!kept || !*kept || *kept % bt || *kept > tokens.size()) return;
         const size_t n = *kept;
         // The conversation's boundaries: those whose tokens d's begin with.
         std::vector<size_t> mine;
         for (size_t i = 0; i < bounds_.size(); ++i) {
             const auto& t = bounds_[i].tokens;
-            if (t.size() > n || !std::equal(t.begin(), t.end(), d.tokens.begin())) continue;
-            if (t.size() == n && alike(bounds_[i].classes, d.classes, n) == n) {
+            if (t.size() > n || !std::equal(t.begin(), t.end(), tokens.begin())) continue;
+            if (t.size() == n && alike(bounds_[i].classes, classes, n) == n) {
                 bounds_[i].used = std::filesystem::file_time_type::clock::now();
                 if (bounds_[i].disk) renew_disk(bounds_[i].disk, true);
                 std::rotate(bounds_.begin() + (std::ptrdiff_t)i, bounds_.begin() + (std::ptrdiff_t)i + 1, bounds_.end());
@@ -1366,7 +1385,7 @@ private:
             mine.push_back(i);
         }
         // Thinned before the copy, by position: the one between its neighbours whose gap would grow least goes, never the first nor one a request being admitted has pinned.
-        while (mine.size() + 1 > kBoundaries) {
+        while (!disk_ && mine.size() + 1 > kBoundaries) {
             std::sort(mine.begin(), mine.end(), [&](size_t a, size_t b) { return bounds_[a].tokens.size() < bounds_[b].tokens.size(); });
             size_t best = 0, gap = std::numeric_limits<size_t>::max();
             for (size_t k = 1; k < mine.size(); ++k) {
@@ -1387,16 +1406,16 @@ private:
         if (host_held_ + bytes > host_cap_) return;
         // The conversation's boundaries take its age, behind every other conversation's in their order, so the room the tier needs takes the boundaries of the conversation that went longest unheard, its first boundary among them, before any of a conversation still going.
         std::stable_partition(bounds_.begin(), bounds_.end(), [&](const Boundary& o) {
-            return !(o.tokens.size() < n && std::equal(o.tokens.begin(), o.tokens.end(), d.tokens.begin()));
+            return !(o.tokens.size() < n && std::equal(o.tokens.begin(), o.tokens.end(), tokens.begin()));
         });
         // The entry is made before the copy, so nothing allocates between a copy enqueued and its entry: a throw before the copy, or from it, which releases what it took, leaves no entry.
         bounds_.emplace_back();
         Boundary& b = bounds_.back();
         try {
             b.id = ++donor_ids_;
-            b.tokens.assign(d.tokens.begin(), d.tokens.begin() + (std::ptrdiff_t)n);
-            b.classes = clip(d.classes, n);
-            model_.save_host(d.seq, n, b.state, host_cap_ + parked_held(), false);
+            b.tokens.assign(tokens.begin(), tokens.begin() + (std::ptrdiff_t)n);
+            b.classes = clip(classes, n);
+            model_.save_host(seq, n, b.state, host_cap_ + parked_held(), false);
         } catch (const std::exception& e) {
             bounds_.pop_back();
             std::fprintf(stderr, "server: a message boundary at %zu tokens was not kept in host memory (%s)\n", n, e.what());
@@ -1416,14 +1435,15 @@ private:
         return nullptr;
     }
 
-    // The oldest boundary but the one a request being admitted has pinned out of host memory; false when there is none.
+    // The oldest boundary but the one a request being admitted has pinned out of host memory, the one being written to disk only when no other is left (written_soon); false when there is none.
     // Under the lock.
     bool drop_oldest_bound() {
-        for (size_t i = 0; i < bounds_.size(); ++i)
-            if (bounds_[i].id != pinned_bound_) {
-                drop_bound(i);
-                return true;
-            }
+        for (const bool writing : {false, true})
+            for (size_t i = 0; i < bounds_.size(); ++i)
+                if (bounds_[i].id != pinned_bound_ && written_soon(true, bounds_[i].id) == writing) {
+                    drop_bound(i);
+                    return true;
+                }
         return false;
     }
 
@@ -1512,12 +1532,13 @@ private:
                 ++host_refused_;
                 return;
             }
-            for (size_t i = 0; i < host_.size() && host_held_ + bytes > host_cap_;) {
-                if (host_[i].superseded || !host_[i].back) drop_host(i);
-                else ++i;
-            }
+            for (const bool writing : {false, true})
+                for (size_t i = 0; i < host_.size() && host_held_ + bytes > host_cap_;) {
+                    if ((host_[i].superseded || !host_[i].back) && written_soon(false, host_[i].id) == writing) drop_host(i);
+                    else ++i;
+                }
         }
-        while (!host_.empty() && host_held_ + bytes > host_cap_) drop_host(0);
+        while (!host_.empty() && host_held_ + bytes > host_cap_) drop_oldest_host();
         // The entry is made before the copy, so nothing allocates between a copy enqueued and its entry.
         host_.emplace_back();
         HostDonor& h = host_.back();
@@ -1541,6 +1562,13 @@ private:
         h.disk = on_disk(false, h.tokens, h.classes, n, h.back);
         if (disk_) write_ahead();
     }
+
+    // Whether the entry `id` is the one whose write to disk is in flight: room takes it last among those it may take, since dropping it cancels the write, and a writer whose every write is cancelled keeps nothing once it has fallen behind (docs/DISK-TIER.md, Demotion).
+    bool written_soon(bool boundary, uint64_t id) const { return disk_writing_ && disk_writing_ == id && disk_writing_bound_ == boundary && !disk_cancelled_; }
+
+    // The oldest host donor out of host memory, the one being written to disk only when it is the last.
+    // Under the lock.
+    void drop_oldest_host() { drop_host(host_.size() > 1 && written_soon(false, host_[0].id) ? 1 : 0); }
 
     // Host donor i out of host memory.
     // Under the lock.
@@ -1966,7 +1994,7 @@ private:
         while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
         release_written(bytes);
         while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
-        while (!host_.empty() && host_held_ + bytes > host_cap_) drop_host(0);
+        while (!host_.empty() && host_held_ + bytes > host_cap_) drop_oldest_host();
         if (host_held_ + bytes > host_cap_) return false;
         DiskRead rd;
         rd.key = key;
@@ -2228,6 +2256,9 @@ private:
         // One checkpoint where a follow-up turn would fork it: whole blocks within the stable prefix, never the last prompt token, past what the request forked.
         const size_t bt = model_.kv_block_tokens(), at = std::min(r.stable_, p - 1) / bt * bt;
         if (model_.checkpoint_slots() && at > shared) r.keep_at_ = at;
+        // And a message boundary where its last user message starts, whole blocks, past what it forked, so an edit or a regenerate of that message leaves the boundary the next one forks.
+        const size_t message = std::min(r.message_, p - 1) / bt * bt;
+        if (model_.checkpoint_slots() && host_cap_ && message > shared && message != r.keep_at_) r.boundary_at_ = message;
     }
 
     // A donor's blocks back to the pool, the oldest donor's unless another is named; one the device tier evicts (`evicted`) is copied to host memory first.

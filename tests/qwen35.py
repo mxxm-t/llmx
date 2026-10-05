@@ -269,7 +269,7 @@ def write_fixture(directory, fixture, tokens=None):
 
 
 def check_serve(directory):
-    """The Hv = 3 Hk model served with a context of 1024: greedy ids through /v1/generate alone, four at once and from the CLI are the same; served with drafts, the MTP block's file with its embedded drafter and this model with lookup, each reply alone and at once is its reply without drafts, greedy and seeded; a follow-up turn forks the state its first turn kept at its prompt's last whole block and gives the CLI's text for its whole prompt, on this model and on a qwen35moe one; and uncapped requests on a pool too small for them together are paused and resumed with the text each gives alone, with and without checkpoints, those without recomputing from their start; growth takes the paused requests' donors here, so the take-back of a kept state is `server-resume`'s."""
+    """The Hv = 3 Hk model served with a context of 1024: greedy ids through /v1/generate alone, four at once and from the CLI are the same; served with drafts, the MTP block's file with its embedded drafter and this model with lookup, each reply alone and at once is its reply without drafts, greedy and seeded; a follow-up turn forks the state its first turn kept at its prompt's last whole block and gives the CLI's text for its whole prompt, on this model and on a qwen35moe one, and on the chat route a regenerate of a message after a reply, read whole, keeps a message boundary where that message starts, which an edit of the message then forks; and uncapped requests on a pool too small for them together are paused and resumed with the text each gives alone, with and without checkpoints, those without recomputing from their start; growth takes the paused requests' donors here, so the take-back of a kept state is `server-resume`'s."""
     # Imported here, since the server test imports the baseline checks, which import this module.
     import server
     fixture = FIXTURES[1]
@@ -301,7 +301,8 @@ def check_serve(directory):
         common.check_drafts(served, served, "abcabcabcabcabcabc xyz abcabcabcabc", 60, chat=True)
         if served == model:
             common.check_drafts(drafting, drafting, "abcabcabcabcabcabc xyz abcabcabcabc", 60, chat=True, drafter="embedded")
-        srv = server.Server(served, "--max-seqs", "4")
+        # A host tier, which the CPU takes only when given one, holds the message boundary.
+        srv = server.Server(served, "--max-seqs", "4", "--host-cache-bytes", str(1 << 28))
         try:
             reply = server.post_ok(srv, "/v1/generate", {"prompt": first, "temperature": 0, "max_tokens": 24, "ignore_eos": True})
             follow = first + reply["text"] + " and then?"
@@ -311,6 +312,14 @@ def check_serve(directory):
             assert p.returncode == 0, p.stderr.decode("utf-8", "replace")
             assert list(common.generate_text(p.stdout)) == again["ids"], (served, again["ids"])
             assert srv.get("/v1/health")["checkpoints"] > 0
+            # A regenerate shares nothing with what came before, and its checkpoint lies at its prompt's last whole block, past where an edit of its message parts from it; the boundary it keeps where that message starts is what the edit forks.
+            before = [{"role": "user", "content": first[:300]}, {"role": "assistant", "content": first[300:340]}]
+            chat = {"temperature": 0, "max_tokens": 8, "ignore_eos": True}
+            regen = server.post_ok(srv, "/v1/chat", dict(chat, messages=before + [{"role": "user", "content": first[340:500]}]))
+            edited = server.post_ok(srv, "/v1/chat", dict(chat, messages=before + [{"role": "user", "content": "something else entirely"}]))
+            health = srv.get("/v1/health")
+            assert regen["reused_tokens"] == 0 and 0 < edited["reused_tokens"] < edited["prompt_tokens"], (served, regen, edited, health)
+            assert health["boundary_hits"] >= 1, (served, health)
         finally:
             srv.close()
     # Drafts in the scheduler (docs/SPECULATIVE.md, section 3): with the MTP block's drafter and with lookup, each reply alone and with the others at once is its reply without drafts, greedy and seeded, and drafts were fed.

@@ -1,5 +1,24 @@
 # llmx - Development Status
 
+## A message boundary where a request's last user message starts (2026-10-06, branch feat/edit-boundaries, lands by fast-forward)
+
+- **Goal:** close the edited-turn gap with the disk tier on: an edit of an early message read its whole prompt once the host tier had thinned its boundary or the disk had no room for it.
+- **Done:** a chat request whose prompt passes the start of its last user message, having forked below it, keeps a message boundary at the whole block below that start, which the next edit of that message forks (`Api::message_start_of`, one rule for both chat routes); with a disk tier a conversation's boundaries are not thinned; and host memory takes the entry whose write to disk is in flight last (`Scheduler::written_soon`), since taking it first cancelled every write once the writer had fallen behind, which the added boundaries brought about at 24 users (29 copies dropped unwritten, none with the rule).
+- **Measured** (Qwen3.8-27B Q8_0 on one MI50, default clocks, `--max-seqs 8 --ctx-size 32768`, 64 GiB of disk tier; main `72309913`, this change and the reference server in one session a workload; twenty turns a user, then a regenerate and an edit of turn 2; time to first token in seconds, p50/p99):
+
+  | | follow-up | regenerate | edit |
+  |---|---:|---:|---:|
+  | 6 users, main | 2.30/3.57 | 2.84/4.08 | 3.19/4.10 |
+  | 6 users, this change | 2.29/3.66 | 2.06/2.38 | 2.13/2.94 |
+  | 6 users, reference server | 2.58/3.31 | 4.98/6.01 | 1.55/1.84 |
+  | 24 users' 14 long conversations, main | 2.31/23.63 | 5.03/5.59 | 4.64/5.62 |
+  | 24 users' 14 long conversations, this change | 2.67/4.35 | 5.29/6.01 | 1.84/2.89 |
+  | 24 users' 14 long conversations, reference server | 15.52/29.52 | 4.98/5.52 | 1.57/1.86 |
+
+  No follow-up reused less than main's. At 24 users six of main's long conversations still had the boundary before message 2 on disk in this run and regenerated in under 3 s, none in three earlier runs and none of this change's: the boundaries alone are 72 GB there against the 64 GiB tier, the oldest go first, and this change's fill it sooner.
+- **Left:** the rest of the edit gap is the boundary's whole block (25 to 37 tokens), the prompt rate (4.3 ms a token against the reference's 3.9) and the regenerate's job pass an edit waits behind; a floor on a kept boundary's position, if regenerates at 24 users are to be level, is its own measured change.
+- Reviewed by D2CDEV.
+
 ## The kept-entries check waits for its reads (2026-10-06, branch fix/keep-check-wait, lands by fast-forward)
 
 - **Found:** with its first turns past 449 tokens (the `fix/keep-check-split` block, below), the kept-entries check still failed on one MI50 about every second run: the third conversation's follow-up reused 0 tokens, 2 of 4 runs of the scenario at main `6ea7ae5d`, with all three entries adopted and all three read (`disk_hits` 3, no error).

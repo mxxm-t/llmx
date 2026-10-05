@@ -5,6 +5,7 @@
 // Workgroups are laid out view by view, so a tile never straddles two views.
 //
 // Eight lanes share a query row, lane l owning dimensions 32k + 4l .. 32k + 4l + 3, so a row reads a staged token as contiguous 128-byte runs.
+// A staged token is DIM / 4 words and lane l's word of run k is 8k + l; with the lane taken by a mask the driver folds each word's address into its read.
 // TK sets where the online softmax rescales, so it is a constant of the head width, never of the batch.
 // Per K tile: partial dots eight tokens at a time, a butterfly that finishes the sums and deals one to each lane, then one online-softmax step per tile, and the probabilities through shared memory for the weighted sum of V.
 #extension GL_KHR_shader_subgroup_basic : require
@@ -68,7 +69,7 @@ void main() {
     uint nq = view_nq(v), hist = view_hist(v), row0 = view_row0(v);
     uint kvh = h / (p.n_head / p.n_head_kv);
     uint lid = gl_LocalInvocationID.x;
-    uint r = lid / LANES, lane = lid - r * LANES;   // query row of the tile, lane within it
+    uint r = lid >> 3u, lane = lid & 7u;             // query row of the tile, lane within it
     uint b = tile * TQ + r;                          // row of the view
     bool live = b < nq;
     uint qstride = p.n_head * DIM;
@@ -107,7 +108,7 @@ void main() {
             float part[8];
             for (uint j = 0u; j < 8u; ++j) {
                 float s = 0.0;
-                for (uint k = 0u; k < RUNS; ++k) s += dot(qv[k], ks[((8u * g + j) * DIM + 32u * k + 4u * lane) / 4u]);
+                for (uint k = 0u; k < RUNS; ++k) s += dot(qv[k], ks[(8u * g + j) * (DIM / 4u) + 8u * k + lane]);
                 part[j] = s;
             }
             for (uint half_ = 4u; half_ >= 1u; half_ /= 2u) {
@@ -144,7 +145,7 @@ void main() {
         // Phase two: the weighted sum of the tile's values.
         for (uint j = 0u; j < TK; ++j) {
             float w = ps[r * TK + j];
-            for (uint k = 0u; k < RUNS; ++k) acc[k] += w * vs[(j * DIM + 32u * k + 4u * lane) / 4u];
+            for (uint k = 0u; k < RUNS; ++k) acc[k] += w * vs[j * (DIM / 4u) + 8u * k + lane];
         }
         barrier();
     }

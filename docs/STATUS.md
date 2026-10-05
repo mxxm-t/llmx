@@ -93,6 +93,32 @@
 - **Why the gates missed it:** step 5's device suite ran on the Radeon VII alone, where the check does not run (it sends signals, and returns at once on Windows), and its MI50 machine gate ran the `server` component on the CPU. The merge gates now ask a server or scheduler change for the `server` component on an MI50 (`AGENTS.md`, Merge gates).
 - **Production** serves a hybrid model over a two-card layer split and is not affected: nothing in the server is wrong or changed, and a model that keeps a state reuses a prefix through its checkpoints, at whole blocks, by the same row classes as before.
 
+## The attention tile addresses its staged words directly (2026-10-06, branch perf/attn-tile-address, lands by fast-forward)
+
+- **Goal:** the first lever on the open speed gate (block below): prompt attention, which costs about 2.7 times the reference fork's on Qwen3-8B Q8_0, without changing a bit.
+- **Measured first** on one MI50, Qwen3-8B Q8_0, `--dtype int8`, the device time of `attention_tile_kv16_x8` from `bench --profile`, probe branch `exp/attn-tile` (not for merge, forms switched at pipeline creation in one binary): 301 ms at 2048 tokens and 1173 ms at 4096. The driver builds it with 84 registers, 18432 bytes of shared memory and 3 waves a SIMD, and with phase two removed it reads 168 and 652 ms, with phase one's dots removed 156 and 599, with both 17 and 58: the two phases share the time about evenly and the kernel is bound by its instruction count. In phase one a lane ran 748 instructions a step for 256 products, 190 of them an add, a shift down and a shift up before every read of the staged tile.
+- **Done:** the staged tile is indexed by word, `token * (DIM / 4) + 8 * run + lane`, and the lane taken as `lid & 7`, so the driver knows the lane's range and folds each address into its read (`shaders/attention_tile.comp`). No operand, order or operation changes.
+- **Identity**, candidate 8aac8df2 against main 72309913, the bytes of both arms: on one MI50, the last 64 logits rows of a 3255-token text, perplexity over 4096-token windows of a 14898-token text and 64 greedy ids after the long prompt, on Qwen3-8B Q8_0 (128-wide heads) and Qwen3.6-27B Q8_0 (256-wide heads, the `_d256` builds), each under f16 and int8, 12 of 12 the same (the greedy runs compared without their two timing lines); the device tier's cells on Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q8_0, 14 of 14 on the CPU and 14 of 14 on the MI50. On the Radeon VII under the AMD proprietary driver, Qwen3-8B Q8_0 under f16: the same three outputs, the same bytes.
+- **Gates:** CTest 45 of 45 on Linux and 46 of 46 on Windows; the suite on the CPU and on one MI50 with `--require-tools`, every component passing but `raw-blocks`, which fails in that container for lack of numpy as on main, and `baseline`, which skips there; `backend-vulkan --isa` passes on the MI50 (172 representations, 122456 decode columns under f16 and under int8, 7469 pairs of extents) and on the Radeon VII from a fresh directory (93 representations, 122456 decode columns, 12125 pairs).
+- **Timing**, one MI50 (GPU[1]) at default clocks, the card below 55 C before each run, both arms built the same way from detached clones at their own commits (`llmx 0.1.0+g7230991367e2` and `0.1.0+g8aac8df2535d`), arms in turn, three rounds, medians, tok/s; host load 12 to 41 during the runs. The change is to a device kernel and shows in its own device time, so the host's code layout is not in question. The fork column is the one-session table's below, another session on the same card.
+
+  | model | cell | main | candidate | change | fork |
+  |---|---|---|---|---|---|
+  | Qwen3-8B Q8_0, int8 | pp512 | 1288.0 | 1295.9 | +0.6% | 1310 |
+  | Qwen3-8B Q8_0, int8 | pp2048 | 1139.2 | 1159.6 | +1.8% | 1256 |
+  | Qwen3-8B Q8_0, int8 | pp4096 | 983.1 | 1012.8 | +3.0% | 1167 |
+  | Qwen3-8B Q8_0, int8 | tg128 | 76.7 | 77.1 | level, the spread of both arms is 74.9 to 78.3 | 67.9 |
+  | Qwen3-8B Q8_0, f16 | pp512 | 840.5 | 844.4 | +0.5% | |
+  | Qwen3-8B Q8_0, f16 | pp2048 | 774.3 | 783.5 | +1.2% | |
+  | Qwen3-8B Q8_0, f16 | pp4096 | 697.2 | 712.2 | +2.1% | |
+  | Qwen3.6-27B Q8_0, int8 | pp2048 | 392.4 | 398.8 | +1.6% | 368 |
+
+  The tile's device time: 301 to 269 ms at 2048 tokens and 1173 to 1050 ms at 4096, 10.5 percent. Radeon VII, Qwen3-8B Q8_0 f16, three rounds in turn, main and candidate: pp512 341.4 and 345.3, pp2048 318.4 and 324.4, pp4096 292.1 and 300.5 tok/s, every candidate run above every main run.
+- **What it does not do:** it closes neither open cell. Other forms that keep F32 were measured and gain nothing: reads grouped per token 270 and 1053 ms, phase two's loop cut in four 279 and 1086, the tile staged as halves and converted at use 299 and 1162. The reference fork's attention (`fattn-tile.cuh` at f58b9f250, read only) multiplies half pairs two an instruction, with an F32 sum in K.Q through an instruction Vulkan does not expose and a half-float sum over V; the cost probes of 16-bit forms and the question of what attention computes in are in the devlog of 2026-10-05 and wait on the user.
+- **Review and landing:** reviewed by D2CDEV without findings. The gates above ran on main 72309913; the branch was then rebased onto main 020f9fc9 behind the row-class test and the `--isa` rule, without a conflict in code, and lands by fast-forward once the builds, CTest, the linked dead-code check and the hosted run pass at the rebased head.
+- **Left:** nothing on this branch.
+- **Gotchas:** the word index and the masked lane were changed and measured together; which of the two the driver needs to fold an address is not separated, so a later edit of either is checked against the kernel's device time under `--profile`; the driver's static instruction count does not show it, since it unrolls the cheaper loop further.
+
 ## `--dtype int8` at every row count (2026-10-05, branch feat/int8-prompt, option C step 2)
 
 - **Goal:** `--dtype int8`, never chosen by `auto`, following exactly the rule every `--dtype` value follows (the user's decision of 2026-10-05, relayed by the coordinator): it sets the input precision of every matrix product at every row count, prompt and decode alike, the output head included, with no threshold; a product or a device without an 8-bit build takes the next wider precision it has, reported per device in the record and `/v1/health` (docs/PRECISION.md, rule 2's warned fallback); routers stay F32 and attention and the KV cache stay outside `--dtype`, as for every value; `--help` and USAGE describe it in the same shape as the other values, with a table of what each covers. This replaces the first design, prompts of 128 tokens or more refused where they could not run, built and gated earlier the same day (Gotchas).
@@ -9965,6 +9991,7 @@ their own measurements; K-quant optimization remains separate work below.
 | A lone prompt read by every stage (phase 4) | Done (block above) |
 | The 16-bit prompt tile on the MI50 (option C step 1) | Measured, no gain in the shader alone (block above); the repacked Q8_0 layout recorded as the lever |
 | `--dtype int8` at every row count (option C step 2) | Done at `c8b2ac8d` (block above) |
+| The attention tile addresses its staged words directly | Done (block above): bit-identical, 10.5 percent of the tile on an MI50; lands by fast-forward |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |

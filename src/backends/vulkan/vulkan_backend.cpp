@@ -3291,7 +3291,7 @@ private:
             const bool vec = is_vec_kernel(id);
             const uint32_t forms = vec ? vec_forms(variant, d.profile) : 0;
             // Constant 7 is a twin producer's build that also writes the 8-bit twin, its variant 1 (twin_variant).
-            // The entries go in constant order: the AMD proprietary driver gave a Q4_K row kernel other results with constant 7 listed last.
+            // The entries go in constant order.
             const bool twin8 = variant == 1 && !tile && !is_row_kernel(id);
             const uint32_t spec_data[8] = {vec ? vb.cols : spec_value, twin8 ? 1u : 0u, variant == 2 ? 1u : 0u, vec ? vb.rows : build_rows(id, variant), vb.steps,
                                            (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Half) ? 1u : 0u, vb.span};

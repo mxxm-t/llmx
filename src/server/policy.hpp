@@ -218,4 +218,24 @@ inline void give_rows(LogitRows& rows, size_t base, size_t n) {
     while (!rows.runs.empty() && rows.runs.front().back) rows.runs.pop_front();
 }
 
+// The order waiting requests are admitted in: the paused ones oldest first, then, once none is left but those waiting for a disk read, the queue in arrival order, each while `seat` gives one, through `enter` until one does not fit.
+// A request whose client left goes where it waits (`gone`, which removes it and says so), and one whose history is being read from disk (`reading`) keeps its place while those behind it that fit pass it (docs/DISK-TIER.md, Restore).
+template <class Queue, class Seat, class Gone, class Reading, class Enter>
+void admit_waiting(Queue& paused, Queue& queue, Seat seat, Gone gone, Reading reading, Enter enter) {
+    for (size_t i = 0; i < paused.size() && seat();) {
+        if (gone(paused, i)) continue;
+        if (reading(paused[i])) { ++i; continue; }
+        if (!enter(paused[i])) return;
+        paused.erase(paused.begin() + (std::ptrdiff_t)i);
+    }
+    for (const auto& r : paused)
+        if (!reading(r)) return;
+    for (size_t i = 0; i < queue.size() && seat();) {
+        if (gone(queue, i)) continue;
+        if (reading(queue[i])) { ++i; continue; }
+        if (!enter(queue[i])) return;
+        queue.erase(queue.begin() + (std::ptrdiff_t)i);
+    }
+}
+
 } // namespace server

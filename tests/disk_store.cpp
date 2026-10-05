@@ -1,5 +1,6 @@
 // The disk tier's store alone (server::DiskStore, docs/DISK-TIER.md): entries written and read back bit for bit, checked, swept, adopted and refused.
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -302,6 +303,39 @@ int main(int argc, char** argv) {
             uint64_t k = 0;
             const Outcome floor = wait_put(store, k, "e", runs_of(cpu, {kSlab}, 9));
             require(!floor.ok && floor.error.find("floor") != std::string::npos && !in_place(store, k), "the floor did not stop a write: " + floor.error);
+        }
+        // A read queued while a write of three chunks runs, each chunk held two seconds, is served between two of its chunks: it ends first, with its bytes, and the write still lands whole.
+        {
+            fs::remove_all(root);
+            server::DiskStore::Options o;
+            o.root = root.u8string();
+            o.pace = std::chrono::milliseconds(2000);
+            server::DiskStore store(o, identity(1));
+            const auto small_runs = runs_of(cpu, {kSlab}, 10);
+            const std::vector<uint8_t> small_bytes = bytes_of(small_runs);
+            uint64_t small = 0;
+            require(wait_put(store, small, "small", small_runs).ok, "an entry to read was not written");
+            // The order the two calls end in, kept beside the answers so a late answer still has somewhere to go.
+            struct Order {
+                std::atomic<int> n{0};
+                int big = 0, read = 0;
+            };
+            const auto order = std::make_shared<Order>();
+            Call big_call, read_call;
+            const uint64_t big = store.put("big", runs_of(cpu, {3 * server::DiskStore::kChunk}, 11), kSlab, [order, d = big_call.done()](bool ok, const std::string& e) {
+                order->big = ++order->n;
+                d(ok, e);
+            });
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            auto back = runs_of(cpu, {kSlab}, 0);
+            store.get(small, back, kSlab, [order, d = read_call.done()](bool ok, const std::string& e) {
+                order->read = ++order->n;
+                d(ok, e);
+            });
+            const Outcome r = read_call.wait();
+            const Outcome b = big_call.wait();
+            require(r.ok && b.ok && order->read == 1 && order->big == 2 && bytes_of(back) == small_bytes && in_place(store, big),
+                    "a read queued behind a write did not end between its chunks: " + r.error + " " + b.error);
         }
         fs::remove_all(base);
         std::cout << "disk-store: " << checks << " checks passed\n";

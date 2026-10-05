@@ -166,6 +166,7 @@ private:
                   ",\"disk_hits\":" + std::to_string(s.disk_hits) + ",\"disk_bytes_read\":" + std::to_string(s.disk_bytes_read) +
                   ",\"disk_waits\":" + std::to_string(s.disk_waits) + ",\"disk_wait_ms\":" + std::to_string((uint64_t)s.disk_wait_ms) +
                   ",\"disk_errors\":" + std::to_string(s.disk_errors) + ",\"disk_writing\":" + (s.disk_writing ? "true" : "false") +
+                  ",\"disk_ready\":" + (s.disk_ready ? "true" : "false") +
                   ",\"reprefills\":" + std::to_string(s.reprefills) +
                   ",\"reprefill_rows\":" + std::to_string(s.reprefill_rows) + ",\"reprefill_cancels\":" + std::to_string(s.reprefill_cancels) +
                   ",\"passes\":" + std::to_string(s.passes) + ",\"in_flight\":" + std::to_string(s.in_flight) +

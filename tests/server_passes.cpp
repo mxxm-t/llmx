@@ -38,6 +38,9 @@ struct Sim {
         size_t slot = npos;                                   // the slot of the pass it is in flight in
         uint64_t since = 0, cancelled = 0;                    // the round it last got a token or could not, and the round its cancel was first seen in
         uint64_t landed = 0;                                  // the formation order of the last pass it left flight from
+        // A read of its history from disk (docs/DISK-TIER.md, Restore): whether it has one, the round the read ends, failed or not, and the round its bound passes; it waits while both are ahead.
+        bool reads = false, read_fails = false;
+        uint64_t read_end = 0, bound = 0;
         std::vector<size_t> need;
         size_t history() const { return prompt + gen; }
         bool decoding() const { return gen && len + 1 == history(); }
@@ -71,6 +74,7 @@ struct Sim {
     uint64_t round_no = 0, formed = 0, next_id = 1, admissions = 0, donor_ids = 0, first_admitted = 0;
     uint64_t waiter = 0, waited = 0, waiting_from = 0;   // the oldest request while its plan waits on a request in flight, that request, and the round it first waited
     size_t ended = 0, stalls = 0, pauses = 0, taken_back = 0, waits = 0, resolved = 0, failures = 0, flying_cancels = 0, unrecorded_cancels = 0;
+    size_t passed_reads = 0, reads_past_bound = 0, failed_reads = 0;   // requests admitted past one waiting for its read, reads given up at their bound, reads that failed
     std::mt19937 rng;
     std::string at;   // what the simulation was doing, for a failure's message
 
@@ -193,6 +197,13 @@ struct Sim {
         r.uncapped = rng() % 3 != 0;
         r.prompt = 1 + rng() % std::min<size_t>(limit() - 1, 4 * largest_block());
         r.max_tokens = r.uncapped ? limit() - r.prompt : 1 + rng() % std::min<size_t>(limit() - r.prompt, 48);
+        // One request in three waits for a read of a random time, which fails one time in four, under a random bound.
+        if (rng() % 3 == 0) {
+            r.reads = true;
+            r.read_fails = rng() % 4 == 0;
+            r.read_end = round_no + rng() % 6;
+            r.bound = round_no + rng() % 6;
+        }
         queue.push_back(r);
     }
 
@@ -248,8 +259,18 @@ struct Sim {
         for (size_t s = 0; s < need.size(); ++s)
             require(blocks_for(r.len)[s] <= need[s], at + ": a request took back more than it reserved");
         if (!r.admission) {
-            require(r.id > first_admitted, at + ": a request admitted before one submitted earlier");
-            first_admitted = r.id;
+            // First-come, but for requests still waiting for their reads, which those behind them pass.
+            for (const auto* waiting : {&queue, &paused})
+                for (const Req& w : *waiting)
+                    if (w.id < r.id && !w.admission) {
+                        require(reading(w), at + ": a request admitted before one submitted earlier that was not waiting for a read");
+                        ++passed_reads;
+                    }
+            if (r.reads) {
+                reads_past_bound += r.bound < r.read_end;
+                failed_reads += r.read_fails && r.read_end <= r.bound;
+            }
+            first_admitted = std::max(first_admitted, r.id);
             r.admission = ++admissions;
         }
         active.insert(std::upper_bound(active.begin(), active.end(), r, [](const Req& a, const Req& b) { return a.admission < b.admission; }), r);
@@ -425,10 +446,14 @@ struct Sim {
         check(true);
         const bool stalled = std::any_of(active.begin(), active.end(), [](const Req& r) { return r.stalled; });
         at = "admission";
-        while (!stalled && !paused.empty() && active.size() < max_seqs && enter(paused.front())) paused.erase(paused.begin());
-        while (!stalled && paused.empty() && !queue.empty() && active.size() < max_seqs && enter(queue.front())) queue.erase(queue.begin());
+        if (!stalled)
+            server::admit_waiting(paused, queue, [&] { return active.size() < max_seqs; }, [](std::vector<Req>&, size_t) { return false; },
+                                  [&](const Req& r) { return reading(r); }, [&](Req& r) { return enter(r); });
         check(true);
     }
+
+    // Whether a request waits for its read: its read and its bound both ahead.
+    bool reading(const Req& r) const { return r.reads && round_no < std::min(r.read_end, r.bound); }
 
     // New passes while a slot is free: ready decoding requests' next tokens up to the decode share, then prompt rows up to the ubatch, a pass's logits rows taken as it is formed, and its first stage, or on the host that stage's place in `deferred`.
     void form(std::vector<std::pair<size_t, size_t>>& deferred) {
@@ -718,7 +743,7 @@ void due_step_first() {
 
 // Random schedules: schedule n runs over 1 + n % 4 stages and 1 to twice that many pass slots, submissions arriving with the host's time, and ends either in a stop at a random round or, one in eight, once every request has ended.
 void random_schedules(size_t n) {
-    size_t totals[10] = {0}, rounds = 0;
+    size_t totals[13] = {0}, rounds = 0;
     for (uint32_t seed = 1; seed <= n; ++seed) {
         const size_t S = 1 + seed % 4, P = 1 + (seed / 4) % (2 * S);
         Sim sim(seed, S, P);
@@ -746,16 +771,16 @@ void random_schedules(size_t n) {
         } catch (const std::exception& e) {
             throw std::runtime_error("schedule " + std::to_string(seed) + " (" + std::to_string(S) + " stages, " + std::to_string(P) + " slots): " + e.what());
         }
-        const size_t counts[10] = {sim.ended, sim.pauses, sim.stalls, sim.taken_back, sim.waits, sim.resolved, sim.failures, sim.flying_cancels, sim.unrecorded_cancels,
-                                   sim.stateful ? sim.pauses : 0};
-        for (size_t i = 0; i < 10; ++i) totals[i] += counts[i];
+        const size_t counts[13] = {sim.ended, sim.pauses, sim.stalls, sim.taken_back, sim.waits, sim.resolved, sim.failures, sim.flying_cancels, sim.unrecorded_cancels,
+                                   sim.stateful ? sim.pauses : 0, sim.passed_reads, sim.reads_past_bound, sim.failed_reads};
+        for (size_t i = 0; i < 13; ++i) totals[i] += counts[i];
         rounds += sim.round_no;
     }
     // Enough schedules must meet every rule's case.
     if (n >= 1000)
-        for (size_t i = 1; i < 10; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight, cancellations before a first stage and pauses of a model keeping a state");
-    std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses (%zu keeping a state), %zu stalls, %zu donors taken back, %zu growth plans that waited on a request in flight, %zu waits of the oldest request ended in the round the request left flight, %zu failed passes, %zu cancellations in flight (%zu before a first stage)\n",
-                n, rounds, totals[0], totals[1], totals[9], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8]);
+        for (size_t i = 1; i < 13; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight, cancellations before a first stage, pauses of a model keeping a state, requests passing one waiting for its read, reads given up at their bound and reads that failed");
+    std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses (%zu keeping a state), %zu stalls, %zu donors taken back, %zu growth plans that waited on a request in flight, %zu waits of the oldest request ended in the round the request left flight, %zu failed passes, %zu cancellations in flight (%zu before a first stage), %zu admissions past a request waiting for its read, %zu reads given up at their bound, %zu failed reads\n",
+                n, rounds, totals[0], totals[1], totals[9], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8], totals[10], totals[11], totals[12]);
 }
 
 } // namespace

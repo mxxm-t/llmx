@@ -447,6 +447,28 @@ private:
         }
     }
 
+    // Reads queued while a write runs, each served between two of its chunks, so a read waits for one chunk of a write rather than the whole of it; the staging chunk is free there, its bytes written.
+    void serve_reads() {
+        for (;;) {
+            std::shared_ptr<Job> r;
+            {
+                std::lock_guard<std::mutex> lk(m_);
+                const auto it = std::find_if(jobs_.begin(), jobs_.end(), [](const std::shared_ptr<Job>& x) { return !x->put; });
+                if (it == jobs_.end()) return;
+                r = *it;
+                jobs_.erase(it);
+            }
+            std::string error;
+            bool ok = false;
+            try {
+                ok = read(*r, error);
+            } catch (const std::exception& e) {
+                error = e.what();
+            }
+            if (r->done) r->done(ok, error);
+        }
+    }
+
     // The payload as one stream over the runs' slabs: copy `n` bytes at payload offset `at` to or from `buf`.
     static void stream(const Job& j, uint64_t at, uint8_t* buf, size_t n, bool to_slabs) {
         size_t run = 0;
@@ -491,6 +513,7 @@ private:
                 std::memset(staging_.data() + n, 0, padded - n);
                 crcs[c] = core::crc32c(0, staging_.data(), n);
                 w.write(head + c * kChunk, staging_.data(), padded);
+                serve_reads();
                 if (options_.pace.count()) {
                     std::unique_lock<std::mutex> lk(m_);
                     cv_.wait_for(lk, options_.pace, [&] { return j.cancelled.load() || stopping_; });

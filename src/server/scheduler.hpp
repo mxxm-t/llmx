@@ -466,19 +466,16 @@ public:
                     const bool stalled = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
                     // A request whose history is being read from disk keeps its place, and those behind it that fit pass it (docs/DISK-TIER.md, Restore); one submitted since the round began is looked for first.
                     if (disk_) prefetch();
-                    for (size_t i = 0; !stalled && i < paused_.size() && active.size() < max_seqs_;) {
-                        if (paused_[i]->cancel_.load()) { leave(paused_, paused_.begin() + (std::ptrdiff_t)i); continue; }
-                        if (reading(*paused_[i])) { ++i; continue; }
-                        if (!enter(paused_[i], active)) break;
-                        paused_.erase(paused_.begin() + (std::ptrdiff_t)i);
-                    }
-                    const bool resumed = std::none_of(paused_.begin(), paused_.end(), [&](const std::shared_ptr<Request>& r) { return !reading(*r); });
-                    for (size_t i = 0; !stalled && resumed && i < queue_.size() && active.size() < max_seqs_;) {
-                        if (queue_[i]->cancel_.load()) { leave(queue_, queue_.begin() + (std::ptrdiff_t)i); continue; }
-                        if (reading(*queue_[i])) { ++i; continue; }
-                        if (!enter(queue_[i], active)) break;
-                        queue_.erase(queue_.begin() + (std::ptrdiff_t)i);
-                    }
+                    using Waiting = std::deque<std::shared_ptr<Request>>;
+                    if (!stalled)
+                        admit_waiting(paused_, queue_, [&] { return active.size() < max_seqs_; },
+                                      [&](Waiting& q, size_t i) {
+                                          if (!q[i]->cancel_.load()) return false;
+                                          leave(q, q.begin() + (std::ptrdiff_t)i);
+                                          return true;
+                                      },
+                                      [&](const std::shared_ptr<Request>& r) { return reading(*r); },
+                                      [&](const std::shared_ptr<Request>& r) { return enter(r, active); });
                     active_count_.store(requests(active));
                     paused_count_.store(paused_.size());
                 }

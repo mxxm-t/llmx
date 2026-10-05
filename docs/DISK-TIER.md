@@ -1,8 +1,8 @@
-# Disk tier (planned)
+# Disk tier (planned, then built in its six steps)
 
 A third tier for the server's saved histories, below the device tier and the host tier ([SPECULATIVE](SPECULATIVE.md), section 2, Host tier; [SERVER](SERVER.md)).
 What host memory can no longer hold goes to a local disk instead of being dropped, so a conversation that comes back after the host tier has filled reads its history from disk in about half a second rather than recomputing it for tens of seconds.
-This page is a plan: nothing in it is built.
+This page is the plan the tier was built from, kept as agreed; where building changed the design it says so in place (Demotion; Keeping entries across a restart), and `docs/STATUS.md` records each step and the figures it was measured with.
 
 ## Why
 
@@ -112,6 +112,8 @@ With `--disk-cache-keep`, a restart of the same build and model should find the 
 - within the cap and the floor, and within a shutdown limit of 20 seconds, after which the flush stops at its current entry, removes that entry's temporary file and exits: what is not written is not kept, as with a crash.
 At the measured rates 20 seconds write 6.8 GB on the NVMe pool and 11 GB on `/zpool1`, about a full 10 GiB host tier and the device donors of a single MI50; the limit is a constant of the code, documented, rather than a flag. A container or service manager must give the server longer than that before it kills it: `docker stop` waits 10 seconds by default, so production runs with a stop timeout of 30 seconds or more; a kill before the flush ends behaves as a crash.
 
+**A console closed on Windows.** Windows ends a process a few seconds after its console window is closed, whatever its handler does, so a flush that closing the console starts may not finish and keeps only the entries written by then; Ctrl-C and Ctrl-Break give the flush its whole twenty seconds, as SIGTERM and SIGINT do elsewhere.
+
 **SIGTERM against a crash.** SIGTERM and SIGINT take the clean exit and the flush. SIGKILL, a crash, an out-of-memory kill or a power loss keep only what is already on disk: every renamed `.kv` file is complete and every `.tmp` file is removed by the next sweep; the kernel releases the lock, so the directory is adoptable with `--disk-cache-keep` and removed without it.
 
 **What a restart adopts.** A server started with `--disk-cache-keep` adopts, from unlocked directories under its root, the entries whose identity matches:
@@ -177,6 +179,7 @@ The index (tokens, row classes, ranking state) stays in the scheduler beside `ho
 - `--disk-cache-max-age TIME`: delete entries unused for longer than TIME, by default `24h`; `0` keeps them until room takes them.
 - The tier needs the host tier: with `--host-cache-bytes 0`, or every cache on the CPU where the host tier's default is 0, a nonzero `--disk-cache-bytes` is refused with the reason.
 
+Until the digest and the store's probe finish, the server serves without the disk tier, writing and reading nothing, and `/v1/health`'s `disk_ready` stays false.
 **`/v1/health`:** `disk_entries`, `disk_bytes`, `disk_hits`, `disk_bytes_written`, `disk_bytes_read`, `disk_waits` (requests that waited for a read) and `disk_wait_ms`, `disk_errors`, and `disk_writing` (false once the tier has stopped writing).
 
 **Tests:**

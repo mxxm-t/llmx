@@ -110,6 +110,7 @@ The device keeps each conversation's latest checkpoint, forked in place; host me
   Copies keep the storages' bytes as they are, never converted to an activation dtype.
 - **Publication:** a written-back entry can be hit as soon as its copies are enqueued, since a promotion's copies out of it are enqueued after them on the same device's stream and so run after them; a promotion that fails releases what it took on the devices and leaves the host entry valid.
 - **Exactness:** a copy keeps the bytes and the row classes, so a resumed or promoted history gives the CLI's bits.
+- **Below it:** a disk tier keeps what the host tier lets go, through host memory both ways ([DISK-TIER](DISK-TIER.md)).
   Tests: a host round trip of KV and state on every placement, mixed ones included; promotion beside a pass in flight; eviction and cancellation while a copy is pending; injected host allocation and transfer failures, at write-back and at promotion; and a model of another dtype or placement on the same backends refused every entry.
 - **Two parts:** (a) whole-donor write-back and promotion, for every model; (b) the message-boundary checkpoints, on a model that keeps a state, after (a) has been measured.
 

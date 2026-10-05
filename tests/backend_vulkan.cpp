@@ -97,16 +97,18 @@ size_t close(const std::vector<float>& a, const std::vector<float>& b, double re
 
 // The activations as the device's row kernel sees them: each block of 32 scaled so its largest magnitude is 32767, rounded half away from zero, and back to floats (shaders/quantize_x.comp).
 // The CPU reference of a quantized-row matmul on the row kernel takes these, so the comparison is about the dot and its reduction order and not about the quantization, which is the device's choice and the HF gate's business.
-std::vector<float> row_activations(const std::vector<float>& x) {
+// At 127 levels they are the 8-bit twin --dtype int8 reads (xquant8_block, xquant8_word).
+std::vector<float> row_activations(const std::vector<float>& x, int levels = 32767) {
     std::vector<float> out(x.size());
+    const float top = float(levels);
     for (size_t b = 0; b + 32 <= x.size(); b += 32) {
         float amax = 0.0f;
         for (size_t i = 0; i < 32; ++i) amax = std::max(amax, std::fabs(x[b + i]));
-        const float d = amax / 32767.0f, id = amax > 0.0f ? 32767.0f / amax : 0.0f;
+        const float d = amax / top, id = amax > 0.0f ? top / amax : 0.0f;
         for (size_t i = 0; i < 32; ++i) {
             const float r = x[b + i] * id;
             int q = (int)(std::copysign(std::floor(std::fabs(r) + 0.5f), r));
-            q = std::max(-32767, std::min(32767, q));
+            q = std::max(-levels, std::min(levels, q));
             out[b + i] = (float)q * d;
         }
     }
@@ -254,6 +256,99 @@ size_t check_matrix_witness(backend::Backend& vk) {
         }
     }
     return checked;
+}
+
+// Activations whose rounding to 8 bits per block of 32 is unambiguous: each block holds its peak and values at least 0.2 of a step from a tie, so the device's reciprocal of the peak, which may differ from the host's in its last bit, rounds them as the host does.
+std::vector<float> tie_free(size_t n, uint32_t seed) {
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<float> peak(0.5f, 1.5f), off(-0.3f, 0.3f);
+    std::uniform_int_distribution<int> code(-126, 126);
+    std::vector<float> v(n);
+    for (size_t b = 0; b + 32 <= n; b += 32) {
+        const float amax = peak(rng);
+        v[b] = (b / 32) % 2 ? -amax : amax;
+        for (size_t i = 1; i < 32; ++i) v[b + i] = (float(code(rng)) + off(rng)) * amax / 127.0f;
+    }
+    return v;
+}
+
+// --dtype int8 (docs/PRECISION.md), where the device runs it: every row of every quantized type takes 8-bit inputs, generated tokens through the row kernels' 8-bit builds and prompts through the tile's, against the CPU fed the activations rounded to 8 bits per block of 32, and witnesses block-int8; a prompt's rows give the same bits as one call and as two slices.
+// MXFP4 and F32 weights, which have no 8-bit build, run as f16 does, bit for bit.
+size_t check_int8(backend::Backend& vk) {
+    const auto native = vk.native_dtypes();
+    if (std::find(native.begin(), native.end(), backend::Dtype::int8) == native.end()) {
+        std::cout << "backend-vulkan: int8 not run here\n";
+        return 0;
+    }
+    Pair p(vk);
+    size_t values = 0;
+    const uint32_t types[] = {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1,
+                              quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K};
+    for (uint32_t type : types)
+        for (size_t nin : {size_t(512), size_t(1280)}) {
+            const size_t nout = 80;
+            const auto w = matrix(type, nin, nout, 700 + type + uint32_t(nin));
+            Pair::In wi = p.in(w.data(), w.size());
+            // Generated tokens, each a run of extent 1, at widths that take the one-column, two-row and wide builds, then prompts that take the row kernels and the tile.
+            for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13), size_t(40), size_t(64), size_t(128), size_t(200)}) {
+                const bool prompt = nbatch >= 40;
+                const auto x = tie_free(nbatch * nin, 800 + uint32_t(nbatch) + type + uint32_t(nin));
+                const auto x8 = row_activations(x, 127);
+                Pair::In xi = p.in(x), x8i = p.in(x8);
+                std::vector<backend::RowRun> runs;
+                if (prompt) runs.push_back({nbatch, nbatch});
+                else for (size_t r = 0; r < nbatch; ++r) runs.push_back({r + 1, 1});
+                Pair::Out d = p.out(nbatch * nout);
+                p.cpu.matmul(type, wi.cs(), x8i.cs(), d.cs(), nin, nout, nbatch, {}, backend::Dtype::f32);
+                (void)testq::take_matrix_paths(vk);
+                p.vk.matmul(type, wi.vs(), xi.vs(), d.vs(), nin, nout, nbatch, {runs.data(), runs.size()}, backend::Dtype::int8);
+                require(testq::take_matrix_paths(vk) == std::vector<std::string>{"block-int8"}, "int8 rows did not witness block-int8");
+                auto r = p.results(d);
+                try {
+                    values += close(r.first, r.second, 1e-3, "int8 matmul differs from the CPU on 8-bit activations beyond 1e-3");
+                } catch (const std::runtime_error&) {
+                    std::fprintf(stderr, "  int8 matmul type %u nin %zu nbatch %zu\n", type, nin, nbatch);
+                    throw;
+                }
+                if (!prompt) continue;
+                // The same prompt in two slices, each run naming the prompt's extent.
+                const size_t first = nbatch / 2;
+                const backend::RowRun head[1] = {{first, nbatch}}, tail[1] = {{nbatch - first, nbatch}};
+                Pair::Out sl = p.out(nbatch * nout);
+                p.vk.matmul(type, wi.vs(), xi.vs(), sl.vs(), nin, nout, first, {head, 1}, backend::Dtype::int8);
+                p.vk.matmul(type, wi.vs(), backend::CSlice{xi.v.get(), first * nin}, backend::Slice{sl.v.get(), first * nout}, nin, nout,
+                            nbatch - first, {tail, 1}, backend::Dtype::int8);
+                std::vector<float> sliced(nbatch * nout);
+                vk.read(*sl.v, 0, sliced.data(), sliced.size() * sizeof(float));
+                values += exact(r.second, sliced, "an int8 prompt's rows changed with its slicing");
+                (void)testq::take_matrix_paths(vk);
+            }
+        }
+    // Types without an 8-bit build: int8 gives f16's bits, decode and prompt.
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_MXFP4}) {
+        if (!vk.supports_type(type)) continue;
+        const size_t nin = 512, nout = 80;
+        const auto w = matrix(type, nin, nout, 760 + type);
+        Pair::In wi = p.in(w.data(), w.size());
+        for (size_t nbatch : {size_t(3), size_t(200)}) {
+            const auto x = uniform(nbatch * nin, 900 + type + uint32_t(nbatch));
+            Pair::In xi = p.in(x);
+            std::vector<backend::RowRun> runs;
+            if (nbatch > 3) runs.push_back({nbatch, nbatch});
+            else for (size_t r = 0; r < nbatch; ++r) runs.push_back({r + 1, 1});
+            Pair::Out a = p.out(nbatch * nout), b = p.out(nbatch * nout);
+            p.vk.matmul(type, wi.vs(), xi.vs(), a.vs(), nin, nout, nbatch, {runs.data(), runs.size()}, backend::Dtype::int8);
+            const auto witness = testq::take_matrix_paths(vk);
+            require(std::find(witness.begin(), witness.end(), "block-int8") == witness.end(), "a type without an 8-bit build took 8-bit inputs");
+            p.vk.matmul(type, wi.vs(), xi.vs(), b.vs(), nin, nout, nbatch, {runs.data(), runs.size()}, backend::Dtype::f16);
+            (void)testq::take_matrix_paths(vk);
+            std::vector<float> ra(nbatch * nout), rb(nbatch * nout);
+            vk.read(*a.v, 0, ra.data(), ra.size() * sizeof(float));
+            vk.read(*b.v, 0, rb.data(), rb.size() * sizeof(float));
+            values += exact(rb, ra, "a type without an 8-bit build differs under int8 from f16");
+        }
+    }
+    return values;
 }
 
 size_t check_kernels(backend::Backend& vk) {
@@ -1646,7 +1741,7 @@ size_t check_kernels(backend::Backend& vk) {
 // At 4096 every lane of a 64-lane subgroup takes the same number of steps, and at 1280 some lanes take 3 and every lane of a 32-lane subgroup 5, so a build that takes steps in pairs also takes a single step after them.
 // At 2560 every lane of a Q8_0 build that takes steps in pairs takes two pairs and then a single step, and under the half-block order a lane takes 3 steps or 2.
 // 300 outputs leave the last workgroup rows past the end, and the grouped projections of 37 and 129 rows a subgroup that holds rows past the end.
-size_t check_decode_columns(backend::Backend& vk) {
+size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
     const size_t nout = 300, widest = 64;
     // Each width's remainder past the widest Q8_0 decode build, 8, 16 or 32 columns, takes the 1-, 2-, 4-, 8-, 16- or 32-column build, and 18 and 29 a 32-column build's second group in part; past the widest two-row build, 16 columns, the 1-, 2-, 4-, 8- or 16-column build.
     const size_t widths[] = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 33, 34, 36, 40, 48, 64};
@@ -1688,9 +1783,9 @@ size_t check_decode_columns(backend::Backend& vk) {
                 auto product = [&](size_t i, size_t col0, size_t n, backend::Slice y, bool add) {
                     const backend::RowRun decode{n, 1};
                     const backend::CSlice wi{w[i].get(), 0}, xs{xb.get(), col0 * nin};
-                    if (add) vk.matmul_add(type, wi, xs, y, nin, rows[i], n, {&decode, 1});
-                    else if (head) vk.matmul_logits(type, wi, xs, y, nin, rows[i], n, {&decode, 1});
-                    else vk.matmul(type, wi, xs, y, nin, rows[i], n, {&decode, 1});
+                    if (add) vk.matmul_add(type, wi, xs, y, nin, rows[i], n, {&decode, 1}, dtype);
+                    else if (head) vk.matmul_logits(type, wi, xs, y, nin, rows[i], n, {&decode, 1}, dtype);
+                    else vk.matmul(type, wi, xs, y, nin, rows[i], n, {&decode, 1}, dtype);
                 };
                 // Each column alone, onto its own base column where it adds.
                 auto alone = [&](size_t i, bool add) {
@@ -1721,12 +1816,12 @@ size_t check_decode_columns(backend::Backend& vk) {
                     const backend::RowRun decode{n, 1};
                     vk.matmul_group({{type, {w[0].get(), 0}, {out[0].get(), 0}, rows[0]}, {type, {w[1].get(), 0}, {out[1].get(), 0}, rows[1]},
                                      {type, {w[2].get(), 0}, {out[2].get(), 0}, rows[2]}},
-                                    {xb.get(), 0}, nin, n, {&decode, 1});
+                                    {xb.get(), 0}, nin, n, {&decode, 1}, dtype);
                     for (size_t i = 0; i < 3; ++i)
                         same(floats(out[i], n * rows[i]), *ones[i], n, rows[i], "a grouped projection's decode column differs from the same column alone");
                 }
             } catch (const std::runtime_error&) {
-                std::fprintf(stderr, "  decode columns: type %u, nin %zu%s\n", type, nin, head ? ", output head" : "");
+                std::fprintf(stderr, "  decode columns: type %u, nin %zu%s, %s\n", type, nin, head ? ", output head" : "", backend::dtype_name(dtype));
                 throw;
             }
         }
@@ -1755,8 +1850,8 @@ size_t check_decode_columns(backend::Backend& vk) {
                     const auto yo = vk.alloc(n * nout * sizeof(float));
                     vk.write(*yo, 0, base.data() + first * nout, n * nout * sizeof(float));
                     vk.matmul_experts({{type, {gb.get(), 0}, {go.get(), 0}, nout}, {type, {ub.get(), 0}, {uo.get(), 0}, nout}},
-                                      {xb.get(), first * rin}, rin, n, routing(first), {&decode, 1});
-                    vk.matmul_experts_add(type, {db.get(), 0}, {x2b.get(), first * k * rin}, {yo.get(), 0}, rin, nout, n, routing(first), {&decode, 1});
+                                      {xb.get(), first * rin}, rin, n, routing(first), {&decode, 1}, dtype);
+                    vk.matmul_experts_add(type, {db.get(), 0}, {x2b.get(), first * k * rin}, {yo.get(), 0}, rin, nout, n, routing(first), {&decode, 1}, dtype);
                     std::vector<std::vector<float>> out = {floats(go, n * k * nout), floats(uo, n * k * nout), floats(yo, n * nout)};
                     return out;
                 };
@@ -1772,7 +1867,7 @@ size_t check_decode_columns(backend::Backend& vk) {
                     same(r[2], one[2], n, nout, "a routed down projection's row differs from the same token alone");
                 }
             } catch (const std::runtime_error&) {
-                std::fprintf(stderr, "  decode columns: routed type %u, nin %zu\n", type, rin);
+                std::fprintf(stderr, "  decode columns: routed type %u, nin %zu, %s\n", type, rin, backend::dtype_name(dtype));
                 throw;
             }
         }
@@ -1980,7 +2075,7 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
     auto ends = [](const std::string& s, const std::string& suffix) {
         return s.size() > suffix.size() && s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
     };
-    const std::string vec = "matmul_vec_q8", one_suffix = "_1col", grouped_suffix = "_grouped";
+    const std::string vec = "matmul_vec_q8", vec8 = "matmul_vec_q8_i8", one_suffix = "_1col", grouped_suffix = "_grouped";
     struct TwoRow {
         std::string kernel, name;
         size_t cols;
@@ -1992,7 +2087,7 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
         if (!ends(o.first, grouped_suffix)) continue;
         const std::string wide = o.first.substr(0, o.first.size() - grouped_suffix.size());
         const FloatOps* w = find(wide);
-        if (!w || wide == vec) continue;
+        if (!w || wide == vec || wide == vec8) continue;
         if (!(o.second == *w)) throw std::runtime_error("a grouped build's float multiplies and adds differ from its wide build's: " + o.first);
         ++n.grouped;
     }
@@ -2012,7 +2107,7 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
             const FloatOps& got = build.second;
             auto fail = [&](const char* what) { throw std::runtime_error(std::string(what) + ": " + b); };
             if (got.kinds() != ref.kinds()) fail("a build's float multiply and add kinds differ from its one-column build's");
-            if (kernel == vec) {
+            if (kernel == vec || kernel == vec8) {
                 if (!ref.add || !ref.lane_add) {
                     ++n.kinds_only;
                     continue;
@@ -2148,16 +2243,23 @@ size_t check_weight_dispatch() {
                                               : (nin < p.tile_narrow_nin ? p.tile_from_other_narrow : p.tile_from_other);
                 const size_t from = !routed ? dense_from : e.type == 2 || e.type == 3 ? p.moe_tile_from_q4
                                   : e.type == 12 ? p.moe_tile_from_q4k : e.type == 13 ? p.moe_tile_from_q5k : p.moe_tile_from;
-                for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::f32, backend::Dtype::bf16}) {
+                for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::f32, backend::Dtype::bf16, backend::Dtype::int8}) {
+                    // int8 reaches a device only where it is native, which takes the integer dot; there every type but F32 and MXFP4 takes its 8-bit builds.
+                    if (dtype == backend::Dtype::int8 && !p.prefer_integer_dot) continue;
+                    const bool i8 = dtype == backend::Dtype::int8 && e.type != 0 && e.type != 39;
                     for (size_t extent : {size_t(1), from - 1, from}) {
                         const bool tile = dtype == backend::Dtype::bf16 || extent >= from;
-                        const bool integer = dtype == backend::Dtype::f16 && p.prefer_integer_dot && e.type != 0 && !(routed && e.type == 39);
+                        const bool integer = (dtype == backend::Dtype::f16 || dtype == backend::Dtype::int8) && p.prefer_integer_dot && e.type != 0 &&
+                                             !(routed && e.type == 39);
                         std::string expected;
                         if (tile) {
                             expected = integer ? e.integer_tile : e.type == 39 ? "matmul_tile_mxfp4" : "matmul_tile";
                             if (dtype == backend::Dtype::bf16) expected += "_bf16";
+                            if (i8) expected += "i8";
                         } else if (dtype == backend::Dtype::f32 && e.type != 0) {
                             expected = e.type == 39 ? "matmul_row_mxfp4_float_x" : "matmul_row_float_x";
+                        } else if (i8) {
+                            expected = e.type == 8 ? "matmul_vec_q8_i8" : std::string(e.row) + "_i8";
                         } else {
                             expected = e.type == 8 && nin == 96 ? "matmul_row" : e.row;
                             if (e.type == 8 && p.prefer_integer_dot) expected = "matmul_vec_q8";
@@ -3259,14 +3361,19 @@ int main(int argc, char** argv) {
 
         std::cout << "backend-vulkan: " << testq::check_matrix_precision(*b) << " shared matrix precision values passed\n";
         std::cout << "backend-vulkan: " << check_matrix_witness(*b) << " matrix-path witnesses match arithmetic\n";
+        const size_t int8_values = check_int8(*b);
+        std::cout << "backend-vulkan: " << int8_values << " int8 outputs against the CPU on 8-bit activations, sliced prompts, and types without an 8-bit build as f16\n";
         const size_t values = check_kernels(*b) + check_qwen35(*b);
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";
         std::cout << "backend-vulkan: " << check_float_workspace(*b) << " exact products across bounded float workspace slices\n";
         std::cout << "backend-vulkan: " << check_timing_coverage() << " dispatches timed between two readings, past one query pool\n";
         std::cout << "backend-vulkan: " << check_bf16_batch_split(*b) << " BF16 outputs invariant across physical tile boundaries\n";
-        const size_t columns = check_decode_columns(*b);
+        const size_t columns = check_decode_columns(*b, backend::Dtype::f16);
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";
+        const auto native = b->native_dtypes();
+        if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end())
+            std::cout << "backend-vulkan: " << check_decode_columns(*b, backend::Dtype::int8) << " int8 decode columns equal to the same columns alone\n";
         std::cout << "backend-vulkan: " << check_bf16_rounding(*b) << " BF16 boundary and unchanged-weight products, with F32 control\n";
         const size_t precise = check_activation_precision(*b, backend::Dtype::f16);
         std::cout << "backend-vulkan: " << precise << " outputs within the 16-bit activations' precision\n";

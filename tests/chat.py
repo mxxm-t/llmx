@@ -109,7 +109,7 @@ def run():
             assert common.cli_stdout(p.stdout) == BANNER + expected
             if not verbose:
                 requested = os.environ.get("LLMX_DTYPE", "auto").encode("ascii")
-                assert re.fullmatch(rb"dtype: " + requested + rb" -> (?:f16|bf16|f32) \(model declares bf16\); [^\r\n]+\r?\n", p.stderr), p.stderr
+                assert re.fullmatch(rb"dtype: " + requested + rb" -> (?:f16|bf16|f32|int8) \(model declares bf16\); [^\r\n]+\r?\n", p.stderr), p.stderr
                 continue
             percents = [int(x) for x in re.findall(rb"Loading tensor data: (\d+)%", p.stderr)]
             assert percents[0] == 0 and percents[-1] == 100

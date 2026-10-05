@@ -169,7 +169,7 @@ def check_usage_errors():
         usage_error(args, page, reason)
     for command in (["generate", model, "a"], ["chat", model], ["logits", model, "a"], ["perplexity", model, "a"],
                     ["bench", "--model", model], ["serve", model]):
-        usage_error(command + ["--dtype", "bad"], command[0], "--dtype: expected auto, f16, bf16 or f32")
+        usage_error(command + ["--dtype", "bad"], command[0], "--dtype: expected auto, f16, bf16, f32 or int8")
         usage_error(command + ["--dtype"], command[0])
         usage_error(command + ["--dtype", "auto", "--dtype", "f32"], command[0], "--dtype is given twice")
     # --ignore-eos is a switch, so a value written after it is refused rather than read as true or false: generate reads it as a second prompt and chat as a message.
@@ -303,7 +303,7 @@ def check_dtype(model):
     commands = (["generate", model, "a", "-n", "1"], ["chat", model], ["logits", model, "a"],
                 ["perplexity", model, "abcd"], ["bench", "--model", model, "--p", "2", "--n", "1", "--r", "1"])
     for requested, effective, how in (("f16", "f16", "native"), ("f32", "f32", "native"),
-                                     ("bf16", "bf16", "emulated"), ("auto", "f16", "native")):
+                                     ("bf16", "bf16", "emulated"), ("auto", "f16", "native"), ("int8", "f16", "fallback to f16")):
         for command in commands:
             p = common.run_process(command + ["--device", "cpu", "--threads", "1", "--dtype", requested], input="", text=True, timeout=120)
             records = [line for line in p.stderr.splitlines() if line.startswith("dtype:")]

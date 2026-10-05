@@ -444,7 +444,8 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
         else if (value == "f32") exec.dtype = backend::Dtype::f32;
         else if (value == "f16") exec.dtype = backend::Dtype::f16;
         else if (value == "bf16") exec.dtype = backend::Dtype::bf16;
-        else throw UsageError("--dtype: expected auto, f16, bf16 or f32");
+        else if (value == "int8") exec.dtype = backend::Dtype::int8;
+        else throw UsageError("--dtype: expected auto, f16, bf16, f32 or int8");
     }
     else return false;
     return true;
@@ -1149,8 +1150,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --device D              " << defaults.device << " (default), or vulkan:N when built with Vulkan;\n"
             << "                          several, comma separated, split the model by layers\n"
             << "                          over them in that order, fitted to their free memory\n"
-            << "  --dtype T               Matmul inputs: auto (default), f16, bf16 or f32;\n"
-            << "                          emulation or F32 fallback is reported per device\n"
+            << "  --dtype T               Matmul inputs: auto (default), f16, bf16, f32 or int8;\n"
+            << "                          emulation or a wider fallback is reported per device\n"
             << "  --layer-shares A,B      With several devices, their proportions of the layers\n"
             << "  --tensor-width N        Devices each layer is split across: the listed devices\n"
             << "                          form groups of N, the stages of the layer split (default: " << defaults.tensor_width << ")\n"

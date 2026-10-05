@@ -17,6 +17,7 @@ import perf
 import tokenizer
 import perplexity
 import f32
+import int8
 import moe
 import mxfp4
 import qwen35
@@ -52,7 +53,7 @@ def main():
     parser.add_argument("--require-device-types", default=None, metavar="NAMES",
                         help="fail instead of skipping unsupported weight types named here, comma separated, e.g. Q8_0,Q4_K; does not require a component to exercise them")
     parser.add_argument("--device", default=None, help="run every command that takes --device on this backend, e.g. vulkan:0")
-    parser.add_argument("--dtype", choices=["auto", "f32", "f16", "bf16"], help="request this activation dtype on every model command")
+    parser.add_argument("--dtype", choices=["auto", "f32", "f16", "bf16", "int8"], help="request this activation dtype on every model command")
     parser.add_argument("--layer-shares", default=None,
                         help="with several devices in --device, their proportions of the layers, e.g. 1,1")
     parser.add_argument("--tensor-width", default=None,
@@ -107,6 +108,7 @@ def main():
                   ("perplexity", perplexity.run),
                   ("f32", f32.run),
                   ("moe", moe.run),
+                  ("int8", int8.run),
                   ("mxfp4", lambda: mxfp4.run(require=args.require_tools)),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),
                   ("split", lambda: split.run(require=args.require_tools)),

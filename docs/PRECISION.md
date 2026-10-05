@@ -16,6 +16,7 @@ The rule was agreed in the collaboration log on 2026-09-30 and follows vLLM's ac
 2. **`--dtype auto|f16|bf16|f32`**: a valid value is never refused.
    A device without it natively takes a fast exact emulation, else F32, with a visible warning.
    F16 and BF16 never stand in for each other; F32 is the only wider fallback.
+   Amended 2026-10-05 (the user): `int8` follows this rule as every value does, and its wider fallback is F16 where the device has it, else F32 (section 5).
 3. **Weights are read exactly and ordinary sums are F32.** Existing wider recomputation for unsafe ranges remains until an equally safe implementation replaces it.
    The F32 intermediates llmx keeps today (norms, softmax, rope, recurrent state, residual) stay until a narrower change is measured and passes the gates.
 4. **Implementations.** A kernel may implement a dtype in another form, block-scaled 16-bit integers for F16 for instance, only when it passes that dtype's calibrated budget and exact range checks, with a witness that it ran.
@@ -65,7 +66,7 @@ The auto-preference list advertises a dtype only after the backend implements th
 **A kernel's class.** `Backend::dtype_path(effective)` names, per kernel family, the form its matmul activations take:
 - `f32`, `f16`, `bf16`: activations in that type;
 - `block-int16`: blocks of 32 scaled to 16-bit integers, which may implement the F16 class once it passes the F16 budget and its exact range checks (rule 4);
-- `block-int8`: blocks scaled to 8-bit integers, which implements no class; under auto a path of this form moves to a 16-bit form (section 3), or is withdrawn.
+- `block-int8`: blocks of 32 scaled to 8-bit integers, the form of the `int8` class (section 5), held to that class's own budget (section 4); auto never selects it.
 The groups name weight types (`MXFP4`), `quantized` for every type but F32, or a phase (`prompts`, `decode`).
 
 **Witnesses.** A static catalog describes possible paths; it does not prove which path a call executed. Tests use the actual dispatched path for the measured phase, shape and operation role, through a counter, kernel name or forced-path unit check. The selected plan alone never chooses a looser bound for a path that stayed F32. Check both sides of every threshold and grouped, routed and split callers. Existing Vulkan per-kernel timing names may provide this evidence without a new profiling system.
@@ -98,6 +99,8 @@ The per-type constant it replaces, MXFP4's 2e-4, goes; file-exact goldens keep o
 **Calibration.** `tools/calibrate_dtype.py` measures each 16-bit class against HF in float32 in the pinned HF environment: HF with the weights exact, the input of every matrix product but the routers' rounded to the dtype, and F32 sums, over the tiny fixtures (the dense F32 model tied and untied, the MoE model, the three MXFP4 fixtures) at their own weights and four further seeds.
 A class's budget is twice the largest error, frozen in `tests/data/dtype_budget.json` before any candidate path is measured against it, and changed only with the user's approval.
 The parked branch's first measurement: F16 at most 0.00165 logits and 0.000148 NLL, budgets 0.0033 and 0.00030; BF16 at most 0.0270 and 0.0040, budgets 0.054 and 0.0079.
+The `int8` class (section 5) rounds the input of every matrix product but the routers', the output head included, at every row, per block of 32 to 8-bit integers by the activation twin's rule at 127 levels, d = amax / 127 and q = x * (127 / amax) rounded half away from zero, over the 512-token Q8_0 fixtures of `tests/int8.py` (dense untied, dense tied and a qwen3moe model whose every token takes every expert), whose texts of 160 to 256 tokens reach a device's prompt tile as well as its row kernels.
+Frozen on 2026-10-05 before any int8 path ran: at most 0.0395 logits and 0.00205 NLL over 15 runs, budgets 0.0790 and 0.00409; the 16-bit classes reproduced their frozen values exactly in the same run.
 Retain the calibration script, exact weights, seeds, environment and raw results so the budget can be reproduced independently of a candidate. The reference calculation must match the mixed-precision operation choices being validated.
 
 **Kernel checks.** Against an independent reference fed the same rounded inputs, allow only the stated accumulation error. A separate comparison against the original inputs may additionally allow the sum of each weight's magnitude times its input-rounding error; do not count that error twice. Conversion and range checks remain exact: every declared finite scale, zero and sign, extreme exponents, and the fallback where an intermediate leaves the safe range while the correct result is representable.
@@ -113,10 +116,21 @@ Predeclare one reference policy per workload from the arithmetic it reaches, inc
 
 ## 5. The dtype flag
 
-`--dtype auto|f16|bf16|f32` on every model command and `serve`, `auto` by default. Synthetic `bench` without a model refuses the flag.
+`--dtype auto|f16|bf16|f32|int8` on every model command and `serve`, `auto` by default. Synthetic `bench` without a model refuses the flag.
 - A misspelt value is a usage error (status 2); a valid value is never refused.
-- Where a device lacks the value natively, it takes a fast exact emulation where one exists (BF16 or F16 activations rounded to that type and widened to F32 in the kernel), else F32, and the CLI writes one warning line and the record marks the device `fallback` or `emulated`.
+- Where a device lacks the value natively, it takes a fast exact emulation where one exists (BF16 or F16 activations rounded to that type and widened to F32 in the kernel), else the next wider dtype it has, F16 for `int8` and F32 for the others, and the CLI writes one warning line and the record marks the device `fallback` with the dtype it runs, or `emulated`.
 - `f32` means F32 activations on every path. Vulkan quantized weights use the F32-activation row kernel for narrow batches and the float tile for wider batches, bypassing the integer activation twins.
+- `int8` (2026-10-05) sets the input precision of every matrix product at every row count, prompt and decode alike, as every value does, at 8 bits: a speed option below the default precision, which auto never chooses. Quantized-weight products read the activations rounded per block of 32 to 8-bit integers by the twin's rule at 127 levels, with exact integer sums and F32 scaling. A product without an 8-bit build takes the next wider form it has, as `f16` does where it has no F16 build: F32-weight products F32, MXFP4 block-int16. On Vulkan a device that prefers the integer dot lists it natively (the 8-bit builds of `matmul_row.comp`, `matmul_vec_q8.comp` and `matmul_tile_q.comp`, `LLMX_I8`); the CPU and the Radeon VII do not, and run it as `f16` with the warning. Its witness is `block-int8`, and a run whose products reached no 8-bit input is held to the F16 budget.
+
+What each value covers, stated the same way for every value:
+
+| `--dtype` | quantized-weight products, the output head included, at every row count | F32-weight products | routers | attention and KV cache |
+|---|---|---|---|---|
+| `auto` | the preferred common dtype: `f16` on the MI50, the Radeon VII and an AVX2 CPU | as that dtype | F32 | outside `--dtype` |
+| `f32` | F32 inputs | F32 | F32 | outside `--dtype` |
+| `f16` | F16 or wider: blocks of 32 scaled to 16-bit integers, or F32 | F32 | F32 | outside `--dtype` |
+| `bf16` | inputs rounded to BF16, widened to F32 | rounded to BF16 | F32 | outside `--dtype` |
+| `int8` | blocks of 32 scaled to 8-bit integers; MXFP4, which has no 8-bit build yet, as `f16` | as `f16` | F32 | outside `--dtype` |
 
 ## 6. Approved delivery order (2026-09-30)
 

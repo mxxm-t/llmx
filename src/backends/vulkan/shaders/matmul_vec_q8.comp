@@ -5,6 +5,7 @@
 // Every other block's quants start two bytes into a word, so a lane loads the words its bytes touch and shifts.
 // The lanes' sums meet in one subgroup reduction per row and column, or with TREE in the same reduction's pairs taken for every row and column at once.
 // A build changes only how many columns and rows share a weight read and how the same operations are scheduled: a column's lanes, their block order, its products and sums and its reduction's pairs are the same in every build, so it computes the same bits in all of them (docs/VULKAN.md).
+// The 8-bit builds (LLMX_I8), --dtype int8 of docs/PRECISION.md, read the 8-bit twin (xquant8_block) against the raw weight words through the four-wide 8-bit dot, in the same lanes, blocks and order.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
@@ -39,7 +40,10 @@ layout(push_constant) uniform P {
 } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
-// The 16-bit twin (xquant.glsl): interleaved pairs, then per block the scale and scaled sum.
+// The 16-bit twin (xquant.glsl): interleaved pairs, then per block the scale and scaled sum; the 8-bit twin: four bytes a word in position order, then the same per block, eight values one xq8 element and sixteen one xq element.
+#ifdef LLMX_I8
+layout(set = 0, binding = 6) readonly buffer XQ8 { uvec2 xq8[]; };
+#endif
 layout(set = 0, binding = 7) readonly buffer XQ { uvec4 xq[]; };
 layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
 // A routed call (per != 0, backend.hpp matmul_experts) runs one entry per workgroup row y: entry e reads X column e / per through the rows of expert ids[e] and writes output row e.
@@ -48,6 +52,17 @@ layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
 // As a specialization it costs the plain and routed pipelines nothing.
 layout(constant_id = 8) const bool GROUPED = false;
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
+
+// A weight word as the dot takes it and the dot itself: four signed bytes in the 8-bit builds, two pairs of 16-bit values otherwise (dot16.glsl).
+#ifdef LLMX_I8
+#define WQT uint
+#define WIDEN(w) (w)
+int dot_word(uint w, uint x, int acc) { return acc + dotPacked4x8EXT(int(w), int(x)); }
+#else
+#define WQT uvec2
+#define WIDEN(w) weight16(w)
+#define dot_word dot_pairs
+#endif
 
 // Columns whose activations a lane loads together: their loads issue back to back, and a group past the pushed count is skipped whole.
 // A plain pass gives a build more than half the columns it holds (for_each_column_chunk), so in a build of one column group only a group past the first half can be past the count; the second group of a two-group build gets 1 to MAX_COLS columns and a grouped build any count, so those check before every group.
@@ -112,7 +127,11 @@ void main() {
 #define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (c))
 #define OCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] : out0 + (c))
     uint nblk = p.nin / 32u;
+#ifdef LLMX_I8
+    uint xtab = p.nbatch * p.nin / 8u;
+#else
     uint xtab = p.nbatch * p.nin / 4u;
+#endif
 #ifdef LLMX_PRESERVE_F32
     // Keep normal-input accumulation identical to the ordinary module when float preservation changes contraction.
     precise float acc[ROWS][MAX_COLS];
@@ -133,32 +152,51 @@ void main() {
         uint lb = bh;
         const uint nin16 = p.nin / 16u;
 // Column g + J's products, one for each row, added to its accumulators.
+#ifdef LLMX_I8
+#define HX0(J) xa[J].x
+#define HX1(J) xa[J].y
+#define HX2(J) xa[J].z
+#define HX3(J) xa[J].w
+#else
+#define HX0(J) xa[J].xy
+#define HX1(J) xa[J].zw
+#define HX2(J) xb[J].xy
+#define HX3(J) xb[J].zw
+#endif
 #define HALF_PRODUCTS(J) [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
-            int s = dot_pairs(wq[r][3], xb[J].zw, dot_pairs(wq[r][2], xb[J].xy, dot_pairs(wq[r][1], xa[J].zw, dot_pairs(wq[r][0], xa[J].xy, 0)))); \
+            int s = dot_word(wq[r][3], HX3(J), dot_word(wq[r][2], HX2(J), dot_word(wq[r][1], HX1(J), dot_word(wq[r][0], HX0(J), 0)))); \
             precise float product = dw[r] * dx[J] * float(s); \
             acc[r][g + (J)] += product; \
         }
         for (uint bb = bh; bb < nblk; bb += 32u) {
-            uvec2 wq[ROWS][4];
+            WQT wq[ROWS][4];
             float dw[ROWS];
             [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
                 uint t0 = w32s[pi].w32[lq + rw[r]], t1 = w32s[pi].w32[lq + rw[r] + 1u], t2 = w32s[pi].w32[lq + rw[r] + 2u], t3 = w32s[pi].w32[lq + rw[r] + 3u];
                 uint t4 = w32s[pi].w32[l5 + rw[r]];
-                wq[r][0] = weight16(odd ? (t0 >> 16u) | (t1 << 16u) : t0);
-                wq[r][1] = weight16(odd ? (t1 >> 16u) | (t2 << 16u) : t1);
-                wq[r][2] = weight16(odd ? (t2 >> 16u) | (t3 << 16u) : t2);
-                wq[r][3] = weight16(odd ? (t3 >> 16u) | (t4 << 16u) : t3);
+                wq[r][0] = WIDEN(odd ? (t0 >> 16u) | (t1 << 16u) : t0);
+                wq[r][1] = WIDEN(odd ? (t1 >> 16u) | (t2 << 16u) : t1);
+                wq[r][2] = WIDEN(odd ? (t2 >> 16u) | (t3 << 16u) : t2);
+                wq[r][3] = WIDEN(odd ? (t3 >> 16u) | (t4 << 16u) : t3);
                 uint sw = w32s[pi].w32[ls + rw[r]];
                 dw[r] = unpackHalf2x16(odd ? sw : sw >> 16u).x;
             }
             [[unroll]] for (uint g = 0u; g < MAX_COLS; g += GROUP) {
                 if (g > 0u && (CHECK_EVERY_GROUP || 2u * g > MAX_COLS) && g >= ncols) break;
+#ifdef LLMX_I8
+                uvec4 xa[GROUP];
+#else
                 uvec4 xa[GROUP], xb[GROUP];
+#endif
                 float dx[GROUP];
                 [[unroll]] for (uint j = 0u; j < GROUP; ++j) {
                     uint col = XCOL(min(g + j, ncols - 1u));
+#ifdef LLMX_I8
+                    xa[j] = xq[col * nin16 + lx];
+#else
                     xa[j] = xq[2u * (col * nin16 + lx)];
                     xb[j] = xq[2u * (col * nin16 + lx) + 1u];
+#endif
                     dx[j] = xt2[xtab + col * nblk + lb].x;
                 }
                 if (!PARTIAL || 2u * g < MAX_COLS || g + GROUP <= ncols) {
@@ -177,15 +215,26 @@ void main() {
         // A lane's steps are blocks b, b + SB and on: STEPS at a time while that many remain, then one at a time.
         uint b = lane >> 2u;
 // Column g + J's products of step d, one for each row, added to its accumulators.
+#ifdef LLMX_I8
+#define QXT uvec2
+#define QX(i) xq8[i]
+#define QX0(J) xa[J].x
+#define QX1(J) xa[J].y
+#else
+#define QXT uvec4
+#define QX(i) xq[i]
+#define QX0(J) xa[J].xy
+#define QX1(J) xa[J].zw
+#endif
 #define COLUMN_PRODUCTS(J) [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
-        int s = dot_pairs(w1[d][r], xa[J].zw, dot_pairs(w0[d][r], xa[J].xy, 0)); \
+        int s = dot_word(w1[d][r], QX1(J), dot_word(w0[d][r], QX0(J), 0)); \
         precise float product = dw[d][r] * dx[J] * float(s); \
             acc[r][g + (J)] += product; \
     }
 // NS steps of a lane from block b: every row's words for all NS steps first, then per group of columns the NS steps in order, so each column still adds its blocks in order.
 // No branch separates the loads, so every weight load of the batch is issued before the first product.
 #define QUARTER_STEPS(NS) { \
-        uvec2 w0[NS][ROWS], w1[NS][ROWS]; \
+        WQT w0[NS][ROWS], w1[NS][ROWS]; \
         float dw[NS][ROWS]; \
         [[unroll]] for (uint d = 0u; d < NS; ++d) \
             [[unroll]] for (uint r = 0u; r < ROWS; ++r) { \
@@ -194,8 +243,8 @@ void main() {
                 uint i = qb >> 2u; \
                 bool odd = (qb & 2u) != 0u; \
                 uint t0 = w32s[pi].w32[i], t1 = w32s[pi].w32[i + 1u], t2 = w32s[pi].w32[min(i + 2u, wlast)]; \
-                w0[d][r] = weight16(odd ? (t0 >> 16u) | (t1 << 16u) : t0); \
-                w1[d][r] = weight16(odd ? (t1 >> 16u) | (t2 << 16u) : t1); \
+                w0[d][r] = WIDEN(odd ? (t0 >> 16u) | (t1 << 16u) : t0); \
+                w1[d][r] = WIDEN(odd ? (t1 >> 16u) | (t2 << 16u) : t1); \
                 uint sw = w32s[pi].w32[ob >> 2u]; \
                 dw[d][r] = unpackHalf2x16((ob & 2u) != 0u ? sw >> 16u : sw).x; \
             } \
@@ -203,11 +252,11 @@ void main() {
             if (g > 0u && (CHECK_EVERY_GROUP || 2u * g > MAX_COLS) && g >= ncols) break; \
             [[unroll]] for (uint d = 0u; d < NS; ++d) { \
                 uint bd = b + d * SB; \
-                uvec4 xa[GROUP]; \
+                QXT xa[GROUP]; \
                 float dx[GROUP]; \
                 [[unroll]] for (uint j = 0u; j < GROUP; ++j) { \
                     uint col = XCOL(min(g + j, ncols - 1u)); \
-                    xa[j] = xq[(col * p.nin + bd * 32u + q * 8u) / 8u]; \
+                    xa[j] = QX((col * p.nin + bd * 32u + q * 8u) / 8u); \
                     dx[j] = xt2[xtab + col * nblk + bd].x; \
                 } \
                 if (!PARTIAL || 2u * g < MAX_COLS || g + GROUP <= ncols) { \

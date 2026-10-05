@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|mxfp4|tokenizer-qwen35|qwen35-tiny|qwen35-mtp]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|tokenizer-qwen35|qwen35-tiny|qwen35-mtp]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
 
@@ -15,6 +15,7 @@ qwen35 writes the logit, chat and PPL goldens of a pinned Qwen3.5 checkpoint (QW
 file-exact writes the logit and PPL goldens of the reference model holding a qwen3, qwen3moe or qwen35 GGUF file's own weights, every tensor decoded to f32 by tests/spec_decode.py and, for qwen35, the converter's changes undone, so llmx can be held on that file to Q8_0-class bounds.
 The independent synthetic f32, moe and mxfp4 fixtures use one thread; only --output-dir applies to those modes.
 moe-q8 writes the goldens of tests/moe.py's Q8_0 model, HF holding each variant's file's own weights as tests/spec_decode.py decodes them, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
+int8 writes the goldens of tests/int8.py's 512-token Q8_0 fixtures, HF float32 holding each fixture's file's own weights at its own seed, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
 all includes f32 and moe regardless of --repo; mxfp4 is generated explicitly.
 tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenizer.json and tokenizer_config.json, takes only --output-dir, and is not part of all.
 qwen35-tiny writes the goldens of the tiny qwen35 fixtures of tests/qwen35.py from HF Qwen3_5ForCausalLM's token-by-token cached forward, takes only --output-dir, and is not part of all.
@@ -948,17 +949,10 @@ def moe_q8_state(path, torch):
             for key, shape, values, _ in qwen3moe_tensors(model, True, tensors)}
 
 
-def gen_moe_q8(output_dir=OUT_DIR):
-    """The goldens of tests/moe.py's Q8_0 model: each variant written by the test's own writer and read back through tests/spec_decode.py into HF Qwen3MoeForCausalLM.
-    For each prompt, HF's greedy continuation of Q8_STEPS ids, then every logit from the prompt's last position through them with each row's top id and top-two gap, and the smallest margin between a token's k-th and next router logit over every position and routed layer."""
-    import numpy
-    import torch
-    import transformers
-    from transformers import Qwen3MoeConfig, Qwen3MoeForCausalLM
-    from moe import DENSE_LAYERS, Q8_CONFIG, Q8_MIN_ROUTING_GAP, Q8_PROMPTS, Q8_SEED, Q8_STEPS, Q8_VARIANTS, write_q8_model
-
-    torch.set_num_threads(1)
-    c = Q8_CONFIG
+def moe_q8_config(c):
+    """The HF Qwen3MoeConfig of a tests/moe.py Q8_0 model configuration `c`, with eager attention."""
+    from transformers import Qwen3MoeConfig
+    from moe import DENSE_LAYERS
     config = Qwen3MoeConfig(vocab_size=257, hidden_size=c["embedding_length"], intermediate_size=c["feed_forward_length"],
                             moe_intermediate_size=c["expert_feed_forward_length"], num_hidden_layers=c["block_count"],
                             num_attention_heads=c["attention.head_count"], num_key_value_heads=c["attention.head_count_kv"],
@@ -967,7 +961,73 @@ def gen_moe_q8(output_dir=OUT_DIR):
                             num_experts=c["expert_count"], num_experts_per_tok=c["expert_used_count"],
                             norm_topk_prob=True, decoder_sparse_step=1, mlp_only_layers=list(DENSE_LAYERS))
     config._attn_implementation = "eager"
-    k = c["expert_used_count"]
+    return config
+
+
+def tiny_int8(fixture, seed, path):
+    """One tests/int8.py fixture written to `path` and read back into HF, holding the file's own weights as tests/spec_decode.py's numpy form decodes them: (model, file SHA-256)."""
+    import torch
+    from transformers import Qwen3Config, Qwen3ForCausalLM, Qwen3MoeForCausalLM
+    import int8
+    import spec_decode
+    sha256 = int8.write_fixture(path, fixture, seed)
+    if fixture == "moe":
+        model = Qwen3MoeForCausalLM(moe_q8_config(int8.MOE_CONFIG)).float().eval()
+        model.load_state_dict(moe_q8_state(path, torch), strict=True)
+        return model, sha256
+    c, tied = int8.DENSE_CONFIG, fixture == "dense-tied"
+    config = Qwen3Config(vocab_size=257, hidden_size=c["embedding_length"], intermediate_size=c["feed_forward_length"],
+                         num_hidden_layers=c["block_count"], num_attention_heads=c["attention.head_count"],
+                         num_key_value_heads=c["attention.head_count_kv"], head_dim=c["attention.key_length"],
+                         max_position_embeddings=c["context_length"], rope_theta=10000.0, rms_norm_eps=1e-6,
+                         tie_word_embeddings=tied, attention_dropout=0.0)
+    config._attn_implementation = "eager"
+    model = Qwen3ForCausalLM(config).float().eval()
+    gguf = spec_decode.GGUF(path)
+    state = {key: torch.from_numpy(values).reshape(shape)
+             for key, shape, values, _ in qwen3moe_tensors(gguf, True, [t for t in gguf.tensors if t.name != "unused.weight"])}
+    if tied:
+        state["lm_head.weight"] = state["model.embed_tokens.weight"]
+    model.load_state_dict(state, strict=True)
+    return model, sha256
+
+
+def gen_int8(output_dir=OUT_DIR):
+    """The goldens of tests/int8.py's fixtures: each written by the test's own writer at its own seed and read back into HF float32, its texts' last logits and its windowed NLL."""
+    import numpy
+    import torch
+    import transformers
+    import int8
+
+    torch.set_num_threads(1)
+    fixtures = []
+    with tempfile.TemporaryDirectory(prefix="llmx_int8_") as directory:
+        for name, seed in (("dense-untied", int8.DENSE_SEED), ("dense-tied", int8.DENSE_SEED), ("moe", int8.MOE_SEED)):
+            model, sha256 = tiny_int8(name, seed, os.path.join(directory, name + ".gguf"))
+            cases, perplexity = reference_outputs(model, torch, int8.TEXTS, int8.CONTEXTS)
+            fixtures.append({"name": name, "seed": seed, "file_sha256": sha256, "cases": cases, "perplexity": perplexity})
+            print("int8 %s: %d texts, NLL %s" % (name, len(cases), [round(p["mean_nll"], 6) for p in perplexity]))
+    path = os.path.join(output_dir, "baseline_int8.json")
+    _write(path, {
+        "_comment": "Generated by tools/gen_baseline.py int8 using HF float32 holding each tests/int8.py fixture's Q8_0 file's own weights, decoded by tests/spec_decode.py's numpy form.",
+        "torch_version": torch.__version__, "transformers_version": transformers.__version__, "numpy_version": numpy.__version__,
+        "dtype": "float32", "attention": "eager", "dense_config": int8.DENSE_CONFIG, "moe_config": int8.MOE_CONFIG,
+        "texts": int8.TEXTS, "contexts": list(int8.CONTEXTS), "fixtures": fixtures}, indent=None)
+    print("wrote %s (%d fixtures)" % (path, len(fixtures)))
+
+
+def gen_moe_q8(output_dir=OUT_DIR):
+    """The goldens of tests/moe.py's Q8_0 model: each variant written by the test's own writer and read back through tests/spec_decode.py into HF Qwen3MoeForCausalLM.
+    For each prompt, HF's greedy continuation of Q8_STEPS ids, then every logit from the prompt's last position through them with each row's top id and top-two gap, and the smallest margin between a token's k-th and next router logit over every position and routed layer."""
+    import numpy
+    import torch
+    import transformers
+    from transformers import Qwen3MoeForCausalLM
+    from moe import DENSE_LAYERS, Q8_CONFIG, Q8_MIN_ROUTING_GAP, Q8_PROMPTS, Q8_SEED, Q8_STEPS, Q8_VARIANTS, write_q8_model
+
+    torch.set_num_threads(1)
+    config = moe_q8_config(Q8_CONFIG)
+    k = Q8_CONFIG["expert_used_count"]
     variants = []
     with tempfile.TemporaryDirectory(prefix="llmx_moe_q8_") as directory:
         for name, scale in Q8_VARIANTS:
@@ -1386,6 +1446,7 @@ FIXED_KINDS = {
     "f32": "uses fixed synthetic weights and one thread",
     "moe": "uses fixed synthetic weights and one thread",
     "moe-q8": "uses fixed synthetic weights and one thread",
+    "int8": "uses fixed synthetic weights and one thread",
     "mxfp4": "uses fixed synthetic raw blocks and one thread",
     "tokenizer-qwen35": "reads its own pinned tokenizer files",
     "qwen35-tiny": "uses fixed synthetic weights and one thread",
@@ -1395,7 +1456,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "mxfp4", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "tensor-split", "qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "tensor-split", "qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1498,6 +1559,8 @@ def main(argv=None):
         gen_moe(args.output_dir)
     if args.kind == "moe-q8":
         gen_moe_q8(args.output_dir)
+    if args.kind == "int8":
+        gen_int8(args.output_dir)
     if args.kind == "mxfp4":
         gen_mxfp4(args.output_dir)
     if args.kind == "tokenizer-qwen35":

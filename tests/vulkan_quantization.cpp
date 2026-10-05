@@ -38,6 +38,12 @@ struct VulkanQuantizationTest {
         if (words) b.dispatch(K_QUANTIZE_XW, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n / 4 + 255) / 256);
         else b.dispatch(K_QUANTIZE_X, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n + 255) / 256);
     }
+    // The quantizers' builds that also write the 8-bit twin of --dtype int8 after the 16-bit one (xquant.glsl, TWIN8).
+    static void run8(VulkanBackend& b, CSlice x, CSlice y, uint32_t n, bool words) {
+        if (words) b.dispatch(K_QUANTIZE_XW, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n / 4 + 255) / 256, 1, 1);
+        else b.dispatch(K_QUANTIZE_X, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n + 255) / 256, 1, 1);
+    }
+    static size_t x8_base_words(size_t n) { return VulkanBackend::x8_base_bytes(n) / 4; }
 };
 }
 }
@@ -440,6 +446,52 @@ void check(backend::VulkanBackend& b) {
     std::cout << "vulkan-quantization: " << input.size() << " values per twin, " << sums << " packed sums, "
               << words16 << " identical lane/word words, " << failures << " failing blocks\n";
     require(failures == 0, "packed activation reconstruction or sums exceed their bounds");
+    // The 8-bit twin of the same inputs after the 16-bit one, from the lane-per-value and the word-wise writers: four signed bytes a word in position order, then each block's scale and scaled sum after n / 4 words.
+    // Both writers must give the same words, and the 16-bit twin before it the words of the builds that write it alone.
+    const size_t base = backend::VulkanQuantizationTest::x8_base_words(n), words8 = base + n / 4 + n / 16;
+    std::vector<uint32_t> twin8(words8 + 2 * guard, sentinel), lanes8(words8 + 2 * guard, sentinel), alone(n / 2 + n / 16 + 2 * guard, sentinel);
+    const auto e = b.adopt(twin8.data(), twin8.size() * sizeof(uint32_t));
+    const auto f = b.adopt(lanes8.data(), lanes8.size() * sizeof(uint32_t));
+    const auto g = b.adopt(alone.data(), alone.size() * sizeof(uint32_t));
+    backend::VulkanQuantizationTest::run8(b, {x.get(), 0}, {e.get(), guard}, n, true);
+    backend::VulkanQuantizationTest::run8(b, {x.get(), 0}, {f.get(), guard}, n, false);
+    backend::VulkanQuantizationTest::run(b, {x.get(), 0}, {g.get(), guard}, n, true);
+    b.read(*e, 0, twin8.data(), twin8.size() * sizeof(uint32_t));
+    b.read(*f, 0, lanes8.data(), lanes8.size() * sizeof(uint32_t));
+    b.read(*g, 0, alone.data(), alone.size() * sizeof(uint32_t));
+    for (size_t i = 0; i < guard; ++i)
+        require(twin8[i] == sentinel && twin8[twin8.size() - 1 - i] == sentinel && lanes8[i] == sentinel && lanes8[lanes8.size() - 1 - i] == sentinel,
+                "8-bit activation guard changed");
+    for (size_t i = 0; i < n / 2 + n / 16; ++i) require(twin8[guard + i] == alone[guard + i], "16-bit twin beside the 8-bit one changed");
+    size_t lane_words8 = 0;
+    for (size_t i = base; i < words8; ++i) {
+        require(twin8[guard + i] == lanes8[guard + i], "lane and word 8-bit writers differ");
+        ++lane_words8;
+    }
+    size_t failures8 = 0;
+    for (size_t block = 0; block < peaks.size(); ++block) {
+        constexpr int limit = 127;
+        const size_t tab = guard + base + n / 4 + block * 2;
+        const float scale = from_bits(twin8[tab]);
+        const double step = reconstruction_step(peaks[block], limit);
+        bool bad = !std::isfinite(scale) || scale < 0 || double(scale) > step || (peaks[block] > 0 && scale == 0);
+        int sum = 0;
+        for (size_t j = 0; j < 32; ++j) {
+            const size_t i = block * 32 + j;
+            const int quantized = int(int8_t(uint8_t(twin8[guard + base + block * 8 + j / 4] >> (8 * (j % 4)))));
+            const double actual = double(scale) * quantized;
+            const double bound = .50001 * step + 3e-7 * std::abs(double(input[i]));
+            bad |= std::abs(quantized) > limit || !std::isfinite(actual) || std::abs(actual - input[i]) > bound;
+            sum += quantized;
+        }
+        bad |= !sum_close(from_bits(twin8[tab + 1]), double(scale) * sum);
+        if (bad) {
+            if (failures8 < 8) std::cerr << "activation packing: 8 bits, block " << block << ", peak " << peaks[block] << ", scale " << scale << '\n';
+            ++failures8;
+        }
+    }
+    std::cout << "vulkan-quantization: " << peaks.size() << " blocks of the 8-bit twin, " << lane_words8 << " identical lane/word words, " << failures8 << " failing\n";
+    require(failures8 == 0, "8-bit twin reconstruction or sums exceed their bounds");
 }
 }
 

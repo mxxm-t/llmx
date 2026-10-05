@@ -175,15 +175,17 @@ struct DtypePlan {
     };
     std::vector<Device> devices;
     const char* requested_name() const { return requested ? backend::dtype_name(*requested) : "auto"; }
-    // The one line the CLI shows, including a warning when any device emulates or widens the request.
+    // The one line the CLI shows, a widened device with the dtype it runs, including a warning when any device emulates or widens the request.
     std::string describe() const {
         std::string s = std::string("dtype: ") + requested_name() + " -> " + backend::dtype_name(effective) + " (model declares " + backend::dtype_name(declared) + ")";
-        for (const Device& d : devices) s += "; " + d.name + " " + d.how + ": " + d.paths;
+        for (const Device& d : devices)
+            s += "; " + d.name + " " + d.how + (d.how == "fallback" ? std::string(" to ") + backend::dtype_name(d.effective) : std::string()) + ": " + d.paths;
         if (std::any_of(devices.begin(), devices.end(), [](const Device& d) { return d.how != "native"; }))
             s += " (warning: emulated or wider fallback)";
         return s + "\n";
     }
 };
+// A device without the requested dtype takes a fast exact emulation, else the next wider dtype it has, with a warning: f16 for int8, f32 otherwise (docs/PRECISION.md, rule 2).
 inline DtypePlan resolve_dtype(backend::Dtype declared, const std::vector<backend::BackendPtr>& backends, const std::vector<std::string>& names,
                                std::optional<backend::Dtype> requested = {}) {
     if (backends.empty()) throw std::runtime_error("dtype: no device");
@@ -211,12 +213,18 @@ inline DtypePlan resolve_dtype(backend::Dtype declared, const std::vector<backen
         std::string how = "native";
         if (std::find(supported[i].begin(), supported[i].end(), d) == supported[i].end()) {
             if (backends[i]->emulates_dtype(d)) how = "emulated";
-            else { d = backend::Dtype::f32; how = "fallback"; }
+            else {
+                const bool f16 = std::find(supported[i].begin(), supported[i].end(), backend::Dtype::f16) != supported[i].end();
+                d = d == backend::Dtype::int8 && f16 ? backend::Dtype::f16 : backend::Dtype::f32;
+                how = "fallback";
+            }
         }
         plan.devices.push_back({i < names.size() ? names[i] : "device " + std::to_string(i), how, backends[i]->dtype_path(d), d});
     }
-    if (std::all_of(plan.devices.begin(), plan.devices.end(), [](const DtypePlan::Device& d) { return d.effective == backend::Dtype::f32; }))
-        plan.effective = backend::Dtype::f32;
+    // Where every device widened to one dtype, that is the run's.
+    const backend::Dtype first = plan.devices.front().effective;
+    if (std::all_of(plan.devices.begin(), plan.devices.end(), [first](const DtypePlan::Device& d) { return d.effective == first; }))
+        plan.effective = first;
     return plan;
 }
 

@@ -1,6 +1,6 @@
 // A model on one device against the same model split by layers over several, compared as raw float logits: every position of a scored text through the prompt path, then a prefill in chunks of the ubatch, which a split pipelines over its stages, and greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phases 1 and 2).
 // Then the prompt and the steps replayed by class on each, as a paused request's resume recomputes them, which must give the decode's logits, and from a fork too unless the model keeps a recurrent state, which is not forked; verifies of drafts, the decode's tokens fed after a mark and retracted, which must give the same rows on both; and passes in flight through the pass API, which must give what the same passes give one after another.
-// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type] [dtype] [tensor width]; dtype is auto (the default), f16, bf16 or f32, a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default when left out.
+// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type] [dtype] [tensor width]; dtype is auto (the default), f16, bf16, f32 or int8, a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default when left out.
 // With a tensor width W above 1 (docs/TENSOR-SPLIT.md) the single device is a list of W devices forming one tensor group, and the split's devices form groups of W, its stages, which must give the one group's bits.
 #include <algorithm>
 #include <chrono>
@@ -252,7 +252,7 @@ static size_t verify(infer::Model& one, infer::Model& two, const std::vector<uin
 
 int main(int argc, char** argv) {
     if (argc < 3 || argc > 10) {
-        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch] [f16|f32] [auto|f16|bf16|f32] [tensor width]\n");
+        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch] [f16|f32] [auto|f16|bf16|f32|int8] [tensor width]\n");
         return 2;
     }
     try {
@@ -275,9 +275,9 @@ int main(int argc, char** argv) {
         alone.width = width;
         const std::string dtype = argc > 8 ? argv[8] : "auto";
         if (dtype != "auto") {
-            for (auto d : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16})
+            for (auto d : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16, backend::Dtype::int8})
                 if (dtype == backend::dtype_name(d)) alone.dtype = d;
-            if (!alone.dtype) throw std::runtime_error("dtype must be auto, f16, bf16 or f32");
+            if (!alone.dtype) throw std::runtime_error("dtype must be auto, f16, bf16, f32 or int8");
         }
         const auto first = infer::load_model(argv[1], backend::make_backends(alone.names), alone, options);
         infer::Model& one = *first->model;

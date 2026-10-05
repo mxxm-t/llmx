@@ -215,7 +215,7 @@ def main():
     ap.add_argument("--device", required=True, help="the backend under test, e.g. vulkan:0")
     ap.add_argument("--baseline", default="cpu", help="the backend that reads the device's tokens")
     ap.add_argument("--tensor-width", type=int, default=1, help="split every layer of the device under test across this many devices of its --device list (docs/TENSOR-SPLIT.md)")
-    ap.add_argument("--dtype", choices=("auto", "f16", "bf16", "f32"), default="auto",
+    ap.add_argument("--dtype", choices=("auto", "f16", "bf16", "f32", "int8"), default="auto",
                     help="activation dtype for generation and scoring on both backends")
     ap.add_argument("--tokens", type=int, default=16384, help="target prompt tokens")
     ap.add_argument("--max-tokens", type=int, default=512, help="tokens the device generates")

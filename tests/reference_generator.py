@@ -1033,6 +1033,14 @@ class DtypeCalibration(unittest.TestCase):
                 value.to.return_value.to.assert_called_once_with("f32")
                 self.assertIs(result[0], value.to.return_value.to.return_value)
                 self.assertIs(result[1], extra)
+        # The int8 class hooks the same modules through round_int8, the twin's rule at 127 levels.
+        with patch.object(self.calibration, "round_int8", side_effect=lambda x, t: ("rounded", x)):
+            handles = self.calibration.rounding(model, torch, "int8")
+            self.assertEqual(len(handles), 4)
+            for module in (query, gate, expert, head):
+                hook = module.register_forward_pre_hook.call_args.args[0]
+                value, extra = object(), object()
+                self.assertEqual(hook(module, (value, extra)), (("rounded", value), extra))
         router.register_forward_pre_hook.assert_not_called()
         norm.register_forward_pre_hook.assert_not_called()
 
@@ -1050,13 +1058,14 @@ class DtypeCalibration(unittest.TestCase):
         transformers = SimpleNamespace(__version__="4.55.2")
         with tempfile.TemporaryDirectory() as directory, patch.dict(sys.modules, {"torch": torch, "transformers": transformers}):
             path = Path(directory) / "budget.json"
-            with patch.object(self.calibration, "models", return_value=[("test", 7, object(), [])]), patch.object(self.calibration, "errors", return_value=(0.25, 0.125)), contextlib.redirect_stdout(io.StringIO()):
+            with patch.object(self.calibration, "models", return_value=[("test", 7, object(), [])]), patch.object(self.calibration, "int8_models", return_value=[("dense-untied", 7, object(), "0" * 64)]), patch.object(self.calibration, "errors", return_value=(0.25, 0.125)), contextlib.redirect_stdout(io.StringIO()):
                 self.calibration.main(["--output", str(path)])
                 torch.set_num_threads.assert_called_once_with(1)
                 doc = json.loads(path.read_text())
                 self.assertEqual(doc["threads"], 1)
-                for dtype in ("f16", "bf16"):
+                for dtype in ("f16", "bf16", "int8"):
                     self.assertEqual((doc["dtypes"][dtype]["logit_budget"], doc["dtypes"][dtype]["nll_budget"]), (0.5, 0.25))
+                self.assertEqual(doc["dtypes"]["int8"]["runs"][0]["fixture"], "int8-dense-untied")
                 original = path.read_bytes()
                 with self.assertRaises(FileExistsError):
                     self.calibration.main(["--output", str(path)])

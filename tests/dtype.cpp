@@ -135,6 +135,41 @@ struct Emulated : Capabilities {
     Emulated() : Capabilities({backend::Dtype::f32}) {}
     bool emulates_dtype(backend::Dtype dtype) const override { return dtype == backend::Dtype::bf16; }
 };
+// A device that runs int8, as an MI50 that prefers the integer dot does, and one that does not without being the CPU.
+struct Eight : Capabilities {
+    Eight() : Capabilities({backend::Dtype::f16, backend::Dtype::f32, backend::Dtype::int8}) {}
+    bool is_cpu() const override { return false; }
+};
+struct Sixteen : Capabilities {
+    Sixteen() : Capabilities({backend::Dtype::f16, backend::Dtype::f32}) {}
+    bool is_cpu() const override { return false; }
+};
+// int8 is never chosen by auto, runs where a device lists it, and a device that does not takes the next wider dtype it has, f16, else f32, with the warning (docs/PRECISION.md, rule 2).
+void int8_resolution() {
+    using D = backend::Dtype;
+    require(std::string(backend::dtype_name(D::int8)) == "int8", "int8 name");
+    const auto eight = std::make_shared<Eight>(), other = std::make_shared<Eight>();
+    const auto sixteen = std::make_shared<Sixteen>();
+    const auto full = std::make_shared<Capabilities>(std::vector<D>{D::f32});
+    require(infer::resolve_dtype(D::bf16, {eight}, {}).effective == D::f16 && infer::resolve_dtype(D::f32, {eight}, {}).effective == D::f16,
+            "auto chose int8");
+    const auto record = infer::resolve_dtype(D::bf16, {eight, other}, {"vulkan:0", "vulkan:1"}, D::int8);
+    require(record.effective == D::int8 && record.devices.size() == 2 && record.devices[1].how == "native" && record.devices[1].effective == D::int8 &&
+                record.describe().find("warning") == std::string::npos,
+            "int8 not resolved where every device lists it");
+    const auto mixed = infer::resolve_dtype(D::bf16, {eight, cpu(), sixteen, full}, {"vulkan:0", "cpu", "vulkan:1", "other"}, D::int8);
+    require(mixed.effective == D::int8 && mixed.devices[0].how == "native" && mixed.devices[0].effective == D::int8 &&
+                mixed.devices[1].how == "fallback" && mixed.devices[1].effective == D::f16 && mixed.devices[2].how == "fallback" &&
+                mixed.devices[2].effective == D::f16 && mixed.devices[3].how == "fallback" && mixed.devices[3].effective == D::f32,
+            "int8 not widened to the next dtype a device has");
+    const std::string line = mixed.describe();
+    require(line.find("cpu fallback to f16: ") != std::string::npos && line.find("other fallback to f32: ") != std::string::npos &&
+                line.find("(warning: emulated or wider fallback)") != std::string::npos,
+            "int8 fallback not reported per device");
+    // Where no device runs int8, the run is the dtype they widened to.
+    require(infer::resolve_dtype(D::bf16, {cpu(), sixteen}, {"cpu", "vulkan:0"}, D::int8).effective == D::f16, "a run without int8 not named f16");
+}
+
 void resolution() {
     using D = backend::Dtype;
     const auto half = std::make_shared<Capabilities>(std::vector<D>{D::f16, D::f32});
@@ -183,6 +218,7 @@ void resolution() {
     require(mix.devices[0].effective == D::bf16 && mix.devices[1].effective == D::bf16 && mix.devices[2].effective == D::f32,
             "mixed device fallback changed other policies");
     require(infer::resolve_dtype(D::bf16, {emulated}, {}).effective == D::f32, "emulation entered auto preference");
+    int8_resolution();
     const auto file = tiny_qwen(2, 128, false);
     auto weights = infer::gguf_weights(file);
     require(weights.declared_dtype == D::bf16, "GGUF architecture default missing");

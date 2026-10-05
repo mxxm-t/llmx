@@ -103,7 +103,7 @@ def run(require=False):
     for dtype in ("half", "F16", ""):
         p = subprocess.run([tool, "missing.gguf", "missing.txt", "cpu", "cpu,cpu", "1", "1", "f16", dtype],
                            capture_output=True, encoding="utf-8", errors="replace", timeout=10)
-        assert p.returncode == 2 and "dtype must be auto, f16, bf16 or f32" in p.stderr, \
+        assert p.returncode == 2 and "dtype must be auto, f16, bf16, f32 or int8" in p.stderr, \
             "split: invalid dtype was not refused before loading: " + p.stderr
     runs = 0
     with tempfile.TemporaryDirectory(prefix="llmx_split_") as directory:

@@ -1,5 +1,6 @@
 // The 16-bit twin of a float activation row for the row kernels (matmul_row.comp) and the integer-dot tile (matmul_tile_q.comp): blocks of 32 scaled so the largest magnitude is 32767, as position pairs (4m, 4m + 2) and (4m + 1, 4m + 3), then per block the scale and scaled sum.
 // A subgroup writes it: every lane calls with its value at flat position i, and positions i..i+31 aligned to 32 must lie in 32 consecutive lanes.
+// With specialization constant 7 a producer also writes the 8-bit twin, which --dtype int8's kernels read, after the 16-bit one (xquant8_base).
 // The caller declares `xq` as a writable uint buffer.
 #ifndef LLMX_XQUANT_GLSL
 #define LLMX_XQUANT_GLSL
@@ -54,14 +55,14 @@ vec2 xq_shift(vec2 v, int shift) {
 }
 float xq_input(float v, int shift) { return shift == 0 ? v : xq_shift(v, shift); }
 
-// Round half away from zero, as the host reference does.
-int xq_round(float v, float id) {
+// Round half away from zero, as the host reference does, to at most `top` in magnitude.
+int xq_round(float v, float id, int top) {
     float r = v * id;
-    return clamp(int(sign(r) * floor(abs(r) + 0.5)), -32767, 32767);
+    return clamp(int(sign(r) * floor(abs(r) + 0.5)), -top, top);
 }
 
 // n is the row's flat length: n / 2 words of pairs, then 2 words per block of scale and scaled sum.
-void xquant_block(uint i, float v, uint n) {
+void xquant16_block(uint i, float v, uint n) {
     uint lane = gl_SubgroupInvocationID;
     uint j = i & 31u;
     uint amax = floatBitsToUint(v) & 0x7FFFFFFFu;
@@ -72,7 +73,7 @@ void xquant_block(uint i, float v, uint n) {
     amax = max(amax, subgroupShuffleXor(amax, 1u));
     float d, id; int shift;
     xq_scale(amax, 32767.0, d, id, shift);
-    int q = xq_round(xq_input(v, shift), id);
+    int q = xq_round(xq_input(v, shift), id, 32767);
     // Lanes 0 and 1 of each four write the pairs (4m, 4m + 2) and (4m + 1, 4m + 3).
     int q2 = subgroupShuffle(q, min(lane + 2u, gl_SubgroupSize - 1u));
     if ((j & 3u) < 2u) xq[(i - j) / 2u + 2u * (j >> 2u) + (j & 3u)] = (uint(q) & 0xFFFFu) | (uint(q2) << 16u);
@@ -94,7 +95,7 @@ void xquant_block(uint i, float v, uint n) {
 
 // The 16-bit twin as above, a lane per four consecutive values: a block is eight consecutive lanes aligned to eight, lane w of them holding values 4w .. 4w + 3 of block blk.
 // Every lane calls, those of a block with nothing to write with `live` false; a maximum and an integer sum do not depend on their order, so the twin is the one the lanes above write, bit for bit.
-void xquant_word(vec4 v, bool live, uint w, uint blk, uint n) {
+void xquant16_word(vec4 v, bool live, uint w, uint blk, uint n) {
     uvec4 a = floatBitsToUint(v) & 0x7FFFFFFFu;
     uint amax = max(max(a.x, a.y), max(a.z, a.w));
     amax = max(amax, subgroupShuffleXor(amax, 4u));
@@ -102,8 +103,8 @@ void xquant_word(vec4 v, bool live, uint w, uint blk, uint n) {
     amax = max(amax, subgroupShuffleXor(amax, 1u));
     float d, id; int shift;
     xq_scale(amax, 32767.0, d, id, shift);
-    ivec4 q = ivec4(xq_round(xq_input(v.x, shift), id), xq_round(xq_input(v.y, shift), id),
-                    xq_round(xq_input(v.z, shift), id), xq_round(xq_input(v.w, shift), id));
+    ivec4 q = ivec4(xq_round(xq_input(v.x, shift), id, 32767), xq_round(xq_input(v.y, shift), id, 32767),
+                    xq_round(xq_input(v.z, shift), id, 32767), xq_round(xq_input(v.w, shift), id, 32767));
     // The half sums: lanes 0 to 3 hold values 0 to 15, lanes 4 to 7 values 16 to 31.
     int s = q.x + q.y + q.z + q.w;
     s += subgroupShuffleXor(s, 2u);
@@ -120,4 +121,76 @@ void xquant_word(vec4 v, bool live, uint w, uint blk, uint n) {
     }
 }
 
+
+// Where the 8-bit twin starts, in words, after the 16-bit twin, rounded up to 256 bytes so it can be bound at its own offset.
+uint xquant8_base(uint n) { return (n / 2u + n / 16u + 63u) & ~63u; }
+
+// The 8-bit twin from word `base`, --dtype int8's input: blocks of 32 scaled so the largest magnitude is 127, four signed bytes a word in position order, n / 4 words, then per block the scale and scaled sum.
+// Written as xquant16_block writes the 16-bit one, a lane per value.
+void xquant8_block(uint i, float v, uint n, uint base) {
+    uint lane = gl_SubgroupInvocationID;
+    uint j = i & 31u, blk = i / 32u;
+    uint amax = floatBitsToUint(v) & 0x7FFFFFFFu;
+    amax = max(amax, subgroupShuffleXor(amax, 16u));
+    amax = max(amax, subgroupShuffleXor(amax, 8u));
+    amax = max(amax, subgroupShuffleXor(amax, 4u));
+    amax = max(amax, subgroupShuffleXor(amax, 2u));
+    amax = max(amax, subgroupShuffleXor(amax, 1u));
+    float d, id; int shift;
+    xq_scale(amax, 127.0, d, id, shift);
+    int q = xq_round(xq_input(v, shift), id, 127);
+    // Lane 4m of each block packs the word from its own byte and the next three lanes'.
+    uint b1 = uint(subgroupShuffle(q, min(lane + 1u, gl_SubgroupSize - 1u))) & 255u;
+    uint b2 = uint(subgroupShuffle(q, min(lane + 2u, gl_SubgroupSize - 1u))) & 255u;
+    uint b3 = uint(subgroupShuffle(q, min(lane + 3u, gl_SubgroupSize - 1u))) & 255u;
+    if ((j & 3u) == 0u) xq[base + blk * 8u + j / 4u] = (uint(q) & 255u) | (b1 << 8u) | (b2 << 16u) | (b3 << 24u);
+    int s = q;
+    s += subgroupShuffleXor(s, 16u);
+    s += subgroupShuffleXor(s, 8u);
+    s += subgroupShuffleXor(s, 4u);
+    s += subgroupShuffleXor(s, 2u);
+    s += subgroupShuffleXor(s, 1u);
+    if (j == 0u) {
+        uint t = base + n / 4u + 2u * blk;
+        vec2 values = xq_shift(vec2(d, d * float(s)), -shift);
+        xq[t] = floatBitsToUint(values.x);
+        xq[t + 1u] = floatBitsToUint(values.y);
+    }
+}
+
+// The 8-bit twin as xquant16_word writes the 16-bit one, a lane per four consecutive values; the same bits as xquant8_block.
+void xquant8_word(vec4 v, bool live, uint w, uint blk, uint n, uint base) {
+    uvec4 a = floatBitsToUint(v) & 0x7FFFFFFFu;
+    uint amax = max(max(a.x, a.y), max(a.z, a.w));
+    amax = max(amax, subgroupShuffleXor(amax, 4u));
+    amax = max(amax, subgroupShuffleXor(amax, 2u));
+    amax = max(amax, subgroupShuffleXor(amax, 1u));
+    float d, id; int shift;
+    xq_scale(amax, 127.0, d, id, shift);
+    ivec4 q = ivec4(xq_round(xq_input(v.x, shift), id, 127), xq_round(xq_input(v.y, shift), id, 127),
+                    xq_round(xq_input(v.z, shift), id, 127), xq_round(xq_input(v.w, shift), id, 127));
+    int s = q.x + q.y + q.z + q.w;
+    s += subgroupShuffleXor(s, 2u);
+    s += subgroupShuffleXor(s, 1u);
+    int other = subgroupShuffleXor(s, 4u);
+    if (!live) return;
+    xq[base + blk * 8u + w] = (uint(q.x) & 255u) | ((uint(q.y) & 255u) << 8u) | ((uint(q.z) & 255u) << 16u) | (uint(q.w) << 24u);
+    if (w == 0u) {
+        uint t = base + n / 4u + 2u * blk;
+        vec2 values = xq_shift(vec2(d, d * float(s + other)), -shift);
+        xq[t] = floatBitsToUint(values.x);
+        xq[t + 1u] = floatBitsToUint(values.y);
+    }
+}
+
+// What a producer writes: the 16-bit twin, and with specialization constant 7 the 8-bit one after it, a second build the backend dispatches once a matmul has read the 8-bit twin, so other runs keep the cheaper producers.
+layout(constant_id = 7) const bool TWIN8 = false;
+void xquant_block(uint i, float v, uint n) {
+    xquant16_block(i, v, n);
+    if (TWIN8) xquant8_block(i, v, n, xquant8_base(n));
+}
+void xquant_word(vec4 v, bool live, uint w, uint blk, uint n) {
+    xquant16_word(v, live, w, blk, n);
+    if (TWIN8) xquant8_word(v, live, w, blk, n, xquant8_base(n));
+}
 #endif

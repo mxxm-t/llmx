@@ -4,15 +4,33 @@
 // Each step stages, per row, the block's quants widened to the twin's signed 16-bit pairs with its scale and minimum, and per column the twin's 16 words of the block with its scale and scaled sum.
 // A thread forms (TILE_ROWS / 16) x 4 dots of 32 products, as two of 16 since Q6_K scales the halves apart.
 // Types: Q4_0, Q4_1, Q4_K and Q5_K, Q6_K in its own build (LLMX_Q6) and Q8_0 in its own build (LLMX_Q8).
+// The 8-bit builds (LLMX_I8), --dtype int8 of docs/PRECISION.md, read the activations' 8-bit twin (xquant8_word) instead, its words four signed bytes in position order, against the quants as signed bytes through the four-wide 8-bit dot; the Q8_0 8-bit build stages four blocks a step in the shared memory the 16-bit build's two take.
 // The Q8_0 build stages one float scale per row and per column, since Q8_0 has one scale per block and no minimum, and takes no type branch.
 // Rows past nout and columns past nbatch read as zero and are not stored.
+#ifndef LLMX_I8
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#endif
 #extension GL_EXT_integer_dot_product : require
 #ifdef LLMX_Q8
 #extension GL_EXT_control_flow_attributes : require
 #endif
+#ifdef LLMX_I8
+// A staged word of either side: four signed bytes, the activations' 8-bit twin words read as they are.
+#define TWORD uint
+#define TZERO 0u
+#define TWORDS 8u   // twin words per block of 32
+#define WIDEN(w) (w)
+int dot_word(uint w, uint x, int acc) { return acc + dotPacked4x8EXT(int(w), int(x)); }
+#else
+// A staged word of either side: two pairs of 16-bit values, the quants widened to the twin's pairs (dot16.glsl).
 #include "dot16.glsl"
+#define TWORD uvec2
+#define TZERO uvec2(0u)
+#define TWORDS 16u
+#define WIDEN(w) weight16(w)
+int dot_word(uvec2 w, uvec2 x, int acc) { return dot_pairs(w, x, acc); }
+#endif
 #include "q.glsl"
 #ifdef LLMX_Q8MX
 #extension GL_ARB_gpu_shader_fp64 : require
@@ -80,12 +98,14 @@ bool wide_scale(float c) {
 #define WW (8u / WPR)            // and how many words each
 
 // Quant blocks staged per barrier, so their loads are in flight together; two keep the tallest tile's widened quants and activations below 32 KB.
-#ifndef STEP
+#if defined(LLMX_I8) && defined(LLMX_Q8)
+#define STEP 4u
+#else
 #define STEP 2u
 #endif
-// k-major: pair w of every row, then of every column, each four values; block s of a step at pairs 8s to 8s + 7.
-shared uvec2 wq[8u * STEP][TILE_ROWS];
-shared uvec2 xw[8u * STEP][64];
+// k-major: word w of every row, then of every column, each four values; block s of a step at words 8s to 8s + 7.
+shared TWORD wq[8u * STEP][TILE_ROWS];
+shared TWORD xw[8u * STEP][64];
 #ifdef LLMX_Q8
 shared float wsc[STEP * TILE_ROWS];   // per row and block: the scale
 // Per column and block: the activation scale, one stored by each of a column's four threads, so a step of two leaves two unused.
@@ -121,18 +141,29 @@ void store_scales(uint wrow, uint wseg, bool ok, vec4 v) {
 }
 #endif
 
-// A step's activations: a column's four threads each load four of a block's sixteen words and one of the step's scale values, 2 * STEP of them, or STEP in the Q8_0 build, where a block has one and thread xseg loads block xseg's.
+// A step's activations: a column's four threads each load a quarter of a block's twin words (TWORDS) and one of the step's scale values, 2 * STEP of them, or STEP in the Q8_0 builds, where a block has one and thread xseg loads block xseg's.
+#ifdef LLMX_I8
+#define XVEC uvec2
+#define XLO(v) (v).x
+#define XHI(v) (v).y
+#define XLOAD(i) uvec2(xq[i], xq[(i) + 1u])
+#else
+#define XVEC uvec4
+#define XLO(v) (v).xy
+#define XHI(v) (v).zw
+#define XLOAD(i) uvec4(xq[i], xq[(i) + 1u], xq[(i) + 2u], xq[(i) + 3u])
+#endif
 #ifdef LLMX_Q8
 #define XSC 1u
 #else
 #define XSC (STEP / 2u)
 #endif
 // Stores them from the registers they were loaded into, zero past the batch or the thread's part of the inner dimension.
-void store_x(uint k0, uint kend, bool xin, uint xcol, uint xseg, uvec4 xv[STEP], float xf[XSC]) {
+void store_x(uint k0, uint kend, bool xin, uint xcol, uint xseg, XVEC xv[STEP], float xf[XSC]) {
     for (uint s = 0u; s < STEP; ++s) {
         bool colv = xin && k0 + s < kend;
-        xw[s * 8u + xseg * 2u][xcol] = colv ? xv[s].xy : uvec2(0u);
-        xw[s * 8u + xseg * 2u + 1u][xcol] = colv ? xv[s].zw : uvec2(0u);
+        xw[s * 8u + xseg * 2u][xcol] = colv ? XLO(xv[s]) : TZERO;
+        xw[s * 8u + xseg * 2u + 1u][xcol] = colv ? XHI(xv[s]) : TZERO;
     }
 #ifdef LLMX_Q8
     xsc[xseg * 64u + xcol] = xin && xseg < STEP && k0 + xseg < kend ? xf[0] : 0.0;
@@ -168,7 +199,7 @@ void main() {
     uint wrow = tid / WPR, wseg = tid - wrow * WPR;   // W stager: row wrow, words wseg*WW..
     uint xcol = tid / 4u, xseg = tid - xcol * 4u;     // X stager: column xcol, words xseg*4..
     uint nblk = p.nin / 32u;
-    uint xtab = p.xcols * p.nin / 4u;                  // the scale table's start, in pairs
+    uint xtab = p.xcols * nblk * TWORDS / 2u;          // the scale table's start, in pairs
     uint kbeg = part * p.kper, kend = min(nblk, kbeg + p.kper);
     uint parts = (nblk + p.kper - 1u) / p.kper;
     uint before = (pi > 0u ? p.nout0 : 0u) + (pi > 1u ? p.nout1 : 0u);
@@ -189,12 +220,12 @@ void main() {
         // Every global load of a step goes out before the first is waited for.
         // The compiler waits for a load under a branch it cannot prove uniform inside that branch, and moves a load down into the block that first uses it.
         // So a load out of range reads a valid address and its zero is selected when it is stored, and each type's staging ends by storing the activations loaded before it.
-        uvec4 xv[STEP];
+        XVEC xv[STEP];
         float xf[XSC];
         for (uint s = 0u; s < STEP; ++s) {
             uint kb = k0 + s;
-            uint xb = xin && kb < kend ? (xc * nblk + kb) * 16u + xseg * 4u : 0u;
-            xv[s] = uvec4(xq[xb], xq[xb + 1u], xq[xb + 2u], xq[xb + 3u]);
+            uint xb = xin && kb < kend ? (xc * nblk + kb) * TWORDS + xseg * (TWORDS / 4u) : 0u;
+            xv[s] = XLOAD(xb);
         }
         for (uint k = 0u; k < XSC; ++k) {
 #ifdef LLMX_Q8
@@ -242,7 +273,7 @@ void main() {
                     uint b = ((ql >> nsh) & 0x0F0F0F0Fu) | (((qh >> hsh) & 0x03030303u) << 4u);
                     // b - 32 per byte: flipping bit 5 gives b - 32 or b + 32, and a set bit 5 then means negative, so it is copied into bits 6 and 7.
                     uint t = b ^ 0x20202020u, neg = t & 0x20202020u;
-                    wq[s * 8u + wseg * WW + m][wrow] = weight16(ok ? t | (neg << 1u) | (neg << 2u) : 0u);
+                    wq[s * 8u + wseg * WW + m][wrow] = WIDEN(ok ? t | (neg << 1u) | (neg << 2u) : 0u);
                 }
             }
             float d = unpackHalf2x16((os & 3u) == 0u ? dw : (dw >> 16u)).x;
@@ -264,7 +295,7 @@ void main() {
                 qv[s][WW] = ws[pi].w32[ob];
             }
             for (uint s = 0u; s < STEP; ++s)
-                for (uint m = 0u; m < WW; ++m) wq[s * 8u + wseg * WW + m][wrow] = weight16(okw[s] ? qv[s][m] : 0u);
+                for (uint m = 0u; m < WW; ++m) wq[s * 8u + wseg * WW + m][wrow] = WIDEN(okw[s] ? qv[s][m] : 0u);
             if (wseg == 0u)
                 for (uint s = 0u; s < STEP; ++s) wsc[s * TILE_ROWS + wrow] = okw[s] ? uintBitsToFloat(qv[s][WW]) : 0.0;
             store_x(k0, kend, xin, xcol, xseg, xv, xf);
@@ -288,7 +319,7 @@ void main() {
             for (uint s = 0u; s < STEP; ++s) {
                 for (uint m = 0u; m < WW; ++m) {
                     uint v = str[s] ? (qv[s][m] >> 16u) | (qv[s][m + 1u] << 16u) : qv[s][m];
-                    wq[s * 8u + wseg * WW + m][wrow] = weight16(okw[s] ? v : 0u);
+                    wq[s * 8u + wseg * WW + m][wrow] = WIDEN(okw[s] ? v : 0u);
                 }
             }
             if (wseg == 0u)
@@ -319,7 +350,7 @@ void main() {
                 for (uint m = 0u; m < WW; ++m) {
                     uint v = (qv[s][m] >> (4u * (g & 1u))) & 0x0F0F0F0Fu;
                     v = k5 ? v | (((hv[s][m] >> g) & 0x01010101u) << 4u) : v;
-                    wq[s * 8u + wseg * WW + m][wrow] = weight16(ok ? v : 0u);
+                    wq[s * 8u + wseg * WW + m][wrow] = WIDEN(ok ? v : 0u);
                 }
             }
             vec2 dd = unpackHalf2x16(h.x);
@@ -360,7 +391,7 @@ void main() {
                         // Q4_0's b - 8 per byte: flipping bit 3 gives b - 8 or b + 8, and a set bit 3 then means negative, so it is copied into bits 4 to 7.
                         uint t = b ^ 0x08080808u, neg = t & 0x08080808u;
                         uint v = q41 ? b : t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
-                        wq[s * 8u + w + 4u * h][wrow] = weight16(ok ? v : 0u);
+                        wq[s * 8u + w + 4u * h][wrow] = WIDEN(ok ? v : 0u);
                     }
                 }
             }
@@ -397,14 +428,14 @@ void main() {
         [[unroll]]
 #endif
         for (uint w = 0u; w < 8u; ++w) {
-            uvec2 b0 = xw[s * 8u + w][tc * 4u], b1 = xw[s * 8u + w][tc * 4u + 1u];
-            uvec2 b2 = xw[s * 8u + w][tc * 4u + 2u], b3 = xw[s * 8u + w][tc * 4u + 3u];
+            TWORD b0 = xw[s * 8u + w][tc * 4u], b1 = xw[s * 8u + w][tc * 4u + 1u];
+            TWORD b2 = xw[s * 8u + w][tc * 4u + 2u], b3 = xw[s * 8u + w][tc * 4u + 3u];
             for (uint i = 0u; i < MROWS; ++i) {
-                uvec2 a = wq[s * 8u + w][tr * MROWS + i];
-                t[i][0] = dot_pairs(a, b0, t[i][0]);
-                t[i][1] = dot_pairs(a, b1, t[i][1]);
-                t[i][2] = dot_pairs(a, b2, t[i][2]);
-                t[i][3] = dot_pairs(a, b3, t[i][3]);
+                TWORD a = wq[s * 8u + w][tr * MROWS + i];
+                t[i][0] = dot_word(a, b0, t[i][0]);
+                t[i][1] = dot_word(a, b1, t[i][1]);
+                t[i][2] = dot_word(a, b2, t[i][2]);
+                t[i][3] = dot_word(a, b3, t[i][3]);
             }
         }
         for (uint i = 0u; i < MROWS; ++i) {
@@ -437,16 +468,16 @@ void main() {
             int l[MROWS][4], h[MROWS][4];
             for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) { l[i][j] = 0; h[i][j] = 0; }
             for (uint w = 0u; w < 4u; ++w) {
-                uvec2 l0 = xw[s * 8u + w][tc * 4u], l1 = xw[s * 8u + w][tc * 4u + 1u], l2 = xw[s * 8u + w][tc * 4u + 2u], l3 = xw[s * 8u + w][tc * 4u + 3u];
-                uvec2 h0 = xw[s * 8u + w + 4u][tc * 4u], h1 = xw[s * 8u + w + 4u][tc * 4u + 1u];
-                uvec2 h2 = xw[s * 8u + w + 4u][tc * 4u + 2u], h3 = xw[s * 8u + w + 4u][tc * 4u + 3u];
+                TWORD l0 = xw[s * 8u + w][tc * 4u], l1 = xw[s * 8u + w][tc * 4u + 1u], l2 = xw[s * 8u + w][tc * 4u + 2u], l3 = xw[s * 8u + w][tc * 4u + 3u];
+                TWORD h0 = xw[s * 8u + w + 4u][tc * 4u], h1 = xw[s * 8u + w + 4u][tc * 4u + 1u];
+                TWORD h2 = xw[s * 8u + w + 4u][tc * 4u + 2u], h3 = xw[s * 8u + w + 4u][tc * 4u + 3u];
                 for (uint i = 0u; i < MROWS; ++i) {
                     uint r = tr * MROWS + i;
-                    uvec2 a = wq[s * 8u + w][r], e = wq[s * 8u + w + 4u][r];
-                    l[i][0] = dot_pairs(a, l0, l[i][0]); h[i][0] = dot_pairs(e, h0, h[i][0]);
-                    l[i][1] = dot_pairs(a, l1, l[i][1]); h[i][1] = dot_pairs(e, h1, h[i][1]);
-                    l[i][2] = dot_pairs(a, l2, l[i][2]); h[i][2] = dot_pairs(e, h2, h[i][2]);
-                    l[i][3] = dot_pairs(a, l3, l[i][3]); h[i][3] = dot_pairs(e, h3, h[i][3]);
+                    TWORD a = wq[s * 8u + w][r], e = wq[s * 8u + w + 4u][r];
+                    l[i][0] = dot_word(a, l0, l[i][0]); h[i][0] = dot_word(e, h0, h[i][0]);
+                    l[i][1] = dot_word(a, l1, l[i][1]); h[i][1] = dot_word(e, h1, h[i][1]);
+                    l[i][2] = dot_word(a, l2, l[i][2]); h[i][2] = dot_word(e, h2, h[i][2]);
+                    l[i][3] = dot_word(a, l3, l[i][3]); h[i][3] = dot_word(e, h3, h[i][3]);
                 }
             }
             for (uint i = 0u; i < MROWS; ++i) {

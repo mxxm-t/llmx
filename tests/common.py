@@ -396,18 +396,21 @@ F32_HF_LOGIT_BOUND = 2e-5
 
 def hf_bounds(dtype, devices):
     """Tiny-fixture bounds from the matrix paths the completed measurement dispatched, one list per device; a capability record is not a witness."""
-    assert dtype in ("f32", "f16", "bf16"), "unknown execution dtype"
+    assert dtype in ("f32", "f16", "bf16", "int8"), "unknown execution dtype"
     assert isinstance(devices, list) and devices, "missing matrix-path witness"
     paths = set()
     for device in devices:
         assert isinstance(device, list) and all(isinstance(p, str) for p in device), "malformed matrix-path witness"
         assert len(device) == len(set(device)), "duplicate matrix-path witness"
         paths.update(device)
-    assert paths and paths <= {"f32", "f16", "bf16", "block-int16"}, "missing, unknown or unqualified matrix path"
-    allowed = {"f32": {"f32"}, "f16": {"f32", "f16", "block-int16"}, "bf16": {"f32", "bf16"}}
+    assert paths and paths <= {"f32", "f16", "bf16", "block-int16", "block-int8"}, "missing, unknown or unqualified matrix path"
+    allowed = {"f32": {"f32"}, "f16": {"f32", "f16", "block-int16"}, "bf16": {"f32", "bf16"}, "int8": {"f32", "block-int16", "block-int8"}}
     assert paths <= allowed[dtype], "matrix paths disagree with the execution dtype"
     if paths == {"f32"}:
         return {"logit": F32_HF_LOGIT_BOUND, "nll": 1e-5}
+    # int8 runs as f16 where no product had an 8-bit build, and is held to f16's budget there.
+    if dtype == "int8" and "block-int8" not in paths:
+        dtype = "f16"
     with open(os.path.join(ROOT, "tests", "data", "dtype_budget.json"), encoding="utf-8") as f:
         budget = json.load(f)["dtypes"][dtype]
     bounds = {"logit": budget["logit_budget"], "nll": budget["nll_budget"]}

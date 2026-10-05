@@ -100,6 +100,15 @@ if(LLMX_HAS_BACKEND_VULKAN)
         norm_rope_kv_k16=norm_rope_kv=LLMX_K16 norm_rope_kv_v16=norm_rope_kv=LLMX_V16
         norm_rope_kv_kv16=norm_rope_kv=LLMX_K16+LLMX_V16
         matmul_tile_q6=matmul_tile_q=LLMX_Q6 matmul_tile_q8=matmul_tile_q=LLMX_Q8
+        matmul_tile_qi8=matmul_tile_q=LLMX_I8 matmul_tile_q6i8=matmul_tile_q=LLMX_Q6+LLMX_I8 matmul_tile_q8i8=matmul_tile_q=LLMX_Q8+LLMX_I8
+        matmul_tile_qi8_preserve=matmul_tile_q=LLMX_I8+LLMX_PRESERVE_F32 matmul_tile_q6i8_preserve=matmul_tile_q=LLMX_Q6+LLMX_I8+LLMX_PRESERVE_F32
+        matmul_row_q4_i8=matmul_row=LLMX_Q4+LLMX_DOT+LLMX_I8 matmul_row_k4_i8=matmul_row=LLMX_K4+LLMX_DOT+LLMX_I8
+        matmul_row_k5_i8=matmul_row=LLMX_K5+LLMX_DOT+LLMX_I8 matmul_row_k_i8=matmul_row=LLMX_KQUANT+LLMX_DOT+LLMX_I8
+        matmul_row_q4_i8_preserve=matmul_row=LLMX_Q4+LLMX_DOT+LLMX_I8+LLMX_PRESERVE_F32
+        matmul_row_k4_i8_preserve=matmul_row=LLMX_K4+LLMX_DOT+LLMX_I8+LLMX_PRESERVE_F32
+        matmul_row_k5_i8_preserve=matmul_row=LLMX_K5+LLMX_DOT+LLMX_I8+LLMX_PRESERVE_F32
+        matmul_row_k_i8_preserve=matmul_row=LLMX_KQUANT+LLMX_DOT+LLMX_I8+LLMX_PRESERVE_F32
+        matmul_vec_q8_i8=matmul_vec_q8=LLMX_I8 matmul_vec_q8_i8_preserve=matmul_vec_q8=LLMX_I8+LLMX_PRESERVE_F32
         embed_ids=embed=LLMX_DEVICE_IDS embed_ids_mxfp4=embed=LLMX_DEVICE_IDS+LLMX_MXFP4
         delta_rule_short=delta_rule=LLMX_SHORT)
     set(LLMX_VK_SPV)

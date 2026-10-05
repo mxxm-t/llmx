@@ -1,6 +1,6 @@
 # `src/cli/main.cpp` - CLI dispatcher
 
-`open_model` writes the resolved dtype record once to stderr, and serving passes that same record to its configuration for health reporting. Selection stays in placement. Shared execution options parse `--dtype auto|f16|bf16|f32` once for all model commands and pass it to placement. Missing, invalid and repeated values are usage errors. Auto selects the preferred common native policy, F16 on the current CPU and Vulkan backends. Explicit BF16 uses emulation where supported and reports F32 fallback on a device that cannot emulate it; the CLI does not implement either conversion or fallback.
+`open_model` writes the resolved dtype record once to stderr, and serving passes that same record to its configuration for health reporting. Selection stays in placement. Shared execution options parse `--dtype auto|f16|bf16|f32|int8` once for all model commands and pass it to placement. Missing, invalid and repeated values are usage errors. Auto selects the preferred common native policy, F16 on the current CPU and Vulkan backends. Explicit BF16 uses emulation where supported and reports F32 fallback on a device that cannot emulate it; the CLI does not implement either conversion or fallback.
 
 `matrix_record` writes a completed execution witness once for `logits`, `perplexity` and a `bench` that loads a model, with the effective dtype and the model's dispatched matrix paths per device. It drains the existing counters after work completes; no new profiler or tuning flag is involved.
 

@@ -402,7 +402,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         assert health["status"] == "ok" and health["active"] == 0, health
         dtype = health["dtype"]
         assert set(dtype) == {"requested", "declared", "effective", "devices"} and dtype["requested"] == srv.requested_dtype, dtype
-        assert dtype["declared"] in ("f32", "f16", "bf16") and dtype["effective"] in ("f32", "f16", "bf16"), dtype
+        assert dtype["declared"] in ("f32", "f16", "bf16") and dtype["effective"] in ("f32", "f16", "bf16", "int8"), dtype
         assert dtype["devices"], dtype
         for device in dtype["devices"]:
             assert set(device) == {"device", "how", "paths", "effective"} and device["device"] and device["paths"], device

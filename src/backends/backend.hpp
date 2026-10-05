@@ -67,15 +67,16 @@ struct CSlice {
     CSlice(const Slice& s) : buffer(s.buffer), offset(s.offset) {}
 };
 
-enum class Dtype { f32, f16, bf16 };
-enum class MatrixPath { f32, f16, bf16, block_int16 };
+// int8 rounds the inputs of matrix products to 8 bits (docs/PRECISION.md): a speed option below the default precision, which auto never chooses.
+enum class Dtype { f32, f16, bf16, int8 };
+enum class MatrixPath { f32, f16, bf16, block_int16, block_int8 };
 
 // The dispatched matrix forms, accumulated without allocating; read after the work has completed.
 class MatrixPaths {
 public:
     void record(MatrixPath path) { bits_ |= 1u << unsigned(path); }
     std::vector<std::string> take() {
-        static const char* const names[] = {"f32", "f16", "bf16", "block-int16"};
+        static const char* const names[] = {"f32", "f16", "bf16", "block-int16", "block-int8"};
         std::vector<std::string> paths;
         for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
             if (bits_ & (1u << i)) paths.emplace_back(names[i]);
@@ -90,6 +91,7 @@ inline const char* dtype_name(Dtype dtype) {
         case Dtype::f32: return "f32";
         case Dtype::f16: return "f16";
         case Dtype::bf16: return "bf16";
+        case Dtype::int8: return "int8";
     }
     return "unknown";
 }
@@ -298,7 +300,7 @@ public:
         return nullptr;
     }
 
-    // Complete native policies, preferred first; emulation alone does not add a policy to auto's choices.
+    // Complete native policies, preferred first; emulation alone does not add a policy to auto's choices, and int8, never preferred, is listed last where a backend runs it.
     virtual std::vector<Dtype> native_dtypes() const { return {Dtype::f32}; }
     virtual bool emulates_dtype(Dtype) const { return false; }
     virtual std::string dtype_path(Dtype dtype) const { return dtype_name(dtype); }

@@ -37,9 +37,24 @@ change the release number, or embed timestamps.
 
 ## Precision
 
-Commands that load a model accept `--dtype auto|f16|bf16|f32` (default `auto`) and print one `dtype:` record to stderr. It gives the request, resolved policy, architecture default and each device's native, emulated or wider fallback implementation, with a warning for emulation or fallback. The same record appears in `/v1/health` as `dtype`, with `requested`, `declared`, `effective` and `devices`; each device has `device`, `how`, `paths` and its own `effective` dtype. `paths` groups possible matrix families by activation form, including retained F32 operations; it describes the implementation, not which paths a particular request executed. A mixed run retains the requested policy at the top level and lists F32 for the devices that fall back; when all devices fall back, the top-level effective dtype is F32.
+Commands that load a model accept `--dtype auto|f16|bf16|f32|int8` (default `auto`) and print one `dtype:` record to stderr. It gives the request, resolved policy, architecture default and each device's native, emulated or wider fallback implementation, with a warning for emulation or fallback. The same record appears in `/v1/health` as `dtype`, with `requested`, `declared`, `effective` and `devices`; each device has `device`, `how`, `paths` and its own `effective` dtype. `paths` groups possible matrix families by activation form, including retained F32 operations; it describes the implementation, not which paths a particular request executed. A mixed run retains the requested policy at the top level and lists the wider dtype each device that falls back runs; when all devices run one dtype, that is the top-level effective dtype.
 
 On the supported AVX2 CPU, MI50 and Radeon VII paths, `auto` selects F16. The Qwen architectures declare BF16, but these backends prefer their supported F16 policy because they do not implement BF16 natively. Explicit `f32` keeps original F32 matrix inputs. Explicit `bf16` rounds inputs to BF16 and widens for F32 arithmetic on the CPU and on Vulkan devices that preserve F32 denormals, signed zeros, infinities and NaNs; otherwise it reports F32 fallback. F16 uses qualifying block-int16 kernels or documented wider F32 products, not a conversion of the whole model to half precision. Weights remain exact, and norms, softmax, rope, recurrent state, residuals and routers retain their F32 operations. Dtype is independent of the KV cache storage flags and does not add support for F16 or BF16 weight tensors.
+
+Explicit `int8` rounds the inputs of every quantized matrix product, the output head included, to 8-bit integers per block of 32, prompts and generated tokens alike, for speed below the default precision; `auto` never chooses it. Products without an 8-bit build, F32 weights and MXFP4, take their F16 form. It runs on a Vulkan device that prefers the integer dot product, the MI50 under Mesa; elsewhere, on the CPU and the Radeon VII, the device runs `f16` and the record warns, naming it. Its budget is in `docs/PRECISION.md`.
+
+What `int8` gives up for its speed, as measured on an MI50 (`docs/STATUS.md`): rankings near a tie can turn, and routed models choose other experts more often.
+Two cells of the real-model HF gate that `f16` passes fail under it: Qwen3-0.6B Q4_0 keeps 3 of HF's top five tokens for "The capital of France is" where the gate asks for 4, and Qwen3.5-0.8B Q8_0 keeps 4 of 5 on one chat prompt where it asks for 5; every perplexity cell of those files passes.
+A routed model picks another set of experts than F32 inputs give in 9 to 17 percent of its token-layer routings, against 1 to 1.5 percent under `f16` (Qwen3-30B-A3B Q8_0 and Qwen3.6-35B-A3B Q4_K_M), and its top token then differs from `f16`'s at 6 to 8 of 512 positions.
+After 16384 tokens of context Qwen3.5-9B Q4_K_M chose another token than the HF reference at 4 or 5 of 512 positions of raw text and at 1 of a chat, where `f16` chose HF's token at every one.
+
+| `--dtype` | quantized-weight products, the output head included, at every row count | F32-weight products | routers | attention and KV cache |
+|---|---|---|---|---|
+| `auto` | the preferred common dtype: `f16` on the MI50, the Radeon VII and an AVX2 CPU | as that dtype | F32 | outside `--dtype` |
+| `f32` | F32 inputs | F32 | F32 | outside `--dtype` |
+| `f16` | F16 or wider: blocks of 32 scaled to 16-bit integers, or F32 | F32 | F32 | outside `--dtype` |
+| `bf16` | inputs rounded to BF16, widened to F32 | rounded to BF16 | F32 | outside `--dtype` |
+| `int8` | blocks of 32 scaled to 8-bit integers; MXFP4, which has no 8-bit build yet, as `f16` | as `f16` | F32 | outside `--dtype` |
 
 `logits`, `perplexity` and model `bench` also write one `matrix-paths:` JSON record to stderr after computation, containing the effective `dtype` and a `devices` list of the matrix paths actually dispatched. The correctness tools use it to select their precision bound; the startup capability description is not execution evidence. Numerical stdout is unchanged.
 

@@ -78,12 +78,14 @@ Q8_FILES = {"gated": "d547bb5bf6f06f156998e459eb93ceb688390584f33b0ae24c0aabe187
             "near-tie": "93491ced5b64b1948540f8b3e1ce9d71f48a378213353e075e22fdc955589285"}
 
 
-def q8_tensors(router_scale, seed=Q8_SEED):
-    """The Q8_0 model's tensors as (name, shape, GGUF type, bytes), in the F32 model's order: each matrix's blocks a scale of 2^-11 times 1 to 1.875 and 32 codes from -127 to 127, and the norms and router F32 as the F32 model's values."""
+def q8_tensors(router_scale, seed=Q8_SEED, config=Q8_CONFIG, dense=DENSE_LAYERS, tied=False):
+    """The Q8_0 model's tensors as (name, shape, GGUF type, bytes), in the F32 model's order: each matrix's blocks a scale of 2^-11 times 1 to 1.875 and 32 codes from -127 to 127, and the norms and router F32 as the F32 model's values.
+    `config`, `dense` (the layers without experts) and `tied` give another model of the same draws, as tests/int8.py's fixtures are; a model whose every layer is dense has no router or experts."""
     state = seed
     result = []
-    hd = Q8_CONFIG["attention.key_length"]
-    width, ff, n_expert, eff = (Q8_CONFIG[k] for k in ("embedding_length", "feed_forward_length", "expert_count", "expert_feed_forward_length"))
+    hd = config["attention.key_length"]
+    width, ff = config["embedding_length"], config["feed_forward_length"]
+    n_expert, eff = config.get("expert_count", 0), config.get("expert_feed_forward_length", 0)
 
     def draw():
         nonlocal state
@@ -103,13 +105,14 @@ def q8_tensors(router_scale, seed=Q8_SEED):
 
     q8("token_embd.weight", [width, 257])
     f32("output_norm.weight", [width], True)
-    for layer in range(Q8_CONFIG["block_count"]):
+    q, kv = config["attention.head_count"] * hd, config["attention.head_count_kv"] * hd
+    for layer in range(config["block_count"]):
         name = "blk.%d." % layer
         for norm, size in (("attn_norm", width), ("ffn_norm", width), ("attn_q_norm", hd), ("attn_k_norm", hd)):
             f32(name + norm + ".weight", [size], True)
-        for tensor, shape in (("attn_q", [width, 2 * hd]), ("attn_k", [width, hd]), ("attn_v", [width, hd]), ("attn_output", [2 * hd, width])):
+        for tensor, shape in (("attn_q", [width, q]), ("attn_k", [width, kv]), ("attn_v", [width, kv]), ("attn_output", [q, width])):
             q8(name + tensor + ".weight", shape)
-        if layer in DENSE_LAYERS:
+        if layer in dense:
             for tensor, shape in (("ffn_gate", [width, ff]), ("ffn_up", [width, ff]), ("ffn_down", [ff, width])):
                 q8(name + tensor + ".weight", shape)
             continue
@@ -117,7 +120,8 @@ def q8_tensors(router_scale, seed=Q8_SEED):
         for tensor, shape in (("ffn_gate_exps", [width, eff, n_expert]), ("ffn_up_exps", [width, eff, n_expert]),
                               ("ffn_down_exps", [eff, width, n_expert])):
             q8(name + tensor + ".weight", shape)
-    q8("output.weight", [width, 257])
+    if not tied:
+        q8("output.weight", [width, 257])
     return result
 
 

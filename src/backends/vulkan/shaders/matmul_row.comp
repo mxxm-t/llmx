@@ -4,6 +4,7 @@
 // A subgroup takes `rows_per_sg` clusters of `cluster` lanes, each a row (ROWS rows in a two-row build) whose work units its lanes stride over, reducing with xor shuffles; a lane keeps up to MAX_COLS batch columns in registers.
 //
 // Quantized rows meet the activations as a signed 16-bit twin in blocks of 32 (xquant.glsl) with the block's scale and scaled sums; Q4 offsets and K-quant minima use the block sum; Q6_K's -32 is applied before its integer dot. F32 rows keep float activations. LLMX_FLOAT_X also reads quantized weights against the original F32 activations, using the shared qdecode.glsl values and this kernel's reduction.
+// The 8-bit builds (LLMX_I8, with LLMX_DOT), --dtype int8 of docs/PRECISION.md, read the 8-bit twin instead (xquant8_block) through the four-wide 8-bit dot, Q6_K's -32 taken into each weight byte; blocks, lanes, terms and reduction are the 16-bit builds'.
 //
 // One module per family of types, since one module for all of them raised every path's registers: as is for F32 and narrow Q8_0, LLMX_Q8W wide Q8_0, LLMX_Q4 Q4_0 and Q4_1, LLMX_K4 Q4_K, LLMX_K5 Q5_K, LLMX_KQUANT Q6_K.
 //
@@ -22,6 +23,9 @@
 #extension GL_EXT_control_flow_attributes : require
 #ifdef LLMX_DOT
 #extension GL_EXT_integer_dot_product : require
+#endif
+#if defined(LLMX_I8) && !(defined(LLMX_DOT) && (defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT)))
+#error "the 8-bit twin is read by the Q4 and K-quant families through the integer dot"
 #endif
 #if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4))
 #error "Q8_0 and F32 rows take matmul_vec_q8.comp and the plain build on integer-dot devices"
@@ -53,14 +57,23 @@ layout(set = 0, binding = 4) readonly buffer X { float x[]; };
 // The weights as 16-byte vectors, for the K-quant blocks whose sizes are multiples of 16.
 layout(set = 0, binding = 5) readonly buffer W128 { uvec4 w128[]; } w128s[3];
 // The quantized activations (xquant.glsl), one buffer bound four ways: four values, eight, a table entry or a pair of entries per load.
-// The 16-bit twin: per column nin / 2 words of pairs, then per block the scale and scaled sum.
-// Four values are one xq2 element and eight one xq4 element; XA and XB take an xq4 element's first and second four values.
+// The 16-bit twin: per column nin / 2 words of pairs, then per block the scale and scaled sum; the 8-bit twin: per column nin / 4 words of four bytes in position order, then the same per block.
+// Four values are one xq2 element and eight one xq4 element in both, so indices are the same; XA and XB take an xq4 element's first and second four values.
+#ifdef LLMX_I8
+layout(set = 0, binding = 6) readonly buffer XQ2 { uint xq2[]; };
+layout(set = 0, binding = 7) readonly buffer XQ4 { uvec2 xq4[]; };
+#define XQ4T uvec2
+#define XWT uint
+#define XA(v) (v).x
+#define XB(v) (v).y
+#else
 layout(set = 0, binding = 6) readonly buffer XQ2 { uvec2 xq2[]; };
 layout(set = 0, binding = 7) readonly buffer XQ4 { uvec4 xq4[]; };
 #define XQ4T uvec4
 #define XWT uvec2
 #define XA(v) (v).xy
 #define XB(v) (v).zw
+#endif
 layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
 layout(set = 0, binding = 9) readonly buffer XT4 { vec4 xt4[]; };
 // A routed call (per != 0, backend.hpp matmul_experts) runs one entry per workgroup row y: entry e reads X column e / per through the rows of expert ids[e] and writes output row e.
@@ -85,7 +98,11 @@ shared uint mxfp4_pairs[256];
 // Offset in pair words into the quantized activations of column c.
 uint xa_col(uint c) { return c * p.nin / 2u; }
 // A block's scale d and d times its integer sum.
+#ifdef LLMX_I8
+#define XTAB2 (p.nbatch * p.nin / 8u)
+#else
 #define XTAB2 (p.nbatch * p.nin / 4u)
+#endif
 vec2 xq_block(uint c, uint b) { return xt2[XTAB2 + c * (p.nin / 32u) + b]; }
 // The scale entries of blocks 2j and 2j + 1 in one load.
 vec4 xq_pair(uint c, uint j) { return xt4[XTAB2 / 2u + c * (p.nin / 64u) + j]; }
@@ -93,7 +110,11 @@ vec4 xq_pair(uint c, uint j) { return xt4[XTAB2 / 2u + c * (p.nin / 64u) + j]; }
 int lo16(uint w) { return int(int16_t(w)); }
 int hi16(uint w) { return int(int16_t(w >> 16u)); }
 // The dots in two forms, picked per device (backends/device_profile.hpp): LLMX_DOT through the integer dot product extension, otherwise plain multiplies.
-#if defined(LLMX_DOT)
+#ifdef LLMX_I8
+#define QDOT int
+// Four signed bytes against four 8-bit activations, the four-wide dot.
+int dot4(uint a, uint b) { return dotPacked4x8EXT(int(a), int(b)); }
+#elif defined(LLMX_DOT)
 #define QDOT int
 // Two pairs of 16-bit values against two activation pair words.
 int pair_dot(uint a, uint b, uvec2 xw) {
@@ -142,13 +163,28 @@ void q8_word(uint w, uint d, uint a2, inout int p0, inout int p1) {
 // The eight nibbles of a word: byte i's low nibble is position 4k + i of a group, its high nibble the same position 16 (Q4_0, Q4_1) or 32 (Q4_K, Q5_K) on.
 // Low and high go to separate dots since the K-quants scale them apart; `hb` carries Q5_K's fifth bit in bit 4 of each pair word, zero otherwise.
 void nibble_dots(uint w, uint hl0, uint hl1, uint hh0, uint hh1, XWT xl, XWT xh, inout QDOT pl, inout QDOT ph) {
+#ifdef LLMX_I8
+    pl += dot4((w & 0x0F0F0F0Fu) | hl0 | (hl1 << 8u), xl);
+    ph += dot4(((w >> 4u) & 0x0F0F0F0Fu) | hh0 | (hh1 << 8u), xh);
+#else
     pl += pair_dot((w & 0x000F000Fu) | hl0, ((w >> 8u) & 0x000F000Fu) | hl1, xl);
     ph += pair_dot(((w >> 4u) & 0x000F000Fu) | hh0, ((w >> 12u) & 0x000F000Fu) | hh1, xh);
+#endif
 }
 // Q5_K's fifth bits for one nibble word: bit s of each byte of `hb`, placed in bit 4 of each 16-bit lane.
 uint fifth(uint hb, uint s) { return ((hb >> s) & 0x00010001u) << 4u; }
 #endif
 
+
+#if defined(LLMX_KQUANT) && defined(LLMX_I8)
+// Four 6-bit values, a byte each, as the signed bytes value - 32: flipping bit 5 gives value - 32 or value + 32, and a set bit 5 then means negative, so it is copied into bits 6 and 7.
+uint signed6(uint q) {
+    uint t = q ^ 0x20202020u, neg = t & 0x20202020u;
+    return t | (neg << 1u) | (neg << 2u);
+}
+// A Q6_K group's dot: two words of four values against the column's eight activations.
+int q6_dot(uint a, uint b, XQ4T x) { return dot4(signed6(a), x.x) + dot4(signed6(b), x.y); }
+#endif
 
 #if defined(LLMX_KQUANT) || defined(LLMX_K4) || defined(LLMX_K5)
 // A word at any even byte offset: aligned, or the high half of one word and the low half of the next.
@@ -533,10 +569,15 @@ void main() {
                     XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
                     vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
                     [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+#ifdef LLMX_I8
+                        int p0 = q6_dot(q0ar[r], q0br[r], x0v), p1 = q6_dot(q1ar[r], q1br[r], x1v);
+                        int p2 = q6_dot(q2ar[r], q2br[r], x2v), p3 = q6_dot(q3ar[r], q3br[r], x3v);
+#else
                         QDOT p0 = pair_dot(q0ar[r] & 0x00FF00FFu, (q0ar[r] >> 8u) & 0x00FF00FFu, x0v.xy) + pair_dot(q0br[r] & 0x00FF00FFu, (q0br[r] >> 8u) & 0x00FF00FFu, x0v.zw);
                         QDOT p1 = pair_dot(q1ar[r] & 0x00FF00FFu, (q1ar[r] >> 8u) & 0x00FF00FFu, x1v.xy) + pair_dot(q1br[r] & 0x00FF00FFu, (q1br[r] >> 8u) & 0x00FF00FFu, x1v.zw);
                         QDOT p2 = pair_dot(q2ar[r] & 0x00FF00FFu, (q2ar[r] >> 8u) & 0x00FF00FFu, x2v.xy) + pair_dot(q2br[r] & 0x00FF00FFu, (q2br[r] >> 8u) & 0x00FF00FFu, x2v.zw);
                         QDOT p3 = pair_dot(q3ar[r] & 0x00FF00FFu, (q3ar[r] >> 8u) & 0x00FF00FFu, x3v.xy) + pair_dot(q3br[r] & 0x00FF00FFu, (q3br[r] >> 8u) & 0x00FF00FFu, x3v.zw);
+#endif
                         accr[r][c] += Q6K_TERM(dr[r], s0r[r], s1r[r], s2r[r], s3r[r], xa, xb);
                     }
                 }
@@ -837,10 +878,14 @@ void main() {
                     uint col = XCOL(c);
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
                     XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
+#ifdef LLMX_I8
+                    int p0 = q6_dot(q0a, q0b, x0v), p1 = q6_dot(q1a, q1b, x1v), p2 = q6_dot(q2a, q2b, x2v), p3 = q6_dot(q3a, q3b, x3v);
+#else
                     QDOT p0 = pair_dot(q0a & 0x00FF00FFu, (q0a >> 8u) & 0x00FF00FFu, x0v.xy) + pair_dot(q0b & 0x00FF00FFu, (q0b >> 8u) & 0x00FF00FFu, x0v.zw);
                     QDOT p1 = pair_dot(q1a & 0x00FF00FFu, (q1a >> 8u) & 0x00FF00FFu, x1v.xy) + pair_dot(q1b & 0x00FF00FFu, (q1b >> 8u) & 0x00FF00FFu, x1v.zw);
                     QDOT p2 = pair_dot(q2a & 0x00FF00FFu, (q2a >> 8u) & 0x00FF00FFu, x2v.xy) + pair_dot(q2b & 0x00FF00FFu, (q2b >> 8u) & 0x00FF00FFu, x2v.zw);
                     QDOT p3 = pair_dot(q3a & 0x00FF00FFu, (q3a >> 8u) & 0x00FF00FFu, x3v.xy) + pair_dot(q3b & 0x00FF00FFu, (q3b >> 8u) & 0x00FF00FFu, x3v.zw);
+#endif
                     vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
                     acc[c] += Q6K_TERM(d, s0, s1, s2, s3, xa, xb);
                 }

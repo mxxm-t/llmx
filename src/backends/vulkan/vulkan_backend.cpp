@@ -264,6 +264,21 @@ const uint32_t kSpvMatmulTileQ6[] = {
 const uint32_t kSpvMatmulTileQ8[] = {
 #include "vulkan/matmul_tile_q8.inc"
 };
+const uint32_t kSpvMatmulTileQi8[] = {
+#include "vulkan/matmul_tile_qi8.inc"
+};
+const uint32_t kSpvMatmulTileQi8Preserve[] = {
+#include "vulkan/matmul_tile_qi8_preserve.inc"
+};
+const uint32_t kSpvMatmulTileQ6i8[] = {
+#include "vulkan/matmul_tile_q6i8.inc"
+};
+const uint32_t kSpvMatmulTileQ6i8Preserve[] = {
+#include "vulkan/matmul_tile_q6i8_preserve.inc"
+};
+const uint32_t kSpvMatmulTileQ8i8[] = {
+#include "vulkan/matmul_tile_q8i8.inc"
+};
 const uint32_t kSpvMatmulReduce[] = {
 #include "vulkan/matmul_reduce.inc"
 };
@@ -290,6 +305,36 @@ const uint32_t kSpvMatmulRowQ8wPreserve[] = {
 };
 const uint32_t kSpvMatmulVecQ8Preserve[] = {
 #include "vulkan/matmul_vec_q8_preserve.inc"
+};
+const uint32_t kSpvMatmulVecQ8I8[] = {
+#include "vulkan/matmul_vec_q8_i8.inc"
+};
+const uint32_t kSpvMatmulVecQ8I8Preserve[] = {
+#include "vulkan/matmul_vec_q8_i8_preserve.inc"
+};
+const uint32_t kSpvMatmulRowQ4I8[] = {
+#include "vulkan/matmul_row_q4_i8.inc"
+};
+const uint32_t kSpvMatmulRowQ4I8Preserve[] = {
+#include "vulkan/matmul_row_q4_i8_preserve.inc"
+};
+const uint32_t kSpvMatmulRowK4I8[] = {
+#include "vulkan/matmul_row_k4_i8.inc"
+};
+const uint32_t kSpvMatmulRowK4I8Preserve[] = {
+#include "vulkan/matmul_row_k4_i8_preserve.inc"
+};
+const uint32_t kSpvMatmulRowK5I8[] = {
+#include "vulkan/matmul_row_k5_i8.inc"
+};
+const uint32_t kSpvMatmulRowK5I8Preserve[] = {
+#include "vulkan/matmul_row_k5_i8_preserve.inc"
+};
+const uint32_t kSpvMatmulRowKI8[] = {
+#include "vulkan/matmul_row_k_i8.inc"
+};
+const uint32_t kSpvMatmulRowKI8Preserve[] = {
+#include "vulkan/matmul_row_k_i8_preserve.inc"
 };
 const uint32_t kSpvMatmulRowQ4Preserve[] = {
 #include "vulkan/matmul_row_q4_preserve.inc"
@@ -470,8 +515,18 @@ const uint32_t kSpvMatmulTileQ8mx[] = {
     X(K_MATMUL_TILE_Q6, "matmul_tile_q6", kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts, kSpvMatmulTileQ6Preserve, sizeof(kSpvMatmulTileQ6Preserve)) \
     X(K_MATMUL_TILE_Q8, "matmul_tile_q8", kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts) \
     X(K_MATMUL_TILE_Q8_TALL, "matmul_tile_q8_tall", kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts) \
+    X(K_MATMUL_TILE_QI8, "matmul_tile_qi8", kSpvMatmulTileQi8, sizeof(kSpvMatmulTileQi8), 5, kMatmulTileQCounts, kSpvMatmulTileQi8Preserve, sizeof(kSpvMatmulTileQi8Preserve)) \
+    X(K_MATMUL_TILE_QI8_TALL, "matmul_tile_qi8_tall", kSpvMatmulTileQi8, sizeof(kSpvMatmulTileQi8), 5, kMatmulTileQCounts, kSpvMatmulTileQi8Preserve, sizeof(kSpvMatmulTileQi8Preserve)) \
+    X(K_MATMUL_TILE_Q6I8, "matmul_tile_q6i8", kSpvMatmulTileQ6i8, sizeof(kSpvMatmulTileQ6i8), 5, kMatmulTileQCounts, kSpvMatmulTileQ6i8Preserve, sizeof(kSpvMatmulTileQ6i8Preserve)) \
+    X(K_MATMUL_TILE_Q8I8, "matmul_tile_q8i8", kSpvMatmulTileQ8i8, sizeof(kSpvMatmulTileQ8i8), 5, kMatmulTileQCounts) \
+    X(K_MATMUL_TILE_Q8I8_TALL, "matmul_tile_q8i8_tall", kSpvMatmulTileQ8i8, sizeof(kSpvMatmulTileQ8i8), 5, kMatmulTileQCounts) \
     X(K_MATMUL_REDUCE, "matmul_reduce", kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, kMatmulReduceCounts, kSpvMatmulReducePreserve, sizeof(kSpvMatmulReducePreserve)) \
     X(K_MATMUL_VEC_Q8, "matmul_vec_q8", kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 12, kMatmulRowCounts, kSpvMatmulVecQ8Preserve, sizeof(kSpvMatmulVecQ8Preserve)) \
+    X(K_MATMUL_VEC_Q8_I8, "matmul_vec_q8_i8", kSpvMatmulVecQ8I8, sizeof(kSpvMatmulVecQ8I8), 12, kMatmulRowCounts, kSpvMatmulVecQ8I8Preserve, sizeof(kSpvMatmulVecQ8I8Preserve)) \
+    X(K_MATMUL_ROW_Q4_I8, "matmul_row_q4_i8", kSpvMatmulRowQ4I8, sizeof(kSpvMatmulRowQ4I8), 12, kMatmulRowCounts, kSpvMatmulRowQ4I8Preserve, sizeof(kSpvMatmulRowQ4I8Preserve)) \
+    X(K_MATMUL_ROW_K4_I8, "matmul_row_k4_i8", kSpvMatmulRowK4I8, sizeof(kSpvMatmulRowK4I8), 12, kMatmulRowCounts, kSpvMatmulRowK4I8Preserve, sizeof(kSpvMatmulRowK4I8Preserve)) \
+    X(K_MATMUL_ROW_K5_I8, "matmul_row_k5_i8", kSpvMatmulRowK5I8, sizeof(kSpvMatmulRowK5I8), 12, kMatmulRowCounts, kSpvMatmulRowK5I8Preserve, sizeof(kSpvMatmulRowK5I8Preserve)) \
+    X(K_MATMUL_ROW_K_I8, "matmul_row_k_i8", kSpvMatmulRowKI8, sizeof(kSpvMatmulRowKI8), 12, kMatmulRowCounts, kSpvMatmulRowKI8Preserve, sizeof(kSpvMatmulRowKI8Preserve)) \
     X(K_MOE_ROUTE, "moe_route", kSpvMoeRoute, sizeof(kSpvMoeRoute), 3, nullptr) \
     X(K_MOE_COMBINE, "moe_combine", kSpvMoeCombine, sizeof(kSpvMoeCombine), 3, nullptr) \
     X(K_MOE_GROUP, "moe_group", kSpvMoeGroup, sizeof(kSpvMoeGroup), 2, nullptr) \
@@ -536,6 +591,7 @@ struct WeightKernels {
     KernelId row, dot_row, float_row;
     KernelId tile, tall_tile, bf16_tile, bf16_tall_tile;
     KernelId integer_tile, integer_tall_tile;
+    KernelId int8_row, int8_tile, int8_tall_tile;   // the 8-bit builds (--dtype int8) on an integer-dot device; K_COUNT where a type has none
     bool fast_tile, mxfp4;
     size_t DeviceProfile::*moe_from;
 };
@@ -544,28 +600,28 @@ const WeightKernels* weight_kernels(uint32_t type) {
     static const WeightKernels formats[] = {
         {quant::GGML_TYPE_F32, RowLayout::values, K_MATMUL_ROW_F32, K_MATMUL_ROW_F32, K_MATMUL_ROW_F32,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
-         K_COUNT, K_COUNT, true, false, &DeviceProfile::moe_tile_from},
+         K_COUNT, K_COUNT, K_COUNT, K_COUNT, K_COUNT, true, false, &DeviceProfile::moe_tile_from},
         {quant::GGML_TYPE_Q8_0, RowLayout::q8_pairs, K_MATMUL_ROW, K_MATMUL_ROW, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
-         K_MATMUL_TILE_Q8, K_MATMUL_TILE_Q8_TALL, true, false, &DeviceProfile::moe_tile_from},
+         K_MATMUL_TILE_Q8, K_MATMUL_TILE_Q8_TALL, K_MATMUL_VEC_Q8_I8, K_MATMUL_TILE_Q8I8, K_MATMUL_TILE_Q8I8_TALL, true, false, &DeviceProfile::moe_tile_from},
         {quant::GGML_TYPE_Q4_0, RowLayout::q4_pairs, K_MATMUL_ROW_Q4, K_MATMUL_ROW_Q4_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
-         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, false, false, &DeviceProfile::moe_tile_from_q4},
+         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_ROW_Q4_I8, K_MATMUL_TILE_QI8, K_MATMUL_TILE_QI8_TALL, false, false, &DeviceProfile::moe_tile_from_q4},
         {quant::GGML_TYPE_Q4_1, RowLayout::blocks, K_MATMUL_ROW_Q4, K_MATMUL_ROW_Q4_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
-         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, false, false, &DeviceProfile::moe_tile_from_q4},
+         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_ROW_Q4_I8, K_MATMUL_TILE_QI8, K_MATMUL_TILE_QI8_TALL, false, false, &DeviceProfile::moe_tile_from_q4},
         {quant::GGML_TYPE_Q4_K, RowLayout::k_blocks, K_MATMUL_ROW_K4, K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
-         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, false, false, &DeviceProfile::moe_tile_from_q4k},
+         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_ROW_K4_I8, K_MATMUL_TILE_QI8, K_MATMUL_TILE_QI8_TALL, false, false, &DeviceProfile::moe_tile_from_q4k},
         {quant::GGML_TYPE_Q5_K, RowLayout::k_blocks, K_MATMUL_ROW_K5, K_MATMUL_ROW_K5_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
-         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, false, false, &DeviceProfile::moe_tile_from_q5k},
+         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_ROW_K5_I8, K_MATMUL_TILE_QI8, K_MATMUL_TILE_QI8_TALL, false, false, &DeviceProfile::moe_tile_from_q5k},
         {quant::GGML_TYPE_Q6_K, RowLayout::k_blocks, K_MATMUL_ROW_K, K_MATMUL_ROW_K_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
-         K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6, false, false, &DeviceProfile::moe_tile_from},
+         K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6, K_MATMUL_ROW_K_I8, K_MATMUL_TILE_Q6I8, K_MATMUL_TILE_Q6I8, false, false, &DeviceProfile::moe_tile_from},
         {quant::GGML_TYPE_MXFP4, RowLayout::blocks, K_MATMUL_ROW_MXFP4, K_MATMUL_ROW_MXFP4_DOT, K_MATMUL_ROW_MXFP4_FLOAT_X,
          K_MATMUL_TILE_MXFP4, K_MATMUL_TILE_MXFP4_TALL, K_MATMUL_TILE_MXFP4_BF16, K_MATMUL_TILE_MXFP4_BF16_TALL,
-         K_MATMUL_TILE_Q8MX, K_MATMUL_TILE_Q8MX_TALL, false, true, &DeviceProfile::moe_tile_from},
+         K_MATMUL_TILE_Q8MX, K_MATMUL_TILE_Q8MX_TALL, K_COUNT, K_COUNT, K_COUNT, false, true, &DeviceProfile::moe_tile_from},
     };
     for (const WeightKernels& format : formats) if (format.type == type) return &format;
     return nullptr;
@@ -586,6 +642,7 @@ inline bool is_row_kernel(KernelId id) {
     case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
     case K_MATMUL_ROW_Q4_DOT:
     case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT: case K_MATMUL_VEC_Q8:
+    case K_MATMUL_ROW_Q4_I8: case K_MATMUL_ROW_K4_I8: case K_MATMUL_ROW_K5_I8: case K_MATMUL_ROW_K_I8: case K_MATMUL_VEC_Q8_I8:
         return true;
     default: return false;
     }
@@ -599,10 +656,19 @@ inline bool is_tile_kernel(KernelId id) {
     switch (id) {
     case K_MATMUL_TILE: case K_MATMUL_TILE_TALL: case K_MATMUL_TILE_Q: case K_MATMUL_TILE_Q_TALL:
     case K_MATMUL_TILE_Q6: case K_MATMUL_TILE_Q8: case K_MATMUL_TILE_Q8_TALL:
+    case K_MATMUL_TILE_QI8: case K_MATMUL_TILE_QI8_TALL: case K_MATMUL_TILE_Q6I8: case K_MATMUL_TILE_Q8I8: case K_MATMUL_TILE_Q8I8_TALL:
     case K_MATMUL_TILE_BF16: case K_MATMUL_TILE_BF16_TALL:
         return true;
     default: return false;
     }
+}
+
+// The Q8_0 decode kernel's 16-bit and 8-bit builds, which share their builds and dispatch (kVecBuilds).
+inline bool is_vec_kernel(KernelId id) { return id == K_MATMUL_VEC_Q8 || id == K_MATMUL_VEC_Q8_I8; }
+
+// The row kernels that read the 8-bit twin.
+inline bool reads_x8(KernelId id) {
+    return id == K_MATMUL_ROW_Q4_I8 || id == K_MATMUL_ROW_K4_I8 || id == K_MATMUL_ROW_K5_I8 || id == K_MATMUL_ROW_K_I8 || id == K_MATMUL_VEC_Q8_I8;
 }
 
 // Whether a row kernel has a one-column build for one-column chunks, which frees the registers of seven unused accumulators.
@@ -642,7 +708,7 @@ inline bool row_kernel_builds_two_rows(KernelId id) {
     switch (id) {
     case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
     case K_MATMUL_ROW_Q4_DOT: case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT:
-
+    case K_MATMUL_ROW_Q4_I8: case K_MATMUL_ROW_K4_I8: case K_MATMUL_ROW_K5_I8: case K_MATMUL_ROW_K_I8:
         return true;
     default: return false;
     }
@@ -663,7 +729,7 @@ inline uint32_t build_rows(KernelId id, int variant) { return row_kernel_builds_
 
 // The columns a row kernel's build holds, by pipeline variant.
 inline uint32_t build_cols(KernelId id, int variant) {
-    if (id == K_MATMUL_VEC_Q8) return kVecBuilds[variant].capacity();
+    if (is_vec_kernel(id)) return kVecBuilds[variant].capacity();
     if (row_kernel_builds_two_rows(id)) return kRowBuilds[variant].cols;
     return variant == 1 ? kRowColsOne : kRowColsWide;
 }
@@ -1390,17 +1456,22 @@ public:
         const bool tile = is_tile_kernel(static_cast<KernelId>(id));
         if (variant == 2) return std::string(kKernelNames[id]) + "_grouped";
         if (variant && is_row_kernel((KernelId)id)) return std::string(kKernelNames[id]) + "_" + std::to_string(build_cols((KernelId)id, variant)) + "col";
-        return std::string(kKernelNames[id]) + (variant && tile ? "_small" : "");
+        return std::string(kKernelNames[id]) + (!variant ? "" : tile ? "_small" : "_x8");
     }
 
     bool supports_type(uint32_t type) const override {
         const WeightKernels* format = weight_kernels(type);
         return format && (!format->mxfp4 || dev_->mxfp4);
     }
-    std::vector<Dtype> native_dtypes() const override { return {Dtype::f16, Dtype::f32}; }
+    // int8 where the integer dot is preferred, which every quantized type but MXFP4 has 8-bit row and tile builds for.
+    std::vector<Dtype> native_dtypes() const override {
+        if (dev_->profile.prefer_integer_dot) return {Dtype::f16, Dtype::f32, Dtype::int8};
+        return {Dtype::f16, Dtype::f32};
+    }
     bool emulates_dtype(Dtype dtype) const override { return dtype == Dtype::bf16 && dev_->preserve_float32; }
     std::string dtype_path(Dtype dtype) const override {
         if (dtype == Dtype::bf16) return "bf16 (matrix inputs), f32 (routers)";
+        if (dtype == Dtype::int8) return "block-int8 (quantized rows and tiles but MXFP4), block-int16 (MXFP4), f32 (other products, routers)";
         if (dtype == Dtype::f16)
             return dev_->profile.prefer_integer_dot
                 ? "block-int16 (quantized rows and eligible tiles), f32 (other products, routers)"
@@ -1474,7 +1545,7 @@ public:
             uint32_t n = 0;
             if (d.get_exec_props(d.device, &pi, &n, nullptr) != VK_SUCCESS) continue;
             std::string text;
-            if (id == K_MATMUL_VEC_Q8) {
+            if (is_vec_kernel((KernelId)id)) {
                 const VecBuild& b = kVecBuilds[variant];
                 const uint32_t forms = vec_forms(variant, d.profile);
                 text = "; q8_decode_build cols=" + std::to_string(b.cols) + " rows=" + std::to_string(b.rows) + " steps=" + std::to_string(b.steps) +
@@ -1964,8 +2035,8 @@ public:
         const bool tile = quant && rows && n % rows == 0 && tile_reads(n / rows, rows, runs);
         const uint32_t pc[2] = {u32(n), tile ? 2u : quant ? 1u : 0u};
         dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? xq_for(n) : bind(dst)}, pc, sizeof(pc),
-                 groups(tile ? n / 4 : n, 256), 1);
-        if (quant) xq_tag_ = XqTag{bind(dst), n};
+                 groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0);
+        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_};
     }
 
     // The output gate, and a scale of one value per row, one invocation per element; like silu_mul it writes the copy the matmul reading dst next takes (shaders/sigmoid_mul.comp).
@@ -1982,8 +2053,8 @@ public:
         struct { uint32_t n, quant, width, dim, gate_stride, gate_head_stride; }
             pc{u32(n), tile ? 2u : quant ? 1u : 0u, u32(width), u32(dim), u32(gate_stride), u32(gate_head_stride)};
         dispatch(K_SIGMOID_MUL, {bind(dst), bind(x), bind(gate), quant ? xq_for(n) : bind(dst)},
-                 &pc, sizeof(pc), groups(tile ? n / 4 : n, 256), 1);
-        if (quant) xq_tag_ = XqTag{bind(dst), n};
+                 &pc, sizeof(pc), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0);
+        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_};
     }
 
     // One workgroup per (row, head); like rms_norm_rows it writes the copy the matmul reading dst next takes (shaders/gated_rms_norm.comp).
@@ -1999,8 +2070,8 @@ public:
         struct { uint32_t heads, dim; float eps; uint32_t quant, n; }
             pc{u32(heads), u32(dim), eps, tile ? 2u : quant ? 1u : 0u, u32(n)};
         dispatch(K_GATED_RMS_NORM, {bind(dst), bind(x), bind(z), bind(w), quant ? xq_for(n) : bind(dst)},
-                 &pc, sizeof(pc), u32(rows * heads), 1);
-        if (quant) xq_tag_ = XqTag{bind(dst), n};
+                 &pc, sizeof(pc), u32(rows * heads), 1, quant ? twin_variant() : 0);
+        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_};
     }
 
     // The storage of a call's state views, which must all be one, and the table the state kernels read: the view count, then per view its first batch row, rows, history length, source slot and destination slot; the conv appends its chunks.
@@ -2103,8 +2174,8 @@ public:
         struct { uint32_t rows, n, stride; float eps; uint32_t quant, chunks; }
             pc{u32(rows), u32(n), u32(stride), eps, tile ? 2u : quant ? 1u : 0u, u32(chunks)};
         dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), quant ? xq_for(rows * n) : bind(dst)},
-                 &pc, sizeof(pc), u32(rows * chunks), 1);
-        if (quant) xq_tag_ = XqTag{bind(dst), rows * n};
+                 &pc, sizeof(pc), u32(rows * chunks), 1, quant ? twin_variant() : 0);
+        if (quant) xq_tag_ = XqTag{bind(dst), rows * n, want_x8_};
     }
 
     // One workgroup per (row, head), reading the heads at their strides and writing them contiguously (shaders/norm_rope_partial.comp).
@@ -2278,6 +2349,8 @@ public:
         for (size_t i = 0; i < count; ++i)
             if (projections[i].rows) live.push_back(&projections[i]);
         if (live.empty()) return;
+        // int8 takes f16's kernels but where a type has an 8-bit build.
+        const bool sixteen = dtype == Dtype::f16 || dtype == Dtype::int8;
         if (dtype == Dtype::bf16 || kernel_choice == 1 || (kernel_choice < 0 && nbatch >= tile_from(projections, count, nin))) {
             const size_t gy = (nbatch + 63) / 64;
             std::vector<Projection> copies;
@@ -2288,7 +2361,7 @@ public:
                 return nullptr;
             };
             size_t copy_at = 0;
-            if (dtype == Dtype::f16 && dev_->profile.prefer_integer_dot) {
+            if (sixteen && dev_->profile.prefer_integer_dot) {
                 for (const Projection*& pr : live) {
                     if (pr->type != quant::GGML_TYPE_MXFP4) continue;
                     const size_t bytes = size_mul(pr->rows, size_mul(nin / 32, kMxCopyBlock));
@@ -2301,12 +2374,12 @@ public:
                 }
             }
             auto integer = [&](const Projection* pr) {
-                return dtype == Dtype::f16 && integer_dot_tile(pr->type) &&
+                return sixteen && integer_dot_tile(pr->type) &&
                        (pr->type != quant::GGML_TYPE_MXFP4 || original(pr));
             };
             if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
                 throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
-            // On a device whose integer dot is native, quantized types take the integer-dot tile (shaders/matmul_tile_q.comp), which reads X's 16-bit twin, made once for every projection that needs it.
+            // On a device whose integer dot is native, quantized types take the integer-dot tile (shaders/matmul_tile_q.comp), which reads X's 16-bit twin, or under int8 its 8-bit twin, each made once for every projection that needs it.
             const size_t nblk = nin / 32;
             // The float tile, one projection a dispatch.
             for (const Projection* pr : live) {
@@ -2371,8 +2444,9 @@ public:
                 for (const Projection* pr : pending)
                     (pr->type == pending[0]->type ? group : rest).push_back(pr);
                 pending.swap(rest);
-                const VkDescriptorBufferInfo xt = tile_twin(X, nbatch * nin);
-                const QTile t = qtile(group, gy, nin);
+                const bool i8 = dtype == Dtype::int8 && weight_kernels(group[0]->type)->int8_tile != K_COUNT;
+                const VkDescriptorBufferInfo xt = tile_twin(X, nbatch * nin, i8);
+                const QTile t = qtile(group, gy, nin, i8);
                 // The split is the one the rows' whole prompt would take (matmul_runs).
                 const size_t st = split_tiles ? split_tiles : gy;
                 const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, st, nin);
@@ -2413,7 +2487,7 @@ public:
                     dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), xt, xt, xt},
                              pc, sizeof(pc), u32(t.gx), (uint32_t)gy, small);
                 }
-                record_matrix_path(MatrixPath::block_int16);
+                record_matrix_path(i8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
                 for (const Projection* pr : group)
                     if (overlaps_twin(bind(pr->out), nbatch * pr->rows)) xq_tag_ = XqTag{};
             }
@@ -2432,7 +2506,7 @@ public:
                 return;
             }
         const RowPlan plan = row_plan(live[0]->type, nin, dtype);
-        const VkDescriptorBufferInfo xqi = row_twin(X, live[0]->type, nbatch * nin, dtype);
+        const VkDescriptorBufferInfo xqi = row_twin(X, plan, nbatch * nin, dtype);
         for_each_column_chunk(plan.kernel, nbatch, [&](size_t col0, size_t ncols, int variant) {
             row_dispatch(plan, live, X, xqi, nin, nbatch, col0, ncols, accumulate, variant);
         });
@@ -2442,7 +2516,7 @@ public:
     // The Q8_0 decode kernel takes its builds up to the profile's q8_decode_cols, the Q4 and K-quant families their one-column build and their two-row builds up to the profile's row_decode_cols where it sets one, every other row kernel its one-column build where it has one and its wide build.
     size_t column_builds(KernelId id, int (&out)[kVariants]) const {
         size_t n = 0;
-        if (id == K_MATMUL_VEC_Q8) {
+        if (is_vec_kernel(id)) {
             for (int v : kVecByWidth)
                 if (kVecBuilds[v].capacity() <= dev_->profile.q8_decode_cols) out[n++] = v;
             return n;
@@ -2515,7 +2589,9 @@ public:
         }
         uint32_t cluster = lanes;
         while (cluster < dev_->caps.subgroup_size && cluster < units) cluster *= 2;
-        if (kernel == K_MATMUL_ROW_K4_DOT || kernel == K_MATMUL_ROW_K5_DOT)
+        // Under int8 a type with an 8-bit build takes it, in the 16-bit build's layout.
+        if (dtype == Dtype::int8 && dev_->profile.prefer_integer_dot && format.int8_row != K_COUNT) kernel = format.int8_row;
+        if (kernel == K_MATMUL_ROW_K4_DOT || kernel == K_MATMUL_ROW_K5_DOT || kernel == K_MATMUL_ROW_K4_I8 || kernel == K_MATMUL_ROW_K5_I8)
             cluster = std::min(cluster, std::max(lanes, dev_->profile.k45_row_lanes));
         // Where the integer dot is native, Q8_0 rows take the integer dot over the 16-bit twin (shaders/matmul_vec_q8.comp).
         if (dtype == Dtype::f16 && type == quant::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot) kernel = K_MATMUL_VEC_Q8;
@@ -2524,20 +2600,24 @@ public:
 
     // Rows a subgroup takes in a row kernel's build: in matmul_row.comp the build's rows a cluster of lanes (build_rows), in the Q8_0 decode kernel its build's own (kVecBuilds).
     uint32_t sg_rows(const RowPlan& plan, int variant) const {
-        return plan.kernel == K_MATMUL_VEC_Q8 ? kVecBuilds[variant].rows : dev_->caps.subgroup_size / plan.cluster * build_rows(plan.kernel, variant);
+        return is_vec_kernel(plan.kernel) ? kVecBuilds[variant].rows : dev_->caps.subgroup_size / plan.cluster * build_rows(plan.kernel, variant);
     }
 
-    // What a row kernel reads X through: the floats for F32 weights or policy, else the activations' twin (shaders/xquant.glsl), which the norm, SiLU and attention kernels write beside their output and tag.
+    // What a row kernel reads X through: the floats for F32 weights or policy, else the activations' twin (shaders/xquant.glsl), which the norm, SiLU and attention kernels write beside their output and tag, and for an 8-bit build the 8-bit twin after it.
     // An input without one gets a quantize dispatch here; the scratch is reused stream-ordered.
-    VkDescriptorBufferInfo row_twin(CSlice X, uint32_t type, size_t n, Dtype dtype) {
-        if (weight_kernels(type)->layout == RowLayout::values || dtype == Dtype::f32) return bind(X);
+    VkDescriptorBufferInfo row_twin(CSlice X, const RowPlan& plan, size_t n, Dtype dtype) {
+        if (weight_kernels(plan.type)->layout == RowLayout::values || dtype == Dtype::f32) return bind(X);
+        const bool x8 = reads_x8(plan.kernel);
+        // The first matmul reading the 8-bit twin has it made here; producers after it write both.
+        if (x8) want_x8_ = true;
         const VkDescriptorBufferInfo xf = bind(X);
         VkDescriptorBufferInfo xqi = xq_for(n);
-        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset)) {
+        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset && (!x8 || xq_tag_.has8))) {
             const uint32_t qpc[1] = {u32(n)};
-            dispatch(K_QUANTIZE_X, {xf, xqi}, qpc, sizeof(qpc), groups(n, 256), 1);
-            xq_tag_ = XqTag{xf, n};
+            dispatch(K_QUANTIZE_X, {xf, xqi}, qpc, sizeof(qpc), groups(n, 256), 1, twin_variant());
+            xq_tag_ = XqTag{xf, n, want_x8_};
         }
+        if (x8) xqi.offset = x8_base_bytes(n);
         return xqi;
     }
 
@@ -2549,7 +2629,7 @@ public:
                       uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0) {
         // A Q8_0 decode build whose column groups take the same rows gives each workgroup's rows that many adjacent workgroups.
         const uint32_t per_group = (256 / dev_->caps.subgroup_size) * sg_rows(plan, variant);
-        const uint32_t span = plan.kernel == K_MATMUL_VEC_Q8 ? kVecBuilds[variant].span : 1;
+        const uint32_t span = is_vec_kernel(plan.kernel) ? kVecBuilds[variant].span : 1;
         uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
         uint32_t total = 0;
         for (size_t i = 0; i < live.size(); ++i) {
@@ -2579,7 +2659,8 @@ public:
                   bind(a.data), bind(b.data), bind(c.data),
                   xqi, xqi, xqi, xqi, ids.buffer ? ids : bind(X), tab.buffer ? tab : bind(X)},
                  pc, sizeof(pc), total, u32(entries), variant);
-        record_matrix_path(a.type == quant::GGML_TYPE_F32 || (plan.kernel == K_MATMUL_ROW_FLOAT_X || plan.kernel == K_MATMUL_ROW_MXFP4_FLOAT_X) ? MatrixPath::f32 : MatrixPath::block_int16);
+        record_matrix_path(a.type == quant::GGML_TYPE_F32 || (plan.kernel == K_MATMUL_ROW_FLOAT_X || plan.kernel == K_MATMUL_ROW_MXFP4_FLOAT_X) ? MatrixPath::f32
+                           : reads_x8(plan.kernel) ? MatrixPath::block_int8 : MatrixPath::block_int16);
         // The outputs may overlap what the twin describes; a router's scores beside its input do not, so the experts read the same twin.
         for (const Projection* pr : live)
             if (overlaps_twin(bind(pr->out), (routed ? routed : per ? entries : nbatch) * pr->rows)) xq_tag_ = XqTag{};
@@ -2662,7 +2743,7 @@ public:
         if (!tile && entries < 2 * n_expert) {
             // Generated tokens whose entries average fewer than two an expert: each entry its own workgroup row, through the one-column build, since grouping them would save few reads and costs a dispatch.
             const RowPlan plan = row_plan(type, nin, dtype);
-            const VkDescriptorBufferInfo xqi = row_twin(X, type, xcols * nin, dtype);
+            const VkDescriptorBufferInfo xqi = row_twin(X, plan, xcols * nin, dtype);
             for_each_column_chunk(plan.kernel, 1, [&](size_t, size_t, int variant) {
                 row_dispatch(plan, live, X, xqi, nin, xcols, 0, 1, false, variant, u32(per), entries, bind(ids));
             });
@@ -2692,19 +2773,20 @@ public:
             // Enough generated tokens that experts repeat: each run of one expert's entries a workgroup row of the row kernel's wide build, a column per entry, so the expert's rows are read once per run.
             // A column computes the same in either build and as it would alone, so an entry does not depend on what else is routed beside it.
             const RowPlan plan = row_plan(type, nin, dtype);
-            const VkDescriptorBufferInfo xqi = row_twin(X, type, xcols * nin, dtype);
+            const VkDescriptorBufferInfo xqi = row_twin(X, plan, xcols * nin, dtype);
             row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, 2, u32(per), max_tiles, bind(ids), order0, tab, entries);
             return;
         }
-        if (dtype == Dtype::f16 && integer_dot_tile(type) && type != quant::GGML_TYPE_MXFP4) {
-            const VkDescriptorBufferInfo xt = tile_twin(X, xcols * nin);
-            const QTile t = qtile(live, max_tiles, nin);
+        if ((dtype == Dtype::f16 || dtype == Dtype::int8) && integer_dot_tile(type) && type != quant::GGML_TYPE_MXFP4) {
+            const bool i8 = dtype == Dtype::int8 && weight_kernels(type)->int8_tile != K_COUNT;
+            const VkDescriptorBufferInfo xt = tile_twin(X, xcols * nin, i8);
+            const QTile t = qtile(live, max_tiles, nin, i8);
             const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
             const uint32_t pc[15] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),
                                      t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], u32(per), order0, u32(xcols)};
             dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), xt, xt, tab},
                      pc, sizeof(pc), u32(t.gx), u32(max_tiles), t.height == kTileRowsSmall ? 1 : 0);
-            record_matrix_path(MatrixPath::block_int16);
+            record_matrix_path(i8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
         } else {
             for (const Projection* pr : live) {
                 const uint32_t height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall,
@@ -2737,9 +2819,9 @@ public:
             throw std::runtime_error(std::string("vulkan: ") + what + " outside its allocation");
     }
 
-    // The scratch the twin of an n-value input lives in.
+    // The scratch the twin of an n-value input lives in, the 8-bit twin after the 16-bit one once a matmul has read it.
     VkDescriptorBufferInfo xq_for(size_t n) {
-        const size_t bytes = n * 2 + (n / 32) * 8;
+        const size_t bytes = want_x8_ ? x8_base_bytes(n) + n + (n / 32) * 8 : n * 2 + (n / 32) * 8;
         if (!xq_ || xq_->size() < bytes) {
             grow(xq_, bytes);
             xq_tag_ = XqTag{};
@@ -2747,16 +2829,24 @@ public:
         return VkDescriptorBufferInfo{xq_->handle(), 0, VK_WHOLE_SIZE};
     }
 
-    // The 16-bit twin of an n-value batch the integer-dot tile reads: the one a producer wrote, or one made here four values a lane (shaders/quantize_xw.comp).
-    VkDescriptorBufferInfo tile_twin(CSlice X, size_t n) {
-        const VkDescriptorBufferInfo xf = bind(X), xt = xq_for(n);
-        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset)) {
+    // The 16-bit twin of an n-value batch the integer-dot tile reads, or with x8 the 8-bit twin after it: the one a producer wrote, or one made here four values a lane (shaders/quantize_xw.comp).
+    VkDescriptorBufferInfo tile_twin(CSlice X, size_t n, bool x8 = false) {
+        if (x8) want_x8_ = true;
+        const VkDescriptorBufferInfo xf = bind(X);
+        VkDescriptorBufferInfo xt = xq_for(n);
+        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset && (!x8 || xq_tag_.has8))) {
             const uint32_t pc[1] = {u32(n)};
-            dispatch(K_QUANTIZE_XW, {xf, xt}, pc, sizeof(pc), groups(n / 4, 256));
-            xq_tag_ = XqTag{xf, n};
+            dispatch(K_QUANTIZE_XW, {xf, xt}, pc, sizeof(pc), groups(n / 4, 256), 1, twin_variant());
+            xq_tag_ = XqTag{xf, n, want_x8_};
         }
+        if (x8) xt.offset = x8_base_bytes(n);
         return xt;
     }
+
+    // Where the 8-bit twin starts after the 16-bit one, in bytes, rounded up to 256 so it is a valid binding offset (shaders/xquant.glsl, xquant8_base).
+    static size_t x8_base_bytes(size_t n) { return ((n / 2 + n / 16 + 63) & ~size_t(63)) * 4; }
+    // The producers' build: the one that also writes the 8-bit twin once a matmul has read it (shaders/xquant.glsl, TWIN8).
+    int twin_variant() const { return want_x8_ ? 1 : 0; }
 
     // Whether a type's wide matmul goes through the integer-dot tile on this device; profile_for prefers the integer dot only where the device has it.
     bool integer_dot_tile(uint32_t type) const {
@@ -2772,14 +2862,15 @@ public:
         uint32_t start[3] = {0, 0, 0}, nout[3] = {0, 0, 0};
         const Projection* p[3] = {nullptr, nullptr, nullptr};
     };
-    QTile qtile(const std::vector<const Projection*>& ps, size_t column_groups, size_t nin) const {
+    QTile qtile(const std::vector<const Projection*>& ps, size_t column_groups, size_t nin, bool i8 = false) const {
         QTile t;
         for (const Projection* pr : ps) t.rows += pr->rows;
         t.height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin);
         const WeightKernels& format = *weight_kernels(ps[0]->type);
+        const KernelId tile = i8 ? format.int8_tile : format.integer_tile, tall = i8 ? format.int8_tall_tile : format.integer_tall_tile;
         // Q6_K has only the short module: the tall build would hold twice the half sums.
-        if (format.integer_tile == format.integer_tall_tile && t.height == kTileRowsTall) t.height = kTileRowsShort;
-        t.kernel = t.height == kTileRowsTall ? format.integer_tall_tile : format.integer_tile;
+        if (tile == tall && t.height == kTileRowsTall) t.height = kTileRowsShort;
+        t.kernel = t.height == kTileRowsTall ? tall : tile;
         for (size_t i = 0; i < 3; ++i) {
             t.p[i] = i < ps.size() ? ps[i] : ps[0];
             if (i >= ps.size()) continue;
@@ -2935,8 +3026,8 @@ public:
             dispatch(head_dim == 256 ? kv_variant(K_ATTENTION_TILE_D256, K_ATTENTION_TILE_D256_K16, s) : kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
                       args(t.words.data(), t.words.size() * sizeof(uint32_t)), tile ? xq_for(rows * qstride) : bind(out)},
-                     &tc, sizeof(tc), u32(tiles * (size_t)n_head));
-            if (tile) xq_tag_ = XqTag{bind(out), rows * qstride};
+                     &tc, sizeof(tc), u32(tiles * (size_t)n_head), 1, tile ? twin_variant() : 0);
+            if (tile) xq_tag_ = XqTag{bind(out), rows * qstride, want_x8_};
         }
         if (!narrow.empty()) {
             ViewTable t = view_table(layer, narrow, false);
@@ -2977,12 +3068,12 @@ public:
             dispatch(kernel,
                      {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
                       table, scratch, xq},
-                     &pc, sizeof(pc), groups(pairs / hg * nsplit, 1), 1);
+                     &pc, sizeof(pc), groups(pairs / hg * nsplit, 1), 1, quant ? twin_variant() : 0);
             if (nsplit > 1) {
                 const uint32_t mc[5] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u};
-                dispatch(K_ATTENTION_MERGE, {bind(out), scratch, table, xq}, mc, sizeof(mc), groups(pairs, 1), 1);
+                dispatch(K_ATTENTION_MERGE, {bind(out), scratch, table, xq}, mc, sizeof(mc), groups(pairs, 1), 1, quant ? twin_variant() : 0);
             }
-            if (quant) xq_tag_ = XqTag{bind(out), rows * qstride};
+            if (quant) xq_tag_ = XqTag{bind(out), rows * qstride, want_x8_};
         }
     }
 
@@ -3184,22 +3275,26 @@ private:
             ci.stage.pName = "main";
             // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
             const bool tile = is_tile_kernel(id);
-            const bool tall_tile = id == K_MATMUL_TILE_Q8MX_TALL || id == K_MATMUL_TILE_MXFP4_TALL || id == K_MATMUL_TILE_MXFP4_BF16_TALL || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_BF16_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q8_TALL;
+            const bool tall_tile = id == K_MATMUL_TILE_Q8MX_TALL || id == K_MATMUL_TILE_MXFP4_TALL || id == K_MATMUL_TILE_MXFP4_BF16_TALL || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_BF16_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q8_TALL ||
+                                   id == K_MATMUL_TILE_QI8_TALL || id == K_MATMUL_TILE_Q8I8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
                                              : build_cols(id, variant);
             // Constant 8 a row kernel's grouped build, and constant 9 the rows a build takes, a cluster's in matmul_row.comp (build_rows) and a subgroup's in the Q8_0 decode kernel.
             // Constants 10 to 13 are the Q8_0 decode kernel's steps, forms and column groups (kVecBuilds), whose constant 0 is its columns a subgroup rather than the build's.
             // Every pipeline gets all seven entries, and a module that declares none ignores them.
             const VecBuild& vb = kVecBuilds[variant];
-            const bool vec = id == K_MATMUL_VEC_Q8;
+            const bool vec = is_vec_kernel(id);
             const uint32_t forms = vec ? vec_forms(variant, d.profile) : 0;
-            const uint32_t spec_data[7] = {vec ? vb.cols : spec_value, variant == 2 ? 1u : 0u, vec ? vb.rows : build_rows(id, variant), vb.steps,
+            // Constant 7 is a twin producer's build that also writes the 8-bit twin, its variant 1 (twin_variant).
+            // The entries go in constant order: the AMD proprietary driver gave a Q4_K row kernel other results with constant 7 listed last.
+            const bool twin8 = variant == 1 && !tile && !is_row_kernel(id);
+            const uint32_t spec_data[8] = {vec ? vb.cols : spec_value, twin8 ? 1u : 0u, variant == 2 ? 1u : 0u, vec ? vb.rows : build_rows(id, variant), vb.steps,
                                            (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Half) ? 1u : 0u, vb.span};
-            const uint32_t spec_ids[7] = {0, 8, 9, 10, 11, 12, 13};
-            VkSpecializationMapEntry entries[7];
-            for (uint32_t i = 0; i < 7; ++i) entries[i] = {spec_ids[i], i * uint32_t(sizeof(uint32_t)), sizeof(uint32_t)};
+            const uint32_t spec_ids[8] = {0, 7, 8, 9, 10, 11, 12, 13};
+            VkSpecializationMapEntry entries[8];
+            for (uint32_t i = 0; i < 8; ++i) entries[i] = {spec_ids[i], i * uint32_t(sizeof(uint32_t)), sizeof(uint32_t)};
             VkSpecializationInfo spec{};
-            spec.mapEntryCount = 7;
+            spec.mapEntryCount = 8;
             spec.pMapEntries = entries;
             spec.dataSize = sizeof(spec_data);
             spec.pData = spec_data;
@@ -3394,8 +3489,10 @@ private:
     // Which ids moe_tab_ groups: their location and count, cleared by every routing, by anything that writes a buffer from the host and by a new buffer (drop_tags).
     struct GroupTag { VkDescriptorBufferInfo ids{}; size_t entries = 0, n_expert = 0, chunk = 0; };
     GroupTag group_tag_;
-    // What the twin buffer holds: the float input it was made from, its length; cleared by anything else that writes a buffer, since the input may be what was written, and by a new buffer (drop_tags).
-    struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; };
+    // What the twin buffer holds: the float input it was made from, its length and whether the 8-bit twin follows; cleared by anything else that writes a buffer, since the input may be what was written, and by a new buffer (drop_tags).
+    struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; bool has8 = false; };
+    // Whether a matmul has read the 8-bit twin, after which producers write it too (twin_variant); it changes which copies exist, never a result.
+    bool want_x8_ = false;
 
     XqTag xq_tag_;
     std::vector<std::shared_ptr<VulkanBuffer>> pending_[kRing];

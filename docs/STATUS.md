@@ -64,6 +64,13 @@
   Width 3 is refused on every Qwen3 and Qwen3.5 file, whose 8 KV heads three members cannot share whole, where the reference runs it.
 - **Gotchas:** the plan's sum term in the pass cost moved to phase 3's step 9, assembly by predicted stage time, which is not built and is where it is consumed; the cards beyond GPU[2] and GPU[3] are lent by their owners for windows posted in the devlog, GPU[0] and GPU[4] while XDEV is away (the user, 2026-10-05).
 
+## The tensor split's kernel route, read in source (2026-10-05, branch docs/tensor-split-kernel-route, docs only, lands by fast-forward)
+
+- **Goal:** what stands between the tensor split and a wait inside one submission across two cards, read in the sources before anything is built or tested: upstream Linux v6.17.13 for the test machine's kernel, Mesa 25.0.7 and the vendor's amdgpu tree.
+- **Done:** `docs/TENSOR-SPLIT.md`, section 8, records the reading by file and line (RADV already exports with explicit sync; the kernel's import copies four flags and never that one, shares the exporter's reservation and so always waits on the other card's fences; an uncached mapping is taken for imports; the reference's flag buffer is uncached on both cards) and two candidate patch sets with what each would prove and its chance upstream: forcing explicit sync on imports of KFD memory, and the all-Vulkan route of one kernel line and one RADV line, which is the one to test first; the probe's success criterion; and what reading could not settle.
+- **Checks:** a docs change: the suite's docs and dead-code components.
+- **Left:** where to test it is the user's decision with the coordinator and the reviewer; not the test machine's kernel, which serves production.
+
 ## A fitted budget waits for the room beside it (2026-10-05, branch fix/fit-settle-whole, lands by fast-forward)
 
 - **Goal:** a server started on a card still giving back an ended server's memory fits the budget, the checkpoints and the drafter a settled card gives, the open finding of Drafter files beside a model, below.

@@ -142,6 +142,29 @@ The verbose log of every run below reads `TP custom AllReduce: initialized for 2
 - Width 4 on one complex waits for the fourth card; it is recorded when measured.
 - On this prompt-heavy load both runtimes are bound by prefill: llmx's layer split serves about 0.4 requests a second, near one 512-token prefill of 2.5 s at a time, so its stages do not overlap different requests' prompts here.
 
+### 2.9 Upstream llama.cpp's all-reduce (read 2026-10-05)
+
+Read at ggml-org/llama.cpp `8345f333951c` (master, 2026-10-05): `ggml/src/ggml-cuda/allreduce.cu` and `allreduce.cuh`, its dispatcher in `ggml/src/ggml-cuda/ggml-cuda.cu`, and `ggml/src/ggml-cuda/vendors/hip.h`; the file came with PR #22299 (2026-05-10) and runs under HIP since PR #27825 (2026-09-15). No code is taken from it.
+
+- **Scope:** exactly two ranks, without peer access, staging through pinned host memory; its default on Linux is still NCCL, this path the fallback.
+- **Selection** is by bytes on the wire: below 1 MiB a kernel path, from 1 MiB a copy-engine path, the threshold and chunk size set by environment variables.
+  The wire is BF16 by default, both operands rounded to it before the add, so its default is not exact for F32; exact F32 needs its BF16 threshold set to 0.
+- **Small path:** one kernel a rank on the rank's compute stream writes its input into its own slot of pinned host memory (allocated portable and mapped, one device pointer used by both cards), fences at system scope, stores a rising call token into its own flag with a volatile store and a system fence, spins with a short sleep until the peer's flag holds the token, fences again and adds the peer's slot; no atomics, no timeout, the flags on a 64-byte stride; pieces of 1 MiB with a new slot and token each.
+  Its comment argues only single writer and single reader; that the reader sees the store promptly is assumed of the host mapping.
+- **Large path:** chunks of 512 KiB to 2 MiB (a quarter of the message), each rank's device-to-host copies on a stream of their own, the peer's host-to-device copy of a chunk waiting on that chunk's event across the cards, then one add on the compute stream behind the last copy; a rank's copy in of chunk c overlaps the peer's copy out of chunk c + 1, and both directions run at once; the compute stream is still ordered behind the copies.
+- **Its numbers** (PR #27825, an RX 6800 XT and an RX 9070, a 31B Q6_K model, against its butterfly fallback): pp2048 384 to 445 tok/s, tg512 23.6 to 24.2.
+
+What applies here:
+
+1. **Its large path is step 7's overlap in another form:** transfers issued apart from compute and ordered by events a chunk, so a chunk moves while the next is produced. Here the copies are commands of the member's own queue, so the overlap is between micro-batches of a pass (section 6, step 7), with the same chunking idea: a sum's copy of one micro-batch runs while the next computes.
+2. **Its flag in host memory is the wait inside a submission that section 2.6 could not get,** and it shows which half of that failure was ours to remove.
+   With a dma-buf the wait cannot work, since the import's implicit sync orders the two cards' whole submissions (section 4.3).
+   With host memory imported into both cards there is no shared reservation and no implicit sync, and the flag wait failed there for another reason: RADV maps imported host memory cached, so a reader's L2 keeps the flag it read first (the sums of those runs were right once the spin timed out, the data having arrived).
+   HIP's mapped host memory is read and written past that cache; under Vulkan the same mapping is a matter of the driver alone, since the kernel's address-space mapping call already takes an uncached memory type for a buffer (`AMDGPU_VM_MTYPE_UC` in `include/uapi/drm/amdgpu_drm.h`), which RADV uses for `VK_AMD_device_coherent_memory` and not for an imported host pointer; whether the kernel honours it for host pages on gfx906 is what the measurement would show.
+   So a route not tried: a RADV change, with no kernel change, that maps an imported host pointer uncached on both cards, then the flag wait of `llmx-vk-handoff exchange` over host inboxes as it stands.
+   Measured so (2026-10-05, Mesa 25.0.7 patched in a container, nothing on the host changed): the kernel takes the uncached mapping of an imported host pointer and the flag is still never seen, at widths 2 and 4 and every size, the spin's reads taking about 5 ns each, a cached read; so the mapping type alone does not bypass the cache for host pages on gfx906, and this route is closed as tried.
+3. **Not taken:** the BF16 wire, which is not exact; the unbounded spin; two ranks only.
+
 ### 2.7 What the research decides
 
 1. Two reductions a layer is the floor for every Qwen layer kind (attention, Gated DeltaNet, dense and MoE feed-forward); sequence parallelism doubles the synchronization points and is not taken.
@@ -257,6 +280,7 @@ Its sources here:
 - **Uneven work:** a member with more heads, more rows, a remainder or a routed expert imbalance arrives last at every sum.
 - **Card variance:** clocks, temperature and link training differ per card (a link can train at Gen1 or Gen3), and a card beside another job runs slower.
 - **Topology:** a group across root complexes reads its peers at 1.1 GB/s instead of 9.2 and its 160 KB hop took 132 us instead of 72.
+  Writes into a peer's memory cross at full speed, and the collective only writes across, each member copying its partial into its peers' inboxes and reading its own: `llmx-vk-handoff exchange` with dma-buf inboxes (2026-10-05, 64 epochs, median of 5 chains, three runs, every sum correct) took 119 to 130, 145 to 158, 369 to 383 and 2153 to 2213 us an epoch at 20 KB, 160 KB, 1.25 MB and 10 MB across roots (GPU[5] with GPU[6] or GPU[7]) against 121 to 127, 147 to 155, 376 to 385 and 2177 to 2192 on one (GPU[6] and GPU[7]).
 
 **What it costs a token** on Qwen3-32B Q8_0 (64 layers, 128 sums), single request, from step 0's measured sums (section 2.6) and its measured 51.5 ms of work a token, of which about 2.9 ms is the dispatch floor that does not split:
 
@@ -276,10 +300,10 @@ The exchange and its skew do not shrink with the width while the compute does, s
 - **Balanced work:** even splits only, with no remainder member, no zero-width member (the fork's width 8 on 4 KV heads) and replicated KV heads rather than uneven ones, which llmx takes as a legality rule.
 - **Launch skew:** a submitting thread per member from width 4 on, under the one-owner-per-backend rule of MULTI-DEVICE (each member's backend belongs to one submitter), measured first at width 2 and 4 in step 0; the fork's concurrent per-card dispatch is the same remedy.
 - **Device-side waits:** the chain stays queued ahead on the devices through sync files, never relayed by the host (227 us); a wait inside a submission is closed on Vulkan here (2.6) and is the ROCm backend's path.
-- **Topology:** members on one root complex; the fit reads each device's PCI address and refuses a group across complexes by name unless the user forces it with the flag's own form.
+- **Topology:** a group may span root complexes, which cost the same for the collective's writes (above); a group is refused only where its devices cannot share memory or semaphores, naming each device and its root; the command line reports each group's roots at startup and, where the listed devices allow every group under one root, says which order gives that, keeping the order given (2026-10-05, after the measurement; formerly a group across complexes was refused).
 - **Bounded width, staged beyond it:** a group is at most 4 wide, and more cards form stages: 8 cards as 2 stages of 4 keep width 4's skew per sum, take the same time per token for one request (each token crosses both stages, each with half the layers), and with P = 2 serve twice the requests; the fork measured staged ahead of full width from 6 cards.
 
-**Recommended:** width at most 4, 2 on Vulkan unless step 0's 4-card measurement shows width 4 pays there, even shards, one root complex per group, a submitting thread per member from width 4, and stages beyond 4 cards.
+**Recommended:** width at most 4, 2 on Vulkan unless step 0's 4-card measurement shows width 4 pays there, even shards, a group under any root complexes (one root is no longer required, Topology above, 2026-10-05), a submitting thread per member from width 4, and stages beyond 4 cards.
 At 8 cards an extrapolation of HIP's skew would favour width 8 for one request, but step 0 measured the Vulkan sum growing from 154 us at width 2 to 268 us at width 4, the reference's Qwen3-14B figures put width 8 below width 4 and its staged form ahead from 6 cards, the figures leave out Vulkan's unmeasured skew at 8, one thread cannot record 8 members in time, the eight cards span two root complexes here (four at 83 to 8c, four at c3 to cc), and 2 stages of 4 serve twice the requests at P = 2; width 8 stays refused until a width-8 Vulkan sum is measured with `llmx-vk-handoff exchange`, which this machine cannot do on one complex.
 The reference itself decodes Qwen3.6-27B Q8_0 faster at width 8 than at width 4 (tg256 57.2 tok/s with two-shot, `5f65f9fa38`, against tg128 51.7 at width 4 with whole-token graphs), so the cap is a measured limit of the Vulkan sum, not a rule of the design: it opens once a width-8 Vulkan sum is measured and the model of 4.5 says width 8 pays, and the 8-card comparison is against the reference's best shape at 8 cards, width 8 or staged, whichever is faster on the load measured.
 **Gate:** at every width offered and at 2 stages of 4, the exposed wait a sum and a token, read from GPU timestamps on every member, and the per-token cost against the model above, recorded at each merge that touches the group's execution.
@@ -512,6 +536,14 @@ Decided with the coordinator, the other developer away:
 4. **The flag** is `--tensor-width N` in place of `--group-width N` (section 4.6), with the refusals listed there.
 5. **Width 4** of the reference on one root complex is measured once the fourth card is free, and added to section 2.8.
 6. **Width 8:** the cap of 4 (decision 3) opens once a width-8 Vulkan sum is measured with `llmx-vk-handoff exchange` and the per-token model says width 8 pays; the gate at 8 cards is the reference's best shape there, width 8 (Qwen3.6-27B Q8_0 tg256 57.2 tok/s with two-shot, against 51.7 at width 4) or staged, whichever is faster on the load measured, so llmx's 2 stages of 4 meet the reference's width 8 where that is its best.
+
+### The gate at the same precision, at every width (the user, 2026-10-05)
+
+The user wrote: "beat at same precision and tensor split must beat ROCm on all widths."
+So the tensor split's performance gate is the reference's ROCm tensor split at every width it runs (2, 3, 4, and 8 once the cap of decision 3 opens), on the same cards, models and loads, with llmx at the matched precision, `--dtype int8`, since the reference computes its products from 8-bit activations; llmx at its default precision is shown beside it as another precision, not as the gate's arm.
+Every cell below the reference is listed in STATUS as open under the first-support rule with its recovery work named: `--dtype int8` and the repacked Q8_0 layout for prompt rows, two shots at widths 3 and more, step 7's overlap for a sum's copies, and a wait inside the submission for decode's sums (item 3 above).
+For decode the gate is stated as a budget: the microseconds a sum may cost for a group to beat the reference at that width, from the group's time a token with no sum at all and the reference's time a token, against what the sync-file sum costs; STATUS carries the numbers per width, and they say whether the kernel route is required.
+A width llmx cannot form is listed too: a group divides a model's KV heads, so the Qwen3 and Qwen3.5 files, of 8 KV heads, split at widths 2, 4 and 8 and are refused at width 3, where the reference, which splits other axes, runs.
 
 ### Step 3 as built (2026-10-04)
 

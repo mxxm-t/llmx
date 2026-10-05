@@ -5,6 +5,7 @@ import tempfile
 
 import common
 import f32
+import tensor_split
 
 
 APPEND = ("{% for message in messages %}"
@@ -43,17 +44,29 @@ def replies(case, turns=None):
 
 
 def run():
-    if common.tensor_width_skip("chat"):
-        return common.SKIPPED
     fixture = f32.golden("baseline_chat.json")
-    weights = fixture["weights"]
     assert [case["spec"] for case in fixture["cases"]] == CASES
+    # Under a tensor width the model is the tensor-split fixtures' shape, which a group splits whole, and a reply is held to the same conversation at every thread count and ubatch rather than to HF's, which the tensor-split component holds the shape's numerics to.
+    grouped = common.tensor_width() > 1
+    weights = f32.tensors(True, config=tensor_split.CONFIG, vocab=tensor_split.VOCAB) if grouped else fixture["weights"]
+    shape = {"config": dict(tensor_split.CONFIG, context_length=f32.CONFIG["context_length"]), "tokens": tensor_split.TOKENS} if grouped else {}
+    def write(model, template, eos_id=None):
+        f32.write_model(model, weights, template, eos_id, **shape)
     with tempfile.TemporaryDirectory(prefix="llmx_chat_") as directory:
         model = Path(directory) / "chat.gguf"
         for case in fixture["cases"]:
             spec = case["spec"]
-            f32.write_model(model, weights, spec["template"], spec.get("eos_id"))
-            expected = replies(case)
+            write(model, spec["template"], spec.get("eos_id"))
+            expected = None if grouped else replies(case)
+            # Under a tensor width the first reply is held to `generate` on the same group reading the first turn's prompt as the reference rendered it, which holds no reply of the reference's model; the later turns' rendered prompts do, so they are held to the same conversation at every thread count and ubatch.
+            first = None
+            if grouped:
+                prompt = Path(directory) / "first.txt"
+                prompt.write_bytes(bytes(case["turns"][0]["prompt_ids"]))
+                g = common.run_process(["generate", str(model), "--file", str(prompt), "--temp", "0", "-n", str(spec["max_tokens"]), "--threads", "1"]
+                                       + (["--stop", spec["stop"]] if "stop" in spec else []), timeout=30)
+                assert g.returncode == 0, (spec["name"], g.returncode, g.stderr)
+                first = common.generate_text(g.stdout) + b"\n"
             for threads in (1, 4):
                 for ubatch in (1, 3, 16):
                     args = ["chat", str(model), "--system", "",
@@ -64,12 +77,16 @@ def run():
                     p = common.run_process(args, input=("\n".join(spec["inputs"]) + "\n").encode(), timeout=30)
                     assert p.returncode == 0, (spec["name"], p.returncode, p.stderr)
                     output = common.cli_stdout(p.stdout)
+                    if expected is None:
+                        assert output.startswith(BANNER), output
+                        expected = output[len(BANNER):]
+                        assert expected.startswith(first), (spec["name"], expected, first)
                     assert output == BANNER + expected, (spec["name"], output, expected)
-        f32.write_model(model, weights, "{% if false %}x{% endif %}")
+        write(model, "{% if false %}x{% endif %}")
         p = common.run_process(["chat", str(model)], input=b"a\n", timeout=30)
         assert p.returncode == 1 and b"empty prompt" in p.stderr, (p.returncode, p.stderr)
         # A template the renderer refuses stops chat and serve before either takes a turn or listens, while generate, which renders no template, still runs on the file.
-        f32.write_model(model, weights, "{% filter upper %}{{ messages[0]['content'] }}{% endfilter %}")
+        write(model, "{% filter upper %}{{ messages[0]['content'] }}{% endfilter %}")
         p = common.run_process(["chat", str(model)], input=b"a\n", timeout=30)
         refusal = b"error: the model's chat template is refused: the tag 'filter' is not supported"
         assert p.returncode == 1 and refusal in p.stderr and not p.stdout, (p.returncode, p.stderr, p.stdout)
@@ -82,8 +99,8 @@ def run():
             p = common.run_process(cmd, timeout=30)
             assert p.returncode == 1 and refusal in p.stderr and not p.stdout, (cmd, p.returncode, p.stderr, p.stdout)
         # --chat reads the text as one user message rendered with the generation prompt and no system message, as the chat routes render it: "d" is "adb" here.
-        f32.write_model(model, weights, "{% for message in messages %}{% if message['role'] == 'user' %}a{% else %}c{% endif %}"
-                                        "{{ message['content'] }}{% endfor %}{% if add_generation_prompt %}b{% endif %}")
+        write(model, "{% for message in messages %}{% if message['role'] == 'user' %}a{% else %}c{% endif %}"
+                     "{{ message['content'] }}{% endfor %}{% if add_generation_prompt %}b{% endif %}")
         with tempfile.TemporaryDirectory(prefix="llmx_chat_ids_") as ids_dir:
             then = Path(ids_dir) / "then.ids"
             then.write_text("3 1 4")
@@ -99,13 +116,15 @@ def run():
                     assert got.stdout == want.stdout and got.stdout.startswith(b"tokens: "), (rest, got.stdout, want.stdout)
         case = fixture["cases"][0]
         spec = case["spec"]
-        f32.write_model(model, weights, spec["template"])
-        expected = replies(case)
+        write(model, spec["template"])
+        expected = None if grouped else replies(case)
         args = ["chat", str(model), "--system", "", "--temp", "0", "-n", "1", "--threads", "1"]
         for verbose in (False, True):
             p = common.run_process(args + (["--verbose"] if verbose else []),
                                    input=("\n".join(spec["inputs"]) + "\n").encode(), timeout=30)
             assert p.returncode == 0, p.stderr
+            if expected is None:
+                expected = common.cli_stdout(p.stdout)[len(BANNER):]
             assert common.cli_stdout(p.stdout) == BANNER + expected
             if not verbose:
                 requested = os.environ.get("LLMX_DTYPE", "auto").encode("ascii")
@@ -123,7 +142,8 @@ def run():
         for bad in (["--device", "bogus"], ["--device", "vulkan:999999"]):
             p = common.run_process(args + ["--verbose"] + bad, input=b"a\n", timeout=30)
             assert p.returncode == 1 and b"Reading model metadata" not in p.stderr, (bad, p.returncode, p.stderr)
-    print("chat: follow-up replies vs HF; append, rewrite, reset, stop/EOS and token limit; a refused template stops chat, serve and --chat, not generate  [ok]")
+    print("chat: follow-up replies %s; append, rewrite, reset, stop/EOS and token limit; a refused template stops chat, serve and --chat, not generate  [ok]"
+          % ("on the tensor-split shape at tensor width %d, the first reply generate's on the same group and every reply the same at every thread count and ubatch" % common.tensor_width() if grouped else "vs HF"))
     print("chat --chat: generate and logits read one user message as the template renders it  [ok]")
     print("chat progress: completed loading percentages and per-turn phases stay on stderr  [ok]")
     print("chat flags: a device that cannot be made fails before the file is read  [ok]")

@@ -34,6 +34,7 @@ struct Footprint {
     size_t tables = 0;                         // position tables: the host keeps them while the model lives, and every device that copies weights holds its own
     size_t activations_per_row = 0;            // one row of a pass's activations on each device
     size_t logits_per_row = 0;                 // one row of logits where the head runs
+    size_t head_slice_per_row = 0;             // on a tensor group, a member's slice of a logits row, which each member of the head's group keeps beside its layers
     size_t handoff_per_row = 0;                // one row of the stream handed from one device to the next through host memory, in each of the handoff buffers every used device but the last keeps
     // An embedded drafter, which runs where the head does (docs/SPECULATIVE.md, section 7): its own weights, the embedding table it reads there, kept only where neither the embedding nor a tied head already holds it, and its KV, carried rows and the rows a mark saves.
     std::vector<Matrix> drafter;
@@ -53,6 +54,8 @@ struct DeviceBudget {
     std::function<size_t(const Matrix&)> resident;
     size_t host_side = 0;
     size_t scratch = 0;   // what the backend's kernels keep for themselves (Backend::scratch_reserve)
+    std::function<size_t(size_t members, size_t width)> collective = nullptr;   // what a member of a tensor group keeps a row of a sum (Backend::collective_bytes_per_row)
+    size_t collective_per_row = 0;                                    // on a tensor group, the most its members keep a row of a sum (group_budgets)
 };
 
 // A budget for each backend, named as its caller names it: what the backend reports free, whether it reads weights in place, what adopting a matrix keeps on it, and its own host memory.
@@ -64,7 +67,8 @@ inline std::vector<DeviceBudget> budgets_for(const std::vector<backend::BackendP
         const std::optional<size_t> free = b->memory_available();
         budgets.push_back(DeviceBudget{names[d], free, b->reads_in_place(),
                                        [b](const Matrix& w) { return b->resident_bytes(w.type, w.nin, w.rows, w.bytes, w.product); },
-                                       b->host_resident(), b->scratch_reserve(free.value_or(0))});
+                                       b->host_resident(), b->scratch_reserve(free.value_or(0)),
+                                       [b](size_t members, size_t width) { return b->collective_bytes_per_row(members, width); }});
     }
     return budgets;
 }
@@ -159,12 +163,12 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     // Besides weights and caches: a pass's activations, the backend's reserve and, where weights are copied, the device's own tables; the carrier also holds the host's needs, since its budget is the host's memory.
     auto overhead = [&](size_t d, const Host& h) {
         const size_t copies = devices[d].host ? 0 : fp.tables;
-        return rows * fp.activations_per_row + copies + devices[d].scratch + (d == h.carrier ? h.need : 0);
+        return rows * (fp.activations_per_row + devices[d].collective_per_row) + copies + devices[d].scratch + (d == h.carrier ? h.need : 0);
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {
         return backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], cached[i + k] - cached[i] + (last ? fp.drafter_cache : 0)),
-                                 backend::size_add(end_weights(d, first, last), overhead(d, h)));
+                                 backend::size_add(backend::size_add(end_weights(d, first, last), last ? logit_rows.value_or(rows) * fp.head_slice_per_row : 0), overhead(d, h)));
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
 

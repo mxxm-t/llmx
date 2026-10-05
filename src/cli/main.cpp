@@ -396,6 +396,24 @@ std::vector<int> layer_shares(const std::string& value) {
 std::string kind_of(const std::string& spec) { return spec.substr(0, spec.find(':')); }
 
 // --tensor-width over the listed devices (docs/TENSOR-SPLIT.md, section 4.6), refused as the command line gives it: whole groups of at most 4 devices of one kind, and one layer share a group.
+// Each group's devices with their PCI roots on stderr, and, where infer::one_root_order finds one, the order of the listed devices that keeps every group under one root, the order given being kept (docs/TENSOR-SPLIT.md, section 4.5).
+void report_groups(const std::vector<std::string>& specs, const std::vector<backend::BackendPtr>& backends, size_t w) {
+    std::vector<std::string> roots;
+    for (const auto& b : backends) roots.push_back(b->pci_root());
+    for (size_t g = 0; g < backends.size(); g += w) {
+        std::string names, under;
+        for (size_t m = g; m < g + w; ++m) {
+            names += (m > g ? "+" : "") + specs[m];
+            const std::string root = roots[m].empty() ? "an unknown root" : roots[m];
+            if (under.find(root) == std::string::npos) under += (under.empty() ? "" : " and ") + root;
+        }
+        std::fprintf(stderr, "tensor group %s under %s\n", names.c_str(), under.c_str());
+    }
+    std::string order;
+    for (size_t d : infer::one_root_order(roots, w)) order += (order.empty() ? "" : ",") + specs[d];
+    if (!order.empty()) std::fprintf(stderr, "tensor groups: --device %s puts every group under one root\n", order.c_str());
+}
+
 void tensor_groups(const ExecOptions& exec, const std::vector<std::string>& specs) {
     const size_t w = (size_t)exec.tensor_width;
     if (w == 1) return;
@@ -492,6 +510,8 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
             throw std::runtime_error("--tensor-width " + std::to_string(exec.tensor_width) + ": the " + kind_of(specs[g]) +
                                      " backend has no cross-device sum yet (docs/TENSOR-SPLIT.md, section 6)");
     }
+    // Beside the placement a command prints, so a quiet command stays quiet.
+    if (exec.tensor_width > 1 && (progress || show_plan)) report_groups(specs, backends, (size_t)exec.tensor_width);
     if (profiled) *profiled = backends.front().get();
     infer::PlacementRequest request;
     request.names = specs;

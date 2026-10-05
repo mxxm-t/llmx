@@ -15,7 +15,7 @@ queued behind no ticket on failure paths. This is the device execution model
 of `docs/DEVICE-EXECUTION.md`, extended by the implemented batching and
 placement contracts in `docs/EXECUTION.md`.
 
-- `Collective` and `join(members, rows, width)`: a tensor group's sum ([TENSOR-SPLIT](../TENSOR-SPLIT.md), section 4.3), made by the group's first member over backends of its kind for sums of up to `rows` rows of `width` floats, or null where the backend has none on this build or platform, the default.
+- `Collective` and `join(members, rows, width)`: a tensor group's sum ([TENSOR-SPLIT](../TENSOR-SPLIT.md), section 4.3), made by the group's first member over backends of its kind for sums of up to `rows` rows of `width` floats, or null where the backend has none on this build or platform, the default; `collective_bytes_per_row(members, width)`, what a member keeps of the backend's memory for each row of a sum, which the fit counts, 0 by default. `pci_root()`, the PCI root complex above the backend's device, which a tensor group's startup report gives, empty by default.
   `partial(member)` is where a member writes the partial rows of its next sum, storage the collective owns on that member; `sum_into(residual, rows, width)` adds ((p0 + p1) + ...) + p(W-1) of the members' partial rows to every member's residual rows, so every member keeps the same bits, and refuses other members, more rows or another width than it was made for.
   The CPU has one (CPU); a Vulkan collective is step 3 of the plan.
 - `supports_type(type)`: whether the implemented weight-reading operations

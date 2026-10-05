@@ -357,6 +357,11 @@ def f32_cache_skip(component):
     return True
 
 
+def tensor_width():
+    """The tensor width LLMX_TENSOR_WIDTH asks for, 1 without it."""
+    return int(os.environ.get("LLMX_TENSOR_WIDTH", "1"))
+
+
 def tensor_width_skip(component):
     """True, after reporting the skip, when LLMX_TENSOR_WIDTH splits every layer across devices.
     The component's synthetic fixtures have widths a tensor group refuses (an odd feed-forward width, one head, rows of part of a block); tensor-split's fixtures split whole at widths 2 and 4, and the real-model gate runs on groups."""

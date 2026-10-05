@@ -1296,9 +1296,60 @@ void tensor_groups() {
     }
 }
 
+// The fit of a tensor group counts what a member keeps beside its layers: its collective's rows (Backend::collective_bytes_per_row, the most of the group's members) and, on the head's group, its slice of every logits row, while the host's logits rows hold the whole vocabulary.
+void group_fits() {
+    const auto weights = tiny_qwen(3, 2 * 128, true);
+    const infer::ModelWeights views = infer::gguf_weights(weights);
+    const infer::ModelPlan plan = infer::plan_model(views);
+    const infer::ModelOptions options;
+    const infer::Footprint whole = infer::footprint(views, plan, options), member = infer::footprint(views, plan, options, 2, 0);
+    require(whole.logits_per_row == plan.vocab * sizeof(float) && whole.head_slice_per_row == 0 && member.logits_per_row == whole.logits_per_row &&
+                member.head_slice_per_row == plan.vocab / 2 * sizeof(float),
+            "a member's footprint does not count its slice of the logits rows beside the host's whole rows");
+    auto cpu = std::make_shared<backend::CpuBackend>();
+    require(cpu->collective_bytes_per_row(2, plan.residual) == plan.residual * sizeof(float), "the CPU's collective keeps other than its partial rows");
+    ++checked;
+    const size_t rows = 5, logits = 3;
+    auto device = [&](size_t per_member) {
+        infer::DeviceBudget d;
+        d.name = "d";
+        d.collective = [per_member](size_t members, size_t width) { return members * width * per_member; };
+        return d;
+    };
+    const std::vector<infer::DeviceBudget> devices{device(4), device(7)};
+    const std::vector<infer::DeviceBudget> group = infer::group_budgets(devices, 2, plan.residual);
+    require(group.size() == 1 && group[0].collective_per_row == 2 * plan.residual * 7, "a group's budget does not take its members' largest collective rows");
+    const infer::LayerSplit roomy = infer::split_layers(member, group, rows, {}, std::nullopt, 1, logits);
+    const infer::LayerSplit::Stage& st = roomy.stages.at(0);
+    const size_t without = rows * member.activations_per_row + member.tables + group[0].scratch;
+    require(st.other == without + rows * group[0].collective_per_row, "a member's collective rows are not counted beside its activations");
+    const size_t need = st.weights + st.cache + st.other + logits * member.head_slice_per_row;
+    auto fits = [&](size_t bytes) {
+        std::vector<infer::DeviceBudget> b = group;
+        b[0].bytes = bytes;
+        try {
+            infer::split_layers(member, b, rows, {}, std::nullopt, 1, logits);
+            return true;
+        } catch (const std::runtime_error&) {
+            return false;
+        }
+    };
+    require(fits(need) && !fits(need - 1), "a group's member is not fitted to its layers, its collective rows and its slice of the logits rows exactly");
+    ++checked;
+    // The order that keeps every group under one PCI root: given only where a group spans roots and each root holds whole groups.
+    using Order = std::vector<size_t>;
+    require(infer::one_root_order({"a", "b", "a", "b"}, 2) == Order({0, 2, 1, 3}) && infer::one_root_order({"a", "a", "b", "b"}, 2).empty() &&
+                infer::one_root_order({"a", "b", "b", "b"}, 2).empty() && infer::one_root_order({"a", "", "a", "b"}, 2).empty() &&
+                infer::one_root_order({"b", "a", "c", "a", "b", "c", "a", "b"}, 4).empty() && infer::one_root_order({"b", "a", "a", "b", "b", "a", "a", "b"}, 4) == Order({0, 3, 4, 7, 1, 2, 5, 6}) &&
+                infer::one_root_order({"a", "b"}, 1).empty(),
+            "the order that keeps every group under one root is not the roots' devices together, or is given where none helps");
+    ++checked;
+}
+
 int main() {
     try {
         tensor_groups();
+        group_fits();
         host_scratch_fits();
         split_matches_single();
         layer_split_fits();

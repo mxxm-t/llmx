@@ -640,6 +640,24 @@ int collective_checks() {
         std::cout << "collective_in_flight sums=7" << (ok ? " PASS\n" : " FAIL\n");
         if (!ok) ++failures;
     }
+    {
+        // A member that cannot import its peer's inbox refuses the group, naming its devices, and leaves nothing behind.
+        auto dev = backend::VulkanLifetimeTest::device(*vk[1]);
+        const auto original = dev->memory_fd_props;
+        dev->memory_fd_props = [](VkDevice, VkExternalMemoryHandleTypeFlagBits, int, VkMemoryFdPropertiesKHR*) -> VkResult { return VK_ERROR_INVALID_EXTERNAL_HANDLE; };
+        std::string why;
+        {
+            CollectiveCalls q(vk);
+            try { first->join(members, rows, width); }
+            catch (const std::exception& e) { why = e.what(); }
+            dev->memory_fd_props = original;
+            const bool named = why.find("cannot share its memory and semaphores") != std::string::npos && why.find(backend::vulkan_device_name(*second)) != std::string::npos;
+            auto sum = first->join(members, rows, width);
+            const bool ok = named && chain(sum, 3) && q.live == 0 && !q.premature;
+            std::cout << "collective_import_refused named=" << named << (ok ? " PASS\n" : " FAIL\n");
+            if (!ok) ++failures;
+        }
+    }
     for (int kind = 1; kind <= 4; ++kind) {
         bool threw = false, drained = false, summed = false;
         {

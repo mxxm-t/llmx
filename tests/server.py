@@ -20,6 +20,7 @@ import f32
 import moe
 import mxfp4
 import server_mix_tool
+import tensor_split
 from tokenizer import build_byte_vocab
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
@@ -1476,11 +1477,26 @@ def check_departed(model):
         srv.close()
 
 
+def run_group():
+    """Under a tensor width, the routes over a group: the synthetic model in the tensor-split fixtures' shape, which a group splits whole, held to the CLI on the same group as check_server holds the F32 model; the other checks' fixtures have shapes a group refuses."""
+    with tempfile.TemporaryDirectory(prefix="llmx_server_") as directory:
+        model = os.path.join(directory, "tiny-split.gguf")
+        f32.write_model(model, f32.tensors(True, config=tensor_split.CONFIG, vocab=tensor_split.VOCAB),
+                        config=dict(tensor_split.CONFIG, context_length=f32.CONFIG["context_length"]), tokens=tensor_split.TOKENS)
+        texts = ["a", "h\u00e9llo w\u00f6rld", "\u65e5\u672c\u8a9e", "\U0001f600", "<|endoftext|>", "<|im_start|>user\nhi<|im_end|>", ""]
+        n = check_server(model, ["a", "ab", "abc", "abcdefg"], 6, 14, chat=False, texts=texts)
+        print("server: the tensor-split shape at tensor width %d, %d prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, refusals, "
+              "the tokenize routes, a cancelled stream, the compatible completions and logprobs on the generate and completions routes  [ok]" % (common.tensor_width(), n))
+    return True
+
+
 def run():
     if not server_mix_tool.run():
         return False
-    if common.f32_cache_skip("server") or common.tensor_width_skip("server"):
+    if common.f32_cache_skip("server"):
         return common.SKIPPED
+    if common.tensor_width() > 1:
+        return run_group()
     with tempfile.TemporaryDirectory(prefix="llmx_server_") as directory:
         # Every reply that names the model carries its file name, so the synthetic model's holds a byte that is not UTF-8 where the file system takes one (Linux), and characters beyond ASCII elsewhere.
         # On Windows a name read in the system code page instead of as UTF-8 fails only where one of its UTF-8 bytes has no mapping there, so U+00E1 brings 0xA1 for code page 1257, U+00E0 brings 0xA0 for 932, and U+4E2D breaks 936, 949 and 950.

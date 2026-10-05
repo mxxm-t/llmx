@@ -66,7 +66,9 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         *field = matrix(*role.tensor, field == &fp.output, &role);
         if (field == &fp.output) fp.tied = role.aliased;
     }
-    fp.logits_per_row = fp.output.rows * sizeof(float);
+    // The host's logits rows hold the whole vocabulary; on a tensor group each member of the head's group keeps its slice of them too.
+    fp.logits_per_row = plan.vocab * sizeof(float);
+    if (width > 1) fp.head_slice_per_row = fp.output.rows * sizeof(float);
     // An embedded drafter's weights but those the head holds already, its embedding apart, and its KV layer, carried rows and the rows a mark saves.
     if (plan.drafter) {
         std::vector<size_t> held;
@@ -123,7 +125,7 @@ inline Placement placement_for(const LayerSplit& split, size_t width = 1) {
 }
 
 // What a tensor split's fit places over (docs/TENSOR-SPLIT.md, section 4.6): each group of `width` consecutive devices as one device, named by its members, with its least member's free memory, since every member holds a member's footprint (footprint with a width), and the host memory all its members' backends hold.
-inline std::vector<DeviceBudget> group_budgets(const std::vector<DeviceBudget>& devices, size_t width) {
+inline std::vector<DeviceBudget> group_budgets(const std::vector<DeviceBudget>& devices, size_t width, size_t residual) {
     if (width == 1) return devices;
     std::vector<DeviceBudget> groups;
     for (size_t g = 0; g + width <= devices.size(); g += width) {
@@ -134,9 +136,32 @@ inline std::vector<DeviceBudget> group_budgets(const std::vector<DeviceBudget>& 
             b.host_side = backend::size_add(b.host_side, devices[m].host_side);
             b.scratch = std::max(b.scratch, devices[m].scratch);
         }
+        for (size_t m = g; m < g + width; ++m)
+            if (devices[m].collective) b.collective_per_row = std::max(b.collective_per_row, devices[m].collective(width, residual));
         groups.push_back(std::move(b));
     }
     return groups;
+}
+
+// Where a tensor group of `width` consecutive devices spans PCI roots though the listed devices could form every group under one, the order that does: the devices of each root together, roots and devices in the order given.
+// Empty where no group spans roots, where a device's root is unknown, or where a root's devices are not whole groups (docs/TENSOR-SPLIT.md, section 4.5).
+inline std::vector<size_t> one_root_order(const std::vector<std::string>& roots, size_t width) {
+    if (width < 2 || roots.size() % width) return {};
+    bool spans = false;
+    std::vector<std::string> seen;
+    for (size_t d = 0; d < roots.size(); ++d) {
+        if (roots[d].empty()) return {};
+        spans = spans || roots[d] != roots[d - d % width];
+        if (std::find(seen.begin(), seen.end(), roots[d]) == seen.end()) seen.push_back(roots[d]);
+    }
+    if (!spans) return {};
+    std::vector<size_t> order;
+    for (const std::string& r : seen) {
+        if ((size_t)std::count(roots.begin(), roots.end(), r) % width) return {};
+        for (size_t d = 0; d < roots.size(); ++d)
+            if (roots[d] == r) order.push_back(d);
+    }
+    return order;
 }
 
 // How a caller wants a model placed over the backends it made (docs/MULTI-DEVICE.md).
@@ -321,7 +346,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         o.kv_tokens = tokens;
         o.checkpoint_slots = kept;
         try {
-            split_layers(footprint(weights, *fitting, o, request.width), group_budgets(budgets, request.width), rows, request.shares, core::host_memory_available(),
+            split_layers(footprint(weights, *fitting, o, request.width), group_budgets(budgets, request.width, plan.residual), rows, request.shares, core::host_memory_available(),
                          std::max<size_t>(1, request.slots), logits);
             return true;
         } catch (const std::runtime_error& e) {
@@ -478,7 +503,7 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
         std::exception_ptr refused;
         auto fit = [&] {
             try {
-                split = split_layers(fp, group_budgets(budgets, request.width), rows, request.shares, core::host_memory_available(), request.slots,
+                split = split_layers(fp, group_budgets(budgets, request.width, plan.residual), rows, request.shares, core::host_memory_available(), request.slots,
                                      request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
                 return true;
             } catch (const std::runtime_error&) {
@@ -494,7 +519,7 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
         }
         if (!split) std::rethrow_exception(refused);
         placed.model = std::make_unique<Model>(weights, plan, std::move(backends), placement_for(*split, request.width), options, adopt);
-        placed.plan = split->describe(group_budgets(budgets, request.width));
+        placed.plan = split->describe(group_budgets(budgets, request.width, plan.residual));
     } else if (!adds_host_for_experts(backends, request)) {
         placed.model = std::make_unique<Model>(weights, plan, std::move(backends), Placement{}, options, adopt);
     } else {

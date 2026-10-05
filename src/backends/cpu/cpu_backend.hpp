@@ -285,6 +285,8 @@ public:
             if (!m || !m->is_cpu() || !dynamic_cast<CpuBackend*>(m)) throw std::runtime_error("backend: a CPU collective over a backend that is not the CPU");
         return std::make_unique<CpuCollective>(*this, members, rows, width);
     }
+    // The member's partial rows.
+    size_t collective_bytes_per_row(size_t, size_t width) const override { return size_mul(width, sizeof(float)); }
 
     // Eager: an op has completed by the time it returns, so there is never anything outstanding to wait for, and a ticket only counts.
     Ticket submit() override { return ++ticket_; }

@@ -907,7 +907,7 @@ struct Device {
     size_t host_import_align = 0;
     // A tensor group's exchange (docs/TENSOR-SPLIT.md, section 4.3): device memory shared as dma-buf and binary semaphores shared as sync files, which only Linux offers.
     bool exchange = false;
-    std::string pci_root;   // the PCI root complex above the device (pci_root), empty where the system does not say
+    std::string pci_root;   // the PCI root complex above the device (pci_root_of), empty where the system does not say
     PFN_vkGetMemoryFdKHR get_memory_fd = nullptr;
     PFN_vkGetMemoryFdPropertiesKHR memory_fd_props = nullptr;
     PFN_vkGetSemaphoreFdKHR get_semaphore_fd = nullptr;
@@ -951,8 +951,8 @@ struct Device {
     }
 };
 
-// The PCI root complex above the device at this address, as Linux's sysfs names it (pci0000:80), or empty where the system does not say: a tensor group stays under one (docs/TENSOR-SPLIT.md, section 4.5).
-inline std::string pci_root(uint32_t domain, uint32_t bus, uint32_t device, uint32_t function) {
+// The PCI root complex above the device at this address, as Linux's sysfs names it (pci0000:80), or empty where the system does not say, which a tensor group's startup report gives (docs/TENSOR-SPLIT.md, section 4.5).
+inline std::string pci_root_of(uint32_t domain, uint32_t bus, uint32_t device, uint32_t function) {
 #if defined(__linux__)
     char address[64];
     std::snprintf(address, sizeof address, "/sys/bus/pci/devices/%04x:%02x:%02x.%x", domain, bus, device, function);
@@ -1226,7 +1226,7 @@ public:
             p2.pNext = &pci;
         }
         fn.vkGetPhysicalDeviceProperties2(d.physical, &p2);
-        if (has_pci) d.pci_root = pci_root(pci.pciDomain, pci.pciBus, pci.pciDevice, pci.pciFunction);
+        if (has_pci) d.pci_root = pci_root_of(pci.pciDomain, pci.pciBus, pci.pciDevice, pci.pciFunction);
         d.preserve_float32 = floats.shaderDenormPreserveFloat32 && floats.shaderSignedZeroInfNanPreserveFloat32;
         d.caps.subgroup_size = sg.subgroupSize;
         const bool has_units = has_core_props && core.shaderEngineCount && core.shaderArraysPerEngineCount &&
@@ -1728,6 +1728,11 @@ public:
     }
     const std::shared_ptr<Device>& device() const { return dev_; }
     std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
+    std::string pci_root() const override { return dev_->pci_root; }
+    // The member's partial and scratch rows and its inbox for each peer in each of two parities (VulkanCollective); a peer's import of an inbox takes none of its own memory.
+    size_t collective_bytes_per_row(size_t members, size_t width) const override {
+        return dev_->exchange && members ? size_mul(size_add(2, size_mul(2, members - 1)), size_mul(width, sizeof(float))) : 0;
+    }
 
     // Holding (Backend::hold_between_submissions), while any holder remains: after each submit() the queue waits on an event the host sets at the next submission, or after kHoldMs, so the device stays busy, and its clock up, while another device runs its stage.
     void hold_between_submissions(bool on) override {
@@ -3501,8 +3506,9 @@ private:
 };
 
 // A tensor group's sum over Vulkan devices (docs/TENSOR-SPLIT.md, section 4.3), through dma-buf and sync files.
-// Each member owns an inbox of a slot a member in each of two parities, exported as a dma-buf and imported into every peer; a sum copies each member's partial rows into its slot of every peer's inbox, submits each member's work signalling a binary semaphore a peer, and once every member has submitted imports each as a sync file into the peer, whose next submission waits on them, and adds the slots into every member's residual in member order, ((p0 + p1) + ...) + p(W-1), the CPU's order.
+// Each member owns an inbox for each peer in each of two parities, exported as a dma-buf and imported into that peer alone; a sum copies each member's partial rows into its inbox on every peer, submits each member's work signalling a binary semaphore a peer, and once every member has submitted imports each as a sync file into the peer, whose next submission waits on them, and adds the slots into every member's residual in member order, ((p0 + p1) + ...) + p(W-1), the CPU's order.
 // A parity is written again two sums later, behind the chain of waits that put the reads of the sum between them first.
+// An inbox has one importer: the kernel orders every submission of an importer behind the other importers' submissions that listed the same dma-buf, so a buffer two peers imported would run those peers in turn, as a group of three or more did (docs/STATUS.md, tensor groups serving).
 class VulkanCollective final : public Collective {
 public:
     VulkanCollective(const std::vector<VulkanBackend*>& members, size_t rows, size_t width)
@@ -3514,14 +3520,14 @@ public:
                 scratch_.push_back(m->alloc(bytes, Memory::device));
             }
             for (int p = 0; p < 2; ++p) {
-                inbox_[p].resize(W);
+                inbox_[p].assign(W, std::vector<std::shared_ptr<VulkanBuffer>>(W));
                 imported_[p].assign(W, std::vector<BufferPtr>(W));
-                for (size_t t = 0; t < W; ++t) {
-                    auto own = std::make_shared<VulkanBuffer>(members[t]->device(), size_mul(W, bytes), -1);
-                    inbox_[p][t] = own;
-                    for (size_t d = 0; d < W; ++d)
-                        if (d != t) imported_[p][t][d] = std::make_shared<VulkanBuffer>(members[d]->device(), size_mul(W, bytes), own->export_fd());
-                }
+                for (size_t t = 0; t < W; ++t)
+                    for (size_t d = 0; d < W; ++d) {
+                        if (d == t) continue;
+                        inbox_[p][t][d] = std::make_shared<VulkanBuffer>(members[t]->device(), bytes, -1);
+                        imported_[p][t][d] = std::make_shared<VulkanBuffer>(members[d]->device(), bytes, inbox_[p][t][d]->export_fd());
+                    }
             }
             make_semaphores();
         } catch (...) {
@@ -3550,12 +3556,12 @@ public:
 private:
     void sum(const std::vector<Slice>& residual, size_t rows, size_t width) {
         const size_t W = members_.size();
-        const size_t n = rows * width, bytes = n * sizeof(float), slot = rows_ * width_;
+        const size_t n = rows * width, bytes = n * sizeof(float);
         const int p = parity_;
         parity_ ^= 1;
         for (size_t m = 0; m < W; ++m)
             for (size_t t = 0; t < W; ++t)
-                if (t != m) members_[m]->copy(*imported_[p][t][m], m * slot * sizeof(float), *partial_[m], 0, bytes);
+                if (t != m) members_[m]->copy(*imported_[p][t][m], 0, *partial_[m], 0, bytes);
         for (size_t m = 0; m < W; ++m) {
             std::vector<VkSemaphore> signals;
             for (size_t t = 0; t < W; ++t)
@@ -3592,7 +3598,7 @@ private:
         }
         for (size_t m = 0; m < W; ++m) {
             VulkanBackend& b = *members_[m];
-            auto source = [&](size_t k) { return k == m ? CSlice{partial_[m].get(), 0} : CSlice{inbox_[p][m].get(), k * slot}; };
+            auto source = [&](size_t k) { return CSlice{k == m ? partial_[m].get() : inbox_[p][m][k].get(), 0}; };
             const CSlice first = source(0);
             b.copy(*scratch_[m], 0, *first.buffer, first.offset * sizeof(float), bytes);
             for (size_t k = 1; k < W; ++k) b.add(Slice{scratch_[m].get(), 0}, source(k), n);
@@ -3638,12 +3644,12 @@ private:
     size_t rows_, width_;
     int parity_ = 0;
     std::vector<BufferPtr> partial_, scratch_;
-    std::vector<std::shared_ptr<VulkanBuffer>> inbox_[2];          // [parity][member]: its own inbox
-    std::vector<std::vector<BufferPtr>> imported_[2];              // [parity][owner][importer]: the owner's inbox on the importer
+    std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> inbox_[2];   // [parity][owner][sender]: the owner's inbox for that sender's partial rows
+    std::vector<std::vector<BufferPtr>> imported_[2];                    // [parity][owner][sender]: that inbox on the sender, its only importer
     std::vector<std::vector<VkSemaphore>> signal_, wait_;          // [member][peer]: what member signals to the peer; what member waits on from the peer
 };
 
-// A collective over Vulkan devices of one profile, each opened once, that share memory as dma-buf and semaphores as sync files; none where a device lacks them, as on Windows.
+// A collective over Vulkan devices of one profile, each opened once, that share memory as dma-buf and semaphores as sync files, under any PCI root complexes; none where a device lacks them, as on Windows.
 std::unique_ptr<Collective> VulkanBackend::join(const std::vector<Backend*>& members, size_t rows, size_t width) {
     if (members.empty() || members[0] != this) throw std::logic_error("backend: a collective is joined by its first member");
     std::vector<VulkanBackend*> group;
@@ -3654,15 +3660,17 @@ std::unique_ptr<Collective> VulkanBackend::join(const std::vector<Backend*>& mem
             throw std::runtime_error("backend: a Vulkan collective over devices of different kinds");
         for (VulkanBackend* other : group)
             if (other->dev_->physical == v->dev_->physical) throw std::runtime_error("backend: a Vulkan collective over one device twice");
-        // Every sum crosses between the members, so they stay under one PCI root complex, whose links the measured costs assume (docs/TENSOR-SPLIT.md, section 4.5).
-        if (v->dev_->pci_root != dev_->pci_root)
-            throw std::runtime_error("backend: " + v->dev_->caps.device + " sits under PCI root " + (v->dev_->pci_root.empty() ? "unknown" : v->dev_->pci_root) +
-                                     " and the group's first device under " + (dev_->pci_root.empty() ? "unknown" : dev_->pci_root) +
-                                     "; a tensor group stays under one root complex");
         if (!v->dev_->exchange) return nullptr;
         group.push_back(v);
     }
-    return std::make_unique<VulkanCollective>(group, rows, width);
+    // Members may sit under different PCI root complexes, which cost the same on the machines measured (docs/TENSOR-SPLIT.md, section 4.5); a group is refused only where its memory or semaphores cannot be shared.
+    try {
+        return std::make_unique<VulkanCollective>(group, rows, width);
+    } catch (const std::exception& e) {
+        std::string names;
+        for (const VulkanBackend* v : group) names += (names.empty() ? "" : ", ") + v->dev_->caps.device + (v->dev_->pci_root.empty() ? "" : " under " + v->dev_->pci_root);
+        throw std::runtime_error("backend: a tensor group of " + names + " cannot share its memory and semaphores: " + e.what());
+    }
 }
 
 inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s) {

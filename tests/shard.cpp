@@ -276,7 +276,7 @@ void footprints() {
                 const size_t hand = 768 * 4 + (1024 / width) * q8 + 2 * kv_rows * q8 + 256 * quant::row_bytes(quant::GGML_TYPE_Q8_0, 1024 / width) +
                                     2 * (1024 / width) * q8 + 256 * quant::row_bytes(quant::GGML_TYPE_Q8_0, 1024 / width);
                 require(layer == hand, "a qwen3 member's layer bytes at width " + std::to_string(width));
-                require(fp.output.bytes == (64 / width) * q8 && fp.output.rows == 64 / width && fp.logits_per_row == (64 / width) * 4, "a member's head rows");
+                require(fp.output.bytes == (64 / width) * q8 && fp.output.rows == 64 / width && fp.logits_per_row == 64 * 4 && fp.head_slice_per_row == (width > 1 ? (64 / width) * 4 : 0), "a member's head rows, beside the host's whole logits rows");
                 require(fp.embedding.bytes == 64 * q8, "the embedding is whole on every member");
                 const size_t kv_heads = width == 4 ? 1 : 2 / width;
                 require(fp.cache[0] == 256 * kv_heads * 128 * 2 * 2, "a member's KV cache at width " + std::to_string(width));

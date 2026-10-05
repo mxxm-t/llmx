@@ -299,6 +299,13 @@ public:
         (void)members, (void)rows, (void)width;
         return nullptr;
     }
+    // The PCI root complex above the backend's device, as the system names it, which a tensor group's startup report gives; empty where there is none or the system does not say.
+    virtual std::string pci_root() const { return {}; }
+    // What a member of a collective over `members` members keeps of this backend's memory for each row of `width` floats a sum takes (join), which the fit counts.
+    virtual size_t collective_bytes_per_row(size_t members, size_t width) const {
+        (void)members, (void)width;
+        return 0;
+    }
 
     // Complete native policies, preferred first; emulation alone does not add a policy to auto's choices, and int8, never preferred, is listed last where a backend runs it.
     virtual std::vector<Dtype> native_dtypes() const { return {Dtype::f32}; }

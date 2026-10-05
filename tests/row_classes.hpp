@@ -1,6 +1,7 @@
 #pragma once
 // Every pair of extents a backend puts in one class (Backend::row_class) gives the same bits through each op that chooses its arithmetic by extent: a matmul, the routed products and attention after a history (docs/SPECULATIVE.md, section 1).
 // backend-group runs it on the CPU and backend-vulkan on a device, at extents on each side of every crossover and tile split.
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -50,12 +51,15 @@ inline std::vector<float> read(backend::Backend& b, const backend::Buffer& buf, 
     return v;
 }
 
-// Four rows at each extent through each type and dtype: matmul at widths 256 and 4096, routed gate and down projections of 8 experts taking 2 a row, then dtype-independent attention of 4 query rows over 128-wide heads after a 70-token history; the pairs found the same.
+// Four rows at each extent through each type and dtype, int8 where the backend lists it: matmul at widths 256 and 4096, routed gate and down projections of 8 experts taking 2 a row, then dtype-independent attention of 4 query rows over 128-wide heads after a 70-token history; the pairs found the same.
 inline size_t check(backend::Backend& b, const std::vector<uint32_t>& types, const Matrix& matrix) {
     if (b.row_class(1) == b.row_class(2)) throw std::runtime_error("a generated token shares a class with a prompt");
     const size_t rows = 4, nout = 64;
     size_t pairs = 0;
-    for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16})
+    std::vector<backend::Dtype> dtypes = {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16};
+    const std::vector<backend::Dtype> native = b.native_dtypes();
+    if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end()) dtypes.push_back(backend::Dtype::int8);
+    for (backend::Dtype dtype : dtypes)
       for (uint32_t type : types)
         for (size_t nin : {size_t(256), size_t(4096)}) {
             const std::vector<uint8_t> w = matrix(type, nin, nout, 71);
@@ -78,7 +82,7 @@ inline size_t check(backend::Backend& b, const std::vector<uint32_t>& types, con
     const backend::BufferPtr ids = b.alloc(rows * k * sizeof(float)), wts = b.alloc(rows * k * sizeof(float));
     b.route_experts({sb.get(), 0}, rows, n_expert, k, true, {ids.get(), 0}, {wts.get(), 0});
     const backend::Backend::Routing routing{{ids.get(), 0}, {wts.get(), 0}, k, n_expert};
-    for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16})
+    for (backend::Dtype dtype : dtypes)
       for (uint32_t type : types) {
         const std::vector<uint8_t> g = matrix(type, nin, n_expert * nout, 77), d = matrix(type, nin, n_expert * nout, 78);
         const backend::BufferPtr gb = b.adopt(g.data(), g.size()), db = b.adopt(d.data(), d.size());

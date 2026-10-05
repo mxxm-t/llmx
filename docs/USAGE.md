@@ -585,10 +585,13 @@ Micro-benchmark of the backend hot paths, plus end-to-end TPS:
 - `rms_norm`: RMSNorm on `N` elements.
 - `norm_rope`: per-head RMS norm followed by rotary position embedding on
   one row of `N` floats, the op the model runs.
-- End-to-end: prompt-process `--p` tokens (default 64) into a fresh KV cache
+- End-to-end: prompt-process `--p` tokens (default 64) into a reset KV cache
   by repeated single-token `step()` calls and report pp tok/s, then decode
   `--n` tokens (default 64) over the warm cache and
-  report tg tok/s.
+  report tg tok/s; the whole run goes once untimed first, so neither figure
+  counts the model's one-time setup on its backend (its cache's first
+  growth, kernels made on first use, a device leaving its idle clocks),
+  which the first repetition of `bench --model` still shows.
 
 This is the command `tests/perf.py` uses as the perf-regression gate. Its pp
 metric does not measure batched `Model::prefill`; use the matched real-model

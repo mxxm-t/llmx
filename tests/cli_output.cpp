@@ -257,6 +257,6 @@ int main() {
         std::cerr << "CLI token id lists not read as comma or whitespace separated ids within the vocabulary\n";
         return 1;
     }
-    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types, load modes and an empty share list refused as read; a second value for a flag refused and a switch given again taken; pull's cache default from hub; -tb read only where asked; numbers and token ids read strictly\n";
+    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types, load modes and an empty share list refused as read; a second value for a flag refused and a switch given again taken; pull's cache default from hub; -tb read only where asked; numbers and token ids read strictly; the bench's timed steps allocate nothing\n";
     return 0;
 }

@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## The synthetic bench times its steps warm (2026-10-05, branch fix/bench-warm-up, lands by fast-forward)
+
+- **Bug:** the suite's synthetic prefill floor (1000 tok/s) missed inside the full suite on the Radeon VII four steps in a row (619 to 869 tok/s) and passed alone (about 2000). The bench timed a fresh model's first 64 steps as its prefill, so one-time setup landed in it: on the Radeon VII 8 timed steps took 8.3 to 8.6 ms against 0.39 ms a step steady, and after more than half an hour with the device idle, as in the full suite, that setup reached 70 to 80 ms; decode, timed after it, never missed. Not a regression: main's build missed the same way in the same run.
+- **Fix:** `time_steps` runs the whole prefill and decode once untimed and resets the model before timing them; the floor stays at 1000 tok/s. The first commit moves the timing into `time_steps` unchanged and adds a `cli-output` check that nothing is allocated while the clock runs, over a CPU backend counting its allocations, which fails on it; the second makes it pass.
+- **Gates** (tests and tools tier): CTest and the CPU suite on Windows; `perf` on the Radeon VII; the hosted run.
+
 ## Disk tier (2026-10-04 to 2026-10-05, DISK-TIER steps 1 to 6, landed by fast-forward)
 
 - **What it is:** a third tier under the device and host tiers ([DISK-TIER](DISK-TIER.md)), off unless `serve --disk-cache-bytes` gives it room: what the host tier would drop next is written to a file of the server's own while it stays in host memory, and a waiting request whose history an entry shares more of than anything in memory has it read back into host memory, bit for bit, then promoted and forked as from the host tier; a clean exit under `--disk-cache-keep` writes what memory holds for the next server of the same build and model, and entries unused past `--disk-cache-max-age` go.

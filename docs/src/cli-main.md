@@ -66,7 +66,7 @@ Commands and their entry points:
   Prefills an exact-prefix extension; a changed, shortened or identical prompt retracts to a compatible recurrent-state checkpoint within its shared prefix, resetting where none can be reused, then prefills the remaining rows to obtain valid next-token logits.
   A returned stop token may not yet be cached, and EOS is supplied by the next rendered transcript rather than appended unconditionally.
   These are single-sequence semantics.
-- `bench`: `cmd_bench` (hot-path micro-benchmark, timed after one untimed matmul so that one-time setup such as the CPU pool's start stays out, then synthetic end-to-end TPS),
+- `bench`: `cmd_bench` (hot-path micro-benchmark, timed after one untimed matmul so that one-time setup such as the CPU pool's start stays out, then synthetic end-to-end TPS through `time_steps`, which runs the prefill and decode once untimed and resets before timing them, so the model's first-run setup stays out too),
   or with `--model` the matched real-model measurement: warm-up, then `--r`
   repeats of `pp N` and `tg N`, model time only, `--seqs N` for decode
   passes carrying one token of each of N sequences, `--depth N` for tests

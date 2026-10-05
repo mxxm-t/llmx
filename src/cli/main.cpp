@@ -804,12 +804,15 @@ int cmd_chat(const std::string& model_path, const std::string& system, const inf
 
 
 // The synthetic bench's prefill of `prefill` tokens and decode of `decode` more, one token a step from a reset history, each timed in milliseconds; `timing` runs as the clock starts.
+// The whole run goes once untimed first, so the timed one leaves out the model's first-run setup on its backend: the history's storage growing, kernels made on first use, a device leaving its idle clocks.
 struct StepTimes {
     double prefill_ms = 0, decode_ms = 0;
 };
 StepTimes time_steps(infer::Model& model, int prefill, int decode, int vocab, const std::function<void()>& timing = {}) {
     using clock = std::chrono::steady_clock;
     StepTimes t;
+    model.reset();
+    for (int i = 0; i < prefill + decode; i++) model.step((uint32_t)(i % vocab));
     model.reset();
     if (timing) timing();
     auto t0 = clock::now();

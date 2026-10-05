@@ -1,4 +1,5 @@
 // Include the real CLI so its glue is tested as it runs: removing the emitter's flush is observable without process-timing assumptions, and --device lists and cache types are read as the commands read them.
+#include <atomic>
 #define main llmx_cli_main
 #include "../src/cli/main.cpp"
 #undef main
@@ -186,6 +187,24 @@ bool token_id_lists() {
     return ok;
 }
 
+// The synthetic bench times the hot path alone: over a CPU backend that counts its allocations, nothing is allocated while the clock runs, so the history's storage, grown on a model's first steps, is not in the timed prefill.
+struct CountingCpu : backend::CpuBackend {
+    std::atomic<size_t> allocs{0};
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+        ++allocs;
+        return backend::CpuBackend::alloc(bytes, where);
+    }
+};
+bool bench_times_hot_path() {
+    auto b = std::make_shared<CountingCpu>();
+    b->set_threads(1);
+    const gguf::GGUFModel sm = infer::synthetic_model({2, 256, 1024, 8, 2, 32, 512, 12345u});
+    infer::Model model(infer::gguf_weights(sm), b);
+    size_t before = 0;
+    time_steps(model, 64, 64, 512, [&] { before = b->allocs.load(); });
+    return b->allocs.load() == before;
+}
+
 int main() {
     OutputBuffer output;
     auto* saved = std::cout.rdbuf(&output);
@@ -228,6 +247,10 @@ int main() {
     }
     if (!number_readers()) {
         std::cerr << "CLI number flags accept a value outside their form or range\n";
+        return 1;
+    }
+    if (!bench_times_hot_path()) {
+        std::cerr << "the synthetic bench's timed steps allocate, so they time the model's first-run setup\n";
         return 1;
     }
     if (!token_id_lists()) {

@@ -803,6 +803,24 @@ int cmd_chat(const std::string& model_path, const std::string& system, const inf
 }
 
 
+// The synthetic bench's prefill of `prefill` tokens and decode of `decode` more, one token a step from a reset history, each timed in milliseconds; `timing` runs as the clock starts.
+struct StepTimes {
+    double prefill_ms = 0, decode_ms = 0;
+};
+StepTimes time_steps(infer::Model& model, int prefill, int decode, int vocab, const std::function<void()>& timing = {}) {
+    using clock = std::chrono::steady_clock;
+    StepTimes t;
+    model.reset();
+    if (timing) timing();
+    auto t0 = clock::now();
+    for (int i = 0; i < prefill; i++) model.step((uint32_t)(i % vocab));
+    t.prefill_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count();
+    t0 = clock::now();
+    for (int i = 0; i < decode; i++) model.step((uint32_t)((prefill + i) % vocab));
+    t.decode_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count();
+    return t;
+}
+
 // Micro-benchmark of the backend hot paths (matmul, RMSNorm, norm+RoPE) plus end-to-end prefill/decode TPS on the synthetic model (infer::synthetic_model).
 // Used by tests/perf.py as the perf-regression gate for hot-path changes.
 int cmd_bench(int size, int iters, int threads, int prefill, int decode,
@@ -867,16 +885,9 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
         infer::Model model(infer::gguf_weights(sm), b);
 
         const int P = prefill, G = decode;
-        model.reset();
-        t0 = clock::now();
-        for (int i = 0; i < P; i++) model.step(i % nv);
-        double pre_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count();
-        double pre_tps = (double)P / (pre_ms / 1e3);
-
-        t0 = clock::now();
-        for (int i = 0; i < G; i++) model.step((P + i) % nv);
-        double dec_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count();
-        double dec_tps = (double)G / (dec_ms / 1e3);
+        const StepTimes st = time_steps(model, P, G, nv);
+        const double pre_ms = st.prefill_ms, dec_ms = st.decode_ms;
+        const double pre_tps = (double)P / (pre_ms / 1e3), dec_tps = (double)G / (dec_ms / 1e3);
 
         printf("bench: prefill %3d tok  %8.3f ms  %8.1f tok/s\n", P, pre_ms, pre_tps);
         printf("bench: decode  %3d tok  %8.3f ms  %8.1f tok/s\n", G, dec_ms, dec_tps);

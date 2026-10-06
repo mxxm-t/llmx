@@ -2,6 +2,9 @@
 // The load mixes prompts longer than the ubatch with short ones, capped and uncapped requests on a pool that pauses them, and greedy and seeded sampling with top_logprobs 5.
 // A request cancelled from inside a stage ends cancelled with its reply so far, a stage that fails once ends only its own pass's requests with the error, and a stop from inside a stage ends every request cancelled, each leaving every block free.
 // The passes of a load that never pauses are replayed in their order through Model::forward on a fresh model of the same placement, every logits row bit for bit, and without logprobs, so no row is copied out of the passes' logits, it gives the same ids.
+#include <thread>
+#include <chrono>
+#include <atomic>
 #include <cstring>
 #include <iostream>
 #include <map>
@@ -419,11 +422,72 @@ void grouped(const gguf::GGUFModel& weights, uint32_t vocab) {
     replayed(one, split, tok, vocab);
 }
 
+// A CPU backend that reports a device time, as a timed device does, and notes whether that reading ever met a submission of its own: a device takes its timing read from the thread that records on it and from no other while it records.
+struct Timed : backend::CpuBackend {
+    std::atomic<bool> submitting{false}, reading{false};
+    std::atomic<size_t>* met = nullptr;
+    backend::Ticket submit() override {
+        submitting = true;
+        if (reading) ++*met;
+        std::this_thread::sleep_for(std::chrono::microseconds(200));
+        const backend::Ticket t = CpuBackend::submit();
+        submitting = false;
+        return t;
+    }
+    double device_ms() override {
+        reading = true;
+        if (submitting) ++*met;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        reading = false;
+        return 0.0;
+    }
+};
+
+// A timed scheduler (serve --timing) over two stages of tensor groups with two passes in flight: it reads each stage's device time every few rounds, and no reading may meet a recording on that stage's devices; every reply stays its reply alone.
+void timed_groups(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 32 * kBlock;
+    const std::vector<Req> reqs = steady_load(vocab);
+    const std::vector<Reply> ref = alone(on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 2), tok, pool, reqs);
+    std::atomic<size_t> met{0};
+    const Make make = on(weights, [&met] {
+        std::vector<backend::BackendPtr> v;
+        for (size_t i = 0; i < 4; ++i) {
+            auto c = std::make_shared<Timed>();
+            c->set_threads(1);
+            c->met = &met;
+            v.push_back(c);
+        }
+        return v;
+    }, 8, 0, 0, 0, false, 2);
+    auto model = make(pool, kUbatch);
+    std::vector<std::shared_ptr<server::Request>> handles;
+    std::vector<Reply> got;
+    {
+        server::Scheduler sched(*model, tok, kSeqs, 64, 2, true);
+        for (const Req& r : reqs) handles.push_back(sched.submit(r.prompt, params_of(r)));
+        std::thread runner([&] { sched.run(); });
+        try {
+            for (auto& h : handles) got.push_back(drain(*h));
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    for (size_t i = 0; i < reqs.size(); ++i) same(ref[i], got[i], "a timed scheduler over two stages of groups, request " + std::to_string(i));
+    require(met == 0, "a timed scheduler read a stage's device time " + std::to_string(met.load()) + " times while that stage was being recorded");
+    ++checks;
+}
+
 } // namespace
 
 int main() {
     try {
         grouped(served(kSplit), (uint32_t)kSplit.vocab);
+        timed_groups(served(kSplit), (uint32_t)kSplit.vocab);
         cases(served(kSplit), (uint32_t)kSplit.vocab);
         // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: without checkpoint slots it keeps no donor, and a stage may hold only states.
         cases(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);

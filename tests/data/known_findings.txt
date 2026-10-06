@@ -1,57 +1,24 @@
 # The findings of the dead-code and docs checks (tests/dead_code.py, tests/docs_check.py) that the tree still has, and why each is still here.
 # One per line: check | file | name | times | reason, where times is how often the finding occurs.
 # A finding not listed here fails its check, and so do one that occurs another number of times than its line says and a line here whose finding no longer occurs, so the change that removes a finding removes its line (AGENTS.md, Dead code and stale docs).
-# Except for the Windows entry point, every line below goes with cleanup/known-findings, planned in docs/STATUS.md to follow refactor/arch-modules, but the qwen35 lines, which go with the steps of the Qwen 3.5, 3.6 and 3.8 plan they name.
+# Every line below is a probe a test needs and cannot take another way, or an entry point no check can see called; none waits for a branch.
 
 # Windows executable entry point, invoked by the C runtime.
 unused | tools/model_logits.cpp | wmain | 1 | the Windows C runtime calls this Unicode entry point; the name check recognizes main only; remove the entry if that check learns wmain or this tool no longer uses it
 
-# Functions only the tests reach, found by name.
-test-only | src/backends/cpu/cpu_backend.hpp | CpuBackend::workers_started | 1 | the pool's start count, a probe backend-errors and model-validation read to pin when workers start; kept until the tests take the count another way, with cleanup/known-findings
-test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_name | 1 | the device's name, which only the Vulkan test prints; its comment still names the CLI, which no longer calls it; goes with cleanup/known-findings
-test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_profile | 1 | the device profile, which only the Vulkan test reads to predict the backend's kernel choice; kept as the test's probe or folded into it with cleanup/known-findings
-test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representations | 1 | the kernels' driver representations, which only the Vulkan test's --isa writes out; bench --profile captures them for nothing; decided with cleanup/known-findings
-test-only | src/backends/backend.hpp | Backend::state_copy | 1 | a slot copied to a slot, which the take-back resume and the checkpoints of the Qwen 3.5, 3.6 and 3.8 plan's step 8 call; goes with step 8b
+# Probes only the tests read, found by name.
+test-only | src/backends/cpu/cpu_backend.hpp | CpuBackend::workers_started | 1 | the pool's start count, which backend-errors and model-validation read to pin when workers start; nothing outside the pool can count its starts, so it goes only if those checks do
+test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_name | 1 | the device's name, which the Vulkan tests print so a hand run's log says which card and driver it ran on; goes if the tests stop printing it
+test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_profile | 1 | the device profile, which backend-vulkan and mxfp4-vulkan read to predict the backend's kernel choice at each crossover; goes only if those checks do
+test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representations | 1 | the kernels' driver representations, which backend-vulkan --isa writes out for the hand check AGENTS.md asks at every row-kernel change; goes only with that check
 
-# Shader switches that change nothing: no CMake entry sets the define, so only the default is ever built.
-
-# Overrides product code never calls.
-
-# Functions no executable keeps, from the linked build (tests/dead_code.py --linked, in the Vulkan job).
-linked-unreached | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::kh(unsigned long, int) const | 1 | the const overload of kh; only the other one is called; goes with cleanup/known-findings
-linked-unreached | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::vh(unsigned long, int) const | 1 | the const overload of vh; only the other one is called; goes with cleanup/known-findings
-linked-unreached | src/hub/transport.hpp | hub::transport_detail::Fd::Fd(int) | 1 | a constructor nothing calls; goes with cleanup/known-findings
-
-# Functions only test executables keep, from the linked build.
-linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::k(unsigned long, int) const | 1 | the const overload of k, which only tests call; goes with cleanup/known-findings
-linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::kraw(unsigned long, int) const | 1 | the const overload of kraw, which only tests call; goes with cleanup/known-findings
-linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::v(unsigned long, int) const | 1 | the const overload of v, which only tests call; goes with cleanup/known-findings
-linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::vraw(unsigned long, int) const | 1 | the const overload of vraw, which only tests call; goes with cleanup/known-findings
+# Functions only test executables keep, from the linked build (tests/dead_code.py --linked, in the Vulkan job).
+linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::k(unsigned long, int) const | 1 | the const read of a key block, which kv-cache takes on a storage it holds const; product code holds its storage mutable
+linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::kraw(unsigned long, int) const | 1 | what the const k reads through; goes with it
+linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::v(unsigned long, int) const | 1 | the const read of a value block, as k
+linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::vraw(unsigned long, int) const | 1 | what the const v reads through; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::kernel_representations() const | 1 | what vulkan_kernel_representations returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::name() const | 1 | what vulkan_device_name returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::profile() const | 1 | what vulkan_device_profile returns; goes with it
-linked-test-only | src/model/kv_cache.hpp | infer::BlockPool::BlockPool(unsigned long) | 1 | a sizing constructor only tests use; goes with cleanup/known-findings
-linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::n_blocks() const | 1 | the block count, which only tests read; goes with cleanup/known-findings
-linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::operator=(infer::KVSequence&&) | 1 | a move assignment only tests use; goes with cleanup/known-findings
-linked-test-only | src/server/http.hpp | http::fetch(std::string const&, unsigned short, std::string const&, std::string const&, std::string const&, std::string&, std::vector*, std::string const&) | 1 | the HTTP layer's client, written for its test; moves into the tests with cleanup/known-findings
-
-# Line numbers without the commit they point into; the lines they meant have moved (docs/STATUS.md records and plans).
-line-pin | docs/STATUS.md | CMakeLists.txt:17 | 1 | the CPU kernel cleanup's audit items; pinned to their commit or dropped with cleanup/known-findings
-line-pin | docs/STATUS.md | device_profile.hpp:131 | 1 | the quantization plan's findings; pinned to their commit with cleanup/known-findings
-line-pin | docs/STATUS.md | vulkan_backend.cpp:581 | 1 | the quantization plan's findings, the rounding now three lines lower; pinned to their commit with cleanup/known-findings
-line-pin | docs/STATUS.md | backend.hpp:195 | 1 | the quantization plan's findings, a line that now holds alloc_weight; pinned to their commit with cleanup/known-findings
-line-pin | docs/STATUS.md | model_validation.cpp:413 | 1 | the quantization plan's steps, right only at the commit the plan's findings name; pinned to it with cleanup/known-findings
-line-pin | docs/STATUS.md | tests/load_progress.cpp:38 | 1 | the loader plan's findings, about format::open, which is gone; pinned to their commit with cleanup/known-findings
-line-pin | docs/STATUS.md | tests/gguf_shards.cpp:162 | 1 | the loader plan's findings, about format::open, which is gone; pinned to their commit with cleanup/known-findings
-line-pin | docs/STATUS.md | server/api.hpp:64 | 1 | the loader plan's findings; pinned to their commit with cleanup/known-findings
-line-pin | docs/STATUS.md | backend.hpp:160 | 2 | the loader plan's findings and steps; pinned to their commit with cleanup/known-findings
-line-pin | docs/STATUS.md | main.cpp:264 | 1 | the loader plan's steps; pinned to their commit with cleanup/known-findings
-line-pin | docs/STATUS.md | docs/EXECUTION.md:234 | 1 | the loader plan's steps; pinned to their commit with cleanup/known-findings
-
-# Names in live text that the code no longer has.
-
-# Commands a live doc names that the binary lacks.
-command | docs/VULKAN.md | llmx devices | 1 | a planned listing written in the live Selection and reporting; with cleanup/known-findings the sentence moves under a heading that says planned, or names the listing without the backticked command
-
-# Source files no docs/src page's title names.
-src-page | src/backends/cpu/q8_dots.hpp | no page | 1 | described inside docs/src/backends-cpu.md, whose title names cpu_backend.hpp; gets docs/src/backends-cpu-q8_dots.md with cleanup/known-findings
+linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::n_blocks() const | 1 | a sequence's block count, which kv-cache reads to hold reuse, growth and release to the block; nothing else exposes it
+linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::operator=(infer::KVSequence&&) | 1 | the move assignment beside the move constructor product code uses, which kv-cache takes to replace a sequence in place; a movable type without it would surprise its next user

@@ -202,8 +202,7 @@ placement contracts in `docs/EXECUTION.md`.
     `kConvTaps` is the conv's width, 4 in every qwen35 file, and `kL2NormEps` the L2 norms' epsilon, 1e-6, which no file carries.
   - `state_alloc(layers, slots, shape)`: a `StateStorage` of one buffer per layer holding every slot back to back, allocated through `alloc` and zero-filled when it is made and never grown, so no pass allocates state.
     It refuses zero layers, zero slots, a shape with zero K or V heads or a zero width, and V heads that are no multiple of the K heads.
-    `state_copy(s, dst, src)` copies one slot to another in every layer through `copy`, enqueued as copy is, for a checkpoint restored or a state taken back into a live slot.
-    Both are the same on every backend, over its own `alloc` and `copy`.
+    It is the same on every backend, over its own `alloc`.
     A `StateStorage` refuses a missing buffer or one smaller than `layer_bytes(slots)`, so a storage made by hand cannot send an op past a buffer's end.
   - `StateView`: one sequence's `nq` rows of a pass continuing a history of `length` tokens, read from slot `src` and written to slot `dst`, which differ only in a verify.
     Length 0 reads a zero state whatever `src` holds, so a recycled slot needs no clearing.

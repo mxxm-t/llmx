@@ -83,7 +83,7 @@
 | Shared device-versus-CPU numerical gate | Done (main `c6a91bf`) |
 | Required device types in the test runner | Done (main `56172ea`) |
 | Vulkan finite activation repair | On main at `99020607`; its block records the exact-head hosted run as still owed |
-| Dead-code and stale-docs checks in every job | Done (merged at `75450ea`, record below); the cleanup of the listed findings, branch `cleanup/known-findings`, is next now that the architecture modules have merged, and has not started |
+| Dead-code and stale-docs checks in every job | Done (merged at `75450ea`, record below); the listed findings cleaned up on `cleanup/known-findings` (2026-10-06, its record below) |
 
 `Done` denotes implemented and validated functionality in this release tree.
 The earlier runtime base `08351b0` was published on both main remotes. Its initial five-check
@@ -119,6 +119,11 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
+
+## The known findings cleaned up (2026-10-06, branch cleanup/known-findings, lands by fast-forward)
+
+- **Done:** `tests/data/known_findings.txt` goes from 34 lines to 15, none waiting for a branch. Removed as unreached: `Backend::state_copy` (its reason, step 8b of the qwen35 plan, was false: nothing but two tests called it), the `Fd(int)` constructor of the hub transport, the const `kh` and `vh` of the CPU KV storage and `BlockPool`'s sizing constructor; `http::fetch`, the HTTP layer's client, moved into the `http` test, its one user. The 13 line numbers STATUS's records gave without a commit are dropped, `docs/VULKAN.md` no longer writes a command that does not exist, and `q8_dots.hpp` has its page.
+- **Kept, with reasons that hold:** the Windows entry point of `llmx-model-logits`; the four probes the backend tests read (`workers_started`, the Vulkan device's name, profile and kernel representations) and what they return; the const reads of a KV block and a sequence's block count and move assignment, which `kv-cache` takes.
 
 ## A message boundary where a request's last user message starts (2026-10-06, branch feat/edit-boundaries, lands by fast-forward)
 
@@ -2867,7 +2872,7 @@ This separate merge-record change reviews STATUS against the completed landing e
   - `split_rows` is the one split of the row dots, for `matvec_q8x`, that decode loop, `matmul_group` and the routed decode entries, and each dispatches as on main: from eight rows per worker, and an F32 decode from four rows per worker in whole `DOT_ROWS` chunks, as its batched float path split it.
   - `matmul_group` asks `quantized_dots` for each projection instead of repeating its rule.
   - The Q6_K fused dot rounds each scaled group sum before accumulating it, through separate intrinsics (Gotchas).
-  - The comments of the touched files are swept, the audit's `cpu_backend.hpp` and `CMakeLists.txt:17,139,261` items among them, and AGENTS states the AVX2, FMA and F16C baseline and that a kernel beyond it, such as the deferred AVX-512 path, needs its own runtime dispatch.
+  - The comments of the touched files are swept, the audit's `cpu_backend.hpp` and `CMakeLists.txt` items among them, and AGENTS states the AVX2, FMA and F16C baseline and that a kernel beyond it, such as the deferred AVX-512 path, needs its own runtime dispatch.
 - **Review round (2026-09-26):**
   - The first version split an F32 decode from eight rows per worker where main split it from four, in whole `DOT_ROWS` chunks, so from 17 to 32 threads the 30B-A3B router (`ffn_gate_inp`, F32, 128 rows) ran on the calling thread where main ran it on the pool; per call on an 8-core desktop that was faster at 16 threads and slower at 12. `split_rows` now takes the rows-per-worker threshold and a grain, and the F32 decode passes `DOT_ROWS` for both. Whether eight rows would suit F32 is unmeasured, and changing it would be its own change.
   - The first version also sized the gather and routing ops' float ranges through a new checked `span_floats`. That fixes a bug, a float offset past SIZE_MAX/4 wrapping to an in-range byte offset so that `gather_rows` and `route_experts` wrote at the buffer's start, and a fix lands after its failing test, so it moved to `fix/float-ranges` (Left).
@@ -4526,7 +4531,7 @@ This separate merge-record change reviews STATUS against the completed landing e
     - Type sizes were written in `format/gguf.hpp`, in the registry (`quant/quant.hpp`) and again in `q.glsl`; since `refactor/raw-convert-to-format` they are written once in C++, in `quant/types.hpp`, and again in `q.glsl`.
     - Vulkan refuses a type it has no kernel for only when the kernel is first called ("unsupported matrix type").
       `tests/common.py:device_lacks_kernel` turns that message into a SKIP under `LLMX_DEVICE`, so a device run can pass with nothing checked.
-    - Six checks use F16 (type 1) as the unsupported type, at b7b585f: in `backend_vulkan.cpp`, the matmul at 983, and `check_refusals`' matmul (1537), routed product (1587) and embed (1595) through its F16 constant (1444); and `model_validation.cpp:413` and `:421`.
+    - Six checks use F16 (type 1) as the unsupported type, at b7b585f: in `backend_vulkan.cpp`, the matmul at 983, and `check_refusals`' matmul (1537), routed product (1587) and embed (1595) through its F16 constant (1444); and `model_validation.cpp` and `:421`.
   - **Work in flight that this plan touches.**
     - `feat/hf-loader-main-20260924` (b56e4e3, 234 commits behind main) has a `core/storage.hpp` that is only named constants.
       It has no lookup table, registry entries for F16 and BF16 with a CPU dequantize fallback, and a refusal of 16-bit weights on Vulkan.
@@ -4558,14 +4563,14 @@ This separate merge-record change reviews STATUS against the completed landing e
       - `reads_x8` (1851), `is_row_kernel`, `row_kernel_builds_one_column` and `row_dot_variant`'s default are hand-written lists, and a new 8-bit row kernel missing from `reads_x8` reads the 16-bit twin as bytes;
       - `integer_dot_tile` is true on the MI50 for every type except F32;
       - `tile_from`'s choice between "8-bit" and "float" (1383);
-      - `moe_tile_from_for`'s default (device_profile.hpp:131).
+      - `moe_tile_from_for`'s default (device_profile.hpp).
     - Test helpers place scales by `type >= Q4_K`, and `d` at offset 0 or 2.
   - **Modules shared by every type through a push constant.**
     `embed` and the float tile branch on `p.type` at run time and read `q.glsl`'s `block_bytes`, `block_values` and `is_kquant`.
     So adding a type to them changes their SPIR-V.
   - **`tile_reads`** takes the maximum of every type's threshold (1956-1957).
     A new, higher MoE threshold would move, for every model, the range of prompts in which the producers write the 8-bit copy.
-  - **Device buffers** are rounded only to whole words (vulkan_backend.cpp:581).
+  - **Device buffers** are rounded only to whole words (vulkan_backend.cpp).
   - **Vulkan `matmul_experts`** throws when the gate and up experts differ in type (1721).
     No file read mixes them.
   - **Streamed experts:** with experts on the host, long prompts copy the expert stacks into device windows and compute them there (`arch_qwen.hpp ffn_split`).
@@ -4578,7 +4583,7 @@ This separate merge-record change reviews STATUS against the completed landing e
     - MoE decode calls `row_dot`.
     - The prompt dots run only for K-quants at 4096 wide and up (`kPromptDotsFrom`), so they never run on the 0.6B files.
     - MoE prompt entries take `dot_block` for any type with a fused dot, whatever the width.
-    - The CPU has no `matmul_logits` override: the head falls through to `matmul` (backend.hpp:195).
+    - The CPU has no `matmul_logits` override: the head falls through to `matmul` (backend.hpp).
   - **Heads.**
     The Q4_0 fixture failed top-5 because of its Q6_K head on the 8-bit twin (VULKAN.md).
     The Vulkan `matmul_logits` keeps the 16-bit twin for Q4_0, Q4_1 and Q6_K heads, and every other row of those types reads 8 bits.
@@ -4887,7 +4892,7 @@ This separate merge-record change reviews STATUS against the completed landing e
        - the CPU fused dots in `row_dot`, the decode branch and `matmul_group`;
        - the float-type predicate threaded through the six decisions;
        - Vulkan 16-bit builds of the plain rows, the float tile on both cards, the routed calls, embed and heads, all from F32's sources.
-       - The six unsupported-type checks (Found) move to a still-unsupported id: `backend_vulkan.cpp`'s matmul at 983 and `check_refusals`' F16 constant (1444), which its matmul, routed product and embed use, and `model_validation.cpp:413` and `:421`.
+       - The six unsupported-type checks (Found) move to a still-unsupported id: `backend_vulkan.cpp`'s matmul at 983 and `check_refusals`' F16 constant (1444), which its matmul, routed product and embed use, and `model_validation.cpp` and `:421`.
      - **Side effect:** the native HF branch's safetensors half weights run on devices through the same kernels.
      - **Exactness and HF:**
        - Every tensor of unsloth 0.6B BF16 (50968a44), widened by the Python spec decoder rather than by llmx, must equal the independent Qwen3-0.6B-F32.gguf.
@@ -6277,16 +6282,16 @@ This separate merge-record change reviews STATUS against the completed landing e
      - `cli/main.cpp:open_model` releases the host copy (264).
      - `tools/split_check.cpp:main` and `tools/compare_cpu.cpp:main` repeat parts of that sequence and never release.
   2. **Two signals answer "does a host read this weight in place".** `Model::note_reader` (965) compares `host_ptr()` with `GGUFModel::holds`. `place_model`, `Model::resolve_tensors` and `model/layer_split.hpp:budgets_for` ask `Backend::reads_in_place`.
-  3. **The seam kept for a second format is not the one loading uses.** `format::ModelFormat`, `gguf::GGUFFormat` and `format::open` carry no tensor bytes, and only `tests/load_progress.cpp:38` and `tests/gguf_shards.cpp:162,179` call them. Meanwhile `Model`, `footprint`, `routed_layers`, `place_model`, the tokenizer, `chat::chat_format` and `server::Api` all take a `gguf::GGUFModel`; since `feat/chat-template-jinja`, `server::Api` takes a `chat::ChatFormat` instead.
+  3. **The seam kept for a second format is not the one loading uses.** `format::ModelFormat`, `gguf::GGUFFormat` and `format::open` carry no tensor bytes, and only `tests/load_progress.cpp` and `tests/gguf_shards.cpp` call them. Meanwhile `Model`, `footprint`, `routed_layers`, `place_model`, the tokenizer, `chat::chat_format` and `server::Api` all take a `gguf::GGUFModel`; since `feat/chat-template-jinja`, `server::Api` takes a `chat::ChatFormat` instead.
   4. **One load parses the config three times.** `load_config` runs in `Model::Model` (469), `footprint` (399) and `place_model` (1372). `footprint` also decides dense layers by a `.ffn_gate.weight` substring (424), where the resolver and `routed_layers` look for the router tensor.
   5. **The tensor table is checked twice.** `read_gguf` refuses duplicate names only across shards (500-507). `Model::Model` then checks count, duplicates, rank and extent again (529-541).
   6. **Commands that need only metadata read the whole payload.** `cmd_info`, `cmd_tokenize` and `cmd_detokenize` map and touch it through `read_gguf`.
   7. **Lifetime rests on caller conventions.**
      - `Model` keeps `const GGUFModel* m_` (837).
      - The CLI's `Opened` is "built in place and never moved".
-     - `server::serve` and `Api` took the whole file only to call `chat_format` (`server/api.hpp:64`); `feat/chat-template-jinja` has them take a `const chat::ChatFormat&`, built once in the CLI's `Opened`.
+     - `server::serve` and `Api` took the whole file only to call `chat_format` (`server/api.hpp`); `feat/chat-template-jinja` has them take a `const chat::ChatFormat&`, built once in the CLI's `Opened`.
   8. **The written `adopt` contract is the opposite of what the release relies on.**
-     - `backend.hpp:160`, `docs/src/backends-backend.md` and `docs/DEVICE-EXECUTION.md` say the source must outlive the buffer.
+     - `backend.hpp`, `docs/src/backends-backend.md` and `docs/DEVICE-EXECUTION.md` say the source must outlive the buffer.
      - Releasing the host copy relies on a copying backend having consumed the source when `adopt` returns (`VulkanBackend::upload`, 2405).
      - `tests/model_validation.cpp:LoadingBackend` reports `reads_in_place()` false but aliases the source.
   9. **Reads are page faults.** The touch reads one byte in every 4096, in 8 MiB steps. A diagnostic measured page-fault reads at about 400 MB/s, against 2.1 to 2.4 GB/s for 16 MiB reads from the same ZFS pool, buffered and direct alike (Multi-device phase 1, Done, loading).
@@ -6311,7 +6316,7 @@ This separate merge-record change reviews STATUS against the completed landing e
        - `cmd_chat` and `cmd_serve` use `loaded->chat` where `feat/chat-template-jinja` has them use `opened->chat`, so `load_model` takes over building the format from `open_model`.
        - `server::serve` and `Api` take a `const chat::ChatFormat&`, as they do since `feat/chat-template-jinja`.
        - `split_check` makes two `load_model` calls, and `compare_cpu` makes one.
-     - **Deleted:** `Opened`, the CLI's `load_model`, the release at `main.cpp:264`, and the tools' own open sequences.
+     - **Deleted:** `Opened`, the CLI's `load_model`, the release at `main.cpp`, and the tools' own open sequences.
      - **Tests:** `load-progress` writes `tiny_qwen` with tokenizer metadata and loads it twice. On the CPU the payload is kept. On a CPU subclass that copies what it adopts and reports `reads_in_place()` false, `payload_size()` must be 0. In both cases the logits must be bit-identical to the model built in memory.
      - **Docs:**
        - new `docs/src/inference-load.md`;
@@ -6339,10 +6344,10 @@ This separate merge-record change reviews STATUS against the completed landing e
        - `LoadingBackend` copies what it adopts.
        - A one-off check shows `footprint` unchanged on every local model file.
      - **Docs:**
-       - The real `adopt` contract in `backend.hpp:160`, `backends-backend.md` and `DEVICE-EXECUTION.md`: a backend that reads in place borrows the source for the buffer's life and does not read it inside `adopt`, and a copying backend has consumed it when `adopt` returns.
+       - The real `adopt` contract in `backend.hpp`, `backends-backend.md` and `DEVICE-EXECUTION.md`: a backend that reads in place borrows the source for the buffer's life and does not read it inside `adopt`, and a copying backend has consumed it when `adopt` returns.
        - `docs/src/model-arch_qwen.md` (the pointer rule, and 199-201).
        - `docs/src/format-mapped_file.md`.
-       - `docs/EXECUTION.md:234`: "costs no RAM" is wrong, since the page cache is RAM.
+       - `docs/EXECUTION.md`: "costs no RAM" is wrong, since the page cache is RAM.
   3. **Reading a file maps and touches nothing, and `ModelFormat` goes.**
      - **`read_gguf(path)`:**
        - It parses, checks and lays out `Segment{path, file, start, base, size}`, with `file` null until mapped.

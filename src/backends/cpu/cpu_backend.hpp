@@ -67,8 +67,6 @@ public:
     const float* v(size_t layer, int32_t id) const { return (const float*)vraw(layer, id); }
     uint16_t* kh(size_t layer, int32_t id) { return (uint16_t*)kraw(layer, id); }
     uint16_t* vh(size_t layer, int32_t id) { return (uint16_t*)vraw(layer, id); }
-    const uint16_t* kh(size_t layer, int32_t id) const { return (const uint16_t*)kraw(layer, id); }
-    const uint16_t* vh(size_t layer, int32_t id) const { return (const uint16_t*)vraw(layer, id); }
 
 private:
     void retire(const BufferPtr&) override {}

@@ -741,7 +741,7 @@ size_t check_kernels(backend::Backend& vk) {
             auto run = [&](backend::Backend& b, std::vector<float>& qout, std::vector<float>& att) {
                 const size_t bt = b.kv_layout().block_tokens;
                 auto st = b.kv_alloc(1, n_head_kv, head_dim, 512);
-                infer::BlockPool pool(st->max_blocks());
+                infer::BlockPool pool; pool.configure(st->max_blocks());
                 infer::KVSequence seq(&pool, bt);
                 const auto Kh = b.adopt(hk.data(), hk.size() * sizeof(float));
                 const auto Vh = b.adopt(hv.data(), hv.size() * sizeof(float));
@@ -792,7 +792,7 @@ size_t check_kernels(backend::Backend& vk) {
                 auto run = [&](backend::Backend& b, std::vector<float>& att) {
                     const size_t bt = b.kv_layout().block_tokens;
                     auto st = b.kv_alloc(1, n_head_kv, head_dim, 1024, kt, kt);
-                    infer::BlockPool pool(st->max_blocks());
+                    infer::BlockPool pool; pool.configure(st->max_blocks());
                     infer::KVSequence seq(&pool, bt);
                     const auto Kb = b.adopt(hk.data(), hk.size() * sizeof(float));
                     const auto Vb = b.adopt(hv.data(), hv.size() * sizeof(float));
@@ -838,7 +838,7 @@ size_t check_kernels(backend::Backend& vk) {
             auto run = [&](backend::Backend& b, const std::vector<size_t>& hists, bool together) {
                 const size_t bt = b.kv_layout().block_tokens;
                 auto st = b.kv_alloc(1, n_head_kv, head_dim, 8192, kt, vt);
-                infer::BlockPool pool(st->max_blocks());
+                infer::BlockPool pool; pool.configure(st->max_blocks());
                 const auto Kb = b.adopt(hk.data(), hk.size() * sizeof(float));
                 const auto Vb = b.adopt(hv.data(), hv.size() * sizeof(float));
                 const auto Qb = b.adopt(qq.data(), qq.size() * sizeof(float));
@@ -963,7 +963,7 @@ size_t check_kernels(backend::Backend& vk) {
             const auto Qb = vk.adopt(Q.data(), Q.size() * sizeof(float));
             const size_t bt = vk.kv_layout().block_tokens;
             auto st = vk.kv_alloc(1, n_head_kv, head_dim, 4096, kt, kt);
-            infer::BlockPool pool(st->max_blocks());
+            infer::BlockPool pool; pool.configure(st->max_blocks());
             auto read_rows = [&](const backend::KVView* views, size_t n_views, size_t q_first, size_t nrows) {
                 const auto ob = vk.alloc(nrows * qw * sizeof(float), backend::Memory::device);
                 vk.attention({Qb.get(), q_first * qw}, 0, views, n_views, {ob.get(), 0}, n_head, n_head_kv, head_dim);
@@ -1093,7 +1093,7 @@ size_t check_kernels(backend::Backend& vk) {
             const auto Kb = vk.adopt(K.data(), K.size() * sizeof(float)), Vb = vk.adopt(V.data(), V.size() * sizeof(float));
             const auto Qb = vk.adopt(Q.data(), bytes);
             auto st = vk.kv_alloc(1, n_head_kv, head_dim, 512);
-            infer::BlockPool pool(st->max_blocks());
+            infer::BlockPool pool; pool.configure(st->max_blocks());
             auto attend = [&](bool told) {
                 infer::KVSequence seq(&pool, vk.kv_layout().block_tokens);
                 seq.prepare(rows);
@@ -1177,7 +1177,7 @@ size_t check_kernels(backend::Backend& vk) {
                 auto run = [&](backend::Backend& b, bool device, std::vector<float>& y) {
                     const size_t bt = b.kv_layout().block_tokens;
                     auto st = b.kv_alloc(1, n_head_kv, head_dim, 512);
-                    infer::BlockPool pool(st->max_blocks());
+                    infer::BlockPool pool; pool.configure(st->max_blocks());
                     infer::KVSequence seq(&pool, bt);
                     const auto Kb = b.adopt(hk.data(), hk.size() * sizeof(float));
                     const auto Vb = b.adopt(hv.data(), hv.size() * sizeof(float));
@@ -1237,7 +1237,7 @@ size_t check_kernels(backend::Backend& vk) {
                 auto run = [&](backend::Backend& b, backend::KVType kk, backend::KVType vv, std::vector<float>& att) {
                     const size_t bt = b.kv_layout().block_tokens;
                     auto st = b.kv_alloc(1, n_head_kv, head_dim, 512, kk, vv);
-                    infer::BlockPool pool(st->max_blocks());
+                    infer::BlockPool pool; pool.configure(st->max_blocks());
                     infer::KVSequence seq(&pool, bt);
                     const auto Kh = b.adopt(hk.data(), hk.size() * sizeof(float));
                     const auto Vh = b.adopt(hv.data(), hv.size() * sizeof(float));
@@ -1417,7 +1417,7 @@ size_t check_kernels(backend::Backend& vk) {
                                const std::vector<float>& Q, std::vector<float>& out, bool split) {
                     const size_t bt = b.kv_layout().block_tokens;
                     auto st = b.kv_alloc(layers, n_head_kv, head_dim, 8 * 128);
-                    infer::BlockPool pool(st->max_blocks());
+                    infer::BlockPool pool; pool.configure(st->max_blocks());
                     infer::KVSequence seq(&pool, bt), other(&pool, bt);
                     const auto Kb = b.adopt(K.data(), K.size() * sizeof(float));
                     const auto Vb = b.adopt(V.data(), V.size() * sizeof(float));
@@ -1569,7 +1569,7 @@ size_t check_kernels(backend::Backend& vk) {
         const int n_head = 16, n_head_kv = 8, head_dim = 128;
         const size_t hist = 250, kvw = (size_t)n_head_kv * head_dim, qw = (size_t)n_head * head_dim;
         auto st = vk.kv_alloc(1, n_head_kv, head_dim, 1024);
-        infer::BlockPool pool(st->max_blocks());
+        infer::BlockPool pool; pool.configure(st->max_blocks());
         infer::KVSequence seq(&pool, vk.kv_layout().block_tokens);
         const auto K = uniform(hist * kvw, 16), V = uniform(hist * kvw, 17), Q = uniform(qw, 18);
         const auto Kb = vk.adopt(K.data(), K.size() * sizeof(float));
@@ -2704,7 +2704,7 @@ void check_decay_flush(backend::Backend& vk) {
     }
 }
 
-// state_alloc zero-fills every slot of every layer on the device, and state_copy copies one slot in every layer and leaves the others.
+// state_alloc zero-fills every slot of every layer on the device, and each slot holds what is written to it.
 size_t check_storage(backend::Backend& vk) {
     const StateShape sh = {2, 6, 12, 10};
     const size_t layers = 3, slots = 4, n = sh.slot_floats();
@@ -2720,14 +2720,9 @@ size_t check_storage(backend::Backend& vk) {
             vk.write(s->layer(l), k * n * sizeof(float), held[l][k].data(), n * sizeof(float));
         }
     }
-    vk.state_copy(*s, 3, 1);
-    vk.state_copy(*s, 2, 2);
     for (size_t l = 0; l < layers; ++l)
         for (size_t k = 0; k < slots; ++k)
-            require(same_bits(read_floats(vk, s->layer(l), n, k * n), held[l][k == 3 ? 1 : k]), "state_copy moved the wrong slot on the device");
-    bool refused = false;
-    try { vk.state_copy(*s, slots, 0); } catch (const std::runtime_error&) { refused = true; }
-    require(refused, "state_copy took a slot outside the device storage");
+            require(same_bits(read_floats(vk, s->layer(l), n, k * n), held[l][k]), "a device state slot does not hold what was written to it");
     return layers * slots;
 }
 
@@ -2813,7 +2808,7 @@ size_t check_gated_attention(Pair& p, bool integer_dot) {
             auto tail = [&](backend::Backend& b, bool reference, std::vector<float>& gated, std::vector<float>& y) {
                 const size_t bt = b.kv_layout().block_tokens;
                 auto st = b.kv_alloc(1, n_head_kv, head_dim, 1024);
-                infer::BlockPool pool(st->max_blocks());
+                infer::BlockPool pool; pool.configure(st->max_blocks());
                 infer::KVSequence seq(&pool, bt);
                 const auto Kb = b.adopt(hk.data(), hk.size() * sizeof(float));
                 const auto Vb = b.adopt(hv.data(), hv.size() * sizeof(float));

@@ -63,7 +63,7 @@ float expected(size_t layer, size_t head, size_t pos, size_t lane, int seed) {
 }
 
 void pool_and_sequence() {
-    infer::BlockPool pool(4);
+    infer::BlockPool pool; pool.configure(4);
     const int32_t a = pool.alloc(), b = pool.alloc();
     require(a == 0 && b == 1 && pool.in_use() == 2, "ids are dense from zero");
     pool.retain(a);
@@ -79,7 +79,7 @@ void pool_and_sequence() {
     require(pool.in_use() == 4, "four blocks in use at the budget");
     rejects([&] { pool.alloc(); }, "budget exhaustion accepted");
 
-    infer::BlockPool p2(3);
+    infer::BlockPool p2; p2.configure(3);
     infer::KVSequence seq(&p2, 4);
     seq.prepare(5);
     require(seq.n_blocks() == 2 && seq.length() == 0, "prepare must not commit");
@@ -110,7 +110,7 @@ void pool_and_sequence() {
     seq.reset();
     rejects([&] { infer::KVSequence bad(&p2, 0); }, "zero block size accepted");
     rejects([&] { infer::KVSequence unbound; unbound.prepare(1); }, "unbound sequence accepted");
-    rejects([&] { infer::BlockPool held(2); held.alloc(); held.configure(4); },
+    rejects([&] { infer::BlockPool held; held.configure(2); held.alloc(); held.configure(4); },
             "pool reconfigured while blocks are held");
 
     // Ownership: a sequence returns its blocks when destroyed or moved from.
@@ -136,7 +136,7 @@ void pool_and_sequence() {
 
     // A sequence bound before the pool grew must still take ids safely.
     {
-        infer::BlockPool grow(1);
+        infer::BlockPool grow; grow.configure(1);
         infer::KVSequence bound(&grow, 4);
         grow.configure(6);
         bound.prepare(4 * 6);
@@ -200,7 +200,7 @@ void storage_growth_and_reset() {
         auto st = cpu.kv_alloc(3, heads, width, limit - 1);
         require(st->max_blocks() == 3, "budget rounds up to whole blocks");
         require(st->allocated_bytes() == 0 && st->peak_bytes() == 0, "storage backed before any write");
-        infer::BlockPool pool(st->max_blocks());
+        infer::BlockPool pool; pool.configure(st->max_blocks());
         infer::KVSequence seq(&pool, bt);
         size_t last = 0;
         for (size_t want : {size_t(1), size_t(2), bt - 1, bt, bt + 1, 2 * bt - 1,
@@ -398,7 +398,7 @@ void fork_shares_blocks() {
     cpu.set_threads(1);
     const size_t bt = cpu.kv_layout().block_tokens, heads = 2, width = 8;
     auto st = cpu.kv_alloc(3, heads, width, 6 * bt);
-    infer::BlockPool pool(st->max_blocks());
+    infer::BlockPool pool; pool.configure(st->max_blocks());
     infer::KVSequence seq(&pool, bt);
     append(cpu, *st, seq, heads, width, 2 * bt + 2, 1);
     const size_t before = pool.in_use();
@@ -467,7 +467,7 @@ void attention_over_blocks() {
             std::vector<std::vector<float>> outs;
             for (int churn = 0; churn < 2; ++churn) {
                 auto st = cpu.kv_alloc(1, n_head_kv, head_dim, 8 * bt);
-                infer::BlockPool pool(st->max_blocks());
+                infer::BlockPool pool; pool.configure(st->max_blocks());
                 if (churn) {
                     std::vector<int32_t> taken;
                     for (int i = 0; i < 6; ++i) taken.push_back(pool.alloc());
@@ -553,7 +553,7 @@ void batched_views() {
     std::vector<float> joint;
     for (int mode = 0; mode < 2; ++mode) {
         auto st = cpu.kv_alloc(1, n_head_kv, head_dim, 8 * bt);
-        infer::BlockPool pool(st->max_blocks());
+        infer::BlockPool pool; pool.configure(st->max_blocks());
         infer::KVSequence seq[2] = {infer::KVSequence(&pool, bt), infer::KVSequence(&pool, bt)};
         backend::BufferPtr keep[8];
         for (int i = 0; i < 2; ++i) {

@@ -207,7 +207,7 @@ The lifetime and packed-quantization tests include the implementation and use te
     Rows past the K head's width stage as zeros, so the recurrence tests no row.
     It refuses K heads wider than 128.
   - `state_table` lays a call's state views out for the kernels, the conv appending its chunks, and refuses views of two storages in one call; the slots' floats must be addressable in 32 bits.
-  - `state_alloc` and `state_copy` are `Backend`'s own, built on this backend's `alloc` and `copy`; `backend-vulkan` checks their zeroed slots and copies.
+  - `state_alloc` is `Backend`'s own, built on this backend's `alloc`; `backend-vulkan` checks its zeroed slots.
   - `implements` answers true for these state and gating ops and the drafter's two below; mixed routed projection types remain unsupported as described above.
 - The embedded drafter's ops (docs/SPECULATIVE.md, section 7), held to the CPU id for id and bit for bit by `backend-vulkan`:
   - `argmax_rows` (`shaders/argmax_rows.comp`): a workgroup a row, each lane its first largest over its strided ids, then a tree to the lowest id of the largest, with a NaN anywhere, a largest that is not finite or an invalid prior id giving the row the invalid id.

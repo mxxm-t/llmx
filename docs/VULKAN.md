@@ -782,7 +782,7 @@ A routed layer (`qwen3moe`) applies the router matmul, routing, gate and up proj
 ## Selection and reporting
 
 `--device cpu` is the default and `--device vulkan:N` selects a device, as `docs/USAGE.md` and `print_usage` give it.
-`llmx info` gains nothing, and there is no `llmx devices` listing.
+`llmx info` gains nothing, and no command lists the devices.
 `--threads` keeps its CPU meaning and does nothing for a Vulkan device unless experts run on the CPU beside it, which the usage text says.
 
 ## Gates

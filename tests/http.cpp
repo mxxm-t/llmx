@@ -11,6 +11,71 @@
 #include <vector>
 #include "server/http.hpp"
 
+namespace http {
+
+// The client side: one request, the whole response read to the end, chunked bodies decoded.
+// Returns the status; `chunks` receives each chunk as it arrived when the reply was chunked, so a test can see where the server split the stream.
+int fetch(const std::string& host, uint16_t port, const std::string& method, const std::string& path,
+                 const std::string& body, std::string& out, std::vector<std::string>* chunks = nullptr,
+                 const std::string& content_type = "application/json") {
+    platform_init();
+    const Socket s = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (s == kInvalid) throw std::runtime_error("http: socket failed");
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    inet_pton(AF_INET, host.c_str(), &addr.sin_addr);
+    if (::connect(s, (const sockaddr*)&addr, sizeof(addr)) != 0) {
+        close_socket(s);
+        throw std::runtime_error("http: connect failed");
+    }
+    std::string req = method + " " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n";
+    if (!body.empty()) req += "Content-Type: " + content_type + "\r\nContent-Length: " + std::to_string(body.size()) + "\r\n";
+    req += "\r\n" + body;
+    size_t off = 0;
+    while (off < req.size()) {
+        const int n = (int)::send(s, req.data() + off, (int)(req.size() - off), kSendFlags);
+        if (n <= 0) { close_socket(s); throw std::runtime_error("http: send failed"); }
+        off += (size_t)n;
+    }
+    std::string raw;
+    char buf[16384];
+    for (;;) {
+        const int n = (int)::recv(s, buf, sizeof(buf), 0);
+        if (n <= 0) break;
+        raw.append(buf, (size_t)n);
+    }
+    close_socket(s);
+    const size_t head_end = raw.find("\r\n\r\n");
+    if (head_end == std::string::npos) throw std::runtime_error("http: no response head");
+    const std::string head = raw.substr(0, head_end);
+    const int status = std::atoi(head.c_str() + 9);
+    std::string lower = head;
+    for (auto& c : lower) c = (char)std::tolower((unsigned char)c);
+    const std::string payload = raw.substr(head_end + 4);
+    out.clear();
+    if (lower.find("transfer-encoding: chunked") != std::string::npos) {
+        size_t pos = 0;
+        for (;;) {
+            const size_t line_end = payload.find("\r\n", pos);
+            if (line_end == std::string::npos) throw std::runtime_error("http: truncated chunked body");
+            const size_t size = std::strtoull(payload.substr(pos, line_end - pos).c_str(), nullptr, 16);
+            pos = line_end + 2;
+            if (size == 0) break;
+            if (pos + size > payload.size()) throw std::runtime_error("http: truncated chunk");
+            const std::string chunk = payload.substr(pos, size);
+            if (chunks) chunks->push_back(chunk);
+            out += chunk;
+            pos += size + 2;
+        }
+    } else {
+        out = payload;
+    }
+    return status;
+}
+
+} // namespace http
+
 namespace {
 void require(bool ok, const char* what) {
     if (!ok) throw std::runtime_error(what);

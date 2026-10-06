@@ -532,7 +532,7 @@ void check_l2_eps(std::mt19937& g) {
     check_delta(sh, r.rows.data(), r.state.data(), out, S, nq, "small q and k heads");
 }
 
-// state_alloc zero-fills whole slots and refuses a shape with V heads that are no multiple of the K heads; state_copy copies one slot in every layer and leaves the others.
+// state_alloc zero-fills whole slots, which hold what is written to them, and refuses a shape with V heads that are no multiple of the K heads.
 void check_state_storage(std::mt19937& g) {
     CpuBackend cpu;
     const StateShape sh = {2, 6, 12, 10};
@@ -550,14 +550,10 @@ void check_state_storage(std::mt19937& g) {
             slots[l].push_back(random_slot(g, sh));
             write_slot(cpu, *s, l, k, slots[l][k]);
         }
-    cpu.state_copy(*s, 3, 1);
-    cpu.state_copy(*s, 2, 2);
     for (size_t l = 0; l < 3; ++l)
         for (size_t k = 0; k < 4; ++k)
-            require(same_bits(read_slot(cpu, *s, l, k), slots[l][k == 3 ? 1 : k]), "state_copy moved the wrong slot");
+            require(same_bits(read_slot(cpu, *s, l, k), slots[l][k]), "a state slot does not hold what was written to it");
     bool refused = false;
-    try { cpu.state_copy(*s, 4, 0); } catch (const std::runtime_error&) { refused = true; }
-    require(refused, "state_copy took a slot outside the storage");
     for (const StateShape& bad : {StateShape{2, 3, 4, 4}, StateShape{0, 2, 4, 4}, StateShape{2, 2, 0, 4}}) {
         refused = false;
         try { cpu.state_alloc(1, 1, bad); } catch (const std::runtime_error&) { refused = true; }

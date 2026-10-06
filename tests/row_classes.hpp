@@ -106,7 +106,8 @@ inline size_t check(backend::Backend& b, const std::vector<uint32_t>& types, con
     const backend::BufferPtr kb = b.adopt(keys.data(), keys.size() * sizeof(float)), vb = b.adopt(vals.data(), vals.size() * sizeof(float));
     const backend::BufferPtr qb = b.adopt(q.data(), q.size() * sizeof(float)), ob = b.alloc(rows * qw * sizeof(float));
     auto st = b.kv_alloc(1, n_head_kv, head_dim, 512);
-    infer::BlockPool pool(st->max_blocks());
+    infer::BlockPool pool;
+    pool.configure(st->max_blocks());
     std::vector<std::vector<float>> att;
     for (size_t e : kExtents) {
         infer::KVSequence seq(&pool, b.kv_layout().block_tokens);

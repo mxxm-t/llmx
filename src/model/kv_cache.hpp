@@ -18,7 +18,6 @@ namespace infer {
 class BlockPool {
 public:
     BlockPool() = default;
-    explicit BlockPool(size_t max_blocks) { configure(max_blocks); }
     BlockPool(const BlockPool&) = delete;
     BlockPool& operator=(const BlockPool&) = delete;
 

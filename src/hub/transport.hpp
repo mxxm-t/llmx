@@ -108,7 +108,6 @@ inline std::filesystem::path curl_path() {
 struct Fd {
     int value = -1;
     Fd() = default;
-    explicit Fd(int fd) : value(fd) {}
     Fd(const Fd&) = delete;
     Fd& operator=(const Fd&) = delete;
     ~Fd() { reset(); }

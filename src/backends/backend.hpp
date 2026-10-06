@@ -573,14 +573,6 @@ public:
         return std::make_unique<StateStorage>(std::move(buffers), slots, shape);
     }
 
-    // Slot `src` into slot `dst` in every layer of `s`, enqueued as copy is: a checkpoint restored, or a state taken back into a live slot.
-    void state_copy(StateStorage& s, size_t dst, size_t src) {
-        if (dst >= s.slots() || src >= s.slots()) throw std::runtime_error("backend: state slot outside the storage");
-        if (dst == src) return;
-        const size_t bytes = s.shape().slot_floats() * sizeof(float);
-        for (size_t l = 0; l < s.layers(); ++l) copy(s.layer(l), dst * bytes, s.layer(l), src * bytes, bytes);
-    }
-
     // The linear-attention layers' causal conv, then SiLU: out[t][c] = silu(sum over tap i of w[c * kConvTaps + i] * x[t - kConvTaps + 1 + i][c]), w being `ssm_conv1d` as stored, so tap kConvTaps - 1 multiplies row t.
     // x and out are the views' rows of the storage's channels(), in view order; a view reads the rows before its first from slot src, rows before its sequence's start being zero, and leaves its last kConvTaps - 1 raw rows in slot dst.
     virtual void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) = 0;

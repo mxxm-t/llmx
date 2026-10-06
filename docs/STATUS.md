@@ -45,6 +45,7 @@
 | `--dtype int8` at every row count (option C step 2) | Done at `c8b2ac8d` (record below) |
 | The attention tile addresses its staged words directly | Done (record below): bit-identical, 10.5 percent of the tile on an MI50; lands by fast-forward |
 | The 8-bit twin block-major where the tile reads it | Done (record below): bit-identical, int8 prompts 1 percent faster on Q8_0 and 3 on Q4_K_M on an MI50; lands by fast-forward |
+| Qwen3-8B Q8_0 int8 prompts against the reference fork | Open (record below): level at pp512, 7 and 13 percent behind at pp2048 and pp4096, which is attention; the 8-bit tile shape not built |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
@@ -120,6 +121,30 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
+
+## The open int8 prompt cell is attention; the 8-bit tile shape is not built (2026-10-06, branch docs/int8-open-cell, docs only, lands by fast-forward)
+
+- **Goal:** say why Qwen3-8B Q8_0 prompts at `--dtype int8` stay behind the reference fork on one MI50 after the two bit-identical levers (the two records of 2026-10-06 below on the attention tile and the block-major twin), and what would recover the cell.
+- **Where a prompt's time goes**, device time of one prompt from `bench --profile` at c8b2ac8d, before those two levers:
+
+  | prompt | total | the tile's matmuls (`matmul_tile_q8i8_tall`) | attention (`attention_tile_kv16_x8`) | norms, SiLU, rope and KV write |
+  |---|---|---|---|---|
+  | 2048 | 1804 ms | 1415 ms, 78.4% | 300 ms, 16.6% | 61 ms, 3.4% |
+  | 4096 | 4192 ms | 2835 ms, 67.6% | 1175 ms, 28.0% | 126 ms, 3.0% |
+
+- **Against the fork** at main 561d282a, both in one session on the same card: llmx reads 1169 and 1020 tok/s at pp2048 and pp4096, 1752 and 4016 ms a prompt, its attention 269 and 1050 ms measured; the fork reads 1257 and 1167 tok/s, 1629 and 3510 ms, its attention about 110 and 440 ms, an estimate from a fit over 512 to 4096 tokens.
+
+  | prompt | gap to the fork | attention, llmx against the fork | everything but attention, llmx against the fork |
+  |---|---|---|---|
+  | 2048 | 123 ms | 269 against about 110, 159 ms behind | 1483 against about 1519, 36 ms ahead |
+  | 4096 | 506 ms | 1050 against about 440, 610 ms behind | 2966 against about 3070, 104 ms ahead |
+
+  Attention is behind by more than the whole gap at both lengths, and the rest of the prompt, the tile's matmuls included, is ahead by 2 to 3 percent.
+- **Not built: the 8-bit tile's shape.** To close the cell alone the tile would have to lose 9 percent of its time at 2048 and 18 percent at 4096 while it already beats the fork's matmuls. On the 16-bit tile the pipelined step loop, one block a step, the 64-row tile everywhere and regrouped workgroups were each bit-identical and slower (the record of 2026-10-05 below on the 16-bit prompt tile), and the 8-bit tile's one layout lever, the block-major twin, gave 0.8 to 1.0 percent on this model.
+- **Why attention cannot meet it inside the precision rule on this driver** (D2CDEV's finding, Mesa 25.0.7 read in source, agreed 2026-10-06): the fork's attention multiplies half pairs two an instruction, with an F32 sum in K.Q through `v_dot2_f32_f16` and a half-float sum over V. RADV emits no `v_dot2_f32_f16`, so the rule's form, 16-bit inputs with F32 sums, runs there at one product an instruction, which is today's kernel; and the half-float V sum is a lower precision than the rule allows.
+- **The cell stays open**, recorded, not waived: pp512 level with the fork (1308 against 1313), pp2048 and pp4096 behind by 7 and 13 percent. The default attention keeps F32 sums and no lower-precision attention is built now.
+- **Recovery, each on a later decision:** a backend that can emit the rule's two-product form, which the planned ROCm backend can, runs K.Q as the fork does inside the rule; a lower-precision attention on Vulkan would be an opt-in with a budget calibrated for that precision and frozen before any candidate runs, with the long-context checks, and whether it is a flag of its own or a wider meaning of `int8` is decided then, on the numbers. The cost probes of the 16-bit forms are in the collaboration log of 2026-10-05: about 1194 and 1067 tok/s with a half-float V sum, 1238 and 1137 with integer K.Q as well.
+- **Left:** nothing here.
 
 ## The audit's int8 and drafter findings (2026-10-06, branch cleanup/audit-g, lands by fast-forward)
 

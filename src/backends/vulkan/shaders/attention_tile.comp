@@ -12,7 +12,7 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
-    uint n_head; uint n_head_kv; uint bt; float scale; uint quant; uint rows;
+    uint n_head; uint n_head_kv; uint bt; float scale; uint quant; uint rows; uint major;
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
@@ -154,6 +154,6 @@ void main() {
         vec4 a = acc[k] / l;
         if (live) { o[qbase + d] = a.x; o[qbase + d + 1u] = a.y; o[qbase + d + 2u] = a.z; o[qbase + d + 3u] = a.w; }
         // Dimensions 32k .. 32k + 31 of head h are block RUNS h + k of the row, held by its eight lanes in order.
-        if (p.quant != 0u) xquant_word(live ? a : vec4(0.0), live, lane, (row0 + b) * (qstride / 32u) + RUNS * h + k, p.rows * qstride);
+        if (p.quant != 0u) xquant_word(live ? a : vec4(0.0), live, lane, (row0 + b) * (qstride / 32u) + RUNS * h + k, p.rows * qstride, p.major);
     }
 }

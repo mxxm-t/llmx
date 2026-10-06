@@ -2038,10 +2038,11 @@ public:
         // Where the integer-dot tile reads dst next, the twin written four values a lane (shaders/silu_mul.comp).
         const size_t rows = runs.n ? runs.runs[runs.n - 1].end : 0;
         const bool tile = quant && rows && n % rows == 0 && tile_reads(n / rows, rows, runs);
-        const uint32_t pc[2] = {u32(n), tile ? 2u : quant ? 1u : 0u};
+        const uint32_t major = tile ? x8_major(n / rows, rows) : 0;
+        const uint32_t pc[3] = {u32(n), tile ? 2u : quant ? 1u : 0u, major};
         dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? xq_for(n) : bind(dst)}, pc, sizeof(pc),
                  groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_};
+        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
     }
 
     // The output gate, and a scale of one value per row, one invocation per element; like silu_mul it writes the copy the matmul reading dst next takes (shaders/sigmoid_mul.comp).
@@ -2055,11 +2056,12 @@ public:
             throw std::runtime_error("vulkan: sigmoid gate operand outside its allocation");
         const bool quant = width % 32 == 0;
         const bool tile = quant && tile_reads(width, rows, runs);
-        struct { uint32_t n, quant, width, dim, gate_stride, gate_head_stride; }
-            pc{u32(n), tile ? 2u : quant ? 1u : 0u, u32(width), u32(dim), u32(gate_stride), u32(gate_head_stride)};
+        const uint32_t major = tile ? x8_major(width, rows) : 0;
+        struct { uint32_t n, quant, width, dim, gate_stride, gate_head_stride, major; }
+            pc{u32(n), tile ? 2u : quant ? 1u : 0u, u32(width), u32(dim), u32(gate_stride), u32(gate_head_stride), major};
         dispatch(K_SIGMOID_MUL, {bind(dst), bind(x), bind(gate), quant ? xq_for(n) : bind(dst)},
                  &pc, sizeof(pc), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_};
+        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
     }
 
     // One workgroup per (row, head); like rms_norm_rows it writes the copy the matmul reading dst next takes (shaders/gated_rms_norm.comp).
@@ -2072,11 +2074,12 @@ public:
         if (!rows) return;
         const bool quant = dim % 32 == 0;
         const bool tile = quant && tile_reads(width, rows, runs);
-        struct { uint32_t heads, dim; float eps; uint32_t quant, n; }
-            pc{u32(heads), u32(dim), eps, tile ? 2u : quant ? 1u : 0u, u32(n)};
+        const uint32_t major = tile ? x8_major(width, rows) : 0;
+        struct { uint32_t heads, dim; float eps; uint32_t quant, n, major; }
+            pc{u32(heads), u32(dim), eps, tile ? 2u : quant ? 1u : 0u, u32(n), major};
         dispatch(K_GATED_RMS_NORM, {bind(dst), bind(x), bind(z), bind(w), quant ? xq_for(n) : bind(dst)},
                  &pc, sizeof(pc), u32(rows * heads), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_};
+        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
     }
 
     // The storage of a call's state views, which must all be one, and the table the state kernels read: the view count, then per view its first batch row, rows, history length, source slot and destination slot; the conv appends its chunks.
@@ -2176,11 +2179,12 @@ public:
         const bool tile = quant && !overlap && tile_reads(n, rows, runs);
         const size_t fill = (4 * dev_->caps.compute_units + rows - 1) / rows;
         const size_t chunks = overlap ? 1 : std::max<size_t>(1, std::min((tile ? n / 4 + 255 : n + 255) / 256, fill));
-        struct { uint32_t rows, n, stride; float eps; uint32_t quant, chunks; }
-            pc{u32(rows), u32(n), u32(stride), eps, tile ? 2u : quant ? 1u : 0u, u32(chunks)};
+        const uint32_t major = tile ? x8_major(n, rows) : 0;
+        struct { uint32_t rows, n, stride; float eps; uint32_t quant, chunks, major; }
+            pc{u32(rows), u32(n), u32(stride), eps, tile ? 2u : quant ? 1u : 0u, u32(chunks), major};
         dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), quant ? xq_for(rows * n) : bind(dst)},
                  &pc, sizeof(pc), u32(rows * chunks), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), rows * n, want_x8_};
+        if (quant) xq_tag_ = XqTag{bind(dst), rows * n, want_x8_, major};
     }
 
     // One workgroup per (row, head), reading the heads at their strides and writing them contiguously (shaders/norm_rope_partial.comp).
@@ -2450,7 +2454,8 @@ public:
                     (pr->type == pending[0]->type ? group : rest).push_back(pr);
                 pending.swap(rest);
                 const bool i8 = dtype == Dtype::int8 && weight_kernels(group[0]->type)->int8_tile != K_COUNT;
-                const VkDescriptorBufferInfo xt = tile_twin(X, nbatch * nin, i8);
+                uint32_t xpad = 0;
+                const VkDescriptorBufferInfo xt = tile_twin(X, nbatch * nin, nin, i8, xpad);
                 const QTile t = qtile(group, gy, nin, i8);
                 // The split is the one the rows' whole prompt would take (matmul_runs).
                 const size_t st = split_tiles ? split_tiles : gy;
@@ -2459,8 +2464,8 @@ public:
                 for (const Projection* pr : group) gxs += groups(pr->rows, hs);
                 const size_t kper = split_blocks(gxs * st, nblk);
                 const size_t parts = (nblk + kper - 1) / kper;
-                const uint32_t pc[15] = {u32(nin), u32(nbatch), group[0]->type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
-                                         u32(group.size()), t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], 0, 0, u32(nbatch)};
+                const uint32_t pc[16] = {u32(nin), u32(nbatch), group[0]->type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
+                                         u32(group.size()), t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], 0, 0, u32(nbatch), xpad};
                 const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
                 const int small = t.height == kTileRowsSmall ? 1 : 0;
                 const bool mx = a.type == quant::GGML_TYPE_MXFP4;
@@ -2617,7 +2622,8 @@ public:
         if (x8) want_x8_ = true;
         const VkDescriptorBufferInfo xf = bind(X);
         VkDescriptorBufferInfo xqi = xq_for(n);
-        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset && (!x8 || xq_tag_.has8))) {
+        // A row kernel reads the 8-bit twin column after column, so a block-major one is made again.
+        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset && (!x8 || (xq_tag_.has8 && !xq_tag_.major)))) {
             const uint32_t qpc[1] = {u32(n)};
             dispatch(K_QUANTIZE_X, {xf, xqi}, qpc, sizeof(qpc), groups(n, 256), 1, twin_variant());
             xq_tag_ = XqTag{xf, n, want_x8_};
@@ -2784,11 +2790,12 @@ public:
         }
         if ((dtype == Dtype::f16 || dtype == Dtype::int8) && integer_dot_tile(type) && type != quant::GGML_TYPE_MXFP4) {
             const bool i8 = dtype == Dtype::int8 && weight_kernels(type)->int8_tile != K_COUNT;
-            const VkDescriptorBufferInfo xt = tile_twin(X, xcols * nin, i8);
+            uint32_t xpad = 0;
+            const VkDescriptorBufferInfo xt = tile_twin(X, xcols * nin, nin, i8, xpad);
             const QTile t = qtile(live, max_tiles, nin, i8);
             const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
-            const uint32_t pc[15] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),
-                                     t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], u32(per), order0, u32(xcols)};
+            const uint32_t pc[16] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),
+                                     t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], u32(per), order0, u32(xcols), xpad};
             dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), xt, xt, tab},
                      pc, sizeof(pc), u32(t.gx), u32(max_tiles), t.height == kTileRowsSmall ? 1 : 0);
             record_matrix_path(i8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
@@ -2826,7 +2833,8 @@ public:
 
     // The scratch the twin of an n-value input lives in, the 8-bit twin after the 16-bit one once a matmul has read it.
     VkDescriptorBufferInfo xq_for(size_t n) {
-        const size_t bytes = want_x8_ ? x8_base_bytes(n) + n + (n / 32) * 8 : n * 2 + (n / 32) * 8;
+        // A block-major 8-bit twin pads its columns by at most seven, which from kX8MajorRows columns on is under a quarter.
+        const size_t bytes = want_x8_ ? x8_base_bytes(n) + (n + (n / 32) * 8) / 4 * 5 : n * 2 + (n / 32) * 8;
         if (!xq_ || xq_->size() < bytes) {
             grow(xq_, bytes);
             xq_tag_ = XqTag{};
@@ -2835,18 +2843,27 @@ public:
     }
 
     // The 16-bit twin of an n-value batch the integer-dot tile reads, or with x8 the 8-bit twin after it: the one a producer wrote, or one made here four values a lane (shaders/quantize_xw.comp).
-    VkDescriptorBufferInfo tile_twin(CSlice X, size_t n, bool x8 = false) {
+    // `xpad` receives the padded columns of a block-major 8-bit twin, zero for one that lies column after column; the tile reads either.
+    VkDescriptorBufferInfo tile_twin(CSlice X, size_t n, size_t nin, bool x8, uint32_t& xpad) {
         if (x8) want_x8_ = true;
         const VkDescriptorBufferInfo xf = bind(X);
         VkDescriptorBufferInfo xt = xq_for(n);
         if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset && (!x8 || xq_tag_.has8))) {
-            const uint32_t pc[1] = {u32(n)};
+            const uint32_t major = x8_major(nin, n / nin);
+            const uint32_t pc[2] = {u32(n), major};
             dispatch(K_QUANTIZE_XW, {xf, xt}, pc, sizeof(pc), groups(n / 4, 256), 1, twin_variant());
-            xq_tag_ = XqTag{xf, n, want_x8_};
+            xq_tag_ = XqTag{xf, n, want_x8_, major};
         }
+        xpad = x8 && xq_tag_.major ? x8_columns(u32(n / 32 / xq_tag_.major)) : 0;
         if (x8) xt.offset = x8_base_bytes(n);
         return xt;
     }
+
+    // The blocks of a column where a producer whose output the tile reads next writes the 8-bit twin block-major, zero where it writes it column after column (shaders/xquant.glsl, xquant8_word).
+    // It changes where the twin's blocks lie, never a value.
+    uint32_t x8_major(size_t nin, size_t rows) const { return want_x8_ && rows >= kX8MajorRows && nin % 32 == 0 ? u32(nin / 32) : 0; }
+    static uint32_t x8_columns(uint32_t cols) { return (((cols + 3) >> 2) | 1) << 2; }
+    static constexpr size_t kX8MajorRows = 32;
 
     // Where the 8-bit twin starts after the 16-bit one, in bytes, rounded up to 256 so it is a valid binding offset (shaders/xquant.glsl, xquant8_base).
     static size_t x8_base_bytes(size_t n) { return ((n / 2 + n / 16 + 63) & ~size_t(63)) * 4; }
@@ -3026,13 +3043,14 @@ public:
             std::vector<RowRun> vruns;
             for (const Placed& pv : placed) vruns.push_back(RowRun{pv.row0 + pv.view->nq, pv.view->extent});
             const bool tile = narrow.empty() && tile_reads(qstride, rows, RowRuns{vruns.data(), vruns.size()});
-            struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows; }
-                tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(rows)};
+            const uint32_t major = tile ? x8_major(qstride, rows) : 0;
+            struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows, major; }
+                tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(rows), major};
             dispatch(head_dim == 256 ? kv_variant(K_ATTENTION_TILE_D256, K_ATTENTION_TILE_D256_K16, s) : kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
                       args(t.words.data(), t.words.size() * sizeof(uint32_t)), tile ? xq_for(rows * qstride) : bind(out)},
                      &tc, sizeof(tc), u32(tiles * (size_t)n_head), 1, tile ? twin_variant() : 0);
-            if (tile) xq_tag_ = XqTag{bind(out), rows * qstride, want_x8_};
+            if (tile) xq_tag_ = XqTag{bind(out), rows * qstride, want_x8_, major};
         }
         if (!narrow.empty()) {
             ViewTable t = view_table(layer, narrow, false);
@@ -3495,7 +3513,8 @@ private:
     struct GroupTag { VkDescriptorBufferInfo ids{}; size_t entries = 0, n_expert = 0, chunk = 0; };
     GroupTag group_tag_;
     // What the twin buffer holds: the float input it was made from, its length and whether the 8-bit twin follows; cleared by anything else that writes a buffer, since the input may be what was written, and by a new buffer (drop_tags).
-    struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; bool has8 = false; };
+    // `major`: the blocks of a column where the 8-bit twin lies block-major (x8_major), zero where it lies column after column.
+    struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; bool has8 = false; uint32_t major = 0; };
     // Whether a matmul has read the 8-bit twin, after which producers write it too (twin_variant); it changes which copies exist, never a result.
     bool want_x8_ = false;
 

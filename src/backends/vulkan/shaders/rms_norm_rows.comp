@@ -7,7 +7,7 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
 // Each of a row's `chunks` workgroups sums the whole row in the same order and writes its own 256-value chunks, or 1024-value chunks with `quant` 2; the backend takes one chunk when dst and src overlap.
-layout(push_constant) uniform P { uint rows; uint n; uint stride; float eps; uint quant; uint chunks; } p;
+layout(push_constant) uniform P { uint rows; uint n; uint stride; float eps; uint quant; uint chunks; uint major; } p;
 layout(set = 0, binding = 0) buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer S { float src[]; };
 layout(set = 0, binding = 2) readonly buffer W { float w[]; };
@@ -52,7 +52,7 @@ void main() {
         for (uint j = chunk * 256u + lid; j < p.n / 4u; j += 256u * p.chunks) {
             vec4 v = src4[base / 4u + j] * r * w4[j];
             dst4[base / 4u + j] = v;
-            xquant_word(v, true, j & 7u, (row * (p.n / 4u) + j) / 8u, p.rows * p.n);
+            xquant_word(v, true, j & 7u, (row * (p.n / 4u) + j) / 8u, p.rows * p.n, p.major);
         }
         return;
     }

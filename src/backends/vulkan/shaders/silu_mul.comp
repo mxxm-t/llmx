@@ -5,7 +5,7 @@
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint n; uint quant; } p;
+layout(push_constant) uniform P { uint n; uint quant; uint major; } p;
 layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer G { float gate[]; };
 layout(set = 0, binding = 2) readonly buffer U { float up[]; };
@@ -26,7 +26,7 @@ void main() {
             v = g / (1.0 + exp(-g)) * up4[i];
             dst4[i] = v;
         }
-        xquant_word(v, live, i & 7u, i / 8u, p.n);
+        xquant_word(v, live, i & 7u, i / 8u, p.n, p.major);
         return;
     }
     if (i < p.n) {

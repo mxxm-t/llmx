@@ -158,8 +158,13 @@ void xquant8_block(uint i, float v, uint n, uint base) {
     }
 }
 
+// The columns a block-major 8-bit twin keeps a block's columns in: a multiple of four, an odd number of fours.
+uint xquant8_columns(uint cols) { return (((cols + 3u) >> 2u) | 1u) << 2u; }
+
 // The 8-bit twin as xquant16_word writes the 16-bit one, a lane per four consecutive values; the same bits as xquant8_block.
-void xquant8_word(vec4 v, bool live, uint w, uint blk, uint n, uint base) {
+// With `major` zero the blocks lie as xquant8_block lays them, column after column.
+// Otherwise `major` is the blocks of a column and the twin is block-major, as the integer-dot tile reads a block of every column together: block k of column c at k * xquant8_columns(columns) + c, the table after the padded blocks in the same order.
+void xquant8_word(vec4 v, bool live, uint w, uint blk, uint n, uint base, uint major) {
     uvec4 a = floatBitsToUint(v) & 0x7FFFFFFFu;
     uint amax = max(max(a.x, a.y), max(a.z, a.w));
     amax = max(amax, subgroupShuffleXor(amax, 4u));
@@ -174,9 +179,15 @@ void xquant8_word(vec4 v, bool live, uint w, uint blk, uint n, uint base) {
     s += subgroupShuffleXor(s, 1u);
     int other = subgroupShuffleXor(s, 4u);
     if (!live) return;
+    uint tab = base + n / 4u;
+    if (major != 0u) {
+        uint c = blk / major, pad = xquant8_columns(n / 32u / major);
+        blk = (blk - c * major) * pad + c;
+        tab = base + pad * major * 8u;
+    }
     xq[base + blk * 8u + w] = (uint(q.x) & 255u) | ((uint(q.y) & 255u) << 8u) | ((uint(q.z) & 255u) << 16u) | (uint(q.w) << 24u);
     if (w == 0u) {
-        uint t = base + n / 4u + 2u * blk;
+        uint t = tab + 2u * blk;
         vec2 values = xq_shift(vec2(d, d * float(s + other)), -shift);
         xq[t] = floatBitsToUint(values.x);
         xq[t + 1u] = floatBitsToUint(values.y);
@@ -189,8 +200,8 @@ void xquant_block(uint i, float v, uint n) {
     xquant16_block(i, v, n);
     if (TWIN8) xquant8_block(i, v, n, xquant8_base(n));
 }
-void xquant_word(vec4 v, bool live, uint w, uint blk, uint n) {
+void xquant_word(vec4 v, bool live, uint w, uint blk, uint n, uint major) {
     xquant16_word(v, live, w, blk, n);
-    if (TWIN8) xquant8_word(v, live, w, blk, n, xquant8_base(n));
+    if (TWIN8) xquant8_word(v, live, w, blk, n, xquant8_base(n), major);
 }
 #endif

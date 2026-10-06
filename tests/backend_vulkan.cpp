@@ -290,7 +290,7 @@ size_t check_int8(backend::Backend& vk) {
             const auto w = matrix(type, nin, nout, 700 + type + uint32_t(nin));
             Pair::In wi = p.in(w.data(), w.size());
             // Generated tokens, each a run of extent 1, at widths that take the one-column, two-row and wide builds, then prompts that take the row kernels and the tile.
-            for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13), size_t(40), size_t(64), size_t(128), size_t(200)}) {
+            for (size_t nbatch : {size_t(1), size_t(3), size_t(8), size_t(13), size_t(40), size_t(53), size_t(64), size_t(128), size_t(131), size_t(200)}) {
                 const bool prompt = nbatch >= 40;
                 const auto x = tie_free(nbatch * nin, 800 + uint32_t(nbatch) + type + uint32_t(nin));
                 const auto x8 = row_activations(x, 127);
@@ -1049,7 +1049,9 @@ size_t check_kernels(backend::Backend& vk) {
         }
         // The twin that a norm, a SiLU and a wide attention write four values a lane when told the integer-dot tile reads their output next is the one the tile's own pass makes, bit for bit: each producer with runs into a buffer and a matmul with those runs from it, against the producer without them.
         // A write from the host or a kernel between the producer and the matmul drops the twin, so the matmul reads what the buffer holds then.
+        // Under int8, where the device lists it, a producer told of the tile writes the 8-bit twin block-major and one not told column after column, so the same comparisons hold the tile's two readings of it to each other.
         if (nin == 1024) {
+            backend::Dtype dtype = backend::Dtype::f16;
             const size_t n_in = 1024, n_out = 96, rows = 128;
             const std::vector<backend::RowRun> one{{rows, rows}};
             const backend::RowRuns rr{one.data(), one.size()};
@@ -1071,7 +1073,7 @@ size_t check_kernels(backend::Backend& vk) {
             // One output for every matmul, allocated before any producer runs, since a new buffer drops the producer's copy.
             const auto yb = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
             auto matmul_of = [&](const backend::BufferPtr& x) {
-                vk.matmul(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {x.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, rr);
+                vk.matmul(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {x.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, rr, dtype);
                 std::vector<float> y(rows * n_out);
                 vk.read(*yb, 0, y.data(), y.size() * sizeof(float));
                 return y;
@@ -1106,7 +1108,7 @@ size_t check_kernels(backend::Backend& vk) {
                 seq.abort();
                 return o;
             };
-            try {
+            const auto compare = [&] {
                 const auto h1 = norm(true), h0 = norm(false);
                 values += exact(floats(h1), floats(h0), "the norm's output differs with and without its runs");
                 values += exact(matmul_of(norm(true)), matmul_of(norm(false)), "a matmul from the norm's twin differs from its own pass");
@@ -1135,7 +1137,7 @@ size_t check_kernels(backend::Backend& vk) {
                         const auto yb = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
                         vk.silu_mul({f.get(), 0}, {geb.get(), 0}, {ueb.get(), 0}, entries * n_in,
                                     told ? backend::RowRuns{eruns.data(), eruns.size()} : backend::RowRuns{});
-                        vk.matmul_experts_add(quant::GGML_TYPE_Q8_0, {eb.get(), 0}, {f.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, routing, rr);
+                        vk.matmul_experts_add(quant::GGML_TYPE_Q8_0, {eb.get(), 0}, {f.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, routing, rr, dtype);
                         std::vector<float> y(rows * n_out);
                         vk.read(*yb, 0, y.data(), y.size() * sizeof(float));
                         return y;
@@ -1157,8 +1159,18 @@ size_t check_kernels(backend::Backend& vk) {
                 const auto ha = norm(true);
                 vk.add({ha.get(), 0}, {otherb.get(), 0}, rows * n_in);
                 values += exact(matmul_of(ha), matmul_of(sumb), "a matmul read a norm's twin after a kernel wrote its output");
+            };
+            try {
+                compare();
+                const auto native = vk.native_dtypes();
+                if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end()) {
+                    dtype = backend::Dtype::int8;
+                    // The first 8-bit matmul has the producers after it write the 8-bit twin.
+                    matmul_of(otherb);
+                    compare();
+                }
             } catch (const std::runtime_error&) {
-                std::fprintf(stderr, "  producers' twin for the tile\n");
+                std::fprintf(stderr, "  producers' twin for the tile, dtype %s\n", backend::dtype_name(dtype));
                 throw;
             }
         }

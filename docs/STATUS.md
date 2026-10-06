@@ -44,6 +44,7 @@
 | The 16-bit prompt tile on the MI50 (option C step 1) | Measured, no gain in the shader alone (record below); the repacked Q8_0 layout recorded as the lever |
 | `--dtype int8` at every row count (option C step 2) | Done at `c8b2ac8d` (record below) |
 | The attention tile addresses its staged words directly | Done (record below): bit-identical, 10.5 percent of the tile on an MI50; lands by fast-forward |
+| The 8-bit twin block-major where the tile reads it | Done (record below): bit-identical, int8 prompts 1 percent faster on Q8_0 and 3 on Q4_K_M on an MI50; lands by fast-forward |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
@@ -239,6 +240,24 @@ The status table and the active blocks above give the present state; a record's 
 - **Done:** `954c7e03`, the test, requires each first turn to pass 449 tokens and fails on the CPU at main, so a hosted job sees it; the fix takes 2300 characters a conversation where it took 2000.
 - **Why the gates missed it:** step 5's device suite ran on the Radeon VII alone, where the check does not run (it sends signals, and returns at once on Windows), and its MI50 machine gate ran the `server` component on the CPU. The merge gates now ask a server or scheduler change for the `server` component on an MI50 (`AGENTS.md`, Merge gates).
 - **Production** serves a hybrid model over a two-card layer split and is not affected: nothing in the server is wrong or changed, and a model that keeps a state reuses a prefix through its checkpoints, at whole blocks, by the same row classes as before.
+
+## The 8-bit twin block-major where the tile reads it (2026-10-06, branch perf/x8-block-major, lands by fast-forward)
+
+- **Goal:** the second bit-identical lever on the open speed gate (`--dtype int8` block below): the 8-bit tile read a block's 64 columns a row width apart.
+- **Done:** a producer told that the tile reads its output next, in a pass of 32 rows or more, writes the 8-bit twin by block and then by column; the tile reads either order from one build (`docs/VULKAN.md`). Row kernels, the Q8_0 decode kernel, passes under 32 rows, the 16-bit twin and every value are unchanged, and no build, variant or flag is added.
+- **Result** on one MI50 at default clocks, main 3d8f57f8 and the branch at 45cfa949, before its rebase onto the server change that landed meanwhile, arms in turn, three rounds, medians, tok/s, the fork in the same session on the same card:
+
+  | model, dtype | cell | main | branch | change | fork |
+  |---|---|---|---|---|---|
+  | Qwen3-8B Q8_0, int8 | pp512 | 1295.8 | 1308.4 | +1.0% | 1313 |
+  | Qwen3-8B Q8_0, int8 | pp2048 | 1159.4 | 1169.1 | +0.8% | 1257 |
+  | Qwen3-8B Q8_0, int8 | pp4096 | 1012.1 | 1019.8 | +0.8% | 1167 |
+  | Qwen3-8B Q4_K_M, int8 | pp512 | 1144.3 | 1184.0 | +3.5% | 820 |
+  | Qwen3-8B Q4_K_M, int8 | pp2048 | 1036.3 | 1068.9 | +3.1% | 798 |
+  | Qwen3-8B Q4_K_M, int8 | pp4096 | 916.6 | 942.3 | +2.8% | 760 |
+
+  Under f16, which the change does not reach, the same binaries read level (Qwen3-8B Q8_0 842.6 and 842.4, 782.7 and 782.8, 711.9 and 711.2; Q4_K_M within 0.2 percent), and decode is level under both (78.1 and 100.9 tok/s at tg128). Bytes against main: the last 64 logits rows of a 3255-token text and perplexity over 4096-token windows on Qwen3-8B Q8_0, Qwen3-8B Q4_K_M and Qwen3.6-35B-A3B Q4_K_M under int8 and f16, 12 of 12 the same.
+- **Left:** Qwen3-8B Q8_0 int8 prompts are level with the fork at pp512 (1308 against 1313) and still behind at pp2048 and pp4096 (7 and 13 percent), which is attention (block above).
 
 ## The attention tile addresses its staged words directly (2026-10-06, branch perf/attn-tile-address, lands by fast-forward)
 

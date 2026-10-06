@@ -4,7 +4,7 @@
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint n; } p;
+layout(push_constant) uniform P { uint n; uint major; } p;
 layout(set = 0, binding = 0) readonly buffer X { vec4 x[]; };
 layout(set = 0, binding = 1) writeonly buffer Q { uint xq[]; };
 
@@ -14,5 +14,5 @@ void main() {
     uint t = gl_GlobalInvocationID.x;
     // Every lane takes part in the shuffles, a lane past the end with zeros; n is whole blocks, so a block is live or not as a whole.
     bool live = t < p.n / 4u;
-    xquant_word(live ? x[t] : vec4(0.0), live, t & 7u, t / 8u, p.n);
+    xquant_word(live ? x[t] : vec4(0.0), live, t & 7u, t / 8u, p.n, p.major);
 }

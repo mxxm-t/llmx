@@ -27,7 +27,7 @@ Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS
 | F16, BF16, IQ4_NL, IQ4_XS, Q3_K, Q2_K | Planned | Planned | No |
 
 Inference requires each used tensor's type to be supported by its assigned backend; a device never falls back to the CPU on its own. `info`, `tokenize` and `detokenize` also accept known storage layouts without execution support, including F16 and BF16. Recognizing a layout does not add a decoder or kernel; [storage metadata](docs/src/quant-types.md) lists that boundary.
-Activation precision is selected with `--dtype auto|f16|bf16|f32`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices. This does not add F16 or BF16 weight execution; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.
+Activation precision is selected with `--dtype auto|f16|bf16|f32|int8`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices, and `int8` rounds the inputs of quantized matrix products that have an 8-bit build to 8 bits for speed, below the default precision; it runs so on a Vulkan device that prefers the integer dot product, the MI50 under Mesa, and elsewhere runs as `f16` and says so. This does not add F16 or BF16 weight execution; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.
 The KV cache is stored as `f16` (default) or `f32` on every backend, independently of activation precision.
 
 ## File formats
@@ -58,12 +58,12 @@ Pick a device with `--device cpu` (the default) or `--device vulkan:N`; see [USA
 |---|---|---|---|
 | Layer split | Consecutive layers on different devices, GPUs and the CPU mixed, fitted to free memory, for every supported model in every command and `llmx serve` | `--device A,B,...`, `--layer-shares` | Supported |
 | Expert offload | A mixture-of-experts model's experts run on the CPU beside one GPU | `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N` | Supported |
-| Tensor split | Every layer on a group of 2 to 4 devices at once | | Planned |
-| Staged tensor split | A layer split whose stages are tensor splits | | Planned |
+| Tensor split | Every layer on a group of 2 to 4 devices at once; dense `qwen3` models on Vulkan devices on Linux, not yet mixture-of-experts or hybrid models | `--tensor-width N` | Supported; ahead of or below the layer split by width, precision and user count ([USAGE](docs/USAGE.md#tensor-split---tensor-width-n)) |
+| Staged tensor split | A layer split whose stages are tensor groups | `--tensor-width N` with several groups listed in `--device`; `--layer-shares` gives each group its share | Supported, as above |
 | Replicas | Several copies of a model behind one scheduler | | Planned |
 | Multi-node | One model over several machines | | Planned |
 
-[USAGE](docs/USAGE.md#several-devices---device-ab---layer-shares) covers the flags and [MULTI-DEVICE](docs/MULTI-DEVICE.md) the design.
+[USAGE](docs/USAGE.md#several-devices---device-ab---layer-shares) covers the flags, [MULTI-DEVICE](docs/MULTI-DEVICE.md) the design and [TENSOR-SPLIT](docs/TENSOR-SPLIT.md) the tensor split.
 
 ## Server and API
 
@@ -74,7 +74,16 @@ Pick a device with `--device cpu` (the default) or `--device vulkan:N`; see [USA
 
 Tool calls, embeddings and more than one choice per request are not supported.
 There is no TLS or authentication, so put a reverse proxy in front of a server that faces a network.
+Finished conversations are kept for prefix reuse in device memory, then host memory (`--host-cache-bytes`) and optionally on disk (`--disk-cache-bytes`, `--disk-cache-dir`, `--disk-cache-keep`, `--disk-cache-max-age`; [DISK-TIER](docs/DISK-TIER.md)).
 [USAGE](docs/USAGE.md) lists the request fields and server flags, and [SERVER](docs/SERVER.md) the scheduler's design.
+
+## Speed options
+
+| Option | What it does |
+|---|---|
+| `--drafter lookup\|embedded\|PATH`, `--draft-max N` | Speculative decoding in `generate`, `chat` and `serve`: drafts from the prompt and reply (`lookup`), from the MTP block a `qwen35` file carries (`embedded`) or from a drafter file, a file of its MTP blocks or in `generate` and `chat` a draft model; the text is identical with it on or off ([SPECULATIVE](docs/SPECULATIVE.md)) |
+| `--cache-type-k`, `--cache-type-v` | KV cache storage, `f16` (default) or `f32` |
+| `--load-mode auto\|mapped\|direct` | How the weights are read from disk |
 
 ## Build
 

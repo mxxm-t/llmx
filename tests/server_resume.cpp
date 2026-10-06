@@ -1779,9 +1779,13 @@ void disk_never_blocks(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
         server::Scheduler sched(*model, tok, 1, 64, 0, false, copies * ((size_t)64 << 20), nullptr, 0, false, disk.options(uint64_t(1) << 30, std::chrono::minutes(1)));
         std::thread runner([&] { sched.run(); });
         try {
+            // The store is made before the turns: made after them, on a slow runner, its write probe's temporary file was taken for the entry's, and no write was in flight when the last turn came.
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
             for (size_t k = 0; k <= copies; ++k) replies.push_back(drain(*sched.submit(reqs[k].prompt, params_of(reqs[k]))));
-            within_a_minute([&] { return !disk.files(".tmp").empty(); }, what + ": the oldest copy's write in flight");
-            const fs::path first = disk.files(".tmp")[0];
+            std::vector<fs::path> writing;
+            within_a_minute([&] { return !(writing = disk.files(".tmp")).empty(); }, what + ": the oldest copy's write in flight");
+            const fs::path first = writing[0];
+            require(first.filename().u8string().rfind("entry-", 0) == 0, what + ": the file in flight is " + first.filename().u8string() + ", not an entry's");
             const auto start = std::chrono::steady_clock::now();
             replies.push_back(drain(*sched.submit(reqs[copies + 1].prompt, params_of(reqs[copies + 1]))));
             last_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();

@@ -122,6 +122,13 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## The held-write check makes its disk tier before its turns (2026-10-06, branch fix/held-write-ready, lands by fast-forward)
+
+- **Found:** `server-resume`'s held-write case failed once in a hosted Windows job with "the cancelled write left 0 entries", on a branch that touches only the Vulkan backend.
+- **Cause:** the check, not the server. On that runner the store was made only after the turns (its line follows the six requests in the log), so the turn that should have needed the room of a copy being written met no write, and the temporary file the check then waited for was the store's write probe, `probe.tmp`, or the first entry's write started after the turns, which nothing cancels. The check also listed the directory twice, once to wait and once to take the file.
+- **Done:** the case waits for `Stats::disk_ready` before its turns, takes the file from the listing it waited on and requires it to be an entry's.
+- **Shown under load:** twelve copies of the test at once on a 16-thread CPU: at main `85236d86` 2 of 24 runs fail with "a held write left in flight: the write's temporary file is gone, 0 entries kept", the text a hosted Ubuntu job gave that day, the same race in the case's four-copy form; with the change 60 of 60 pass. Reviewed by D2CDEV.
+
 ## The open int8 prompt cell is attention; the 8-bit tile shape is not built (2026-10-06, branch docs/int8-open-cell, docs only, lands by fast-forward)
 
 - **Goal:** say why Qwen3-8B Q8_0 prompts at `--dtype int8` stay behind the reference fork on one MI50 after the two bit-identical levers (the two records of 2026-10-06 below on the attention tile and the block-major twin), and what would recover the cell.

@@ -1750,6 +1750,9 @@ void disk_demotion(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, 
         require(stats.disk_entries == kept && stats.host_donors == 4 && stats.disk_writing && stats.disk_errors == 0,
                 what + ": " + std::to_string(stats.disk_entries) + " entries on disk and " + std::to_string(stats.host_donors) + " in host memory, against " +
                     std::to_string(kept) + " and 4");
+        // Every copy that left host memory had its file, and the small tier deleted two entries for its cap.
+        require(stats.host_unwritten == 0 && stats.disk_capped == 4 - kept,
+                what + ": " + std::to_string(stats.host_unwritten) + " copies dropped unwritten and " + std::to_string(stats.disk_capped) + " entries deleted for the cap, against 0 and " + std::to_string(4 - kept));
         require(stats.disk_bytes == kept * entry_bytes && stats.disk_bytes_written == 4 * entry_bytes,
                 what + ": " + std::to_string(stats.disk_bytes) + " bytes on disk and " + std::to_string(stats.disk_bytes_written) + " written");
         require(kv_files == kept && file_bytes == stats.disk_bytes && tmp_files == 0,
@@ -2036,6 +2039,44 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
 // A second scheduler under the same root, on a fresh model of the same file, adopts the three, and the first and last conversations' follow-ups read them back and fork 256 tokens each, with the replies they give on a fresh model; an entry made older than the age limit is not adopted.
 // With `restart_host` the second scheduler's host tier is that many bytes: one smaller than an entry, as a server started on a host with less free memory has, still reads the entries back, through host memory beyond its tier, and keeps none of them there.
 // Idle after its turns, the first scheduler writes all three without being stopped, the device donor's copied off the devices for it; with `first_host` smaller than an entry the two conversations the devices evicted are lost, as without a disk tier, and the donor still on the devices is written through host memory beyond the tier, which holds nothing of it afterwards.
+// The stop's own flush and a second idle period (docs/DISK-TIER.md, Keeping entries across a restart).
+// Stopped at once after three conversations, before the idle moment, the scheduler writes all three at its stop, the device donor copied for it.
+// With every write held a minute a chunk the flush ends at its bound, 20 seconds, with nothing kept and no temporary file left.
+// Left idle, a scheduler writes a conversation, and after a second one's turn writes that too, each idle period starting afresh.
+void disk_flush(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    for (const int form : {0, 1, 2}) {
+        const std::string what = form == 0 ? "a stop before the idle moment" : form == 1 ? "a flush that reaches its bound" : "a second idle period";
+        DiskRoot disk("flush");
+        server::DiskOptions options = disk.options(uint64_t(1) << 30, std::chrono::milliseconds(form == 1 ? 60000 : 0));
+        options.keep = true;
+        auto model = make(2048, 16);
+        double stop_s = 0;
+        {
+            server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+            std::thread runner([&] { sched.run(); });
+            try {
+                within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+                for (uint32_t k = 0; k < (form == 0 ? 3u : form == 1 ? 1u : 2u); ++k) {
+                    const Req r{prompt_of(40 + k, 300, vocab), 20};
+                    drain(*sched.submit(r.prompt, params_of(r)));
+                    if (form == 2) within_a_minute([&] { return sched.stats().disk_entries == k + 1 && !sched.stats().disk_in_flight; }, what + ": conversation " + std::to_string(k) + " written while idle");
+                }
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            const auto start = std::chrono::steady_clock::now();
+            sched.stop();
+            runner.join();
+            stop_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        }
+        const size_t files = disk.files(".kv").size(), want = form == 0 ? 3 : form == 1 ? 0 : 2;
+        require(files == want && disk.files(".tmp").empty(), what + ": " + std::to_string(files) + " entry files and " + std::to_string(disk.files(".tmp").size()) + " temporary ones left, against " + std::to_string(want) + " and 0");
+        if (form == 1) require(stop_s >= 19 && stop_s < 45, what + ": the stop took " + std::to_string(stop_s) + " s, against the 20 s bound");
+    }
+}
+
 void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t restart_host = 4 * ((size_t)64 << 20), size_t first_host = 4 * ((size_t)64 << 20)) {
     const bool through = restart_host < ((size_t)64 << 20), beyond = first_host < ((size_t)64 << 20);
     const std::string what = beyond ? "entries written from a host tier smaller than an entry" : through ? "entries kept across a restart into a host tier smaller than an entry" : "entries kept across a restart";
@@ -2233,6 +2274,7 @@ int main(int argc, char** argv) {
             }
             disk_read_waits(one, tok, vocab);
             disk_read_bound(one, tok, vocab);
+            disk_flush(one, tok, vocab);
             disk_kept(one, tok, vocab);
             disk_kept(one, tok, vocab, (size_t)1 << 16);
             disk_kept(one, tok, vocab, 4 * ((size_t)64 << 20), (size_t)1 << 16);

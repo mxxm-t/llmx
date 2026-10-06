@@ -122,6 +122,24 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## An idle server writes ahead under keep, and the stop's flush states its bound (2026-10-06, branch feat/keep-idle-flush, lands by fast-forward)
+
+- **Goal:** a stop under `--disk-cache-keep` should find little left to write, say how long it will take, and say what it did not write; and a conversation larger than the stopping server's host tier should be kept at all, which fix/keep-large left open.
+- **Done:** a server with nothing active, queued or paused for five seconds writes what the flush would, one entry at a time, host memory's entries first and then the device donors; a donor's copy larger than the host tier is held beyond the tier until its file is in place, at a stop and while idle alike. The flush's bound is 20 seconds or, where longer, half as long again as what is left takes at the store's measured write rate plus five seconds; it prints the bytes and the bound before its first write and the entries kept and the bytes not written, with the reason, after its last. The line a start prints for adopted entries says how many each rule dropped, and `/v1/health` counts what the tiers lost while running: `host_unwritten`, copies room took from host memory before any file held them, and `disk_capped`, entries deleted for the cap. The test commit fails without the change: an idle scheduler wrote nothing.
+- **Measured** on two MI50s, Qwen3.8-27B Q8_0 with production's flags and a scratch directory, a 76k-token conversation after its second turn, stopped with `docker stop -t 30` and started again into a 3 GiB host tier:
+
+  | | written before the stop | the stop (s) | flush line | next turn after the restart: reused of 76194 tokens | first token (s) |
+  |---|---|---|---|---|---|
+  | stopped at once, no idle time | nothing | 7.5 | writing 5248.0 MiB, within 20 s; 0.0 MiB not written | 75968 | 9.5 |
+  | left idle first | 3 entries, 5.78 GB, within 13 s of the idle moment | 0.56 | writing 0.0 MiB; 0.0 MiB not written | 76160 | 7.6 |
+
+  The idle row needs the re-read job to end, which fix/job-forks-request made it do; before that fix the job read the conversation again for minutes and the server was never idle.
+- **A limit, seen twice in these runs:** where the host is short of free memory the copy of a donor larger than the tier is refused beside the reserve the host keeps, and that conversation is then not kept; the stop says so (`a donor of 76160 tokens was not kept in host memory`, `5312.0 MiB not written`). The machine these runs share had 13 GiB free at the time.
+- **What it costs:** a conversation's whole copy is written again after each turn that is followed by five idle seconds, its older file deleted when the turn's job supersedes it: 5.2 GB a turn for a 76k-token conversation on that model. A request that arrives while a donor is copied off the devices waits for that copy as it waits for an eviction's, about 2 s for 5.2 GiB here.
+- **Stop grace:** the bound is 20 s for anything the store writes in 10 s, about 7 GB here; production's `docker stop -t 30` covers that, and a server holding more unwritten at a stop names a longer bound in its first line.
+- **Reviewed** by F2DEV, no finding; its four notes are taken: each idle period tries every donor again, `server-resume` holds the stop's own flush, its 20-second bound under a paced write and a second idle period, `disk_capped` is said to count while running, and USAGE names the cost a turn. With them goes the nit left from fix/job-forks-request: a job that must wait for its request's pass is refused before a host donor is promoted for it.
+- **Left:** the cache identity keyed on what can change the bits, so an update keeps the entries; a copy held beyond the tier whose request was cancelled goes at the first round with nothing queued or paused, not with its request.
+
 ## A re-read job waits for its request's pass and forks it (2026-10-07, branch fix/job-forks-request, lands by fast-forward)
 
 - **Found:** in production (Qwen3.8-27B Q8_0 over two MI50s) the job that reads a reply again read the whole conversation, 103744 rows after a 96209-token prompt, and the reply beside it decoded at 8.4 tok/s where the next long turn decoded at 16.0.

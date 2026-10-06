@@ -166,6 +166,9 @@ public:
         std::filesystem::last_write_time(path(key, ".kv"), used, ec);
     }
 
+    // The bytes a second the store has written of late, flushed: the start's probe, then each entry written, half and half; 0 where the probe failed.
+    double write_rate() const { return rate_.load(); }
+
     // What the file system has free for this process.
     std::optional<uint64_t> free_bytes() const {
         std::error_code ec;
@@ -407,6 +410,8 @@ private:
         };
         const std::optional<double> buffered = timed(false), direct = timed(true);
         direct_ = direct && (!buffered || *direct <= *buffered);
+        const std::optional<double> taken = direct_ ? direct : buffered;
+        if (taken && *taken > 0) rate_.store((double)bytes / *taken);
     }
 
     // The I/O thread: reads first, then writes, each in the order queued; once a ten-minute wait passes with nothing queued, a sweep.
@@ -504,6 +509,7 @@ private:
         }
         const auto tmp = path(j.key, ".tmp");
         std::vector<uint32_t> crcs(chunk_count);
+        const auto began = std::chrono::steady_clock::now();
         try {
             format::FileWriter w(tmp.u8string(), direct_);
             for (uint64_t c = 0; c < chunk_count; ++c) {
@@ -551,6 +557,8 @@ private:
             return false;
         }
         sync_directory();
+        const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - began).count();
+        if (took > 0 && !options_.pace.count()) rate_.store(rate_.load() > 0 ? 0.5 * rate_.load() + 0.5 * (double)total / took : (double)total / took);
         std::lock_guard<std::mutex> lk(m_);
         // An evict that came while the file was renamed into place wins.
         if (j.cancelled) {
@@ -624,6 +632,7 @@ private:
     }
 
     Options options_;
+    std::atomic<double> rate_{0};
     std::array<uint8_t, 32> identity_;
     std::filesystem::path dir_;
     Lock lock_;

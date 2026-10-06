@@ -1232,7 +1232,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --disk-cache-bytes N    Disk for what the host cache drops; needs a host cache (default: 0, none)\n"
             << "  --disk-cache-dir PATH   Where the disk cache lives (default: <home>/" << hub::cache_in_home << "/kv)\n"
             << "  --disk-cache-floor N    Free space the disk keeps after every write (default: the larger of 16 GiB and a twentieth of the disk)\n"
-            << "  --disk-cache-keep       At a clean exit, write what memory holds to disk within " << server::kDiskFlush.count() << " s and keep it for the next server\n"
+            << "  --disk-cache-keep       While idle and at a clean exit (within a printed bound, " << server::kDiskFlush.count() << " s or more), write what memory holds to disk and keep it for the next server\n"
             << "  --disk-cache-max-age TIME  Delete entries unused for longer than TIME: seconds, or a number followed by s, m, h or d; 0 for no limit (default: " << (server::DiskOptions{}.max_age / 3600) << "h)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
             << "  --ctx-size N, -c        Most KV tokens in total, fitted to the devices at load (default: model context)\n"

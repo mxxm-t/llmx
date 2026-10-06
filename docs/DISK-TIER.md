@@ -110,10 +110,16 @@ With `--disk-cache-keep`, a restart of the same build and model should find the 
 - entries already on disk only have their last use recorded; superseded copies, on the devices, in host memory or on disk, are never written and are deleted;
 - then, newest first within each class: copies whose conversations came back, then their boundaries, then copies whose conversations never came back;
 - a device donor goes through host memory as an eviction does (`Model::save_host` into slabs that entries already written have given back), then to disk; a host entry goes straight to disk; the writer streams entry after entry so the device copies and the disk writes overlap;
-- within the cap and the floor, and within a shutdown limit of 20 seconds, after which the flush stops at its current entry, removes that entry's temporary file and exits: what is not written is not kept, as with a crash.
-At the measured rates 20 seconds write 6.8 GB on the NVMe pool and 11 GB on `/zpool1`, about a full 10 GiB host tier and the device donors of a single MI50; the limit is a constant of the code, documented, rather than a flag. A container or service manager must give the server longer than that before it kills it: `docker stop` waits 10 seconds by default, so production runs with a stop timeout of 30 seconds or more; a kill before the flush ends behaves as a crash.
+- within the cap and the floor, and within a bound the server states before its first write, after which the flush stops at its current entry, removes that entry's temporary file and exits: what is not written is not kept, as with a crash.
+**The bound.** It is 20 seconds (`kDiskFlush`), or, where that is longer, half as long again as the bytes still to write would take at the store's measured write rate, plus five seconds for the copies off the devices (`Scheduler::flush_disk`); the rate is the start's probe and then each entry written (`DiskStore::write_rate`).
+The server prints the bytes and the bound as the flush starts (`server: writing 5194.0 MiB to disk for the next server, within 20 s`) and, as it ends, the entries kept and the bytes it did not write, with the reason where there are any: the bound reached, or writing having stopped.
+A container or service manager must give the server at least the bound before it kills it, and the bound is not a flag: `docker stop` waits 10 seconds by default, so a server under keep runs with a stop timeout of 30 seconds or more, and more where the first line names more; a kill before the flush ends behaves as a crash.
 
-**A console closed on Windows.** Windows ends a process a few seconds after its console window is closed, whatever its handler does, so a flush that closing the console starts may not finish and keeps only the entries written by then; Ctrl-C and Ctrl-Break give the flush its whole twenty seconds, as SIGTERM and SIGINT do elsewhere.
+**Written ahead while idle.** A stop should find little to write, so under `--disk-cache-keep` a server with no request active, queued or paused for five seconds (`kDiskIdle`) writes what the flush would, one entry at a time (`Scheduler::disk_round`, `flush_one`): first what host memory holds without a file, then the device donors, newest first, each copied to host memory as an eviction copies it; a donor whose copy is in host memory or on disk already is not copied again.
+A donor's copy larger than the whole host tier is held beyond the tier's bytes until its file is in place and then released (`HostDonor::through`), so a long conversation is written whatever tier the host was given; outside the flush and the idle writes such a copy is not made, as before.
+A request that arrives meanwhile waits for the copy off the devices in progress, as it waits for an eviction's, and its room takes the write in flight last (Demotion, above).
+
+**A console closed on Windows.** Windows ends a process a few seconds after its console window is closed, whatever its handler does, so a flush that closing the console starts may not finish and keeps only the entries written by then; Ctrl-C and Ctrl-Break give the flush its whole bound, as SIGTERM and SIGINT do elsewhere.
 
 **SIGTERM against a crash.** SIGTERM and SIGINT take the clean exit and the flush. SIGKILL, a crash, an out-of-memory kill or a power loss keep only what is already on disk: every renamed `.kv` file is complete and every `.tmp` file is removed by the next sweep; the kernel releases the lock, so the directory is adoptable with `--disk-cache-keep` and removed without it.
 
@@ -121,7 +127,7 @@ At the measured rates 20 seconds write 6.8 GB on the NVMe pool and 11 GB on `/zp
 - it reads every entry's header, after a clean exit and after a crash alike, which holds the entry's kind, whether its conversation came back, its tokens and its row classes, and takes its last use from its file's modification time, which every write and renewal sets to the entry's last use; no separate index file is written, the headers being one;
 - entries older than the age limit (Age, below) are deleted, and so is a boundary whose conversation has no copy left;
 - the rest are taken, the most valuable first by the flush's order, within its own cap and floor, and the remainder deleted;
-- the index is rebuilt in memory from what it took, so the first request of a returning conversation matches it as it would have before the restart.
+- the index is rebuilt in memory from what it took, so the first request of a returning conversation matches it as it would have before the restart, and the server's line gives the entries it took and, where it dropped any, how many by each rule: a description that did not read, a boundary without a copy of its conversation, the cap.
 Two servers starting together under one root each adopt only directories whose lock they get; a directory one adopts is moved into its own and is gone for the other.
 
 ## Age
@@ -176,12 +182,12 @@ The index (tokens, row classes, ranking state) stays in the scheduler beside `ho
 - `--disk-cache-dir PATH`: where it lives, by default `<home>/.cache/llmx/kv`.
 - `--disk-cache-floor N`: the free space the file system keeps after every write, by default the larger of 16 GiB and a twentieth of the file system.
 - At startup the server prints the directory, the file system's free space and the floor, and refuses to start when the cap plus the floor exceed the free space, naming the three numbers.
-- `--disk-cache-keep`: on a clean exit, flush what memory holds to disk within 20 seconds and keep the entries for the next server of the same build and model, which adopts them; without it nothing remains after a clean exit.
+- `--disk-cache-keep`: write what memory holds to disk while idle and, on a clean exit, within the bound the server states (20 seconds or more), and keep the entries for the next server of the same build and model, which adopts them; without it nothing remains after a clean exit.
 - `--disk-cache-max-age TIME`: delete entries unused for longer than TIME, by default `24h`; `0` keeps them until room takes them.
 - The tier needs the host tier: with `--host-cache-bytes 0`, or every cache on the CPU where the host tier's default is 0, a nonzero `--disk-cache-bytes` is refused with the reason.
 
 Until the digest and the store's probe finish, the server serves without the disk tier, writing and reading nothing, and `/v1/health`'s `disk_ready` stays false.
-**`/v1/health`:** `disk_entries`, `disk_bytes`, `disk_hits`, `disk_bytes_written`, `disk_bytes_read`, `disk_waits` (requests that waited for a read) and `disk_wait_ms`, `disk_errors`, and `disk_writing` (false once the tier has stopped writing).
+**`/v1/health`:** `disk_entries`, `disk_bytes`, `disk_hits`, `disk_bytes_written`, `disk_bytes_read`, `disk_waits` (requests that waited for a read) and `disk_wait_ms`, `disk_errors`, `host_unwritten` (copies room took from host memory before any file held them, each a conversation the tiers lost), `disk_capped` (entries deleted while running to stay within the cap; those a start drops for it are in its adoption line), and `disk_writing` (false once the tier has stopped writing).
 
 **Tests:**
 - the store alone (CTest): an entry written and read back bit for bit; each identity field changed refuses it; a flipped payload byte fails its chunk and deletes the entry; a truncated file and a `.tmp` file are never read; the cap and the floor stop a write; an injected `ENOSPC` and `EIO` stop writing and keep reads;

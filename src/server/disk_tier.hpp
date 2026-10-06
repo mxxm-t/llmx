@@ -51,6 +51,8 @@ inline void check_disk_cache(DiskOptions& o, size_t host_cap) {
 
 // How long a clean exit under --disk-cache-keep spends writing what memory holds to disk (docs/DISK-TIER.md, Keeping entries across a restart).
 constexpr std::chrono::seconds kDiskFlush{20};
+// How long a server under --disk-cache-keep has had nothing to do before it writes ahead what a stop would have to, so a turn that follows at once meets no copy off the devices.
+constexpr std::chrono::seconds kDiskIdle{5};
 
 class DiskTier {
 public:
@@ -163,6 +165,12 @@ public:
             }
             if (wake_) wake_();
         });
+    }
+
+    // The store's measured write rate in bytes a second, 0 until it is made or where it has none.
+    double write_rate() const {
+        std::lock_guard<std::mutex> lk(m_);
+        return store_ ? store_->write_rate() : 0.0;
     }
 
     // Whether reads may start: the store made.

@@ -1721,12 +1721,9 @@ public:
     }
 
     // What a tensor group's exchange chains through (VulkanCollective): the next submission waits on `s`, and submit_signalling submits the open work signalling `signals` beside the timeline.
+    // A sum's submission is followed by no hold: the member's next work comes at once, and a hold there is a second submission at every sum; the stage's own submit() holds, as on a layer split, so a member waiting for another stage keeps its clock.
     void wait_on(VkSemaphore s) { waits_.push_back(s); }
-    Ticket submit_signalling(const std::vector<VkSemaphore>& signals) {
-        const Ticket ticket = flush(signals);
-        if (hold_.on) hold_queue();
-        return ticket;
-    }
+    Ticket submit_signalling(const std::vector<VkSemaphore>& signals) { return flush(signals); }
     const std::shared_ptr<Device>& device() const { return dev_; }
     std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
     std::string pci_root() const override { return dev_->pci_root; }

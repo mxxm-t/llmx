@@ -75,7 +75,9 @@ The lifetime and packed-quantization tests include the implementation and use te
   100 ms without one, so the card stays busy, and its clock up, while
   another device runs its stage, and an idle card still idles. The
   backend's own flushes (a chunk, an upload, a read, `sync`) set a pending
-  event and add none. The hold's command buffers, timeline, events and
+  event and add none, and neither does a tensor group's sum, whose
+  submission the member's next work follows at once: a group's member is
+  held once a stage, after the stage's own `submit()`. The hold's command buffers, timeline, events and
   watchdog are made at the first request; a failure part way destroys what
   it made, so a later request starts again.
   Small per-call inputs go through a host-visible arena per ring slot; a

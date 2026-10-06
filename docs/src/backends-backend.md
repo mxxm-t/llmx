@@ -57,6 +57,9 @@ placement contracts in `docs/EXECUTION.md`.
   rows on the way out and back, so a pass on a single device submits once.
   It waits on its pass's last ticket for the logits, and on a sequence's
   last tickets when that sequence is reset.
+  A backend is one thread's: every call is made by the thread recording on
+  it, but for `wait(t)` of a ticket `submit()` has returned, which another
+  thread may make while that one records.
 - `hold_between_submissions(on)`: a model made over several devices asks it
   of each (true) and gives it back when it goes (false), since each waits
   while the others run their parts of a pass; while any request remains,

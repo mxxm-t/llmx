@@ -20,7 +20,9 @@ is measured against the single-sequence path and the reference.
   prefill microbatch is one entry with many tokens, a decode step is many
   entries with one token each, and the two mix in one pass.
 - **One submitter per device.** A `Backend` is driven by one thread at a
-  time. The scheduler is that thread; connection threads only queue
+  time. The scheduler is that thread, but for a tensor group's stage
+  while several passes are in flight, which a thread of that stage
+  records (The round, below); connection threads only queue
   requests and drain token streams. This is a contract, not a lock.
 - **Streaming.** Tokens leave as they are sampled, over a plain HTTP/1.1
   response with chunked transfer or server-sent events, so a browser, curl
@@ -101,6 +103,9 @@ accept thread ---> connection thread (one per socket)
                      looking at the socket every 100 ms meanwhile
 scheduler thread   the only thread that calls the model, pushes to the
                    channels and keeps the ledger
+stage threads      one for each tensor group's stage while several passes
+                   are in flight: each records the one stage of the one
+                   pass the round hands it, and decides nothing
 sampling threads   up to four, the scheduler's own: they draw a retiring
                    pass's rows beside the scheduler thread and touch
                    nothing else
@@ -124,6 +129,8 @@ The policy the round follows is in `server/policy.hpp`, free functions over plai
 
 ```
 round:
+  collect: take the stages the stage threads finished: a recorded one
+           counts, a failed one fails its pass alone
   drop:    end the queued and paused requests whose client left,
            wherever they wait, and look again as admission reaches each
   advance: from the last stage down to stage 1, each stage records the
@@ -131,6 +138,9 @@ round:
            runs its passes in formation order and a pass advances a stage
            at most a round; a stage on the host, which computes as it is
            recorded, waits for the end of the round
+           a tensor group's stage, whose every sum its members wait
+           on each other for, is handed to its stage thread and takes
+           no other pass until that one is collected
   retire:  every pass whose last stage an earlier round recorded, oldest
            first: pass_logits waits on that pass's own ticket, the
            sampling threads and the scheduler thread draw its wanting

@@ -52,6 +52,9 @@ The lifetime and packed-quantization tests include the implementation and use te
   `vulkan_timed_dispatches` how many dispatches that reading covered, every
   one since the reading before, in as many query pools as the interval needs
   (`bench --profile`, `serve --timing`).
+  `wait(t)` of a returned ticket may come from another thread while the
+  owning one records: the last ticket is atomic and the wait times it
+  adds are under a lock, and nothing else of the backend is shared.
   Such a backend also times where it holds its caller (`host_times`): its
   ticket waits, its wait for a free ring slot in `open`, its wait for a
   half of staging in `upload`, and its writes apart from those waits;

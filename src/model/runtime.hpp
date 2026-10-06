@@ -582,6 +582,9 @@ public:
     bool pipelined() const { return pipelined_; }
     // Whether stage s runs on the host, whose backend computes as its work is recorded, so recording it holds the calling thread for the stage's whole time.
     bool stage_on_host(size_t s) const { return devices_[stages_.at(s).device]->b->is_cpu(); }
+    // Whether recording stage s runs in step with its devices: a tensor group's stage, whose every sum is a submission its members wait on each other for, where a stage of one device is one submission.
+    // A caller that keeps passes in flight records such a stage on a thread of that stage's (record_pass_stage).
+    bool stage_waits(size_t s) const { return stages_.at(s).device < devices_.size() && width_ > 1; }
     // The backend stage s runs on, which a caller timing the stages reads its host and device times from.
     backend::Backend& stage_backend(size_t s) { return *devices_[stages_.at(s).device]->b; }
 
@@ -596,6 +599,9 @@ public:
     void reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows);
     void begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base);
     void run_pass_stage(ExecContext& ctx, size_t slot, size_t s);
+    void prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s);
+    void record_pass_stage(ExecContext& ctx, size_t slot, size_t s);
+    void commit_pass_stage(ExecContext& ctx, size_t slot);
     const float* pass_logits(ExecContext& ctx, size_t slot, size_t i);
     void end_pass(ExecContext& ctx, size_t slot);
     void abort_pass(ExecContext& ctx, size_t slot);
@@ -1004,7 +1010,11 @@ private:
     void begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries, size_t logits_base = 0);
     void run_stage(ExecContext& ctx, Pass& p, size_t s);
     void group_stage(ExecContext& ctx, Pass& p, size_t s);
+    void group_prepare(Pass& p, size_t s);
+    void group_record(ExecContext& ctx, Pass& p, size_t s);
     void end_stage(ExecContext& ctx, Pass& p, size_t s, size_t cur);
+    void stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur);
+    void stage_commit(ExecContext& ctx, Pass& p, size_t s);
     void draft_context(ExecContext& ctx, Pass& p, size_t s);
     void finish(ExecContext& ctx, const Pass& p);
     void roll_back(Pass& p) noexcept;

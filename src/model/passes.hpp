@@ -64,6 +64,40 @@ inline void Model::run_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
     ++p.ran;
 }
 
+// A stage that waits on its devices (stage_waits) in three calls, for a caller that records it on a thread of that stage's while its own thread goes on.
+// prepare_pass_stage, on the thread that owns the histories and the pools, takes the stage's blocks; record_pass_stage, on the stage's thread, does the device work, touching only this pass, the stage's devices and their tickets; commit_pass_stage, on the owning thread again, commits the histories and counts the stage.
+// Nothing is undone by a failure of the first two: the caller abandons the pass with abort_pass on the owning thread.
+inline void Model::prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
+    Pass& p = in_flight(ctx, slot);
+    if (s != p.ran || s >= stages_.size()) throw std::logic_error("inference: a pass's stages run in order, each once");
+    if (!stage_waits(s)) throw std::logic_error("inference: a stage of one device is recorded whole, by run_pass_stage");
+    group_prepare(p, s);
+}
+
+inline void Model::record_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
+    Pass& p = in_flight(ctx, slot);
+    const Stage& st = stages_[s];
+    // The stage's evidence of the matrix paths it took stays with this model, as run_stage keeps it.
+    struct Paths {
+        const std::vector<std::unique_ptr<Device>>& devices;
+        const std::vector<size_t>& touches;
+        size_t width;
+        void swap() const noexcept {
+            for (size_t d : touches)
+                for (size_t m = d; m < d + width; ++m) devices[m]->b->swap_matrix_paths(devices[m]->matrix_paths);
+        }
+        ~Paths() { swap(); }
+    } paths{devices_, st.touches, width_};
+    paths.swap();
+    group_record(ctx, p, s);
+}
+
+inline void Model::commit_pass_stage(ExecContext& ctx, size_t slot) {
+    Pass& p = in_flight(ctx, slot);
+    stage_commit(ctx, p, p.ran);
+    ++p.ran;
+}
+
 // Row i of the pass's wanting rows, in entry order, once its last stage has run; this waits on the pass's own ticket, never on a later pass's.
 inline const float* Model::pass_logits(ExecContext& ctx, size_t slot, size_t i) {
     const Pass& p = in_flight(ctx, slot);
@@ -261,8 +295,14 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
 // Stage s on a tensor group (docs/TENSOR-SPLIT.md, section 4.3): every member runs each part on its shards over its own residual, the group's collective sums the members' partial rows into every member's residual after each part, the residual comes in to every member and leaves from the first, and after the last stage each member's slice of the logits rows is gathered into the context's.
 // The placement holds the embedding on the first stage's group, the head on the last's and every feed-forward block beside its mixer, and a group runs no layer that keeps a state (the constructor's checks).
 inline void Model::group_stage(ExecContext& ctx, Pass& p, size_t s) {
-    const Stage& st = stages_[s];
-    const size_t g = st.device, W = width_;
+    group_prepare(p, s);
+    group_record(ctx, p, s);
+    stage_commit(ctx, p, s);
+}
+
+// What a group's stage takes of its histories and their pool before any device work: each entry's blocks and its views on every member.
+inline void Model::group_prepare(Pass& p, size_t s) {
+    const size_t g = stages_[s].device, W = width_;
     const int storage = devices_[g]->storage_index;
     for (size_t e = 0; storage >= 0 && e < p.entries.size(); ++e) {
         KVSequence& kv = p.entries[e].seq->kv_[(size_t)storage];
@@ -273,6 +313,12 @@ inline void Model::group_stage(ExecContext& ctx, Pass& p, size_t s) {
             v.extent = p.runs[e].extent;
         }
     }
+}
+
+// A group's stage on its devices, through its last submission: it touches the pass, the stage's devices and the context's tickets of those devices, and no history or pool.
+inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
+    const Stage& st = stages_[s];
+    const size_t g = st.device, W = width_;
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
     backend::Collective& sum = *ctx.collectives[g];
     std::vector<backend::Slice> x(W);
@@ -315,17 +361,27 @@ inline void Model::group_stage(ExecContext& ctx, Pass& p, size_t s) {
             at += n;
         }
     }
-    end_stage(ctx, p, s, g);
+    stage_submit(ctx, p, s, g);
 }
 
 // The end of stage s, the residual or the head last on device `cur`: every device the stage recorded on submits, each member of a tensor group, the pass's ticket that of `cur`, and each entry's history commits the stage.
 inline void Model::end_stage(ExecContext& ctx, Pass& p, size_t s, size_t cur) {
-    const Stage& st = stages_[s];
-    const int storage = devices_[st.device]->storage_index;
-    for (size_t d : st.touches)
+    stage_submit(ctx, p, s, cur);
+    stage_commit(ctx, p, s);
+}
+
+// The stage's submissions, every device it recorded on and each member of a tensor group, the pass's ticket that of `cur`.
+inline void Model::stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur) {
+    for (size_t d : stages_[s].touches)
         for (size_t m = d; m < d + width_; ++m) ctx.tickets[m] = devices_[m]->b->submit();
     p.sent = ctx.tickets[cur];
     p.sent_members.assign(ctx.tickets.begin() + (std::ptrdiff_t)cur, ctx.tickets.begin() + (std::ptrdiff_t)(cur + width_));
+}
+
+// Each entry's history commits the stage, on the thread that owns the histories.
+inline void Model::stage_commit(ExecContext& ctx, Pass& p, size_t s) {
+    const Stage& st = stages_[s];
+    const int storage = devices_[st.device]->storage_index;
     for (size_t e = 0; e < p.entries.size(); ++e) {
         Sequence& q = *p.entries[e].seq;
         if (storage >= 0) q.kv_[(size_t)storage].commit();

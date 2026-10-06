@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <chrono>
 #include <condition_variable>
+#include <atomic>
 #include <mutex>
 #include <thread>
 #include <cmath>
@@ -3466,8 +3467,11 @@ private:
         if (!timed_) return wait_for(t);
         const auto t0 = std::chrono::steady_clock::now();
         wait_for(t);
+        // A wait from another thread adds its time beside the recording thread's.
+        std::lock_guard<std::mutex> lk(times_);
         into += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     }
+    std::mutex times_;
 
     std::shared_ptr<Device> dev_;
     const bool timed_;       // made for diagnostics, so its waits and uploads are timed (host_times)
@@ -3478,7 +3482,7 @@ private:
     uint32_t ring_index_ = 0;
     bool open_ = false;
     VkSemaphore timeline_ = VK_NULL_HANDLE;
-    Ticket last_ticket_ = 0;
+    std::atomic<Ticket> last_ticket_{0};   // atomic for a wait made from another thread while this one records (Backend::wait)
     std::vector<VkSemaphore> waits_;          // what the next submission waits on (wait_on)
     static constexpr uint32_t kHolds = 4;       // hold submissions in flight; one is pending at a time
     static constexpr int kHoldMs = 100;         // the longest a held queue waits for its host

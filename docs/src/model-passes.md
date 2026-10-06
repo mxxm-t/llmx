@@ -41,7 +41,14 @@ The residual stream crosses devices wherever the placement changes, in two halve
   fails to allocate takes none either.
   `run_pass_stage(ctx, slot, s)` records the pass's next stage, which must
   be `s`; a failure aborts the pass before it is rethrown, and the other
-  passes go on. `pass_logits(ctx, slot, i)` waits on the pass's own head
+  passes go on. A caller that records a stage on another thread takes it
+  in three calls instead: `prepare_pass_stage` on its own thread, which
+  takes the stage's blocks; `record_pass_stage` on the stage's thread,
+  which records and submits and touches only that pass and the stage's
+  devices; and `commit_pass_stage` on its own thread again, which commits
+  the histories and counts the stage. A failed `record_pass_stage` leaves
+  the pass for the caller's `abort_pass`.
+  `pass_logits(ctx, slot, i)` waits on the pass's own head
   and returns its wanting row `i`, written from row `logits_base` on.
   `end_pass` takes a pass whose last stage has run out of flight, and
   `abort_pass` abandons one at any point: every device drained, then only

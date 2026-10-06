@@ -52,6 +52,10 @@ is the throughput design, and every requirement above fits it. A `Backend`
 is driven by **one thread at a time**; the server's scheduler is the single
 submitter per device and request threads only queue work. This is a
 contract, not a lock.
+The one call another thread may make on a backend that is recording is
+`wait(t)` of a ticket `submit()` has returned, as the server's scheduler
+waits for a pass's logits while a stage's thread records the next pass
+([SERVER](SERVER.md), The round).
 
 Eager per-op enqueue holds. Vulkan records ops into command buffers and may
 submit before a model stage ends: its dispatch chunk bounds queued work.

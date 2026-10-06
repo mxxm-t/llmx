@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <condition_variable>
+#include <thread>
 #include <deque>
 #include <filesystem>
 #include <functional>
@@ -277,6 +278,13 @@ public:
             }
         }
         slots_.resize(p);
+        // A stage whose recording waits on its devices gets a thread of its own, so the round goes on to the other stages while it records (docs/SERVER.md, the round).
+        recorders_.resize(model_.stage_count());
+        for (size_t s = 0; s < recorders_.size(); ++s)
+            if (p > 1 && model_.stage_waits(s)) {
+                recorders_[s] = std::make_unique<Recorder>();
+                recorders_[s]->thread = std::thread([this, s] { record(*recorders_[s], s); });
+            }
         // A job reads the next turn's ids at one extent for every extent that turn's prompt can have, so only where rows are one class from there up to the limit.
         const size_t limit = token_limit();
         steady_from_ = limit;
@@ -316,6 +324,7 @@ public:
             if (queue_.size() >= max_queue_)
                 throw QueueFull("server: the queue holds " + std::to_string(max_queue_) + " requests; try again later");
             queue_.push_back(r);
+            ++arrivals_;
         }
         cv_.notify_all();
         return r;
@@ -334,6 +343,7 @@ public:
         {
             std::lock_guard<std::mutex> lk(m_);
             follows_.push_back(Follow{r, std::move(ids), whole});
+            ++arrivals_;
         }
         cv_.notify_all();
     }
@@ -417,20 +427,25 @@ public:
         for (;;) {
             {
                 std::unique_lock<std::mutex> lk(m_);
+                // A pass being recorded gives the round nothing to do until its recorder is done, which wakes it.
                 const auto due = [&] {
-                    return stopping_ || disk_wake_ || flying() || ready(queue_) || ready(paused_) || !follows_.empty() || (!jobs_.empty() && active.size() < max_seqs_) ||
-                           std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return working(*r); });
+                    return stopping_ || disk_wake_ || recorded_ || acting() || ready(queue_) || ready(paused_) || !follows_.empty() || (!jobs_.empty() && active.size() < max_seqs_) ||
+                           std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return working(*r) && !r->seq_.in_flight(); });
                 };
                 const auto bound = next_disk_bound();
                 if (bound) cv_.wait_until(lk, *bound, due);
                 else cv_.wait(lk, due);
                 if (stopping_) break;
+                recorded_ = false;
+                seen_ = arrivals_;
                 disk_round();
                 // A waiting request whose client left ends wherever it waits, queued or paused, not only once admission reaches it, which may be after every active request has finished.
                 for (auto* waiting : {&queue_, &paused_})
                     for (auto it = waiting->begin(); it != waiting->end();) it = (*it)->cancel_.load() ? leave(*waiting, it) : it + 1;
             }
             const Clock::time_point round_start = timed_ ? Clock::now() : Clock::time_point{};
+            acted_ = false;
+            collect(active);
             // Stages on the host compute as they are recorded, so they wait until every device stage of the round is on its way.
             std::vector<std::pair<size_t, size_t>> host;
             const Steps steps = round_steps(flights(), model_.stage_count());
@@ -486,7 +501,8 @@ public:
                 follow_up(active);
                 complete_jobs(active);
                 try {
-                    for (size_t k = free_slot(); k < slots_.size() && form(k, active, host); k = free_slot()) {}
+                    // A pass is formed when its first stage can be recorded, so it takes the requests ready then and not those of a stage's time before.
+                    for (size_t k = free_slot(); k < slots_.size() && !first_stage_held() && form(k, active, host); k = free_slot()) {}
                 } catch (const std::exception& e) {
                     fail_all(active, e.what());
                     host.clear();
@@ -498,6 +514,15 @@ public:
                 if (slots_[a.first].live && slots_[a.first].ran == a.second) advance(active, a.first, a.second);
             in_flight_.store(flights_live());
             if (timed_) end_round(round_start);
+            // A round that could do nothing while a stage records waits for what could give it something: a recorder done, a request or a reply to follow arriving, the disk tier, or the disk tier's next bound.
+            // A cancellation does not wake it: a request whose client left ends at the next round, within a stage's time, as when a stage held this thread.
+            if (!acted_ && recording()) {
+                std::unique_lock<std::mutex> lk(m_);
+                const auto woken = [&] { return recorded_ || stopping_ || disk_wake_ || arrivals_ != seen_; };
+                const auto bound = next_disk_bound();
+                if (bound) cv_.wait_until(lk, *bound, woken);
+                else cv_.wait(lk, woken);
+            }
         }
         abort_all();
         for (auto& r : active) { release(*r); r->end("cancel"); }
@@ -579,6 +604,7 @@ private:
         std::vector<size_t> from, rows, first_row;   // first_row: per wanting entry, its first logits row in the pass
         size_t base = 0, want = 0, decoders = 0;
         size_t generated = 0;        // its rows where every one is a generated token's, which the pass cost is measured on, else 0
+        uint64_t job = 0;            // its hand-over to a recorder, which the recorder's result names
         Clock::time_point begun;
     };
 
@@ -736,6 +762,34 @@ private:
 
     // Stage s of the pass in slot k; a failure has abandoned the pass in the model, and it fails that pass alone.
     void advance(std::vector<std::shared_ptr<Request>>& active, size_t k, size_t s) {
+        if (Recorder* r = recorders_[s].get()) {
+            // A stage records one pass at a time: a pass that finds its recorder taken waits for a later round, which gives the stage its oldest waiting pass.
+            if (recording(s)) return;
+            // Nor is a pass handed to a recorder that has yet to publish the end of an abandoned pass's recording, which takes the scheduler's lock: it would hold the pass while it waits for the lock.
+            {
+                std::lock_guard<std::mutex> lk(r->m);
+                if (!r->settled) return;
+            }
+            acted_ = true;
+            // The stage's blocks are taken here, on the thread that owns the pools; a pass that cannot have them fails alone, as a stage recorded inline does.
+            try {
+                model_.prepare_pass_stage(ctx_, k, s);
+            } catch (const std::exception& e) {
+                abandon(k);
+                fail_pass(active, k, e.what());
+                return;
+            }
+            slots_[k].recording = true;
+            {
+                std::lock_guard<std::mutex> lk(r->m);
+                r->slot = k;
+                r->job = slots_[k].job = ++jobs_posted_;
+                r->posted = true;
+            }
+            r->cv.notify_all();
+            return;
+        }
+        acted_ = true;
         const Clock::time_point start = timed_ ? Clock::now() : Clock::time_point{};
         const backend::Backend::HostTimes before = timed_ ? host_times() : backend::Backend::HostTimes{};
         try {
@@ -843,7 +897,7 @@ private:
                 for (size_t n : f.rows) span_rows_ += n;
             }
         } catch (const std::exception& e) {
-            model_.abort_pass(ctx_, k);
+            abandon(k);
             fail_pass(active, k, e.what());
             return;
         }
@@ -885,6 +939,7 @@ private:
         Slot& f = slots_[k];
         give_rows(logit_rows_, f.base, f.want);
         f.live = false;
+        f.recording = false;
         f.members.clear();
         f.wanting.clear();
         f.decoders = 0;
@@ -962,7 +1017,7 @@ private:
             // A draft past the vocabulary, and those after it, are not fed: a verify needs nothing a decode does not.
             const auto past = std::find_if(d.begin(), d.end(), [&](uint32_t id) { return id >= model_.n_vocab(); });
             const size_t k = std::min(asks_[i].k, (size_t)(past - d.begin()));
-            if (!k || !model_.mark(r.seq_)) continue;
+            if (!k || !quieted().mark(r.seq_)) continue;
             r.verify_.assign(1, r.last_id_);
             r.verify_.insert(r.verify_.end(), d.begin(), d.begin() + (std::ptrdiff_t)k);
         }
@@ -989,7 +1044,7 @@ private:
             const size_t k_drafts = r.verify_.size() - 1;
             r.verify_.clear();
             try {
-                model_.retract(r.seq_, keep);
+                quieted().retract(r.seq_, keep);
             } catch (const std::exception& ex) {
                 r.finish_pending_ = "error";
                 r.error_pending_ = ex.what();
@@ -998,6 +1053,126 @@ private:
             std::lock_guard<std::mutex> lk(m_);
             tally_.verified(keep - f.from[e] - 1, k_drafts);
         }
+    }
+
+    // A recorder records one stage of one pass at a time on its own thread and decides nothing: the round hands it the pass (advance), and the round takes what it did (collect).
+    // It touches only that pass, its requests' sequences at the stage's storage and the stage's devices; a failure is left for the scheduler's thread, which owns the histories and the pools, to undo.
+    struct Recorder {
+        std::thread thread;
+        std::mutex m;
+        std::condition_variable cv;
+        size_t slot = 0;
+        uint64_t job = 0, done_job = 0;     // the hand-over being recorded, and the one whose end is published
+        bool posted = false, done = false, failed = false, quit = false;
+        bool settled = true;                // no end of a recording is still to be published, so a pass may be handed over
+        std::string error;
+        ~Recorder() {
+            {
+                std::lock_guard<std::mutex> lk(m);
+                quit = true;
+            }
+            cv.notify_all();
+            if (thread.joinable()) thread.join();
+        }
+    };
+
+    void record(Recorder& r, size_t s) {
+        std::unique_lock<std::mutex> lk(r.m);
+        for (;;) {
+            r.cv.wait(lk, [&] { return r.quit || r.posted; });
+            if (r.quit) return;
+            const size_t k = r.slot;
+            r.settled = false;
+            lk.unlock();
+            bool failed = false;
+            std::string error;
+            try {
+                model_.record_pass_stage(ctx_, k, s);
+            } catch (const std::exception& e) {
+                failed = true;
+                error = e.what();
+            }
+            // The recording's end goes out in two steps. First, under the recorder's lock alone, that it is idle, which quiet() waits for, also while it holds the scheduler's lock.
+            // Then, under the scheduler's lock, the result the round collects: a pass is handed over again only after that, so a recorder is never handed a pass while it waits for the scheduler's lock.
+            lk.lock();
+            const uint64_t job = r.job;
+            r.posted = false;
+            r.cv.notify_all();
+            lk.unlock();
+            {
+                std::lock_guard<std::mutex> g(m_);
+                std::lock_guard<std::mutex> h(r.m);
+                r.done = true;
+                r.settled = true;
+                r.done_job = job;
+                r.failed = failed;
+                r.error = std::move(error);
+                recorded_ = true;
+            }
+            cv_.notify_all();
+            lk.lock();
+        }
+    }
+
+    // Whether a pass is being recorded at stage s, or at any stage.
+    bool recording(size_t s) const {
+        return std::any_of(slots_.begin(), slots_.end(), [&](const Slot& k) { return k.live && k.recording && k.ran == s; });
+    }
+    // Whether a pass waits for the first stage's recorder or is being recorded there, so that no other is formed behind it.
+    bool first_stage_held() const {
+        return recorders_[0] && std::any_of(slots_.begin(), slots_.end(), [](const Slot& k) { return k.live && k.ran == 0; });
+    }
+    bool recording() const {
+        return std::any_of(slots_.begin(), slots_.end(), [](const Slot& k) { return k.live && k.recording; });
+    }
+    // Whether the round has a pass to advance or retire: one in flight that no recorder holds.
+    bool acting() const {
+        return std::any_of(slots_.begin(), slots_.end(), [](const Slot& k) { return k.live && !k.recording; });
+    }
+
+    // What the recorders finished since the last round: a recorded stage counts, and a failed one is undone here and fails its pass alone.
+    void collect(std::vector<std::shared_ptr<Request>>& active) {
+        for (auto& rec : recorders_) {
+            if (!rec) continue;
+            size_t k = 0;
+            uint64_t job = 0;
+            bool failed = false;
+            std::string error;
+            {
+                std::lock_guard<std::mutex> lk(rec->m);
+                if (!rec->done) continue;
+                rec->done = false;
+                k = rec->slot;
+                job = rec->done_job;
+                failed = rec->failed;
+                error = std::move(rec->error);
+            }
+            // The end of a recording whose pass was abandoned meanwhile (abort_all) is nobody's.
+            if (!slots_[k].live || !slots_[k].recording || slots_[k].job != job) continue;
+            acted_ = true;
+            slots_[k].recording = false;
+            if (!failed) {
+                model_.commit_pass_stage(ctx_, k);
+                ++slots_[k].ran;
+                continue;
+            }
+            abandon(k);
+            fail_pass(active, k, error);
+        }
+    }
+
+    // Every recorder idle: before the scheduler's thread works on a stage's devices outside a pass's stage, and before passes are abandoned.
+    void quiet() {
+        for (auto& rec : recorders_) {
+            if (!rec) continue;
+            std::unique_lock<std::mutex> lk(rec->m);
+            rec->cv.wait(lk, [&] { return !rec->posted; });
+        }
+    }
+    // The model for work on a stage's devices that is not a pass's stage (a history copied to or from host memory, a mark, a retract, a kept state): with every recorder idle.
+    infer::Model& quieted() {
+        quiet();
+        return model_;
     }
 
     // A failed pass, which the model has abandoned, returned its requests' histories to where it found them: they end with the error and give their blocks back, while the other passes in flight go on, their rows in their own storages, handoff buffers and logits rows.
@@ -1016,11 +1191,20 @@ private:
         for (size_t i = 0; i < active.size();) finish(active, i, "error", what);
     }
 
+    // The pass in slot k abandoned in the model, with every recorder idle first: abandoning a pass drains every device, and a device a recorder is recording on takes no call from this thread but a wait on a returned ticket.
+    // So a failed pass waits for the stages being recorded, and leaves their passes as they are.
+    void abandon(size_t k) {
+        quiet();
+        model_.abort_pass(ctx_, k);
+    }
+
     // Every pass in flight abandoned, each request's history back where its pass found it.
     void abort_all() {
+        quiet();
         for (size_t k = 0; k < slots_.size(); ++k)
             if (slots_[k].live) {
-                model_.abort_pass(ctx_, k);
+                abandon(k);
+                slots_[k].recording = false;
                 vacate(k);
             }
     }
@@ -1415,7 +1599,7 @@ private:
             b.id = ++donor_ids_;
             b.tokens.assign(tokens.begin(), tokens.begin() + (std::ptrdiff_t)n);
             b.classes = clip(classes, n);
-            model_.save_host(seq, n, b.state, host_cap_ + parked_held(), false);
+            quieted().save_host(seq, n, b.state, host_cap_ + parked_held(), false);
         } catch (const std::exception& e) {
             bounds_.pop_back();
             std::fprintf(stderr, "server: a message boundary at %zu tokens was not kept in host memory (%s)\n", n, e.what());
@@ -1548,7 +1732,7 @@ private:
             h.back = d.back;
             h.tokens.assign(d.tokens.begin(), d.tokens.begin() + (std::ptrdiff_t)n);
             h.classes = clip(d.classes, n);
-            model_.save_host(d.seq, n, h.history, host_cap_ + parked_held());
+            quieted().save_host(d.seq, n, h.history, host_cap_ + parked_held());
         } catch (const std::exception& e) {
             host_.pop_back();
             std::fprintf(stderr, "server: a donor of %zu tokens was not kept in host memory (%s)\n", n, e.what());
@@ -2182,7 +2366,7 @@ private:
         Donor d;
         const Clock::time_point start = Clock::now();
         try {
-            d.seq = model_.restore_host(h->history);
+            d.seq = quieted().restore_host(h->history);
         } catch (const std::exception& e) {
             std::fprintf(stderr, "server: a donor of %zu tokens was not promoted from host memory (%s)\n", h->history.length, e.what());
             return false;
@@ -2361,9 +2545,9 @@ private:
         auto r = active[i];
         active.erase(active.begin() + (std::ptrdiff_t)i);
         size_t held = r->seq_.length();
-        if (model_.keeps_state() && held && !(least && model_.keep(r->seq_))) {
+        if (model_.keeps_state() && held && !(least && quieted().keep(r->seq_))) {
             const std::optional<size_t> kept = model_.checkpoint(r->seq_);
-            held = kept ? model_.retract(r->seq_, *kept) : 0;
+            held = kept ? quieted().retract(r->seq_, *kept) : 0;
         }
         uint64_t id = 0;
         if (held && held >= (least ? least : model_.kv_block_tokens())) {
@@ -2524,20 +2708,20 @@ private:
             auto j = active[i];
             const size_t len = j->seq_.length();
             if (j->job_ && model_.keeps_state() && !j->seq_.in_flight() && len && len % model_.kv_block_tokens() == 0 &&
-                model_.checkpoint(j->seq_) != std::optional<size_t>(len) && !model_.keep(j->seq_) && checkpoint_room(0, j->source_))
-                model_.keep(j->seq_);
+                model_.checkpoint(j->seq_) != std::optional<size_t>(len) && !quieted().keep(j->seq_) && checkpoint_room(0, j->source_))
+                quieted().keep(j->seq_);
             if (!j->job_ || !j->whole_ || j->seq_.in_flight() || len < j->prompt_.size()) {
                 ++i;
                 continue;
             }
             // On a model that keeps a state its live state becomes its checkpoint, in a slot an older donor gives up or, where none can, the donor it forked.
-            if (model_.keeps_state() && !model_.keep(j->seq_) && !(checkpoint_room(0, j->source_) && model_.keep(j->seq_))) {
+            if (model_.keeps_state() && !quieted().keep(j->seq_) && !(checkpoint_room(0, j->source_) && quieted().keep(j->seq_))) {
                 {
                     std::lock_guard<std::mutex> lk(m_);
                     for (size_t d = 0; d < donors_.size(); ++d)
                         if (j->source_ && donors_[d].id == j->source_) { drop_donor(d, true); break; }
                 }
-                if (!model_.keep(j->seq_)) {
+                if (!quieted().keep(j->seq_)) {
                     finish(active, i, "error");
                     continue;
                 }
@@ -2676,6 +2860,11 @@ private:
     double prompt_ms_row_ = 0;         // the scheduler thread's, a pass's milliseconds a prompt row, measured; 0 until a pass has
     std::chrono::steady_clock::time_point next_expiry_;   // under the lock, the next check of the entries' age
     std::unique_ptr<DiskTier> disk_;   // after the lock and the condition, which its threads' callbacks take
+    bool recorded_ = false;            // under the lock, a recorder finished a stage since the round last looked
+    bool acted_ = false;               // the scheduler thread's, whether this round advanced, collected, retired or formed anything
+    uint64_t jobs_posted_ = 0;           // the scheduler thread's, the hand-overs to recorders so far
+    uint64_t arrivals_ = 0, seen_ = 0;   // under the lock, the requests and follows submitted, and how many the round had seen as it began
+    std::vector<std::unique_ptr<Recorder>> recorders_;   // per stage, one where Model::stage_waits; last, so their threads end before anything they record on
 };
 
 } // namespace server

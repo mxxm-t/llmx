@@ -1,6 +1,8 @@
 // Include the implementation to exercise private resource ownership with fake Vulkan calls, without adding runtime test hooks.
 #include "backends/vulkan/vulkan_backend.cpp"
+#include <atomic>
 #include <iostream>
+#include <thread>
 #include <stdexcept>
 #include <new>
 
@@ -53,7 +55,8 @@ struct VulkanLifetimeTest {
         wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         wi.semaphoreCount = 1;
         wi.pSemaphores = &b.timeline_;
-        wi.pValues = &b.last_ticket_;
+        const uint64_t last = b.last_ticket_;
+        wi.pValues = &last;
         return !b.open_ && b.waits_.empty() && b.dev_->fn.vkWaitSemaphores(b.dev_->device, &wi, 0) == VK_SUCCESS;
     }
 };
@@ -569,6 +572,39 @@ struct CollectiveCalls {
     }
 };
 
+// The one call another thread may make on a backend while its own thread records (Backend::wait): a thread copies and submits without pause while this one waits on each ticket it has been handed, and the bytes must arrive as written.
+int wait_beside_recording() {
+    auto base = backend::make_vulkan_backend(0);
+    backend::Backend& b = *base;
+    const size_t n = 4096, rounds = 400;
+    std::vector<uint8_t> src(n);
+    for (size_t i = 0; i < n; ++i) src[i] = (uint8_t)(i * 13 + 5);
+    const auto a = b.adopt(src.data(), n);
+    const auto out = b.alloc(n, backend::Memory::host_visible);
+    b.sync();
+    std::atomic<uint64_t> handed{0};
+    std::atomic<bool> done{false};
+    std::thread recorder([&] {
+        for (size_t r = 0; r < rounds; ++r) {
+            b.copy(*out, 0, *a, 0, n);
+            handed.store(b.submit());
+        }
+        done.store(true);
+    });
+    size_t waits = 0;
+    while (!done.load()) {
+        if (const uint64_t t = handed.load()) {
+            b.wait(t);
+            ++waits;
+        }
+    }
+    recorder.join();
+    b.sync();
+    const bool ok = waits > 0 && std::memcmp(out->host_ptr(), src.data(), n) == 0;
+    std::cout << "wait_beside_recording waits=" << waits << (ok ? " PASS\n" : " FAIL\n");
+    return ok ? 0 : 1;
+}
+
 int collective_checks() {
     backend::BackendPtr first = backend::make_vulkan_backend(0), second;
     try {
@@ -802,7 +838,7 @@ int main(int argc, char** argv) {
     try {
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
-                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + collective_checks();
+                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + collective_checks() + wait_beside_recording();
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;

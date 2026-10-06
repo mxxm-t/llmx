@@ -136,8 +136,10 @@ delegated to a `backend::Backend`.
     the first stage's device, the head on the last's and every feed-forward
     block beside its mixer. `stage_on_host(s)` says whether stage s runs
     on the CPU, which computes as it is recorded, so a caller records it
-    after its device stages, and `stage_backend(s)` gives the backend a
-    caller timing the stages reads.
+    after its device stages, `stage_waits(s)` whether recording it runs in
+    step with its devices, as a tensor group's stage does, so a caller
+    keeping passes in flight records it on a thread of that stage's, and
+    `stage_backend(s)` gives the backend a caller timing the stages reads.
   - `make_sequence()`: a fresh history over the model's cache, a table per KV storage and a count for each stage without one.
   - `keeps_state()`: whether some layer keeps a recurrent state, which
     exists only at the end of what it has read, so such a model forks and

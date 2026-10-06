@@ -119,11 +119,12 @@ inline size_t host_cache_default(size_t history, size_t seqs, std::optional<size
     return history && seqs > cap / history ? cap : std::min(cap, history * seqs);
 }
 
-// A pass slot as the round sees it: whether a pass is in flight in it, that pass's place in formation order, and the stages recorded.
+// A pass slot as the round sees it: whether a pass is in flight in it, that pass's place in formation order, the stages recorded, and whether its next stage is being recorded now, on a thread of that stage's (the scheduler's recorders).
 struct Flight {
     bool live = false;
     uint64_t formed = 0;
     size_t ran = 0;
+    bool recording = false;
 };
 
 // What a round records and retires, by slot, before it makes room and forms passes.
@@ -132,16 +133,22 @@ struct Steps {
     std::vector<size_t> retire;                       // oldest first
 };
 
-// From the last stage down to stage 1, each stage records the oldest pass waiting for it, and every pass whose last stage an earlier round recorded retires, oldest first.
+// From the last stage down to the first, each stage records the oldest pass waiting for it, and every pass whose last stage an earlier round recorded retires, oldest first.
 // So each device runs its passes in formation order, a pass advances a stage at most a round, and the later stages have their work before the host samples.
+// A stage one of whose passes is being recorded takes no other this round, and a pass being recorded neither advances nor retires, so a stage records one pass at a time in formation order however long its recording takes.
+// The first stage has a pass waiting only where formation left it to the round, which a pass formed with its first stage recorded never is.
 inline Steps round_steps(const std::vector<Flight>& slots, size_t stages) {
     Steps st;
     const size_t none = slots.size();
-    for (size_t s = stages; s-- > 1;) {
+    for (size_t s = stages; s-- > 0;) {
         size_t pick = none;
-        for (size_t k = 0; k < slots.size(); ++k)
-            if (slots[k].live && slots[k].ran == s && (pick == none || slots[k].formed < slots[pick].formed)) pick = k;
-        if (pick != none) st.advance.push_back({pick, s});
+        bool busy = false;
+        for (size_t k = 0; k < slots.size(); ++k) {
+            if (!slots[k].live || slots[k].ran != s) continue;
+            if (slots[k].recording) busy = true;
+            else if (pick == none || slots[k].formed < slots[pick].formed) pick = k;
+        }
+        if (pick != none && !busy) st.advance.push_back({pick, s});
     }
     for (size_t k = 0; k < slots.size(); ++k)
         if (slots[k].live && slots[k].ran == stages) st.retire.push_back(k);

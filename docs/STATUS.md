@@ -155,6 +155,52 @@ The status table and the active blocks above give the present state; a record's 
 - **Reviewed** by F2DEV.
 
 
+## Prompt rows beside decoders: what `--ubatch` trades when serving (2026-10-06, measured, docs only, lands by fast-forward)
+
+- **Goal:** the inter-token p99 cells open on stages of tensor groups, measured before any rule: what a decoder's gap is made of when prompts land, on two stages of two and on a layer split of the same four cards, across `--ubatch` 512, 256, 128 and 64.
+- **Decision** (the coordinator, 2026-10-07): no scheduler rule. The figures show a trade on tensor groups and a loss on a layer split under skew, and a feature merges only with a measured gain on its workload. `docs/USAGE.md` and `docs/SERVER.md` say what the knob trades.
+- **Measured** (Qwen3-32B Q8_0, `--dtype int8`, four MI50s under one root, default clocks, logical CPUs 8 to 11, every llmx server with `--timing`, a pool of 81920 tokens over 64 sequences, 128 generated tokens, greedy, fresh servers; the groups on `llmx 0.1.0+g7613411dd481`, the layer split and the reference `llama-server -sm tensor` of the pinned image on main a01216fb an hour earlier; no request failed). Another session's container was pinned to logical CPUs 0 to 3, the sibling threads of these, through both sessions, so every cell ran beside it; the layer split at ubatch 512, run in both sessions, read 282.9 and 282.9 tok/s at 32 users on the closed load and 163.2 and 134.6 under skew, which is the spread to read the skewed table with.
+  A pass's time by its prompt rows (`bench --p R`): 512 rows 0.97 s on the groups and 1.57 s on the layer split, 256 rows 0.49 and 0.81 s, 128 rows 0.27 and 0.42 s, 64 rows 0.15 and 0.26 s; a prompt reads at 526 / 522 / 483 / 440 and 326 / 318 / 308 / 248 tok/s. A decoder's row rides one pass and its token comes when that pass has left the last stage; the longest gaps at 512 rows, 1.97 and 2.37 s, are about two passes. The timed servers' stages were 25 to 33 percent idle under skew in every arm.
+
+  | 128-token prompts, users 1 / 4 / 16 / 32 / 64 | output tok/s | inter-token p99, ms | time to first token p50, s |
+  |---|---|---|---|
+  | groups, ubatch 512 | 25.0 / 83.7 / 213.3 / 277.3 / 277.2 | 39 / 47 / 56 / 946 / 1148 | 0.26 / 0.94 / 2.23 / 2.94 / 5.09 |
+  | groups, 256 | 25.0 / 80.8 / 217.2 / 273.1 / 279.6 | 40 / 63 / 604 / 832 / 630 | 0.26 / 0.65 / 1.78 / 2.79 / 5.04 |
+  | groups, 128 | 25.0 / 81.3 / 219.6 / 273.5 / 265.2 | 41 / 44 / 396 / 335 / 389 | 0.26 / 0.74 / 1.61 / 2.72 / 5.31 |
+  | groups, 64 | 25.1 / 81.4 / 214.3 / 262.5 / 252.1 | 39 / 101 / 249 / 212 / 432 | 0.27 / 0.75 / 1.72 / 3.10 / 6.32 |
+  | layer split, 512 | 15.9 / 61.0 / 189.4 / 282.9 / 300.7 | 61 / 59 / 68 / 104 / 1766 | 0.42 / 1.26 / 2.28 / 2.97 / 4.79 |
+  | layer split, 256 | 15.7 / 63.1 / 187.9 / 286.9 / 284.5 | 62 / 59 / 147 / 877 / 940 | 0.43 / 0.90 / 2.14 / 2.52 / 4.41 |
+  | layer split, 128 | 15.6 / 65.3 / 187.6 / 286.8 / 279.2 | 62 / 61 / 479 / 495 / 542 | 0.42 / 0.57 / 1.92 / 2.35 / 4.39 |
+  | layer split, 64 | 15.9 / 65.9 / 175.9 / 273.2 / 274.7 | 61 / 62 / 336 / 301 / 511 | 0.40 / 0.54 / 2.22 / 2.58 / 5.01 |
+  | reference tensor split | 43.2 / 105.3 / 144.1 / 200.9 / 190.2 | 44 / 62 / 117 / 147 / 4094 | 0.34 / 1.13 / 4.17 / 6.22 / 10.69 |
+
+  | prompts of 64 to 1024, users 1 / 4 / 16 / 32 / 64 | output tok/s | inter-token p99, ms | time to first token p50, s |
+  |---|---|---|---|
+  | groups, ubatch 512 | 17.8 / 51.3 / 117.5 / 121.5 / 118.8 | 44 / 112 / 1115 / 1304 / 1472 | 1.93 / 3.63 / 7.86 / 11.00 / 22.81 |
+  | groups, 256 | 17.9 / 52.3 / 113.1 / 118.0 / 117.4 | 44 / 540 / 695 / 711 / 850 | 1.93 / 3.39 / 7.00 / 10.79 / 24.22 |
+  | groups, 128 | 17.6 / 49.9 / 108.0 / 109.6 / 108.1 | 50 / 317 / 419 / 533 / 657 | 1.89 / 3.24 / 7.83 / 12.67 / 26.06 |
+  | groups, 64 | 17.6 / 48.2 / 101.5 / 100.5 / 101.8 | 46 / 193 / 301 / 485 / 515 | 2.03 / 3.39 / 9.57 / 14.09 / 33.51 |
+  | layer split, 512 | 11.8 / 43.8 / 103.2 / 129.6 / 126.0 | 70 / 66 / 1154 / 2001 / 2124 | 2.50 / 3.49 / 7.19 / 10.26 / 21.69 |
+  | layer split, 256 | 11.7 / 43.8 / 100.6 / 118.7 / 127.9 | 83 / 91 / 1128 / 1167 / 1283 | 2.50 / 3.59 / 8.05 / 10.95 / 20.06 |
+  | layer split, 128 | 11.4 / 45.8 / 97.3 / 113.4 / 121.5 | 177 / 69 / 686 / 725 / 970 | 2.50 / 3.25 / 7.18 / 11.37 / 23.53 |
+  | layer split, 64 | 11.6 / 45.1 / 92.8 / 109.1 / 111.5 | 69 / 66 / 476 / 504 / 636 | 2.69 / 3.46 / 7.88 / 12.42 / 28.01 |
+  | reference tensor split | 28.4 / 45.3 / 67.0 / 71.9 / 65.5 | 59 / 99 / 3714 / 4635 / 4686 | 1.74 / 5.86 / 10.89 / 26.58 / 43.27 |
+
+  | skew: 16 users at 128/128, four 4096-token prompts arriving together ten seconds in (a pool of 131072 tokens over 20 sequences) | users' tok/s | users' inter-token p50, p99, ms | longest gap | gaps over 0.5 s of 8128 | the long prompts' first token | long tok/s |
+  |---|---|---|---|---|---|---|
+  | groups, ubatch 512 | 128.9 | 51, 1391 | 1.97 s | 341 | 10.3 to 21.6 s | 15.2 |
+  | groups, 256 | 125.6 | 52, 799 | 1.64 s | 636 | 10.9 to 22.8 s | 14.8 |
+  | groups, 128 | 114.5 | 53, 492 | 1.26 s | 80 | 12.8 to 26.5 s | 13.4 |
+  | groups, 64 | 101.7 | 72, 685 | 1.89 s | 122 | 16.6 to 33.9 s | 11.1 |
+  | layer split, 512, both sessions | 163.2, 134.6 | 68, 94 and 63, 86 | 1.53 s, 2.37 s | 55, 57 | 16.5 to 18.4 s | 15.6, 16.9 |
+  | layer split, 256 | 151.2 | 66, 651 | 3.83 s | 85 | 17.5 to 18.7 s | 16.3 |
+  | layer split, 128 | 126.4 | 64, 546 | 2.83 s | 97 | 19.2 to 20.1 s | 15.5 |
+  | layer split, 64 | 123.2 | 63, 293 | 1.72 s | 36 | 19.7 to 20.3 s | 15.5 |
+  | reference tensor split | 64.3 | 190, 4367 | 4.47 s | 148 of 8127 | 13.1 to 35.8 s | 9.7 |
+
+- **Open against the reference at the same precision:** the inter-token p99 at 32 users on 128-token prompts on stages of groups, 946 against 147 ms, 335 at 128 rows; and at 4 users on mixed prompts, 112 against 99. From 16 users on mixed prompts, at 64 users and under skew llmx's p99 is a third or less of the reference's at the default.
+- **Candidate, not built:** a cap of 128 prompt rows on a pass that carries decoders, on tensor groups alone. Its own measurement would have to show what the global knob cannot: that a prompt beside nobody keeps its 512 rows and its rate, that the p99 at 16 users on short prompts does not rise as it does with the knob, and that the 32-user cell closes rather than narrows, at an output cost below the knob's.
+
 ## A kept entry larger than the host tier is read back (2026-10-06, branch fix/keep-large, lands by fast-forward)
 
 - **Found:** in production (Qwen3.8-27B Q8_0 over two MI50s) an 80k-token chat took minutes to its first token after a restart. Reproduced on two other MI50s at main `737b5fa4` with production's flags: a 76k-token conversation's follow-up reuses 75968 tokens before a stop (3.3 s); at `docker stop -t 30` its donor on the cards is copied to host memory and written, 5.45 GB in a stop of 7.9 s, and the same build adopts it; the next turn then reuses nothing and reads 76194 tokens in 275 s, with no read started. A 21k-token conversation survives the same sequence (21312 tokens reused, 3.5 s).
@@ -169,7 +215,7 @@ The status table and the active blocks above give the present state; a record's 
 - **Found:** `llmx serve --timing` over two stages of tensor groups died at its first request with a corrupted heap (main a01216fb, Qwen3-32B Q8_0 on four MI50s, every such server of a measurement; the same servers without `--timing` and a timed layer split ran). A timed scheduler reads each stage's device time at the end of a round, a call on that stage's devices from the scheduler's thread, and since the stage threads a recorder may be recording there; the one call another thread may make on a recording backend is a wait on a returned ticket. The host copies, marks, retracts and kept states were routed through the wait for idle recorders when the threads landed, and this reading was missed.
 - **Fix:** both readings go through that wait (`quieted`), and so do the slabs a disk read allocates on every device and the ones a copy beyond the tier frees, the one path the review's list of every such call found outside the rule's letter: creating and freeing a host-visible buffer is safe beside a recording on Vulkan, but the rule names one call, and the wait costs a read's start and end a stage's time at most, on a path that runs once a read, timed or not. Failing test first: `server-passes-cpu` runs a timed scheduler over two stages of CPU groups whose backends report a device time and count each reading that meets a submission of their own; 2 to 5 met at the test's commit in three runs, none at the fix.
 - **Scope:** `--timing` with several passes in flight over groups, which no production server runs.
-- **Left:** the review's list made a test: a test backend counting every entry point but a ticket wait against a recording, in the group cases with a disk tier, a timed scheduler and several passes; the next branch.
+- **Left, parked (2026-10-07):** the review's list made a test. A first form, a test backend counting calls that meet a recording under a timed scheduler over two stages of CPU groups with a host and a disk tier, caught by chance: with each unguarded call planted in turn it failed every run for the timing read, one run in three for a promotion from host memory, never for a donor's copy to host memory, and its disk arm wrote and read nothing. The form to build is deterministic, as `server-resume`'s hook backend is for passes in flight: the backend holds a recorder inside a submission on a latch, the test causes each action from the scheduler's side (a donor's copy to host memory, its promotion, a disk read, the timing read), requires that no call from another thread reaches the backend while the latch is held and that it arrives once released, with the host tier sized from the scheduler's own figure for one copy and `disk_entries` and `disk_hits` required before that part runs. What blocks it: which call makes the host copies under that load is not found (the planted one changed no counter), nor why nothing went to disk. Until it lands, `server-passes-cpu`'s timed case holds the timing read alone and the other calls rest on the review's list in the collaboration log.
 - **Reviewed by:** F2DEV at 7613411d, no blocking finding; the slab calls routed as it proposed.
 
 ## A short last message keeps its boundary too (2026-10-06, branch fix/boundary-last-block, lands by fast-forward)

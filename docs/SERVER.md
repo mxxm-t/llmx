@@ -217,6 +217,7 @@ stall the decoding requests for a whole pass: they advance one token a
 pass while the prompt goes through in slices. That is the reason the
 prompt slice comes after the decode entries and is bounded by what is left
 of `ubatch`.
+What `--ubatch` trades when serving, by placement, is measured in `docs/USAGE.md` (Physical batch): a decoder's token waits for the pass its row rides, so fewer prompt rows a pass shorten the longest gap and cost output; the scheduler has no rule of its own for it, a cap on the prompt rows of a pass that carries decoders having measured as a trade on tensor groups and a loss on a layer split.
 
 Layer split phase 3's step 0 (`docs/STATUS.md`) timed the host time between a pass's logits and the next pass on Qwen3-8B-Q8_0 on one MI50: 0.26 to 0.71 ms a row greedy and at the defaults at 1 to 32 sequences, nearly all of it sampling and about half of a greedy row the copy out of the mapped logits, which is 7 to 14 percent of a greedy pass at 8 to 32 sequences; the 25 microseconds an earlier timing build recorded did not hold.
 For the same requests a second pass in flight would not hide that time, because the next pass's tokens come from this one, so one device keeps one pass in flight; on a split the passes in flight carry different requests, and one is sampled while the stages run the others.

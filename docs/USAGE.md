@@ -491,6 +491,12 @@ so a pass can hold up to `--ubatch` plus `--max-seqs` rows (`docs/SERVER.md`).
 For a CLI prompt, scratch grows to the smaller of `--ubatch` and that prompt.
 The server reserves its pass capacity at startup, including decode rows.
 
+When serving, `--ubatch` is also how long a decoding request waits while a prompt is read: its row rides a pass, and its token comes when that pass has left the last stage.
+On Qwen3-32B Q8_0 over four MI50s at `--dtype int8`, a pass of 512 prompt rows takes about 1.0 s on two stages of tensor groups of two and 1.6 s on a layer split of four, and one of 128 rows 0.27 and 0.42 s.
+So a smaller value shortens the longest gap between a request's tokens and costs output, since smaller passes read a prompt slower (8 percent at 128 rows, 16 to 24 at 64).
+Measured there: on tensor groups `--ubatch 128` cut the inter-token p99 at 32 and 64 users two to three times (946 to 335 ms at 32 users on 128-token prompts) for 1 to 4 percent of the output on short prompts and 8 to 11 on long ones, and raised it at 16 users (56 to 396 ms), where requests start decoding sooner and then ride more, shorter prompt passes; on a layer split it helped the closed loads the same way and, with long prompts arriving beside decoding users, made the p99 worse (94 to 546 ms) for a fifth of the output.
+The default of 512 is the setting for output and for a layer split; 128 is the setting for the steadiest tokens on tensor groups at 32 users and more; 64 was worse than 128 on every count. `docs/STATUS.md` has the tables.
+
 ## `llmx generate <in.gguf> ("<prompt>" | --file <path>) [flags...]`
 
 `--dtype` selects activation precision (Precision, above).

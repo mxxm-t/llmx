@@ -81,14 +81,14 @@ inline std::string compat_number(float logprob) {
     return jmini::number(logprob >= kLogprobFloor ? logprob : kLogprobFloor);
 }
 
-// The assistant turn a chat reply `text` is read again as (Api::next_turn): on the compatible route its content with its reasoning beside it, on the native route the text as the format keeps a turn.
+// The assistant turn a client sends back for a chat reply `text`, which the reply is read again as (Api::next_turn).
+// On the compatible route that is the content alone, read as the route reads a message without reasoning_content: its clients do not return the reasoning the route gave apart, so a template that keeps the reasoning it is given renders none for them.
+// On the native route it is the text whole, as the format keeps a turn.
 inline chat::Message reply_sent_back(const chat::ChatFormat& format, bool compatible, bool opened, const std::string& text) {
     if (!compatible) return format.assistant(text);
     chat::ReplySplit split(opened);
     const chat::ReplySplit::Parts parts = split.feed(text), last = split.finish();
-    std::optional<std::string> reasoning;
-    if (split.reasoned()) reasoning = parts.reasoning + last.reasoning;
-    return {"assistant", parts.content + last.content, reasoning};
+    return format.assistant(parts.content + last.content);
 }
 
 class Api {
@@ -365,7 +365,7 @@ private:
         return n;
     }
 
-    // The ids a chat request's next turn begins with after `text`, its reply as far as it is written, given back as the route gave it to the client: the content apart from the reasoning on the compatible route, the text whole on the native one (docs/SPECULATIVE.md, section 2, Idle re-prefill).
+    // The ids a chat request's next turn begins with after `text`, its reply as far as it is written, given back as a client of the route sends it (reply_sent_back): the content alone on the compatible route, the text whole on the native one (docs/SPECULATIVE.md, section 2, Idle re-prefill).
     // None while the reply's reasoning is still being written, which a next turn may drop.
     std::vector<uint32_t> next_turn(const jmini::Value& body, Route route, const std::string& prompt, const std::string& text, bool writing) const {
         const bool opened = chat::opens_reasoning(prompt);

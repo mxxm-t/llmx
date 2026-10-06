@@ -121,6 +121,23 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## A chat reply is read again as its client sends it back (2026-10-06, branch fix/follow-content, lands by fast-forward)
+
+- **Found:** in production (Qwen3.8-27B Q8_0 over two MI50s, Open WebUI on `/v1/chat/completions`) the turn after a long reply waited minutes for its first token, restart or not: after "74766 prompt tokens, 6247 generated" the next turn was "76655 prompt tokens (74752 reused)", and the 123200 rows the server had read again while idle were never forked.
+- **Cause:** the re-read rendered the reply as the route gave it, its reasoning beside its content (`reasoning_content`). The Qwen 3.8 template keeps the reasoning it is given in every assistant turn, where the older templates drop a past turn's, and clients send back the content alone, which the template renders with an empty think block. So the history read again and the real next prompt parted at the reply's first token.
+- **Done:** `reply_sent_back` (`src/server/api.hpp`) is the assistant turn a reply is read again as: on the compatible route the content alone, read as the route reads a message without `reasoning_content`. The test commit fails without it, in `server-utf8`: under a template that keeps the reasoning it is given, the turn held the reasoning and rendered another prompt than the content sent back does.
+- **Measured** on two MI50s, Qwen3.8-27B Q8_0 with the embedded drafter, an 825-token prompt whose reply is 9588 tokens (24811 characters of reasoning, 1543 of content), the follow-up sent with the content alone, 1212 prompt tokens:
+
+  | | rows read again | follow-up reused (tokens) | follow-up first token (s) |
+  |---|---|---|---|
+  | main `1a0e92d8` | 10368 | 768 | 1.36 |
+  | this branch | 1152 | 1152 | 0.33 |
+
+- **A client that does return `reasoning_content`**, under a template that keeps it, now reuses the conversation to its previous prompt's last whole block and reads that reply again, as every client did before; one re-read serves one of the two renders, and the standard request carries no reasoning.
+- **Reviewed** by F2DEV.
+- **Left:** a request whose last user message starts in its prompt's last whole block keeps no message boundary of its own, so after a restart its conversation is forked a message earlier; its own branch follows.
+
+
 ## The known findings cleaned up (2026-10-06, branch cleanup/known-findings, lands by fast-forward)
 
 - **Done:** `tests/data/known_findings.txt` goes from 34 lines to 15, none waiting for a branch. Removed as unreached: `Backend::state_copy` (its reason, step 8b of the qwen35 plan, was false: nothing but two tests called it), the `Fd(int)` constructor of the hub transport, the const `kh` and `vh` of the CPU KV storage and `BlockPool`'s sizing constructor; `http::fetch`, the HTTP layer's client, moved into the `http` test, its one user. The 13 line numbers STATUS's records gave without a commit are dropped, `docs/VULKAN.md` no longer writes a command that does not exist, and `q8_dots.hpp` has its page.

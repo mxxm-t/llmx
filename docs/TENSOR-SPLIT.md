@@ -534,7 +534,7 @@ Decided with the coordinator, the other developer away:
    With both closed, the transport left for the reference's protocol is the in-submission flag wait, which needs the kernel change above; until the user decides how to test it, step 3 builds the sync-file collective behind `Collective`, and its gate stays open below the reference as section 8's decision on the gate allows.
    Whatever passes `llmx-vk-handoff exchange` goes behind `Collective`; the sync-file path stays the fallback.
 4. **The flag** is `--tensor-width N` in place of `--group-width N` (section 4.6), with the refusals listed there.
-5. **Width 4** of the reference on one root complex is measured once the fourth card is free, and added to section 2.8.
+5. **Width 4** of the reference on one root complex is measured (2026-10-06, `docs/STATUS.md`, a decode sum at width 4): Qwen3-32B Q8_0 pp512 502 to 511 and tg128 49 to 50 tok/s, against llmx at `--dtype int8` 586 to 588 and 12 to 16.5; the decode cell is open, a sum costing about 345 us there against the 30 to 50 it may.
 6. **Width 8:** the cap of 4 (decision 3) opens once a width-8 Vulkan sum is measured with `llmx-vk-handoff exchange` and the per-token model says width 8 pays; the gate at 8 cards is the reference's best shape there, width 8 (Qwen3.6-27B Q8_0 tg256 57.2 tok/s with two-shot, against 51.7 at width 4) or staged, whichever is faster on the load measured, so llmx's 2 stages of 4 meet the reference's width 8 where that is its best.
 
 ### The gate at the same precision, at every width (the user, 2026-10-05)

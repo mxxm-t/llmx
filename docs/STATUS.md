@@ -177,6 +177,50 @@ The status table and the active blocks above give the present state; a record's 
 - **Left:** the rest of the edit gap is the boundary's whole block (25 to 37 tokens), the prompt rate (4.3 ms a token against the reference's 3.9) and the regenerate's job pass an edit waits behind; a floor on a kept boundary's position, if regenerates at 24 users are to be level, is its own measured change.
 - Reviewed by D2CDEV.
 
+## A decode sum at width 4: the reference's row and where the time goes (2026-10-06, measured, docs only, lands by fast-forward)
+
+- **Goal:** the tensor split's open decode cells at width 4, measured before anything is built: the reference's tensor split of four beside llmx on the same cards, and what a decode sum's time is made of at width 4 against width 2.
+- **Measured** (main a01216fb, `llmx 0.1.0+ga01216fb202f`; Qwen3-32B Q8_0 on four MI50s under one root, default clocks, the process on logical CPUs 8 to 11, one session, arms interleaved, two rounds; `bench --model --p 512 --n 128 --r 3`, and the reference `llama-bench -ngl 99 -fa on -sm tensor -lm dio -p 512 -n 128 -r 3` of the pinned image with its environment; tok/s):
+
+  | | width 4 pp512 | width 4 tg128 | width 2 pp512 | width 2 tg128 |
+  |---|---|---|---|---|
+  | reference tensor split | 502.1, 511.1 | 49.8, 48.9 | 569.5, 568.9 | 33.3, 33.9 |
+  | llmx `--dtype int8` | 588.3, 586.2 | 12.1, 12.2 | 532.6, 532.4 | 26.6, 29.6 |
+  | llmx default precision | 460.1, 459.3 | 12.3, 16.5 | 356.6, 357.6 | 27.6, 29.7 |
+
+  At width 4 and `int8` a prompt reads 1.16 times as fast as the reference's and decode runs at a quarter to a third of it. The width-4 decode cell read 15.6 and 16.3 an hour earlier in the same session.
+- **Where a decode sum goes** (`int8`, timing-only builds of the same commit, their logits wrong where the sum is cut; tg128, two rounds):
+
+  | | width 4 | width 2 |
+  |---|---|---|
+  | main | 15.6, 16.3 | 29.7, 29.5 |
+  | no sum at all | 61.6, 62.1 | 36.0, 36.3 |
+  | semaphores and adds, nothing copied to the peers | 16.3, 15.1 | 30.5, 29.6 |
+  | a token's time over its 128 sums, and with no sum | about 470 and 126 us | about 262 and 217 us |
+  | so a sum costs | about 345 us | about 46 us |
+  | host time in a one-row sum: recording the copies | 11 us | 2 us |
+  | the members' submissions, one after another, wall and the thread's CPU time | 290 and 284 us (four) | 206 and 117 us (two) |
+  | exporting and importing the sync files, wall and CPU | 107 and 107 us (twelve) | 19 and 19 us (two) |
+  | recording the adds | 26 to 29 us | 10 to 15 us |
+
+  The copies are not the cost at decode. At width 4 a sum is host CPU time on the one thread that records, about 390 us of it in the members' submissions and their sync files, and that thread paces the token while the devices have 126 us of work an interval. At width 2 the devices have 217 us of work an interval, the host is mostly ahead, and the sum costs 46 us. A submission that waits on and signals sync-file semaphores takes 58 to 71 us of CPU here against about 7 us for a plain one in `llmx-vk-handoff exchange` (its floor).
+- **What llmx could cut without the kernel route** (estimates from these numbers, none built): each member's submission and sync-file work on a thread of that member's, up to three quarters of the 391 us at width 4, about 43 tok/s as an upper bound, and bounded by the devices at about 33 to 36 at width 2; one sync file a member in place of one a pair, about half of the 107 us; whatever makes a semaphore submission ten times dearer than a plain one, unknown until profiled; sums fused into the kernels that produce and consume them, about 40 us a sum. A ring or tree at decode sizes adds rounds, and submissions are the cost; one submission for a layer's two sums is not possible, since the feed-forward reads the first sum.
+  Only a wait inside one submission (`docs/TENSOR-SPLIT.md`, the kernel route) or another transport removes the submission a sum; decode would then approach the figures with no sum, 62 tok/s at width 4 and 36 at width 2.
+- **Gotcha:** this machine's logical CPUs 8 to 11 are the second threads of cores 0 to 3, which other work on the machine uses, so a path bound by one host thread, as width 4's decode is, moves with what runs there (12 to 16.5 tok/s in this session).
+- **The profile of the exchange** (strace of every ioctl and 120 stacks of the recording thread of a decoding process; the machine has no kernel profiler, so the kernel's side is seen by call): the thread is inside an ioctl in four stacks of five at both widths, and one sum at width 4 is about 76 calls, 4 submissions, 12 syncobj waits and five calls for each of the twelve sync files exported and imported, against about 16 at width 2. No single call is dear; the count grows with the pairs of members. Why a submission's own ioctl takes about 30 us here against about 7 in the exchange probe is not answered.
+- **The levers timed** (timing builds of the same commit with only the exchange rebuilt, greedy ids those of main at both widths; `int8`, two rounds, the sibling threads of the process's CPUs 2 to 8 percent busy):
+
+  | tg128 | width 4 | width 2 |
+  |---|---|---|
+  | reference tensor split | 48.9, 49.8 | 33.3, 33.9 |
+  | main | 16.5, 16.6 | 29.7, 29.8 |
+  | one sync file a member, merged by the waiter | 17.8, 17.8 | 29.6, 29.7 |
+  | a thread a member for its submission and sync files | 23.7, 25.2 | 29.6, 29.5 |
+  | both | 22.7, 21.8 | 29.7, 29.7 |
+
+  pp512 does not move with any of them. A thread a member gains about 1.5 times at width 4, not the three quarters of the host time estimated above: the build wakes its threads three times an exchange, and not all of that time divides. Without the kernel route the sync-file exchange at width 4 reaches about half the reference's decode in the best of these builds, and width 2 has nothing left on the host's side.
+- **Left:** the decision what to build; none of the timing builds is in the tree.
+
 ## A group's large sums in two shots (2026-10-06, branch perf/tp-twoshot, step 3b of TENSOR-SPLIT, lands by fast-forward)
 
 - **Goal:** the user's direction of 2026-10-05, a collective that chooses by a sum's size: among three members or more, broadcast sends every member each whole partial, which is what a prompt pass at width 4 spent its time moving.
@@ -194,7 +238,7 @@ The status table and the active blocks above give the present state; a record's 
   Checks at that head: CTest 45 of 45 with four MI50s, `backend-vulkan` summing among three on both sides of the crossover; docs, dead-code and the linked check; the suite's `tensor-split` and `chat` at width 4.
   The crossover comes from the exchange alone, timed on the same cards before this change: two shots never win between two members, are level with broadcast at 640 KB and ahead from 1.25 MB among three and four (10 MB: 3.2 against 4.7 ms among three, 3.8 against 7.6 ms among four).
   Reading every peer's partial in place, one shot, was slower than both at every size and is not in the code.
-- **Left:** the decode sum at width 4, which two shots do not touch.
+- **Left:** the decode sum at width 4, which two shots do not touch (measured in the block above).
 - **Reviewed by:** D2CDEV at 95019267, no finding; its note on the machine that holds the two-shot path is in AGENTS, and the crossover stays a constant of the Vulkan backend until a second transport or card gives a second number.
 
 ## The kept-entries check waits for its reads (2026-10-06, branch fix/keep-check-wait, lands by fast-forward)

@@ -2,7 +2,7 @@
 
 The tiny qwen35 model's MTP block split into a file of its own by llmx-drafter-pack drafts from beside the model as it drafts embedded, bit for bit, and embedded back gives the file it came from; with it, generate, chat, bench and serve give what they give without drafts.
 Draft models, a qwen35 and a qwen3 model sharing the target's tokenizer, give generate's and chat's output without drafts too, and the server and bench refuse them.
-Every pairing check (infer::spec::pair) refuses its case by name, as does a DFlash drafter that pairs, which nothing runs yet, and a file cut short.
+Every pairing check (infer::spec::pair) refuses its case by name, as it does a DFlash drafter, whose architecture llmx does not run, and a file cut short.
 """
 import os
 import re
@@ -131,29 +131,11 @@ def check_refusals(directory, embedded, split, side):
         out.write(f.read(os.path.getsize(side) // 2))
     rc, out = cli(["generate", split, "abc", "-n", "1", "--drafter", cut])
     assert rc != 0 and "GGUF" in out, "a drafter file cut short was not refused: " + out
-    # A DFlash drafter is paired on its header: the target's tokenizer, its architecture, its hidden size, its taps and its mask token; one that pairs is refused as nothing runs it yet.
-    kinds = [1] * VOCAB
-    kinds[eos] = 3
-    types = (9, (5, kinds))
-    typed = variant(split, d("typed.gguf"), {"tokenizer.ggml.token_type": types})
-    def dflash(name, target, **keys):
-        t = spec_decode.GGUF(target)
-        md = {k: v for k, v in t.metadata.items() if k.startswith("tokenizer.")}
-        md["general.architecture"] = (8, "dflash")
-        md["dflash.embedding_length"] = (4, keys.get("width", width))
-        md["dflash.target_layers"] = (9, (5, keys.get("taps", [1, 3])))
-        md["dflash.block_size"] = (4, 8)
-        md["tokenizer.ggml.mask_token_id"] = (4, keys.get("mask", eos))
-        spec_decode.write_gguf(d(name), md, [])
-        return d(name)
-    refused(typed, dflash("df-width.gguf", typed, width=width + 1), "dflash.embedding_length is %d where the model has %d" % (width + 1, width), "a DFlash drafter of another width")
-    refused(typed, dflash("df-order.gguf", typed, taps=[3, 1]), "dflash.target_layers is not strictly increasing within the model's 4 layers", "DFlash taps out of order")
-    refused(typed, dflash("df-past.gguf", typed, taps=[1, 5]), "dflash.target_layers is not strictly increasing within the model's 4 layers", "DFlash taps past the layers")
-    refused(typed, dflash("df-mask.gguf", typed, mask=65), "tokenizer.ggml.mask_token_id 65 is not a control or user token", "a DFlash mask that is a plain token")
-    refused(typed, dflash("df-ok.gguf", typed), "is a DFlash drafter, which pairs with", "a DFlash drafter, which nothing runs yet")
-    qwen3_typed = variant(write_model(d("qwen3-target.gguf"), qwen3_tensors(False), eos_id=eos), d("qwen3-typed.gguf"), {"tokenizer.ggml.token_type": types})
-    refused(qwen3_typed, dflash("df-qwen3.gguf", qwen3_typed, width=QWEN3_CONFIG["embedding_length"]), "a DFlash drafter drafts for no model of the architecture 'qwen3'",
-            "a DFlash drafter beside a model of an architecture it drafts for none of")
+    # A DFlash drafter of the target's tokenizer is refused by its architecture, which llmx does not run (docs/SPECULATIVE.md, step 7).
+    md = {k: v for k, v in spec_decode.GGUF(split).metadata.items() if k.startswith("tokenizer.")}
+    md["general.architecture"] = (8, "dflash")
+    spec_decode.write_gguf(d("dflash.gguf"), md, [])
+    refused(split, d("dflash.gguf"), "its architecture 'dflash' is not one llmx runs", "a DFlash drafter")
 
 
 def wide(directory, name):

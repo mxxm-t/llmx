@@ -366,7 +366,7 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
 } // namespace detail
 
 // Load the model at `path`, a GGUF file or the first shard of a set, over the caller's `backends` as `request` places it, reading the weights as `mode` says: read the headers, build the tokenizer and the chat format, place the model, and fill the weights the backends copy, reporting the payload to `progress`.
-// A `drafter_file` beside it is read to its headers and paired with it first (spec::pair, docs/SPECULATIVE.md, step 6): MTP blocks are joined to the model and loaded as its embedded drafter, from their own file; a draft model is left for the caller to load as a model of its own; a DFlash drafter is refused, as nothing runs one yet.
+// A `drafter_file` beside it is read to its headers and paired with it first (spec::pair, docs/SPECULATIVE.md, step 6): MTP blocks are joined to the model and loaded as its embedded drafter, from their own file; a draft model is left for the caller to load as a model of its own.
 // The host's copy of the weights is then released when no host reads one in place, and otherwise the pages of every tensor no host reads leave its working set.
 inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vector<backend::BackendPtr> backends,
                                                const PlacementRequest& request, const ModelOptions& options = {},
@@ -380,8 +380,6 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     if (!drafter_file.empty()) {
         gguf::GGUFModel side = gguf::read_gguf(drafter_file);
         loaded->drafter = spec::pair(file, path, side, drafter_file);
-        if (*loaded->drafter == spec::DrafterKind::dflash)
-            throw std::runtime_error("inference: " + drafter_file + " is a DFlash drafter, which pairs with " + path + " but which this build does not run");
         if (*loaded->drafter == spec::DrafterKind::mtp) {
             spec::join_blocks(file, std::move(side));
             placing.drafter = true;

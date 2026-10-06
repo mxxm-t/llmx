@@ -15,8 +15,8 @@
 namespace infer {
 namespace spec {
 
-// What a drafter file is for its target: its MTP blocks, as converters write them after the target's layers; a DFlash drafter; or a model of its own drafting by its own forward pass.
-enum class DrafterKind { mtp, dflash, model };
+// What a drafter file is for its target: its MTP blocks, as converters write them after the target's layers, or a model of its own drafting by its own forward pass.
+enum class DrafterKind { mtp, model };
 
 namespace detail {
 
@@ -47,7 +47,6 @@ inline std::string architecture(const gguf::GGUFModel& m) {
 // The kind of drafter the file `drafter` (read from `drafter_path`) is for the model `target` (from `target_path`), or a refusal naming both files and what differs.
 // Every kind shares the target's tokenizer: its model, pre-tokenizer, tokens, token types, merges and end of text.
 // A file of the target's architecture whose tensors all sit in blocks past the target's layers is its MTP blocks: its metadata under the architecture's prefix must be the target's but for its block count, which counts them, its MTP count, and per-block arrays that go on past the target's, and the target must carry no MTP block of its own.
-// A DFlash file must draft for an architecture whose entry allows it, at the target's hidden size, with its taps strictly increasing within the target's layers, a block of at least one and its mask a control or user token of the target.
 // Any other file is a draft model, of an architecture llmx runs.
 inline DrafterKind pair(const gguf::GGUFModel& target, const std::string& target_path, const gguf::GGUFModel& drafter, const std::string& drafter_path) {
     const auto refuse = [&](const std::string& what) {
@@ -67,24 +66,6 @@ inline DrafterKind pair(const gguf::GGUFModel& target, const std::string& target
     const int nextn = metadata::count(target, prefix + "nextn_predict_layers", 0);
     const int layers = blocks - nextn;
     const std::string kind = detail::architecture(drafter);
-
-    if (kind == "dflash") {
-        if (!entry.dflash) throw refuse("a DFlash drafter drafts for no model of the architecture '" + std::string(entry.name) + "'");
-        const auto *t = target.find(prefix + "embedding_length"), *d = drafter.find("dflash.embedding_length");
-        if (!detail::same(t, d)) throw differs("dflash.embedding_length", t, d);
-        const std::vector<int> taps = metadata::counts(drafter, "dflash.target_layers");
-        if (taps.empty()) throw refuse("dflash.target_layers names no layer");
-        for (size_t i = 0; i < taps.size(); ++i)
-            if (taps[i] > layers || (i && taps[i] <= taps[i - 1]))
-                throw refuse("dflash.target_layers is not strictly increasing within the model's " + std::to_string(layers) + " layers");
-        metadata::integer(drafter, "dflash.block_size");
-        const auto* mask = drafter.find("tokenizer.ggml.mask_token_id");
-        const auto* types = target.find("tokenizer.ggml.token_type");
-        const int id = mask ? metadata::count(drafter, "tokenizer.ggml.mask_token_id", 0) : -1;
-        const bool special = types && id >= 0 && size_t(id) < types->arr.size() && (types->arr[size_t(id)].i == 3 || types->arr[size_t(id)].i == 4);
-        if (!special) throw refuse("tokenizer.ggml.mask_token_id " + detail::shown(mask) + " is not a control or user token of the model");
-        return DrafterKind::dflash;
-    }
 
     bool blocks_only = !drafter.tensors.empty();
     for (const auto& t : drafter.tensors) {

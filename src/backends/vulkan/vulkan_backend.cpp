@@ -2624,19 +2624,25 @@ public:
     // An input without one gets a quantize dispatch here; the scratch is reused stream-ordered.
     VkDescriptorBufferInfo row_twin(CSlice X, const RowPlan& plan, size_t n, Dtype dtype) {
         if (weight_kernels(plan.type)->layout == RowLayout::values || dtype == Dtype::f32) return bind(X);
-        const bool x8 = reads_x8(plan.kernel);
+        return twin(X, n, reads_x8(plan.kernel), 0);
+    }
+
+    // The twin of X's n values, bound where its reader takes it: the 16-bit one, or with x8 the 8-bit one after it; the one a producer wrote and tagged, or one made here.
+    // `tile_nin` is the row width for the integer-dot tile, which reads the 8-bit twin in either order and has it made four values a lane (shaders/quantize_xw.comp), and zero for a row kernel, which reads it column after column, so a block-major one is made again (shaders/quantize_x.comp).
+    VkDescriptorBufferInfo twin(CSlice X, size_t n, bool x8, size_t tile_nin) {
         // The first matmul reading the 8-bit twin has it made here; producers after it write both.
         if (x8) want_x8_ = true;
         const VkDescriptorBufferInfo xf = bind(X);
-        VkDescriptorBufferInfo xqi = xq_for(n);
-        // A row kernel reads the 8-bit twin column after column, so a block-major one is made again.
-        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset && (!x8 || (xq_tag_.has8 && !xq_tag_.major)))) {
-            const uint32_t qpc[1] = {u32(n)};
-            dispatch(K_QUANTIZE_X, {xf, xqi}, qpc, sizeof(qpc), groups(n, 256), 1, twin_variant());
-            xq_tag_ = XqTag{xf, n, want_x8_};
+        VkDescriptorBufferInfo xq = xq_for(n);
+        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset && (!x8 || (xq_tag_.has8 && (tile_nin || !xq_tag_.major))))) {
+            const uint32_t major = tile_nin ? x8_major(tile_nin, n / tile_nin) : 0;
+            const uint32_t pc[2] = {u32(n), major};
+            if (tile_nin) dispatch(K_QUANTIZE_XW, {xf, xq}, pc, sizeof(pc), groups(n / 4, 256), 1, twin_variant());
+            else dispatch(K_QUANTIZE_X, {xf, xq}, pc, sizeof(uint32_t), groups(n, 256), 1, twin_variant());
+            xq_tag_ = XqTag{xf, n, want_x8_, major};
         }
-        if (x8) xqi.offset = x8_base_bytes(n);
-        return xqi;
+        if (x8) xq.offset = x8_base_bytes(n);
+        return xq;
     }
 
     // One row kernel dispatch through the build `variant` over up to three projections of one type and columns col0 .. col0 + ncols of X, which has nbatch columns.
@@ -2849,20 +2855,10 @@ public:
         return VkDescriptorBufferInfo{xq_->handle(), 0, VK_WHOLE_SIZE};
     }
 
-    // The 16-bit twin of an n-value batch the integer-dot tile reads, or with x8 the 8-bit twin after it: the one a producer wrote, or one made here four values a lane (shaders/quantize_xw.comp).
-    // `xpad` receives the padded columns of a block-major 8-bit twin, zero for one that lies column after column; the tile reads either.
+    // The twin the integer-dot tile reads (twin); `xpad` receives the padded columns of a block-major 8-bit twin, zero for one that lies column after column.
     VkDescriptorBufferInfo tile_twin(CSlice X, size_t n, size_t nin, bool x8, uint32_t& xpad) {
-        if (x8) want_x8_ = true;
-        const VkDescriptorBufferInfo xf = bind(X);
-        VkDescriptorBufferInfo xt = xq_for(n);
-        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset && (!x8 || xq_tag_.has8))) {
-            const uint32_t major = x8_major(nin, n / nin);
-            const uint32_t pc[2] = {u32(n), major};
-            dispatch(K_QUANTIZE_XW, {xf, xt}, pc, sizeof(pc), groups(n / 4, 256), 1, twin_variant());
-            xq_tag_ = XqTag{xf, n, want_x8_, major};
-        }
+        const VkDescriptorBufferInfo xt = twin(X, n, x8, nin);
         xpad = x8 && xq_tag_.major ? x8_columns(u32(n / 32 / xq_tag_.major)) : 0;
-        if (x8) xt.offset = x8_base_bytes(n);
         return xt;
     }
 

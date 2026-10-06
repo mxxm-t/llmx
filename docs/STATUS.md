@@ -121,6 +121,22 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## The audit's int8 and drafter findings (2026-10-06, branch cleanup/audit-g, lands by fast-forward)
+
+- **Goal:** D2CDEV's tightness audit of main since bd05390a, its findings on int8 and the drafters, each rechecked against the code.
+- **Done:**
+
+  | finding | recheck | disposition |
+  |---|---|---|
+  | `row_twin` and `tile_twin` are the same lines twice | true: both looked the tag up, quantized on a miss and bound the twin, differing in the quantizer, its group count and whether a block-major 8-bit twin is read | fixed: one `twin` holds the lookup and both quantizers; `row_twin` keeps its early return for float inputs and `tile_twin` the padded columns it reports |
+  | bench's `--drafter` split into a bool and a string and rejoined twice | true | fixed: `bench_drafter` returns one `BenchDrafter` that `cmd_bench_model` takes |
+  | `spec::pair` classifies a DFlash file that the loader then refuses, with a registry column for that alone | true: nothing runs a DFlash drafter until SPECULATIVE step 7 | fixed by removal: the DFlash checks, `DrafterKind::dflash`, the loader's refusal and `ArchEntry::dflash` are gone, and a DFlash file is refused by the check every unknown architecture meets ("its architecture 'dflash' is not one llmx runs"); step 7 brings its checks with their runner |
+  | the 8-bit producers in `xquant.glsl` parallel the 16-bit ones | true, about ten lines shared | rejected for its value: a shared core saves about ten lines; taken up if those functions are next edited for a reason of their own |
+
+- **Result:** src/ loses 23 lines net and tests/ 18; no behaviour changes but the text of the DFlash refusal. The bytes of long-prompt logits, perplexity and decode rows under int8 and f16 on Qwen3-8B Q8_0 and Q4_K_M equal main's on one MI50.
+- **Review:** F2DEV read the branch at 702dfeda5 and posted no finding; it agreed with leaving the `xquant.glsl` core for its value.
+- **Left:** nothing.
+
 ## A chat reply is read again as its client sends it back (2026-10-06, branch fix/follow-content, lands by fast-forward)
 
 - **Found:** in production (Qwen3.8-27B Q8_0 over two MI50s, Open WebUI on `/v1/chat/completions`) the turn after a long reply waited minutes for its first token, restart or not: after "74766 prompt tokens, 6247 generated" the next turn was "76655 prompt tokens (74752 reused)", and the 123200 rows the server had read again while idle were never forked.

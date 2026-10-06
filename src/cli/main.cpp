@@ -921,27 +921,29 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 
 // Time model execution over fixed IDs after warm-up; history setup and sampling are outside the timer.
 // Multi-sequence decode follows each sequence's prompt, while single-sequence runs may use the requested depth; see docs/USAGE.md.
-// What bench's `--drafter` value `d` asks for: true for the file's embedded drafter, and `d` left naming MTP blocks in a file beside it, or emptied for embedded and off; it drafts nothing either way.
-bool bench_drafter(std::string& d) {
+// What bench's `--drafter` value asks for: the file's embedded drafter, the MTP blocks of a file beside it, or neither for off; it drafts nothing either way.
+struct BenchDrafter {
+    bool embedded = false;
+    std::string file;
+    explicit operator bool() const { return embedded || !file.empty(); }
+};
+BenchDrafter bench_drafter(const std::string& d) {
     if (d == "lookup") throw UsageError("bench --model takes --drafter off, embedded or a drafter file, not 'lookup'");
-    const bool embedded = d == "embedded";
-    if (embedded || d == "off") d.clear();
-    return embedded;
+    return {d == "embedded", d == "embedded" || d == "off" ? std::string() : d};
 }
 
-// With `drafter` the file's embedded drafter, or the MTP blocks `drafter_file` holds, is loaded and its context rows run in every pass, with no draft taken (docs/SPECULATIVE.md, section 7, the k = 0 gate).
-int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int G, int R, bool profile, int seqs = 1, int D = 0, bool drafter = false,
-                    const std::string& drafter_file = {}) {
-    drafter = drafter || !drafter_file.empty();
+// With `drafts` the file's embedded drafter, or the MTP blocks its file holds, is loaded and its context rows run in every pass, with no draft taken (docs/SPECULATIVE.md, section 7, the k = 0 gate).
+int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int G, int R, bool profile, int seqs = 1, int D = 0, const BenchDrafter& drafts = {}) {
+    const bool drafter = bool(drafts);
     // The drafter's rollback is timed after a verify of kRollbackDrafts drafts, which its mark holds, and a step after it: the prompt after the depth and those rows and one more.
     const size_t kRollbackDrafts = 3, rollback_reach = (size_t)D + (size_t)P + kRollbackDrafts + 2;
     // What each sequence holds at most: a batched one its prompt and its generated tokens, the one sequence its depth and the longer of its two tests, or the rollback's reach.
     const size_t reach = seqs > 1 ? (size_t)P + (size_t)G : std::max((size_t)D + (size_t)std::max(P, G), drafter ? rollback_reach : 0);
     backend::Backend* b = nullptr;   // the device --profile times
     const auto loaded = open_model(path, exec, false, exec.threads, (size_t)seqs, true, profile ? &b : nullptr, reach, 0, false, 0,
-                                   drafter ? kRollbackDrafts + 1 : 0, !drafter_file.empty() ? false : drafter, drafter_file);
+                                   drafter ? kRollbackDrafts + 1 : 0, drafts.embedded, drafts.file);
     if (loaded->drafter == infer::spec::DrafterKind::model)
-        throw std::runtime_error("bench --model times a drafter's rows in the model's own passes, and " + drafter_file + " is a draft model");
+        throw std::runtime_error("bench --model times a drafter's rows in the model's own passes, and " + drafts.file + " is a draft model");
     infer::Model& model = *loaded->model;
     // Ids below 1000, or below a smaller vocabulary's size, such as the test fixtures'.
     const uint32_t vocab = (uint32_t)std::min<size_t>(1000, model.n_vocab());
@@ -1575,8 +1577,9 @@ int main(int argc, char** argv) {
         }
         if (cmd == "bench") {
             BenchNumbers n;
-            bool profile = false, drafter = false;
-            std::string model_path, model_only, synthetic_only, drafter_file;   // the first flag given that only a model run reads, and the first only the synthetic bench reads
+            bool profile = false;
+            BenchDrafter drafter;
+            std::string model_path, model_only, synthetic_only;   // the first flag given that only a model run reads, and the first only the synthetic bench reads
             ExecOptions exec;
             GivenFlags given;
             for (int i = 2; i < argc; i++) {
@@ -1593,7 +1596,7 @@ int main(int argc, char** argv) {
                 else if (f == "--seqs") { n.seqs = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
                 else if (f == "--depth") { n.depth = int_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
                 else if (f == "--profile") { profile = true; if (model_only.empty()) model_only = a; }
-                else if (f == "--drafter") { drafter_file = flag_value(argc, argv, i, a); drafter = bench_drafter(drafter_file); if (model_only.empty()) model_only = a; }
+                else if (f == "--drafter") { drafter = bench_drafter(flag_value(argc, argv, i, a)); if (model_only.empty()) model_only = a; }
                 else throw UsageError("unknown flag: " + a);
                 given.take(a, i > at);
             }
@@ -1608,7 +1611,7 @@ int main(int argc, char** argv) {
                 if (specs.size() != 1 || specs[0].rfind("vulkan:", 0) != 0 || !exec.layer_shares.empty())
                     throw UsageError("--profile times the kernels of one Vulkan device");
             }
-            if (!model_path.empty()) return cmd_bench_model(model_path, exec, n.prompt, n.decode, n.repeats, profile, n.seqs, n.depth, drafter, drafter_file);
+            if (!model_path.empty()) return cmd_bench_model(model_path, exec, n.prompt, n.decode, n.repeats, profile, n.seqs, n.depth, drafter);
             return cmd_bench(n.size, n.iters, exec.threads, n.prompt, n.decode, exec.device);
         }
         std::cerr << "unknown command: " << cmd << "\n";

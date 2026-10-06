@@ -1079,6 +1079,46 @@ void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
     }
 }
 
+// A job begun while its reply is written forks its request's prompt blocks whenever its ids arrive, also in a round where a pass holds the request, and never reads the prompt again.
+// Eight requests in turn over a two-CPU split, each a 300-token prompt and 200 tokens, its next turn's ids given from the reader's thread once 100 tokens are read, so at no fixed point of a round, and whole at its end: each job reads the one block past its request's two.
+void job_forks_running(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a job begun while its reply is written";
+    auto model = on(weights, [] { return cpus(2); })(4096, 256);
+    server::Scheduler sched(*model, tok, 3, 64);
+    std::thread runner([&] { sched.run(); });
+    try {
+        for (uint32_t k = 0; k < 8; ++k) {
+            const Req r{prompt_of(20 + k, 300, vocab), 200};
+            const size_t before = sched.stats().reprefill_rows;
+            const auto h = sched.submit(r.prompt, params_of(r));
+            std::vector<uint32_t> next = r.prompt;
+            server::Request::Token t;
+            for (;;) {
+                const auto got = h->next(t, server::Request::Clock::now() + std::chrono::seconds(120));
+                if (got == server::Request::Next::end) break;
+                require(got == server::Request::Next::id, what + ": a channel gave nothing for 120 seconds");
+                next.push_back(t.id);
+                if (next.size() == r.prompt.size() + 100) sched.follow(h, next, false);
+            }
+            next.push_back(1);
+            next.push_back(2);
+            sched.follow(h, next, true);
+            for (const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60); sched.stats().reprefills != k + 1;) {
+                require(std::chrono::steady_clock::now() < until, what + ": the job of request " + std::to_string(k) + " did not complete in 60 seconds");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            const size_t rows = sched.stats().reprefill_rows - before, past = next.size() / kBlock * kBlock - r.prompt.size() / kBlock * kBlock;
+            require(rows <= past, what + ": the job of request " + std::to_string(k) + " read " + std::to_string(rows) + " rows, against the " + std::to_string(past) + " past its request's prompt blocks");
+        }
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+}
+
 // A job whose ids grow while its reply is written reserves the blocks they take before it reads them (XDEV's review of step 2c): on 16 blocks of 128 tokens, a 300-token prompt capped at 700 reserves 8, its job 3 for 384 tokens, then 7 for 896 once 600 tokens are written, 15 in all; a request needing 5 blocks then finds no free room, so the job gives way to it rather than both running past the pool, which ended every request of a pass with an allocation error.
 // Every request runs to its length with its reply alone, and once the reply has ended the job starts again and the follow-up forks its 896 tokens.
 void writing_growth(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
@@ -2200,6 +2240,7 @@ int main(int argc, char** argv) {
             writing_growth(one, tok, vocab);
             job_beside_decode(weights, tok, vocab, true);
             job_beside_decode(weights, tok, vocab, false);
+            job_forks_running(weights, tok, vocab);
             for (size_t devices = 1; devices <= 2; ++devices)
                 host_tier(weights, tok, vocab, devices, 0, HostFault::none, "donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));
             host_tier(weights, tok, vocab, 1, 0, HostFault::write_back, "donors in host memory, a write-back failing");

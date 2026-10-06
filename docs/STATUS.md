@@ -1,8 +1,127 @@
 # llmx - Development Status
 
+## Status table
+
+| Feature                                  | Status   |
+|------------------------------------------|----------|
+| Layered restructure                      | Done     |
+| Build config (config.hpp + CMake + build.bat) | Done |
+| Test suite (roundtrip / perf / tokenizer)| Done     |
+| Native server wave submission synchronization | Done |
+| Server consistency tool: fresh phases and matched cache selection | Done (main `83b943a`, seven hosted jobs passed) |
+| Perf `bench` command                     | Done     |
+| CPU backend optimization                 | Done     |
+| Early backend weight-type refusal and per-layer stream fallback | Done (main `737e082`, six hosted jobs passed) |
+| CPU tiny-activation range repair | Done; measured CLI Q5 decode cost retained in its record below |
+| Disk tier under the host tier (docs/DISK-TIER.md) | Done; steps 1 to 6 on main, measured in the record below |
+| A message boundary where a request's last user message starts | Done at `109784d3` (record below) |
+| Vulkan allocation failure ownership | Done |
+| Vulkan attention width and mixed-cache validation | Done |
+| More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
+| Activation dtype: resolution, CPU/Vulkan conformance, reporting and fallback | Done; qualified F16 default, explicit F32 and BF16 emulation, with the gates and retained speed gaps in the 2026-10-02 record below |
+| CPU fit reserve beyond payload buffers | Done; test-first repair, startup under the same 8 GiB limit and integrated server coverage recorded below |
+| Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | In progress (record below): the spec decoders, fixtures and MXFP4 writer merged at `e9b13dec`; CPU MXFP4 and explicit capture shares merged at `d81ed428`; Vulkan MXFP4 landed with the activation dtype (its row above). Remaining weight types and the recorded speed gaps stay open |
+| More model architectures (Llama, ...)    | Planned  |
+| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (record below, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the Vulkan backend, merged at `8d68d529` |
+| Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (record below); the CPU timing on a quiet host follows |
+| More formats (safetensors, ...)          | Planned  |
+| JSON syntax and Unicode validation      | Done |
+| GGUF reader size and tensor extent validation | Done |
+| Checked conversion output publication | Done: merged at `4b0ec6a5`; checked write/close before replacement |
+| JSON quantize tensor validation | Done |
+| Q4_0 finite-input packing | Done: merged at `99572401`; tiny-scale reciprocal overflow handled |
+| Qwen model construction validation | Done |
+| Paged KV cache (block pool, backend-owned blocks) | Done |
+| Device execution model (ROADMAP #4a)     | Done     |
+| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Done: steps 1 to 7, step 7 being the server, see the server row; `--device` lists select a layer split (multi-device row) |
+| KV cache fork (KV-CACHE step 2)          | Done     |
+| Multi-device split (per-layer, per-tensor) | In progress (`docs/MULTI-DEVICE.md`): phase 0 measured, phase 1 (the layer split over a `--device` list fitted to free memory) and phase 2 (a prompt pipelined over the stages) merged; phase 3, passes in flight: step 1, the pass API, step 2, the scheduler over it, step 3, a pass in flight per stage and the 16-slot command ring (`ec03dcfa`), and step 5, the wider Q8_0 decode builds (`perf/decode-columns`), merged; step 4, the in-place rows and the sampling pool, merged at `41b19afc`; step 6, the head split, measured on 2, 3, 4 and 8 cards and not merged (the user, 2026-09-29): bit-identical to one card, it served 17 to 23 percent below the whole head on 8 cards and below it on 2 to 4, and `feat/split-head` keeps it as a record to revisit after step 7; step 7 and the final server gate follow; the tensor split (`docs/TENSOR-SPLIT.md`): step 0 measured, step 1 (the shards) and step 2 (groups on the CPU) merged, step 3 (the Vulkan collective) merged with its speed gate open below the reference (2026-10-04), step 4 (tensor groups serving) merged (record below) |
+| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan implemented and the recorded dense-model device gate passed on both platforms (forty-seventh checkpoint, below): Radeon VII decode 102-115% and prefill 109-455% of the same-card reference Vulkan build; one MI50 decode 102-115% and prefill 102-267%. These are dated gate results, not new measurements from this documentation review. ROCm planned |
+| Multi-node / cluster                     | Planned  |
+| Two-row decode builds for the Q4 and K-quant rows | Done: merged at `b5cc467a` (record below) |
+| Q8_0 decode by two-wide 16-bit dots | Done (record below): bit-identical, 10 to 21 percent at 3 to 9 sequences on an MI50; lands by fast-forward |
+| A lone prompt read by every stage (phase 4) | Done (record below) |
+| The 16-bit prompt tile on the MI50 (option C step 1) | Measured, no gain in the shader alone (record below); the repacked Q8_0 layout recorded as the lever |
+| `--dtype int8` at every row count (option C step 2) | Done at `c8b2ac8d` (record below) |
+| The attention tile addresses its staged words directly | Done (record below): bit-identical, 10.5 percent of the tile on an MI50; lands by fast-forward |
+| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
+| Chat follow-up cache validation          | Done |
+| Correctness baseline vs HF reference     | In Progress |
+| Pinned HF reference generation           | Done |
+| Optional Qwen3-8B HF consumer             | Done |
+| HF fixed-excerpt PPL baseline            | Done     |
+| Performance floor vs mx-llama.cpp        | In Progress |
+| Matched CPU comparison thread selection | Done |
+| Perplexity text-file input (-f/--file)    | Done     |
+| Chunked corpus perplexity               | Done     |
+| F32 embedding/matrix inference          | Done |
+| CPU attention in backend (ROADMAP #4a)  | Done |
+| CPU row streaming / parallel prefill   | Done |
+| CPU attention value accumulation      | Done |
+| CPU grouped projections              | Done |
+| CPU Q8 activation precision and batched float decode | Done (`36350ca`) |
+| MI50 prompt activations at 16 bits | Done (`ef3b9428`); its speed gate stays open, the accumulating dots merged at `5bb4596f` and five prompt cells left (MI50 prompt speed at 16 bits, below) |
+| CPU Q8 scale / load scheduling       | Done |
+| Head-major CPU KV storage             | Done |
+| CPU worker exception safety           | Done |
+| CPU worker cost profile                 | Done |
+| CPU ordered prefill reductions          | Done |
+| Backend-owned prefill placement | Done (main `3c5d4b9`, five hosted jobs green) |
+| CLI thread settings, including batched/per-token perplexity | Done |
+| Automatic build identification          | Done (main `9511a4a`) |
+| Focused CLI help and complete current option coverage | Done (2026-09-24 checkpoint) |
+| Live generation and loading progress     | Done |
+| Model loading and teardown buffer lifetime | Done (2026-09-25 checkpoint) |
+| CPU zero-byte transfer and zero-thread hint contracts | Done (2026-09-25 checkpoint) |
+| GitHub CPU CI                          | Done     |
+| HF fixture download retries and CI cache | Done |
+| Hosted numeric/path portability repair | Done (five jobs green at `851d375`) |
+| HF model download and sharded GGUF (ROADMAP #9a) | Done (included in main; five hosted jobs passed at `7e195ff`) |
+| HF native formats (ROADMAP #9b)          | Planned  |
+| HF Hub kernels (additional, after #4a)   | Planned  |
+| Documentation consistency review | Done (merged at `5869385b`, six hosted jobs passed) |
+| Shared device-versus-CPU numerical gate | Done (main `c6a91bf`) |
+| Required device types in the test runner | Done (main `56172ea`) |
+| Vulkan finite activation repair | On main at `99020607`; its block records the exact-head hosted run as still owed |
+| Dead-code and stale-docs checks in every job | Done (merged at `75450ea`, record below); the cleanup of the listed findings, branch `cleanup/known-findings`, is next now that the architecture modules have merged, and has not started |
+
+`Done` denotes implemented and validated functionality in this release tree.
+The earlier runtime base `08351b0` was published on both main remotes. Its initial five-check
+hosted run `35512421834` passed ordinary Ubuntu and required HF, but failed
+Windows reference-generator path spelling, UBSan exact scalar-tail comparison,
+and macOS JSON subnormal conversion. Repair `851d375` passed all five jobs in
+[run 35512954742](https://github.com/mxxm-t/llmx/actions/runs/35512954742):
+Windows, macOS Intel, Linux, Linux UBSan and required HF. The repair changes
+JSON conversion plus test portability, preserving inference kernels and bounds.
+Evidence is in `docs/benchmarks/ci-portability-20260920.json`; prior four-check
+passes at `b266650` and `9511a4a` cover those smaller releases.
+See [CI](CI.md) for the precise workflow scope and local reproduction commands.
+
+## Active feature blocks
+
+### Scoped correctness coverage and remaining HF work
+
+- **Goal:** keep independent HF ground truth and extend coverage where the roadmap requires it.
+- **Done:** exact tokenizer fixtures; tiny tied/untied F32 full logits and NLL; real Q8_0, Q4_0, Q5_K_M and Q4_K_M ranking and excerpt PPL; HF/Jinja2 follow-up chat fixtures; pinned reference generation and strict consumers. The real 8B consumer, now 41 checks with each NLL case scored batched and per token, passed 41 of 41 on one MI50 at `a2b732f` and in both Q8_0 decode orders at the half-block order's merge; its earlier 37-check form passed 37/37 on Windows and Linux with frozen bounds. Real 0.6B F32/Q8 1,943-token plus 32-step continuation checks are archived in ASSETS.
+- **Left:** broader full-corpus, maximum-context and per-layer references, plus prospective numerical bounds for any new lossy kernels. Short 8B rankings/excerpts are not deep-context validation.
+- **Gotchas:** self-consistency is supplementary. Exact comparison against another llmx path cannot replace HF. Model construction validation does not establish finite weights, arbitrary token-ID safety, request budgets or failed-session recovery.
+
+## Working rules and ownership
+
+Current feature ownership and timing reservations are recorded in the shared
+collaboration log outside this repository. Confirm ownership there before
+starting work; historical branch names below are not active assignments. Builds and tests
+may run in parallel when no timing reservation is active. Keep every planned
+performance sample, record ordinary machine activity, and report missing
+telemetry honestly. GitHub receives main and the `gate/<name>` branches whose hosted run checks a stack before it merges (`docs/CI.md`); feature work stays on its branch until its gates pass.
+
+## Records (2026-09-23 to 2026-10-06)
+
+Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
+The status table and the active blocks above give the present state; a record's open items may have shipped since.
+
 ## A message boundary where a request's last user message starts (2026-10-06, branch feat/edit-boundaries, lands by fast-forward)
 
-- **Goal:** close the edited-turn gap with the disk tier on: an edit of an early message read its whole prompt once the host tier had thinned its boundary or the disk had no room for it.
 - **Done:** a chat request whose prompt passes the start of its last user message, having forked below it, keeps a message boundary at the whole block below that start, which the next edit of that message forks (`Api::message_start_of`, one rule for both chat routes); with a disk tier a conversation's boundaries are not thinned; and host memory takes the entry whose write to disk is in flight last (`Scheduler::written_soon`), since taking it first cancelled every write once the writer had fallen behind, which the added boundaries brought about at 24 users (29 copies dropped unwritten, none with the rule).
 - **Measured** (Qwen3.8-27B Q8_0 on one MI50, default clocks, `--max-seqs 8 --ctx-size 32768`, 64 GiB of disk tier; main `72309913`, this change and the reference server in one session a workload; twenty turns a user, then a regenerate and an edit of turn 2; time to first token in seconds, p50/p99):
 
@@ -28,7 +147,6 @@
 
 ## Tensor groups serving (2026-10-04, branch feat/tp-staged-serve, step 4 of TENSOR-SPLIT, lands by fast-forward)
 
-- **Goal:** step 4 of `docs/TENSOR-SPLIT.md`: above all, why a group's prompt rows read slower beside decode rows (about 215 against 358 tokens a second on Qwen3-32B Q8_0 at width 2), which loses step 3's server cells to the layer split, found by measurement and fixed here where it lies in how passes are formed, else recorded for step 7 with its numbers; the fit counting what a member holds beyond its layers; the `server` and `chat` components on the even tensor-split fixtures under a tensor width rather than skipped (step 3's Left); and section 4.7's gates (decided with the coordinator, 2026-10-04).
 - **Done:** the cause of the server cells, measured on Qwen3-32B Q8_0 over GPU[2] and GPU[3] (main's code, 9e687440 and 235375a9, RADV, default clocks); it is not in how passes are formed, so it goes to step 7 with these numbers:
   - at 32 users of 512/128 both arms read prompts at about the same rate, the group 215 and the layer split 225 tokens a second; served with `--timing`, the group's one stage carried 299 rows a second of device time against the layer split's busiest stage's 280, idle 13.7 percent against 8.8 and 4.2, so the group's device work is no slower and its loss is the time its stage stands idle;
   - two passes in flight on the group's one stage, tried by lifting the one-pass rule in the scheduler and in `reserve_passes` (replies still each its reply alone in `tools/server_mix_check.py` on Qwen3-8B Q8_0), gave 50.2 tok/s against 53.4 with one, idle 14.1 percent, so the idle is not the host's gap between passes; not kept;
@@ -92,14 +210,12 @@
 
 ## The tensor split's kernel route, read in source (2026-10-05, branch docs/tensor-split-kernel-route, docs only, lands by fast-forward)
 
-- **Goal:** what stands between the tensor split and a wait inside one submission across two cards, read in the sources before anything is built or tested: upstream Linux v6.17.13 for the test machine's kernel, Mesa 25.0.7 and the vendor's amdgpu tree.
 - **Done:** `docs/TENSOR-SPLIT.md`, section 8, records the reading by file and line (RADV already exports with explicit sync; the kernel's import copies four flags and never that one, shares the exporter's reservation and so always waits on the other card's fences; an uncached mapping is taken for imports; the reference's flag buffer is uncached on both cards) and two candidate patch sets with what each would prove and its chance upstream: forcing explicit sync on imports of KFD memory, and the all-Vulkan route of one kernel line and one RADV line, which is the one to test first; the probe's success criterion; and what reading could not settle.
 - **Checks:** a docs change: the suite's docs and dead-code components.
 - **Left:** where to test it is the user's decision with the coordinator and the reviewer; not the test machine's kernel, which serves production.
 
 ## A fitted budget waits for the room beside it (2026-10-05, branch fix/fit-settle-whole, lands by fast-forward)
 
-- **Goal:** a server started on a card still giving back an ended server's memory fits the budget, the checkpoints and the drafter a settled card gives, the open finding of Drafter files beside a model, below.
 - **Cause:** `fitted_kv` asked `settle` only whether a reading held the options' KV budget alone. On one device that reading is taken at once, so a start whose budget fitted on the first, low reading never read again, then cut its checkpoints from it or refused the drafter room beside it: Qwen3.6-27B-MTP Q8_0 at `--ctx-size 8192 --max-seqs 8` with its MTP blocks was refused at 6208 and at 7616 tokens where a settled card gives 8192 and 4 checkpoints. Over several devices the fit already read until the memory had stayed level (`level_first`).
 - **Done:** the fit takes its first reading only where it holds the whole request, the options' budget beside every checkpoint and mark asked for and the embedded drafter, and otherwise the reading `settle` ends at: one that rises to hold the whole request, or the last after five quiet seconds. `23bd7671`, the test, fails without it: in `arch-qwen35` a device whose first two reads hold the 512-token budget alone takes 4 checkpoints beside 384 tokens, and one whose first two hold the budget and one mark takes 1 mark of the 6 asked for.
 - **Gotchas:** a start whose devices cannot hold every checkpoint and mark asked for beside the whole budget now waits the five quiet seconds, as a start whose budget falls short already did; at default flags the budget is the model's context, which one card does not hold, so such starts waited already. `arch-qwen35`, whose fits wait so on many of its devices, now takes about 74 s on the MI50 machine's CPU, nearly all of it sleeping, and CTest gives it 120 s; the hosted Windows job, which ran 16.8 to 19.1 minutes on main, went past its 20-minute limit with it and now has 25 (`docs/CI.md`).
@@ -121,7 +237,6 @@
 
 ## The attention tile addresses its staged words directly (2026-10-06, branch perf/attn-tile-address, lands by fast-forward)
 
-- **Goal:** the first lever on the open speed gate (block below): prompt attention, which costs about 2.7 times the reference fork's on Qwen3-8B Q8_0, without changing a bit.
 - **Measured first** on one MI50, Qwen3-8B Q8_0, `--dtype int8`, the device time of `attention_tile_kv16_x8` from `bench --profile`, probe branch `exp/attn-tile` (not for merge, forms switched at pipeline creation in one binary): 301 ms at 2048 tokens and 1173 ms at 4096. The driver builds it with 84 registers, 18432 bytes of shared memory and 3 waves a SIMD, and with phase two removed it reads 168 and 652 ms, with phase one's dots removed 156 and 599, with both 17 and 58: the two phases share the time about evenly and the kernel is bound by its instruction count. In phase one a lane ran 748 instructions a step for 256 products, 190 of them an add, a shift down and a shift up before every read of the staged tile.
 - **Done:** the staged tile is indexed by word, `token * (DIM / 4) + 8 * run + lane`, and the lane taken as `lid & 7`, so the driver knows the lane's range and folds each address into its read (`shaders/attention_tile.comp`). No operand, order or operation changes.
 - **Identity**, candidate 8aac8df2 against main 72309913, the bytes of both arms: on one MI50, the last 64 logits rows of a 3255-token text, perplexity over 4096-token windows of a 14898-token text and 64 greedy ids after the long prompt, on Qwen3-8B Q8_0 (128-wide heads) and Qwen3.6-27B Q8_0 (256-wide heads, the `_d256` builds), each under f16 and int8, 12 of 12 the same (the greedy runs compared without their two timing lines); the device tier's cells on Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q8_0, 14 of 14 on the CPU and 14 of 14 on the MI50. On the Radeon VII under the AMD proprietary driver, Qwen3-8B Q8_0 under f16: the same three outputs, the same bytes.
@@ -142,12 +257,10 @@
   The tile's device time: 301 to 269 ms at 2048 tokens and 1173 to 1050 ms at 4096, 10.5 percent. Radeon VII, Qwen3-8B Q8_0 f16, three rounds in turn, main and candidate: pp512 341.4 and 345.3, pp2048 318.4 and 324.4, pp4096 292.1 and 300.5 tok/s, every candidate run above every main run.
 - **What it does not do:** it closes neither open cell. Other forms that keep F32 were measured and gain nothing: reads grouped per token 270 and 1053 ms, phase two's loop cut in four 279 and 1086, the tile staged as halves and converted at use 299 and 1162. The reference fork's attention (`fattn-tile.cuh` at f58b9f250, read only) multiplies half pairs two an instruction, with an F32 sum in K.Q through an instruction Vulkan does not expose and a half-float sum over V; the cost probes of 16-bit forms and the question of what attention computes in are in the devlog of 2026-10-05 and wait on the user.
 - **Review and landing:** reviewed by D2CDEV without findings. The gates above ran on main 72309913; the branch was then rebased onto main 020f9fc9 behind the row-class test and the `--isa` rule, without a conflict in code, and lands by fast-forward once the builds, CTest, the linked dead-code check and the hosted run pass at the rebased head.
-- **Left:** nothing on this branch.
 - **Gotchas:** the word index and the masked lane were changed and measured together; which of the two the driver needs to fold an address is not separated, so a later edit of either is checked against the kernel's device time under `--profile`; the driver's static instruction count does not show it, since it unrolls the cheaper loop further.
 
 ## `--dtype int8` at every row count (2026-10-05, branch feat/int8-prompt, option C step 2)
 
-- **Goal:** `--dtype int8`, never chosen by `auto`, following exactly the rule every `--dtype` value follows (the user's decision of 2026-10-05, relayed by the coordinator): it sets the input precision of every matrix product at every row count, prompt and decode alike, the output head included, with no threshold; a product or a device without an 8-bit build takes the next wider precision it has, reported per device in the record and `/v1/health` (docs/PRECISION.md, rule 2's warned fallback); routers stay F32 and attention and the KV cache stay outside `--dtype`, as for every value; `--help` and USAGE describe it in the same shape as the other values, with a table of what each covers. This replaces the first design, prompts of 128 tokens or more refused where they could not run, built and gated earlier the same day (Gotchas).
 - **Done:** the budget, frozen before any int8 path ran and unchanged by the new design, since its reference already rounds every row: `tests/int8.py`'s 512-token Q8_0 fixtures (dense untied, dense tied, qwen3moe; texts of 160, 200 and 256 tokens, windows of 128 and 256) at their own weights and four more seeds, HF float32 on each file's decoded weights, every matrix product's input but the routers' rounded by the twin's rule at 127 levels, the output head included (`tools/calibrate_dtype.py`, class `int8`): at most 0.0395 logits (dense tied, seed 3) and 0.00205 NLL (dense tied, seed 0), budgets 0.0790 and 0.00409 in `tests/data/dtype_budget.json`; the F16 and BF16 classes reproduced every frozen field in the same run (torch 2.5.1+cpu, transformers 4.55.2, one thread, the HF reference container, cores 4 to 7). For comparison F16's budget is 0.0033 logits.
 - **Built:** `Dtype::int8`; the 8-bit builds (`LLMX_I8`) of every kernel a quantized type but MXFP4 takes under f16 on an integer-dot device, chosen through `WeightKernels::int8_row`, `int8_tile` and `int8_tall_tile`: the row kernels of the Q4 and K-quant families (`matmul_row.comp`, the builds dtype step 4 removed, ported onto today's kernels, Q6_K's -32 taken into each weight byte), the Q8_0 decode kernel (`matmul_vec_q8.comp`, every `kVecBuilds` build, its lanes, blocks and order the 16-bit kernel's) and the prompt tile (`matmul_tile_q.comp`); the 8-bit twin after the 16-bit one in the same scratch (`xquant8_base`, `x8_base_bytes`), written by every producer's second build (specialization constant 7, `TWIN8`) once a matmul has read it (`want_x8_`, `XqTag::has8`), lane per value (`xquant8_block`) or word per lane (`xquant8_word`); `VulkanBackend::native_dtypes` lists int8 where the integer dot is preferred; `resolve_dtype` widens a device without it to F16 where it has F16, else F32, naming that dtype in the record (`fallback to f16`), and a run whose every device widened to one dtype is that dtype's; `--dtype int8` in the CLI, `llmx-split-check`, `run_tests.py` and `tools/long_context_check.py`; the witness `block-int8`. The threshold (`kInt8PromptTokens`, `row_dtype`), the refusal (`check_dtype_request`, `placement_host`), the separate 8-bit quantizer (`quantize_x8`) and the suite's skips under int8 (`common.int8_cpu_skip`) are gone.
 - **Checks:** `dtype` holds auto never choosing int8, a placement of int8 devices resolving to it, and the widening per device, F16 on the CPU and on a device of F16 and F32, F32 on a device of F32 alone, named in the record with the warning; `backend-vulkan` holds Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K rows 512 and 1280 wide under int8 within 1e-3 of the CPU on the same 8-bit activations at 1, 3, 8, 13 and 64 generated tokens and prompts of 40, 64, 128 and 200 tokens (885920 outputs, chosen away from rounding ties: with ties, the device's reciprocal of a block's peak, whose last bit can differ from the host's, rounded one value a step apart and moved single outputs by up to 0.03), witnessing `block-int8`, a prompt's bits as one call and as two slices, F32 and MXFP4 under int8 giving f16's bits, every decode column of every 8-bit build the same column alone (122456 columns, as for f16), and the weight dispatch naming each 8-bit kernel; `vulkan-quantization` the 8-bit twin's reconstruction and sums from both quantizers' second builds, their 87820 words identical, and the 16-bit twin beside it the first builds' words; the `int8` component the fixtures under f16 and int8, batched and one token a step.
@@ -228,7 +341,6 @@
   - The K-quants get a layout probe only if attention and the activations leave their cells open.
 - **To watch:** in the first device suite at c8b2ac8d the `server` component's MXFP4 subcheck failed once with an empty error message; the component passed twice when run again alone on the same card, and had passed at 6c7d445f on another. The card held 14.9 GB of another process's memory when read after the reruns. This is an observation, not a proven cause: contention on a shared card is one reading, and the subcheck is to be watched in later device suites.
 - **Row classes under int8** (2026-10-05, branch test/int8-row-classes, tests only, lands by fast-forward): D2CDEV's review of the landed c8b2ac8d found that the row-class identity check (`tests/row_classes.hpp`) ran for f32, f16 and bf16 only, so no pair of extents of one class was compared under int8. It now takes int8 where the backend lists it; on one MI50 `backend-vulkan` reads 9933 pairs of extents of one class with the same bits against 7469 before, all 2464 new pairs equal, and CTest passes 45 of 45 on Linux. Reviewed by D2CDEV without findings.
-- **Left:** nothing.
 - **Gotchas:**
   - (accepted by the coordinator, 2026-10-05) the MoE fixture routes every token to all eight experts: with top-3 routing, the smallest gap between a token's third and fourth router logit over the fixture's 1128 tokens was 1e-4 to 1e-2 at every seed from 0 to 80, so any rounding could turn a routing over and set the budget by a routing rather than by the products' precision; the switch was made on those gaps, before any MoE int8 error had been computed (the dense rows had run, and were unchanged by it).
   - The first design (prompts of 128 tokens or more on the 8-bit tile, everything else f16, refused where it could not run) was built and gated at e3df0c80 and 7973149d before the user's decision; its measurements are history, not evidence for this design: prompt rates on one MI50 at pp512 of 1281 (Qwen3-8B Q8_0), 1131 (Qwen3-8B Q4_K_M), 406 (Qwen3.6-27B Q8_0) and 1584 tok/s (Qwen3.6-35B-A3B Q4_K_M) against f16's 841, 785, 260 and 1133, and on Qwen3.6-35B-A3B Q4_K_M 8-bit prompt inputs turned 17.35 percent of top-8 expert sets over against f32, f16 1.48 percent, with top-1 agreement against f16 at 504 of 512.
@@ -236,7 +348,6 @@
 
 ## The 16-bit prompt tile on the MI50 (2026-10-05, option C step 1, measured, no code landed)
 
-- **Goal:** step 1 of the user's option C (devlog 2026-10-04): bit-identical tuning of the default 16-bit prompt path, merged only with a measured gain.
 - **Profile** at main 1cb7a2a4 on one MI50 (GPU[1]), device time of one prompt: the integer-dot tile (`matmul_tile_q.comp`) is 93 and 85 percent of Qwen3-8B Q8_0 at pp512 and pp2048 (848 and 777 tok/s), 76 + 17 and 71 + 16 percent (the Q4_K tile and the Q6_K tile) of Qwen3-8B Q4_K_M (787 and 730), 93 and 91 percent of Qwen3.6-27B Q8_0 (262 and 255); attention is 4 to 11 percent, the 27B's delta rule 3.
 - **Where the tile's time goes**, Qwen3-8B Q8_0 pp2048, tile 2251 to 2265 ms, by ablations with wrong results (`exp/tile-abl-a`, `-b`, `-c`): staging only the first step 1619 ms, staging from computed values with no global loads 1819 ms, no per-block scale arithmetic 1962 ms. So the global loads cost about 19 percent, the barriers and shared-memory writes about 9, the scale arithmetic about 13 (three operations per row, column and block, fixed by bit identity), and the dots with their shared-memory reads run at about 81 percent of the two-wide 16-bit dot peak.
 - **Rejected candidates**, each bit-identical (logits of 300 rows on Qwen3-8B Q8_0 and Q4_K_M byte for byte) and slower: activation columns padded off the shared-memory banks (`exp/tile-xpad`, +3 to +4 percent tile time on all three models); the step loop unrolled by two with the next step's loads in flight during the dots, in five forms (`exp/tile-pipe2`, `-pipe2b`, `-pipe2c` and their no-break and branch-free forms, +1.5 to +3.8 percent), since the tile already holds 128 VGPRs for two waves a SIMD (90 needed before scheduling) and holding the next step's registers across the dots makes ACO add 100 to 300 moves and sink the loads back to their use; one block a step (`exp/tile-q8-step1`, +7.5 percent, still 128 VGPRs); the 64-row tile at three waves a SIMD everywhere (`exp/tile-short-only`, +14 percent); workgroups grouped by row tiles so the running ones share weights (`exp/tile-order-g8`, `-g4`, `-g1`, +4 to +32 percent).
@@ -279,7 +390,6 @@
 
 ## Tensor groups on Vulkan (2026-10-04, branch feat/tp-vulkan, step 3 of TENSOR-SPLIT, lands by fast-forward)
 
-- **Goal:** step 3 of `docs/TENSOR-SPLIT.md`: the Vulkan collective over dma-buf inboxes and sync files behind `Collective`, the head's vocabulary slices copied by each member into host memory every member imports, the checks on two MI50s, and the performance gate of the plan's section 8 recorded open under the first-support rule.
 - **Done:** `VulkanCollective` and `VulkanBackend::join` (two parities of inboxes exported and imported as dma-buf, a binary semaphore a peer exported as a sync file, `submit_signalling` and `wait_on` in the backend's submission, each peer's wait going to its next submission once every member has submitted, the sum a copy and `add`s in member order), refused by name across PCI root complexes; the head's gather as copies each member enqueues into imported host rows, the pass's logits waiting on every member's ticket, so no member waits on another while it records (the coordinator's review of step 2); a sum that fails part way drains the members and makes its semaphores again, so the passes beside it go on, and `sync` submits waits an exchange left, with `vulkan-lifetime`'s collective cases; `run_tests.py --tensor-width`, and a tensor width in `tests/baseline_8b.py`, `tools/long_context_check.py` and `tools/server_mix_check.py`.
 - **Gates** (model, kernel and device tier), the branch at f4054f63 (`llmx 0.1.0+gf4054f639880`, binary sha256 1654a28a63c42ef3) against main 1c65c448 (`llmx 0.1.0+g1c65c4482090`, 6e885c1818f6a0b1), both built with Vulkan the same way from detached worktrees in the development image, cores 8 to 11, two MI50s of one root complex (GPU[2] and GPU[3], PCI 83:00 and 86:00), RADV, default clocks:
   - numerics of a group of two MI50s: `backend-vulkan`'s collective check, six sums in member order bit for bit with its refusals; the tensor-split fixtures within 2.8e-7 of HF and passing the device-reference criterion against one card with 64 greedy steps; the HF gate on the Qwen3-0.6B gate files, the qwen35 files skipping as refused until step 5; the Qwen3-8B Q8_0 HF check, 41 checks, NLL within 0.0016 of HF against 0.01; the 16k long-context check on Qwen3-8B Q8_0, two runs the same and one card's top choice at 512 of 512 generated tokens; greedy ids the same as one card; these at 31976b51, before the waits' change, which leaves a group's logits the same bytes (Qwen3-8B Q8_0);
@@ -308,7 +418,6 @@
 
 ## Tensor groups on the CPU (2026-10-04, branch feat/tp-cpu, step 2 of TENSOR-SPLIT, lands by fast-forward)
 
-- **Goal:** step 2 of `docs/TENSOR-SPLIT.md`: groups in `Placement`, each part run on every member over its shards with the sum between parts, the narrow `Collective` of `backends/backend.hpp` and its CPU implementation, one KV pool per group, the head's vocabulary slices gathered into the logits rows, `--tensor-width`, staged groups with passes in flight, and the fit over groups.
 - **Done:** `Collective` and `Backend::join`, and the CPU's; `Step::width`, `Step::partial` and `blocks::join`, and qwen3's and qwen35's full attention over a member's heads; the runtime's groups (`Placement::width`, a group named by its first member): the members' shards, their KV storages on the pool of the group's first member, `group_stage` and `end_stage`, the collectives and the members' logits slices in `ensure`, the members' host copies in `restore_host`; `group_budgets`, `placement_for` and `place_model` over groups; the loader's hook giving a member its shard; `--tensor-width` with its refusals and its page, the command line keeping its listed-once rule, so groups of CPU backends are the tools' (`llmx-split-check` and `llmx-model-logits` take a tensor width); new tiny HF fixtures whose every split falls whole at widths 2 and 4 (`tests/data/baseline_tensor_split.json`, `tools/gen_baseline.py tensor-split`, in the qwen35 venv) and the `tensor-split` component.
 - **Gates** (model and loader tier), the branch at ae27d54e (`llmx 0.1.0+gae27d54ee0d8`, binary sha256 4a799a336d47225b) against step 1 at 46c96d18 (`llmx 0.1.0+g46c96d18a50b`, 6978211c26104f2c), which it lands on, both built with Vulkan the same way from detached worktrees in the development image, cores 8 to 11:
   - numerics of a group: the qwen3 fixtures, tied and untied, on groups of two and four CPU backends against HF within 3.4e-7 logits and 4e-8 NLL, against the F32 bounds of 2e-5 and 1e-5, every batched and per-token row at the goldens' positions, and each group passing the device-reference criterion against one backend, its rows and 64 greedy steps (`tensor-split`); one stage of width 2 against two stages of width 2 bit for bit, and within 1e-4 of one device (`placement`); the paused, held and steady server loads over 1 to 3 stages of groups of two at every P, and pauses, resumes, a donor taken back, a follow-up's fork and donors in host memory on groups, each reply its reply alone on one group (`server-passes-cpu`, `server-resume`); the collective's sums in member order at widths 2 to 4 (`backend-group`);
@@ -322,7 +431,6 @@
 
 ## serve --timing reads a busy stage as busy (2026-10-04, branch fix/timing-idle, lands by fast-forward)
 
-- **Goal:** `serve --timing`'s `stage_idle` and `device_bound_rows_per_s` measure every dispatch of a stage. On Qwen3-32B Q8_0 over two MI50s, 32 users of 512-token prompts and 128-token replies, it read 0.72 and 0.70 idle where both cards' `gpu_busy_percent` read 95 to 100 percent busy for the whole load (devlog 2026-10-04 15:45).
 - **Cause:** a backend made to time its work kept one query pool of 8192 timestamps, two a dispatch, and the scheduler reads each stage every 32 rounds; past the pool's 4096 dispatches nothing more was timed, so a large model's span counted only its first dispatches.
 - **Done:** the test first (`backend-vulkan`: 6000 dispatches between two readings must all be timed, which main fails at 4096), then the fix: a reading interval takes as many query pools as its dispatches need, each reset as the interval first reaches it, and a reading empties them all.
 - **Checks** (MI50s, cores 4 to 7): `backend-vulkan` fails at the test commit 1a066c14 ("device timing missed the dispatches past one query pool") and passes with the fix (6000 dispatches timed between two readings); CTest 43 of 43 with the fix, `vulkan-lifetime`'s query-pool failure and teardown cases among them. The same load as the finding, `serve --timing` with the fix, Qwen3-32B Q8_0 over two MI50s, 32 users of 512/128: `stage_idle` 0.049 and 0.018 (main read 0.72 and 0.70), `device_bound_rows_per_s` 288.7, the rows the load actually carried (main read 933), throughput 57.5 tok/s, as without `--timing`.
@@ -330,7 +438,6 @@
 - **Landing:** the coordinator reviewed and approved it; the hosted run is green at its head; it lands by fast-forward.
 ## A lone prompt read by every stage (2026-10-04, branch perf/split-prompt-overlap, phase 4 of MULTI-DEVICE, lands by fast-forward)
 
-- **Goal:** phase 4 of `docs/MULTI-DEVICE.md` for one to four users and long prompts: a lone prompt read by every stage of a layer split at once, measured first.
 - **Measured** on main c35b04b8, Qwen3-32B Q8_0 over two MI50s (GPU[6], GPU[7]), the server with 32-token replies (devlog 2026-10-04):
   - a trace of the scheduler's rounds (`exp/split-trace`) for one 2048-token prompt: four passes of 512 rows, each formed a few ms after the previous one's stage 0 finished, since a pass that wants no logits is ended without waiting for its device work; so slice k+1 runs on stage 0 while slice k runs on stage 1, and TTFT is 6.83 s, about five stage-times, against the CLI's own pipelined prompt (`bench --model` pp2048 on the split, 308 tok/s, 6.6 s). The overlap the phase planned for long prompts is already there.
   - what is left is the slice size for prompts not much longer than a ubatch: TTFT of a lone 512-token prompt 2455 ms at `--ubatch 512`, 1995 at 256, 1795 at 128, where a 512-row slice gives the second stage nothing to overlap; a lone 2048-token prompt 6070, 5785 and 5887 ms; four users of 512 tokens 15.3, 15.4 and 15.1 output tok/s; and at 32 users of 512 (devlog 15:45) `--ubatch 256` cost 4 percent, so the size has to follow the load, not be a smaller ubatch.
@@ -358,14 +465,12 @@
   - at e73abde8, the second version, against main 9091ee2e: the load table at 1, 4, 16, 32 and 64 users, one round a level, the main arms from the afternoon's run on the same cards (p4gate-4bf4b2b8), output tok/s: Qwen3-32B Q8_0, 512 tokens: main 13.9, 34.5, 56.5, 57.3, 58.8 and branch 14.9, 34.8, 56.4, 57.4, 56.4; 1024: main 11.9, 25.2, 34.5, 34.9, 34.0 and branch 12.1, 25.1, 34.8, 35.0, 34.9; 128 to 2048: main 12.5, 24.5, 32.5, 31.6, 28.7 and branch 12.8, 23.1, 33.1, 31.5, 29.0. Qwen3.6-27B Q8_0, 512: main 17.4, 43.4, 70.4, 72.4, 76.4 and branch 18.4, 43.1, 71.1, 73.0, 74.7; 1024: main 15.0, 32.1, 44.7, 45.5, 44.7 and branch 15.2, 32.0, 45.0, 45.7, 44.3; 128 to 2048: main 15.7, 31.1, 42.2, 40.0, 35.9 and branch 15.6, 30.4, 42.5, 40.5, 36.4; and at 64 users of 512 on Qwen3-32B Q8_0, interleaved, 60.7 and 59.7 tok/s against 60.9 and 61.0.
   - the reference's layer split (pipeline parallelism in its log, `-b 4096 -ub 1024`) on the same cards: with a slot's context of 1024 (`-c 65536 -np 64`), 512-token prompts, 15.2, 34.2, 50.3, 62.2, 65.1 tok/s on the 32B and 17.2, 26.4, 39.8, 43.3, 39.0 on the 27B; 1024-token and longer prompts do not fit those slots, and with the KV unified over the slots (`-kvu`) it slows under load and fails at 64 users (32B 512: 14.7, 31.5, 30.1, 23.3, 24.4; 1024: 12.2, 20.3, 15.3, 8.9, none), so those rows say little. Its lone-prompt TTFT, 1537 ms (32B) and 1437 ms (27B) at 512, is near the branch's.
 - **Rebased** onto main a2f32b8f, the one commit 8712ccb4 (`llmx 0.1.0+g8712ccb46952`, 436b0c5e8721885f; main `llmx 0.1.0+ga2f32b8fbed4`, 067d6e458f3e9add), no conflict in code: CTest 45 of 45 on an MI50; the suite on the CPU and on an MI50 passes but raw-blocks; the identity cells 14 of 14 on the CPU and on the device; `server_mix_check.py` as above, every request matching; the linked dead-code check: 16 findings, all on the list.
-- **Review** (the coordinator, 2026-10-04): the 4-user TTFT rise not accepted, no arrival wait, alone counting the queued and paused requests after the round's admissions; done, with the hold above, and `server-passes-cpu` holds a burst (no cut slice) and an arrival mid-prompt (the lone prompt's 64 rows back to a whole ubatch before the new request's first slice).
 - **Accepted cost** (the coordinator, 2026-10-05, under the tradeoff rule): Qwen3.6-27B Q8_0, 512-token prompts at 4 users, TTFT 4818/4812 to 4907/4914 ms (+1.9%, about 90 ms), against a 14 to 26 percent lone-prompt TTFT gain on both models with output tok/s level everywhere and the Qwen3-32B rows level. Its traced cause: the first request of a burst is formed before the others arrive and reads 128 then 320 rows to its checkpoint where main reads 448 at once, one extra pass whose fixed cost the requests after it pay; no rule removes it without waiting for arrivals.
 - **Landing:** the coordinator reviewed and accepted it; the hosted run is green at 9a321f88 (the CPU ubuntu-24.04 job rerun once after an unrelated `disk-store` timeout); it landed by fast-forward.
 - **Gotchas:** per-storage progress and dependent-chunk cancellation, which the phase planned before overlapping a prompt's chunks, are not needed for this: each slice is still a pass of its own with the sequence in at most one pass, and the next slice forms only once the previous one has ended.
 
 ## Tensor shards (2026-10-04, branch feat/tp-shard, step 1 of TENSOR-SPLIT, lands by fast-forward)
 
-- **Goal:** step 1 of `docs/TENSOR-SPLIT.md`: each role of qwen3 and qwen35 declares how it splits over a tensor group (section 4.2), `src/model/shard.hpp` turns a declaration into each member's spans with the legality checks and their refusals, packs a member's bytes for every storage type and gives its KV and state heads, `footprint` counts a member, and the loader streams a member's runs into its storage; nothing places a group yet, which step 2 does.
 - **Done:** `Role::shard` (an `Axis` and `ShardSection`s of tiles of units, a unit replicated where the section allows, as KV heads are) and the declarations: the head by vocabulary rows, q and gated q by heads, k and v by KV heads, `attn_output` by the heads' columns, the dense block by `blocks::shard_swiglu`, and a linear-attention layer by K heads, `attn_qkv` and the conv's channels as each member's q and k rows and the V heads of its K heads from every tile, z, alpha, beta, the decay, the time step and `ssm_out`'s columns by those V heads; `shard::spans`, `check_plan` (refusals by name: indivisible heads, KV heads, K heads and vocabulary rows, columns off whole quant blocks, routed layers and an embedded drafter), `runs`, `bytes`, `pack`, `shape`, `kv_heads` and `state`; `footprint(weights, plan, options, width, member)`; `Upload::runs` and `detail::stream` sending a member only its runs.
 - **Gates** (model and loader tier), the branch at 387c31a9 (`llmx 0.1.0+g387c31a97002`, binary sha256 ff1355cad0290bb8) against main ed78eaa6 (`llmx 0.1.0+ged78eaa65a26`, ff0f66ec2755a2ff), both built with Vulkan the same way from detached worktrees in the development image, cores 8 to 11:
   - width-1 byte identity: Qwen3-0.6B Q8_0, Qwen3-8B Q8_0 and Qwen3.5-0.8B Q8_0, each in the load modes auto, mapped and direct, greedy ids of 48 tokens, the top-10 logits after a prompt and the perplexity of 4 windows of 128 tokens, the same bytes on the CPU (9 runs) and on one MI50 (9 runs);
@@ -388,7 +493,6 @@
 
 ## Q8_0 decode by two-wide 16-bit dots (2026-10-04, branch perf/q8-decode-5to8, lands by fast-forward)
 
-- **Goal:** a pass of 5 to 8 generated rows at the Q8_0 decode kernel's 4-column cost a column, so a depth-4 verify and 5 to 8 server users stop paying the step from the 4-column build to the 8-column build that the depth-4 finding measured (devlog 2026-10-04 06:03: a 5-row verify 82.7 ms against 66.2 for 4 rows, Qwen3.6-27B-MTP Q8_0 on one MI50).
 - **Cause found:** the builds of several columns were bound by their instructions, not their weight reads. Each product of a weight word and four 16-bit activations took two four-wide 8-bit dots over the activation's high and low bytes, a correction by the weights' sum and the shifts and masks that split every activation word, per column; the 8-column build issued 2337 vector instructions where the 4-column build issued 964 (RADV, MI50).
 - **Done:** `dot16.glsl` widens each weight word once per load to two pairs of signed 16-bit values and takes two two-wide 16-bit dots (`v_dot2_i32_i16`) per word for every column, each dot taking the sum so far as its accumulator; the integer-dot tile's own copy of the same widening and dots moved there, so it has one owner. The integer sums are exact either way, so every column computes the bits it did. Vector instructions per build (RADV, MI50): 1 column 240 to 226, 2 columns 360 to 288, 4 columns 964 to 724, 8 columns 2337 to 1474, 16 columns 5400 to 3440; the 1-column build takes 40 VGPRs against 32 (6 subgroups a SIMD against 8), the others unchanged.
 - **Tried and not kept** (`exp/q8-rows` on Gitea, never to land), each on the two-wide dots, Qwen3.6-27B-MTP Q8_0, one MI50, the 8-column build's sampled device time at 5 / 8 columns against 335 / 400 ms: 2 rows a subgroup 551 / 667 and 8 rows 363 / 415 (one subgroup a SIMD); two steps of weights loaded ahead 328 / 401; the subgroup reduction instead of the transposed one 350 / 410; a column group's activations staged once a workgroup in shared memory 345 / 396; workgroups of 512 355 / 411; 5 to 8 columns as the 4-column build twice over the same rows on adjacent workgroups 439 / 460. For 9 to 16 columns the 8-column build over two workgroups gave 647 / 761 ms at 9 / 16 columns against 659 / 832 for the 16-column build, too small at 9 to carry a change; for 17 to 32 it lost (1506 against 1335 ms at 32). So the step from 4 to 5 columns stays, at about 30 percent of the kernel's time, and every build of several columns is cheaper.
@@ -439,13 +543,7 @@
 
 ## Drafter files beside a model (2026-10-03, branch feat/spec-drafters, step 6 of SPECULATIVE)
 
-- **Goal:** `--drafter PATH` loads a drafter from a file beside the model through the one proposer, verify, rollback and scheduler path, the pairing checked and refused by name, on the CPU and Vulkan alike ([SPECULATIVE](SPECULATIVE.md), step 6).
 - **Sidecar files on the MI50 host** (GGUF headers, 2026-10-03): the two DFlash drafters (Qwen3.8-27B-DFlash2 Q8_0, 5 blocks, n_embd 5120, block 8, taps 6 to 62; Qwen3.6-35B-A3B-DFlash Q8_0, 6 blocks, n_embd 2048, block 16, taps 2 to 38), both with the qwen35 tokenizer, which no proposer runs until step 7; the qwen4exp MTP heads, an architecture llmx does not run; no standalone qwen35 MTP file, every qwen35 MTP block being embedded; draft models of a matching tokenizer, Qwen3-0.6B for the Qwen3 models and Qwen3.5-0.8B, 2B and 4B for the Qwen3.6 and 3.8 models.
-- **Design** (proposed in the devlog 2026-10-03 22:12, XDEV agreeing at 22:15):
-  - one owner of pairing, `spec::pair` (`inference/pair.hpp`), on the two files' headers before any byte is read: the target's tokenizer for every kind; for MTP blocks the architecture's keys but the block and MTP counts and per-block arrays; for DFlash the architecture's registry entry, the hidden size, the taps, the block and the mask token; any other file a draft model of an architecture llmx runs;
-  - the loader resolves the file (`load_model`'s `drafter_file`): MTP blocks are joined to the model as if its file carried them (`spec::join_blocks`, `gguf::append`) and run by the embedded drafter's proposer; a draft model is opened by the CLI on the same devices and drafts with `spec::DraftModel` in `generate` and `chat`; a DFlash drafter that pairs is refused until step 7;
-  - `llmx-drafter-pack` splits a model's MTP blocks out into a drafter file and embeds them back, bytes unchanged, which gives a real sidecar to gate on;
-  - the server takes MTP blocks beside a model and refuses a draft model, which the plan's step 3b leaves to a measured gain; the `draft.` namespace for embedding DFlash drafters and draft models moves to step 7, as nothing runs them embedded yet.
 - **Done:** drafting fitted after the no-drafter fit (`fitted_kv`: the budget and the checkpoints without the embedded drafter or a mark, then the drafter and one mark beside them or a refusal with the numbers, then the other marks), which the embedded drafter had not kept, it being counted inside the KV bisection; the pairing, the loader's resolution, the draft-model proposer, `--drafter PATH` on `generate`, `chat`, `serve` and `bench --model`, the pack tool, `llmx-decode-probe`'s `drafter_file`, the `drafters` suite component, and their docs; CPU: CTest 39 of 39, the suite's drafters, qwen35, decode-probe, cli, docs and dead-code.
 - **Gates so far**, MI50s (GPU[1] alone, GPU[6] and GPU[7] for two), cores 4 to 7, each arm started below 55 C at default clocks:
   - at a69501f2, rebased on main 6a365411: CTest 43 of 43, the device suite's qwen35, drafters, decode-probe and server; `server_mix_check.py` on Qwen3.6-27B-MTP Q8_0 split by the tool, the blocks beside it, `--ctx-size 8192 --max-seqs 4`: every request equal alone, together, skewed and to the CLI, 722 drafts fed and 508 kept;
@@ -462,7 +560,6 @@
   - serve starts with the fit rule: on one MI50 the embedded drafter and the blocks beside the model are refused at `--ctx-size 8192` (8192 tokens and 8 checkpoints leave no room) and at the model's context (22592 tokens and 3 checkpoints); over two MI50s at the model's context it starts with 262144 tokens and 8 checkpoints, as without drafts.
 - **Fit order** (asked in the devlog 2026-10-04 00:37, option B, which XDEV agreed at 00:39 with its invariant): the no-drafter fit, its automatic checkpoints included, fixes the budget, which drafting never changes; the drafter and a mark then take room from the automatic checkpoints, the most of which that still fit stay, never more than without drafts, and a `--state-checkpoints` given by number is held or the placement refused.
   - at eed6edff, with the fit order: CTest 43 of 43 and the device suite's four components; `serve` on one MI50 at `--ctx-size 8192 --max-seqs 8` starts with the embedded drafter and with the blocks beside the model over 8192 KV tokens and 4 automatic checkpoints, where it holds 8 without drafts; at the model's context it is refused by its text, 22592 tokens leaving no room even with no checkpoint, so a one-MI50 server with drafts takes a `--ctx-size`; over two MI50s at the model's context it starts with 262144 tokens and 8 checkpoints with the drafter as without; `server_mix_check.py` with the blocks beside the model, `--ctx-size 8192 --max-seqs 4`: every request equal, 766 drafts fed, 557 kept. One start with the blocks beside the model, five seconds after another server on the card had stopped, read the card before its memory had come back and was refused at 6208 tokens; started again on the settled card it took 8192 and 4 checkpoints.
-- **Review:** XDEV (01:17) found the fit order as agreed and two statements stale, SPECULATIVE's section 3 and section 2 and the fit's comment, which now name the automatic checkpoints giving way. Rebased onto main bf0d1a93 (the pass stages moved out of the runtime) without a code conflict: CTest 39 of 39 and the CPU suite's docs, dead-code, cli, drafters, qwen35 and server pass.
 - At 6b9d37be, on main bf0d1a93: CTest 43 of 43 and the device suite's four components on an MI50; the one-MI50 and two-MI50 starts as at eed6edff; `server_mix_check.py` with the blocks beside the model all equal, 777 drafts fed and 566 kept.
 - **Finding, the free-memory settle, resolved on 2026-10-05 by `fix/fit-settle-whole`:** a server started about 5 s after another had stopped on the same MI50 read the card before its memory had come back and fitted a smaller budget. Qwen3.6-27B-MTP Q8_0 with its MTP blocks beside it at `--ctx-size 8192 --max-seqs 8` was refused at a budget of 6208 tokens (at eed6edff) and of 7616 tokens (at 6b9d37be), where on a settled card the same start takes 8192 tokens and 4 checkpoints. The first reading held the budget alone, so the fit read no further.
 - **Landing gates**, main bf0d1a93 against the landing code (5b65086d), both built the same way from detached clones, on GPU[1], GPU[6] and GPU[7], cores 4 to 7: CTest 43 of 43; byte identity with no drafter, Qwen3-0.6B, Qwen3-8B and Qwen3.6-27B-MTP Q8_0, 21 of 21 cells the same on the CPU and on one MI50, and the 27B over two MI50s 7 of 7.
@@ -472,7 +569,6 @@
 
 ## A pass's stages in one file (2026-10-03, branch refactor/runtime-split, step 0b of TENSOR-SPLIT, move only, lands by fast-forward)
 
-- **Goal:** decision 6 of [TENSOR-SPLIT](TENSOR-SPLIT.md), step 0b: a minimal move-only split of `src/model/runtime.hpp` by concern, so the tensor split's per-member bookkeeping lands in a file of its own rather than growing `runtime.hpp`; nothing renamed, no behaviour changed, no new abstraction, following `src/model/history.hpp`.
 - **Done:** `src/model/passes.hpp` holds how a pass runs: `Model::forward` and the pass API (`reserve_passes`, `begin_pass`, `run_pass_stage`, `pass_logits`, `end_pass`, `abort_pass`), and the private steps of a pass, `begin`, `run_stage`, `draft_context`, `finish`, `roll_back`, `alloc_arena`, `ensure`, `send`, `receive`, `cross`, `ffn_split`, `part` and `mixer_part`, each body and its comments moved unchanged and defined out of the class in the class's order; `Model` declares them in three groups where the first of each stood, and `runtime.hpp` includes the file after `history.hpp`. The small helpers a pass shares with the history operations and the entry points (`whole_blocks`, `in_flight`, `release`, `handoffs`, `scoped`, `slot`, `row`, `streams`, `retire`) stay in the class. `runtime.hpp` goes from 1400 lines to 976. `docs/src/model-passes.md` takes the description of `forward`, the pass API and the crossings from the runtime's page.
 - **Gates** (`bdb1e1e3`, this commit before this block's gate lines): the 430 moved non-blank lines are the removed ones, in order, but for the indent, `inline` and `Model::` before each name and `begin`'s default argument, which stays on its declaration; the 888 non-blank lines left in `runtime.hpp` are main's but for the added declarations and the include. On Windows: `build.bat` and a fresh CMake build without a warning in a changed file, CTest 39 of 39, `docs` and `dead-code` [ok]. On the Linux MI50 machine against main `6a365411`, each arm built the same way from its own shallow clone detached at its commit, Vulkan on (main `llmx 0.1.0+g6a365411a11e`, sha256 `9cf8cead...`; branch `llmx 0.1.0+gbdb1e1e353c9`, sha256 `d7340128...`): Qwen3-0.6B, Qwen3-8B and Qwen3.5-0.8B Q8_0 give main's stdout in all 63 cells (generate greedy and seeded, logits `--top 20` and `--last 4`, perplexity batched and `--per-token`, two chat turns, each on the CPU, one MI50 and two MI50s split), the timing lines of generate aside, and main's stderr in all 63; `llmx-split-check` one MI50 against two (excerpt, 8 steps, ubatch 64) bit-identical on all three models with both arms, its stdout byte-equal between them; CTest 43 of 43 with Vulkan and 38 of 38 without; the suite's split, server, qwen35, f32 and moe components on the build without Vulkan all PASS with `--require-tools`, the server's real-model pass skipped without the Qwen3-0.6B fixture in the container's cache. The hosted run is not part of these gates yet.
 - **Timing** against main on one MI50 at default clocks, `bench --model Qwen3-8B-Q8_0 --p 512 --n 128 --r 3 --device vulkan:0`, each arm's three repetitions a run, tok/s in run order, a perturbed-layout control (main with one unused function appended to `src/model/history.hpp`, committed, `llmx 0.1.0+gbe133491e294`) in a second block; the monitor of this round sampled every 5 s only the host load average (7.4 to 11.9 on the 16-thread machine) and GPU[2] and GPU[3] use and power (GPU[3] idle throughout), so per-process CPU, system CPU and disk activity are unavailable for its 16 runs and the load is not attributed:
@@ -529,7 +625,6 @@
 
 ## Speculative decoding in the server (2026-10-02, branch feat/spec-server, step 5 of SPECULATIVE, lands by fast-forward)
 
-- **Goal:** `serve --drafter embedded|lookup` drafts in the scheduler's passes beside other requests, each request's output the bytes of drafts off, greedy and seeded, alone and at once, with a measured gain for one user and no loss for many ([SPECULATIVE](SPECULATIVE.md), section 3 and step 5).
 - **Design, against section 3 as the code now stands** (proposed in the devlog before building):
   - a decoding request with a mark and drafts is one verify entry [last pick, d1 ... dk], extent 1, every row's logits; its rows are sampled in order by the request's own sampler as `infer::accept` does, and the history retracted right after, before park, pause or fork;
   - the embedded drafter's chains run as one batched draft on the head's device for every request drafting that round (`Model::draft` over several sequences), after a pass is sampled and before the next is formed; lookup drafts on the host;
@@ -631,19 +726,16 @@
   - The drafter loaded and drafting nothing (`bench --model`, one MI50, 8 sequences, off, on, on, off at 56c0dc5a): 79.2, 76.7, 74.8, 72.6 tok/s, mirrored -0.3 percent, a falling card rather than a cost.
   - At 7da75632, rebased onto main b18acd9d, on an MI50: CTest 43 of 43, no compiler warning, the device suite's three components, and `server_mix_check.py` every request equal alone, together, skewed and to the CLI, with drafts fed and kept.
   - Against main b18acd9d at 7da75632: the served ids of Qwen3-0.6B Q8_0 through `server_mix_check.py --ids`, drafts off, the same on the CPU and on an MI50; a timing round without drafts, Qwen3.6-27B-MTP Q8_0 on one MI50, `server_load.py`, main, branch, branch, main, main, branch, each cool-gated at default clocks: 1 user 23.0, 22.7, 22.8, 23.0, 22.8, 22.8 tok/s (branch -0.7 percent on the means), 8 users 74.2, 71.7, 73.2, 73.2, 72.6, 72.9 (-1.0 percent), inside main's own spread of 2.2 percent at 8 users.
-- **Review:** XDEV (16:49) found that the draft rows of passes in flight could pass the 64 the logits rows hold, three passes of 63 drafts ending every request with "no logits rows"; confirmed by a `server-spec` case over three CPU stages at three passes that failed so, and fixed by capping a pass's new draft rows by those in flight (`draft_columns`). XDEV's later point, that the case's prompt appended a range of its own vector, is fixed by appending copies. The first hosted run failed only under UBSan, on `arch-qwen35` comparing two empty logits vectors with memcmp for a chain of no drafts, which the comparison now skips. At d3a8196e, with the cap, on an MI50: CTest 43 of 43, the device suite's three components, and `server_mix_check.py` on the 27B, every request equal, drafts fed and kept (embedded 745 and 540 on one MI50, 714 and 492 over two at two passes, lookup 303 and 111).
 - **Landing:** XDEV's review closed at 47336670 (18:49) and the coordinator's found nothing more (19:23); a hosted run was green on the squash of 47336670 (37131480729). Main then took message-boundary checkpoints (c4305c0a), whose state alone in host memory and fork with a state now carry the drafter's carried row with the slot, held by an `arch-qwen35` case that fails without the copy; rebased onto it, CTest 39 of 39 and the CPU suite's docs, dead-code, cli, qwen35 and server pass, and the device checks and the hosted run run again at the landing head, which lands by fast-forward.
 
 ## Message boundaries: an edited or regenerated earlier turn read from its message (2026-10-03, branch feat/message-checkpoints, step 2b part b of SPECULATIVE, lands by fast-forward)
 
-- **Goal:** on a model that keeps a state, a request that edits or regenerates an earlier turn of a conversation forks the state at the start of that turn's message and reads from there, rather than its whole history ([SPECULATIVE](SPECULATIVE.md), section 2, Host tier, message-boundary checkpoints); on the six-user, twenty-turn workload such a request at turn 2 read its whole 1.3k to 1.5k tokens in 5.7 to 6.1 s, against the reference's 1.6 s for the edit.
 - **Done:**
   - **A state alone, and a fork with it** (`model/history.hpp`): `Model::save_host` without blocks copies a checkpoint's state alone (`HostHistory::blocks` false, `host_bytes(length, false)`), and `Model::fork(src, length, state)` shares `src`'s blocks below `length`, whatever checkpoint `src` holds, with the state copied back into a checkpoint slot of its own, which the fork's first pass reads in place; `restore_host` refuses a state alone.
   - **Message boundaries** (`server/scheduler.hpp`): each re-prefill job's checkpoint already sits where its conversation's next user message starts, whole blocks inside the prefix `chat::stable_prefix` checked, so as the job completes its state is copied alone to host memory (`keep_boundary`, a `Boundary` with its tokens and row classes), no staging slots; a conversation keeps `kBoundaries` (4), its first and newest among them, the one whose neighbours lie closest going; boundaries live in the host tier's room after superseded copies and before any other copy, and a conversation's boundaries take its age as it adds one, so the room the tier needs takes those of the conversation that went longest unheard.
   - `enter` takes a boundary that shares more than any donor or host donor (`best_bound`), with the blocks of a donor holding its rows, its tokens and row classes below its position (`holds`), or of a host donor holding them, promoted first, and a checkpoint slot, the boundary pinned while room is made; `admit` forks with its state, and a fork whose copy fails reads the history from the start.
   - A boundary's and a host donor's entry is made before its copy is enqueued, so no allocation falls between a copy and the entry that releases it through `Model::release_host` (the other developer's review; the host donors' case came with part a).
   - `/v1/health` gives `boundaries` and `boundary_hits`.
-- **Where each concern lives:** the state copy and the fork with a state are `Model`'s (`model/history.hpp`), beside `save_host` and `restore_host`; which boundary is kept, thinned, dropped or forked is the scheduler's, `keep_boundary` called from `complete_jobs` alone, `drop_bound`, `best_bound` and `enter`, and the room between copies and boundaries is `write_back`'s and `keep_boundary`'s, the host tier's one owner.
 - **Tests:** `arch-qwen35`'s `host_state_fork`; `server-resume`'s `message_boundaries` on one CPU and over two, and `boundary_faults`, copies to host memory failing (no boundary or copy kept) and copies from it failing (the edit's fork with a state fails and reads from the start), each reply its reply alone and the ledger whole.
 - **Measured:** Qwen3.8-27B Q8_0 on one MI50 (renderD135) at default clocks, cores 12-15 of the MI50 machine, the six-user workload of the host-tier-room block (six users of twenty turns taken in turn, then for each user a regenerate and an edit at turn 2, the third user message), `--max-seqs 8 --ctx-size 32768 --host-cache-bytes 10737418240` on both llmx arms, each built from its own tree in the same image, main `llmx 0.1.0+gb18acd9d9c29` and the branch `llmx 0.1.0+gc980cbd13cee`; run 7 ran the branch, main, then the reference server at its defaults; load average 7 to 10 on average, 15 at most:
 
@@ -663,7 +755,6 @@
 
 ## Step 0 of the tensor split: a group's sum measured on 2 to 4 MI50s (2026-10-03, branch tools/tp-exchange, lands by fast-forward)
 
-- **Goal:** step 0 of `docs/TENSOR-SPLIT.md`: the numbers that decide the Vulkan collective (decision 2), with `llmx-vk-handoff exchange`, a mode of the phase 0 tool, and its kernels in `tools/shaders`.
 - **Done:** `llmx-vk-handoff exchange A,B[,C,D] [epochs] [device|host]`: every member writes its F32 partial into every member's inbox and adds the slots in member order, every sum checked against the exact sum; the dispatch floor with no peer; the exchange through sync files with one submission an epoch a member; each member's arrival on the host's clock through calibrated timestamps; and a flag wait inside one submission under the Vulkan memory model at device and queue-family scope, each spin bounded at 2^16 reads.
   Measured on the Linux machine's MI50s of one root complex (83:00, 86:00, 89:00), RADV Mesa 25.0.7, Linux 6.17.13, default clocks, 200 epochs a chain, median of 5 chains, no wrong sum:
 
@@ -684,7 +775,6 @@
   `llmx-multi-device-bench stages` on one MI50: Qwen3-8B Q8_0 takes 14.6 ms of device time a decode pass over 364 dispatches, and Qwen3.6-27B Q8_0 44.8 ms over 740.
   Pass costs with `llmx bench` (ms a pass) for the serving model of `docs/TENSOR-SPLIT.md`, section 5: Qwen3.6-27B Q8_0 on one MI50 at 1, 8, 16, 32 and 64 rows 43.2, 107.2, 206.7, 438.2 and 1543, pp512 1972 a chunk, pp2048 8123; Qwen3-32B Q8_0 over two MI50s at one pass in flight 51.5, 141.4, 274.9, 496.8 and 1057, pp512 2503, pp2048 6834 pipelined.
   Outcome, agreed with the other developer under the user's delegation: the Vulkan collective and steps 1 and 2 are deferred, the exchange mode lands as the probe decision 2 requires on every new driver, and the plan's section 8 lists what reopens the work.
-- **Review:** the other developer's findings on this branch (invalid SPIR-V flag modules, the counters' storage semantics, calibration uncertainty, argument checks, the exit status) were applied; its final OK of the last change was not given, as it was away, and the branch landed on the coordinator's review at the user's word.
 - **Left:** nothing on this branch; width 2 across root complexes was skipped by the coordinator, and the host's recording time a member a layer, which the stage timing does not separate, matters only once the work reopens.
 - **Gotchas:** host memory imported into a card must be a whole number of the import alignment (4096 bytes here), so the tool rounds its inboxes to 64 KiB; glslang declares the device-scope capability of the Vulkan memory model only under `#pragma use_vulkan_memory_model`, and only an optimized build validates a module; a spin on another card's flag that is not bounded ends in a ring timeout; the tool refuses an epoch count or device list it cannot read before any allocation and fails a run with a wrong sum.
 
@@ -701,15 +791,12 @@
 
 ## Host-tier usage and raw-decoder coverage wording (2026-10-03, branch docs/host-tier-usage-20261003, lands by fast-forward)
 
-- **Goal:** make the usage and test-coverage descriptions agree with the code already on main.
 - **Done:** USAGE links to the host-tier eviction policy described in [SERVER](SERVER.md), replacing its old claim that eviction was strictly by age. CI and ROADMAP now include MXFP4 in the raw-decoder coverage lists, as `tests/roundtrip.py` already does.
 - **Checks:** all 88 tracked Markdown pages reconciled against the code and existing reviewed pages: 75 identical canonical Git pages retain their review, and the 13 differing pages were checked against current main, keeping the unmerged IQ4 feature out of this correction. The docs and dead-code components pass with no new findings against their existing lists; their 16 and 18 planted-fault checks pass. The documentation-only gate requires these two components, without repeating runtime tests or waiting for hosted CI.
-- **Left:** none for this documentation correction.
 - **Gotchas:** no runtime behavior, default, flag or numerical gate changes; the IQ4 and message-checkpoint feature branches remain separate.
 
 ## One host copy per conversation, host memory kept for conversations that come back, and its default size (2026-10-03, branch fix/host-tier-room, step 2b of SPECULATIVE, lands by fast-forward)
 
-- **Goal:** the host tier of step 2b part (a) holds each conversation once and does not thrash under users taking turns, so a follow-up turn whose conversation fits the tiers does not read its whole history again ([SPECULATIVE](SPECULATIVE.md), section 2, Host tier); before 2b part (b), which comes after this, measured again on the edited-turn case.
 - **Cause, measured on main:** six users of twenty turns each taken in turn, Qwen3.8-27B Q8_0 on one MI50, `--max-seqs 8 --ctx-size 32768`: each conversation held two full copies, the request's donor and the re-prefill job's donor beside it (step 2c), and with the previous turn's job donor three, each about 650 MiB at 8k tokens; with every copy competing for the same host room the oldest went first, and under users taking turns the oldest is the one needed next, so from turn 10 on most follow-ups read their whole history.
 - **Done:**
   - **One copy per conversation** (`Scheduler::supersede`): a job's donor, once it has read the whole of its ids, supersedes the conversation's other donors, the one it forked, its request's (`Request::parked_`) and every donor and host entry whose tokens its own begin with, such as the previous turn's job's; they go to the front of their tier, so they go first when room is needed, and `write_back` copies no superseded donor to host memory, so they stay, for a regenerated reply, only while room allows.
@@ -718,7 +805,6 @@
   - **A renewed host copy takes its donor's standing** (`write_back`): a donor whose history a host entry already holds, a job donor of a regenerated reply that came out the same, say, renews the entry as not superseded and come back if either is, where it kept the superseded mark the job had put on the old copy and went first under host pressure as obsolete (the other developer's review).
   - **Default size** (`server::default_host_cache`, `host_cache_default` in `server/policy.hpp`): what `--max-seqs` histories take at the most one request may hold, the model context or the KV pool, whichever is smaller, within half of the host memory free once the model is loaded, and none where every storage is on the CPU, as approved; each copy still leaves the host the reserve the fit keeps (`detail::host_room`, `CpuBackend::host_reserve`), and serve's startup line prints the size taken.
   - Plain LRU and the rule suggested for comparison (keep the tier's content when admitting would evict an entry newer than the one written back) are the same here: the donor written back is always the newest, the conversation just served.
-- **Where each concern lives:** which donor goes, is written back, promoted or dropped is the scheduler's, `make_room` (`server/policy.hpp`) over device blocks and slots and `write_back`, `drop_host` and `promote` over host bytes; what a job's donor supersedes is `supersedes`, which `supersede`, called from `complete_jobs` alone, and `park`'s donor count read; the default size is `host_cache_default`, which `default_host_cache` feeds with the model's figures for the CLI and `server::serve` alike; the copies themselves are `Model::save_host` and `Model::restore_host` (`model/history.hpp`), unchanged.
 - **Tests** (`server-resume`, on the synthetic Q8_0 model; each fails on main's scheduler and passes with the change, checked by building each failing variant):
   - a request needing one donor's room evicts the superseded request donor of a conversation read again rather than an older unrelated one, and with a host tier copies nothing to host memory (fails on main: the unrelated conversation's repeat reused 0 tokens, against 256);
   - after two turns each read again, every donor evicted at once leaves two host entries, the unrelated conversation's and the second job's (fails with superseding by the job's ids alone: 3 entries);
@@ -753,7 +839,6 @@
 
 Published at [59d7e14b](https://github.com/mxxm-t/llmx/commit/59d7e14b75364dd11cd520d21dfcc49ea801484e) after [CI 37115070878](https://github.com/mxxm-t/llmx/actions/runs/37115070878) passed all seven jobs. Both main refs were verified at that commit, and the owned temporary gate branch was removed. The following pre-publication record retains the original timeout and its validation; the separate half-weight numerical hold is unchanged.
 
-- **Goal:** give the complete macOS Intel job a finite 40-minute budget after its 25-minute limit cancelled a run whose build and native checks had passed.
 - **Done:** the workflow changes only the macOS budget from 25 to 40 minutes. GitHub's check annotation confirms the timeout. Compared with the preceding passing main run, the build took 15m08s instead of 3m56s, and native checks took 6m28s instead of 3m21s. The added half-weight native test took only 5.32s; other native and Python checks also slowed. The dated evidence in [CI.md](CI.md#macos-intel-timeout-2026-10-03) records the observations and the bounded estimate.
 - **Checks:** docs and dead-code passed with their unchanged known-finding and planted-fault counts. All 88 tracked Markdown pages were reconciled with the published-main review: 86 unchanged pages carried forward, and the affected CI/STATUS claims checked directly. The workflow diff is exactly one value; runtime, tests, build commands and individual test timeouts are unchanged. No local build or model test was run for this scheduling change.
 - **Left:** exact-head hosted CI before fast-forward landing. The cancelled integration run remains retained; this checkpoint does not claim the longer job has completed.
@@ -765,7 +850,6 @@ Published at [d9c37b07](https://github.com/mxxm-t/llmx/commit/d9c37b072b27c0dfab
 
 The publication reconciliation reviewed all 88 tracked Markdown pages against the unchanged published tree and retained landing records; STATUS and CI needed publication updates, while the other 86 pages are unchanged. Docs and dead-code pass with their existing 13 and 7 known findings and all 16 and 18 planted faults. No runtime gate or failed numerical comparison is relabeled by this documentation correction.
 
-- **Goal:** generate independent file-exact Qwen3-MoE references with the existing spec decoder and layered HF owner, holding only one decoder layer in memory. Branch `test/hf-moe-file-exact-20261003` started at `b7a6d235` and is integrated onto main `da38d13a`; only the two STATUS introductions conflicted, and both records are retained.
 - **Done:** shared expert/router mapping in `tools/gen_baseline.py`, using independent spec decoders without full-model copies. The existing layered owner runs Qwen3-MoE through HF's own forward with temporary load/release hooks. Mixed storage/order and version-refusal checks join the hosted reference-generator component. An isolated local environment with torch 2.5.1+cpu, transformers 4.55.2 and numpy 2.2.6 passes the tiny full-versus-layered check, global rotary/one-layer residency assertions and failure recovery. The final hand check compares 57,568 F32 values exactly, including checkpoint loading. At the original checkpoint, reference-generator passed 37/37; docs and dead-code pass with their 16 and 18 planted faults. Original goldens remain unchanged; the gated HF comparison retains its existing 2e-5 bound (largest difference 1.70921e-6), while the near-tie difference 1.36668e-6 remains diagnostic. No runtime policy or acceptance bound has changed.
 - **Done:** the CPU tools-tier checkpoint `c7911709` passed 37/37 native tests and reference-generator, reference-consumer, docs and dead-code. The landing tests-first commit `f4f4c089` reproduced the layered CLI's late Windows `resource` import failure and Darwin's incorrect RSS units. The owner now reports the Windows lifetime peak working set and converts each POSIX platform's units correctly. The CLI also establishes offline mode before importing the Hub, explicitly requests cached tokenizer/config/model files, and gives the tokenizer writer its local file without changing the standalone generator's download behavior. Windows reference-generator passes 42/42; the tiny HF check still matches all 57,568 values exactly. Neither fix changes model arithmetic. At final source checkpoint `d6047e2b`, Linux reference-generator, reference-consumer, docs and dead-code all pass; the 42-test generator run skips only its Windows short-path case. The earlier native gate covers unchanged C++ sources. An initial scratch launcher quoting error ran no tests and remains recorded separately.
 - **Left:** run exact-head hosted CI; source review found no blocking numerical defect. Complete the separate real-model qualification. The pinned Unsloth model card identifies Qwen/Qwen3-30B-A3B; config/tokenizer revision `ad44e777bcd18fa416d9da3bd8f70d33ebb85d39` matches the GGUF dimensions, all 151,669 HF token IDs, all 151,387 merges and the fixed 247 excerpt IDs. This is the fetched metadata revision, not a claimed original conversion revision. BOS/PAD defaults differ, so compatibility here covers only the declared unpadded inputs without added special tokens. At source `91a7a6ff`, one fixed 247-token real-file forward completed all 48 layers and wrote 37,528,192 finite F32 logits (SHA256 `2e1d01f1ba0320412b8223d11cc125104de0af629783bf12c34290725dade650`). It took 180.766 seconds including file hashing and reported a 3.116 GiB peak working set. The retained worker record pins the model, metadata and source; all six retained CPU/MI50 batched/decode captures pass the existing continuous mean-NLL delta bound of 0.01 (largest delta 0.003104030448). All six have 246/247 strict top-one diagnostic matches; adjusted top-five misses remain at positions 116 or 243 in four captures. This is not a completed release gate: six standard prompts, six distinct reset windows and disposition of the original supplemental CPU/device failure remain separate work. Original live memory samples followed the Windows launcher rather than its worker, so the peak comes from the actual worker's lifetime counter; both processes exited, and no live abort coverage is claimed.
@@ -776,7 +860,6 @@ The publication reconciliation reviewed all 88 tracked Markdown pages against th
 
 Published at [da38d13a](https://github.com/mxxm-t/llmx/commit/da38d13a82ed07fb77b97944bd0e501f3a97314f) after [CI 37104221441](https://github.com/mxxm-t/llmx/actions/runs/37104221441) passed all seven jobs. The following pre-publication record retains the original failure and validation; its hosted check and fast-forward landing are complete.
 
-- **Goal:** keep the uncapped concurrency check's pause/resume witness valid when a paused history returns from host memory, while requiring new activity during the concurrent requests.
 - **Done:** the retained Radeon integration failure reached equal replies and log-probabilities, then reported two pauses, nothing active or paused, three host promotions, and no device takebacks or recomputed rows. The scheduler promotes a host donor before admission and counts it in `host_hits`; this is a valid resume path omitted by the assertion. Its source is unchanged between main `b7a6d235` and integration `6c5e21aa`.
 - **Change:** the check captures the full health record before the concurrent group and requires a new pause, no active/queued/paused requests afterward, and an increase in device takebacks, host promotions or recomputed rows. The existing reply and log-probability equality checks stay unchanged.
 - **Checks:** the corrected real Qwen3-0.6B Q8_0 `check_uncapped` passed on the CPU and Radeon VII, with unchanged reply and log-probability comparisons. Both began with zero pause/resume counters and ended with no active, queued or paused requests: the CPU added two pauses and 649 recomputed rows; the Radeon added two pauses, 62 recomputed rows and three host promotions. These focused checks used the frozen integration executable `6c5e21aa`, not a new build of this test-only branch. Their full health records remain in `.tmp-half-final-20261003/server-resume-cpu/complete.json` and `server-resume-corrected/complete.json`. The docs and dead-code components passed; all 88 tracked Markdown pages were screened for affected claims, with the unchanged historical records retained.
@@ -796,13 +879,11 @@ Published at [da38d13a](https://github.com/mxxm-t/llmx/commit/da38d13a82ed07fb77
 
 Published at [5835886c](https://github.com/mxxm-t/llmx/commit/5835886c92250317a69e7139ec7164f13874456d) after [CI 37034673513](https://github.com/mxxm-t/llmx/actions/runs/37034673513) passed all seven jobs. Both main refs and removal of its temporary gate were verified. The following pre-publication record preserves the integration measurements and their limitations.
 
-- **Goal:** complete the bounded dispatch prerequisite for half-weight formats: one private descriptor for the existing Vulkan weight types and one kernel ID/name/source list, preserving current behavior.
 - **Done:** one private Vulkan weight descriptor now selects support, row layout and modules, activation twins, float/BF16 and integer tiles, and existing dense/routed crossover families. One macro list generates the kernel IDs, diagnostic names and module bindings. An independent mechanical comparison against `fb366b16` preserves all 91 numeric IDs and their complete names/source/binding/count-array/preservation mappings. Shader sources and CMake entries are unchanged. The source dead-code check reads the list, with planted orphan-ID, missing-module and missing-name faults.
 - **Development checks:** a fresh Visual Studio 18 2026 / MSVC 19.50.35728.0 Vulkan build with SDK 1.4.357.0, two workers, built `llmx`, `llmx-backend-vulkan-test` and `llmx-vulkan-quantization-test`; the executable reports `llmx 0.1.0+gfb366b16cef4.dirty`. On the Radeon VII, `backend-vulkan` passed in 30.28 seconds and `vulkan-quantization` in 13.68 seconds. The new test covered 331 independently expected dispatch/refusal cases; existing coverage passed 93,240 shared matrix precision values, 36 actual-path witnesses and 12,125 equivalent-extent pairs. These are correctness checks, not performance measurements. Optional float-preservation refusal subcases retain their documented skips. The source dead-code check passes with all 18 planted faults, and the docs check passes with all 16 planted faults. The affected owner pages and Markdown references to removed helpers were reviewed; the quantization plan now distinguishes existing safety owners from the deferred model-specific crossover optimization.
 - **Completed correctness:** clean private `4ad79007` passes Linux native 42/42 and the strict device suite 25/25, including the actual RADV integer-dot path; Windows native 43/43 and docs/dead-code/architecture checks pass on the Radeon VII. Against base `fb366b16`, 22 CPU/device model cases give 66 byte-identical captures and matching records apart from build identity, covering all eight implemented weight types, dense and routed models. All 99 compiled shader modules match. Platform and optional hardware subcase skips remain explicit in the [checkpoint report](benchmarks/vulkan-weight-dispatch-20261002/report.md), which links the retained commands, hashes and logs. The clean Windows executable is `.tmp-vulkan-dispatch-windows-20261002/build/Release/llmx.exe`, version `0.1.0+g4ad79007fd2d`, SHA256 `fff71543ef89f77756f2176173baf4aeb8c7f1a6bf7ea4495830beb33e160fd2`; the preceding dirty build is development evidence only.
 - **Timing assessment:** all 54 calls returned 0 and remain separated as the original 24, a rotated 24-call follow-up with identical binaries, and six dense-MI50 calls at ten internal repetitions. The original Qwen3-30B-A3B Q4_K_M CPU decode deficit (-49.28%/-51.60%) did not reproduce: follow-up medians are candidate 13.535, base 13.425 and control 13.550 tokens/s, with candidate/base pairs +0.52%/+1.12%. Dense MI50 decode at ten repetitions gives 392.875/390.855/392.410 tokens/s and candidate/base pairs -0.23%/+1.28%. Accept the bounded timing screen at measured repeatability, preserving unfavorable samples and mixed GPU prefill signs. This is not a speedup or proof of exact nonregression. The [report](benchmarks/vulkan-weight-dispatch-20261002/report.md) and [data](benchmarks/vulkan-weight-dispatch-20261002/results.json) retain every rate, the ten-repetition calls' standard deviations, activity/unknown observations and hashes. No fresh mx campaign or reference parity is claimed; that comparison remains a phase-level gate.
 - **Diagnosis and limits:** candidate/control binaries have identical addresses, sizes and bytes for all 159 compared CPU/q8 functions, 22 bench functions and the 432-byte CPU vtable. Selected base/candidate Q4/Q5 decode instructions normalize identically, with constant/data and relocation limits documented. The added calls record child CPU/fault/I/O statistics and zero increments in cgroup memory max/OOM/OOM-kill counters. Their cold and cached reads do not establish the specific cause of the original deficit. One layout control does not establish a universal noise band. The final measurement container stopped at 18:50:46 local; the selected device reported 0% busy and 10,932,224 bytes of VRAM.
-- **Review:** the nullable descriptor is checked before dispatch: dense calls validate the whole projection group, routed calls and embedding validate their matrices, and the extent-only reuse queries do not dereference it. The preceding checkpoint screened all 86 tracked Markdown files for affected claims, names and links; this documentation-only completion rechecks the changed record and carries that unaffected review. The old findings under the dated quantization plan remain historical. The initial control worktree setup failure is preserved separately; it ran no measurement and no measured sample was discarded.
 - **Integration:** squashed onto published main `2c293678`; only this status file conflicted, and both feature records are preserved. The inherited source/test/CMake patch is exact after removing hunk positions. Fresh detached builds at `d4db2515` pass Windows 43/43 and Linux 42/42 native tests, no native skips, all 331 dispatch/refusal cases on each, and docs/dead-code/architecture checks. All 99 Linux shader modules match the measured candidate. The original suites, identities and timing retain their recorded source scope under the conflict-free rebase rule. The final amendment changes documentation only; hosted CI checks that final commit. The Linux container is stopped with no remaining device clients; hashes and conditional hardware subcases are in the report data.
 - **Landing:** lands as one commit by fast-forward when the integration checks and hosted CI pass and both main tips remain unchanged. The landing commit and its hosted run identify publication without a separate merge-record commit.
 - **Gotchas:** no new storage types, shader expressions, CMake shader entries, numerical policies, thresholds or model-specific row classes. The independent mixed-expert capability fix is inherited from main; it was absent from the original measured candidate. Existing IDs, pipeline variants, refusal text and dtype witnesses must stay unchanged. Activity flags describe observed contention and coverage limits; they neither establish a cause nor waive the existing-path speed gate.
@@ -811,31 +892,26 @@ Published at [5835886c](https://github.com/mxxm-t/llmx/commit/5835886c92250317a6
 
 Published at 530b10bf after all seven jobs in hosted run 37019138272 passed. The record below preserves the pre-publication validation.
 
-- **Goal:** refuse a routed gate/up pair on a backend that cannot execute differing storage types before allocating or adopting model buffers, and keep such a streamed layer on a capable host.
 - **Done:** test-first commit `8db68602` builds and fails both regressions: `model-validation` accepts the unsupported pair, and `arch-qwen35` omits its required operation. The repair declares `Op::mixed_experts` through one shared helper over the two declared projection roles; CPU supports it and Vulkan does not. The existing runtime operation check refuses an unsupported resident placement before allocation/adoption and leaves an unsupported stream destination's layer on its capable host.
 - **Validation:** clean candidate `234b5a00` passes Linux native 42/42 and the strict Vulkan suite 25/25, Windows native 43/43 and all 25 strict CPU components, plus Radeon VII MoE/qwen35. Both native device gates execute the capability assertion. Windows initially passed 23 components; paired published/candidate probes confirmed sandbox output-path denial, and only CLI/roundtrip were rerun with normal access and passed. Original failures remain retained. Platform subcases are reported separately: Windows short-path aliases are skipped on Linux, and POSIX file-size-limit injection on Windows. Earlier focused checks cover 491 model checks/388 exact refusals and 397 qwen35 architecture checks, including CPU mixed acceptance, streamed prompt/follow-up identity, down-only differences and missing gate/up text.
 - **Identity and timing:** against original base `46f60b64`, all 24 byte captures and records match across CPU/device on dense Qwen3, both synthetic routed families and real Qwen3-30B-A3B Q4_K_M. All 99 compiled shaders match. The [checkpoint report](benchmarks/expert-types-20261002.md) and [data](benchmarks/expert-types-20261002.json) retain all 24 monitored timing calls and a same-owner layout control. Most cells are near flat; the apparent real-MoE CPU decode gain also occurs in the unchanged-behavior control and does not establish a speedup. No material slowdown is demonstrated in this round. The reference-runtime comparison remains a phase-level gate; no mx parity is claimed. No kernel or shader arithmetic changes.
 - **Build identity:** `.tmp-expert-types-windows-20261002/build/Release/llmx.exe` is the fresh clean-source gate build `llmx 0.1.0+g234b5a00c5b2`, SHA256 `68626a99a6480973030b850c91b1372a1e5f885a892eec20af7f7546982a205f`. The older worktree-local `build-fixed/Release/llmx.exe` remains the dirty development build `0.1.0+g8db68602c92c.dirty`; it is not the completed gate binary. The rig's source/binary/model identities and final cleanup audit are retained beside the report's evidence.
-- **Docs review:** the prior whole-tree docs, dead-code and architecture-boundary checks pass with their existing known findings and planted faults. This checkpoint rechecks the changed operation-capability claims and five owner pages, preserving dated historical records and the unaffected review. Changed source comments and all changed files are ASCII. The report distinguishes completed original-base gates from pending final integration.
 - **Integration:** rebased onto published main `fb366b16`; only this status file conflicted and both records were kept. The source/test/build range-diff is unchanged for the failing-test and repair commits. Fresh clean builds at `47232075` pass Windows 43/43 native tests, Linux 42/42, and the Windows docs/dead-code/architecture checks. All 99 Linux shader modules match the original candidate. The original model suites, identities and timing keep their recorded source scope under the conflict-free rebase rule. The final amendment changes only this record and its evidence.
 - **Landing:** this feature lands by fast-forward after hosted CI passes at its exact head and both main tips are verified unchanged. Local gates are complete; hosted CI and the coordinated landing remain. If main moves first, refresh the integration as AGENTS.md requires.
 - **Gotchas:** the down projection is a separate call and may use another type. The helper does not validate tensors or throw when either is missing. Existing refusal fixtures retain their order; combined defects follow the established capability-before-resolution precedence. The qwen35 mixed-tag plan fixture checks planning only, not execution of those altered tiny views.
 
 ## Dtype release documentation correction (2026-10-02)
 
-- **Goal:** make the live AGENTS, Vulkan and CI descriptions agree with the activation dtype release at `8af97e88`, already published.
 - **Done:** corrected the remaining private-branch and unadvertised-F16 claims against the released CPU and Vulkan capability declarations. The retained publication audit confirms all seven jobs in [CI run 36987806876](https://github.com/mxxm-t/llmx/actions/runs/36987806876) passed at `8af97e88`, then GitHub and Gitea main advanced to that exact commit. The published Windows executable reports `llmx 0.1.0+g8af97e888262`; the docs and source dead-code checks pass against it.
 - **Landing:** rebased onto the gated storage main `0b2b0f20`, preserving its record and the split-hold record. This docs-only correction lands by fast-forward after its `docs` and `dead-code` checks; no runtime source changes. The following dtype entry retains its pre-publication checkpoint, with the completed release recorded above.
 - **Gotchas:** this changes no runtime policy, qualification result or performance claim. Historical measurements and open reference-speed work remain intact; native F16 does not mean literal half arithmetic on every path or native BF16 support.
 
 ## Storage metadata independent of execution support (2026-10-02, branch refactor/storage-types-20261002)
 
-- **Goal:** complete the storage-description part of the quantization plan's step 0 before adding F16/BF16 weight kernels. A known GGUF storage type can be sized and inspected without a decoder; inference and conversion still require their own implemented support.
 - **Done:** `quant/types.hpp` owns the names, block layouts and checked row sizing of 35 active GGML storage types. Unknown and retired IDs are refused with the tensor's name. The decoder registry reads that table and still implements the same eight types. GGUF metadata and CLI inspection no longer need a decoder. Model construction still refuses a weight its assigned backend cannot run and an unused tensor no model backend supports, before adoption; raw conversion checks every decoder before mapping or allocating decoded payloads.
 - **Done:** the layouts were checked against declarations in mx-llama.cpp `eefc4e7321c869496146697d63362f073941aed6` (`ggml.h`, `ggml.c` and `ggml-common.h`), without copying implementations. The native GGUF test covers 345 independent binary cases and compares all eight type IDs and eleven declared block constants in `q.glsl` with the C++ owner. CLI fixtures inspect and tokenize Q2_K files while inference and conversion refuse the unsupported tensor and preserve existing output files. Shader expressions and inference arithmetic are unchanged.
 - **Checkpoint checks:** fresh MSVC CPU build; GGUF validation, backend errors and model validation pass, 3/3 (the last includes 484 checks and 385 recorded refusals). The `cli`, `roundtrip`, `f32`, `docs` and `dead-code` components pass. Tiny F32 HF maximum logit error is 0.00000072 at the 2e-5 bound; maximum NLL error is 0.00000290 at 1e-5. Qwen3-0.6B Q8_0 gives the published `8af97e88` executable's three complete top-32 logit outputs and 32 greedy IDs and text on the CPU. This functional comparison uses different build configurations and is not timing evidence.
 - **Evidence:** local `.tmp-storage-types-run-20261002/` holds the clean compile log and commands under `final-focused/`, and pinned-model/binary hashes, commands and stdout under `identity/`; the native log is the branch build's `Testing/Temporary/LastTest.log`. The first greedy harness compared timing lines too and reported failure; its preserved generated text already matched, and the corrected check uses the suite's parser and explicit token IDs. A sandbox filesystem refusal in the initial CLI run was followed by the passing run with normal filesystem access; neither attempt is presented as a runtime regression.
-- **Markdown review:** all 85 tracked Markdown paths were checked for the changed storage, decoder and backend ownership claims. The affected live pages and this plan are reconciled; unchanged, unaffected material carries the preceding main review. This is a change-focused review, not a new full-source audit. Preexisting dtype release-status corrections are separated onto a docs-only follow-up, as the branch rule requires.
 - **Completed-branch correctness:** rebased cleanly onto main `46f60b64`. At `8923c376`, the clean Windows CPU build passes 38 native tests and all 25 Python components, requiring the pinned models and tools. The Linux Vulkan build passes 42 native tests and all 25 MI50 components without a reported skip. Six pinned models on both CPU and MI50 give main's exact full-F32 batched, per-token and 64-token greedy captures: 12 cases and 36 binary comparisons. All 99 compiled shader modules are byte-identical between the two arms. The Linux records are under `/zpool1/llmx-xdev-validation/storage-types-20261002/`; the Windows records remain in the local evidence directory above.
 - **Timing assessment:** all eight initial calls and six CPU control calls are retained, with activity monitoring. Qwen3-0.6B Q8_0 CPU prefill is below main in all four paired comparisons: -1.11, -3.81, -3.60 and -1.23 percent. GPU prefill's initial paired median is +0.02 percent, GPU decode -1.76 percent. Full emitted-code inspection shows the candidate and info-only control have identical benchmark, model and backend function bytes, yet candidate/control prefill differs by -6.01 and -0.52 percent and decode by +6.21 and +8.04 percent. Accept the timing screen at this limited repeatability: it cannot distinguish the approximately 2.4 percent main comparison from run/initial-state variation. This establishes no hot-code layout band, exact nonregression or speed gain; all negative measurements remain in the report.
 - **Gate evidence:** [the report](benchmarks/storage-types-20261002.md) and its companion JSON preserve every timing call, source and binary identities, independent correctness results, activity observations and diagnostic limitations.
@@ -846,7 +922,6 @@ Published at 530b10bf after all seven jobs in hosted run 37019138272 passed. The
 
 ## Split decode at one card's speed (2026-10-02, branch perf/split-hold, lands by fast-forward)
 
-- **Goal:** one request on a layer split decoding at about one card's speed at automatic clocks, phase 2's decode target (`docs/MULTI-DEVICE.md`), which the MTP comparison showed missed: llmx 12 to 18 percent below the reference on two MI50s with drafts off while level with it on one.
 - **Cause:** on a split each card waits while the other runs its stage. llmx waited on the host, so a waiting card read as idle and both stayed at 930 MHz through a split decode, against 1606 to 1725 MHz on one card; the reference waits on the device, which reads as busy, and its card held 1725 MHz. Both at the automatic performance level, nothing set (`rocm-smi` read only).
 - **Done:** `Backend::hold_between_submissions`, which the model asks of each device when its roles use more than one. On Vulkan each `submit()` is followed by a submission that waits on an event, set by the next submission or, after 100 ms without one, by a watchdog thread the first hold starts, so an idle card still idles and no wait nears the driver's job timeout; the backend's own flushes (a chunk, an upload, a read, `sync`) set a pending event and add none. The CPU ignores it. A model asks once it is made and gives the request back when it goes, the backend holding while any request remains. `placement` checks the devices asked and the requests' balance, `backend-vulkan` copies around holds and after an idle gap, `vulkan-lifetime` a hold setup failing at each step and then made again.
 - **Gates** (each tree built from its own sha, default clocks, GPU[2] and GPU[3] of the MI50 machine):
@@ -865,7 +940,6 @@ Published at 530b10bf after all seven jobs in hosted run 37019138272 passed. The
   - The device suite on an MI50 passes every component it runs but `dead-code`, which found the hold state's struct name unused (now unnamed), and `perf`, whose prefill floor the first synthetic bench in a fresh container misses on main as on the branch (568 and 387 tok/s against 1000 while the idle card raises its clock, then 1870 to 2300 on both), where the synthetic model runs on one device and takes no hold.
   - Rebased onto main `46f60b64` without a conflict, so the builds, CTest, `docs`, `dead-code` and the hosted run ran again at the head.
   - The other developer's review found three lifecycle defects, each checked against the code and fixed: the test's last copy freed its buffers before it retired, a hold setup failing part way left its resources and a retry overwrote them, and a model enabled holds for good before its construction could still fail. The fixes reran CTest on an MI50 and the Radeon VII, the split timing and the hosted run. The watchdog's release is held by the clocks above, not by a test, since every submission also releases a hold.
-- **Left:** nothing.
 
 
 ## Activation dtype across CPU and Vulkan (2026-10-02, pre-publication checkpoint)
@@ -911,19 +985,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 - Throughput is not inferred from these startup checks. The integrated release refresh builds the performance arms alike and gives each llmx arm identical capacity and executed histories with automatic KV fitting disabled, so this reserve cannot change its benchmark capacity. The reference's reserved context is smaller and is reported separately from the matched histories. Independent HF results remain applicable because no arithmetic changed.
 ## The embedded MTP proposer for qwen35 (2026-10-02, branch feat/qwen35-mtp, step 4 of SPECULATIVE, lands by fast-forward)
 
-- **Goal:** `--drafter embedded` drafts with the MTP block a qwen35 file carries and gives exactly the output of `--drafter off`, greedy and seeded, with a measured decode gain on the dense 27B ([SPECULATIVE](SPECULATIVE.md), section 7, approved 2026-10-02).
-- **Where each concern lives**, each once:
-  - the block's metadata and refusals: `qwen35::read_config`, unchanged;
-  - the block's roles, planned only when a drafter is asked for: `Qwen35::plan_drafter`, filling `ModelPlan::drafter` with a `LayerPlan` of `Part::draft` roles whose cache is KV, called by `plan_model` with the request's `drafter`;
-  - the block's math: `Qwen35::draft_rows` (the context rows of a pass) and `Qwen35::draft` (one draft row), the two norms, the interleave and `eh_proj` in `blocks::nextn_input`;
-  - the contract: `Architecture::plan_drafter`, `Architecture::draft_rows` and `Architecture::draft`, none by default, and `Part::draft`;
-  - the MTP layer's KV: one more KV layer of the output device's storage (`Model::drafter_kv_`), under the target's block table, length, fork, retract and budget;
-  - the carried row: a row of the residual's width a state slot on the output device (`Device::carry`), read at a pass's src slot and written at its dst slot by `Model::run_stage`, a history of length 0 reading a zero row; the h rows a mark saves in `Device::saved_h`, saved by `Model::save_h` and read back by `Model::rerun`, beside the state layers' saved inputs;
-  - the draft chain: `Model::draft(seq, last, k, out)` in `src/model/history.hpp`, one submission on the output device;
-  - the proposer: `spec::Embedded` in `src/inference/spec.hpp`;
-  - the two ops: `Backend::argmax_rows` and `Backend::embed_ids`, on the CPU and Vulkan, refused at load by name where a backend lacks them;
-  - loading and the fit: `PlacementRequest::drafter` through `place_model` and `plan_model`;
-  - the flag: `--drafter embedded` in `Drafts` (`src/cli/main.cpp`) on `generate`, `chat` and `bench --model`.
 - **Done:** the code on the CPU and Vulkan with its tests and docs; the drafter's ops on both; the fit's count of the drafter; `bench --model --drafter embedded` (the k = 0 gate and the rollback lines). Its gates and measurements, in the order they were taken:
   - The block's math: the tiny fixture's drafts and every draft row's logits at steps 1 and 2, from prompts of 1, 2, 5 and 12 tokens, against the assembled HF reference (`tools/gen_baseline.py qwen35-mtp`, docs/ASSETS.md): every pick and drafted id equal, largest logit error 3.0e-7 on the CPU and 5.8e-7 on the Radeon VII against the F32 bound of 2e-5.
   - Identity, drafts on against off, ids compared, `generate --verbose`, 128 tokens, greedy on a copy prompt and a chat story, and seeded at temperature 0.8: equal in every cell on one MI50 for Qwen3.6-27B-MTP Q8_0, Qwen3.8-27B Q8_0 and Qwen3.6-27B-MTP Q4_1 at 1 and 3 drafts, and over two MI50s (layer split) for both Q8_0 files; the tiny fixtures on the Radeon VII and the CPU; on Windows CTest 41 of 41 and the CPU suite.
@@ -1086,7 +1147,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## One row class: a generated token's row and a prompt's row the same bits (2026-10-01, investigation, no branch yet)
 
-- **Goal:** find whether a generated token and a prompt token can take one arithmetic in every op, so a reply's decode rows, a verify's rows and any checkpoint position are reusable as they are, exactly, which would make the re-read of 2c unnecessary (docs/SPECULATIVE.md, section 2); agreed with the other developer as a measured investigation, owned by the coordinator for the integer tiles and attention, float tile and dispatch work coordinated with the dtype branch.
 - **First measurement** (`exp/one-row-class`, never merged: the row-class check reporting, for four rows of one prompt, how many outputs at extent 1 differ from extents 2, 64, 512 and 1000):
   - MI50: extents 1 and 2 give the same bits everywhere (both on the row kernels). From the tile crossover on, F32 and Q8_0 matmuls and the routed F32 and Q8_0 products differ by summation order only (largest relative 2.3e-4); Q4_0, Q4_1, Q4_K, Q5_K and Q6_K differ by up to 158 percent relative on small outputs, since the decode row kernels read the 8-bit twin and the tile the 16-bit one; attention differs by order only (6.1e-4) between the per-row kernel and the tile.
   - CPU: attention gives the same bits at every extent; every matmul type differs from extent 2 on, F32 and Q8_0 by order (8.6e-4), the K-quants by up to 24 percent through the 8-bit decode dots, the routed products by order (1.9e-4).
@@ -1095,18 +1155,15 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## Decode attention takes three heads a workgroup (2026-10-02, branch perf/attention-three-heads, lands by fast-forward)
 
-- **Goal:** decode at long histories on models whose KV head serves a multiple of three query heads, Qwen3.6-27B's six among them, which took two heads a workgroup and so loaded each token's key and value three times a KV head.
 - **Done:** once a row's history fills every part, a decode attention workgroup takes four, three or two heads of a KV head as the group divides, where it took four or two; each head's arithmetic is the same in either grouping. `backend-vulkan`'s attention after a long history adds query/KV ratios 3 and 6, which take the three-head path, to 1, 2, 4 and 8.
 - **Gates** (each tree built from its own sha, default clocks, one MI50):
   - Decode on Qwen3.6-27B Q8_0, tg256, arms main, change, change, main: after 16384 tokens 20.09 and 20.05 tok/s on main `25549f02`'s kernels against 20.57 and 20.52; after 4096 tokens 21.76 and 21.72 against 21.83 and 21.90. Models whose group divides by four take the build they took.
   - Qwen3.6-27B Q8_0's 64 greedy ids after a ~4k-token prompt are main's.
   - On an MI50, CTest 40 of 40 and the device suite with `--require-tools` passing every component it runs (the qwen35 gate fixtures not on that disk skip, as MXFP4 does on the device); on the Radeon VII, CTest 41 of 41 and Qwen3-8B Q8_0's ids after a ~4k-token prompt main's.
   - The hosted run at the head. Rebased onto main `8af97e88` without a conflict, so the builds, CTest and the hosted run ran again there.
-- **Left:** nothing.
 
 ## The attention merge reads each part's state once (2026-10-01, branch perf/attention-merge, lands by fast-forward)
 
-- **Goal:** less of an MI50's decode at long histories in `attention_merge`, which `--profile` put at 13.2 ms of 115 ms of device time over 4096 decode dispatches of Qwen3-30B-A3B Q4_K_M after 16384 tokens at 64 parts, a quarter of attention's own time, for a merge of a few hundred kilobytes a layer.
 - **Done:** each of a row and head's parts has its maximum and sum read once into shared memory and its weight formed once, where each of 128 lanes read every part's state and formed every weight; the maximum is taken across subgroups, which is exact in any order; a lane loads eight parts' values of its column before it sums them, in part order, as one lane reading every part did, so the output keeps its bits. The parts a row may take are at most 256, the merge's workgroup (`attention_split_max`).
 - **Gates** (each tree built from its own sha, default clocks):
   - The merge's device time over those 4096 dispatches, at 64 parts: 13.2 ms on main, 7.5 ms with the change. Decode after 16384 tokens, tg256, on one MI50:
@@ -1131,7 +1188,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## Decode attention at depth: fewer parts on an MI50 (2026-10-01, branch perf/attention-splits, lands by fast-forward)
 
-- **Goal:** close the decode gap at long histories on an MI50, where Qwen3-30B-A3B Q4_K_M gave 56.4 tok/s at tg512 after 16384 tokens against the reference's 69.5.
 - **Done:**
   - The cap on a row's attention parts is a profile number per head width: `attention_split_max` for heads 128 wide and narrower, 32 in the MI50 row and 64 by default, and `attention_split_max_wide` for heads 256 wide, 64.
   - On an MI50 the gain is the merge's: `--profile` of decode after 16384 tokens gave `attention_merge` 13.2 ms at 64 parts and 7.7 ms at 32 on Qwen3-30B-A3B Q4_K_M (17.7 and 10.1 ms on Qwen3-8B Q8_0) of 4096 dispatches, while the attention kernel took the same time.
@@ -1159,7 +1215,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## A restarted server waits for the card to give back its predecessor's memory (2026-10-01, lands as `fix/fit-settle`)
 
-- **Goal:** a server restarted on the cards an ended server held loads once the cards have given that memory back, instead of being refused as a model that does not fit; a model that truly does not fit is still refused, by its own text.
 - **Found:** in production a Qwen3.8-27B Q8_0 server restarted on the card of an old 27B server was refused twice before an automatic restart about 13 s later loaded. Sampled every 0.1 s, an MI50 gave back an ended 27B server's 32 GB in steps over about three seconds, holding it level for more than two seconds between steps, while the fit gave up after two quiet reads (0.5 s).
 - **Done:** `settle` waits five quiet seconds (`kSettleQuiet`, 20 reads of 250 ms), up to thirty in all, before a fit short of what it asked for stands; `3e53ebfe`, a device whose free memory stays level for four seconds before rising, fails without it.
   - Restarting a Qwen3.6-27B Q8_0 server with SIGTERM and starting a Qwen3.8-27B Q8_0 server on the same MI50 at once, in one container: five of five loaded with the change, one of three with the two-quiet-read settle of 8d, one of three before it.
@@ -1168,7 +1223,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## qwen35 served over a layer split (2026-09-30, step 8d of the qwen35 plan, merged at `87051ea3`)
 
-- **Goal:** `serve` runs a qwen35 file over a layer split with passes in flight, each stage holding its layers' recurrent states and KV, with the budget fitted at load (8a) over every device: Qwen3.6-27B Q8_0 and Qwen3.8-27B Q8_0 over two MI50s at the full 262144-token context, for production (user, 2026-09-30).
 - **Done:**
   - The scheduler and the pass API already held states over a split (`server-passes-cpu` and `server-resume` run a hybrid model over CPU splits since 8b), so serving needed no change: over two MI50s with the defaults (16 sequences) each 27B Q8_0 file fits the whole 262144 KV tokens and keeps two passes in flight.
   - The change is the split's fit, which read the devices' free memory once: `generate` over the split, started as a server on the same cards ended, was refused while the cards were still reclaiming that server's memory. `settle` in `model/place.hpp` now serves both fits, the split's placement and the server's KV budget; `108b2bac`, the test, fails without it.
@@ -1200,7 +1254,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## Reasoning apart from the answer, and chat_template_kwargs (2026-09-30, branch feat/server-reasoning, lands by fast-forward)
 
-- **Goal:** a chat client shows a reasoning model's thinking apart from its answer. The Qwen 3.5 templates end the prompt inside an open `<think>`, and Qwen3's replies open one themselves, so `/v1/chat/completions` gave the reasoning, a stray `</think>` and the answer as one content, which Open WebUI printed whole.
 - **Done:**
   - `chat::ReplySplit` is the one owner of the split of a reply as it streams: the text inside `<think>` up to the first `</think>` is `reasoning_content`, and the rest `content`.
   - It works whether the template opened the `<think>` (`chat::opens_reasoning`) or the reply opened it after newlines.
@@ -1214,7 +1267,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## Commit policy (2026-09-30, docs only, lands by fast-forward)
 
-- **Goal:** a leaner history: 375 of main's 1048 commits were docs, 101 of them merge records.
 - **Done:** AGENTS.md now has a branch land as at most two commits (the failing test, then the change with its tests, docs and STATUS entry), a feature's docs in the same commit as its code, and no separate merge-record commit: the landing commit's STATUS entry is the record.
   Existing history is not rewritten, since STATUS, ASSETS and the evidence cite its hashes.
 
@@ -1225,19 +1277,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## Donors kept in host memory, written back and promoted (2026-10-02, branch feat/host-cache, step 2b part a of SPECULATIVE, lands by fast-forward)
 
-- **Goal:** a donor the device tier evicts is kept in host memory and promoted back when a request matches it, so more conversations than the device slots and blocks hold resume instead of recomputing, on every model: for qwen3 and qwen3moe the KV blocks of a prefix, for qwen35 those and the checkpoint's state ([SPECULATIVE](SPECULATIVE.md), section 2, Host tier, part a; step 2b).
-- **Design:**
-  - **Write-back:** a donor the devices evict, for an admission, a growth step, the donor count or a checkpoint slot (`drop_donor` with `evicted`), is copied to host memory first (`write_back`): its whole blocks, up to its checkpoint on a model that keeps a state, within the cap and the host's free memory, the oldest host donors going first; one whose history a host donor already holds only renews that entry's age.
-  - **The copies:** `Model::save_host` enqueues `Backend::copy` from each storage's blocks, in runs of consecutive blocks, and the checkpoint's slot into the backend's host-visible memory on each device's own stream, and nothing waits: whatever writes those blocks or that slot next comes after the copy on the same stream, and so does a restore. `Model::restore_host` enqueues the copies back into fresh blocks and a checkpoint slot of its own ahead of the history's first pass. The host memory comes in 64 MiB slabs that `Model::release_host`, once the copies into and out of them have retired, leaves to the model for the next copy, since allocating and pinning host memory cost far more than copying into it (Measured, below).
-  - **Promotion:** `enter` also searches host memory (`best_host`, `shareable`'s rule over the entry's tokens and row classes); an entry sharing more than any device donor is promoted (`promote`), taking its blocks and checkpoint slot as a first admission takes room and becoming a device donor of its own, `on_host` naming the entry, which stays, so evicting it again copies nothing; the request then forks it as any donor.
-  - **Bounds:** `--host-cache-bytes N` caps the tier in whole slabs, by default a quarter of `core::host_memory_available` once the model and its caches are loaded and none where every KV and state storage sits on the CPU (`server::default_host_cache`, `Model::caches_on_devices`), 0 turning it off; a copy whose new slabs would leave the host less free memory than the reserve the fit keeps (`CpuBackend::host_reserve`, the CPU's `scratch_reserve`) is refused (`detail::host_room`); the entries' slabs within it, the oldest going first, and the slabs alive, idle or holding a copy, within it too, a copy freeing idle slabs of other devices before it allocates one (`detail::slabs_to_free`) and being refused where they cannot make room.
-  - **Owner identity:** a `HostHistory` names the `Model` that wrote it, and only that model restores or releases it; the scheduler, which belongs to one model, holds the entries and releases them as it stops.
-  - **Failure:** a copy that fails as it is enqueued leaves no entry and the device donor goes as before; a promotion that fails takes nothing on the devices and keeps its entry.
-- **Where each concern lives**, each once:
-  - copying a history to host memory and back, every storage of a split and the checkpoint's state, and the slabs: `Model::save_host`, `Model::restore_host`, `Model::release_host` and `Model::host_bytes` in `src/model/history.hpp`, over `BlockKVStorage`'s block buffers and `StateStorage`'s slots through `Backend::copy`, so the scheduler never sees a layout; `HostHistory` in `src/model/runtime.hpp`;
-  - which donor is written back, promoted or dropped: `Scheduler::drop_donor`, `Scheduler::write_back`, `Scheduler::drop_host`, `Scheduler::best_host` and `Scheduler::promote` in `src/server/scheduler.hpp`, room through `make_room` as for any admission and slots through `Scheduler::checkpoint_room_held`;
-  - the flag and its default: `src/cli/main.cpp` into `server::Config`, given once to the scheduler;
-  - the counts: `/v1/health`'s `host_donors`, `host_bytes`, `host_hits` and `host_bytes_moved`, from `Scheduler::stats`.
 - **Done:** the code, the docs (SERVER, USAGE, `docs/src/model-history.md`, `docs/src/server.md`) and the tests: `kv-cache` and `arch-qwen35` round-trip a history through host memory into other blocks and slots, bit for bit, with the refusals; `server-resume` alternates two conversations on a pool that holds one, on the synthetic Q8_0 model and the hybrid one with a checkpoint slot, one CPU and two, every follow-up promoting its donor and forking 256 tokens with its reply on a fresh model, and none without the tier, and injects a failing copy at write-back and at promotion; the `server` component does the same on Qwen3-0.6B Q8_0 against the CLI.
 - **Gates** at `db4d95a8` on the rig against main `25549f02`, the MI50 GPU 5 and cores 12 to 15: CTest 40 of 40; the suite on the CPU passes every component and on the MI50 every one, MXFP4 skipped as on main; Qwen3-0.6B and Qwen3.5-0.8B Q8_0 give main's bytes in all 14 identity cells on the CPU and the MI50; the linked dead-code check passes once the `BlockKVStorage::block_tokens` line, which the copies now read, leaves `tests/data/known_findings.txt`. Two conversations alternating on a 1024-token pool, each follow-up promoted from host memory, give `generate`'s ids on its prompt and reuse 448 to 512 tokens of 574 to 627 on Qwen3-0.6B and Qwen3.5-0.8B Q8_0 on one MI50 and over the MI50 and the CPU, and on Qwen3-30B-A3B Q4_K_M with its experts on the CPU and prompts from 32 tokens streamed.
 - **Measured**, Qwen3.8-27B Q8_0 on one MI50 at default clocks, `--max-seqs 8 --ctx-size 32768`, which keeps 3 checkpoint slots: six chat conversations without reasoning taken in turn for five turns each, as six chat UI users would, about 2k tokens each by the end, then the same with other text beside an unrelated streaming request; five arms interleaved, main, the change with `--host-cache-bytes 8589934592`, the reference server at its defaults, the change, main; the llmx replies the same bytes in every arm; load average 8 to 10, the MTP agent timing on other cards and cores:
@@ -1250,7 +1289,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
   | the stream's gap between tokens p50 / p90 / p99 / max | 54.0 / 369 / 2114 / 2180, 53.2 / 368 / 2113 / 2180 ms | 53.4 / 58.9 / 1601 / 2081, 53.1 / 54.1 / 1584 / 2082 ms | 59.7 / 60.9 / 1269 / 2011 ms |
 
   On main every follow-up read its whole conversation, since 6 conversations and their re-read replies outran 3 checkpoint slots; with the host tier 41 follow-ups of 48 were promoted (`host_hits`), 27 entries and 8.5 GB held at the end and 37.6 GB copied either way over the two runs. The stall the copies put on the scheduler thread, from the server's own line per copy, is the copy's enqueue: a promotion 0.6 to 1.2 ms, a write-back 1.0 ms at p50 and 114 to 119 ms at p90, the tail being the slabs' first allocation, about 30 ms a 64 MiB slab, which reuse ends once the tier has reached its cap (one write-back of 821 ms among 220). A first build that read the copies to the host on the scheduler thread took 257 ms a write-back at p50 and 2.2 s at most, 0.84 GB/s; enqueued into host-visible memory allocated per copy, 95 ms at p50, the allocation itself. The unrelated stream's gaps show no stall: its p90 and p99 fall below main's, since the follow-ups' prompt passes are a quarter as long, and its largest gap is main's.
-- **Review:** XDEV's review of b8935e84, each finding rechecked against the code: a promotion that evicted device donors and then failed left `enter` holding the index of a donor gone (confirmed; `enter` now finds the best donor again after every promotion it tries, and `server-resume`'s failed-promotion case aborted with `KV cache: a fork takes whole blocks of the history` before the fix and passes after it); idle slabs pooled per device were outside the cap, so a split whose copies changed shape could hold more than it (confirmed; the cap now bounds every slab alive, the case in `kv-cache`); `release_host`, which is `noexcept`, could allocate as it returned a slab to a pool, and a copy failing part way could leave copies past the tickets it held (confirmed; the pools reserve room as slabs are allocated, and a failing copy retires every device's stream first); and SPECULATIVE's and SERVER's account of when the copies are waited for, corrected. XDEV's recheck of 5621e9ff confirmed the three and found one more: the per-device pool and its counts were sized under one check, so a count left unsized by a failed allocation was indexed on the next copy (confirmed; each is now sized on its own); and SPECULATIVE's publication sentence, corrected to the same stream order.
 - **Gates after the review's fixes**, at 5621e9ff on main 46f60b64: CTest 42 of 42, the linked dead-code check, the suite on the CPU with every component passing and on the MI50 the components the change touches (`server`, `qwen35`, `chat`, `f32`, `moe`, `split`), the real-model host probes as before, and the hosted run (36998683388) green on all seven jobs; the recheck's sizing fix reruns CTest and the hosted run.
 - **Coordinator's review** of e11cdc2a: the default was read before the model loaded, and a copy was refused only below its own size, so the tier could take the headroom the CPU fit keeps and bring back the out-of-memory the fit's reserve prevents on a memory-limited host; and with every cache on the CPU the tier copied host memory into more host memory. The default is now read after the load and is none where every cache is on the CPU, and the copy's new slabs must leave the CPU's reserve, the rule held at its edge in `kv-cache`. XDEV's glance found the reserve read before the idle slabs the copy frees were freed, which refused copies those slabs would have made room for (confirmed; it is read after them).
 - **Left:** landing, once the rebase onto main 58a696ce has its builds, CTest and hosted run. The slabs' first allocation stays on the scheduler thread; a server that should not take it can be given a smaller `--host-cache-bytes`, and moving it off the thread waits for a measured need.
@@ -1258,18 +1296,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## A reply read again as prompt rows, idle and while it is written (2026-10-01, branch feat/idle-reprefill, step 2c of SPECULATIVE)
 
-- **Goal:** a follow-up turn that keeps the previous reply forks past it and reads only its new message, instead of reading the reply again because the reply's rows are decode rows ([SPECULATIVE](SPECULATIVE.md), section 2, Idle re-prefill, and step 2c): the reply and the closing tokens the next render adds are read as prompt rows on a fork, while the reply is written and after it, and the fork's history replaces the donor once it is complete.
-- **Design:** one mechanism with two triggers, a job in the scheduler's round. The chat routes, which render the conversation, give the scheduler the ids the next turn begins with (`Scheduler::follow`): the conversation with the reply as the route returned it, rendered with a user turn after it (`chat::stable_prefix`, the ids two different user turns share), every 32 tokens while the reply is written, as far as two different continuations of it also agree, and once it has ended in full. A job is an internal request whose prompt is those ids to their last whole block. It is admitted through `enter` as a first admission is, taking a seat and room, and forks the history sharing most with it: a donor through `best_donor`, or, through `shareable`, the request it follows while that request runs or another running job; its rows past the fork take its prompt's extent. `form` gives it the leftover budget after every request's slice, its slices ending on whole blocks: at most 64 rows (`kJobChunk`) of a busy pass for a job begun while its reply was written, and otherwise only passes no request has rows for. On a model that keeps a state a job keeps its state at each whole block it reaches (`Model::keep`, its live slot becoming the checkpoint's), so a follow-up that comes before the job completes forks what it has read, as a running job is a source for any first admission. Once its ids are whole and read, `complete_jobs` parks it as a donor beside the one it forked, which a regenerated reply (Open WebUI's regenerate resends the history before the reply) still forks at its earlier checkpoint; both go by donor age through `make_room` as room is needed, and the forked donor's checkpoint slot goes to the job only where no older donor's can. A job not in flight gives its seat and room back at the pass boundary when a waiting request cannot be admitted from free seats and blocks alone (`fits_free`) or a request could not grow (`yield_jobs`), and starts again from its source once nothing waits; ids that grow past a running job's reservation take the difference from free blocks before it reads them, or the job gives way the same way; a failed job frees what it held and leaves its source.
-- **Where each concern lives**, each once:
-  - where a next turn diverges, for a prompt and for a reply: `chat::stable_prefix` in `src/inference/chat.hpp`, one name with two overloads;
-  - giving the scheduler a conversation's next-turn ids: `Scheduler::follow` in `src/server/scheduler.hpp`, which `Api::generate` calls through `Api::next_turn` in `src/server/api.hpp` for the chat routes;
-  - whether jobs run at all (one row class from some extent up to the token limit, and checkpoint slots on a model that keeps a state): `Scheduler::follows`, over `steady_from_`, which the scheduler's constructor finds from `Model::row_class`;
-  - turning ids into jobs, growing, restarting or dropping them, and admitting them: `Scheduler::follow_up`, through `Scheduler::enter` and `Scheduler::admit`;
-  - what a history can give a fork, for a donor, a running request or a running job: `Scheduler::shareable`, which `Scheduler::best_donor` and `Scheduler::enter` use;
-  - a job's rows in a pass: the `slice` step of `Scheduler::form`, shared with the requests' prompt slices;
-  - giving way: `Scheduler::yield_jobs`, when `Scheduler::fits_free` says a waiting request needs the room; keeping and completing: `Scheduler::complete_jobs`, through `Model::keep`, `Scheduler::checkpoint_room` and `Scheduler::park`;
-  - room: `make_room` in `src/server/policy.hpp` through `enter`, as for any first admission;
-  - forking, extending and keeping a history: `Model::fork` and `Model::keep` in `src/model/history.hpp` and the pass API in `src/model/runtime.hpp`, unchanged.
 - **Done:** the code, the docs (SERVER, USAGE's health fields, `docs/src/server.md`, `docs/src/inference-chat.md`) and the tests: `server-resume` reads a 300-token prompt's reply again idle and while it is written, on the synthetic Q8_0 model and the hybrid one with checkpoints, on one CPU and over two, and the follow-up forks every whole block of the next turn's ids (384 and 640 tokens against 256 without the job) and gives its reply on a fresh model; the hybrid job is cancelled by a request at each of its seven pass boundaries, the request giving its reply alone and the job completing afterwards; idle, a regenerated reply forks the request's own donor at the prompt's 256 tokens beside the job's donor and gives the same reply; the writing case leaves nothing to read once the reply has ended, which caught a job made whole after its last pass never completing; a follow-up answered at once, before the job has read the rest, forks the running job's 384 tokens; and a request that fits beside the job leaves it running. `chat-template` holds the new overload to its renders, a template that renders reasoning only for the last turn included. The `server` component's real-model pass adds a chat follow-up on Qwen3-0.6B Q8_0 that reuses past its first turn's prompt (640 of 704 tokens against a 531-token first prompt on the CPU) with the reply of a fresh server.
 - **Gates so far**, on the rig's MI50 (GPU 5) and its CPU, against step 3 (d1455eee): CTest 40 of 40 (`server-resume`'s answered-at-once case over a two-CPU split failed once under load and was relaxed for passes in flight, then passed four runs in a row); the suite on the CPU passes every component and on the MI50 every one but `perf`'s prefill floor (701 against 1000 tok/s at load 8 to 13, the synthetic bench, which the change does not touch), `server` passing its new chat follow-up on both (640 of 704 tokens reused against a 531-token first turn); Qwen3-0.6B and Qwen3.5-0.8B Q8_0 give step 3's bytes in all 14 identity cells on the CPU and the MI50.
 - **Follow-ups against `generate`**, a ~600-token chat turn without reasoning, its 200-token reply read again, then a follow-up of 48 greedy tokens: on Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q8_0 on one MI50, over the MI50 and the CPU as a layer split, and on the CPU alone, and on Qwen3-30B-A3B Q4_K_M with its experts on the CPU and prompts from 32 tokens streamed to the MI50, the follow-up reused 768 of 831 or 843 tokens, and its ids equal the same request on a fresh server and `generate` on its rendered prompt, every cell.
@@ -1287,13 +1313,11 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
   A follow-up now reads its new message and at most a block beside it, as the reference does, so the time to first token falls by 0.25 to 0.5 s a turn on these 400-token messages, more where a reply is longer: the production case of a 9370-token read after a long reply reads only the new message. The remaining gap to the reference is the prompt read itself (llmx reads the same ~450 tokens about 0.5 s slower on the MI50, measured in 8c). Beside a stream the change read 517.5 tokens a turn rather than 459, since the whole next-turn ids reached the scheduler only after the client had already sent the follow-up; they now go out before the reply's last chunk (a traced rerun after that change: every follow-up from turn 10 forked the job's whole ids and read only its new message). The 64-row chunks (`kJobChunk`) move the unrelated stream's p50 and p90 gaps by under 2 ms, and its p99, set by the follow-ups' prompt passes, falls with the shorter reads. The edited turn reads all 3368 tokens on both llmx arms; the message-boundary checkpoints of 2b part (b) are its fix.
 - **The renders' cost:** a chat route renders and tokenizes a Qwen3.8-27B conversation in 4.2, 15.2 and 30.2 ms (p50) at 2033, 7722 and 16580 tokens on the rig's CPU, through `/v1/tokenize`; `Api::next_turn` renders twice, every 32 tokens while a reply is written (about 2 s at 17 tok/s, so 1.6 to 3 percent of a core a conversation, on its connection thread) and once before the reply's last chunk, which that chunk then waits for.
-- **Review:** the coordinator's review of cfbd605b found the commit stored with CRLF line endings, now LF as main's files are, and that the job's donor replaced the one it forked, so a regenerated reply on a hybrid model could not fork the earlier checkpoint: the forked donor now stays beside the job's, with a regenerate case in `server-resume`. XDEV's review of aad57179 found that a running job's ids grew past its reservation unreserved, so on a tight pool a request admitted beside it could run the pool out; `follow_up` now reserves the blocks the longer ids take before the job reads them, from free blocks, and otherwise the job gives its room back and waits as a first admission would. `server-resume`'s growing-job case (16 blocks, a request reserving 8, its job growing from 3 to 7, then a request needing 5) ended a request with `KV cache: block budget exhausted` without the fix and passes with it; XDEV found nothing else in the running-job sources, the yield order or the donor handling.
 - **Left:** the hosted run on the rebase onto main 395b4950 (the move of the history operations, no conflict in code); XDEV rechecked the reservation fix at 2a3b4902 with no blocking finding, and the hosted run at 2a3b4902 is the record before the rebase. `server-passes` does not simulate jobs; a job is admitted through `enter` and takes no request's room, so the policy's invariants are unchanged, which the review is asked to confirm.
 - **Gotchas:** a job's donor stands beside the one it forked, so a conversation holds two donors and, on a model that keeps a state, two checkpoint slots until donor age takes the older; where the slots are short, the job's checkpoint takes the forked donor's slot and a regenerated reply then recomputes its prompt. The next turn's ids come from the reply as the route returned it, so a client that sends back other text, or on a Qwen 3.8 template omits the `reasoning_content` the route gave, forks only as far as its tokens match. A job's fork counts its shared blocks twice in the ledger, as a request's does, so a job does not start where its source and its own ids do not fit the pool together.
 
 ## A sequence's history in one file (2026-10-01, branch refactor/model-history, move only, lands by fast-forward)
 
-- **Goal:** the owner section 1 of SPECULATIVE names, before step 4 adds the MTP layer's part of the history operations ([SPECULATIVE](SPECULATIVE.md), section 1 and step 3's follow-up above).
 - **Done:** `src/model/history.hpp` holds the operations on a sequence's history, `Model::fork`, `reset`, `retract`, `mark`, `keep` and `checkpoint`, and the private steps only they take, `settle`, `rewind`, `saved_at`, `save`, `rerun`, `restore_mark` and `drop_mark`, each body and its comments moved unchanged and defined out of the class; `Model` declares them where they were, and `runtime.hpp` includes the file after the class. `runtime.hpp` goes from 1413 lines to 1220. `docs/src/model-history.md` takes their description from the runtime's page.
 - **Gates** (`e3c029bf`, this commit before its gate line): the moved lines are the removed ones, in order, but for the indent and `inline` and `Model::` before each name. On the rig against main `57a8c04a`, each tree built from its own sha: CTest 40 of 40; the suite on the CPU and on an MI50 passes every component but `raw-blocks`, which needs numpy the container lacks, and `mxfp4`, skipped on the MI50; Qwen3-0.6B and Qwen3.5-0.8B Q8_0 give main's bytes in all 14 identity cells on the CPU and the 14 on the MI50; `llmx-split-check` of both, `cpu` against `cpu,cpu` over the excerpt with 8 steps and ubatch 64, bit-identical, its output main's but for the free memory it reads. On Windows, CTest 37 of 37 and the CPU suite. The hosted run 36923198561, green on all 7 jobs; this line alone changed after it.
 - **Timing** against main `57a8c04a`, each built from its own detached tree on the rig, `bench --model --threads 4 --r 3` on one MI50 at default clocks (and the CPU, cores 4-7), arms base, change, change, base in two rounds, tok/s in run order; load average 5 to 30 from other work on the machine, recorded per run. No cell moves 2 percent, so no layout control was run.
@@ -1318,18 +1342,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## Speculative decoding's verify, with lookup (2026-10-01, branch feat/spec-verify, step 3 of SPECULATIVE)
 
-- **Goal:** `generate` and `chat` verify drafted tokens in one pass and give exactly the output of the run without drafts, greedy and seeded, on qwen3, qwen3moe and qwen35, with prompt lookup as the first proposer ([SPECULATIVE](SPECULATIVE.md), section 3 and step 3).
-- **Design:** a verify is one entry [last pick, drafts], extent 1, every row's logits, so every row takes the decode kernels (`Model::step(ids, n)`). `Model::mark` keeps the history's state while that pass runs past it: nothing on a KV-only model; on one that keeps a state the live slot moves to the slot pool's mark side and is the pass's src, and the pass copies each state layer's recurrent inputs (`LayerPlan::saved`) into the mark's buffer. `Model::retract` inside the pass reruns the state's update from the mark over the kept rows (`Architecture::recur`, which the mixer itself calls), at the mark takes its state back, at the end keeps the live one; a failed pass goes back to the mark and a failed rerun keeps it for a retry. `infer::accept` samples the rows as the run without drafts would, `spec::Proposer` drafts (`spec::Lookup`), `spec::draft_length` clamps to `--draft-max`, the tokens and the context left and rests a request whose average of drafts kept a verify falls below half a draft (`spec::Acceptance`, section 3's one acceptance average, no fast adaptation); `infer::generate` runs the round, retracting to the history the run without drafts holds. `--drafter off|lookup` and `--draft-max N` (3, at most 63) on `generate` and `chat`.
-- **Where each concern lives**, each once:
-  - the verify's pass, an entry of generated tokens with every row's logits: `Model::step(ids, n)` in `src/model/runtime.hpp`, which `infer::generate` alone calls for it;
-  - the mark: `Model::mark` in `src/model/history.hpp`, its holds in `MarkHold` and the mark side of `SlotPool` in `src/model/kv_cache.hpp`;
-  - the recurrent inputs a mark keeps: declared by `LayerPlan::saved` (`src/model/architecture.hpp`, qwen35's in `Qwen35::plan`), copied by `Model::save`, read back by `Model::rerun`, both in `src/model/history.hpp`;
-  - a state's update: `Qwen35::recur` in `src/model/arch/qwen35.hpp`, which its mixer runs and `Model::rerun` runs again;
-  - shortening a history: `Model::retract`, through `Model::rewind`, `Model::restore_mark` and `Model::drop_mark` in `src/model/history.hpp`, the one call for a rejected draft as for a donor, a failed pass and a pause;
-  - acceptance: `infer::accept` in `src/inference/spec.hpp`;
-  - drafting: `spec::Proposer`, with `spec::Lookup` its one implementation, in `src/inference/spec.hpp`;
-  - the length of a draft: `spec::draft_length` and `spec::Acceptance` in `src/inference/spec.hpp`;
-  - the round: `infer::generate` in `src/inference/generate.hpp`, for `cmd_generate` and `cmd_chat` alike, each passing a `spec::Drafting` from `Drafts::drafting` in `src/cli/main.cpp`, which also holds the two flags.
 - **Done:** the code, the docs and the tests: `sampler` (accept against the loop without drafts), the new `spec` CTest (synthetic proposers and lookup through `generate` on dense, routed and hybrid models over one to four CPU stages; the history calls under verifies; an injected rerun failure; the refusals), `llmx-split-check`'s verify phase, and drafts on against off in the `f32`, `moe` and `qwen35` components.
 - **First measurement:** Qwen3-0.6B Q8_0 on the Windows machine's CPU, a prompt asking to repeat a list three times, greedy: 160 tokens in 3510 ms without drafts and 1226 ms with lookup at 8 drafts (45.6 and 130.5 tok/s), the same ids; seeded at temperature 0.8 the same ids at `--draft-max` 1, 4 and 16.
 - **The acceptance rule, measured:** the coordinator's review found that the first rule, resting 16 tokens after four verifies in a row kept nothing, was the fast adaptation section 3 and lesson 21 rule out; section 3's rule is built instead, one average of drafts kept a verify, moving an eighth of the way each verify from 2, below a break-even resting 16 tokens and then verifying once more. Qwen3-8B Q8_0 and Qwen3.5-9B Q4_K_M on one MI50, 256 greedy tokens, a copy workload (a module copied back with docstrings) and a plain chat (`--chat`, a short story), lookup at 3 drafts, two interleaved rounds, tok/s and drafts verified and kept, the ids the same in every arm; load average 6 to 8:
@@ -1352,7 +1364,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
   On the dense 8B lookup gains 48 percent and stays 7 percent behind the reference's n-gram drafting, which drafts up to 48 tokens and verifies them with its prompt kernels (235 drafted, 127 kept); on the hybrid 9B the reference gains 4 and 6 percent where lookup gains 32 and 59 in its two rounds, the reference's recurrent rollback costing it most of the drafts' worth.
 - **Gates:** on the rig (9f5b5517, the draft-max default since changed): CTest 40 of 40 on an MI50 with the new `spec`; the suite on the CPU and on the MI50 passes every component but `raw-blocks`, which needs numpy the container lacks, and `mxfp4` on the MI50, skipped there; with drafts off, Qwen3-0.6B and Qwen3.5-0.8B Q8_0 give main's bytes in all 14 identity cells on the CPU and the MI50; with lookup at 4 and 16 drafts against off, the same ids, greedy and seeded, on a repeating and a plain prompt, from Qwen3-0.6B and Qwen3.5-0.8B Q8_0 on the CPU and the MI50, Qwen3-8B Q8_0, Qwen3-30B-A3B Q4_K_M and Qwen3.5-9B Q4_K_M on the MI50, and the 30B-A3B and the 9B on the CPU; a chat of two turns gives the same text with lookup on the CPU and the MI50; timing with drafts off on one MI50, pp512/tg128 alternating main and the change, Qwen3-0.6B 8484 and 8448 against 8456 and 8451 tok/s, tg128 389.7 and 380.2 against 379.9 and 380.1, Qwen3.5-0.8B 7334 and 7270 against 7333 and 7339, tg128 335.6 and 336.7 against 336.6 and 334.3, level. On the Radeon VII under Windows: CTest 41 of 41, the `f32`, `moe`, `qwen35`, `split` and `cli` components on the device, and Qwen3-0.6B Q8_0 and Q4_K_M giving the same ids with lookup at 4 and 16 drafts as without, greedy and seeded.
-- **Review:** XDEV found two ownership holes in the mark, both fixed: the mark was plain data, so a marked sequence destroyed or moved from never returned its buffer or slot (now a `MarkHold` that returns them once), and a failed allocation after the slot moved left it owned by nothing (now every allocation comes first); `arch-qwen35` holds both, and a sequence moved from can be reset. Its recheck asked for the acceptance rule's behaviour (`sampler`) and a marked sequence assigned over (`arch-qwen35`), both added. The first hosted run failed twice: the linked dead-code check found `MarkHold::slot` kept by no executable (removed), and `arch-qwen35` crashed on the hosted Windows compiler, which AddressSanitizer traced to the new mark test reading the weights of a file it had let go (`marks` now keeps the file); the Windows job's CTest failures were read through a diagnostic branch whose annotations name them.
 - **Merged** at `57a8c04a` with the fix to the qwen35 pause check's client timing (run 36917093047 green); drafting in the server and the price of a draft come with step 5.
 - **Follow-up, move only:** this step adds about 180 lines to `src/model/runtime.hpp` (`Model::mark`, `Model::save`, `Model::rerun`, `Model::restore_mark`, `Model::drop_mark` and the mark's part of `Model::retract` and `Model::rewind`). The runtime's size rule asks features to add hooks and to move history operations out by concern, so a change that moves nothing else gathers the sequence-history operations (fork, checkpoint, keep, mark, retract, rewind and the rerun) into one file of `src/model/`, the owner section 1 of SPECULATIVE names, before step 4 adds the MTP layer's part of them. Done on `refactor/model-history`, below.
 - **Gotchas:** text is delivered as a verify's rows are sampled, after its pass, so `generate`'s emit callback no longer runs before every model step when drafting; the proposer interface has `draft` alone, and `settle`, `block` and `reads` come with their first users (step 4's MTP); a mark takes only a free slot, so a request without one decodes that round with a single step.
@@ -1370,8 +1381,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## Prefix reuse for hybrid models through state checkpoints (2026-10-01, branch feat/qwen35-checkpoints, step 2 of SPECULATIVE, the qwen35 plan's 8c, lands by fast-forward)
 
-- **Goal:** a follow-up chat turn on Qwen 3.5, 3.6 and 3.8 forks the state its first turn kept and reads only the rest, so production (Open WebUI on Qwen3.8-27B Q8_0) stops re-reading whole conversations ([SPECULATIVE](SPECULATIVE.md), sections 1 and 2).
-- **Design:** the model runtime owns checkpoints: one per sequence in a slot of the pool's checkpoint side, written by a `BatchEntry::keep` entry into a fresh slot and read in place by the next pass and by forks; `Model::retract` is the one call that shortens a history, reaching the length, the checkpoint at or below it or 0; a failed pass goes back to the checkpoint; `Model::keep` makes the live state the checkpoint between passes. The scheduler keeps a request's state at the last whole block of its stable prefix (the conversation rendered without the generation prompt), takes a slot from free ones or the oldest donor through `make_room`, parks a finished request at its checkpoint and a paused one with its whole history kept, and forks a donor only at its checkpoint. `serve --state-checkpoints N`, fitted by default; `chat` keeps two.
 - **Done:** the code, the docs and the tests (`arch-qwen35` checkpoints, `server-resume` hybrid checkpoints, the `qwen35` component's follow-up turn and pauses with and without checkpoints).
 - **Gates so far:** CTest 39 of 39 on an MI50; the CPU suite passes every component; on one MI50 the `qwen35` and `server` components pass and every other but `perf`'s floor, which fails for main too at that load; Qwen3-0.6B and Qwen3.5-0.8B Q8_0 give main's bytes in all 14 identity cells on the CPU and the MI50. Timing on one MI50, `bench --model` pp512/tg128 alternating main and the change: Qwen3-0.6B 8491 and 8493 against 8495 and 8482, 390 and 393 against 391 and 391; Qwen3.5-0.8B over eight runs 7206 to 7354 against 7226 to 7365, tg128 347.3 to 348.1 against 346.4 to 347.3.
 - **The use:** Qwen3.8-27B Q8_0 on one MI50 with production's flags (`--max-seqs 8 --ctx-size 32768`), an 8-turn chat through `/v1/chat/completions` as a chat UI sends it, arms main, the change, the change, main, every reply the same bytes in every arm. Time to first token by turn, prompt tokens, main and the change: 463, 1.99 and 2.07 s; 888, 3.55 and 1.85; 1343, 5.46 and 2.16; 1752, 7.29 and 2.17; 2118, 8.89 and 1.90; 2496, 10.20 and 1.78; 2987, 12.37 and 2.52; 3447, 14.29 and 2.31 s, the last reusing 2944 tokens. The fitted default took 3 checkpoint slots of 149.6 MiB, which lowered the KV budget from 32768 to 26688 tokens.
@@ -1389,7 +1398,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
   | no reasoning: edited turn 6 | 14.24 s, 3368 of 3368 | 14.27 s, 3368 of 3368 | 10.72 s, 3355 of 3369 | 10.78 s, 3355 of 3369 | 6.87 s, 387 of 3369 |
 
   The change takes a follow-up turn from main's whole-history read to about the reference's, 6.5 and 5.9 times sooner at the median and 10 and 9 times at the last turn, and stays behind the reference by 0.4 and 1.0 s a turn. Two causes, each measured: llmx reads 400 to 500 new tokens more slowly than the reference (a fresh 463-token prompt 2.38 s against 1.69 to 1.84 s, a 433-token turn at depth 1.94 s against 446 tokens in 1.69 s), and without reasoning it reads about 140 tokens more a turn, the previous reply, whose decode rows a prompt does not fork (SPECULATIVE, decision 4), plus up to a block of the checkpoint's rounding. An edited earlier message loses the one checkpoint a request keeps: llmx reads the whole conversation again, as the reference at its defaults nearly does, while the reference with no spacing between its checkpoints reads only the edited message (4.68 and 6.87 s against 12.96 and 14.27). Raising `--ctx-checkpoints` alone changes nothing at this length.
-- **Review:** XDEV's four findings are in, each with its test: a donor parked at its checkpoint kept its live slot, so one live slot could not serve a repeated prompt (the live slot now goes back when a history is retracted, `server-resume`); the automatic checkpoint count was estimated apart from the fit and could take slots a state-only stage of a split cannot hold (each count is now tried through the fit, the most that leave three quarters of the blocks the fit holds without them, rounded up, 0 the fallback, `arch-qwen35`); the slot sum was added unchecked (checked, as are the split's sums of caches and a stage's needs, and the count's search takes its midpoint without wrapping when asked for as many slots as a size holds, `arch-qwen35`); and the stable prefix had two owners in the server and `chat` (now `chat::stable_prefix`, 0 where the render or the tokenizer refuses, `chat-template`).
 - **Gates after the review's fixes**, on the code that lands: CTest 39 of 39 on an MI50 and 40 of 40 on the Radeon VII under Windows; on the CPU `dead-code`, `docs`, `cli`, `qwen35`, `split` and `server` pass, the last with the Qwen3-0.6B Q8_0 fixture and nothing skipped; `qwen35` and `server` pass on an MI50, `server` skipping only MXFP4, and on the Radeon VII at the review's first fixes; Qwen3-0.6B and Qwen3.5-0.8B Q8_0 give main's bytes in all 14 identity cells on the CPU and the MI50. XDEV rechecked every fix.
 - **Left, from the comparison:** the reference reads a turn's 400 to 500 new tokens faster on the MI50, and a follow-up without reasoning reads the previous reply again (SPECULATIVE, decision 4); an edited earlier message would need more than one checkpoint a request.
 - **Follow-up, proposed and not to be built now:** while the server is idle, read a finished request's reply again as prompt rows, in the prompt's row class, and keep a checkpoint after them, so a follow-up turn without reasoning forks past the reply and reads only its new message (SPECULATIVE, decision 4); the coordinator takes it to XDEV as a design amendment.
@@ -1397,8 +1405,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## A first admission forks only rows of its own classes (2026-10-01, branch fix/server-row-class, step 1 of SPECULATIVE, lands by fast-forward)
 
-- **Goal:** a server reply equals the CLI's for the same prompt when the request forks a donor, so a follow-up turn no longer continues from the previous reply's decode rows and a prompt no longer continues from rows another prompt's tile split computed ([SPECULATIVE](SPECULATIVE.md), section 1 and step 1).
-- **Design:** `Backend::row_class(extent)` is each backend's claim of which extents take the same arithmetic in every op, conservative by default (every extent its own class): on the CPU a generated token against every longer extent; on Vulkan a generated token alone, and above it which of the profile's crossovers the extent has reached and the tile's split. `Model::row_class` is the one owner over a placement: each used device's class and whether the rows take a streamed layer. The scheduler's `alike` compares extents by it, and `best_donor` does so for a first admission too, whose prompt counts at the prompt's extent.
 - **Done:** the failing test (`server-resume`: a follow-up turn on the CPU and on a device against its prompt on a fresh model; on main's code it fails at token 0, logprob -0.250535995 against -0.250535876), the change, and `tests/row_classes.hpp`, which `backend-group` and `backend-vulkan` run: every pair of 54 extents of one class, each side of every crossover and tile split, gives the same bits through a matmul, the routed products and attention (39962 pairs on the CPU, 2233 on an MI50).
 - **Gates:** CTest 39 of 39 on an MI50 and 40 of 40 on the Radeon VII under Windows; the CPU suite passes every component; on one MI50 every component but `perf`, whose synthetic floor fails for main and the change alike at a load average near 25 (main 355 then 1680 tok/s, the change 532 and 541); Qwen3-0.6B and Qwen3.5-0.8B Q8_0 give main's bytes in all 14 identity cells on the CPU and the MI50; on the Radeon VII the `f32`, `qwen35` and `server` components pass. Timing on Qwen3-0.6B Q8_0 on one MI50, `bench --model` pp512/tg128, two rounds alternating main and the change at load averages of 17 to 25 shared with other work on the same cores: pp512 8458 to 8479 against 8470 to 8484 tok/s, tg128 343 to 392 against 368 to 390, level. XDEV reviewed it; its five points and the coordinator's three are in.
 - **Gotchas:** on a device, prompts under 449 tokens of different lengths take different tile splits, so they share no rows even where a small model's bits agree, and a follow-up turn computes the previous reply again as prompt rows, about 1.3 s per 1000 reply tokens on the 8B on one MI50 (SPECULATIVE, decision 4).
@@ -1412,7 +1418,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## Qwen 3.5, 3.6 and 3.8 everywhere (2026-09-30, 8b merged at `56abfd9a`)
 
-- **Goal:** the qwen35 architecture fully working (user, 2026-09-30): every command on the CPU, the MI50 and the Radeon VII, on one card and on a layer split, dense qwen35 and qwen35moe, at every quant the gate files use; serving first, so Qwen3.6-27B and Qwen3.8-27B Q8_0 reach an OpenAI-compatible client through `llmx serve`. MTP and state checkpoints follow [SPECULATIVE](SPECULATIVE.md), approved on 2026-09-30.
 - **Checklist** (the plan's steps are in "Qwen 3.5, 3.6 and 3.8", below; a cell is done when its gate passed):
 
   | | CPU | one MI50 | Radeon VII | layer split |
@@ -1442,9 +1447,7 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## The server's KV budget fitted and backed at load (2026-09-30, step 8a of the qwen35 plan, merged at `36947384`)
 
-- **Goal:** `serve` takes as its KV budget the most the devices hold beside the weights, the activations, the recurrent state slots and the passes' buffers, at most `--ctx-size` or the model context, and backs it whole at load, so no pass grows the cache and a request's room is known when it is admitted; a load where not one block fits is refused. Question 4 of the qwen35 plan, taken with its recommendation by the user's order to serve qwen35 on one card (2026-09-30).
 - **Why:** the qwen35 files carry a context of 262144 tokens, which `serve` took as its budget and grew on demand: on one MI50 the 27B Q8_0 leaves about 4.7 GiB, so requests admitted against that budget failed mid-pass when growth ran out of memory, and a doubling growth holds the old and new buffers together, so only half to two thirds of the room was reachable.
-- **Design:** one owner, `place_model`, when the request asks for it (`PlacementRequest::fit_kv`, which only `serve` sets): the largest budget, in whole blocks of the largest block size, at which the fit of `model/layer_split.hpp` places the model on the devices given (one device included, and beside the experts on the CPU without those layers' feed-forward blocks); `ModelOptions::kv_backed` then backs every storage whole as the model is made. The other commands keep growth, so a short chat does not allocate the context.
 - **Done:**
   - `fitted_kv` in `model/place.hpp`, `PlacementRequest::fit_kv`, `ModelOptions::kv_backed` and `KVStorage::back_all`; `serve` asks for the fit through `open_model`'s pass slots; USAGE, the help page and SERVER give the budget as fitted; a `placement` case holds the fit.
   - At `ed891c4b` (the change before the settle below): CTest 35 of 35 on the CPU build and 39 of 39 on an MI50, the CPU suite with `--require-tools` passing every component, and on one MI50 the suite with `--require-tools` passing every component but `perf`, whose floor fell to the machine's load as main's did (the 8b record above), with Qwen3-0.6B and Qwen3.5-0.8B Q8_0 main's bytes in all 14 identity cells on the CPU and the device.
@@ -1459,9 +1462,7 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## The linear attention's prompt rows on Vulkan (2026-09-30, branch feat/qwen35-chunked, step 6 of the qwen35 plan)
 
-- **Goal:** qwen35 prefill faster on the MI50 and the Radeon VII through the recurrence of the linear-attention layers, with every result batch-invariant, and no decode cell slower; the chunked form of [QWEN35](QWEN35.md) for the prompt rows of entries whose extent is above 1 is kept only if it measures faster (Decided, 3, in the qwen35 block below).
 - **Ceiling:** on one MI50 at main `8ff34685` (`bench --profile`), `delta_rule` is 16.6 and 13.2 percent of pp512 and pp4096 device time on Qwen3.5-0.8B Q8_0 and 2.7 and 2.6 percent on Qwen3.5-9B Q4_K_M, about 1.2 and 1.5 us a token a layer; a single prompt runs Hv x Dv / 32 workgroups (128 on the 9B), each through every token in turn.
-- **Order:** first the per-token kernel's own layout (fewer V columns a workgroup, so a prompt fills more of the device), which keeps every sum's order and so every bit; then a chunked kernel measured alone against it before the prompt cut on the 64-row grid is plumbed through the CLI, the split and the server.
 - **Done:** three layouts of the per-token kernel, each giving main's bytes in the 14 identity cells of Qwen3.5-0.8B Q8_0 and 9B Q4_K_M on one MI50 and each measured by `bench --profile` against main `56abfd9a` in the order main, change, change, main, `delta_rule`'s device time at pp512 (0.8B, then 9B):
   - 8 V columns a workgroup of 64 lanes, four times the workgroups: 11.5 and 18.8 ms became 37.0 and 74.1 ms, since each workgroup norms its block's q and k again.
   - 32 tokens a staging block: 11.4 and 18.6 ms became 18.4 and 37.2 ms, the doubled shared memory leaving fewer workgroups a unit.
@@ -1511,7 +1512,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## qwen35moe (2026-09-30, branch land/qwen35moe, qwen35 step 7, lands by fast-forward)
 
-- **Goal:** Qwen3.6-35B-A3B and Qwen3.5-122B-A10B, the qwen35 layers with a mixture-of-experts block and a gated shared expert (docs/QWEN35.md, The MoE FFN), on every command the dense qwen35 runs, on the CPU and a Vulkan device, with experts on the CPU beside a device.
 - **Done:**
   - The module reads qwen35moe through `qwen35::open_routed`.
   - The routed experts move into `blocks::routed_experts`, which qwen3moe and qwen35moe share.
@@ -1537,7 +1537,6 @@ The documentation, dead-code and architecture-boundary checks pass after that re
 
 ## README support overview (2026-09-30, branch docs/readme-support, merged at `d74f0015`)
 
-- **Goal:** a README that shows a newcomer what llmx supports: architectures and models, quantization types, file formats, backends and devices, multi-device modes and the server, each marked Supported or Planned.
 - **Done:** the README's tables are checked against `src/model/arch/registry.hpp`, `src/quant/`, the Vulkan backend's `supports_type`, `src/server/api.hpp`, USAGE and ROADMAP; Planned marks only what ROADMAP plans (qwen35moe and further architectures, F16/BF16/IQ4/Q3_K/Q2_K, MXFP4 on Vulkan, safetensors, ROCm/CUDA/SYCL, the tensor split, the staged tensor split, replicas and multi-node).
 - **Names:** the multi-device modes are named layer split, expert offload, tensor split and staged tensor split in the README, USAGE, MULTI-DEVICE, ROADMAP, ARCHITECTURE, EXECUTION, ADDING-AN-ARCHITECTURE, AGENTS and `docs/src`; a tensor group stays the name of the devices a tensor split runs on.
 - **Merged** at `d74f0015` (2026-09-30) by fast-forward from `4970a071` on Gitea and GitHub, together with the gate guidelines and the precision plan below, after the docs and dead-code components passed on that exact tree.
@@ -1591,7 +1590,6 @@ experiments and raw evidence remain in [ASSETS](ASSETS.md) and
 
 ## MI50 prompt speed at 16 bits (2026-09-30, branch perf/mi50-prompt-speed)
 
-- **Goal:** the speed gate the 16-bit prompt fix left open (MI50 prompt activations at 16 bits, below): every qwen35 prompt cell at or above the reference on one MI50 with the fix's precision kept, and the Qwen3 cells it put below the reference restored.
 - **Done:**
   - Which projections need 16 bits, measured with a probe that rounds the 16-bit twin to 8-bit precision by projection role (`wip/mi50-bisect`, not for merge): against HF on the 9B Q4_K_M file's own weights over both raw 16k sequences, every role but the feed-forward down projection after a full-attention layer loses top-1 positions at 8 bits, the linear-attention output projection most (492 and 494 of 512, up to 10.9 logits); 8 bits with a scale per 8 values still gives 499 of 512, and a coarser step of the twin passes 512 of 512 at 13 bits and not at 12 (512 and 511). So the speed has to come from the 16-bit tile, not from 8-bit activations on some roles.
   - The tile's dots take the running sum as their accumulator (`dot_pairs`): the driver had summed each pair apart and added it after, about 500 more adds per 1024 dots in the Q8_0 tall build. The logits are the same bytes (Qwen3-0.6B and 8B Q8_0, Qwen3-30B-A3B Q4_K_M, the last 64 positions of a 3,000-character excerpt), and pp512 on one MI50 at default clocks, in the order before, after, after, before, goes from 734 and 725 to 846 and 839 tok/s on the 8B Q8_0 and from 821 and 821 to 1068 and 1069 on the 30B-A3B.
@@ -1632,7 +1630,6 @@ This merge record changes only STATUS. All77 project Markdown files were reconci
 
 ## Two-row decode builds for the Q4 and K-quant rows (2026-09-29, branch perf/kquant-decode-columns, merged at `b5cc467a`)
 
-- **Goal:** many users on the Vulkan server go faster for Q4_0, Q4_1, Q4_K, Q5_K and Q6_K rows and the Q6_K head without changing a result bit or one user's speed: the second route of the server investigation's first ranked fix (block below, Layer split phase 3). Record: [`benchmarks/kquant-decode-columns-20260929/`](benchmarks/kquant-decode-columns-20260929/README.md).
 - **Done:** measured first with a probe of an 8B pass's decode matmuls on one MI50: two adjacent rows a cluster, with every column of a build computed and no branch in the column loop, was the form that paid; three or four rows, column loads issued in groups and activations staged in shared memory did not. `matmul_row.comp` gains the two-row path beside the unchanged one-row code, both taking each block's weights and float terms from the same macros, and the backend builds of 2, 4, 8 and 16 columns (`kRowBuilds`), which the profile's `row_decode_cols` turns on, 16 on the MI50 under RADV; the `--isa` screen holds a kernel's two-row builds whole copies of a row and column's products apart.
 - **Measured** on one MI50 against main `660b0aed`, both built the same way, arms interleaved on each card:
 
@@ -1649,7 +1646,6 @@ This merge record changes only STATUS. All77 project Markdown files were reconci
 
 ## MI50 prompt activations at 16 bits (2026-09-29, branch fix/mi50-prompt-activations, merged at `ef3b9428`)
 
-- **Goal:** on an MI50, whose profile takes quantized products through the integer dot, the prompt tile and the Q8_0 row kernel read the activations' 16-bit twin instead of 8-bit copies, so the device meets HF on a file's own weights at depth and qwen35 step 5 passes its unchanged gates.
 - **Why:** the 8-bit activations part from HF by up to 8.2 logits at 16k on the 9B Q4_K_M and miss the 0.8B Q8_0's `chat-00` top-5 bound, while float activations meet HF within 0.08 (qwen35 step 5's record on `feat/qwen35-vulkan`); the CPU's prompt path parts from HF the same way, up to 16 logits at one position, and is a separate regression case for the CPU.
 - **Done:**
   - `f2201045`, the test first: `backend-vulkan` holds the integer tile and the Q8_0 row kernel, at 1024 wide with one value in each block of 32 thirty times the others, to a double product of the unquantized inputs within the 16-bit twin's bound; main's 8-bit path fails it ("a matmul misses the 16-bit activations' precision").
@@ -1733,8 +1729,6 @@ Eight-sequence 8B decode gains 80.79/83.98 percent across mirrored blocks, with 
 
 ## The HTTP listener's socket is closed only once no accept uses it (2026-09-28, branch fix/http-listener-race, merged at `41b19afc`)
 
-- **Goal:** `http::Listener::close()` marked the listening socket invalid and closed it on one thread while `accept()` read it on another, with nothing ordering the two, so an accept after the close could be handed a closed descriptor or one the process had since reused.
-  Found by layer split phase 3's step 4 on a ThreadSanitizer build of main; the `http` CTest's stop, the listener closed from the main thread while its accept loop runs, is that race.
 - **Done:**
   - Reproduced on main `c82e901a` built by GCC 14.2 with `-fsanitize=thread -g`, run with address randomization off: `http` exits 66 in 5 of 5 runs, each with one report, a read of the socket in `Listener::accept()` on the server thread (`http.hpp:321 at c82e901a`) against its write in `Listener::close()` on the main thread (`http.hpp:341 at c82e901a`).
   - Test: `http` also closes a listener while its thread waits in accept, which must return no connection within seconds, and then asks a closed listener for a connection, which must give none.
@@ -1759,11 +1753,9 @@ Eight-sequence 8B decode gains 80.79/83.98 percent across mirrored blocks, with 
 
 ## Vulkan activation repair on current main (2026-09-28, fix/vulkan-activation-main, merged at `1108fc3`)
 
-- **Goal:** finish the finite-activation repair independently of MXFP4 and MoE development.
 - **Integration:** starts from main `c6a91bf` and merges only the activation-range history through `ce5d7e5`, retaining its failing-first commits. CI, STATUS and the Vulkan owner page had documentation-only conflicts; both features' current information is retained. Runtime merged without conflicts, including main's backend capability check. The five-line precise vector repair from `e7ea76a` is included. No MXFP4 decoder, kernel, fixture or runtime capability is introduced.
 - **Prior evidence:** the vector repair passes native identity on both MI50s and the Windows backend/quantization tests, with 50676 normal outputs matching ordinary modules exactly. Both-cache HF checks pass on Radeon and MI50 for all four required Qwen3 fixtures. Those results used the separate integration build; this main-derived tree is being built and checked independently. Optional Qwen3.5 fixtures remain absent and explicitly skipped.
 - **Fresh validation:** Windows passes 37/37 native tests (71.73 seconds) and Linux 36/36 (57.29 seconds), with real devices and no native skips. Both complete required-tools/required-model device suites pass all 23 applicable components; qwen35 and its two absent optional models remain explicit skips. Windows CPU and Radeon both match main exactly for four small-model quants and 8B Q8, with both cache types: 20 cells, 80 ABBA runs, each holding 50 full logit vectors and 16 greedy IDs. Linux passes all 20 corresponding dense-model identity cells too. The existing Q4_K 30B MoE passes CPU identity on both platforms and Radeon identity, both caches. MI50 MoE fails deterministically in both caches; f16 also changes greedy token 16. Both-cache independent 8B HF on MI50 passes.
-- **Docs review:** all 69 tracked Markdown pages reconciled; AGENTS, BUILD, CI, STATUS, VULKAN and the Vulkan owner page reviewed against the source/test diff and completed evidence, with 63 unchanged pages reusing their completed main review. The F32 follow-up rechecks AGENTS, STATUS and both Vulkan owner pages, reuses the 65 unchanged reviews, and corrects the stale required-device-types merge label below. The [fresh checkpoint record](benchmarks/vulkan-activation-main-20260928.json) retains commands and complete Windows identity results.
 - **New blocker:** the generic row registry selects Q8 preservation for F32 rows too. A private control using the ordinary generic row module restores every MoE output byte on MI50, both caches. A native test comparing 1599 F32 row outputs against the ordinary module fails before the fix; [failing-first evidence](benchmarks/vulkan-activation-f32-regression-20260928.json) retains both failures and control results. Failing-first test is `3700e9b`. The fix adds one F32 kernel-registry entry reusing the existing ordinary SPIR-V and selects it in `row_plan`; Q8 consumers remain preserved. Both fresh platform builds pass the three affected native tests, Windows in 27.57 seconds and Linux in 13.00 seconds. All 61 shader modules are byte-identical to the preceding candidate on each platform. The actual fix restores MoE ABBA identity on MI50 and Radeon with both caches; both-cache affected HF suites pass on both platforms. Optional Qwen3.5 fixtures still explicitly skip. The unchanged CPU path retains its prior identity proof; its extra Windows rerun also passes both caches. [Fix evidence](benchmarks/vulkan-activation-f32-fix-20260928.json) records scope and commands.
 - **Final local gate:** the extra Windows CPU MoE rerun passed both caches. Clean detached main `c6a91bf`, repair `ad4a9a8` and a private same-file layout control completed 144 calls: 48 Windows, 72 MI50 dense-model and 24 MI50 MoE. Every planned call is retained and monitor-bracketed, with five timed repetitions per phase in each call and two symmetric main/repair/control/control/repair/main blocks. Both MI50 cards used disjoint physical CPU sets; every arm comparison stayed on one card. The same monitoring ran before and throughout every arm. Activity flags occur in 47/48 Windows, 11/72 MI50 dense and 16/24 MI50 MoE calls; unknown counters/processes are explicit. Windows background processes included the browser, editor and game; system disk activity includes benchmark loads. None of these facts was used to discard or replace a sample.
   Rates below are medians of four process means, in tokens/second. Changes use geometric within-block ratios. The full record retains both block ratios, layout controls and activity attribution limits.
@@ -1785,11 +1777,9 @@ Eight-sequence 8B decode gains 80.79/83.98 percent across mirrored blocks, with 
 
 - **Assessment:** this is a correctness repair with a bounded cost, not a speedup. Small-model device decode costs up to 3.710%, 8B decode up to 1.896%, and MI50 MoE decode 3.111-3.579%; the MoE layout controls recover 1.373-1.744%, so layout contributes but does not waive the observed cost. CPU prefill is down 2.192% in aggregate and in both blocks, despite unchanged CPU arithmetic; retain it as measured cost without claiming a cause. The correctness benefit and preserved ordinary-model outputs justify this tradeoff. Comparisons against reference-runtime floors remain at the phase final gate. The earlier `bd19cab` timing and failing MoE captures remain retained.
 - **Publication:** five inherited commits had a personal committer address. The isolated publication branch normalizes it to the public noreply identity; all ten commit trees and messages remain identical, including failing-first history. Original feature refs are retained. [Final local evidence](benchmarks/vulkan-activation-final-20260928.json) pins that mapping, the complete timing matrices and verified raw archives. The final docs reconciliation rechecks STATUS and reuses the 68 unchanged checkpoint reviews.
-- **Left:** nothing of the repair, which main holds at `1108fc3`. Earlier failed candidates and raw diagnostics are retained in the historical activation records below. MoE ranking failures stay on the separate MXFP4 work and are not waived by this repair.
 
 ## Shared device-versus-CPU numerical gate (2026-09-28, branch tests/device-reference, merged)
 
-- **Goal:** implement the quantization plan's one shared criterion beside `top5_overlap`: per-position top-1 outside the tie margin, top-5 with that margin, mean NLL within 0.01, full-logit error no larger than a measured existing-type control, and 64 greedy tokens equal up to the first CPU near-tie.
 - **Done:** failing-first `0186403` (original `9d1006f`, replayed with a STATUS-only conflict over current main) precedes the shared criterion, capture tool and reusable caller. Six criterion test methods pass. A fresh Windows/MSVC build and nine affected tests pass, including full tiny F32 rows against independent HF, both execution paths, 64-step captures, Unicode paths, malformed inputs and incomplete output, a complete comparison and damage outside the top ten. The initial near-tie toy fixture also violated the unchanged 0.01 NLL limit; only the fixture was corrected. A missing success return found in the first compile warning was fixed before capture testing; both logs are retained. Storage-type provenance is captured and its focused rebuild passed. The caller reuses the existing SHA-256 helper. Docs and dead-code checks pass; the latter lists only the new Windows CRT entry point, which its name scan does not recognize as a caller root, with its removal condition. All 69 tracked Markdown pages were reconciled: the four feature pages (AGENTS, BUILD, CI and STATUS) were reviewed against the tool, tests and CMake; the other 65 match their completed main reviews. No runtime source or numerical bound changed. The 14B final-position preflight remains preparatory evidence only.
 - **Calibration correction:** failing-first `d9e663a` reproduces the extra caller requirement the 14B Q4_K control exposed: it was held to every candidate acceptance check before its maximum error could calibrate the new type. The plan uses the control to measure that limit. Eleven focused tests now pass on Windows and Linux, including the caller with a deliberately damaged control. Both platforms also pass the 22 consumer tests and docs/dead-code checks. The native tool and runtime source are unchanged from their completed platform gates. The control role requires finite, complete measurements to retain ranking/NLL/greedy disagreements while leaving every candidate acceptance check unchanged. The original 14B failure and raw captures are retained; prior hosted run 36426201989 covers the preceding head only.
 - **Merged:** both main refs at `c6a91bf` after all six jobs passed at exact head in hosted run 36429255277; temporary gate branch deleted. Larger-model work belongs to the separate MXFP4 feature. The required-type safeguard is now merged separately; its redundant docs-only publication was rejected by automatic approval review and is not retried here.
@@ -1798,7 +1788,6 @@ Eight-sequence 8B decode gains 80.79/83.98 percent across mirrored blocks, with 
 
 ## Required device types in the test runner (2026-09-28, branch tests/require-device-types, merged)
 
-- **Goal:** implement the quantization plan's named-type device gate: a selected backend refusing an explicitly required weight type fails the Python suite instead of becoming a skip.
 - **Done:** failing-first `fecbdf3` (original `69b1599`, replayed over main's documentation record) precedes the implementation. The original focused run exited 1 with five assertion failures and one parser error. The existing skip helper now raises when a recognized refusal names a required type; the runner's `--require-device-types` parses case-sensitive comma-separated names from the independent spec decoder's table, with no second type registry. Optional types retain skips, malformed or unrelated errors are not classified as unsupported kernels, and a successful call never becomes a skip. All 22 reference-consumer tests pass, including multiple types, default-policy reset, required/optional behavior and runner exit status.
   A fresh Windows/MSVC CPU build passes all 33 native tests (36.91 seconds); compile logs show the targets built, and the executable is newer than the source. The runtime and build configuration are unchanged from main `4fd1fab`. The full CPU suite passes with required tools, the four required HF fixtures and all currently supported weight types named: 22 components pass and the unsupported qwen35 component explicitly skips. The real-model server checks and all four Qwen3 HF fixtures ran; two absent optional Qwen3.5 real fixtures are reported separately. No new timing or numerical claim is made.
   Documentation is updated in AGENTS and CI, including the option's limits. All 69 Markdown pages are reconciled against main's completed review: 66 are unchanged, and AGENTS, CI and this STATUS block are checked against the implementation and recorded results.
@@ -1861,7 +1850,6 @@ This separate merge-record change reviews STATUS against the completed landing e
 
 - **Consumer integration (2026-09-28):** rebased the five test/evidence commits onto main `c82e901a`, preserving both sides of the documentation conflicts, and restored the producer source with its original SHA-256. Optional Q8 consumer modules request 32-bit float preservation only where both required properties are reported. The kernel registry owns their source selection; HALF, TREE and column-build specialization are unchanged. Fresh Windows/Radeon native checks pass: 82080 public Q8 reconstruction outputs over widths 32/64, 281024 values per packed twin, 35128 stored sums and 87820 matching lane/word words. An injected device refusal of optional float modes still accepts four original modules and 74592 consumer outputs; 7488 outputs needing subnormal scales are explicitly skipped only in this unsupported-mode arm. Existing backend checks pass 26528948 outputs and 122456 decode-column identities. Mechanical docs/dead-code pass after moving module registration into the existing registry. [Evidence](benchmarks/vulkan-activation-consumer-radeon-20260928.json) retains each attempt. Full Windows native suite then passed 35/35; the Vulkan Python suite passed 22 components, including HF for the four pinned Qwen3-0.6B quants, with qwen35 explicitly skipped (module unavailable here and its real fixtures absent). [Full-suite evidence](benchmarks/vulkan-activation-consumer-suite-20260928.json) records the skips and disabled hardware timing floors. This first consumer candidate failed ordinary Q8_0 identity; the subsequent repaired revision is recorded below.
 
-- **Goal:** preserve finite activation blocks across the device's 8-bit and 16-bit quantization paths without changing ordinary model outputs.
 - **Initial ordinary identity failure, before explicit FMA (2026-09-28):** matched fresh main/candidate MSVC snapshots, both version `0.1.0+unknown`, run ABBA over four pinned 0.6B quants, both cache types and CPU/Radeon. All eight CPU cells and six non-Q8 Radeon cells are bit-identical. Both Q8_0 Radeon cells differ deterministically: max logit delta 0.0082173347 with f16 cache and 0.0030953884 with f32 cache, across all 50 recorded vectors; the 16 greedy IDs remain equal. [Identity evidence](benchmarks/vulkan-activation-identity-20260928.json) retains all 64 runs, each with 7596800 raw floats. Native and HF passes do not close this lossless gate. The original three consumer modules remain word-identical to main; their preserved forms differ only by the two execution modes and their capabilities, with every other instruction word unchanged. The [five-arm diagnostic](benchmarks/vulkan-activation-controls-20260928.json) now isolates the consumer mode change: producer-only matches main bit for bit in both caches, while either DenormPreserve alone or SignedZeroInfNanPreserve alone gives the full candidate's same changed logits. Each arm repeats exactly over 50 vectors / 7596800 floats, 20 runs in forward/reverse order. The driver-instruction mechanism remains to be inspected. Explicit f32-cache HF also passes all four small quants, but does not waive the identity failure. No performance verdict or merge; the failing full candidate and all controls remain retained.
 - **Consumer contraction discriminator (2026-09-28):** main and preserved Radeon builds both pass the native diagnostic run, with 60 driver representations each. Main's wide Q8 loop uses a fused addition between the two scaled products; its narrow loop fuses the scaled product into the accumulator. Preservation disables those implicit contractions. A private control explicitly requests the observed Q8 fused operations while retaining both float modes. Twelve repeated main/candidate/control runs restore byte-identical whole logits against main in both caches, while the original candidate repeats its differences. The control then passes the packed test, all 82080 public reconstruction outputs without skips on the supported path, the existing backend and column checks, and the driver contraction checks. The two Q8 operations are integrated into the branch with the tested shader bytes. The diagnostic export initially wrote no files because its destination was absent; a repeat with the directory created writes all 60 representations, with both attempts retained. The original failing candidate stays recorded; final MI50, broader identity/HF, timing and hosted gates remain. The [control evidence](benchmarks/vulkan-activation-controls-20260928.json) retains the full driver dumps, binary identities and run artifacts.
 - **Integrated Windows rerun (2026-09-28):** a fresh all-target MSVC build with the explicit Q8 operations passes 35/35 CTests, 22 Python components with qwen35 explicitly skipped, and the four pinned 0.6B HF quants with both cache types. Binary `619fcbc2eec557d549bb685c937188ef462a4f43ea0c718e3e36c6f569a676c6`, version `0.1.0+g70da40af257a.dirty`, at `build-consumer-20260928-r2/Release/llmx.exe`. All 78 production source files match the tested explicit-FMA snapshot. [Integrated evidence](benchmarks/vulkan-activation-integrated-20260928.json) records logs and skips. Peer review requests a precise preserved accumulator and a native normal-input equality check against the ordinary modules; those additions are prepared separately and are not covered by this rerun. They must pass on both tested drivers, with no startup probe or driver allowlist; a disagreement fails the gate. The MI50 uses the separate Q8 vector shader, which these two row contractions do not change, and still needs its own identity proof.
@@ -2191,7 +2179,6 @@ This separate merge-record change reviews STATUS against the completed landing e
   - The suite's `dead-code`, `docs`, `cli`, `f32` and `perplexity` components pass (`--no-perf-floor`).
   - Byte identity with main on Qwen3-0.6B Q8_0 at `--threads 6`: `generate` greedy on a 5-word prompt and `logits --top 20` of the first 1500 bytes of `tests/data/wiki.test.raw`, each with `--load-mode direct`, `auto` and `mapped`: 6 of 6 the same, `direct` reading the file direct into its reservation.
   - Windows (MSVC 19.50, `llmx-file-reader-test` built clean): no warning, and it passes 50 checks at the head and fails at the test commit as on Linux, through `VirtualAlloc`.
-- **Left:** nothing.
 
 ## A prompt row's bits no longer follow the compiler's choice to fuse a dot's tail (2026-09-27, branch fix/placement-ubsan, merged at `9b6413ea`)
 
@@ -2343,8 +2330,6 @@ This separate merge-record change reviews STATUS against the completed landing e
     - Byte identity with main, the same 10 runs as on the Radeon VII on Qwen3-30B-A3B Q4_1, Qwen3-0.6B Q4_0 and Qwen3-0.6B Q8_0: 30 of 30 the same.
     - The suite's `dead-code` and `docs` components pass at the head, and `tests/dead_code.py --linked` finds the 24 listed findings.
 - **Merged** at `92de07d` on main `1f7aa85` after a green hosted run on `gate/merge-23`, rebased with no conflict from `02c0a37`, the base its gates ran on; the commits between touch no Vulkan file, backend test or `docs/VULKAN.md`.
-- **Left:** nothing for the fix. `perf/decode-columns`, rebased onto `4ad199a`, dropped its own copy of it (`3fc95b1`) for this branch's `5f4a68d`, and its decode-column check over every type the row kernels decode took the place of this branch's Q4_1 check, with this check's width of 9 columns added, as its block records under layer split phase 3, step 5.
-  The one `server-resume` failure on the MI50 above did not come back in 15 runs of the whole test, 8 on the head and 7 on main; it is recorded here in case it does.
 ## Architecture modules: one runtime, one module per architecture (planned 2026-09-27, branch refactor/arch-modules, merged at `3e73ffb`)
 
 - **Goal:** the model layer becomes a runtime that names no architecture and one module per architecture, chosen by one registry from `general.architecture`, as AGENTS.md's rule "A feature lives in one place" asks of a model architecture.
@@ -2715,14 +2700,9 @@ This separate merge-record change reviews STATUS against the completed landing e
     The 0.6B prefill loss follows the worker count, not the code: the branch at `--threads 16` gave a median of 185.9 tok/s beside main's 186.5 in six rounds of the three arms, and 12.1 tok/s of decode against the branch's 23.3 at 6.
     Prefill of the small model, with few barriers in a pass, is the one case that gained from the extra workers; decode, which meets a barrier at every matmul, loses more to the throttling than it gains.
 - **Merged** at `535bada` on main `b72417d` after a green hosted run. On the rebased head the linked dead-code check found `core::CgroupMount::operator==` kept only by its test, which now compares mounts itself; the rig then passed builds with and without Vulkan with no warning, CTest, the suite's dead-code, docs, cli, perplexity, server and threads components (the server's uncapped check inside its timeout), 0.6B output the same as main, and an automatic count of 6 in a 6-CPU container where main started 16.
-- **Left:** nothing.
 
 ## Raw conversion in the format layer, type ids in the quant layer (2026-09-26, branch refactor/raw-convert-to-format, merged at `9f33346`)
 
-- **Goal:** each layer depends only on those below it and a type's sizes are written once, with behaviour and output unchanged but for the three refusal texts below; found by a guidelines audit on 2026-09-26.
-  `quant/convert.hpp` opened `model.json` and `model.bin` and called `gguf::read_gguf` and `gguf::write_gguf` from below the format layer, against ARCHITECTURE's rule that nothing below the format layer knows what a file is.
-  Block and row sizes were written twice, in the switch of `gguf::TensorInfo::data_size` and in the quant registry, and `quant.hpp` and `k_quants.hpp` included `format/gguf.hpp` for the type ids, the exception ARCHITECTURE documented.
-  No behaviour change is intended, so no failing test comes first, but for the check order the review found (Review fixes).
 - **Done:**
   - `src/quant/convert.hpp` is `src/format/raw_convert.hpp`, in namespace `format`, its code unchanged but for naming the registry `quant::`; the CLI calls `format::quant_type_of`, `format::quantize_raw` and `format::dequantize_to_raw`, and the page is `docs/src/format-raw_convert.md`.
   - The type ids and block sizes (`GGML_TYPE_*`, `*_BLOCK`, `*_TYPESIZE`) moved from `format/gguf.hpp` to the new `src/quant/types.hpp` (namespace `quant`, page `docs/src/quant-types.md`), and every use in `src/`, the tests and the tools names them `quant::`.
@@ -2784,10 +2764,7 @@ This separate merge-record change reviews STATUS against the completed landing e
   - At `6b56fbc`: CTest 23/23 in the CPU build and 26/26 in the Vulkan build; `cli` passes on both builds, and run through the same lines, its binary refuses all 19 lines checked by reason, all 103 older usage-error lines and all 641 help lines it should refuse, 159 of them giving a listed flag a second value, and takes all 155 help lines it should take, 13 of them giving a switch twice.
     In the whole CPU suite all 18 components pass, `server`, `perplexity`, `threads` and the HF baseline included.
   - The Windows build with Vulkan compiles every target, with no warning in a changed file.
-- **Markdown review:** every Markdown file was searched for the claims this change touches: the refusals, flags given twice, the short spellings, `-tb` with `--per-token`, `--version`, the perplexity window's floor and the cache root.
-  USAGE, AGENTS, CI and the pages of `cli/main.cpp`, `inference/perplexity.hpp` and `hub/` were brought to the code; nothing else states them.
 - **Merged** at `a45782c` on the dead-code and stale-docs checks, with a green hosted run on the two together: Linux, UBSan, macOS, Windows, the Vulkan build and the HF reference job, each running both checks over this branch's changes.
-- **Left:** nothing.
 
 ## Dead-code and stale-docs checks in every job (2026-09-27, branch tools/health-monitors, merged at `75450ea`)
 
@@ -2825,8 +2802,6 @@ This separate merge-record change reviews STATUS against the completed landing e
 
 ## Experts on the CPU refused alike on every backend (2026-09-26, branch fix/moe-flags-every-backend, merged at `dfd8db6`)
 
-- **Goal:** the experts flags honoured alike on every backend or refused, and the experts placement asking the backend the question it means. A guidelines audit of main at `007b504` found `--n-cpu-moe` and `--cpu-moe` on a model without routed layers refused on a Vulkan device and silently accepted with `--device cpu`, where USAGE says such a model refuses them and the flag set is honoured identically on every backend or refused. `tests/placement.cpp` required the acceptance, and the refusal named `--n-cpu-moe` when `--cpu-moe` was given.
-  The experts placement also took `Backend::reads_in_place` to mean "is the CPU", which holds for the two backends there are and not for a device that reads host memory in place, and `--moe-stream-from 1` streams the same prompts as 2, since a prompt of one new token never streams, which no page said.
 - **Done:**
   - `place_model` checks for routed layers before it chooses a placement, so `--n-cpu-moe` and `--cpu-moe` on a model without them are refused on the CPU as on a device, and that refusal and the one beside several devices name the flag given (`--cpu-moe` for every layer, `--n-cpu-moe` for a count). The check inside the experts branch, which nothing reaches now, is gone.
   - The experts placement asks `Backend::is_cpu`, true on the CPU backend alone, whether its one backend is the CPU; `reads_in_place` still says where weights live and what streams. The two answers agree on the CPU and Vulkan backends, so no placement of theirs changes.
@@ -2838,7 +2813,6 @@ This separate merge-record change reviews STATUS against the completed landing e
   - `run_tests.py --no-perf-floor --only cli,moe,split` on the CPU build passes 3 of 3 (`cli` with 142 flag lines taken and 482 refused, `moe` at a largest error of 6.3e-7, `split` 24 runs bit-identical to one backend); `--device vulkan:0 --only cli,moe` on the Vulkan build passes 2 of 2, `cli` refusing on the CPU and on the MI50 and `moe` at 7.0e-7 with its experts on the CPU and streamed.
   - Windows: a clean Visual Studio build of the same tree with Vulkan on, 32 targets, with no warning in a file this branch touches (its 8 warnings are all in `tests/backend_vulkan.cpp` and `tests/hub_transport.cpp`).
 - **Merge gates**, on the same source at `fc446a8` against main `31532c0`, each tree built from its own sha: on one MI50, CTest 26 of 26 with the card, the suite with `--device vulkan:0` 18 of 18, and `generate`, `logits` and `perplexity` byte-identical to main on 0.6B Q8_0, 8B Q8_0 and 30B-A3B Q4_K_M with `--n-cpu-moe 12` and with `--moe-stream-from 32` beside it, 20 of 20; on the CPU, the suite 17 of 18 with the server component's uncapped check timing out as main's does on the busy host, and that component passing alone on the branch; on the Radeon VII, the same five commands byte-identical on 0.6B, 8B and 30B-A3B with `--cpu-moe`, `--n-cpu-moe 12` and `--moe-stream-from 32`, the refusals' messages as written, and bench level with main; a green hosted run on the branch rebased onto main `4e00bc9`, where its source lines are unchanged.
-- **Left:** nothing.
 - **Gotchas:** a test backend that derives from `CpuBackend` to play a device inherits `is_cpu()` true, so it must override `is_cpu()` to false beside `reads_in_place()`; otherwise experts on the CPU placed beside it stay on it with no refusal, and only a test that counts the crossings, as `placement` does, sees it.
 
 ## The sampler selects only what top-k and top-p keep (2026-09-26, branch perf/sampler-select, merged at `edd9c19`)
@@ -2851,12 +2825,6 @@ This separate merge-record change reviews STATUS against the completed landing e
   - The penalty writes into a copy of the row, made only when a token is penalized.
   - The `ignore_eos` mask is passed over by every path instead of scoring negative infinity, which the `ignore_eos` block below describes as it merged.
   - `infer::Sampling`, the settings overload and every caller are unchanged.
-- **Review fixes:**
-  - A nucleus past 32,768 tokens sorted the rest of the vocabulary, since a selection past the heap asked for eight times the last, and the heap's ranked keys were thrown away when the keys were laid out; a nucleus token's exp was taken up to three times. Past the heap each selection now doubles the ranked prefix, laying the keys out keeps the heap's ranked ones in place, and with every token kept the weights are held from the sum. The heap now stops a nucleus at 512 rather than 4096, as the review also suggested, since that measured faster on every large nucleus below.
-  - The test's grid masked the leader in exactly its penalty 1.1 cells, so a sampler that applied the penalty only beside a mask passed every reference draw. Half the cells now mask, each top-k, temperature and top-p under one penalty, and with `penalty()` left out that sampler fails the grid, where the old grid passes it.
-  - A masked id 0 beside negative infinities or NaN is checked on all four paths of a draw, where one was.
-  - `check_seeded` covers the fourth path, `top_k` 40 with `top_p` 1, and compares the CLI's text repaired as the server writes a character a reply ends partway through, read through `cli_reply`; `cli_text`, which repeated it, is gone.
-  - The test and AGENTS say that no draw can show the order of a sum, so the reference pins the ranking, the tie rule, the walk order and the generator's use; SERVER says the mask is passed over, and SERVER and USAGE no longer say "a pass at a time", which read as a forward pass.
 - **Changed draws on a fixed set**, Qwen3-0.6B Q8_0, 20 prompts, seeds 1 to 50, `generate -n 32` and the server's ids, against main: none of 1000 requests at the defaults, 1 of 1000 at top-k 0 with top-p 0.95 (from its 29th token), and 1000 of 1000 at top-k 40 with top-p 1, 750 of them from the first token, since without a nucleus the draw walks the kept tokens in id order where main walked them best first. Greedy gives main's bytes.
   The CLI equals the server on 1999 of 2000 of these requests on main and on the branch alike; the one left is the same request on both, whose 32nd token is the first two bytes of a character, which the server writes as two U+FFFD and the CLI as the bytes.
   The counts were taken on the reviewed commit, the top-k 40 one on the commit before the mask moved into the sampler, whose unmasked draws are the same; the review fixes change no draw (Gates).
@@ -2947,11 +2915,6 @@ This separate merge-record change reviews STATUS against the completed landing e
 - **Decided here, approved by the user (2026-09-26):**
   - The plan splits every assistant turn; this branch splits a turn only under a template that reads `reasoning_content` and does not split a reply at `</think>` itself, both read from the parsed template (`jj::Template::reads`, `jj::Template::splits_at`), not from its text. Among the pinned templates that is the two Qwen 3.8 ones, which show earlier reasoning only from `reasoning_content`. The Qwen3, 3.5 and 3.6 templates split a whole turn themselves, and splitting it first is not neutral there: they trim a turn's whole content before they split it but trim a reply that arrives split, so a reply opening with spaces or a tab after `</think>` lost them, and the server's prompt differed from transformers' render of the text an OpenAI client sends back. Kept whole, every turn renders there as the reference renders its text, which the fixture checks for replies with no `</think>`, a leading `<think>`, two `</think>` and spaces or a tab after it. A template that knows no reasoning, Qwen2.5's or the ChatML fallback, keeps a reply holding `</think>` whole, as main did, rather than losing the text before it.
   - The plan counted 9 distinct Qwen 3.5 to 3.8 templates; the two machines and the official repositories hold 8.
-- **Review fixes:**
-  - The first version's structure was kept, and these were wrong in it: the reply was taken after the first `</think>` where the templates take the last; `map(attribute=...)` held a statement that could not have compiled and applied its default only at the end of the path; lstrip_blocks tested a condition that was always true; string escapes called a function that does not exist; integer arithmetic overflowed as signed C++ (undefined behaviour) where Python grows; a repeat, a replace or a loop could run without bound; the `for` loop's `else` and a block set's filters were parsed in the enclosing soft frame; the `generation` tag was refused; and case mapping beyond ASCII silently differed from Python, where it now fails.
-  - A second review found a `break` or `continue` in a loop's `else` or in a block set dropped instead of reaching the loop around it, `callable` false for an undefined value and for the loop object, `tojson`'s indent capped at 64 spaces, the conditional expression's undefined value without the line Jinja names, and `strftime_now` with a conversion the MSVC runtime does not take ending the process on Windows.
-  - A third review found the split not neutral under the Qwen 3.5 and 3.6 templates (Decided here); `select`, `reject`, `selectattr` and `rejectattr` refused, which refused the Qwen3-Coder template of a GGUF on the workstation; a template chaining 5,000 sums, or a recursive macro through nested statements, ending the process by exhausting the stack, where parsing now counts each link of a chain against its nesting limit, and a render counts every statement and expression it nests, macro calls included, against one limit; templates Jinja does not compile rendered (`loop` assigned inside a loop, a macro parameter or a keyword argument given twice); `keys()`, `values()` and `items()` giving lists that printed and compared as lists; float `//` computed as `floor(x / y)`, so `1 // 0.1` gave 10.0 where Python gives 9.0; and error texts that differed from Python's for concatenation, repetition, comparison and division. Values nested past 100 containers, and a namespace holding a namespace, now fail too, since printing, comparing and freeing them followed the nesting on the host stack.
-  - Against the fixture as it now stands, the code before the third review fails 70 cases and ends the process on the limit checks (status 139 on Linux), and main's renderer renders 144 of its 652 template and feature cases as the reference does.
 - **Exact:** on Qwen3-0.6B Q8_0 on the CPU, against main dc31dd4: `generate` greedy and seeded without their timing lines, `logits`, a three-turn `chat` whose every reply holds `</think>` with its prompt token count per turn, and the server's `/v1/chat` ids and prompt tokens and `/v1/chat/completions` text over a conversation whose assistant turn keeps its reasoning inline, all give the same bytes. Where the old renderer was wrong the prompts change: every Qwen2.5 prompt loses the line feed the template's last line ends in, which Jinja drops and the old renderer kept; three Qwen3 templates (lmstudio-community's, the official repositories' and Qwen3-4B-Instruct-2507's) render a conversation ending in an assistant turn as the reference does; and every Qwen 3.5 and later prompt changes. On the Qwen3-0.6B GGUF's template the old renderer matched the reference on every conversation it could hold but the empty one, which the template now refuses as it does in transformers, and which neither `chat` nor the server sends.
 - **Tests:**
   - Byte-equal to transformers 5.17.0 on 16 pinned templates, the 8 distinct Qwen 3.5, 3.6 and 3.8 ones, 7 Qwen3 ones and Qwen2.5's, over 34 conversations each with tools, tool calls and content given as parts among them: 544 of 544 cases, 56 of them failures the template raises, with the same message. Each keeps an assistant turn as the rule read from Jinja's own parse of it says, and as transformers' renders say where they decide it, and renders a two-turn conversation with seven replies kept that way as the reference does, 128 renders. With 36 feature templates, 10 limit checks and the Qwen3 case the test holds in its source (the audit round below), 791 of 791 cases; 33 of 33 refusals; 11 of 11 splits (CTest `chat-template`, on Linux and with MSVC on Windows).
@@ -3030,7 +2993,6 @@ This separate merge-record change reviews STATUS against the completed landing e
 
 ## The qwen35 pretokenizer (2026-09-26, branch feat/tokenizer-qwen35)
 
-- **Goal:** the tokenizer reads the Qwen3.5, 3.6 and 3.8 files (`tokenizer.ggml.pre` `qwen35`) and gives HF's ids, and every other pretokenizer name stays refused.
 - **Done:**
   - `Tokenizer` accepts `qwen35` beside `qwen2`, and a refusal names the key and the implemented values.
   - `pretokenize` is unchanged: the qwen35 regex adds `\p{M}` to qwen2's letter runs and to the class its punctuation runs exclude, and llmx reads every byte at or above 0x80 as a letter, so marks already join letter runs.
@@ -3066,16 +3028,13 @@ This separate merge-record change reviews STATUS against the completed landing e
 
 ## Tokenize routes on the server (2026-09-25, branch feat/server-tokenize)
 
-- **Goal:** the loaded model's tokenizer over HTTP with the CLI's results, so a client counts a prompt as the server reads it.
 - **Done:** `POST /v1/tokenize` (`{"text"}`, or `{"messages"}` in its place, replying `{"tokens", "count"}`) and `POST /v1/detokenize` (`{"tokens"}`, replying `{"text"}`) in `server/api.hpp`, answered on the connection thread without the scheduler. A text is encoded as a prompt is, through the generating routes' `encode`, a special token's text reading as that token and no template applied; `messages` go through the chat routes' `render_messages`, so the ids are what a chat request with them reads. Each id is read through `integer_value`, the check `integer` makes, and detokenized text gets `utf8_sanitize`, which gives a whole reply's ids back as its text. Every POST route reads its body through `body_of`, and the native reply's id list and the tokenize reply's come from `ids_json`. `tools/server_load.py` counts prompts through `/v1/tokenize` where a server has no `/tokenize`, so on `llmx serve` a prompt's length is exact by count and no longer rests on every word of its list being one token.
 - **`add_special`:** no route adds a start or end token to a prompt (the Qwen3 files set `tokenizer.ggml.add_bos_token` false, and a prompt reads the ids `encode` gives), so `add_special` is not read: whatever its value, the ids are the ones a prompt reads, which is what a client that sends it to count a prompt asks for. Honouring the file's `add_bos_token` in this route alone would count a token the model never reads, and refusing a value that is not true or false would be a second rule for boolean fields beside `flag`, which reads `stream` and `include_usage` as false unless they are true.
-- **Review fixes:** a text the tokenizer cannot encode was a 500 on `/v1/tokenize` and a 400 on the generating routes, and `encode` now gives all of them the 400 (the Qwen3 files hold every byte token, so only a file without one reaches it). `detokenize` read ids with its own copy of `integer`'s check, now `integer_value`, which `integer` calls. `add_special` is no longer refused when it is not true or false. The tests check the routes while the queue is full, a text past a 512-token context, the refusal on a synthetic vocabulary without the byte token `q`, and that the vocabulary edge they take from `/v1/models` is the tokenizer's, through the CLI. `docs/CI.md` lists the new checks, and `docs/SERVER.md` keeps its error lines out of the tokenize paragraph.
 - **Gates** (at 8ed1a04, this commit before its gate lines and its rebase onto main bd73203, which changes only docs, against main b7b585f on the MI50 host's CPU, in a container of 6 CPUs with no GPU device, the load average 31 to 50 from other work): the unencodable-text check fails on bf6176d, the branch before the review fixes, where `/v1/tokenize` answered 500 as a text and as messages, and passes here; builds with Vulkan on and off, clean, 0 warnings, and the `build.bat` binary on Windows without a warning; CTest 25 of 25 with Vulkan on (`backend-vulkan` and `vulkan-lifetime` skipped with no device) and 22 of 22 with it off; `run_tests.py --no-perf-floor --require-tools --require-baseline --device cpu` passes 16 of 17 components, and `server`, whose `check_uncapped` request on the Q8_0 passed its 600 s timeout at a load of 45 to 50 after the tokenize checks and the limits had passed, passes run alone at 31 to 38; `tools/server_mix_check.py` on 0.6B Q8_0 finds all requests matching (16 alone, 0 of 16 differing together, 0 of 12 skewed with 4 clients leaving early, 4 checked against the CLI). On 0.6B Q8_0 and Q4_0, `generate` greedy and seeded, `logits`, `tokenize` and `detokenize` are byte-identical to main in stdout, stderr and exit status, and the help pages differ only in the version line and `serve`'s new route line; 34 server requests a model on the other routes (native and compatible, whole and streamed, greedy and seeded, the refusals, the whole-number fields `integer` reads, a `stream` that is not a boolean, `/v1/health` and `/v1/models`) give replies byte-identical to main's with `created` and `timings` masked, 68 of 68. `tools/server_load.py` counts its prompts through `/v1/tokenize` on `--api llmx` and `openai` against the branch's server and by its two probe requests against main's.
 - **Hosted CI:** all six jobs passed on eee2a84, the commit before its rebase onto main dc31dd4, which changes only docs and the tokenizer.
 
 ## Prefill kernels on the MI50 (2026-09-25, branch perf/prefill-kernels)
 
-- **Goal:** single-card prefill on the MI50, where the integer-dot tile was 89.4 percent of an 8B Q8_0 512-row pass. Three changes measured apart earlier the same day (branches `perf/tile-staging-loads`, `perf/q8-tile-step4`, and `feat/quantize-x8-vec4` to `feat/x8-row-pad`) are combined on main 34bebc3 in that order, each re-applied on top of the one before and gated again as a layer. After review the branch was rebased onto main aea6e34 and gated again there (Rebased, below).
 - **Commits:**
   1. Every staging load of a step goes out before the first wait. The disassembly had every load under a branch the compiler could not prove uniform, each followed by a wait for everything in flight, so a step of two blocks waited for ten memory round trips in a row. A load out of range now reads a valid address and its zero is selected at the store.
   2. The math takes word w of all of a thread's rows against word w of its four columns, so the block's dot sums stay live and a column word is read once: 91 registers before scheduling where holding four columns' words took 115.
@@ -3223,16 +3182,6 @@ This separate merge-record change reviews STATUS against the completed landing e
 
 - **Why:** phase 3's gate (`docs/MULTI-DEVICE.md`, Order of work) is the server at 1 to 64 users and a rate sweep against the references on the same cards, and the comparison with vLLM's serving benchmark (random prompts of a fixed length, replies of a fixed length with the end of text ignored, Poisson arrivals) needs the same load and figures. `tools/server_load.py` sent eight short prompts, let a reply stop at its end of text, and reported TTFT and ITL at p50 and p99, tok/s and req/s.
 - **Done:** the tool keeps its flags, defaults and first eight columns, and gains: closed-loop levels 1 to 64 by default with `--num-prompts` a level; open-loop `--rate` levels with Poisson arrivals from `--seed` (`inf` for all at once); `--input-len` and `--input-len-range LO:HI` prompts of an exact token length, a different one per request; `--output-len` replies with `ignore_eos` sent; TTFT mean, p50, p90 and p99, TPOT mean, p50 and p99, e2e p50 and p99, total tok/s, completed, failed and short counts and the mean reused prompt tokens; `--warmup`, failures counted and listed by reason; `--json` with every request's record; `--self-test`, run by the suite as component `server-load` (about 3 s, no model). Prompt lengths are counted through the server's `/tokenize` route where it has one, else by two probe requests that show every word of the list is one token (it is in Qwen3's vocabulary).
-- **Review fixes:**
-  - A closed level shows the round with the most output tok/s among the rounds with no failed request, and the notes below the table list the failures of every round; before, a faster round hid a slower round's refusal from the table.
-  - The tool exits 3 when any timed request failed, after the table, the notes and `--json`; a 503 among the failures adds a line on `llmx serve --max-queue`, and USAGE and the docstring say to start the server with `--max-queue` at least `--num-prompts` for an open level, since on its defaults 35 of the default 100 at `inf` were refused.
-  - The prompt lengths come from the seed alone, before any prompt is built, and the words from a second stream keyed by level and round, so the rounds of a level and two servers that count a start token differently get the same lengths; before, the rounds drew different lengths and best-of favoured the lighter one.
-  - TPOT is (end - first token) / (tokens - 1), the end being the reply's last event, as the brief and vLLM's benchmark ((latency - TTFT) / (output tokens - 1)) have it; the first version used the last token's arrival.
-  - `--timeout` keeps the earlier tool's meaning, 600 s with nothing arriving, and `--total-timeout` (21600 s, as vLLM's benchmark allows) bounds a whole request; the first version made `--timeout` a 600 s total, which failed long queued requests and cut the slower server's tail.
-  - The stream is read by a function over (time, line) pairs: `/completion` ends at its stop event, not at the stream's close; an `error:` event fails the request with its message; events past a reply's own token count (llmx's held piece of a split character on `/v1/completions`) are dropped.
-  - The table's `reused` column is the mean reused prompt tokens, since every prompt starts with "the" and a server that matches token by token reuses one or two tokens a request, which a hit count would count as a hit; `/completion` keeps `cache_prompt: false` and the OpenAI route leaves every server's cache at its default, which USAGE says.
-  - Every request records its connect time and, in the open loop, its send lag; the notes flag lag at the 99th percentile over 10 ms or a twentieth of the mean arrival gap, and connects over 100 ms, as a burst past a listen backlog gives. The open loop starts every request's thread before the level, each sleeping to its time, so starting threads no longer delays a burst's sends. A prompt whose tokenize count cannot reach its length is noted.
-  - The self-test checks the stream reading of all three APIs exactly on made-up timelines (events of several tokens, a held piece, error events, a missing last event, a reply of no token) and bounds the socket runs' times only from below and loosely from above; it no longer depends on the machine being idle.
 - **Checked:**
   - The reviews' reproductions, against a scripted server in the same process: `/completion` events of 1, 3 and 1 tokens at 100, 300 and 400 ms with the stop event at 420 give TTFT 105.9 ms, ITL 200.0 and 101.4, TPOT 80.2 (80 by hand) and e2e 426.7; the same stream held open 500 ms after its stop event gives e2e 422.0 (925 before); llmx's held piece gives 4 events for 4 tokens and ITL 99.5, 99.7 and 100.3; an `error:` event fails with its message. Two rounds at two users with a 503 in the first show the second with fail 0, list `conc 2, round 1 of 2, not the one shown: 1 failed: HTTP 503` and exit 3. Rounds and servers with and without a start token get the same lengths.
   - The self-test passes 8 of 8 runs with 24 spinning processes on the 16 logical CPUs (10 to 18 s each), where the first version failed 4 of 4 under the same load, and each of 16 mutations of the tool fails it: TTFT from the second token, TPOT from the last token, the finish chunk counted, a held piece kept, `/completion` read past its stop, `error:` lines skipped, lengths drawn with the words, the best round by tok/s alone, exit 0 on failures, e2e at the first token, an unshown round's notes dropped, the idle limit ignored, `[DONE]` ending a native stream with no `done`, the health counters ignored, the send lag not recorded, a 503 read as a stream.
@@ -3288,7 +3237,6 @@ This separate merge-record change reviews STATUS against the completed landing e
 
 ## Exact resume of a paused request (2026-09-26, branch fix/server-exact-resume, merged at `bec2338`)
 
-- **Goal:** a paused and resumed request gives the same logits, bit for bit, that it gives when never paused, on the CPU, on a device and on a layer split, so its server reply equals its reply alone and, without a forked prefix, the CLI's. Requests that never pause keep main's outputs byte for byte, but where the streamed path now follows the prompt's extent (Decided, 2026-09-26): with `--moe-stream-from`, a prompt past the length that reuses a server's cached prefix, or a CLI chat follow-up past it, streams where main took the host. Room in the KV pool goes by first admission.
 - **Why:** on main 12 uncapped greedy requests with `--max-seqs 6 --ctx-size 4096` pause 24 times on one MI50 with Qwen3-8B Q8_0, and 3 of the 12 replies differ from the same request run alone, first 1400 to 2900 characters in; 2 of 12 differ on a split over three MI50s and 1 of 12 with Qwen3-0.6B. A pause rewrote the request's prompt as its history and re-prefilled its generated tokens through the prompt path at the history's extent, and the checks compared pause counts or greedy text.
 - **Depends on:** `feat/server-logprobs` (the block above), whose values are this branch's detector. This branch carries its commits, rebased with the audit's two fixes to them (`logits --top` ranks through `infer::top_logprobs`, the `server.py` header cut), so they merge only as part of this branch, and the branch `feat/server-logprobs` is superseded.
 - **Decided:**
@@ -3370,7 +3318,6 @@ This separate merge-record change reviews STATUS against the completed landing e
   - On the synthetic MoE model with f32 caches the host's and the device's expert products are often bitwise equal: a 16-token tail read on the host gave the same values as streamed, and the stream check needs 56 tokens to see the paths differ.
   - Under the renewed admission number the latest admitted uncapped request was always the one paused, so the renewal showed only as a request pausing itself for its own growth, which a stall now replaces; its failing case is built on that.
   - A first admission still forks a donor by tokens alone (SERVER.md, Open gaps), so a follow-up turn continues from the previous reply's decode rows. Under `--moe-stream-from` a donor under the length forked by a prompt past it (an 80-token donor and a 120-token prompt at 100) is the failing case the first-admission branch starts from; `check_stream_reuse` cannot show it, since both its prompts are 120 tokens, one class.
-- **Owners:** how a row is computed, the request's row classes, read only by batch assembly; who gives up blocks for whom, `make_room`; which donor a request may fork, `best_donor`; how far a request has progressed, its cache's length; which path a streamed layer takes, `Placement::stream_from` against the entry's extent.
 - **Not doing, with reasons:**
   - Never taking blocks back from a request that has generated: exact with no recompute, but it halves an uncapped reply whenever the pool is under twice the context, the default, and makes requests wait behind the oldest one's reach.
   - Splitting an entry's rows by class inside `begin` and `run_stage`: an extent-1 entry of many rows already takes the decode kernels.
@@ -4500,13 +4447,7 @@ This separate merge-record change reviews STATUS against the completed landing e
 
 ## Layer split phase 2: a prompt pipelined over the stages (2026-09-25, branch feat/split-pipeline, done)
 
-- **Goal:** phase 2's targets (`docs/MULTI-DEVICE.md`, Order of work): prefill on a layer split about one device's times the stage count, single-stream decode about one device's, and pipelined output exact against the same placement run serialized, so still exact against one device.
 - **Measured before any code** (main 5ef32e5, Qwen3-8B Q8_0, clocks held high on two MI50s, two rounds, tok/s): pp4096 on one card 738, 730 and on a 1:1 split 1101, 1103, 1.50 times; tg16 68.2, 68.4 and 67.2, 68.1. Decode meets its target already. Prefill stops at 1.5 times because a stage's work is submitted only when the crossing reads its output, and the host waits there: the first card idles while the host writes the handoff into the second and records the next chunk. Chunks of one prompt overlap only by that accident.
-- **Plan**, in order, each step with outputs byte-identical to main before the next:
-  1. Stages: the model derives them once from the placement, runs of consecutive layers whose attention sits on one device, each with the cache storage it writes. A placement without a layer split has one stage.
-  2. `forward` becomes `begin` (the checks, rows and positions of a pass, in a plan per pass), `run_stage` (the stage's cache blocks prepared and committed, the embedding before the first stage, its layers, the head after the last, and its submission) and `finish`. `forward` runs them in a row, so the server, decode and every test are unchanged. A pass that fails rolls every storage back to where it started, committed stages included.
-  3. One crossing in two halves: the source copies the residual rows into a host-visible buffer inside its own submission and keeps the ticket (`send`); the destination waits that ticket and writes the rows (`receive`). Today's `cross` becomes the two back to back. It uses existing backend calls only (`copy`, `submit`, `wait`, `write`). There are two such buffers per used device on a pipelined split, one when crossings happen only inside a stage, which the fit counts in host memory.
-  4. `prefill` over more than one stage runs as a software pipeline on the calling thread: step t submits stage 0 of chunk t, then receives and submits stage 1 of chunk t-1, and so on down the stages. Each device runs its chunks in order, so the activation arenas are shared and only the pass plan is kept per chunk in flight. Chunks stay the ubatch, so a split computes exactly what one device computes. Over K chunks and S stages the gain is K*S/(K+S-1): 1.78 for pp4096 over two, 1.94 for pp16384. The handoff subtracts 2.1 to 2.7 ms per 512-row chunk (phase 0) from stage times near 350 ms.
 - **Done:** steps 1 to 4 as planned, plus:
   - A device's attention layers must form one run, or the placement is refused, so each storage is written by one stage; `ensure()` waits for a context's last submission on a device before it replaces storage a pass may still use.
   - The fit gives the busiest device as few layers as the budgets allow before it balances bytes: it had placed 12/13/11 on three MI50s and 8/10/10/8 on four, because the embedding and head sit on the end devices, and the pipeline runs at its slowest stage.
@@ -6720,7 +6661,6 @@ This separate merge-record change reviews STATUS against the completed landing e
 
 ## Cleanup from the code audit (2026-09-25, branches refactor/split-tight and cleanup/audit)
 
-- **Goal:** every finding of a read-only audit of `src/`, `tests/`, `tools/` and the docs fixed under the one-owner rule (`docs/ARCHITECTURE.md`, Each concern has one owner): dead code removed, a concern implemented once where it belongs, docs matching the code. Behaviour and output unchanged unless a finding is a bug; each branch passes the suites on both machines and, where it touches kernels or placement, byte-identical outputs against main.
 - **Layer split (refactor/split-tight):** the placement owns the ubatch and the rows it implies (one `kDefaultUbatch`); the kernels' scratch is a backend query (`Backend::scratch_reserve`), not a Vulkan figure in the device-neutral fit; expert streaming asks `reads_in_place`; one per-position cache size for the fit and `kv_used_bytes`, which counted f16 caches as floats, while the cache allocation takes the token budget and the types; `routed_layers` for the experts placement; `place_model` tests; every command opens its model through one `open_model`.
 - **Commands and server:** one parser for the execution flags five commands copy; flags a command ignores are refused (`bench` without `--model`, `generate --system`, `-n` below 1); the chat template fallback and the start and end token lookup, the end-of-generation rule (`Tokenizer::is_eos`), and the sampling defaults each in one place below the CLI; the synthetic bench model and the quantize metadata writer out of `main.cpp`; the server reads the model's ubatch itself; unused scheduler members, config macros (`LLMX_DEFAULT_THREADS`, version parts, backends that do not exist) and includes removed.
 - **Model, format, tokenizer:** unused `Model`, `BlockPool`, `Tokenizer` and `GGUFModel` members removed (`ModelFormat` stayed as the seam for safetensors, on the roadmap; the loader plan later removed it, since loading used another seam); `perplexity` scores a token through `token_nll` once; metadata is looked up through one `GGUFModel::find`, the reader refusing a file that repeats a key where five readers had walked the list and four checked for repeats on their own; the thinking filter that matches no Qwen3 token removed with the `--think` flag that only disabled it.
@@ -6747,7 +6687,6 @@ resolved, and changed claims match source and retained validation evidence.
 
 ## Long-context decode and the 16k check (2026-09-25)
 
-- **Goal:** the pp16384 / tg512 case and the long-context greedy check asked for once decode reached its floor, on one card and on a layer split, beside the reference's Vulkan build on the same cards and file.
 - **Done, 16k check** (`tools/long_context_check.py`, Qwen3-8B Q8_0, main 32914a9, rocm-smi GPU[2] and GPU[2]+GPU[3]): one card and the 1:1 split each give the same 512 tokens on two fresh servers, the same text as each other; the CPU reading the prompt and those tokens ranks 505 of them first, the largest gap 0.041 logits. Passed again with the vectorized decode attention below (508 of 512, largest gap 0.177).
 - **Done, matched long-context bench:** `llmx bench --depth N` fills an N-token history outside the timer before every repeat, the protocol reference bench tools use for the same depth (`--seqs 1` had decoded from an empty history). Qwen3-8B Q8_0, two interleaved rounds, tok/s:
 
@@ -6833,8 +6772,6 @@ CPU RowRuns validation and LDEV attention remain separate work.
 
 ## Vulkan cache cleanup checkpoint (2026-09-25)
 
-- **Goal:** close the three reproduced Vulkan ownership failures without
-  changing successful kernel arithmetic or adding queue waits.
 - **Done:** failed kernel creation cleans local handles before retry and
   publishes only successful outputs; diagnostic query pools are destroyed
   after device idle; padded-cache invalidation reserves retention capacity
@@ -6893,8 +6830,6 @@ and the distinction between the historical audit and this fix.
 
 ## Backend architecture audit follow-up (2026-09-25)
 
-- **Goal:** verify backend boundaries, ownership, error behavior and development
-  rules without mixing changes into the active attention or activation work.
 - **Done:** source review at published `e475c3f`, independent CPU/Vulkan review,
   and isolated failure probes. All 33 backend files pass the mechanical
   upward-include, ASCII and runtime-environment scans. The existing buffer,
@@ -7094,7 +7029,6 @@ are retained; this establishes an incomplete gate, not a candidate numerical res
 
 ## Multi-device phase 1: layer split across devices (ROADMAP #5) (2026-09-24, branch feat/multi-device-phase1)
 
-- **Goal:** phase 1 of `docs/MULTI-DEVICE.md`: a model split by layers over the devices `--device` lists, each device's share chosen by a fit against its free memory (`Backend::memory_available`), admission that counts every KV pool in its own block size, sharded GGUF mapped shard by shard so a model past host memory loads, and weights uploaded to the devices in parallel. Today's crossing (a read and a write) stays; pipelining is phase 2.
 - **Done:** `Backend::memory_available` (CPU: `core/host_memory.hpp`; Vulkan: `VK_EXT_memory_budget`); `model/layer_split.hpp`, architecture-neutral, fitting consecutive layers per device from the architecture's `footprint` (`arch_qwen.hpp`, which alone knows the tensors) with the arena's slot widths shared with `ensure`; `--device A,B,...` and `--layer-shares` (proportions) on every command, a device listed once; `--verbose` prints each device's share. The placement test checks the fit and a fitted split over two CPU backends bit-identical to one. On the Radeon VII with the CPU at shares 1,1 the whole Python suite with the three HF fixtures passes; the single-device suite and the 22 native tests are unchanged.
 - **Done, admission per pool:** the server reserves each request's blocks in every cache pool in that pool's own block size (`blocks_for`, and `room_for`, which `make_room` replaced on `fix/server-exact-resume`), donors and growth steps too, and the model refuses pools whose block sizes do not nest, since a shared prefix ends on a whole block of the largest. Counting everything in the largest block refused every request of a 16-token budget on a 64-token device pool beside a 128-token CPU pool; the server component caught it.
 - **Done, on two MI50s (rocm-smi GPU[2] and GPU[3]):** one card against a 1:1 split is byte-identical in the top-10 logits of the last 8 positions of the 247-token excerpt and in 64 greedy tokens on Qwen3-0.6B Q8_0, Qwen3-8B Q8_0 and Qwen3-30B-A3B Q4_K_M. Qwen3-32B Q8_0, which no one card holds, fits as 32 layers each (16.2 GiB of weights and 5.0 GiB of cache per card at the default context): excerpt NLL 2.253, `bench` pp64 188, pp512 222, tg128 13.28 tok/s, against the llama.cpp Vulkan build's layer split on the same cards at 81, 205, 13.3 and its ROCm fork's at 195, 309, 18.8. Qwen3-30B-A3B Q8_0 as 24 layers each: NLL 2.427, pp64 430, pp512 1250, tg128 63.9. One request on a layer split pays the waiting card's clock (phase 0); throughput comes with passes in flight (phases 2 and 3).
@@ -7117,7 +7051,6 @@ are retained; this establishes an incomplete gate, not a candidate numerical res
 
 ## Multi-device phase 0: measurements (ROADMAP #5) (2026-09-24, branch feat/multi-device-phase0)
 
-- **Goal:** the numbers phase 0 of `docs/MULTI-DEVICE.md` asks for, before any split is written: the Vulkan handoff between two MI50s, P over S, S+1, S+2 and 2S, whether a host-relayed group sum and an expert exchange pay under Vulkan, and the baselines (llama.cpp Vulkan and ROCm on pinned cards, the vLLM gfx906 fork brought up and checked). No runtime change lands from this branch; its tools and records do.
 - **Done, device queries** (`llmx-vk-handoff probe`, nine MI50s under RADV, Mesa 25.0.7): binary semaphores export and import as sync files; timeline semaphores only as opaque descriptors, and each card has its own device UUID, so a timeline does not cross cards and the host relay stays the baseline; host memory imports into every card (4096-byte alignment, a cached coherent host type); device memory exports and imports as dma-buf; no device groups, every card is a group of one. Every card links at Gen4 x8 to its root port; the root complexes hold cards 03, 44, four at 83 to 8c and four at c3 to cc.
 - **Done, handoff** (`llmx-vk-handoff time`, 200 timed repeats, median): a submission of one command buffer costs 50 to 70 us from submit to host wake even when empty (4 us with no command buffer), each further command buffer about 20 us more, and a small copy inside a command buffer about 4 us. So a handoff's copy belongs in the stage's own submission, where what remains is the transfer. Card to card: 20 KB 113 to 165 us whichever way, since two submissions dominate; 10 MB 2.07 ms through imported host memory with a sync-file wait (two crossings at 10.9 GB/s each), 2.7 ms through today's read and write. A dma-buf import lands in host-visible memory on the importing card: 9.2 GB/s from a card on the same root complex with clocks held high (one crossing), 4.8 at automatic clocks, 1.1 GB/s across complexes.
 - **Done, concurrency** (`llmx-multi-device-bench concurrent`): 2, 4 and 8 cards in one process, each on its own thread and backend, run their decode-shaped and 64-row passes within 1 percent of alone.
@@ -7134,7 +7067,6 @@ are retained; this establishes an incomplete gate, not a candidate numerical res
 
 ## MoE decode's small kernels and the float tile's F32 rows (2026-09-24, branch feat/moe-decode-small-ops)
 
-- **Goal:** the loose ends of MoE decode after the grouped decode merged: a token's time beyond its weight rows.
 - **Found:** timed alone without timestamps (`llmx-moe-kernel-bench`, built with the Vulkan backend), Qwen3-30B-A3B's routed rows read at 580-680 GB/s on an MI50, while a token is about 600 dependent dispatches at a 4.1 us floor and its small kernels sat far above it: the RMS norm 11.4 us, the F32 router 13.4, the routing 10.9, the combine about 8. Each waited on its loads one at a time. Separately, F32 rows 2048 wide put every row of a tile step on one memory channel, and the router's 128 rows gave the float tile four workgroups: 360-400 us a layer at 32 to 512 prompt rows.
 - **Done:** the small kernels load up front with their sums in the same order, and the norm's last tree steps run in one subgroup (logits over 64 positions and greedy text byte-identical to before on Qwen3-8B and 30B-A3B Q4_K_M); the float tile rotates F32 rows' inner steps by 128-row block and splits starved calls (`docs/VULKAN.md`, Kernel notes). On one MI50, base against this branch (tok/s): 30B-A3B tg128 120.0 / 129.0, pp32 357 / 410-412, pp128 628 / 663, pp512 1243 / 1248; 8B Q4_K_M tg128 93.1 / 96.4, pp512 871-873 / 874-876. The Radeon VII's Qwen3-0.6B prefill is level (Q4_0 pp512 +1 percent, pp64 within the spread).
 - **Rejected:** two adjacent Q4_K or Q5_K rows a cluster (`research/k45-two-rows-rejected`): 8B +0.7 percent, 30B-A3B +0.2, 0.6B Q5_K_M -2.3.
@@ -7144,7 +7076,6 @@ are retained; this establishes an incomplete gate, not a candidate numerical res
 
 ## MoE decode with many requests (2026-09-24, branch feat/moe-batched-decode)
 
-- **Goal:** a server's MoE throughput growing with concurrent requests, well ahead of the reference's server at every level (the server gate).
 - **Done:** a pass whose generated tokens carry at least two entries an expert groups them by expert and reads each expert's rows once per run of up to eight entries (`docs/VULKAN.md`, "Generated tokens beside each other"); `llmx bench --seqs N` measures decode passes of N sequences, which is what showed the plateau outside the server. Checked bit for bit against each token alone, the HF MoE gate and the suites on both machines. Server on one MI50, Qwen3-30B-A3B Q4_K_M, 64 tokens a request, main / this branch (tok/s): 115 / 115 at 1, 194 / 194 at 4, 217-218 / 218-222 at 8, 226-227 / 230-232 at 16, 225-226 / 262-263 at 32, time to first token at 32 from 848 to 606-614 ms; the reference's server gave 94, 149, 164, 110 and 203 on the same card earlier the same day. Plain decode is unchanged on both cards, since the grouped mode is a pipeline of its own (specialization constant 8 of the wide build): computed per column in every row kernel it had cost the MI50's integer-dot builds up to 7.5 percent, and tables filled up front the Radeon VII's Q8_0 build a fifth.
 - **Tried and reverted:** grouping every batch of generated tokens, lone entries in the wide build (152 against 192 tok/s at four concurrent) and then split off to the one-column build (154): the loss was the grouping dispatch and its extra launches, not the build.
 - **Measured after the merge, 2026-09-24:** `bench --profile` now reads the interval since its last reading, so it profiles a batched decode pass rather than a process's first 4096 dispatches. At eight sequences a pass the Q4_K gate and up rows of the routed entries take 40 percent of it and the Q6_K down rows 19, each entry about 7.9 us for 1.77 MB, 224 GB/s, where a dense Qwen3-8B decode reads its rows at about 460: an expert's matrix is 768 rows of 2048 values, so a dispatch is small whichever way it is cut. Capping a Q4_K or Q5_K row at 32 lanes in the integer-dot row kernels (`k45_row_lanes`) gave single-sequence MoE decode 120.6 to 123.2 tok/s and left eight a pass (249) and dense Qwen3-8B (94.0) where they were; 16 lanes cost the 8B 3 percent.
@@ -7152,7 +7083,6 @@ are retained; this establishes an incomplete gate, not a candidate numerical res
 
 ## CPU prompt rows on the prompt dots (2026-09-24, branch feat/cpu-dense-prefill)
 
-- **Goal:** the CPU's dense prompt rows through the prompt dots that routed experts took on main (`q8_dots.hpp` `dot_block`), where that beats the batched float path, at or above the reference's CPU prefill.
 - **Done:** K-quant rows (Q4_K, Q5_K, Q6_K) at least 4096 wide (`CpuBackend::kPromptDotsFrom`) meet a prompt through the prompt dots; narrower K-quant rows, Q8_0, Q4_0 and Q4_1 keep the float path, and generated tokens the decode dots, so a matrix takes one path per kind of row and a row computes the same however it is batched (`q8-dots` checks a prompt's rows beside a generated token against each alone, bit for bit, at 256, 2048 and 4096 wide). The full CPU suite and every real-model HF baseline pass on both machines.
 - **Measured on the Linux machine's CPU (EPYC 7262, 16 threads, two interleaved rounds, tok/s, main / prompt dots / the reference's CPU path):** Qwen3-8B Q4_K_M pp64 21.9-22.1 / 30.7-31.2 / 38.4-39.1, pp247 33.4-33.7 / 32.2-32.3 / 39.4-40.3, pp512 19.9-20.0 / 31.4-31.8 / 40.7-40.8. Qwen3-0.6B Q5_K_M with the prompt dots on every width lost at 247 and 512 prompt tokens (415-431 against 378, 393-399 against 345-370), where its 1024-wide rows' dequantized blocks stay in the first-level cache; from 2048 wide it still lost 6 percent at 247, so the rule is 4096, which leaves the 0.6B files on main's path. The Q4_0 drop at 64 tokens seen in the first measurement did not repeat: main read 349 plus or minus 73 and 402 in two rounds, every arm within that.
 - **Tried and reverted:** Q4_0 and Q4_1 rows on 8-bit activations, as the device takes them, with an output head's rows kept on 16 bits through `matmul_logits`. The HF gate's Q4_0 file then fails on the CPU ("The capital of France is": top-5 overlap 3 of 5 against a bound of 4). The two types stay on 16-bit activations.
@@ -7161,7 +7091,6 @@ are retained; this establishes an incomplete gate, not a candidate numerical res
 
 ## Mixture of experts: qwen3moe on both backends (ROADMAP #2) (2026-09-23, branch feat/moe)
 
-- **Goal:** Qwen3's mixture-of-experts form (`general.architecture = qwen3moe`, Qwen3-30B-A3B and Qwen3-Coder-30B-A3B) on the CPU and Vulkan backends, gated against HF, at or above llama.cpp's own Vulkan backend on the MI50 and the Radeon VII, and with experts on the CPU where the device is too small.
 - **Done:** a layer is routed when its GGUF has `ffn_gate_inp`, so files that mix dense and routed layers load. Three backend ops carry a routed layer (`backend.hpp`): `route_experts` (softmax over the router scores, the top k, renormalized), `matmul_experts` (gate and up of each token's chosen experts) and `matmul_experts_add` (the down projection, weighted and summed in slot order into the residual). Expert ids and weights stay in the activation arena, so nothing leaves the device.
 - **Done, CPU:** entries grouped by expert; a generated token's entries take the decode dots, all of a call's in one pool dispatch, and a prompt's entries a batched matmul per expert over its rows.
 - **Done, CPU decode dots:** a decode row's activations are quantized once per call, 8-bit for Q8_0, Q4_K and Q5_K and 16-bit for Q4_0, Q4_1 and Q6_K, and meet the packed weights in integers (`backends/cpu/q8_dots.hpp`). The float dots converted every weight and were bound by arithmetic. On 8 bits for every type the HF gate's Q4_0 file, whose head is Q6_K, reached top-5 3/5 on "The capital of France is" against a bound of 4, as the device had found, so the three types the device reads on 16 bits read 16 bits here too; the gate then passes on all three fixtures. The CPU now picks a row's path by its runs as the device does, a generated token the decode dots and a prompt's rows the batched float path, dense and routed alike. `q8-dots` checks every type against a double-precision reference and a decode row alone, beside others and grouped, bit for bit. Qwen3-30B-A3B Q4_K_M on the 5800X, 8 threads: whole-model decode 8.0 to 16.9 tok/s (the reference's release build, whose CPU path this is, 11.3).
@@ -7332,12 +7261,6 @@ above; they were not included in the help implementation commit.
 
 ## Multi-user server (ROADMAP #7, EXECUTION step 7) (2026-09-22)
 
-- **Goal:** the HTTP front-end over the model layer the execution plan
-  built for it: one shared model, a `Sequence` per request, continuous
-  batching with chunked prefill through one `Model::forward` per scheduler
-  iteration, streaming responses, prefix reuse through `fork`, admission by
-  the KV pool's budget. Dependency-free transport. The design, protocol,
-  scheduler loop, gates and order of work are `docs/SERVER.md`.
 - **Done:** the design and steps 1 to 6 (3a and 4 to 6 further down).
   `src/server/http.hpp`: HTTP/1.1 over blocking sockets, Winsock or BSD, a listener, one request with a
   Content-Length body per connection, a whole response or a chunked
@@ -7551,8 +7474,6 @@ above; they were not included in the help implementation commit.
 
 ## Vulkan backend, sub-step 1 of docs/VULKAN.md (2026-09-21)
 
-- **Goal:** the first vendor backend over the Radeon VII: storage and
-  submission first, kernels in the following sub-steps.
 - **Done:** `src/backends/vulkan/vulkan_backend.cpp`, the one translation
   unit outside the header-only runtime, built as a static library only
   with `LLMX_HAS_BACKEND_VULKAN=ON`. The loader is loaded at run time and
@@ -9244,10 +9165,6 @@ above; they were not included in the help implementation commit.
 
 ## Execution model for batching and placement (ROADMAP #5, #7) (2026-09-21)
 
-- **Goal:** fix what the backend interface and the model layer need for the
-  per-layer and per-tensor splits and for continuous batching, now that both
-  are scoped and per-row split is dropped, so the first vendor backend
-  implements each signature once.
 - **Done:** the design, `docs/EXECUTION.md`: `submit`/`wait` tickets with
   no events, host-visible memory and `write` returning with the transfer as
   its caller, per-row positions with the RoPE table as a buffer, batched KV
@@ -9521,10 +9438,6 @@ Three things are worth carrying forward rather than rediscovering.
 
 ## Full code read before the first vendor backend (2026-09-21)
 
-- **Goal:** read every line of `src/`, `tests/` and `tools/` before starting a
-  GPU backend, fix what is actually broken, record the rest. Steps 1 to 4 of
-  the device execution migration had landed and it was the right point to stop
-  and look at the whole tree.
 - **Done:** the read. `src/model/kv_cache.hpp` is the only file with nothing
   to report.
 - **Done: two real bugs.** `f32_to_f16` OR-ed the rounding carry into the
@@ -9592,7 +9505,6 @@ Three things are worth carrying forward rather than rediscovering.
   calls moving the same number by three points. If a later step finds 0.6B
   prefill about three points low against an older baseline, this is where it
   went.
-- **Left:** nothing blocking.
 - **Gotchas:** `Backend::write` and `Backend::copy` are implemented and have
   no caller anywhere, which AGENTS.md forbids. They stay only because step 5
   is their consumer and is next; if step 5 does not use `write`, delete it
@@ -9975,120 +9887,6 @@ release blockers by the later evidence and clarified tradeoff policy. Their
 original results remain in ASSETS. Other hardware, quants and workloads need
 their own measurements; K-quant optimization remains separate work below.
 
-## Status table
-
-| Feature                                  | Status   |
-|------------------------------------------|----------|
-| Layered restructure                      | Done     |
-| Build config (config.hpp + CMake + build.bat) | Done |
-| Test suite (roundtrip / perf / tokenizer)| Done     |
-| Native server wave submission synchronization | Done |
-| Server consistency tool: fresh phases and matched cache selection | Done (main `83b943a`, seven hosted jobs passed) |
-| Perf `bench` command                     | Done     |
-| CPU backend optimization                 | Done     |
-| Early backend weight-type refusal and per-layer stream fallback | Done (main `737e082`, six hosted jobs passed) |
-| CPU tiny-activation range repair | Done; measured CLI Q5 decode cost retained in the checkpoint above |
-| Disk tier under the host tier (docs/DISK-TIER.md) | Done; steps 1 to 6 on main, measured in the record above |
-| Vulkan allocation failure ownership | Done |
-| Vulkan attention width and mixed-cache validation | Done |
-| More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
-| Activation dtype: resolution, CPU/Vulkan conformance, reporting and fallback | Done; qualified F16 default, explicit F32 and BF16 emulation, with the gates and retained speed gaps in the 2026-10-02 record above |
-| CPU fit reserve beyond payload buffers | Done; test-first repair, startup under the same 8 GiB limit and integrated server coverage recorded above |
-| Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | In progress (block above): the spec decoders, fixtures and MXFP4 writer merged at `e9b13dec`; CPU MXFP4 and explicit capture shares merged at `d81ed428`; Vulkan MXFP4 lands with dtype. Remaining weight types and the recorded speed gaps stay open |
-| More model architectures (Llama, ...)    | Planned  |
-| Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (block above, design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the Vulkan backend, merged at `8d68d529` |
-| Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (block above); the CPU timing on a quiet host follows |
-| More formats (safetensors, ...)          | Planned  |
-| JSON syntax and Unicode validation      | Done |
-| GGUF reader size and tensor extent validation | Done |
-| Checked conversion output publication | Done: merged at `4b0ec6a5`; checked write/close before replacement |
-| JSON quantize tensor validation | Done |
-| Q4_0 finite-input packing | Done: merged at `99572401`; tiny-scale reciprocal overflow handled |
-| Qwen model construction validation | Done |
-| Paged KV cache (block pool, backend-owned blocks) | Done |
-| Device execution model (ROADMAP #4a)     | Done     |
-| Execution model: tickets, batched views, placement (`docs/EXECUTION.md`) | Done: steps 1 to 7, step 7 being the server, see the server row; `--device` lists select a layer split (multi-device row) |
-| KV cache fork (KV-CACHE step 2)          | Done     |
-| Multi-device split (per-layer, per-tensor) | In progress (`docs/MULTI-DEVICE.md`): phase 0 measured, phase 1 (the layer split over a `--device` list fitted to free memory) and phase 2 (a prompt pipelined over the stages) merged; phase 3, passes in flight: step 1, the pass API, step 2, the scheduler over it, step 3, a pass in flight per stage and the 16-slot command ring (`ec03dcfa`), and step 5, the wider Q8_0 decode builds (`perf/decode-columns`), merged; step 4, the in-place rows and the sampling pool, merged at `41b19afc`; step 6, the head split, measured on 2, 3, 4 and 8 cards and not merged (the user, 2026-09-29): bit-identical to one card, it served 17 to 23 percent below the whole head on 8 cards and below it on 2 to 4, and `feat/split-head` keeps it as a record to revisit after step 7; step 7 and the final server gate follow; the tensor split (`docs/TENSOR-SPLIT.md`): step 0 measured, step 1 (the shards) and step 2 (groups on the CPU) merged, step 3 (the Vulkan collective) merged with its speed gate open below the reference (2026-10-04) |
-| GPU backends (Vulkan first to write, ROCm first-class) | Vulkan implemented and the recorded dense-model device gate passed on both platforms (forty-seventh checkpoint above): Radeon VII decode 102-115% and prefill 109-455% of the same-card reference Vulkan build; one MI50 decode 102-115% and prefill 102-267%. These are dated gate results, not new measurements from this documentation review. ROCm planned |
-| Multi-node / cluster                     | Planned  |
-| Two-row decode builds for the Q4 and K-quant rows | Done: merged at `b5cc467a` (block above) |
-| Q8_0 decode by two-wide 16-bit dots | Done (block above): bit-identical, 10 to 21 percent at 3 to 9 sequences on an MI50; lands by fast-forward |
-| A lone prompt read by every stage (phase 4) | Done (block above) |
-| The 16-bit prompt tile on the MI50 (option C step 1) | Measured, no gain in the shader alone (block above); the repacked Q8_0 layout recorded as the lever |
-| `--dtype int8` at every row count (option C step 2) | Done at `c8b2ac8d` (block above) |
-| The attention tile addresses its staged words directly | Done (block above): bit-identical, 10.5 percent of the tile on an MI50; lands by fast-forward |
-| Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
-| Chat follow-up cache validation          | Done |
-| Correctness baseline vs HF reference     | In Progress |
-| Pinned HF reference generation           | Done |
-| Optional Qwen3-8B HF consumer             | Done |
-| HF fixed-excerpt PPL baseline            | Done     |
-| Performance floor vs mx-llama.cpp        | In Progress |
-| Matched CPU comparison thread selection | Done |
-| Perplexity text-file input (-f/--file)    | Done     |
-| Chunked corpus perplexity               | Done     |
-| F32 embedding/matrix inference          | Done |
-| CPU attention in backend (ROADMAP #4a)  | Done |
-| CPU row streaming / parallel prefill   | Done |
-| CPU attention value accumulation      | Done |
-| CPU grouped projections              | Done |
-| CPU Q8 activation precision and batched float decode | Done (`36350ca`) |
-| MI50 prompt activations at 16 bits | Done (`ef3b9428`); its speed gate stays open, the accumulating dots merged at `5bb4596f` and five prompt cells left (MI50 prompt speed at 16 bits, above) |
-| CPU Q8 scale / load scheduling       | Done |
-| Head-major CPU KV storage             | Done |
-| CPU worker exception safety           | Done |
-| CPU worker cost profile                 | Done |
-| CPU ordered prefill reductions          | Done |
-| Backend-owned prefill placement | Done (main `3c5d4b9`, five hosted jobs green) |
-| CLI thread settings, including batched/per-token perplexity | Done |
-| Automatic build identification          | Done (main `9511a4a`) |
-| Focused CLI help and complete current option coverage | Done (2026-09-24 checkpoint) |
-| Live generation and loading progress     | Done |
-| Model loading and teardown buffer lifetime | Done (2026-09-25 checkpoint) |
-| CPU zero-byte transfer and zero-thread hint contracts | Done (2026-09-25 checkpoint) |
-| GitHub CPU CI                          | Done     |
-| HF fixture download retries and CI cache | Done |
-| Hosted numeric/path portability repair | Done (five jobs green at `851d375`) |
-| HF model download and sharded GGUF (ROADMAP #9a) | Done (included in main; five hosted jobs passed at `7e195ff`) |
-| HF native formats (ROADMAP #9b)          | Planned  |
-| HF Hub kernels (additional, after #4a)   | Planned  |
-| Documentation consistency review | Done (merged at `5869385b`, six hosted jobs passed) |
-| Shared device-versus-CPU numerical gate | Done (main `c6a91bf`) |
-| Required device types in the test runner | Done (main `56172ea`) |
-| Vulkan finite activation repair | On main at `99020607`; its block records the exact-head hosted run as still owed |
-| Dead-code and stale-docs checks in every job | Done (merged at `75450ea`, block above); the cleanup of the listed findings, branch `cleanup/known-findings`, is next now that the architecture modules have merged, and has not started |
-
-`Done` denotes implemented and validated functionality in this release tree.
-The earlier runtime base `08351b0` was published on both main remotes. Its initial five-check
-hosted run `35512421834` passed ordinary Ubuntu and required HF, but failed
-Windows reference-generator path spelling, UBSan exact scalar-tail comparison,
-and macOS JSON subnormal conversion. Repair `851d375` passed all five jobs in
-[run 35512954742](https://github.com/mxxm-t/llmx/actions/runs/35512954742):
-Windows, macOS Intel, Linux, Linux UBSan and required HF. The repair changes
-JSON conversion plus test portability, preserving inference kernels and bounds.
-Evidence is in `docs/benchmarks/ci-portability-20260920.json`; prior four-check
-passes at `b266650` and `9511a4a` cover those smaller releases.
-See [CI](CI.md) for the precise workflow scope and local reproduction commands.
-
-## Active feature blocks
-
-### Scoped correctness coverage and remaining HF work
-
-- **Goal:** keep independent HF ground truth and extend coverage where the roadmap requires it.
-- **Done:** exact tokenizer fixtures; tiny tied/untied F32 full logits and NLL; real Q8_0, Q4_0, Q5_K_M and Q4_K_M ranking and excerpt PPL; HF/Jinja2 follow-up chat fixtures; pinned reference generation and strict consumers. The real 8B consumer, now 41 checks with each NLL case scored batched and per token, passed 41 of 41 on one MI50 at `a2b732f` and in both Q8_0 decode orders at the half-block order's merge; its earlier 37-check form passed 37/37 on Windows and Linux with frozen bounds. Real 0.6B F32/Q8 1,943-token plus 32-step continuation checks are archived in ASSETS.
-- **Left:** broader full-corpus, maximum-context and per-layer references, plus prospective numerical bounds for any new lossy kernels. Short 8B rankings/excerpts are not deep-context validation.
-- **Gotchas:** self-consistency is supplementary. Exact comparison against another llmx path cannot replace HF. Model construction validation does not establish finite weights, arbitrary token-ID safety, request budgets or failed-session recovery.
-
-## Working rules and ownership
-
-Current feature ownership and timing reservations are recorded in the shared
-collaboration log outside this repository. Confirm ownership there before
-starting work; historical branch names below are not active assignments. Builds and tests
-may run in parallel when no timing reservation is active. Keep every planned
-performance sample, record ordinary machine activity, and report missing
-telemetry honestly. GitHub receives main and the `gate/<name>` branches whose hosted run checks a stack before it merges (`docs/CI.md`); feature work stays on its branch until its gates pass.
-
 ## Historical feature blocks (2026-09-19 to 2026-09-22)
 
 These dated blocks preserve the results, plans and open items from their
@@ -10099,8 +9897,6 @@ remain in progress; historical results establish only their recorded scope.
 
 ### Vulkan prefill through the 8-bit integer dot (2026-09-22)
 
-- **Goal:** prompt processing on the MI50 at least level with the reference, where it was 44 to 79 percent against a reference split across ten cards and is 24 to 73 percent against one (the thirty-fourth paragraph, measured after the tile below). Measured on that card within one environment at a 4096 x 14336 projection over 512 rows, our float tile reads 4.87 TFLOPS for Q8_0, 4.65 for Q4_K and 3.62 for Q6_K, level with the reference's own float tile at 4.77, while its 8-bit integer-dot tile reads 13.30, 11.42 and 7.03. So the gap is that path, not scheduling or tile shape (STATUS, thirty-third paragraph above).
-- **Plan:** a kernel quantizes each activation column to 8-bit values per 32-value block with the block's scale and scaled sum; a tile kernel stages one quant block per row and column per step as packed 8-bit words and scales, and multiplies with the four-wide integer dot, one float multiply-add per block for the scale and one more for a type's minimum. Q8_0 and Q4_K first, then Q6_K and Q5_K. Used only where the device's integer dot is native, which the profile records as `prefer_integer_dot`; elsewhere the float tile stays.
 - **Done:** the diagnosis above, and `backend-vulkan` now times the tile at that shape in TFLOPS. `quantize_x8.comp` and `matmul_tile_q.comp` for Q8_0 and Q4_K (`cb2eb5b`), taken where the profile says `prefer_integer_dot`. On the MI50 at the 8B feed-forward shape Q8_0 goes 4.87 to 7.72 TFLOPS and Q4_K 4.65 to 11.48, the reference's being 13.30 and 11.42. Qwen3-8B-Q4_K_M prompt processing 297.8 to 488.7 tok/s at 512 rows. Correctness: every HF perplexity cell in both scoring modes on the MI50 with all three 0.6B fixtures, the backend test's 1,172,518 outputs with its reference rounded the same way, and on the 8B Q4_K_M file, which no fixture covers, 40 wikitext windows of 512 at mean NLL 2.47005 against the float tile's 2.47023. Scoring through batched passes (`fc261f9`) is what made the HF gate reach this path at all. Then the thirty-fifth to thirty-seventh paragraphs: Q8_0 staging a word at a time (12.07 TFLOPS), Q6_K in its own module (9.60 against the reference's 7.03) and Q5_K through the tile (`c1bdb09`, `db249b8`); Q4_0 and Q4_1 through it too and the measured profile carrying four thresholds, the MI50's row 16, 32, 24 and 40 (`2b770f6`); and a third tile height of 32 rows for short prompts, 0.6B Q8_0 at 64 rows 2502 tok/s, 54 percent of the reference's 4638 (`33933a9`).
 - **Left:** staging several quant blocks per barrier (being measured); MI50 prompt processing at 69 to 89 percent at 247 rows and more; MI50 decode at 86 to 91 percent on the 8-bit files.
 - **Gotchas:** 8-bit activations cost 0.009 of NLL in the decode kernel earlier, close to the 0.010 bound on one HF cell, so the device suite on the MI50 decides whether this ships, per type. The AMD Windows driver lowers the integer dot extension to widened multiplies, so the Radeon VII must keep the float tile.
@@ -10129,7 +9925,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### K-quant and device execution work (separate developer branch)
 
-- **Goal:** improve the remaining K-quant decode path and continue ROADMAP #4a without overlapping this release/placement work.
 - **Done:** the separate `design/device-execution-model` branch and the K-quant experiments are not incorporated by this release. Their measurements and source identities must be reviewed before adoption. Quantized-activation commits `357d68d` and `97d52e8` fail `backend-group`; they remain isolated and are not merge-ready. Arithmetic-preserving dispatch work is being separated onto a passing base.
 - **Left:** prospective correctness/performance validation for any new quantized-activation path. The device execution model is complete on main (see the 2026-09-21 block above); K-quant decode remains. Coordinate rebases and announce timing reservations.
 - **Gotchas:** earlier grouped Q16 failed the unchanged native double-dot accuracy contract. Do not reuse it as a lossless baseline or weaken bounds after observing results. CPU Q8 results do not establish K-quant parity.
@@ -10137,10 +9932,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### GGUF reader size and tensor extent validation
 
-- **Goal:** reject malformed lengths, dimensions, arithmetic overflow and tensor
-  extents before allocating payload storage or reporting loading progress;
-  honor the file's declared alignment. This closes the documented format-layer
-  error-handling gap and supports future Hub/sharded-format work.
 - **Done:** bounded reads, checked size arithmetic and subtraction-based file
   ranges reject malformed input before payload allocation/progress. Reader and
   writer honor positive uint32 alignments divisible by eight, including 24.
@@ -10185,8 +9976,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
   measure DRAM bandwidth or prove absence of short/inaccessible activity;
   sub-percent observer effects also remain unresolved. No clean-preflight
   result alone establishes that a small performance difference is real.
-- **Goal:** complete the reopened whole-prefill placement assessment against
-  production and matched mx, including HF/lossless and short follow-ups.
 - **Done:** preserved the historical candidate and its failed original screen;
   JSON checkpoint `a61c414` passes Windows/Linux correctness suites.
 - **Done:** fresh scratch control and default-enabled candidate retain current
@@ -10265,8 +10054,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### JSON validation, Unicode decoding and output escaping
 
-- **Goal:** fix current model-description JSON handling and the documented
-  ROADMAP #9b prerequisite for HF metadata/safetensors, without dependencies.
 - **Done:** strict number/literal/escape syntax, classic-locale finite-double
   conversion, validated UTF-8 and UTF-16 surrogate-pair decoding, and a
   256-container nesting bound. Value/API and duplicate get-first behavior stay
@@ -10297,9 +10084,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Native CPU decode sampling (diagnostic complete)
 
-- **Goal:** identify sampled native instruction/function locations during current
-  8B decode without adding timers to runtime source. This is a separate
-  diagnostic after caller attribution proved no production saving.
 - **Done:** optimized PDB harness builds against 17 unchanged runtime files.
   Session 65416 completes the discarded pair, then stops on xperf's unquoted
   commas in C++ symbol fields. A separate parser recovers the saved trace;
@@ -10338,8 +10122,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Current decode caller-cost attribution (diagnostic complete)
 
-- **Goal:** separate caller work from the previously mixed dispatch residual
-  before selecting another optimization. No placement study is reopened.
 - **Done:** unchanged production, legacy worker probes and added caller probes
   complete all 12 fixed 8B invocations in session 21493, exit 0. Six threads,
   ubatch 128, F32 KV, 215 prompt plus 32 forced tokens; one outer triplet and
@@ -10379,9 +10161,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Synchronous CPU prefill placement (old screen failed; reassessment reopened)
 
-- **Goal:** test one backend-owned synchronous callback around the complete
-  prefill, after the smaller operation-local candidate failed. Keep platform
-  details below Model and include setup, callback and checked cleanup costs.
 - **Done:** all 36 primary invocations completed with exit 0. Both prefill cases
   pass against fresh production and disabled prototype, with 5/5 wins against
   each. However, 8B decode mean loses 0.573915% against disabled, beyond the
@@ -10431,8 +10210,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### CPU-local batched-matmul placement (scratch candidate screened out)
 
-- **Goal:** keep placement inside the CPU backend and existing callbacks,
-  avoiding a generic Backend phase API or model-level platform code.
 - **Done:** all 24 invocations completed with exit 0. Prefill meets the frozen
   >=5% mean/median and 4/5-win screen in both models, but 0.6B decode loses
   2.62% mean and 2.72% median throughput, beyond the 0.5% limit. Reject this
@@ -10469,8 +10246,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Prefill placement without diagnostic observers (scratch screening passed)
 
-- **Goal:** establish whether the prefill placement benefit survives removal
-  of shared observer dispatches before considering production integration.
 - **Done:** all 24 invocations completed with exit 0, and the frozen screen
   passes. Both prefill means/medians improve at least 5%, with 5/5 wins per
   model; decode means/medians stay within the 0.5% regression limit.
@@ -10503,8 +10278,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Prefill-only CPU placement (scratch screening passed)
 
-- **Goal:** test the measured prefill opportunity while restoring normal
-  scheduling before decode, including recurring placement costs in timing.
 - **Done:** the fixed 24-invocation comparison completed with exit 0 and passes
   its frozen screen. Both models improve prefill mean/median by at least 5%
   with 5/5 wins, and decode mean/median stay within the 0.5% regression limit.
@@ -10534,9 +10307,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Explicit CPU worker placement (all-phase candidate screened out)
 
-- **Goal:** compare scheduler-selected placement with six workers on six
-  distinct queried physical cores, including caller worker zero, without
-  changing kernels or production options.
 - **Done:** helper success/unbound, caller/worker failure cleanup, destructor
   restoration and 1,818 exact grouped Q8 value checks pass. Independent
   preflight verifies source fidelity, masks, actual CPU witnesses and cleanup.
@@ -10569,8 +10339,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Exact decode SwiGLU callback fusion (screened out)
 
-- **Goal:** measure unchanged SwiGLU inside the existing equal-row Q8 gate/up
-  worker callback, preserving all buffers, arithmetic and projection order.
 - **Done:** MSVC and GCC each pass 1,440 matrix arm comparisons, 126,990
   finite bit comparisons and 27,054 nonfinite classifications. A separate
   instrumented copy witnesses 16,920 rows exactly once; an arithmetic mutant
@@ -10599,8 +10367,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Native Q8 bounded inner-loop follow-up (rejected)
 
-- **Goal:** test one ordinary two-trip loop with local accumulators, preserving
-  one copy of the native block body and every arithmetic operation.
 - **Done:** MSVC emits two block bodies without accumulator stack traffic.
   Independent instruction review finds 55 F16C-path instructions per pair
   versus 54 for two control iterations. Arithmetic and branch counts are
@@ -10617,8 +10383,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Native Q8 block scheduling study (rejected at codegen gate)
 
-- **Goal:** expose two consecutive native Q8 blocks to compiler scheduling while
-  preserving every weight product, four FMA chains and the original reduction.
 - **Done:** isolated control/candidate comparators build with MSVC. Independent
   scalar/control oracles pass 612,267 finite bit checks and 1,939 nonfinite
   classifications on both MSVC and GCC. A repeated-block mutant compiles and
@@ -10636,8 +10400,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Exact Q8 horizontal reduction study (rejected)
 
-- **Goal:** reduce Q8 row-dot epilogue cost while preserving all float products,
-  FMA chains and contributing addition order.
 - **Done:** the scratch shuffle/add sequence emits the intended instructions.
   Native CTest passes 7/7 and required-HF suites pass 11/11 for control/candidate
   on Windows/Linux. MSVC scalar checks pass 612,267 finite bit comparisons and
@@ -10671,8 +10433,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Optional Qwen3-8B HF consumer
 
-- **Goal:** compare the verified local Q8_0 GGUF against the independent pinned
-  8B HF tokenizer, logit and PPL goldens without adding large CI downloads.
 - **Done:** original HF generation and provenance evidence are committed in
   `bf122fd`. Before any llmx 8B comparison, declare exact tokenizer/input IDs,
   six exact top-1 matches and top-5 set overlap 5/5; all ten printed logits must
@@ -10702,9 +10462,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### CPU ordered prefill reductions
 
-- **Goal:** determine whether the four-row/three-column prefill kernel's
-  addressable accumulator array adds avoidable stack traffic or reduction
-  overhead, without changing per-lane FMA or final addition order.
 - **Done:** explicit ordered reductions match 1,824 scalar-FMA outputs across
   dimension tails and unaligned inputs. MSVC assembly removes most epilogue
   accumulator stack traffic; the FMA loops do not spill in either arm. The
@@ -10730,8 +10487,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Pinned HF reference generation
 
-- **Goal:** reuse independent HF tokenizer/logit/PPL generation for explicitly
-  pinned models, keeping larger-model fixtures separate from the existing suite.
 - **Done:** model/revision/output and associated GGUF labels are explicit;
   numerical loaders share pinned CPU float32 eager execution. Alternate models
   require separate output and cannot overwrite the default fixture directory.
@@ -10760,8 +10515,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Separate Q8 scale/payload storage study (screened out)
 
-- **Goal:** test a scratch storage view with original half-scale bytes separate
-  from contiguous 32-byte weight blocks, preserving all arithmetic and values.
 - **Done:** MSVC and GCC each pass 612,267 finite bit comparisons, 1,939
   nonfinite classifications and 141 packing cases. Grouped/standalone witnesses
   confirm the split dot runs; a corrupted-scale mutant compiles then fails.
@@ -10792,8 +10545,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Current 8B worker-span diagnostic
 
-- **Goal:** measure instrumentation impact on the current 8B runtime and
-  attribute decode dispatch intervals to operations before selecting a change.
 - **Done:** current source snapshots, plain/instrumented builds and fault check
   pass. All eight fixed processes pass: one discarded outer warmup pair and
   three alternating measured pairs. Every process internally warms up. Saved
@@ -10821,8 +10572,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### Archived decode operation attribution
 
-- **Goal:** label the existing 0.6B decode worker spans by operation, using the
-  exact archived model/backend source and shapes to prove dispatch order.
 - **Done:** all 12 traces and 54,144 decode records map to 141 dispatches per
   token: five per layer across 28 layers, then vocabulary projection. Archived
   source, guards and shapes prove the order. Exact last-finisher decomposition
@@ -10841,8 +10590,6 @@ Evidence: `benchmarks/main-external-floor-20260920.json`.
 
 ### CPU worker cost profile
 
-- **Goal:** localize the remaining prefill/decode costs before selecting another
-  hot-path change; compare the pre-error worker control with the retained runtime.
 - **Done:** operation-level profiles cover 24 processes: Q8/F32, one/six
   workers, both source arms, three alternating pairs and two instrumented
   sequences after an uninstrumented warmup. Final-vector hashes agree with
@@ -10899,9 +10646,6 @@ No mx benchmark or new independent HF gate was run by this scratch probe.
 
 ### Live generation and loading progress
 
-- **Goal:** stream generated text immediately in chat/generate, show prompt
-  processing before the first token, and make loader progress reusable by
-  current CLI consumers and future serving (ROADMAP #7).
 - **Done:** optional synchronous loader byte-progress and inference text callbacks
   are implemented; CLI generate/chat owns terminal detection, stderr status and
   stdout flushing. Prompt-processing status appears before prefill. Normal
@@ -10940,8 +10684,6 @@ not a kernel-speedup or external mx-llama.cpp parity claim.
 
 ### Automatic build identification
 
-- **Goal:** identify each CMake/plain MSVC build by release version plus Git
-  revision, with a dirty marker for tracked changes and a clear archive fallback.
 - **Done:** CMake refreshes build revision on each build, without rewriting an
   unchanged header. Plain build.bat emits the same metadata. --version and the
   usage banner show release plus Git revision and tracked-dirty state, with
@@ -10965,8 +10707,6 @@ not a kernel-speedup or external mx-llama.cpp parity claim.
 
 ### CLI thread settings
 
-- **Goal:** make existing auto, decode and prefill thread flags work consistently
-  for generate, follow-up chat and bench without changing kernel arithmetic.
 - **Done:** generate/chat capture the resolved decode count, apply the prefill
   count and restore decode for every turn. Bench keeps auto selection; actual
   phase counts are visible through verbose/benchmark output. The new regression
@@ -10987,9 +10727,6 @@ not a kernel-speedup or external mx-llama.cpp parity claim.
 
 ### CPU worker exception safety
 
-- **Goal:** propagate CPU task failures after every participant finishes, with
-  safe job lifetime and reusable dispatch state; clean up partial pool startup.
-  This repairs the existing backend before ROADMAP #4a/#7 execution work.
 - **Done:** dispatch catches caller/worker failures and waits for completion
   before rethrowing; startup joins partially created pools. Windows/Linux
   native checks, full suites with required real HF fixtures, Linux UBSan native
@@ -11059,8 +10796,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### F32 embedding/matrix inference
 
-- **Goal:** load and run F32 embeddings and matrices in dense Qwen3, with
-  external HF numerical validation and measured CPU performance (ROADMAP #8).
 - **Done:** direct F32 rows, float-aligned tensor blobs, deterministic HF
   full-logit/NLL fixtures (tied/untied, odd widths, batches, threads). Windows
   and Linux full suites pass; UBSan passes and catches the pre-fix alignment
@@ -11086,9 +10821,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### CPU attention in backend
 
-- **Goal:** move causal GQA attention out of the model and into the backend
-  (ROADMAP #4a), sharing the decode and prefill implementation and improving
-  CPU throughput with measured, numerically bounded vectorization.
 - **Done:** `Backend::attention` now handles both forward paths, with CPU-owned
   score scratch, causal GQA, AVX2 dots and value accumulation, and scalar tails.
   Deleted duplicate model-layer attention loops. Regenerated the tiny HF
@@ -11115,8 +10847,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### CPU row streaming / parallel prefill
 
-- **Goal:** close the F32 CPU performance gap without changing weights or
-  weakening the HF numerical gate (ROADMAP #8).
 - **Done:** contiguous single-row F32 decode and parallel batched
   norm/RoPE/SiLU work, guarded to keep fewer than two rows per worker serial.
   Final eight interleaved rounds: prefill 371.65 -> 383.06 tok/s (+3.1%,
@@ -11144,8 +10874,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### CPU attention value accumulation
 
-- **Goal:** reduce CPU attention output loads/stores by retaining value-sum
-  lanes in SIMD registers, while preserving per-lane summation order (#4a/#8).
 - **Done:** normalized coefficients and register value sums implemented, with
   32-lane blocks, eight-lane remainders and scalar tails. Expanded the tiny HF
   fixture to head width 42, deriving its tensor shapes and HF config together.
@@ -11178,8 +10906,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### CPU grouped projections
 
-- **Goal:** reduce worker-pool dispatches for Q/K/V and FFN gate/up projections
-  sharing activations, preserving float arithmetic (ROADMAP #4a/#8).
 - **Done:** direct grouped decode through existing F32/Q8_0/Q4_K row kernels.
   Other types, batches and small jobs use the sequential fallback. No TLS,
   nested dispatch or activation conversion. Added CTest coverage to CI.
@@ -11229,8 +10955,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### CPU Q8 scale / load scheduling
 
-- **Goal:** reduce native Q8 decode instruction overhead while preserving
-  float activations, per-lane accumulation order and exact weight scales (#8).
 - **Done:** selected direct memory half broadcast plus direct byte-load sign
   extension. Assembly confirms the intended instructions; scalar fallback and
   accumulator order are unchanged. Feature specialization did not establish a
@@ -11280,8 +11004,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### CPU comparison thread scaling
 
-- **Goal:** locate the remaining CPU performance gap using matched thread
-  counts and matrix-shape measurements, following ROADMAP #8.
 - **Done:** explicit `--threads` in the comparator and runner, with requested
   counts echoed and checked. Windows llmx/mx and Linux llmx builds pass;
   invalid arguments and missing/wrong thread metadata are rejected. A real-model
@@ -11301,9 +11023,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### Head-major CPU KV storage
 
-- **Goal:** make each KV head's history contiguous to improve attention reads,
-  preserve arithmetic order, and separate concrete CPU storage from logical
-  sequence state without adding speculative device/server interfaces.
 - **Done:** `HostKVCache` owns bounded growth and token-major projection writes;
   `Model` owns valid length/reset; backend attention receives an explicit head
   stride. Promoted the exact validated headers from the scratch candidate.
@@ -11342,8 +11061,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### Chat follow-up cache validation
 
-- **Goal:** preserve correct conversation history across follow-up prompts,
-  reusing KV only when its exact token prefix matches the rendered transcript.
 - **Done:** review found that `cmd_chat` skips cached tokens by count alone,
   renders twice per turn, and can pass empty logits to generation when the
   template does not add a generation suffix. Generated stop tokens and the
@@ -11375,8 +11092,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### Correctness baseline vs HF reference
 
-- **Goal:** give the suite an external ground truth. Correctness is measured
-  against the HF reference, never against llmx itself (`docs/ROADMAP.md` #8).
 - **Done:**
   - The tokenizer mode of `tools/gen_baseline.py` emits golden fixtures using
     `tokenizers` + `huggingface_hub`; numerical modes additionally need torch
@@ -11442,8 +11157,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### Performance floor vs mx-llama.cpp
 
-- **Goal:** llmx must be at least as fast as mx-llama.cpp on the same model,
-  quant, prompt and hardware (`docs/ROADMAP.md` #8), pp and tg both reported.
 - **Preceding two-arm result (2026-09-20):** unchanged validated `bf122fd`
   runtime versus pinned mx `5542318e74`, nine alternating measured pairs per
   model after one discarded warmup pair; six workers, ubatch 128, 215 prompt
@@ -11591,9 +11304,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 - **Process note:** this block was opened after the code was written, which
   `AGENTS.md` forbids.
-- **Goal:** land the backend-agnostic execution model #4b depends on, in the
-  six steps of `docs/DEVICE-EXECUTION.md`. Bar per step is no measured
-  regression, not a win.
 - **Done:** the design, `b1e4904`. Step 1, weights resolved once at load,
   `edd617f`: suite green, HF logits and PPL unchanged on Q8_0 and Q4_0. Doc
   page refreshed in `1d4ffa4`.
@@ -11646,10 +11356,6 @@ feature ships, delete its block and mark the row `Done` above.
 
 ### Fused Q5_K and Q6_K row dots (ROADMAP #1)
 
-- **Goal:** give Q5_K and Q6_K the decode row dot Q4_K already has, so no
-  dequantized value is materialised. Q4_K works because `d*q - m` factorises
-  into `d*sum(q*x) - m*sum(x)`; Q5_K carries the same scale/min pair plus a
-  high bit, and Q6_K has signed group scales and no min.
 - **Done:** Q5_K fused dot, adopted. `dot_row_q5_K` mirrors `dot_row_q4_K`
   with the fifth bit taken from `qh`, whose mask shifts two places every 64
   values while `qh` itself does not advance. Dispatch now covers both types

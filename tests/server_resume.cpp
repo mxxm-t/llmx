@@ -1994,8 +1994,10 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
 
 // Entries kept across a restart (docs/DISK-TIER.md, Keeping entries across a restart): under --disk-cache-keep three conversations take turns into a host tier of four copies, which writes nothing, and the scheduler's stop writes the two copies in host memory and the device donor copied to it, leaving its directory marked kept with three entry files.
 // A second scheduler under the same root, on a fresh model of the same file, adopts the three, and the first and last conversations' follow-ups read them back and fork 256 tokens each, with the replies they give on a fresh model; an entry made older than the age limit is not adopted.
-void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
-    const std::string what = "entries kept across a restart";
+// With `restart_host` the second scheduler's host tier is that many bytes: one smaller than an entry, as a server started on a host with less free memory has, still reads the entries back, through host memory beyond its tier, and keeps none of them there.
+void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t restart_host = 4 * ((size_t)64 << 20)) {
+    const bool through = restart_host < ((size_t)64 << 20);
+    const std::string what = through ? "entries kept across a restart into a host tier smaller than an entry" : "entries kept across a restart";
     DiskRoot disk("kept");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
@@ -2034,9 +2036,10 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     std::vector<Reply> got;
     std::vector<size_t> reused;
     server::Scheduler::Stats second;
+    size_t slabs = 0;
     {
         auto model = make(2048, 16);
-        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, restart_host, nullptr, 0, false, options);
         std::thread runner([&] { sched.run(); });
         try {
             within_a_minute([&] { return sched.stats().disk_entries == 3; }, what + ": three entries adopted");
@@ -2054,12 +2057,18 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
         }
         sched.stop();
         runner.join();
+        slabs = model->host_allocated();
     }
     require(second.disk_hits == 2 && reused == std::vector<size_t>{2 * kBlock, 2 * kBlock},
             what + ": " + std::to_string(second.disk_hits) + " entries read back, the follow-ups reusing " + std::to_string(reused[0]) + " and " + std::to_string(reused[1]) + " tokens");
     for (size_t i = 0; i < follows.size(); ++i) {
         auto fresh = make(2048, 16);
         same(serve(*fresh, tok, 1, {{follows[i]}})[0], got[i], what + ", follow-up " + std::to_string(i));
+    }
+    if (through) {
+        // Neither the copies nor the host memory they were read through outlive their requests.
+        require(second.host_donors == 0 && slabs == 0, what + ": " + std::to_string(second.host_donors) + " copies and " + std::to_string(slabs) + " bytes of slabs left in host memory");
+        return;
     }
     // The second scheduler left its entries kept too; one made two days old is past the age limit and not adopted.
     std::vector<fs::path> files = disk.files(".kv");
@@ -2181,6 +2190,7 @@ int main(int argc, char** argv) {
             disk_read_waits(one, tok, vocab);
             disk_read_bound(one, tok, vocab);
             disk_kept(one, tok, vocab);
+            disk_kept(one, tok, vocab, (size_t)1 << 16);
             disk_age(one, tok, vocab);
             for (size_t devices = 1; devices <= 2; ++devices)
                 host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices, 1, HostFault::none,

@@ -122,6 +122,14 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## A short last message keeps its boundary too (2026-10-06, branch fix/boundary-last-block, lands by fast-forward)
+
+- **Found:** in production (Qwen3.8-27B Q8_0 over two MI50s) a conversation's turn after a restart forked the boundary a message earlier, 74688 tokens, and not its previous prompt's state near 76608.
+- **Cause:** a request keeps a message boundary where its last user message starts, but not where that block is also its own checkpoint, its prompt's last whole block, as it is for every message shorter than a block. The state then lived only in the request's donor, which the reply's job supersedes and which is therefore neither copied to host memory nor written at a stop.
+- **Done:** the request keeps the boundary there too, one checkpoint being both (`Scheduler::admit`, `form`). The test commit fails without it: a request whose 50-token last message starts in its prompt's last whole block left no boundary.
+- **Cost:** no checkpoint slot, and no copy where the turn before left its job's boundary at the same tokens, which is found and renewed: the usual client, now that a reply is read again as it is sent back. Where no such boundary exists, one state a turn is copied to host memory, 150 MiB on that model, in the room boundaries already live in, and with a disk tier written; a client that returns `reasoning_content` under the Qwen 3.8 template is that case on every turn.
+- **Reviewed** by F2DEV.
+
 ## The held-write check makes its disk tier before its turns (2026-10-06, branch fix/held-write-ready, lands by fast-forward)
 
 - **Found:** `server-resume`'s held-write case failed once in a hosted Windows job with "the cancelled write left 0 entries", on a branch that touches only the Vulkan backend.

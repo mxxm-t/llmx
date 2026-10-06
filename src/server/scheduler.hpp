@@ -699,10 +699,12 @@ private:
                 keeps += e.keep;
                 r->keep_at_ = 0;
             }
-            // The boundary's checkpoint goes to host memory once its pass retires (keep_boundary), and the request's own at keep_at_ then takes its place, a sequence holding one.
+            // The boundary's checkpoint goes to host memory once its pass retires (keep_boundary), and the request's own at keep_at_ then takes its place, a sequence holding one; where the two are one position, one checkpoint is both.
             if (r->boundary_at_ && r->boundary_at_ == at + n) {
-                e.keep = checkpoint_room(keeps, r->source_);
-                keeps += e.keep;
+                if (!e.keep) {
+                    e.keep = checkpoint_room(keeps, r->source_);
+                    keeps += e.keep;
+                }
                 r->boundary_at_ = 0;
                 r->boundary_kept_ = e.keep;
             }
@@ -2442,7 +2444,7 @@ private:
         if (model_.checkpoint_slots() && at > shared) r.keep_at_ = at;
         // And a message boundary where its last user message starts, whole blocks, past what it forked, so an edit or a regenerate of that message leaves the boundary the next one forks.
         const size_t message = std::min(r.message_, p - 1) / bt * bt;
-        if (model_.checkpoint_slots() && host_cap_ && message > shared && message != r.keep_at_) r.boundary_at_ = message;
+        if (model_.checkpoint_slots() && host_cap_ && message > shared) r.boundary_at_ = message;
     }
 
     // A donor's blocks back to the pool, the oldest donor's unless another is named; one the device tier evicts (`evicted`) is copied to host memory first.

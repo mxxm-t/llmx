@@ -423,7 +423,7 @@ private:
         const Weight* w = s.w;
         // On a tensor group each member runs its share of the heads, a KV head replicated where the width is a multiple of them.
         const size_t E = (size_t)cfg_.n_embd, D = (size_t)cfg_.head_dim, Hq = (size_t)cfg_.n_head / s.width;
-        const size_t Hkv = (size_t)cfg_.n_head_kv >= s.width ? (size_t)cfg_.n_head_kv / s.width : 1;
+        const size_t Hkv = kv_share((size_t)cfg_.n_head_kv, s.width);
         const backend::Slice r = s.slot(2), k = s.slot(3), v = s.slot(4), q = s.slot(5), o = s.slot(6);
         b.matmul_group({blocks::projection(w[attn_q], r), blocks::projection(w[attn_k], k), blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs, s.dtype);
         const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};

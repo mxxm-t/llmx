@@ -150,6 +150,9 @@ struct Step {
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
 };
 
+// The KV heads a member of a tensor group of `width` keeps of `kv_heads`: its share, or one where the width is a multiple of them and each is replicated; none of none, which only a plan without KV layers has, a file's count being positive as it is read.
+inline size_t kv_share(size_t kv_heads, size_t width) { return kv_heads >= width ? kv_heads / width : (kv_heads ? 1 : 0); }
+
 // The head's call: the rows that want logits, their runs, and where their logits go.
 struct HeadStep : Step {
     const uint32_t* pick;

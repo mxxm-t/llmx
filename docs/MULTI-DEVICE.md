@@ -189,7 +189,7 @@ For a model that fits one card or one group, several independent copies behind o
 
 ## Phase 0 results
 
-Measured on the Linux machine's MI50s under RADV (Mesa 25.0.7), every card at Gen4 x8 to its root port, with `llmx-vk-handoff` and `llmx-multi-device-bench`; the full figures are in `docs/STATUS.md`.
+Measured on the Linux machine's MI50s under RADV (Mesa 25.0.7), every card at Gen4 x8 to its root port, with modes of `llmx-vk-handoff` and `llmx-multi-device-bench` that were removed once their questions were answered (2026-10-06); the full figures are in `docs/STATUS.md`'s dated records.
 
 - **What the driver offers.** Binary semaphores export and import as sync files; timeline semaphores only as opaque descriptors, which do not cross cards with different device UUIDs. Host memory imports into every card. Device memory exports and imports as dma-buf, and a card reads another card's exported memory directly: 9.2 GB/s from a card on the same root complex, 1.1 GB/s across complexes. There are no device groups. The Radeon VII under the AMD proprietary driver imports host memory too.
 - **Submissions are the cost, not the bytes.** A submission of one command buffer costs 50 to 70 us from submit to host wake even when empty, and each further command buffer about 20 us of the device's time; a copy inside a command buffer costs about 4 us. So a handoff's copy goes in the stage's own submission, and a small handoff costs what one more wait costs.

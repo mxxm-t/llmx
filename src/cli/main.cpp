@@ -502,14 +502,6 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     const auto specs = backend::device_specs(exec.device);
     tensor_groups(exec, specs);
     auto backends = shared.empty() ? backend::make_backends(specs, profiled != nullptr || timed) : shared;
-    // A group needs a sum across its devices, which the backend of its kind may not have on this build or platform yet.
-    for (size_t g = 0; exec.tensor_width > 1 && g < backends.size(); g += (size_t)exec.tensor_width) {
-        std::vector<backend::Backend*> members;
-        for (size_t m = g; m < g + (size_t)exec.tensor_width; ++m) members.push_back(backends[m].get());
-        if (!backends[g]->join(members, 1, 1))
-            throw std::runtime_error("--tensor-width " + std::to_string(exec.tensor_width) + ": the " + kind_of(specs[g]) +
-                                     " backend has no cross-device sum yet (docs/TENSOR-SPLIT.md, section 6)");
-    }
     // Beside the placement a command prints, so a quiet command stays quiet.
     if (exec.tensor_width > 1 && (progress || show_plan)) report_groups(specs, backends, (size_t)exec.tensor_width);
     if (profiled) *profiled = backends.front().get();

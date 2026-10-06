@@ -212,7 +212,7 @@ public:
         backend::Backend& b = s.b;
         const Weight* w = s.w;
         const size_t E = (size_t)cfg_.n_embd, half = (size_t)cfg_.head_dim / 2;
-        const int n_head = cfg_.n_head / (int)s.width, n_head_kv = cfg_.n_head_kv >= (int)s.width ? cfg_.n_head_kv / (int)s.width : 1;
+        const int n_head = cfg_.n_head / (int)s.width, n_head_kv = (int)kv_share((size_t)cfg_.n_head_kv, s.width);
         const size_t Q = (size_t)n_head * cfg_.head_dim, KV = (size_t)n_head_kv * cfg_.head_dim;
         const backend::Slice x = s.x, h = s.slot(1), q = s.slot(2), k = s.slot(3), v = s.slot(4), attn = s.slot(5);
 

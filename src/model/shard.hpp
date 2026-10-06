@@ -134,7 +134,7 @@ inline std::vector<uint64_t> shape(const Role& role, const TensorView& t, size_t
 }
 
 // The KV heads a member of `width` keeps: its share, or one where KV heads are replicated over members.
-inline size_t kv_heads(const ModelPlan& plan, size_t width) { return plan.kv_heads >= width ? plan.kv_heads / width : (plan.kv_heads ? 1 : 0); }
+inline size_t kv_heads(const ModelPlan& plan, size_t width) { return kv_share(plan.kv_heads, width); }
 
 // The recurrent state a member of `width` keeps: its share of the K and V heads, each head as wide as on one device.
 inline backend::StateShape state(const ModelPlan& plan, size_t width) {

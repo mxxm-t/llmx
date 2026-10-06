@@ -352,7 +352,6 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
         for (size_t m = 0, at = 0; m < W; ++m) {
             HeadStep head{part(ctx, g + m, pass_row(m), 0, 0, p.rows, all), p.pick.data(), p.want,
                           backend::RowRuns{p.head_runs.data(), p.head_runs.size()}, {ctx.member_logits[g + m].get(), 0}};
-            head.width = W;
             arch_->head(head);
             const size_t n = head_rows(m);
             for (size_t r = 0; r < p.want; ++r)

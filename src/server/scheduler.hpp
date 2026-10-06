@@ -830,6 +830,7 @@ private:
     static double ms_since(Clock::time_point t) { return std::chrono::duration<double, std::milli>(Clock::now() - t).count(); }
 
     // A timed round's end: its time, and every kReadRounds rounds each stage's device time since the last reading, which on a device waits for its queue, so the span a reading covers starts after it.
+    // A reading is a call on the stage's devices, so it is taken with every recorder idle (quieted).
     void end_round(Clock::time_point start) {
         static constexpr uint64_t kReadRounds = 32;
         round_.round_ms += ms_since(start);
@@ -838,13 +839,13 @@ private:
         if (round_.stage_ms.size() != S) {
             round_.stage_ms.assign(S, 0.0);
             host_stage_ms_.assign(S, 0.0);
-            for (size_t s = 0; s < S; ++s) model_.stage_backend(s).device_ms();
+            for (size_t s = 0; s < S; ++s) quieted().stage_backend(s).device_ms();
             span_start_ = Clock::now();
             span_rows_ = 0;
         } else if (round_.rounds % kReadRounds == 0) {
             round_.span_ms += ms_since(span_start_);
             for (size_t s = 0; s < S; ++s) {
-                const double ms = model_.stage_backend(s).device_ms();
+                const double ms = quieted().stage_backend(s).device_ms();
                 round_.stage_ms[s] += model_.stage_on_host(s) ? host_stage_ms_[s] : std::max(ms, 0.0);
                 host_stage_ms_[s] = 0;
             }
@@ -1774,7 +1775,7 @@ private:
         release_entry(false, host_[i].id, host_[i].history);
         host_.erase(host_.begin() + (std::ptrdiff_t)i);
         // The slabs of a copy held beyond the tier go back to the host, not to the pool the tier's copies reuse.
-        if (through) model_.trim_host(host_cap_ + parked_held());
+        if (through) quieted().trim_host(host_cap_ + parked_held());
     }
 
     // A host entry's slabs back to the model, or, for the entry whose disk write is in flight, held until the write has stopped, which a cancel asks of it; the room counts free at once.
@@ -2121,7 +2122,7 @@ private:
         } else {
             if (!through) host_held_ -= h.held;
             model_.release_host(h);
-            if (through) model_.trim_host(host_cap_ + parked_held());
+            if (through) quieted().trim_host(host_cap_ + parked_held());
             if (!ok) forget_disk(key);
         }
         for (auto* q : {&queue_, &paused_})
@@ -2214,7 +2215,7 @@ private:
             if (host_held_ + bytes > host_cap_) return false;
         }
         try {
-            model_.alloc_host(length, rd.history, rd.through ? std::numeric_limits<size_t>::max() : host_cap_ + parked_held(), blocks);
+            quieted().alloc_host(length, rd.history, rd.through ? std::numeric_limits<size_t>::max() : host_cap_ + parked_held(), blocks);
         } catch (const std::exception& x) {
             std::fprintf(stderr, "server: an entry of %zu tokens was not read from disk (%s)\n", length, x.what());
             return false;

@@ -2032,26 +2032,28 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
     same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
 }
 
-// Entries kept across a restart (docs/DISK-TIER.md, Keeping entries across a restart): under --disk-cache-keep three conversations take turns into a host tier of four copies, which writes nothing, and the scheduler's stop writes the two copies in host memory and the device donor copied to it, leaving its directory marked kept with three entry files.
+// Entries kept across a restart (docs/DISK-TIER.md, Keeping entries across a restart): under --disk-cache-keep three conversations take turns into a host tier of four copies, whose write-ahead writes nothing, and the scheduler's stop leaves its directory marked kept with three entry files: the two copies in host memory and the device donor copied to it.
 // A second scheduler under the same root, on a fresh model of the same file, adopts the three, and the first and last conversations' follow-ups read them back and fork 256 tokens each, with the replies they give on a fresh model; an entry made older than the age limit is not adopted.
 // With `restart_host` the second scheduler's host tier is that many bytes: one smaller than an entry, as a server started on a host with less free memory has, still reads the entries back, through host memory beyond its tier, and keeps none of them there.
-void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t restart_host = 4 * ((size_t)64 << 20)) {
-    const bool through = restart_host < ((size_t)64 << 20);
-    const std::string what = through ? "entries kept across a restart into a host tier smaller than an entry" : "entries kept across a restart";
+// Idle after its turns, the first scheduler writes all three without being stopped, the device donor's copied off the devices for it; with `first_host` smaller than an entry the two conversations the devices evicted are lost, as without a disk tier, and the donor still on the devices is written through host memory beyond the tier, which holds nothing of it afterwards.
+void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t restart_host = 4 * ((size_t)64 << 20), size_t first_host = 4 * ((size_t)64 << 20)) {
+    const bool through = restart_host < ((size_t)64 << 20), beyond = first_host < ((size_t)64 << 20);
+    const std::string what = beyond ? "entries written from a host tier smaller than an entry" : through ? "entries kept across a restart into a host tier smaller than an entry" : "entries kept across a restart";
     DiskRoot disk("kept");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
+    const size_t kept = beyond ? 1 : 3;
     std::vector<Req> turns;
     std::vector<Reply> replies;
     for (uint32_t k = 0; k < 3; ++k) turns.push_back(Req{prompt_of(10 + k, 300, vocab), 20});
     server::Scheduler::Stats first;
     {
         auto model = make(2048, 16);
-        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, first_host, nullptr, 0, false, options);
         std::thread runner([&] { sched.run(); });
         try {
             for (const Req& r : turns) replies.push_back(drain(*sched.submit(r.prompt, params_of(r))));
-            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            within_a_minute([&] { return sched.stats().disk_entries == kept && !sched.stats().disk_in_flight; }, what + ": the idle server's entries written");
             first = sched.stats();
         } catch (...) {
             sched.stop();
@@ -2061,10 +2063,12 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size
         sched.stop();
         runner.join();
     }
-    require(first.disk_entries == 0 && first.host_donors == 2, what + ": " + std::to_string(first.disk_entries) + " entries on disk before the stop, against 0");
+    require(first.disk_entries == kept && (!beyond || first.host_bytes <= first_host),
+            what + ": " + std::to_string(first.disk_entries) + " entries on disk before the stop, " + std::to_string(first.host_bytes) + " bytes in host memory");
     const std::vector<fs::path> servers = disk.servers();
-    require(servers.size() == 1 && fs::exists(servers[0] / "kept") && disk.files(".kv").size() == 3,
-            what + ": " + std::to_string(servers.size()) + " directories and " + std::to_string(disk.files(".kv").size()) + " entry files left, against 1 and 3");
+    require(servers.size() == 1 && fs::exists(servers[0] / "kept") && disk.files(".kv").size() == kept,
+            what + ": " + std::to_string(servers.size()) + " directories and " + std::to_string(disk.files(".kv").size()) + " entry files left, against 1 and " + std::to_string(kept));
+    if (beyond) return;
     std::vector<Req> follows;
     for (const size_t k : {(size_t)0, (size_t)2}) {
         Req f{turns[k].prompt, 32};
@@ -2231,6 +2235,7 @@ int main(int argc, char** argv) {
             disk_read_bound(one, tok, vocab);
             disk_kept(one, tok, vocab);
             disk_kept(one, tok, vocab, (size_t)1 << 16);
+            disk_kept(one, tok, vocab, 4 * ((size_t)64 << 20), (size_t)1 << 16);
             disk_age(one, tok, vocab);
             for (size_t devices = 1; devices <= 2; ++devices)
                 host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices, 1, HostFault::none,

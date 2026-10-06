@@ -55,8 +55,17 @@ int main() {
             server::compat_number(-3.0e38f) != "-9999" || server::compat_number(-inf) != "-9999" || server::compat_number(none) != "-9999")
             throw std::runtime_error("a compatible log-probability not floored at -9999");
         if (jmini::number(-inf) != "null" || jmini::number(none) != "null") throw std::runtime_error("a native log-probability JSON cannot hold not written as null");
+        // A reply is read again as its client sends it back: the compatible route's as its content alone, whatever reasoning came before it, the native route's whole.
+        const chat::ChatFormat keeps = chat::chat_format("{% for m in messages %}|{{ m.role }}:{% if m.reasoning_content is defined %}<{{ m.reasoning_content }}>{% endif %}{{ m.content }}{% endfor %}"
+                                                         "{% if add_generation_prompt %}|assistant:<think>\n{% endif %}", "", "");
+        const std::string reply = "why\n</think>\n\nanswer";
+        const chat::Message compatible = server::reply_sent_back(keeps, true, true, reply), native = server::reply_sent_back(keeps, false, true, reply);
+        if (compatible.content != "answer" || compatible.reasoning_content) throw std::runtime_error("a compatible chat reply read again with the reasoning its client does not send back");
+        if (keeps.render({{"user", "q", std::nullopt}, compatible, {"user", "r", std::nullopt}}, false) != "|user:q|assistant:answer|user:r")
+            throw std::runtime_error("a compatible chat reply read again as another prompt than its content sent back renders");
+        if (native.content != keeps.assistant(reply).content || native.reasoning_content != keeps.assistant(reply).reasoning_content) throw std::runtime_error("a native chat reply not read again as the format keeps a turn");
         std::cout << "server utf8: surrogate, overlong and out-of-range sequences replaced, valid text unchanged, split characters held back, "
-                     "error messages repaired, compatible log-probabilities floored\n";
+                     "error messages repaired, compatible log-probabilities floored, a reply read again as its client sends it back\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "server utf8: " << e.what() << '\n';

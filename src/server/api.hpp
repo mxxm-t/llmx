@@ -81,6 +81,16 @@ inline std::string compat_number(float logprob) {
     return jmini::number(logprob >= kLogprobFloor ? logprob : kLogprobFloor);
 }
 
+// The assistant turn a chat reply `text` is read again as (Api::next_turn): on the compatible route its content with its reasoning beside it, on the native route the text as the format keeps a turn.
+inline chat::Message reply_sent_back(const chat::ChatFormat& format, bool compatible, bool opened, const std::string& text) {
+    if (!compatible) return format.assistant(text);
+    chat::ReplySplit split(opened);
+    const chat::ReplySplit::Parts parts = split.feed(text), last = split.finish();
+    std::optional<std::string> reasoning;
+    if (split.reasoned()) reasoning = parts.reasoning + last.reasoning;
+    return {"assistant", parts.content + last.content, reasoning};
+}
+
 class Api {
 public:
     Api(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format, Scheduler& sched,
@@ -361,15 +371,7 @@ private:
         const bool opened = chat::opens_reasoning(prompt);
         if (writing && (opened || text.find("<think>") != std::string::npos) && text.find("</think>") == std::string::npos) return {};
         std::vector<chat::Message> messages = messages_of(body);
-        if (route == Route::chat_completions) {
-            chat::ReplySplit split(opened);
-            const chat::ReplySplit::Parts parts = split.feed(text), last = split.finish();
-            std::optional<std::string> reasoning;
-            if (split.reasoned()) reasoning = parts.reasoning + last.reasoning;
-            messages.push_back({"assistant", parts.content + last.content, reasoning});
-        } else {
-            messages.push_back(format_.assistant(text));
-        }
+        messages.push_back(reply_sent_back(format_, route == Route::chat_completions, opened, text));
         return chat::stable_prefix(format_, tok_, messages, writing, template_vars(body));
     }
 

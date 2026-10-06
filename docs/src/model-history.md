@@ -45,7 +45,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   into and out of them, leaves to the model for the next copy, since
   allocating and pinning host memory costs far more than copying into it;
   the slabs alive, idle or holding a copy (`host_allocated`), stay within
-  `limit`, a copy freeing idle slabs of other devices before it allocates
+  `limit` (`trim_host` frees idle ones down to a limit after a copy allocated beyond it), a copy freeing idle slabs of other devices before it allocates
   (`detail::slabs_to_free`) and being refused where they cannot make room,
   or where the slabs it allocates would leave the host less free memory
   than the reserve the fit keeps on it (`detail::host_room`, over

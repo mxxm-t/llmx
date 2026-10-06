@@ -539,7 +539,7 @@ public:
         for (infer::HostHistory& h : disk_parked_) model_.release_host(h);
         disk_parked_.clear();
         for (DiskRead& rd : disk_reads_) {
-            host_held_ -= rd.history.held;
+            if (!rd.through) host_held_ -= rd.history.held;
             model_.release_host(rd.history);
         }
         disk_reads_.clear();
@@ -1530,6 +1530,7 @@ private:
         bool superseded = false;   // as Donor::superseded
         bool back = false;         // as Donor::back
         uint64_t disk = 0;         // the disk entry holding the same history, whose file is in place
+        bool through = false;      // read back from an entry larger than the host tier: held beyond the tier's bytes, for its request to promote, and kept no longer (start_read)
         std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // its last use: made, renewed or promoted, which its file keeps
     };
 
@@ -1713,7 +1714,7 @@ private:
         if (!d.back) {
             size_t room = host_cap_ - std::min(host_cap_, host_held_);
             for (const HostDonor& h : host_)
-                if (h.superseded || !h.back) room += h.history.held;
+                if ((h.superseded || !h.back) && !h.through) room += h.history.held;
             if (room < bytes && host_refused_ < host_.size()) {
                 ++host_refused_;
                 return;
@@ -1724,7 +1725,7 @@ private:
                     else ++i;
                 }
         }
-        while (!host_.empty() && host_held_ + bytes > host_cap_) drop_oldest_host();
+        while (host_held_ + bytes > host_cap_ && drop_oldest_host()) {}
         // The entry is made before the copy, so nothing allocates between a copy enqueued and its entry.
         host_.emplace_back();
         HostDonor& h = host_.back();
@@ -1754,14 +1755,26 @@ private:
 
     // The oldest host donor out of host memory, the one being written to disk only when it is the last.
     // Under the lock.
-    void drop_oldest_host() { drop_host(host_.size() > 1 && written_soon(false, host_[0].id) ? 1 : 0); }
+    // One read through host memory beyond the tier frees none of the tier's room, so room passes it by; false when no other is left.
+    bool drop_oldest_host() {
+        for (const bool writing : {false, true})
+            for (size_t i = 0; i < host_.size(); ++i)
+                if (!host_[i].through && written_soon(false, host_[i].id) == writing) {
+                    drop_host(i);
+                    return true;
+                }
+        return false;
+    }
 
     // Host donor i out of host memory.
     // Under the lock.
     void drop_host(size_t i) {
-        host_held_ -= host_[i].history.held;
+        const bool through = host_[i].through;
+        if (!through) host_held_ -= host_[i].history.held;
         release_entry(false, host_[i].id, host_[i].history);
         host_.erase(host_.begin() + (std::ptrdiff_t)i);
+        // The slabs of a copy held beyond the tier go back to the host, not to the pool the tier's copies reuse.
+        if (through) model_.trim_host(host_cap_ + parked_held());
     }
 
     // A host entry's slabs back to the model, or, for the entry whose disk write is in flight, held until the write has stopped, which a cancel asks of it; the room counts free at once.
@@ -1776,10 +1789,14 @@ private:
         model_.release_host(h);
     }
 
-    // The slabs of an entry dropped while its write stops, which count free and leave the host tier's limit for the copies meanwhile.
+    // The slabs held beside the host tier's copies, which leave its limit for them: an entry's dropped while its write stops, which count free, and a copy's read through host memory beyond the tier (HostDonor::through).
     size_t parked_held() const {
         size_t n = 0;
         for (const infer::HostHistory& h : disk_parked_) n += h.held;
+        for (const HostDonor& h : host_)
+            if (h.through) n += h.history.held;
+        for (const DiskRead& rd : disk_reads_)
+            if (rd.through) n += rd.history.held;
         return n;
     }
 
@@ -1802,7 +1819,7 @@ private:
             else ++i;
         }
         for (size_t i = 0; i < host_.size() && host_held_ + bytes > host_cap_;) {
-            if (host_[i].disk && host_[i].id != promoting_) drop_host(i);
+            if (host_[i].disk && host_[i].id != promoting_ && !host_[i].through) drop_host(i);
             else ++i;
         }
     }
@@ -1865,6 +1882,11 @@ private:
         expire_disk();
         prefetch();
         write_ahead();
+        // A copy read through host memory beyond the tier goes once no request waits that could still promote it; its file stays.
+        for (size_t i = 0; queue_.empty() && paused_.empty() && i < host_.size();) {
+            if (host_[i].through && host_[i].id != promoting_) drop_host(i);
+            else ++i;
+        }
     }
 
     // The calls the store has finished: reads into host entries, writes into the index, the slabs of an entry dropped while written released.
@@ -2067,6 +2089,7 @@ private:
         while (i < disk_reads_.size() && disk_reads_[i].key != key) ++i;
         if (i == disk_reads_.size()) return;
         infer::HostHistory h = std::move(disk_reads_[i].history);
+        const bool through = disk_reads_[i].through;
         disk_reads_.erase(disk_reads_.begin() + (std::ptrdiff_t)i);
         const DiskEntry* e = find_disk(key);
         if (ok && e) {
@@ -2091,12 +2114,14 @@ private:
                 d.history = std::move(h);
                 d.back = true;
                 d.disk = key;
+                d.through = through;
             }
             renew_disk(key, true);
             std::fprintf(stderr, "server: an entry of %zu tokens read from disk, %.1f MiB\n", length, mib);
         } else {
-            host_held_ -= h.held;
+            if (!through) host_held_ -= h.held;
             model_.release_host(h);
+            if (through) model_.trim_host(host_cap_ + parked_held());
             if (!ok) forget_disk(key);
         }
         for (auto* q : {&queue_, &paused_})
@@ -2176,21 +2201,25 @@ private:
         const size_t length = e->length;
         const bool blocks = !e->boundary;
         const size_t bytes = model_.host_bytes(length, blocks);
-        if (bytes > host_cap_) return false;
-        while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
-        release_written(bytes);
-        while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
-        while (!host_.empty() && host_held_ + bytes > host_cap_) drop_oldest_host();
-        if (host_held_ + bytes > host_cap_) return false;
+        // A copy larger than the whole host tier, as a long conversation's is under a tier a host short of memory gave, is read through host memory beyond the tier: nothing is dropped for it, the host's own free memory decides, and it is kept only until its request has promoted it (disk_round).
         DiskRead rd;
         rd.key = key;
+        rd.through = blocks && bytes > host_cap_;
+        if (!rd.through) {
+            if (bytes > host_cap_) return false;
+            while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
+            release_written(bytes);
+            while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
+            while (host_held_ + bytes > host_cap_ && drop_oldest_host()) {}
+            if (host_held_ + bytes > host_cap_) return false;
+        }
         try {
-            model_.alloc_host(length, rd.history, host_cap_ + parked_held(), blocks);
+            model_.alloc_host(length, rd.history, rd.through ? std::numeric_limits<size_t>::max() : host_cap_ + parked_held(), blocks);
         } catch (const std::exception& x) {
             std::fprintf(stderr, "server: an entry of %zu tokens was not read from disk (%s)\n", length, x.what());
             return false;
         }
-        host_held_ += rd.history.held;
+        if (!rd.through) host_held_ += rd.history.held;
         disk_->read(key, rd.history, infer::Model::host_slab_bytes());
         disk_reads_.push_back(std::move(rd));
         return true;
@@ -2854,6 +2883,7 @@ private:
     struct DiskRead {
         uint64_t key = 0;
         infer::HostHistory history;
+        bool through = false;   // as HostDonor::through
     };
     std::deque<DiskRead> disk_reads_;
     size_t disk_hits_ = 0, disk_waits_ = 0;

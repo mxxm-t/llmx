@@ -428,6 +428,15 @@ inline void Model::release_host(HostHistory& h) noexcept {
     h = HostHistory{};
 }
 
+// Idle slabs freed until the slabs alive are within `limit`: what a copy allocated beyond its caller's own limit gives back once it is released.
+inline void Model::trim_host(size_t limit) noexcept {
+    for (size_t i = host_slabs_.size(); i-- > 0;)
+        while (!host_slabs_[i].empty() && host_allocated() > limit) {
+            host_slabs_[i].pop_back();
+            --host_allocated_[i];
+        }
+}
+
 // Waits for the copies into and out of h's slabs, so the host can read its bytes, as the disk tier's writes do.
 inline void Model::wait_host(const HostHistory& h) const noexcept {
     if (h.owner == this)

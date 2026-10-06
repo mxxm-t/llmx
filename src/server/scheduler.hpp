@@ -1338,17 +1338,22 @@ private:
         }
         // A running job, as far as it has read, is a source too, and a job's own request while it runs, where no pass holds them.
         const Request* from = nullptr;
+        size_t held = 0;   // the most a source gives that a pass holds now
         for (const auto& a : active) {
             const bool source = a->job_ ? a != r : r->job_ && a == r->of_;
-            if (take || !source || a->seq_.in_flight() || a->classes_.empty()) continue;
+            if (take || !source || a->classes_.empty()) continue;
             const size_t n = shareable(*r, a->job_ ? a->prompt_ : history(*a), a->classes_, a->seq_);
-            if (n > shared) {
+            if (a->seq_.in_flight()) {
+                held = std::max(held, n);
+            } else if (n > shared) {
                 shared = n;
                 d = donors_.size();
                 from = a.get();
                 pinned_bound_ = 0;
             }
         }
+        // A job whose best source is in a pass waits for the round that pass has retired in: admitted now it would read what it could have forked, the whole prompt of the request it follows.
+        if (r->job_ && held > shared) return false;
         const bool keep = !from && (take || shared);
         const bool keep_first = take || (keep && donors_[d].tokens.size() - shared < model_.kv_block_tokens());
         const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), keep ? d : npos, keep_first, {}, 0, false, need);

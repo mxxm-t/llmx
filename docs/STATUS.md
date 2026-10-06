@@ -122,6 +122,21 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## A re-read job waits for its request's pass and forks it (2026-10-07, branch fix/job-forks-request, lands by fast-forward)
+
+- **Found:** in production (Qwen3.8-27B Q8_0 over two MI50s) the job that reads a reply again read the whole conversation, 103744 rows after a 96209-token prompt, and the reply beside it decoded at 8.4 tok/s where the next long turn decoded at 16.0.
+- **Cause, from a trace of each job's admission kept in memory and printed at the stop:** the ids a chat route gives while a reply is written reach the scheduler in whatever round they arrive, and `enter` took a running request as a job's source only where no pass held it. In a round where a pass did, the request was passed over although it gave 4544 of 4608 tokens, the donors gave nothing, and the job was admitted reading from its first token. Over a split with two passes in flight that is most rounds. A build with prints in the loop, and the suite's own case, which gives the ids from a pass's retirement, both met the request between passes and never showed it.
+- **Done:** a job whose best source is in a pass is not admitted that round and forks it in the round the pass has retired in (`Scheduler::enter`). The test commit fails without it: eight requests in turn over two CPUs, each given its next turn's ids from the reader's thread, had jobs reading 384 rows where 128 lie past the request's prompt blocks.
+- **Measured** on two MI50s, Qwen3.8-27B Q8_0 with production's flags, a 76018-token prompt with a 120-token reply and its follow-up:
+
+  | | rows the job read | reply (tok/s) | job still in flight 45 s after the reply | follow-up: reused of 76158 tokens | follow-up first token (s) |
+  |---|---|---|---|---|---|
+  | main `4c909f26` | 13312 and rising | 8.6 | yes | 75968 | 2.86 |
+  | this branch | 128 | 15.6 | no | 76096 | 0.96 |
+
+- **Reviewed** by F2DEV.
+
+
 ## A kept entry larger than the host tier is read back (2026-10-06, branch fix/keep-large, lands by fast-forward)
 
 - **Found:** in production (Qwen3.8-27B Q8_0 over two MI50s) an 80k-token chat took minutes to its first token after a restart. Reproduced on two other MI50s at main `737b5fa4` with production's flags: a 76k-token conversation's follow-up reuses 75968 tokens before a stop (3.3 s); at `docker stop -t 30` its donor on the cards is copied to host memory and written, 5.45 GB in a stop of 7.9 s, and the same build adopts it; the next turn then reuses nothing and reads 76194 tokens in 275 s, with no read started. A 21k-token conversation survives the same sequence (21312 tokens reused, 3.5 s).

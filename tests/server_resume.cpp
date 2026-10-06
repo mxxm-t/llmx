@@ -767,6 +767,26 @@ void edit_after_regenerate(const Make& make, const bpe::Tokenizer& tok, uint32_t
         auto fresh = make(2048, 0);
         same(serve(*fresh, tok, 3, {{Req{edit, 32}}})[0], reply, what + ", the edit");
     }
+    // A message that starts in its prompt's last whole block, where the request's own checkpoint sits, keeps its boundary too, so the state outlives the request's donor.
+    const std::string what = "a short last message";
+    auto model = make(2048, 0);
+    server::Scheduler::Stats stats;
+    {
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30);
+        std::thread runner([&] { sched.run(); });
+        try {
+            drain(*sched.submit(edit, params_of(Req{edit, 32}), edit.size(), before.size()));
+            stats = sched.stats();
+            ledger(stats, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(stats.boundaries == 1, what + ": " + std::to_string(stats.boundaries) + " boundaries kept where the message starts, against 1");
 }
 
 // Message boundaries whose copies fail (the other developer's review): three turns of a conversation, each reply read again, the second message 200 tokens so that its request's checkpoint lies past the first boundary, on a hybrid model with three checkpoint slots and a host tier, then an unrelated request, whose donor takes the place of the first job's, and an edit of turn 2 while the last job's donor is on the devices.

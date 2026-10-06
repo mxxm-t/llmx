@@ -1,4 +1,4 @@
-# Tensor split and the staged tensor split (planned)
+# Tensor split and the staged tensor split
 
 Plan for phases 6 and 7 of [MULTI-DEVICE](MULTI-DEVICE.md), written on 2026-10-03 before any code and open for review.
 It refines that page's Tensor split section and its Three splits, one placement description with research, a measurement and an order of work.
@@ -16,7 +16,7 @@ What must hold, from MULTI-DEVICE's gates and AGENTS.md:
 - Speed: single-request decode scales with the group's width, and the group is measured at 1 to 64 users against the layer split, mx-llama.cpp's ROCm tensor split and vLLM on the same cards, model and bits.
 - Skew: measured and bounded at every width offered (section 4.5).
 
-## 2. Research summary
+## 2. Research summary (2026-10-03)
 
 ### 2.1 What llmx already has
 
@@ -313,11 +313,10 @@ The reference itself decodes Qwen3.6-27B Q8_0 faster at width 8 than at width 4 
 **Flags.** One flag is added, beside the two a split already has:
 
 - `--device A,B,...` lists the devices, as today;
-- `--tensor-width N` (proposed; the plan's decision 4 named it `--group-width`) splits every layer across N devices: the listed devices form groups of N consecutive devices, and the groups are the stages of a layer split, so the width and the list's length give the whole shape; 1, the default, is today's layer split;
+- `--tensor-width N` (the plan's decision 4 named it `--group-width`) splits every layer across N devices: the listed devices form groups of N consecutive devices, and the groups are the stages of a layer split, so the width and the list's length give the whole shape; 1, the default, is today's layer split;
 - `--layer-shares A,B,...` gives each stage its share of the layers, one number a group, as today one a device.
 
-`--tensor-width` says what the user chooses, how many devices each layer is split across, where `--group-width` names an internal word; both stay self-explanatory beside `--layer-shares`, and no separate mode flag is needed, since the width alone tells a layer split (1), a tensor split (the whole list) and a staged one (anything between).
-The rename goes to the other developer with the rest of this revision.
+`--tensor-width` says what the user chooses, how many devices each layer is split across, where `--group-width` names an internal word; no separate mode flag is needed, since the width alone tells a layer split (1), a tensor split (the whole list) and a staged one (anything between).
 
 | cards | layer split | tensor split | staged tensor split |
 |---|---|---|---|
@@ -330,9 +329,9 @@ Refused, each before a model file is read and with the flag named, a usage error
 - a width above 4: "--tensor-width 8: at most 4 devices a group; list more devices to form stages";
 - `--layer-shares` with another count than the groups: "--layer-shares gives one share a group: 2 groups, 4 shares";
 - a group mixing backends or device profiles, or the CPU with a card: "--tensor-width 2: vulkan:0 and cpu cannot form a group";
-- a backend without a collective: the CPU has one from step 2, which adds the flag, and Vulkan from step 3 (section 6); until a backend's step lands the refusal names it and points to the plan: "--tensor-width 2: the vulkan backend has no cross-device sum yet (docs/TENSOR-SPLIT.md, section 6)".
+- a backend without a sum across its devices on this build or platform, the Vulkan backend on Windows, named in the refusal.
 Refused once the model is read, with the projection named: a width that does not divide its heads, KV heads, K or V heads, or a column split off whole quant blocks.
-The flag means the same on every backend or is refused, reads nothing from the environment, and is added to `docs/USAGE.md` and `print_usage` with its branch.
+The flag means the same on every backend or is refused and reads nothing from the environment; `docs/USAGE.md` (Tensor split) holds the refusals as built.
 - **Fit:** the fit treats a group as one device whose budget is the least member's free memory and whose footprint is a member's share: its rows and columns of each matrix, its heads' KV and state, the replicated tensors whole, its arena, its share of the logits rows, the collective's partial slot and inboxes, and, on member 0 of every stage but the last, the handoff buffers.
   The inboxes are counted at their peak live allocation for the rows the context reserves: with two parity slots and an inbox per peer, 2 (W - 1) x rows x E x 4 bytes a member (about 42 MiB at width 2 and 1088 rows of Qwen3-32B, 128 MiB at width 4), in checked arithmetic, with a hand count and a refusal case in the existing fit tests (`placement`) and no new fit owner.
   A group that does not fit is refused with the member and the bytes, as a device is today.
@@ -410,7 +409,7 @@ Nothing specific to a backend sits above the backend layer: a group refused on o
 - A wire format other than F32, and any algorithm chosen by message size that changes the order of a sum.
 - Command buffers recorded once and replayed (phase 3's Not doing).
 
-## 5. What it would deliver
+## 5. What it would deliver (planned)
 
 Modeled on 2026-10-04 from step 0's measured inputs (section 2.6): each pass's work W, measured at its row count, and the measured sum for the pass's message of rows x 20 KB, 128 sums a pass on both models; a member takes (W - F) / w + F plus the sums, F being the dispatch floor (about 3.3 ms on Qwen3.6-27B, 740 dispatches a pass, and 2.9 ms on Qwen3-32B).
 The inputs are measured; the rates are projections, not measurements of a tensor split, which does not exist, and they say nothing of its correctness or of a reference gate.
@@ -447,7 +446,7 @@ One prompt's prefill, ms, measured against projected:
 The rest of the gap to the reference is per-card work, not the sum: the reference's 33.6 tok/s on the 32B at width 2 leaves about 24 ms a token of work beside its sums, where llmx's member is modeled at 27 ms.
 On the prompt-heavy load of section 2.8 the reference serves 1.3 to 1.7 times llmx's layer split at 16 to 64 users on the 32B, which a group's 1.6 times faster prefill (section 5's prompt table) and a layer split that overlaps different requests' prompts each address.
 
-## 6. Order of work
+## 6. Order of work (planned)
 
 Each step is a branch from main, at most two commits, with a STATUS block opened before its code; every step keeps width 1 byte-identical to main on the CPU, one MI50 and a layer split, with `llmx-split-check` bit-identical, and runs the merge gates of its tier in AGENTS.md.
 
@@ -467,7 +466,7 @@ Each step is a branch from main, at most two commits, with a STATUS block opened
 Steps 0 and 0b ran first, in parallel, after this plan landed; step 0's outcome (section 8) deferred steps 1 to 8, and the user's direction of 2026-10-04 (section 8, Built on Vulkan now) reopened steps 1 to 3.
 Steps 1 and 2 follow and need no device beyond the probe's cards; step 3 is the first device merge; steps 5 and 6 follow the order of SPECULATIVE's own steps where they share files.
 
-## 7. Risks and how each is measured early
+## 7. Risks and how each is measured early (planned)
 
 1. **The Vulkan sum costs more than the group saves.** Step 0 measured 154, 224 and 268 us a sum at widths 2, 3 and 4 (2.6), and its outcome defers the Vulkan group (section 8).
 2. **The host records too slowly for a group.** One thread records W members; step 0 measures recording per member a layer, and step 3 adds a submitting thread per member only where that measurement says the host limits.
@@ -572,7 +571,7 @@ The sync-file collective measured above the projection of item 1 once each peer'
 Placing every inbox on the first member, so that a dma-buf import's implicit wait falls only on work the importer needs anyway, measured no faster, so the implicit sync of section 4.3 does not cost the sync-file collective, whose waits are at submission boundaries; it still rules out the in-submission flag wait.
 On the server load of section 2.8 the group is bound by its prompts from 16 users and serves 4 to 9 percent below the layer split on the same cards; the recovery work is a pass's prompt rows beside its decode rows and the prompt cells against the reference, then the kernel route of item 3.
 
-## 9. Sources
+## 9. Sources (2026-10-03)
 
 - mx-llama.cpp's ROCm and CUDA all-reduce: `ggml/src/ggml-cuda/tp-allreduce.cu` (kernels, flags, staging), `ggml/src/ggml-cuda/ggml-cuda.cu` (dispatch and size gate), `ggml/src/ggml-backend-meta.cpp` (lane dispatch, token graph), `tp-notes/ENV_VARS.md`, `tp-notes/research/mi50-decode-bandwidth-roofline.md`, `tp-notes/research/mi50-meta-parallel-lane-dispatch.md`, commits `093f2a38fc`, `5f65f9fa38`, `19d784ad0e`, `92607b5d1d`, `751b6114cd`, `28ce13af18`, `c93294e3de`, and the image `mxxm/mx-llama.cpp:gfx906` at `eefc4e732`.
 - Megatron-LM: Shoeybi et al., https://arxiv.org/pdf/1909.08053 ; Korthikanti et al., https://arxiv.org/pdf/2205.05198 ; Narayanan et al., https://arxiv.org/pdf/2104.04473 ; https://github.com/NVIDIA/Megatron-LM/blob/core_v0.19.2/megatron/core/tensor_parallel/

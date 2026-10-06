@@ -1,11 +1,11 @@
-# Sequence history, state checkpoints and speculative decoding (planned)
+# Sequence history, state checkpoints and speculative decoding
 
 A design, approved by the user on 2026-09-30 as agreed with XDEV and not yet built: one owner for where a sequence's history can be re-entered, checkpoints of the recurrent state on top of it, and speculative decoding on top of both.
 Its first user is prefix reuse for the hybrid models, the qwen35 plan's step 8c ([QWEN35](QWEN35.md), [STATUS](STATUS.md)), because production serves Qwen 3.5, 3.6 and 3.8 with none: every follow-up chat turn reads the whole conversation again.
 The speculative decoding plan the user approved on 2026-09-26 is taken as input; section 3 says what it keeps and what changes, and section 4 what the user's mx-llama.cpp history teaches.
 The rules every part keeps: output is byte-identical with every feature here on and off, greedy and seeded, alone and among other requests, on one device and on a layer split; kernels follow a row's class, never the batch; one owner per rule ([ARCHITECTURE](ARCHITECTURE.md), Each concern has one owner).
 
-## 1. One owner of a sequence's history (planned)
+## 1. One owner of a sequence's history
 
 **What a history is.**
 A `Sequence` holds a committed length L and, in every storage its model keeps, what the rows [0, L) left there.
@@ -35,7 +35,7 @@ The server and the CLI ask for the operations below and never touch a block, a s
 - `retract` is the only call that shortens a history, for every caller: a rejected draft, a donor trimmed at park, a failed pass, a paused request.
   It returns the longest length at or below L that every storage holds exactly, and the caller recomputes the rest in the row classes that first computed it, as the exact resume already does ([SERVER](SERVER.md), An exact resume).
   On a model that keeps no state it always reaches L.
-- `fork(src, p)` takes a p that is whole blocks in every storage and, on a model that keeps a state, a checkpoint of src; the scheduler picks p from `Sequence::checkpoints()`.
+- `fork(src, p)` takes a p that is whole blocks in every storage and, on a model that keeps a state, a checkpoint of src; the scheduler picks p from the sequence's checkpoint (`Model::checkpoint`).
 - A failed pass drains every device's pending work, then retracts each of its sequences to where it began: KV reaches that length, but the live state it wrote is gone, so a stateful sequence reaches its mark or its latest checkpoint, and 0 when it has neither, every storage made coherent at that one length.
   The pass reports the length reached, and the caller recomputes from there to its committed history without sampling, as a resume does; a call refused before it runs changes nothing.
   That replaces the rule that a failed pass leaves a state lost until a reset (the qwen35 plan's decision 6), since a checkpoint or a mark is never a slot a pass writes.
@@ -57,7 +57,7 @@ Nothing crosses between devices: every stage writes and reads only its own part.
 `ModelOptions::state_slots` live slots and `ModelOptions::checkpoint_slots` more, fitted at load and never grown, are counted apart, so admission never waits on a live slot: when a live slot becomes a checkpoint (`Model::keep`), it moves to the checkpoint side only where that side has room, and the live side has one more to give.
 A sequence holds one checkpoint at most, a newer one replacing it, which is all prefix reuse needs; a mark (step 3) is a slot of its own.
 
-## 2. Checkpoint storage and policy (planned)
+## 2. Checkpoint storage and policy
 
 **Where.** On the device, as more slots of each state storage beside the live ones, so a restore or a fork reads a checkpoint in place.
 A host tier behind it keeps what the device slots cannot (Host tier, below, step 2b): a 27B checkpoint crosses in 13 to 31 ms at 5 to 12 GB/s, against about 4 s of recompute per 1000 tokens.
@@ -124,7 +124,7 @@ A reply's rows are decode rows, which a follow-up's prompt class does not share,
 - Idle only: it takes passes no request wants and is cancelled at the next pass boundary when a request needs its slot or rows; a submitted pass is not preempted, so a new request's wait on it is measured and bounded; a cancellation or an error leaves the old donor and no leaked slot.
 - Owners: the scheduler decides and cancels; `Model` forks, extends and keeps as today; no new storage kind.
 
-## 3. Speculative decoding on top (planned)
+## 3. Speculative decoding on top
 
 **Kept from the 2026-09-26 plan:**
 - Every drafter is a proposer; the verify, the acceptance rule, the rollback, the scheduler integration, the loader path and the flags are shared.
@@ -182,7 +182,7 @@ A request is in at most one pass at a time, so with passes in flight its next dr
 - **A failed pass goes back to the latest checkpoint or mark** instead of always losing the state.
 - **Order:** 8c first, as production needs it and it builds the owner; the verify then covers qwen35 from its first step, since retract already restores a state; MTP comes before draft models and sidecars, as the gain the user asked for next; the reference measurement (the old step 0) runs beside steps 1 to 4 and gates only their speed criteria.
 
-## 4. Lessons from mx-llama.cpp
+## 4. Lessons from mx-llama.cpp (read 2026-09-30)
 
 The user's gfx906 fork of llama.cpp built MTP, draft models, DFlash, DSpark, recurrent rollback and context checkpoints, and measured them on the same cards.
 Read, not copied: each lesson below is taken as a rule or a gate, and llmx implements its own design.
@@ -233,7 +233,7 @@ Each step is a branch off main, landed as at most two commits, with every comman
 
 Step 2 is the first user of sections 1 and 2 and nothing in it is specific to chat; step 3 adds the mark with its first caller, and steps 3 to 7 reuse the owner otherwise unchanged.
 
-## 6. Decisions (planned)
+## 6. Decisions (2026-09-30)
 
 Each recommendation was agreed with XDEV on 2026-09-30, with its clarifications written in, and the user approved them all that day ("design is settled, start").
 
@@ -257,7 +257,7 @@ Each recommendation was agreed with XDEV on 2026-09-30, with its clarifications 
 8. **The rest of the 2026-09-26 recommendations** (its questions 3 to 6 and 8 to 19: the `draft.` namespace, gate thresholds, the Radeon VII gate, the reference builds, the V4.1 DSpark file and placement, drafter rows under reuse, drafter memory, DFlash, DeepSeek and qwen4exp MTP, the single-user comparison, draft models on the server, coupled drafting, the `--drafter` default); its question 17, the verify-slot pool, is replaced by the mark.
    **Recommendation:** carry them over as approved, each step checking again the assumptions it relies on; they are decisions, not measurements revalidated today.
 
-## 7. Step 4: the embedded MTP proposer (planned)
+## 7. Step 4: the embedded MTP proposer
 
 Proposed on 2026-10-01 for review with XDEV and the user's approval: how step 4 builds MTP for qwen35 on sections 1 to 3 and on step 3's code, changing none of their decisions.
 Sources: the MTP block in [QWEN35](QWEN35.md); the user's mx-llama.cpp history (section 4, lesson 24 and the notes cited below, at `test/best-stack-mtp-20260902`, f2a54df595); vLLM's `vllm/model_executor/models/qwen3_5_mtp.py` and its EAGLE-family proposer `vllm/v1/spec_decode/llm_base_proposer.py` (main at 08e03df9, read 2026-10-01); and the GGUF headers of the MTP files on the Linux MI50 machine.
@@ -292,7 +292,7 @@ Row j of the MTP layer reads h(j-1), the target's row after `output_norm`, and t
 | loading and the fit | `PlacementRequest::drafter` through `place_model` and `plan_model`, the placement deciding where the block's roles sit and the proposer none; the fit counts the block, an embedding copy only where no copy of `token_embd` is resident on the output device already (a tied head or the embedding there is reused, never adopted or counted twice), the MTP KV, the carried rows and the mark's saved h rows after the KV budget, or refuses with the numbers |
 | the flag | `--drafter embedded` in `Drafts` (`cli/main.cpp`) on `generate` and `chat`, and on `bench --model`, which loads the block and runs its context rows without drafting (the k = 0 gate); a file without an MTP block refused, naming the file |
 
-The round (`infer::generate`), `infer::accept`, `spec::draft_length`, `spec::Acceptance`, `Model::mark`, `Model::retract` and `Model::rerun` are step 3's and gain no MTP code; `Proposer::reads`, `block` and `settle` stay deferred, since the MTP proposer keeps nothing of its own.
+The round (`infer::generate`), `infer::accept`, `spec::draft_length`, `spec::Acceptance`, `Model::mark`, `Model::retract` and `Model::rerun` are step 3's and gain no MTP code; a proposer's own reads, its blocking and its settling stay deferred, since the MTP proposer keeps nothing of its own.
 
 **One round**, history L, the carried row holding h(L-1), last pick y:
 1. `mark(seq)`, as in step 3.

@@ -1,4 +1,4 @@
-# Disk tier (planned, then built in its six steps)
+# Disk tier
 
 A third tier for the server's saved histories, below the device tier and the host tier ([SPECULATIVE](SPECULATIVE.md), section 2, Host tier; [SERVER](SERVER.md)).
 What host memory can no longer hold goes to a local disk instead of being dropped, so a conversation that comes back after the host tier has filled reads its history from disk in about half a second rather than recomputing it for tens of seconds.

@@ -1353,7 +1353,8 @@ def check_disk_keep(model):
         text = f.read()
     n = 16
     with tempfile.TemporaryDirectory(prefix="llmx_keep_") as root:
-        flags = ("--ctx-size", "1024", "--max-seqs", "1") + disk_flags(root, "--disk-cache-keep", host=1 << 30, disk=4 << 30)
+        # Prompts read in passes of 16 rows measure no prompt rate, so a follow-up waits for its read however fast the device computes; read whole, a fast device computes 448 tokens before a file just adopted has been read, and the follow-up, rightly, reuses nothing.
+        flags = ("--ctx-size", "1024", "--max-seqs", "1", "--ubatch", "16") + disk_flags(root, "--disk-cache-keep", host=1 << 30, disk=4 << 30)
         srv = Server(model, *flags)
         first = []
         try:

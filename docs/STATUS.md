@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## The kept-entries check waits for its reads (2026-10-06, branch fix/keep-check-wait, lands by fast-forward)
+
+- **Found:** with its first turns past 449 tokens (the `fix/keep-check-split` block, below), the kept-entries check still failed on one MI50 about every second run: the third conversation's follow-up reused 0 tokens, 2 of 4 runs of the scenario at main `6ea7ae5d`, with all three entries adopted and all three read (`disk_hits` 3, no error).
+- **Cause:** the check again, not the server. A request waits for its read at most as long as computing the shared tokens would take at the measured prompt rate; on an MI50 Qwen3-0.6B Q8_0 reads 448 tokens in less time than a 133 MB entry just adopted takes to read, so the request is admitted without it and the read completes behind it. The check asserted every follow-up reuses its history, which the server only promises while no rate is measured.
+- **Done:** the check's servers read prompts in passes of 16 rows (`--ubatch 16`), which measure no rate, as `server-resume`'s read-back checks do; 8 of 8 runs of the scenario on the MI50 then reuse 512, 512 and 448 tokens.
+- **Correction to that block:** its MI50 run of the `server` component passed once and was taken as the fix holding; one run could not show a failure that comes every second time.
+
 ## Tensor groups serving (2026-10-04, branch feat/tp-staged-serve, step 4 of TENSOR-SPLIT, lands by fast-forward)
 
 - **Goal:** step 4 of `docs/TENSOR-SPLIT.md`: above all, why a group's prompt rows read slower beside decode rows (about 215 against 358 tokens a second on Qwen3-32B Q8_0 at width 2), which loses step 3's server cells to the layer split, found by measurement and fixed here where it lies in how passes are formed, else recorded for step 7 with its numbers; the fit counting what a member holds beyond its layers; the `server` and `chat` components on the even tensor-split fixtures under a tensor width rather than skipped (step 3's Left); and section 4.7's gates (decided with the coordinator, 2026-10-04).

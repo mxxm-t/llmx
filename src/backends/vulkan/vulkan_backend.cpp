@@ -1729,9 +1729,15 @@ public:
     const std::shared_ptr<Device>& device() const { return dev_; }
     std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
     std::string pci_root() const override { return dev_->pci_root; }
-    // The member's partial and scratch rows and its inbox for each peer in each of two parities (VulkanCollective); a peer's import of an inbox takes none of its own memory.
+    // The member's partial and scratch rows, its inbox for each peer in each of two parities and, where its own crossover lets a sum take two shots, its gather rows, a share from each peer in each parity, counted as two rows (VulkanCollective); a peer's import takes none of its own memory.
     size_t collective_bytes_per_row(size_t members, size_t width) const override {
-        return dev_->exchange && members ? size_mul(size_add(2, size_mul(2, members - 1)), size_mul(width, sizeof(float))) : 0;
+        if (!dev_->exchange || !members) return 0;
+        const size_t rows = size_add(size_add(2, size_mul(2, members - 1)), two_shot_crossover(members) != SIZE_MAX ? 2 : 0);
+        return size_mul(rows, size_mul(width, sizeof(float)));
+    }
+    // The floats a sum of `members` members takes from which two shots, each member reducing its share and gathering the others', beat sending every member the whole partial, measured on this transport, dma-buf inboxes and sync files between MI50s (docs/STATUS.md, a group's large sums in two shots): never between two members, whose two shots move what broadcast moves behind a second round of waits, and from 1.25 MB among three and four, level with broadcast at half that.
+    static size_t two_shot_crossover(size_t members) {
+        return members < 3 ? SIZE_MAX : 327680;
     }
 
     // Holding (Backend::hold_between_submissions), while any holder remains: after each submit() the queue waits on an event the host sets at the next submission, or after kHoldMs, so the device stays busy, and its clock up, while another device runs its stage.
@@ -3528,6 +3534,8 @@ private:
 // Each member owns an inbox for each peer in each of two parities, exported as a dma-buf and imported into that peer alone; a sum copies each member's partial rows into its inbox on every peer, submits each member's work signalling a binary semaphore a peer, and once every member has submitted imports each as a sync file into the peer, whose next submission waits on them, and adds the slots into every member's residual in member order, ((p0 + p1) + ...) + p(W-1), the CPU's order.
 // A parity is written again two sums later, behind the chain of waits that put the reads of the sum between them first.
 // An inbox has one importer: the kernel orders every submission of an importer behind the other importers' submissions that listed the same dma-buf, so a buffer two peers imported would run those peers in turn, as a group of three or more did (docs/STATUS.md, tensor groups serving).
+// A sum of two_shot_crossover floats or more takes two shots instead: member k's inboxes take only share k of each peer's partial, member k sums that share in member order and copies it into its own gather rows on every member, and every member adds the shares, so each float is the same sum in the same order either way.
+// The gather rows are their own buffers, one for each peer's share in each of two parities, each with one importer, sized once, so no sum's shares overwrite another's still being read.
 class VulkanCollective final : public Collective {
 public:
     VulkanCollective(const std::vector<VulkanBackend*>& members, size_t rows, size_t width)
@@ -3548,6 +3556,18 @@ public:
                         imported_[p][t][d] = std::make_shared<VulkanBuffer>(members[d]->device(), bytes, inbox_[p][t][d]->export_fd());
                     }
             }
+            if (VulkanBackend::two_shot_crossover(W) <= size_mul(rows, width))
+                for (int p = 0; p < 2; ++p) {
+                    const size_t share = size_mul((size_mul(rows, width) + W - 1) / W, sizeof(float));
+                    gather_[p].assign(W, std::vector<std::shared_ptr<VulkanBuffer>>(W));
+                    gathered_[p].assign(W, std::vector<BufferPtr>(W));
+                    for (size_t t = 0; t < W; ++t)
+                        for (size_t d = 0; d < W; ++d) {
+                            if (d == t) continue;
+                            gather_[p][t][d] = std::make_shared<VulkanBuffer>(members[t]->device(), share, -1);
+                            gathered_[p][t][d] = std::make_shared<VulkanBuffer>(members[d]->device(), share, gather_[p][t][d]->export_fd());
+                        }
+                }
             make_semaphores();
         } catch (...) {
             release();
@@ -3578,16 +3598,59 @@ private:
         const size_t n = rows * width, bytes = n * sizeof(float);
         const int p = parity_;
         parity_ ^= 1;
+        if (n >= VulkanBackend::two_shot_crossover(W)) return two_shots(residual, n, p);
         for (size_t m = 0; m < W; ++m)
             for (size_t t = 0; t < W; ++t)
                 if (t != m) members_[m]->copy(*imported_[p][t][m], 0, *partial_[m], 0, bytes);
+        exchange();
+        for (size_t m = 0; m < W; ++m) {
+            VulkanBackend& b = *members_[m];
+            auto source = [&](size_t k) { return CSlice{k == m ? partial_[m].get() : inbox_[p][m][k].get(), 0}; };
+            const CSlice first = source(0);
+            b.copy(*scratch_[m], 0, *first.buffer, first.offset * sizeof(float), bytes);
+            for (size_t k = 1; k < W; ++k) b.add(Slice{scratch_[m].get(), 0}, source(k), n);
+            b.add(residual[m], CSlice{scratch_[m].get(), 0}, n);
+        }
+    }
+
+    // Share k of `n` floats, [lo(k), lo(k + 1)), the last shares empty where n is smaller than the members.
+    static size_t share_begin(size_t k, size_t n, size_t W) { return std::min(n, k * ((n + W - 1) / W)); }
+
+    void two_shots(const std::vector<Slice>& residual, size_t n, int p) {
+        const size_t W = members_.size(), f = sizeof(float);
+        auto lo = [&](size_t k) { return share_begin(k, n, W); };
+        auto len = [&](size_t k) { return lo(k + 1) - lo(k); };
+        for (size_t m = 0; m < W; ++m)
+            for (size_t t = 0; t < W; ++t)
+                if (t != m && len(t)) members_[m]->copy(*imported_[p][t][m], lo(t) * f, *partial_[m], lo(t) * f, len(t) * f);
+        exchange();
+        for (size_t k = 0; k < W; ++k) {
+            if (!len(k)) continue;
+            VulkanBackend& b = *members_[k];
+            auto source = [&](size_t j) { return CSlice{j == k ? partial_[k].get() : inbox_[p][k][j].get(), lo(k)}; };
+            const CSlice first = source(0);
+            const Slice share{scratch_[k].get(), lo(k)};
+            b.copy(*scratch_[k], lo(k) * f, *first.buffer, first.offset * f, len(k) * f);
+            for (size_t j = 1; j < W; ++j) b.add(share, source(j), len(k));
+            for (size_t t = 0; t < W; ++t)
+                if (t != k) b.copy(*gathered_[p][t][k], 0, *scratch_[k], lo(k) * f, len(k) * f);
+            b.add(Slice{residual[k].buffer, residual[k].offset + lo(k)}, CSlice{scratch_[k].get(), lo(k)}, len(k));
+        }
+        exchange();
+        for (size_t m = 0; m < W; ++m)
+            for (size_t k = 0; k < W; ++k)
+                if (k != m && len(k)) members_[m]->add(Slice{residual[m].buffer, residual[m].offset + lo(k)}, CSlice{gather_[p][m][k].get(), 0}, len(k));
+    }
+
+    // Each member's open work submitted signalling a binary semaphore a peer, then, once every member has submitted, each imported as a sync file into the peer, whose next submission waits on it, so no member's work toward this round waits for another's.
+    void exchange() {
+        const size_t W = members_.size();
         for (size_t m = 0; m < W; ++m) {
             std::vector<VkSemaphore> signals;
             for (size_t t = 0; t < W; ++t)
                 if (t != m) signals.push_back(signal_[m][t]);
             members_[m]->submit_signalling(signals);
         }
-        // The waits go to each member's next submission only once every member has submitted, so no member's work toward this sum waits for another's.
         for (size_t m = 0; m < W; ++m) {
             for (size_t t = 0; t < W; ++t) {
                 if (t == m) continue;
@@ -3614,14 +3677,6 @@ private:
                 }
                 members_[t]->wait_on(wait_[t][m]);
             }
-        }
-        for (size_t m = 0; m < W; ++m) {
-            VulkanBackend& b = *members_[m];
-            auto source = [&](size_t k) { return CSlice{k == m ? partial_[m].get() : inbox_[p][m][k].get(), 0}; };
-            const CSlice first = source(0);
-            b.copy(*scratch_[m], 0, *first.buffer, first.offset * sizeof(float), bytes);
-            for (size_t k = 1; k < W; ++k) b.add(Slice{scratch_[m].get(), 0}, source(k), n);
-            b.add(residual[m], CSlice{scratch_[m].get(), 0}, n);
         }
     }
 
@@ -3665,6 +3720,8 @@ private:
     std::vector<BufferPtr> partial_, scratch_;
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> inbox_[2];   // [parity][owner][sender]: the owner's inbox for that sender's partial rows
     std::vector<std::vector<BufferPtr>> imported_[2];                    // [parity][owner][sender]: that inbox on the sender, its only importer
+    std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> gather_[2];  // [parity][owner][sender]: the owner's gather rows for that sender's share, where a sum may take two shots
+    std::vector<std::vector<BufferPtr>> gathered_[2];                    // [parity][owner][sender]: those gather rows on the sender, their only importer
     std::vector<std::vector<VkSemaphore>> signal_, wait_;          // [member][peer]: what member signals to the peer; what member waits on from the peer
 };
 

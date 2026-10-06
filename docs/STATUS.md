@@ -144,6 +144,26 @@ The status table and the active blocks above give the present state; a record's 
 - **Left:** the rest of the edit gap is the boundary's whole block (25 to 37 tokens), the prompt rate (4.3 ms a token against the reference's 3.9) and the regenerate's job pass an edit waits behind; a floor on a kept boundary's position, if regenerates at 24 users are to be level, is its own measured change.
 - Reviewed by D2CDEV.
 
+## A group's large sums in two shots (2026-10-06, branch perf/tp-twoshot, step 3b of TENSOR-SPLIT, lands by fast-forward)
+
+- **Goal:** the user's direction of 2026-10-05, a collective that chooses by a sum's size: among three members or more, broadcast sends every member each whole partial, which is what a prompt pass at width 4 spent its time moving.
+- **Result:** inside the Vulkan backend's collective a sum of 327680 floats or more (1.25 MB) among three members or more sends member k only share k of each partial, which k sums in member order and sends on; smaller sums, a decode step's among them, and every sum between two members stay broadcast. Every float is the same sum in the same order either way. The fit counts a member's two gather rows. Nothing outside `vulkan_backend.cpp` knows the way a sum takes.
+- **Measured** (95019267, `llmx 0.1.0+g95019267aa15`, against main bdd61396, both built the same way from detached worktrees; Qwen3-32B Q8_0 on four MI50s under one root at `--tensor-width 4`, default clocks, `bench --model --p 512 --n 128 --r 3`, the arms interleaved main, branch, branch, main twice):
+
+  | tok/s, four runs each | main | two shots |
+  |---|---|---|
+  | pp512 | 318.9 to 319.6 | 458.6 to 460.7 |
+  | tg128 | 16.5 to 17.2 | 16.5 to 16.9 |
+  | pp512, `--dtype int8` | 370.0 to 371.0 | 585.4 to 587.5 |
+  | tg128, `--dtype int8` | 16.3 to 16.9 | 16.2 to 16.9 |
+
+  Greedy ids and the last logits row of the excerpt are the same bytes on both arms, the check that reaches two shots in a model: the tiny fixtures' sums stay below the crossover and are broadcast.
+  Checks at that head: CTest 45 of 45 with four MI50s, `backend-vulkan` summing among three on both sides of the crossover; docs, dead-code and the linked check; the suite's `tensor-split` and `chat` at width 4.
+  The crossover comes from the exchange alone, timed on the same cards before this change: two shots never win between two members, are level with broadcast at 640 KB and ahead from 1.25 MB among three and four (10 MB: 3.2 against 4.7 ms among three, 3.8 against 7.6 ms among four).
+  Reading every peer's partial in place, one shot, was slower than both at every size and is not in the code.
+- **Left:** the decode sum at width 4, which two shots do not touch.
+- **Reviewed by:** D2CDEV at 95019267, no finding; its note on the machine that holds the two-shot path is in AGENTS, and the crossover stays a constant of the Vulkan backend until a second transport or card gives a second number.
+
 ## The kept-entries check waits for its reads (2026-10-06, branch fix/keep-check-wait, lands by fast-forward)
 
 - **Found:** with its first turns past 449 tokens (the `fix/keep-check-split` block, below), the kept-entries check still failed on one MI50 about every second run: the third conversation's follow-up reused 0 tokens, 2 of 4 runs of the scenario at main `6ea7ae5d`, with all three entries adopted and all three read (`disk_hits` 3, no error).

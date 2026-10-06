@@ -3184,37 +3184,59 @@ size_t check_collective(const backend::BackendPtr& first) {
     }
     size_t checks = 0;
     uint32_t seed = 11;
-    for (size_t rows : {size_t(1), size_t(7), size_t(64), size_t(64), size_t(7), size_t(1)}) {
-        const size_t n = rows * width;
-        std::vector<std::vector<float>> partial(2, std::vector<float>(n));
-        std::vector<float> start(n);
-        for (size_t i = 0; i < n; ++i) {
-            for (size_t m = 0; m < 2; ++m) {
-                seed = seed * 1664525u + 1013904223u;
-                partial[m][i] = float(int(seed >> 16) % 2001 - 1000) / 97.0f;
-            }
-            start[i] = float(int(seed >> 8) % 4001 - 2000) / 13.0f;
-        }
-        std::vector<backend::BufferPtr> x;
-        std::vector<backend::Slice> xs;
-        for (size_t m = 0; m < 2; ++m) {
-            x.push_back(members[m]->alloc((n + offset) * sizeof(float)));
-            members[m]->write(*x.back(), offset * sizeof(float), start.data(), n * sizeof(float));
-            const backend::Slice p = sum->partial(m);
-            members[m]->write(*p.buffer, p.offset * sizeof(float), partial[m].data(), n * sizeof(float));
-            xs.push_back({x.back().get(), offset});
-        }
-        sum->sum_into(xs, rows, width);
-        for (size_t m = 0; m < 2; ++m) {
-            members[m]->submit();
-            std::vector<float> got(n);
-            members[m]->read(*x[m], offset * sizeof(float), got.data(), n * sizeof(float));
+    // Sums of `rows` rows over a collective's members, each member's residual the sum in member order.
+    auto sums = [&](const std::vector<backend::Backend*>& group, backend::Collective& c, size_t wide, std::initializer_list<size_t> counts) {
+        const size_t W = group.size();
+        for (size_t rows : counts) {
+            const size_t n = rows * wide;
+            std::vector<std::vector<float>> partial(W, std::vector<float>(n));
+            std::vector<float> start(n);
             for (size_t i = 0; i < n; ++i) {
-                const float want = start[i] + (partial[0][i] + partial[1][i]);
-                require(std::memcmp(&got[i], &want, sizeof(float)) == 0, "a member's residual is not the sum in member order");
+                for (size_t m = 0; m < W; ++m) {
+                    seed = seed * 1664525u + 1013904223u;
+                    partial[m][i] = float(int(seed >> 16) % 2001 - 1000) / 97.0f;
+                }
+                start[i] = float(int(seed >> 8) % 4001 - 2000) / 13.0f;
             }
+            std::vector<backend::BufferPtr> x;
+            std::vector<backend::Slice> xs;
+            for (size_t m = 0; m < W; ++m) {
+                x.push_back(group[m]->alloc((n + offset) * sizeof(float)));
+                group[m]->write(*x.back(), offset * sizeof(float), start.data(), n * sizeof(float));
+                const backend::Slice p = c.partial(m);
+                group[m]->write(*p.buffer, p.offset * sizeof(float), partial[m].data(), n * sizeof(float));
+                xs.push_back({x.back().get(), offset});
+            }
+            c.sum_into(xs, rows, wide);
+            for (size_t m = 0; m < W; ++m) {
+                group[m]->submit();
+                std::vector<float> got(n);
+                group[m]->read(*x[m], offset * sizeof(float), got.data(), n * sizeof(float));
+                for (size_t i = 0; i < n; ++i) {
+                    float all = partial[0][i];
+                    for (size_t k = 1; k < W; ++k) all += partial[k][i];
+                    const float want = start[i] + all;
+                    require(std::memcmp(&got[i], &want, sizeof(float)) == 0, "a member's residual is not the sum in member order");
+                }
+            }
+            ++checks;
         }
-        ++checks;
+    };
+    sums(members, *sum, width, {1, 7, 64, 64, 7, 1});
+    // Three members, where a third device opens: sums on each side of the size from which the backend sends shares in two shots (327680 floats), at an odd width whose shares differ by a float.
+    backend::BackendPtr third;
+    try {
+        third = backend::make_vulkan_backend(2, false);
+    } catch (const std::exception&) {
+    }
+    if (third) {
+        std::vector<backend::Backend*> three{first.get(), second.get(), third.get()};
+        const size_t wide = 4097;
+        std::unique_ptr<backend::Collective> of_three = first->join(three, 96, wide);
+        sums(three, *of_three, wide, {1, 79, 80, 96, 80, 79, 1});
+        std::cout << "backend-vulkan: a collective of three devices, sums below and from the two-shot size on\n";
+    } else {
+        std::cout << "backend-vulkan: no third device, so no sum in two shots\n";
     }
     auto refused = [](const std::function<void()>& f) {
         try { f(); } catch (const std::exception&) { return true; }

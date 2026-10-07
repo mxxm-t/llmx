@@ -283,8 +283,6 @@ public:
         device_index(place_.output_device);
         if (width_ > 1) {
             shard::check_plan(plan_, weights.tensors, width_);
-            if (std::any_of(plan_.layers.begin(), plan_.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; }))
-                throw std::runtime_error("inference: a tensor width of " + std::to_string(width_) + " does not split a layer that keeps a recurrent state yet");
             if (place_.stream_from) throw std::logic_error("inference: a tensor group streams no layer");
             // A group's members are one kind of device, whose weight types and ops its first member's checks below stand for, with a collective among them.
             for (size_t g = 0; g < backends.size(); g += width_) {
@@ -429,6 +427,7 @@ public:
                 m.used = first.used;
                 m.mixer_layers = first.mixer_layers;
                 m.kv_layers = first.kv_layers;
+                m.state_layers = first.state_layers;
                 m.local_layer = first.local_layer;
             }
         }
@@ -462,22 +461,23 @@ public:
                 storages_.push_back(&d);
             }
             // Each device whose mixer layers keep a state holds every slot of theirs from now on, zeroed, so no pass allocates state.
+            // A tensor group's members each keep the state of their K and V heads and save a mark's inputs at their share of each width, under the slot ids the group shares.
             if (state_layers_) {
                 const size_t slots = backend::size_add(backend::size_add(options_.state_slots, options_.checkpoint_slots), options_.mark_slots);
                 for (size_t di = 0; di < devices_.size(); ++di) {
                     Device& d = *devices_[di];
                     if (!d.state_layers) continue;
-                    d.states = d.b->state_alloc((size_t)d.state_layers, slots, plan_.state);
+                    d.states = d.b->state_alloc((size_t)d.state_layers, slots, shard::state(plan_, width_));
                     // Each mark's room for the recurrent inputs of its rows, per state layer of the device.
                     if (!options_.mark_slots) continue;
                     for (size_t l = 0; l < n_layer; ++l)
-                        if (place_.mixer_device[l] == (int)di && plan_.layers[l].cache == Cache::state)
-                            d.saved_floats = std::max(d.saved_floats, saved_floats(plan_.layers[l]));
+                        if (place_.mixer_device[l] == (int)(di - d.member) && plan_.layers[l].cache == Cache::state)
+                            d.saved_floats = std::max(d.saved_floats, shard::saved_floats(plan_.layers[l], width_));
                     if (!d.saved_floats) throw std::logic_error("inference: a state layer that saves no inputs for a mark");
                     // After every mark's inputs, each state layer's room for the slots its update writes, mark_rows rows of each, so a rerun reads the inputs where they were saved and runs the layers unordered.
                     d.rerun_base = backend::size_mul(backend::size_mul(options_.mark_slots, (size_t)d.state_layers), backend::size_mul(options_.mark_rows, d.saved_floats));
                     for (size_t l = 0; l < n_layer; ++l)
-                        if (place_.mixer_device[l] == (int)di && plan_.layers[l].cache == Cache::state)
+                        if (place_.mixer_device[l] == (int)(di - d.member) && plan_.layers[l].cache == Cache::state)
                             d.rerun_floats = std::max(d.rerun_floats, recur_floats(plan_, plan_.layers[l]));
                     d.saved = d.b->alloc(backend::size_mul(backend::size_add(d.rerun_base, backend::size_mul(backend::size_mul((size_t)d.state_layers, options_.mark_rows), d.rerun_floats)),
                                                            sizeof(float)));

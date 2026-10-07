@@ -582,6 +582,14 @@ The sync-file collective measured above the projection of item 1 once each peer'
 Placing every inbox on the first member, so that a dma-buf import's implicit wait falls only on work the importer needs anyway, measured no faster, so the implicit sync of section 4.3 does not cost the sync-file collective, whose waits are at submission boundaries; it still rules out the in-submission flag wait.
 On the server load of section 2.8 the group is bound by its prompts from 16 users and serves 4 to 9 percent below the layer split on the same cards; the recovery work is a pass's prompt rows beside its decode rows and the prompt cells against the reference, then a backend whose submissions do not go through the kernel per sum (the kernel route of item 3 is closed).
 
+### Step 5 as built (2026-10-07)
+
+A group runs the hybrid qwen35 models as section 4.2 has them, with nothing new below the model layer: a linear-attention layer's roles were already declared (`shard_linear`), so each member holds the q and k rows of its K heads, the V heads that read them from every tile, their rows of z, alpha and beta, their decay and time step, the conv's taps of its channels and its tiled columns of `ssm_out`, and runs the conv, the recurrence and the gated norm over those heads alone; the one exchange of the mixer is the sum after `ssm_out`, as a full-attention layer has after `attn_output`.
+Each member keeps the recurrent state of its own heads in a state storage of its own (`shard::state`), under the slot ids the group shares, so a checkpoint, a mark and a host copy are one slot id on every member; a mark's saved inputs are a member's share of each row (`shard::saved`), and the rerun after a retract is local to each member with no sum, as section 4.8 says of it.
+The real files split at widths 2 and 4: Qwen3.5-0.8B (8 heads, 2 KV heads, 16 K and 16 V heads), Qwen3.5-9B (16, 4, 16 and 32) and Qwen3.6-27B and Qwen3.8-27B (24, 4, 16 and 48), the 0.8B's KV heads replicated at width 4; width 3 is refused on each by its KV heads and its K heads.
+Drafting by lookup runs over a group with this step, since it needs only the mark and the retract; the embedded drafter is step 6.
+`docs/STATUS.md` has the measurements.
+
 ## 9. Sources (2026-10-03)
 
 - mx-llama.cpp's ROCm and CUDA all-reduce: `ggml/src/ggml-cuda/tp-allreduce.cu` (kernels, flags, staging), `ggml/src/ggml-cuda/ggml-cuda.cu` (dispatch and size gate), `ggml/src/ggml-backend-meta.cpp` (lane dispatch, token graph), `tp-notes/ENV_VARS.md`, `tp-notes/research/mi50-decode-bandwidth-roofline.md`, `tp-notes/research/mi50-meta-parallel-lane-dispatch.md`, commits `093f2a38fc`, `5f65f9fa38`, `19d784ad0e`, `92607b5d1d`, `751b6114cd`, `28ce13af18`, `c93294e3de`, and the image `mxxm/mx-llama.cpp:gfx906` at `eefc4e732`.

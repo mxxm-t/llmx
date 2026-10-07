@@ -58,14 +58,18 @@ struct Run {
     size_t drafted = 0;        // the drafts its verifies fed
 };
 
-// A model of `weights` placed over `stages` CPU backends of one thread, with a mark of up to 17 rows where it keeps a state, and with `drafter` the file's embedded drafter; `submits`, when given, counts the first stage's submissions.
+// The tensor width every model here is placed at (docs/TENSOR-SPLIT.md): above 1 each stage is a group of that many CPU backends, and a run is held to the run on one such group, since a group gives its own bits.
+size_t group_width = 1;
+
+// A model of `weights` placed over `stages` stages of CPU backends of one thread, with a mark of up to 17 rows where it keeps a state, and with `drafter` the file's embedded drafter; `submits`, when given, counts the first backend's submissions.
 std::unique_ptr<infer::Model> placed(const gguf::GGUFModel& weights, size_t stages, size_t* submits = nullptr, bool drafter = false) {
     std::vector<backend::BackendPtr> backends;
-    for (const auto& h : hooked(stages)) backends.push_back(h);
+    for (const auto& h : hooked(stages * group_width)) backends.push_back(h);
     if (submits) static_cast<Hooked&>(*backends[0]).hook = [submits] { ++*submits; };
     infer::PlacementRequest request;
-    for (size_t i = 0; i < stages; ++i) request.names.push_back("cpu " + std::to_string(i));
+    for (size_t i = 0; i < backends.size(); ++i) request.names.push_back("cpu " + std::to_string(i));
     if (stages > 1) request.shares.assign(stages, 1);
+    request.width = group_width;
     request.drafter = drafter;
     infer::ModelOptions options;
     options.mark_slots = 1;
@@ -317,6 +321,12 @@ int main() {
         embedded(hybrid, served_hybrid(kHybrid, true), (size_t)kHybrid.vocab);
         history(dense, (size_t)kCpu.vocab, 2);
         failures(hybrid, (size_t)kHybrid.vocab);
+        // The hybrid model over tensor groups of two CPUs, one stage and two: each member keeps the state of its own heads and reruns it from the mark on its own.
+        const gguf::GGUFModel even = served_hybrid(kHybridEven);
+        group_width = 2;
+        rounds("the hybrid model on groups of two", even, (size_t)kHybridEven.vocab, {1, 2});
+        for (size_t st : {1, 2}) history(even, (size_t)kHybridEven.vocab, st);
+        group_width = 1;
         std::cout << "spec: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& e) {

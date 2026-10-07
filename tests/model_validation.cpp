@@ -948,7 +948,7 @@ void hook_checks() {
     }
 }
 
-// A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads neither divided nor a multiple, K heads, vocabulary rows, columns off whole quant blocks, and routed layers and an embedded drafter, which a group does not split yet.
+// A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads neither divided nor a multiple, K heads, vocabulary rows, columns off whole quant blocks, a state layer's saved row, and routed layers and an embedded drafter, which a group does not split yet.
 void shard_checks() {
     // A two-layer dense qwen3 plan over views without bytes, F32 but for ffn_down's `down` type, with or without routed experts in its first layer.
     auto dense = [](int heads, int kv, int dim, int ff, uint64_t vocab, uint32_t down, bool routed) {
@@ -1052,6 +1052,10 @@ void shard_checks() {
         infer::shard::check_plan(plan, w.tensors, 2);
         ++checks;
         rejects("tensor width K heads", [&] { infer::shard::check_plan(plan, w.tensors, 4); });
+        // A saved row of a state layer the width does not divide is refused naming the layer, where the spans of its roles divide.
+        infer::ModelPlan odd = plan;
+        odd.layers[0].saved[0].width += 1;
+        rejects("tensor width saved row", [&] { infer::shard::check_plan(odd, w.tensors, 2); });
     }
 }
 

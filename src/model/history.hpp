@@ -542,10 +542,10 @@ inline size_t Model::rewind(Sequence& s, size_t length) noexcept {
     return to;
 }
 
-// Where row 0 of saved item `item` of local state layer `layer` of mark buffer `buffer` sits in device d's saved buffer, in floats; its rows follow one another.
+// Where row 0 of saved item `item` of local state layer `layer` of mark buffer `buffer` sits in device d's saved buffer, in floats; its rows follow one another, each as wide as a member's share of the item on a tensor group.
 inline size_t Model::saved_at(const Device& d, const LayerPlan& lp, size_t buffer, size_t layer, size_t item) const {
     size_t before = 0;
-    for (size_t i = 0; i < item; ++i) before += lp.saved[i].width;
+    for (size_t i = 0; i < item; ++i) before += shard::saved(lp.saved[i], width_).width;
     return ((buffer * (size_t)d.state_layers + layer) * d.saved_floats + before) * options_.mark_rows;
 }
 
@@ -559,7 +559,7 @@ inline void Model::save(ExecContext& ctx, const Pass& p, size_t dev, int l) {
         if (!m.held()) continue;
         const size_t r0 = e ? p.runs[e - 1].end : 0, n = p.entries[e].n;
         for (size_t i = 0; i < lp.saved.size(); ++i) {
-            const Saved& v = lp.saved[i];
+            const Saved v = shard::saved(lp.saved[i], width_);
             d.b->copy(*d.saved, saved_at(d, lp, m.hold.buffer(), (size_t)d.local_layer[(size_t)l], i) * sizeof(float), *sc.arena,
                       sc.offset[v.slot] + (v.plane * p.rows + r0) * v.width * sizeof(float), n * v.width * sizeof(float));
         }
@@ -579,7 +579,7 @@ inline void Model::save_h(ExecContext& ctx, const Pass& p) {
     }
 }
 
-// The state after the first `rows` rows of the pass past the sequence's mark, into its live slot: on each device that keeps a state, every state layer's update run from the mark's state over its inputs where they were saved (Architecture::recur), the slots it writes in a room of its own, so each phase of the update runs for every layer unordered, one submission on each device after that pass.
+// The state after the first `rows` rows of the pass past the sequence's mark, into its live slot: on each device that keeps a state, a tensor group's members each over their own heads, every state layer's update run from the mark's state over its inputs where they were saved (Architecture::recur), the slots it writes in a room of its own, so each phase of the update runs for every layer unordered, one submission on each device after that pass.
 // An embedded drafter's carried row is the last kept row's, copied from the mark's room into the live slot's in the same submission.
 // A failure drains every device and leaves the mark, which a retry reads again.
 inline void Model::rerun(Sequence& s, size_t rows) {
@@ -600,7 +600,7 @@ inline void Model::rerun(Sequence& s, size_t rows) {
             for (int phase = 0; d.states && phase < phases; ++phase) {
                 d.b->unordered(true);
                 for (size_t st = 0; st < stages_.size(); ++st) {
-                    if (stages_[st].device != dev) continue;
+                    if (stages_[st].device != dev - d.member) continue;
                     const size_t src = m.from[st] == Sequence::kLive ? s.state_.slot() : m.from[st];
                     const backend::StateView view{d.states.get(), src, s.state_.slot(), m.pos, rows};
                     for (int l = stages_[st].first; l < stages_[st].end; ++l) {
@@ -615,7 +615,8 @@ inline void Model::rerun(Sequence& s, size_t rows) {
                         }
                         for (size_t i = 0; i < lp.saved.size(); ++i)
                             if (!lp.saved[i].plane) offsets[lp.saved[i].slot] = saved_at(d, lp, m.hold.buffer(), layer, i) * sizeof(float);
-                        Step step = part(ctx_, dev, home_[(size_t)l].data(), lp.kind, 0, options_.mark_rows, {&run, 1});
+                        Step step = part(ctx_, dev, home_row(d.member, (size_t)l), lp.kind, 0, options_.mark_rows, {&run, 1});
+                        step.width = width_;
                         step.arena = d.saved.get();
                         step.offsets = offsets.data();
                         step.x = {d.saved.get(), 0};

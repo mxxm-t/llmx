@@ -293,17 +293,23 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
 }
 
 // Stage s on a tensor group (docs/TENSOR-SPLIT.md, section 4.3): every member runs each part on its shards over its own residual, the group's collective sums the members' partial rows into every member's residual after each part, the residual comes in to every member and leaves from the first, and after the last stage each member's slice of the logits rows is gathered into the context's.
-// The placement holds the embedding on the first stage's group, the head on the last's and every feed-forward block beside its mixer, and a group runs no layer that keeps a state (the constructor's checks).
+// The placement holds the embedding on the first stage's group, the head on the last's and every feed-forward block beside its mixer (the constructor's checks); a layer that keeps a state runs on each member over its own heads' state, with no exchange inside the mixer.
 inline void Model::group_stage(ExecContext& ctx, Pass& p, size_t s) {
     group_prepare(p, s);
     group_record(ctx, p, s);
     stage_commit(ctx, p, s);
 }
 
-// What a group's stage takes of its histories and their pool before any device work: each entry's blocks and its views on every member.
+// What a group's stage takes of its histories and their pool before any device work: each entry's blocks and its views on every member, and its state's slots, the same on every member, each of which keeps the state of its own heads there.
 inline void Model::group_prepare(Pass& p, size_t s) {
     const size_t g = stages_[s].device, W = width_;
     const int storage = devices_[g]->storage_index;
+    for (size_t e = 0; devices_[g]->states && e < p.entries.size(); ++e) {
+        const Sequence& q = *p.entries[e].seq;
+        const size_t src = q.from_[s] == Sequence::kLive ? q.state_.slot() : q.from_[s];
+        const size_t dst = p.kept[e].held() ? p.kept[e].slot() : q.state_.slot();
+        for (size_t m = 0; m < W; ++m) p.states[g + m][e] = backend::StateView{devices_[g + m]->states.get(), src, dst, q.stage_length(s), p.entries[e].n};
+    }
     for (size_t e = 0; storage >= 0 && e < p.entries.size(); ++e) {
         KVSequence& kv = p.entries[e].seq->kv_[(size_t)storage];
         kv.prepare(p.entries[e].n);
@@ -333,6 +339,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
             step.width = W;
             step.partial = sum.partial(m);
             arch_->mixer(step);
+            if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, g + m, l);
         }
         sum.sum_into(x, p.rows, plan_.residual);
         for (size_t m = 0; m < W; ++m) {

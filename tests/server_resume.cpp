@@ -2449,6 +2449,24 @@ int main(int argc, char** argv) {
             take_back(group, tok, vocab);
             follow_up_as_cli(group, tok, vocab, 200, kBlock, "a follow-up turn on a group of two CPUs against its prompt on a fresh model");
             host_tier(weights, tok, vocab, 2, 0, HostFault::none, "donors in host memory on a group of two CPUs", 2);
+            // A hybrid model over a group of two CPUs, each member keeping the state of its own heads under the slot ids the group shares: requests paused and resumed with no checkpoint slot, a repeated prompt's fork at its checkpoint, a paused request's state kept as its checkpoint and taken back, and a donor's state copied to host memory and back member by member.
+            {
+                const gguf::GGUFModel even = served_hybrid(kHybridEven);
+                const bpe::Tokenizer even_tok(even);
+                const uint32_t v = (uint32_t)kHybridEven.vocab;
+                no_donors(alone_then_together(on(even, [] { return cpus(2); }, 3, 0, 0, 0, false, 2), even_tok, 1024, 0, 3, {},
+                                              {{prompt_of(1, 40, v)}, {prompt_of(2, 9, v)}, {prompt_of(3, 23, v)}}, "a hybrid model's three uncapped requests on a group of two CPUs"),
+                          "a hybrid model's three uncapped requests on a group of two CPUs");
+                const Make kept = on(even, [] { return cpus(2); }, 3, 3, 0, 0, false, 2);
+                auto model = kept(1024, 0);
+                server::Scheduler::Stats stats;
+                const Req a{prompt_of(5, 300, v), 40};
+                const std::vector<Reply> r = serve(*model, even_tok, 1, {{a}, {a}}, &stats);
+                same(r[0], r[1], "a hybrid model's repeated prompt on a group of two CPUs");
+                require(stats.prefix_tokens == 2 * kBlock, "a hybrid model's repeated prompt on a group of two CPUs reused " + std::to_string(stats.prefix_tokens) + " tokens");
+                take_back(kept, even_tok, v);
+                host_tier(even, even_tok, v, 2, 1, HostFault::none, "a hybrid model's donors in host memory on a group of two CPUs", 2);
+            }
             superseded_donor(one, tok, vocab);
             one_copy_per_conversation(one, tok, vocab);
             conversations_that_came_back(one, tok, vocab);

@@ -341,7 +341,7 @@ public:
     void recur(const Step& s) const override {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
-        const size_t Hv = (size_t)cfg_.v_heads;
+        const size_t Hv = (size_t)cfg_.v_heads / s.width;
         const backend::Slice raw = s.slot(2), u = s.slot(3), alpha = s.slot(5), o = s.slot(6);
         const backend::Slice beta{alpha.buffer, alpha.offset + s.rows * Hv};
         if (s.phase != 1) b.causal_conv_silu(u, raw, w[ssm_conv1d].slice(), s.state_layer, s.states, s.n_views);
@@ -440,7 +440,8 @@ private:
     void linear_attention(const Step& s, backend::Slice h) const {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
-        const size_t E = (size_t)cfg_.n_embd, Hv = (size_t)cfg_.v_heads;
+        // On a tensor group each member runs its K heads and the V heads that read them, over its own state.
+        const size_t E = (size_t)cfg_.n_embd, Hv = (size_t)cfg_.v_heads / s.width;
         const backend::Slice raw = s.slot(2), z = s.slot(4), alpha = s.slot(5), o = s.slot(6);
         const backend::Slice beta{alpha.buffer, alpha.offset + s.rows * Hv};
         b.matmul(w[attn_qkv].type, w[attn_qkv].slice(), h, raw, E, w[attn_qkv].nout, s.rows, s.runs, s.dtype);

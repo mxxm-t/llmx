@@ -35,10 +35,9 @@ FIXTURES = [
 EOS = VOCAB - 1
 # Physical batches that cut the texts into passes; under one of them the last row of every text of three or more tokens runs alone after a batched pass, as a decode step after a prefill does.
 UBATCHES = (1, 2, 3, 5, 16)
-# llmx's refusals of a qwen35 file: of the architecture, where it does not run it, at load on a device whose backend lacks the linear attention's ops, and on a tensor group, which splits no layer that keeps a state until step 5 of docs/TENSOR-SPLIT.md.
+# llmx's refusals of a qwen35 file: of the architecture, where it does not run it, and at load on a device whose backend lacks the linear attention's ops.
 # Either skips this component, and the real-model checks, rather than failing or passing them.
-REFUSALS = ("unsupported metadata general.architecture", "which the backend of its device does not implement",
-            "does not split a layer that keeps a recurrent state yet")
+REFUSALS = ("unsupported metadata general.architecture", "which the backend of its device does not implement")
 
 
 def refusal(rc, out):

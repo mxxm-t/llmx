@@ -9,6 +9,7 @@ import f32
 import moe
 import mxfp4
 import qwen35
+import tensor_split
 
 
 # The layer split against one device through llmx-split-check (tools/split_check.cpp), on CPU backends: raw logits compared bit for bit over the prompt path, the prefill a split pipelines over its stages, greedy decode steps, the recompute by class a resume runs and a decoding sequence beside a fresh prompt.
@@ -16,6 +17,7 @@ import qwen35
 # Each split runs with f16 caches, the default, and with f32 caches, since a split is exact at either.
 # LLMX_DTYPE reaches both placements through the tool's optional dtype argument; request records and completed paths are checked, including visible fallback.
 # Three decode steps after the 13-token text fill the tiny models' 16-token context.
+# The tensor-split fixtures, dense and qwen35 (tests/tensor_split.py), also run as one tensor group of two CPU backends against two stages of such groups, which must give the one group's bits (docs/TENSOR-SPLIT.md, section 4.4).
 # The tiny qwen35 models run over two CPU backends and over four, a layer a stage, where the first and third stages hold only a linear-attention layer, which keeps a state and no KV; a model that keeps a state is not forked, so the tool recomputes it from no fork.
 UBATCHES = (1, 3, 16)
 CACHE_TYPES = ("f16", "f32")
@@ -74,17 +76,17 @@ def tool_path():
     return os.path.join(os.path.dirname(common.exe_path()), "llmx-split-check" + (".exe" if os.name == "nt" else ""))
 
 
-def run_tool(tool, model, text, split, steps, ubatch, cache, tokens):
-    """One split against one device; the number of recomputes the tool ran from a fork, and of the rounds of verifies it ran."""
+def run_tool(tool, model, text, split, steps, ubatch, cache, tokens, single="cpu", width=1):
+    """One split against one device, or at a tensor width against one group; the number of recomputes the tool ran from a fork, and of the rounds of verifies it ran."""
     dtype = os.environ.get("LLMX_DTYPE", "auto")
-    args = [tool, model, text, "cpu", split, str(steps), str(ubatch), cache, dtype]
+    args = [tool, model, text, single, split, str(steps), str(ubatch), cache, dtype, str(width)]
     p = subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace", timeout=120)
     forked = re.search(r"whole and (\d+) from a fork", p.stdout)
     verifies = re.search(r"verifies: (\d+) rounds", p.stdout)
     records = [line for line in p.stderr.splitlines() if line.startswith("dtype:")]
     assert len(records) == 2 and all(line.startswith("dtype: %s -> " % dtype) for line in records), \
         "split: missing or mismatched dtype request records: " + p.stderr
-    for (label, devices), record in zip((("single", 1), ("split", len(split.split(",")))), records):
+    for (label, devices), record in zip((("single", len(single.split(","))), ("split", len(split.split(",")))), records):
         paths = re.findall(r"^%s device (\d+) matrix paths: (.+)$" % label, p.stdout, re.MULTILINE)
         assert [int(index) for index, _ in paths] == list(range(devices)), "split: missing execution paths: " + p.stdout
         effective = record.split(" -> ", 1)[1].split()[0]
@@ -125,6 +127,14 @@ def run(require=False):
                     for cache in CACHE_TYPES:
                         run_tool(tool, model, text, split, STEPS, ubatch, cache, len(f32.TEXTS[-1]))
                         runs += 1
+        grouped = [f32.write_model(os.path.join(directory, "even-f32.gguf"), f32.tensors(True, config=tensor_split.CONFIG, vocab=tensor_split.VOCAB),
+                                   config=tensor_split.CONFIG, tokens=tensor_split.TOKENS),
+                   qwen35.write_fixture(directory, tensor_split.QWEN35, tokens=tensor_split.TOKENS)]
+        for model in grouped:
+            for ubatch in UBATCHES:
+                for cache in CACHE_TYPES:
+                    run_tool(tool, model, text, "cpu,cpu,cpu,cpu", STEPS, ubatch, cache, len(f32.TEXTS[-1]), single="cpu,cpu", width=2)
+                    runs += 1
         q8 = write_q8_model(os.path.join(directory, "tiny-q8_0.gguf"))
         for length, steps in Q8_RUNS:
             long_text = os.path.join(directory, "text-%d.txt" % length)
@@ -138,7 +148,7 @@ def run(require=False):
                     assert verifies or steps < 17, "split: no rounds of verifies after %d decode steps" % steps
                     runs += 1
     print("split: %d runs of the tiny F32 (tied, untied), MoE, MXFP4 (dense tied/untied and MoE), qwen35 and Q8_0 models over 2, 3 and 4 CPU backends at ubatch %s with %s caches, "
-          "bit-identical to one, the Q8_0 model's recompute also from a fork at a block and its verifies of drafts  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
+          "bit-identical to one, the tensor-split fixtures (dense and qwen35) as two stages of groups of two against one group, the Q8_0 model's recompute also from a fork at a block and its verifies of drafts  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
     return True
 
 

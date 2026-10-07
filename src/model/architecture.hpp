@@ -90,13 +90,6 @@ struct LayerPlan {
     int recur_phases = 1;
 };
 
-// The floats a row of a state layer saves for a mark (LayerPlan::saved).
-inline size_t saved_floats(const LayerPlan& layer) {
-    size_t n = 0;
-    for (const Saved& v : layer.saved) n = backend::size_add(n, v.width);
-    return n;
-}
-
 // What an architecture declares of a model: the size of every resolved row of weights, the vocabulary, the roles of the pass (the embedding's and the head's) and each layer's, the positions a sequence may reach, and what the arena, the caches and the tables take.
 // Every role id is below role_ids, and slot 0 is as wide as the residual, which plan_model holds every plan to.
 struct ModelPlan {

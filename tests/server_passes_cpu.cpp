@@ -423,6 +423,41 @@ void grouped(const gguf::GGUFModel& weights, uint32_t vocab) {
     replayed(one, split, tok, vocab);
 }
 
+// A CPU backend whose decode kernels hold 16 columns, so a pass of several decoding requests has columns to spare for their drafts.
+struct Wide : backend::CpuBackend {
+    Wide() { set_threads(1); }
+    size_t decode_columns() const override { return 16; }
+};
+
+// Drafting over two stages of tensor groups at two passes, where each group's stage is recorded on a thread of its own (docs/TENSOR-SPLIT.md, step 5): requests on a hybrid model that verify the drafts lookup finds in prompts that end as they began give the replies they give alone without drafts on one group.
+// Each member saves a marked entry's recurrent inputs on its stage's thread and reruns its own state on a retract, which the scheduler calls with that thread idle.
+void drafted_groups(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 32 * kBlock;
+    std::vector<Req> reqs;
+    for (uint32_t r = 0; r < 3; ++r) {
+        std::vector<uint32_t> prompt = prompt_of(10 + r, 60, vocab);
+        prompt.insert(prompt.end(), {prompt[0], prompt[1], prompt[2]});
+        reqs.push_back({prompt, 48});
+    }
+    const std::vector<Reply> ref = alone(on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 2), tok, pool, reqs);
+    const Make make = on(weights, [] {
+        std::vector<backend::BackendPtr> v;
+        for (size_t i = 0; i < 4; ++i) v.push_back(std::make_shared<Wide>());
+        return v;
+    }, 8, 0, 4, 4, false, 2);
+    auto model = make(pool, kUbatch);
+    infer::spec::Lookup lookup;
+    server::Scheduler::Stats stats;
+    const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, &stats, 2, 0, &lookup, 3);
+    for (size_t i = 0; i < reqs.size(); ++i) same(ref[i], got[i], "drafts over two stages of hybrid groups, request " + std::to_string(i));
+    size_t drafted = 0, kept = 0;
+    for (size_t n : stats.drafted) drafted += n;
+    for (size_t n : stats.kept) kept += n;
+    require(stats.passes == 2 && drafted > 0 && kept > 0,
+            "drafts over two stages of hybrid groups: " + std::to_string(stats.passes) + " passes in flight, " + std::to_string(kept) + " of " + std::to_string(drafted) + " drafts kept");
+}
+
 // A CPU backend that reports a device time, as a timed device does, and notes whether that reading ever met a submission of its own: a device takes its timing read from the thread that records on it and from no other while it records.
 struct Timed : backend::CpuBackend {
     std::atomic<bool> submitting{false}, reading{false};
@@ -523,6 +558,8 @@ void timed_cpu(const gguf::GGUFModel& weights, uint32_t vocab) {
 int main() {
     try {
         grouped(served(kSplit), (uint32_t)kSplit.vocab);
+        grouped(served_hybrid(kHybridEven), (uint32_t)kHybridEven.vocab);
+        drafted_groups(served_hybrid(kHybridEven), (uint32_t)kHybridEven.vocab);
         timed_groups(served(kSplit), (uint32_t)kSplit.vocab);
         timed_cpu(served(kSplit), (uint32_t)kSplit.vocab);
         cases(served(kSplit), (uint32_t)kSplit.vocab);

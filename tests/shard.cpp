@@ -292,6 +292,13 @@ void footprints() {
             const size_t channels = (2 * 8 * 64 + 24 * 128) / width;
             require(fp.cache[0] == ((24 / width) * 64 * 128 + 3 * channels) * 4, "a qwen35 member's state at width " + std::to_string(width));
             require(fp.cache[1] == 256 * (4 / width) * 256 * 2 * 2, "a qwen35 member's KV cache at width " + std::to_string(width));
+            // With a mark of 17 rows: one more slot, each row's saved inputs at the member's share, its channels and the alpha and beta of its V heads, and the rerun's room, which is not split.
+            infer::ModelOptions marked = o;
+            marked.mark_slots = 1;
+            marked.mark_rows = 17;
+            require(infer::footprint(w, plan, marked, width, 0).cache[0] ==
+                        2 * fp.cache[0] + 17 * (channels + 2 * (24 / width)) * 4 + 17 * infer::recur_floats(plan, plan.layers[0]) * 4,
+                    "a qwen35 member's state with a mark at width " + std::to_string(width));
             size_t layer = 0;
             for (const infer::Matrix& x : fp.layers[0]) layer += x.bytes;
             // Norms 2 x 256 floats, ssm_norm 128, the conv's channels of 4 floats, the decay and time step 24 / W each; attn_qkv's channels, z's V rows, alpha's and beta's V heads and the three dense matrices by rows or columns, ssm_out 256 rows of V / W columns.

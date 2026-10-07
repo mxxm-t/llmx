@@ -65,6 +65,8 @@ struct HybridShape {
 };
 // The CPU shape's widths, with four layers for up to four stages, two of them linear attention.
 inline const HybridShape kHybrid{4, 64, 128, 4, 2, 16, 8, 2, 4, 16, 16, 64};
+// The same with V heads of 32, so a tensor group of two splits it whole: each member's V heads of a tile are one Q8_0 block of the linear attention's output projection.
+inline const HybridShape kHybridEven{4, 64, 128, 4, 2, 16, 8, 2, 4, 16, 32, 64};
 
 // A hybrid model with random weights, Q8_0 matrices as the synthetic model has, so its prompt and decode rows take different CPU paths, and F32 norms and linear-attention tables; a context of 4096, which the cases' pools bound first.
 // With `mtp`, an MTP block after the layers whose weights follow theirs, so the model without its drafter gives the bits of the file without the block (docs/SPECULATIVE.md, section 7).

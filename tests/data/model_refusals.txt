@@ -393,3 +393,4 @@ tensor width vocabulary: inference: a tensor width of 2 does not divide the 15 v
 tensor width routed layer: inference: a tensor width of 2 does not split layer 0's routed experts yet
 tensor width drafter: inference: a tensor width of 2 does not split an embedded drafter yet
 tensor width K heads: inference: a tensor width of 4 does not divide the 2 K heads of blk.0.attn_qkv.weight
+tensor width saved row: inference: a tensor width of 2 does not divide the 513 floats layer 0 saves a row for a mark

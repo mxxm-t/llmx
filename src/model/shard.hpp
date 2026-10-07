@@ -66,7 +66,7 @@ inline std::vector<Span> spans(const Role& role, size_t width, size_t member) {
     return out;
 }
 
-// Whether a model of `plan` over `views` splits at `width`: each role's tensor by its declaration, every section by its units and on the column axis every span of every member on whole blocks of its storage type, refused by name otherwise; a routed layer and an embedded drafter are refused, as a group does not split them yet (docs/TENSOR-SPLIT.md, sections 4.10 and 6).
+// Whether a model of `plan` over `views` splits at `width`: each role's tensor by its declaration, every section by its units and on the column axis every span of every member on whole blocks of its storage type, refused by name otherwise, as is a state layer's saved row the width does not divide; a routed layer and an embedded drafter are refused, as a group does not split them yet (docs/TENSOR-SPLIT.md, sections 4.10 and 6).
 inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& views, size_t width) {
     if (!width) throw std::logic_error("shard: a group of no members");
     if (width == 1) return;
@@ -87,6 +87,11 @@ inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& vie
         if (plan.layers[l].routed)
             throw std::runtime_error("inference: a tensor width of " + std::to_string(width) + " does not split layer " + std::to_string(l) + "'s routed experts yet");
         each(plan.layers[l].roles);
+        // A state layer's saved rows are rows its split roles write, so a member holds its share of each (saved).
+        for (const Saved& v : plan.layers[l].saved)
+            if (v.width % width)
+                throw std::runtime_error("inference: a tensor width of " + std::to_string(width) + " does not divide the " + std::to_string(v.width) +
+                                         " floats layer " + std::to_string(l) + " saves a row for a mark");
     }
 }
 
@@ -142,6 +147,19 @@ inline backend::StateShape state(const ModelPlan& plan, size_t width) {
     s.k_heads /= width;
     s.v_heads /= width;
     return s;
+}
+
+// The rows a state layer saves for a mark (LayerPlan::saved) as a member of `width` holds them: its share of each, since the split roles that write those rows give a member that share; check_plan refuses a width that does not divide one.
+inline Saved saved(const Saved& v, size_t width) {
+    if (v.width % width) throw std::logic_error("shard: a saved row of " + std::to_string(v.width) + " floats over a group of " + std::to_string(width));
+    return Saved{v.slot, v.width / width, v.plane};
+}
+
+// The floats a row of a state layer saves for a mark on a member of `width`.
+inline size_t saved_floats(const LayerPlan& layer, size_t width) {
+    size_t n = 0;
+    for (const Saved& v : layer.saved) n = backend::size_add(n, saved(v, width).width);
+    return n;
 }
 
 } // namespace infer::shard

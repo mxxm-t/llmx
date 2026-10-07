@@ -101,7 +101,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     for (const LayerPlan& layer : plan.layers)
         fp.cache.push_back(layer.cache == Cache::kv      ? kv_tokens(plan, options) * kv_bytes_per_position(kept, options)
                            : layer.cache == Cache::state ? backend::size_add(kept.state.layer_bytes(backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots)),
-                                                                             backend::size_add(backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(saved_floats(layer), sizeof(float))),
+                                                                             backend::size_add(backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(shard::saved_floats(layer, width), sizeof(float))),
                                                                                                options.mark_slots ? backend::size_mul(options.mark_rows, backend::size_mul(recur_floats(plan, layer), sizeof(float))) : 0))
                                                          : 0);
     for (size_t n : plan.tables) fp.tables += n * sizeof(float);

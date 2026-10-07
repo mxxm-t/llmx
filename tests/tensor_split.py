@@ -1,7 +1,7 @@
 """The tensor split's numerics (docs/TENSOR-SPLIT.md, step 2): tiny models whose every split falls whole at widths 2 and 4, against goldens HF made from the same weights (tools/gen_baseline.py tensor-split, tests/data/baseline_tensor_split.json).
 
 Groups of CPU backends are formed by llmx-model-logits, since the command line lists a device once: every row of the batched and per-token captures at the goldens' positions within the bound of the precision its path computes in, the windowed NLL, and the device-reference criterion of tests/common.py against the same model on one device, ranking, NLL, calibration and greedy agreement.
-The qwen35 fixture runs on one device here; a group splits it from step 5 of the plan on.
+The qwen35 fixture, whose linear-attention layers keep a recurrent state, is held the same way: each member runs its K heads and the V heads that read them over its own state.
 """
 import json
 import math
@@ -118,10 +118,17 @@ def run(require=False):
                 common.check_device_greedy(one["greedy"], rows["greedy"], one_meta["greedy"], meta["greedy"])
         spec = QWEN35
         model = qwen35.write_fixture(directory, dict(spec, config=dict(spec["config"], context_length=128)), tokens=TOKENS)
-        meta, rows = capture(tool, model, ids, os.path.join(directory, "qwen35-1"), single, 1)
-        held_to_hf("qwen35, one device", meta, rows, doc["qwen35"])
-    print("tensor-split: the qwen3 fixtures, tied and untied, on %s against HF, max logit error %.8f and NLL error %.8f, and against %s by the device-reference criterion; the qwen35 fixture on %s  [ok]"
-          % (" and ".join("%s as width %d" % (devices, width) for width, devices in widths), worst_logit, worst_nll, single, single))
+        one_meta, one = capture(tool, model, ids, os.path.join(directory, "qwen35-1"), single, 1)
+        held_to_hf("qwen35, one device", one_meta, one, doc["qwen35"])
+        for width, devices in widths:
+            meta, rows = capture(tool, model, ids, os.path.join(directory, "qwen35-%d" % width), devices, width)
+            logit, nll = held_to_hf("qwen35, width %d" % width, meta, rows, doc["qwen35"])
+            worst_logit, worst_nll = max(worst_logit, logit), max(worst_nll, nll)
+            for phase in ("batched", "decode"):
+                common.check_device_rows(one[phase], rows[phase], list(f32.TEXTS[-1].encode("ascii")))
+            common.check_device_greedy(one["greedy"], rows["greedy"], one_meta["greedy"], meta["greedy"])
+    print("tensor-split: the qwen3 fixtures, tied and untied, and the qwen35 fixture on %s against HF, max logit error %.8f and NLL error %.8f, and against %s by the device-reference criterion  [ok]"
+          % (" and ".join("%s as width %d" % (devices, width) for width, devices in widths), worst_logit, worst_nll, single))
     return True
 
 

@@ -5,6 +5,7 @@
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <cmath>
 #include <cstring>
 #include <iostream>
 #include <map>
@@ -482,12 +483,48 @@ void timed_groups(const gguf::GGUFModel& weights, uint32_t vocab) {
     ++checks;
 }
 
+// A timed scheduler (serve --timing) on the CPU alone, and split over two CPUs: its stages run on the host, whose time the scheduler keeps a stage, from the first pass on, before any round has ended; every reply is its reply alone and the timing counts its rounds.
+void timed_cpu(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 32 * kBlock;
+    const std::vector<Req> reqs = steady_load(vocab);
+    const Make one = on(weights, [] { return cpus(1); });
+    const std::vector<Reply> ref = alone(one, tok, pool, reqs);
+    for (const size_t stages : {size_t(1), size_t(2)}) {
+        const std::string what = "a timed scheduler on " + std::to_string(stages) + " CPU stage" + (stages > 1 ? "s" : "");
+        auto model = on(weights, [stages] { return cpus(stages); })(pool, kUbatch);
+        std::vector<std::shared_ptr<server::Request>> handles;
+        std::vector<Reply> got;
+        server::Scheduler::Stats stats;
+        {
+            server::Scheduler sched(*model, tok, kSeqs, 64, stages, true);
+            for (const Req& r : reqs) handles.push_back(sched.submit(r.prompt, params_of(r)));
+            std::thread runner([&] { sched.run(); });
+            try {
+                for (auto& h : handles) got.push_back(drain(*h));
+                stats = sched.stats();
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+        }
+        for (size_t i = 0; i < reqs.size(); ++i) same(ref[i], got[i], what + ", request " + std::to_string(i));
+        require(stats.timed && stats.timing.rounds > 0 && stats.timing.stage_ms.size() == stages, what + ": the timing holds " + std::to_string(stats.timing.rounds) + " rounds and " + std::to_string(stats.timing.stage_ms.size()) + " stages");
+        for (double ms : stats.timing.stage_ms) require(std::isfinite(ms) && ms >= 0, what + ": a stage's time is " + std::to_string(ms));
+        ++checks;
+    }
+}
+
 } // namespace
 
 int main() {
     try {
         grouped(served(kSplit), (uint32_t)kSplit.vocab);
         timed_groups(served(kSplit), (uint32_t)kSplit.vocab);
+        timed_cpu(served(kSplit), (uint32_t)kSplit.vocab);
         cases(served(kSplit), (uint32_t)kSplit.vocab);
         // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: without checkpoint slots it keeps no donor, and a stage may hold only states.
         cases(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);

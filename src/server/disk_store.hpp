@@ -34,10 +34,12 @@
 
 namespace server {
 
-// One device's run of an entry, as host memory holds it: `bytes` over consecutive host-visible slabs of the store call's slab size (infer::HostHistory).
+// A run of an entry, as host memory holds it: `bytes` at `offset` of consecutive host-visible slabs of the store call's slab size taken end to end (infer::HostHistory, infer::HostRange).
+// An entry's payload is its runs one after another, so the same payload can come from, or go to, memory laid out in other runs.
 struct StoreRun {
     std::vector<backend::BufferPtr> slabs;
     size_t bytes = 0;
+    size_t offset = 0;
 };
 
 class DiskStore {
@@ -113,10 +115,13 @@ public:
 
     // Queues an entry's write and returns its key; `done` runs on the I/O thread once the file is in place, or with the reason it is not: the floor, a failed write, or a cancel.
     // The slabs must not change until `done` has run.
-    uint64_t put(std::string blob, std::vector<StoreRun> runs, size_t slab, Done done) {
+    // `layout` is what the file records of its payload, a size a device, and the runs' bytes one a run where none is given; runs that do not add up to it are the caller's error.
+    // The payload is one stream, so the runs' ends need not fall where the layout's do: a run may cross from one of its sizes into the next.
+    uint64_t put(std::string blob, std::vector<StoreRun> runs, size_t slab, Done done, std::vector<size_t> layout = {}) {
         auto j = std::make_shared<Job>();
         j->put = true;
         j->blob = std::move(blob);
+        j->layout = layout_of(runs, std::move(layout));
         j->runs = std::move(runs);
         j->slab = slab;
         j->done = std::move(done);
@@ -128,9 +133,11 @@ public:
     }
 
     // Queues a read of entry `key` into the runs' slabs, whose bytes must be the entry's; reads go before writes. `done` reports a missing entry, another identity or layout, a failed checksum or read, after which the entry is deleted.
-    void get(uint64_t key, std::vector<StoreRun> runs, size_t slab, Done done) {
+    // `layout` as put's: the file's must equal it, and the runs, in whatever pieces memory holds them, must add up to it.
+    void get(uint64_t key, std::vector<StoreRun> runs, size_t slab, Done done, std::vector<size_t> layout = {}) {
         auto j = std::make_shared<Job>();
         j->key = key;
+        j->layout = layout_of(runs, std::move(layout));
         j->runs = std::move(runs);
         j->slab = slab;
         j->done = std::move(done);
@@ -206,10 +213,22 @@ public:
     }
 
 private:
+    // A call's layout: the one given, which its runs must add up to, or the runs' own sizes.
+    static std::vector<size_t> layout_of(const std::vector<StoreRun>& runs, std::vector<size_t> layout) {
+        size_t held = 0, said = 0;
+        for (const StoreRun& r : runs) held += r.bytes;
+        if (layout.empty())
+            for (const StoreRun& r : runs) layout.push_back(r.bytes);
+        for (size_t b : layout) said += b;
+        if (held != said) throw std::logic_error("disk cache: runs that do not add up to the entry's layout");
+        return layout;
+    }
+
     struct Job {
         bool put = false;
         uint64_t key = 0;
         std::string blob;
+        std::vector<size_t> layout;
         std::vector<StoreRun> runs;
         size_t slab = 0;
         Done done;
@@ -511,8 +530,8 @@ private:
         while (run < j.runs.size() && at >= j.runs[run].bytes) at -= j.runs[run++].bytes;
         while (n) {
             const StoreRun& r = j.runs[run];
-            const size_t in = (size_t)at % j.slab, k = std::min({n, j.slab - in, r.bytes - (size_t)at});
-            auto* slab = (uint8_t*)const_cast<void*>(r.slabs[(size_t)at / j.slab]->host_ptr());
+            const size_t in = (r.offset + (size_t)at) % j.slab, k = std::min({n, j.slab - in, r.bytes - (size_t)at});
+            auto* slab = (uint8_t*)const_cast<void*>(r.slabs[(r.offset + (size_t)at) / j.slab]->host_ptr());
             if (to_slabs) std::memcpy(slab + in, buf, k);
             else std::memcpy(buf, slab + in, k);
             buf += k;
@@ -526,12 +545,9 @@ private:
     }
 
     bool write(Job& j, std::string& error) {
-        std::vector<size_t> run_bytes;
+        const std::vector<size_t>& run_bytes = j.layout;
         uint64_t payload = 0;
-        for (const StoreRun& r : j.runs) {
-            run_bytes.push_back(r.bytes);
-            payload += r.bytes;
-        }
+        for (size_t b : run_bytes) payload += b;
         const uint64_t chunk_count = chunks(payload), head = header_bytes(j.blob.size(), run_bytes.size(), chunk_count), total = head + round_up(payload, kAlign);
         const std::optional<uint64_t> free = free_bytes();
         if (free && (*free < total || *free - total < options_.floor)) {
@@ -623,9 +639,7 @@ private:
                 const std::optional<Header> h = read_header(*r);
                 if (!h) return "an entry whose header is not this server's or fails its checksum";
                 uint64_t payload = 0;
-                bool layout = h->run_bytes.size() == j.runs.size();
-                for (size_t i = 0; layout && i < j.runs.size(); ++i) layout = h->run_bytes[i] == j.runs[i].bytes;
-                if (!layout) return "an entry of another layout";
+                if (h->run_bytes != j.layout) return "an entry of another layout";
                 for (size_t b : h->run_bytes) payload += b;
                 for (uint64_t c = 0; c < h->crcs.size(); ++c) {
                     const size_t n = (size_t)std::min<uint64_t>(kChunk, payload - c * kChunk), padded = (size_t)round_up(n, kAlign);

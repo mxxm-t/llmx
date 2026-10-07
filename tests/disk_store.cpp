@@ -167,6 +167,41 @@ int main(int argc, char** argv) {
             auto back = runs_of(cpu, layout, 0);
             const Outcome got = wait_get(store, key, back);
             require(got.ok && bytes_of(back) == want, "an entry read back differs: " + got.error);
+            // The same payload out of memory laid out in other runs (StoreRun::offset): the two devices' bytes each cut in three, written under the layout of two, are the first entry's file byte for byte, and read back into four pieces of other sizes.
+            {
+                const auto piece = [](const server::StoreRun& of, size_t offset, size_t bytes) {
+                    server::StoreRun r;
+                    r.slabs = of.slabs;
+                    r.offset = offset;
+                    r.bytes = bytes;
+                    return r;
+                };
+                const size_t a = layout[0], b = layout[1];
+                const std::vector<server::StoreRun> cut{piece(written[0], 0, kSlab + 7), piece(written[0], kSlab + 7, kSlab), piece(written[0], 2 * kSlab + 7, a - 2 * kSlab - 7),
+                                                        piece(written[1], 0, 5), piece(written[1], 5, 4 * kSlab), piece(written[1], 4 * kSlab + 5, b - 4 * kSlab - 5)};
+                uint64_t pieces = 0;
+                Call wrote;
+                pieces = store.put("the blob", cut, kSlab, wrote.done(), layout);
+                require(wrote.wait().ok, "an entry was not written from runs at offsets");
+                const auto file = [&](uint64_t k) {
+                    std::ifstream in(store.directory() / ("entry-" + std::to_string(k) + ".kv"), std::ios::binary);
+                    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+                };
+                require(file(pieces) == file(key), "an entry written from runs at offsets is another file than the same payload written whole");
+                auto back = runs_of(cpu, layout, 0);
+                const std::vector<server::StoreRun> into{piece(back[0], 0, 3), piece(back[0], 3, a - 3), piece(back[1], 0, 2 * kSlab + 1), piece(back[1], 2 * kSlab + 1, b - 2 * kSlab - 1)};
+                Call read;
+                store.get(pieces, into, kSlab, read.done(), layout);
+                require(read.wait().ok && bytes_of(back) == want, "an entry read into runs at offsets differs");
+                bool refused = false;
+                try {
+                    store.get(pieces, {piece(back[0], 0, a)}, kSlab, [](bool, const std::string&) {}, layout);
+                } catch (const std::logic_error&) {
+                    refused = true;
+                }
+                require(refused, "runs that do not add up to the layout were taken");
+                store.evict(pieces);
+            }
             // Another layout is refused and the entry deleted.
             uint64_t other_key = 0;
             require(wait_put(store, other_key, "x", runs_of(cpu, {kSlab}, 2)).ok, "a second entry was not written");

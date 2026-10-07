@@ -2099,6 +2099,82 @@ void disk_flush(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     }
 }
 
+// The idle rewrite's rule (docs/DISK-TIER.md, Keeping entries across a restart): a conversation whose earlier whole copy on disk is within a quarter of its new length is not written again while idle, and that earlier file stays until a newer one is in place.
+// One conversation, each reply read again: after its first turn the idle scheduler writes its copy of 1152 tokens; a second turn that grows it to 1280 writes nothing more in eight idle seconds and leaves the one file; a third that grows it to 1792 writes the new copy and deletes the old; a fourth small turn writes nothing; and the stop then writes the newest copy, 1920 tokens, the one file left.
+void disk_idle_rule(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "the idle rewrite's rule";
+    DiskRoot disk("idle-rule");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    auto model = make(4096, 16);
+    const auto kept_length = [&]() -> uint64_t {
+        const std::vector<fs::path> files = disk.files(".kv");
+        if (files.size() != 1) return 0;
+        std::ifstream in(files[0], std::ios::binary);
+        std::string head((size_t)1 << 20, 0);
+        in.read(head.data(), (std::streamsize)head.size());
+        uint64_t chunks = 0, length = 0;
+        uint32_t runs = 0;
+        std::memcpy(&runs, head.data() + 60, 4);
+        std::memcpy(&chunks, head.data() + 64 + 8 * (size_t)runs, 8);
+        std::memcpy(&length, head.data() + 72 + 8 * (size_t)runs + 4 * (size_t)chunks + 16, 8);
+        return length;
+    };
+    {
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            std::vector<uint32_t> prompt = prompt_of(49, 1200, vocab);
+            size_t jobs = 0;
+            const auto turn = [&](size_t more) {
+                if (more) {
+                    const std::vector<uint32_t> tail = prompt_of(50 + (uint32_t)jobs, more, vocab);
+                    prompt.insert(prompt.end(), tail.begin(), tail.end());
+                }
+                const auto h = sched.submit(prompt, params_of(Req{prompt, 20}));
+                for (uint32_t id : ids_of(drain(*h))) prompt.push_back(id);
+                prompt.push_back(1);
+                prompt.push_back(2);
+                sched.follow(h, prompt, true);
+                ++jobs;
+                within_a_minute([&] { return sched.stats().reprefills == jobs; }, what + ": reply " + std::to_string(jobs) + " read again");
+            };
+            const auto written = [&] { return sched.stats().disk_bytes_written; };
+            const auto settled = [&](uint64_t before, const std::string& when) {
+                within_a_minute([&] { return written() > before && !sched.stats().disk_in_flight; }, what + ": a copy written " + when);
+            };
+            const auto quiet = [&](const std::string& when) {
+                const uint64_t before = written();
+                for (const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(8); std::chrono::steady_clock::now() < until;) {
+                    require(written() == before && !sched.stats().disk_in_flight, what + ": the whole copy written again " + when);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                }
+            };
+            turn(0);
+            settled(0, "after the first turn");
+            require(sched.stats().disk_entries == 1 && kept_length() == 1152, what + ": " + std::to_string(sched.stats().disk_entries) + " entries, the file's copy " + std::to_string(kept_length()) + " tokens, after the first turn");
+            turn(50);
+            quiet("after a turn that grew the conversation from 1152 to 1280 tokens");
+            require(sched.stats().disk_entries == 1 && kept_length() == 1152, what + ": the earlier copy's file did not stay: " + std::to_string(sched.stats().disk_entries) + " entries, " + std::to_string(kept_length()) + " tokens");
+            const uint64_t before = written();
+            turn(600);
+            settled(before, "after a turn that grew the conversation past a quarter");
+            within_a_minute([&] { return sched.stats().disk_entries == 1; }, what + ": the earlier copy's file deleted once the newer was in place");
+            require(kept_length() == 1792, what + ": the file's copy is " + std::to_string(kept_length()) + " tokens after the long turn, against 1792");
+            turn(40);
+            quiet("after a fourth, small turn");
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(kept_length() == 1920, what + ": the stop left " + std::to_string(disk.files(".kv").size()) + " files, the copy " + std::to_string(kept_length()) + " tokens, against one of 1920");
+}
+
 void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t restart_host = 4 * ((size_t)64 << 20), size_t first_host = 4 * ((size_t)64 << 20)) {
     const bool through = restart_host < ((size_t)64 << 20), beyond = first_host < ((size_t)64 << 20);
     const std::string what = beyond ? "entries written from a host tier smaller than an entry" : through ? "entries kept across a restart into a host tier smaller than an entry" : "entries kept across a restart";
@@ -2303,6 +2379,7 @@ int main(int argc, char** argv) {
             disk_read_waits(one, tok, vocab);
             disk_read_bound(one, tok, vocab);
             disk_flush(one, tok, vocab);
+            disk_idle_rule(one, tok, vocab);
             disk_kept(one, tok, vocab);
             disk_kept(one, tok, vocab, (size_t)1 << 16);
             disk_kept(one, tok, vocab, 4 * ((size_t)64 << 20), (size_t)1 << 16);

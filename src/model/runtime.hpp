@@ -129,8 +129,15 @@ struct HostHistory {
     size_t length = 0, bytes = 0, held = 0;
     std::vector<size_t> device_bytes;   // per device, the bytes of its runs, in the order its slabs hold them
     bool blocks = true;   // false for a state alone, at `length`, whose blocks a history on the devices holds (Model::fork with a state)
+    size_t first = 0;     // the token its blocks begin at: past 0 for the blocks of a range alone (Model::save_host_blocks)
+    bool state = true;    // false for blocks alone, with no state after them
     std::vector<std::vector<backend::BufferPtr>> slabs;
     std::vector<backend::Ticket> tickets;
+};
+
+// A stretch of a host history on one device: `bytes` at `offset` of that device's slabs taken end to end.
+struct HostRange {
+    size_t device = 0, offset = 0, bytes = 0;
 };
 
 // What one sequence contributes to a pass: `n` tokens appended to `seq`, and whether the logits after its last token are wanted.
@@ -612,10 +619,13 @@ public:
     bool mark(Sequence& s);
     bool keep(Sequence& s);
     std::optional<size_t> checkpoint(const Sequence& s) const;
-    size_t host_bytes(size_t length, bool blocks = true) const;
+    size_t host_bytes(size_t length, bool blocks = true, size_t first = 0, bool state = true) const;
     std::string host_identity() const;
-    void alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks = true);
+    void alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks = true, size_t first = 0, bool state = true);
     void save_host(Sequence& s, size_t length, HostHistory& out, size_t limit, bool blocks = true);
+    void save_host_blocks(Sequence& s, size_t first, size_t length, HostHistory& out, size_t limit);
+    std::vector<HostRange> host_ranges(const HostHistory& h, size_t first, size_t length) const;
+    std::vector<HostRange> host_state_ranges(const HostHistory& h) const;
     size_t host_allocated() const;
     bool caches_on_devices() const;
     Sequence restore_host(HostHistory& h);

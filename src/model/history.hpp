@@ -105,15 +105,15 @@ inline std::optional<size_t> Model::checkpoint(const Sequence& s) const {
     return s.kept_.pos();
 }
 
-// The host memory a copy of `length` tokens takes (HostHistory::held): per device, whole blocks of its KV storage's layers, K and V, and one slot of its state storage, in whole slabs; without `blocks`, the slot alone.
-inline size_t Model::host_bytes(size_t length, bool blocks) const {
+// The host memory a copy of `length` tokens takes (HostHistory::held): per device, whole blocks of its KV storage's layers, K and V, and one slot of its state storage, in whole slabs; without `blocks`, the slot alone; from `first` on and without `state`, the blocks of a range alone.
+inline size_t Model::host_bytes(size_t length, bool blocks, size_t first, bool state) const {
     size_t n = 0;
     for (const auto& d : devices_) {
         size_t bytes = 0;
         if (const auto* st = blocks ? dynamic_cast<const backend::BlockKVStorage*>(d->storage.get()) : nullptr)
-            bytes += backend::blocks_for(length, st->block_tokens()) * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
-        if (d->states) bytes += d->states->layers() * d->states->shape().slot_floats() * sizeof(float);
-        if (d->carry && state_layers_) bytes += plan_.residual * sizeof(float);
+            bytes += (backend::blocks_for(length, st->block_tokens()) - first / st->block_tokens()) * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
+        if (state && d->states) bytes += d->states->layers() * d->states->shape().slot_floats() * sizeof(float);
+        if (state && d->carry && state_layers_) bytes += plan_.residual * sizeof(float);
         n += backend::blocks_for(bytes, kHostSlab) * kHostSlab;
     }
     return n;
@@ -138,7 +138,7 @@ struct HostSpan {
             bytes -= n;
         }
     }
-    // A sequence's first `n` blocks of `st`, each layer's K blocks then its V blocks, a run of consecutive blocks in one copy.
+    // `n` blocks of a sequence in `st`, from `ids` on, each layer's K blocks then its V blocks, a run of consecutive blocks in one copy.
     void blocks(backend::BlockKVStorage& st, const int32_t* ids, size_t n) {
         for (size_t l = 0; l < st.layers(); ++l)
             for (int side = 0; side < 2; ++side) {
@@ -195,8 +195,9 @@ inline size_t Model::host_allocated() const {
 }
 
 // Slabs for a copy of `length` tokens of this model's layout (HostHistory), as save_host takes them, holding nothing yet: within `limit` and the reserve the fit keeps on the host, idle slabs reused and those of other devices freed first; a read from disk fills them.
+// From `first` on and without `state` they are for the blocks of a range alone (save_host_blocks).
 // `out` is whole or, on a throw, released.
-inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks) {
+inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks, size_t first, bool state) {
     release_host(out);
     // Each sized on its own, so one that fails to grow leaves the other's check to grow it next time.
     if (host_allocated_.size() != devices_.size()) host_allocated_.resize(devices_.size(), 0);
@@ -205,9 +206,9 @@ inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, boo
     for (size_t i = 0; i < devices_.size(); ++i) {
         const Device& d = *devices_[i];
         if (const auto* st = blocks ? dynamic_cast<const backend::BlockKVStorage*>(d.storage.get()) : nullptr)
-            bytes[i] = length / st->block_tokens() * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
-        if (d.states) bytes[i] += d.states->layers() * d.states->shape().slot_floats() * sizeof(float);
-        if (d.carry && state_layers_) bytes[i] += plan_.residual * sizeof(float);
+            bytes[i] = (length - first) / st->block_tokens() * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
+        if (state && d.states) bytes[i] += d.states->layers() * d.states->shape().slot_floats() * sizeof(float);
+        if (state && d.carry && state_layers_) bytes[i] += plan_.residual * sizeof(float);
         need[i] = backend::blocks_for(bytes[i], kHostSlab);
         idle[i] = host_slabs_[i].size();
     }
@@ -229,6 +230,8 @@ inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, boo
     h.owner = this;
     h.length = length;
     h.blocks = blocks;
+    h.first = first;
+    h.state = state;
     h.device_bytes = bytes;
     h.slabs.resize(devices_.size());
     h.tickets.assign(devices_.size(), 0);
@@ -298,12 +301,74 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
     out = std::move(h);
 }
 
+// The blocks of the history's tokens from `first` to `length`, whole blocks of every storage, copied to host memory alone, with no state: what a turn added to a history whose earlier blocks are kept elsewhere (docs/DISK-TIER.md, Planned: entries written as what changed).
+// Enqueued and limited as save_host's copies are; `out` is whole or, on a throw, released.
+inline void Model::save_host_blocks(Sequence& s, size_t first, size_t length, HostHistory& out, size_t limit) {
+    settle(s, "a copy to host memory");
+    release_host(out);
+    if (s.mark_.held()) throw std::logic_error("inference: a copy to host memory of a marked sequence");
+    if (first >= length || length > s.length()) throw std::logic_error("inference: a copy to host memory of blocks outside the history");
+    for (const Device* d : storages_) {
+        if (!dynamic_cast<const backend::BlockKVStorage*>(d->storage.get())) throw std::runtime_error("inference: a KV storage that cannot be copied to host memory");
+        if (first % d->b->kv_layout().block_tokens || length % d->b->kv_layout().block_tokens) throw std::logic_error("inference: a copy to host memory takes whole blocks of the history");
+    }
+    HostHistory h;
+    alloc_host(length, h, limit, true, first, false);
+    try {
+        for (size_t i = 0; i < devices_.size(); ++i) {
+            if (h.slabs[i].empty()) continue;
+            Device& d = *devices_[i];
+            detail::HostSpan span{*d.b, h.slabs[i], kHostSlab, true};
+            auto* st = dynamic_cast<backend::BlockKVStorage*>(d.storage.get());
+            span.blocks(*st, s.kv_[(size_t)d.storage_index].view(nullptr).blocks + first / st->block_tokens(), (length - first) / st->block_tokens());
+            h.tickets[i] = d.b->submit();
+        }
+    } catch (...) {
+        for (auto& d : devices_) d->b->sync();
+        release_host(h);
+        throw;
+    }
+    out = std::move(h);
+}
+
+// Where the blocks of tokens `first` to `length` lie in host history `h`, which holds them: per device, a layer's K blocks and then its V blocks, in the order a copy of that range alone holds them end to end, so the two are the same bytes in the same order.
+inline std::vector<HostRange> Model::host_ranges(const HostHistory& h, size_t first, size_t length) const {
+    if (h.owner != this || !h.blocks || first < h.first || first >= length || length > h.length) throw std::logic_error("inference: a range outside the host history");
+    std::vector<HostRange> out;
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        const auto* st = dynamic_cast<const backend::BlockKVStorage*>(devices_[i]->storage.get());
+        if (!st) continue;
+        const size_t bt = st->block_tokens(), held = (h.length - h.first) / bt, skip = (first - h.first) / bt, n = (length - first) / bt;
+        if (first % bt || length % bt) throw std::logic_error("inference: a range of a host history takes whole blocks");
+        size_t at = 0;
+        for (size_t l = 0; l < st->layers(); ++l)
+            for (const size_t block : {st->k_block_bytes(), st->v_block_bytes()}) {
+                out.push_back(HostRange{i, at + skip * block, n * block});
+                at += held * block;
+            }
+    }
+    return out;
+}
+
+// Where the state lies in host history `h`, which holds one: per device, the bytes after its blocks.
+inline std::vector<HostRange> Model::host_state_ranges(const HostHistory& h) const {
+    if (h.owner != this || !h.state) throw std::logic_error("inference: a host history without a state");
+    std::vector<HostRange> out;
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        size_t blocks = 0;
+        if (const auto* st = h.blocks ? dynamic_cast<const backend::BlockKVStorage*>(devices_[i]->storage.get()) : nullptr)
+            blocks = (h.length - h.first) / st->block_tokens() * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
+        if (h.device_bytes[i] > blocks) out.push_back(HostRange{i, blocks, h.device_bytes[i] - blocks});
+    }
+    return out;
+}
+
 // A fresh history holding what `h` copied, copied back into blocks and, on a model that keeps a state, a checkpoint slot of this model, at h.length, so a fork or the history itself continues from it with the bits of the history it was copied from.
 // The copies are enqueued ahead of any pass of the history, whose tickets cover them, as do h's.
 // A throw, from a pool, a slot or a copy, leaves nothing held.
 inline Sequence Model::restore_host(HostHistory& h) {
     if (h.owner != this) throw std::runtime_error("inference: a history copied to host memory by another model");
-    if (h.slabs.size() != devices_.size() || !h.blocks) throw std::logic_error("inference: a host history of another layout");
+    if (h.slabs.size() != devices_.size() || !h.blocks || h.first || (state_layers_ && !h.state)) throw std::logic_error("inference: a host history of another layout");
     Sequence s = make_sequence();
     size_t slot = 0;
     if (state_layers_) {

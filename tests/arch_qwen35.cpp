@@ -581,6 +581,23 @@ void host_state_fork() {
     model.forward(ctx, both, 2);
     require(!std::memcmp(ctx.logits(0), want.data(), VOCAB * sizeof(float)), "a fork with a state from host memory differs from the prompt in one");
     require(!std::memcmp(ctx.logits(1), want_longer.data(), VOCAB * sizeof(float)), "the history beside its fork with a state differs from its prompt in one");
+    // The state a whole copy holds after its blocks (Model::host_state_ranges) is the state alone, byte for byte, and its blocks are a range copy's (Model::save_host_blocks), which needs no checkpoint.
+    {
+        const size_t slab = (size_t)64 << 20;
+        const auto bytes_of = [&](infer::HostHistory& from, const std::vector<infer::HostRange>& ranges) {
+            model.wait_host(from);
+            std::vector<uint8_t> out;
+            for (const infer::HostRange& r : ranges)
+                for (size_t at = r.offset; at < r.offset + r.bytes; ++at) out.push_back(((const uint8_t*)from.slabs[r.device][at / slab]->host_ptr())[at % slab]);
+            return out;
+        };
+        infer::HostHistory blocks;
+        model.save_host_blocks(f, 0, 128, blocks, std::numeric_limits<size_t>::max());
+        require(bytes_of(whole, model.host_state_ranges(whole)) == bytes_of(st, model.host_state_ranges(st)), "a whole copy's state differs from the state alone");
+        require(bytes_of(whole, model.host_ranges(whole, 0, 128)) == bytes_of(blocks, model.host_ranges(blocks, 0, 128)), "a whole copy's blocks differ from the blocks alone");
+        require(blocks.bytes + st.bytes == whole.bytes, "blocks alone and a state alone are not a whole copy's bytes");
+        model.release_host(blocks);
+    }
     model.release_host(st);
     model.release_host(whole);
     model.reset(f);

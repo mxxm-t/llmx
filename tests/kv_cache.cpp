@@ -780,6 +780,53 @@ void host_round_trip() {
     model.release_host(h);
     model.reset(r);
     model.reset(other);
+    // The blocks of a range alone (Model::save_host_blocks) are the bytes the whole copy holds at that range (Model::host_ranges), in the same order, and a whole history put together from two ranges restores as the copy does.
+    {
+        const size_t slab = (size_t)64 << 20;
+        const auto bytes_of = [&](infer::HostHistory& from, const std::vector<infer::HostRange>& ranges) {
+            model.wait_host(from);
+            std::vector<uint8_t> out;
+            for (const infer::HostRange& r : ranges)
+                for (size_t at = r.offset; at < r.offset + r.bytes; ++at) out.push_back(((const uint8_t*)from.slabs[r.device][at / slab]->host_ptr())[at % slab]);
+            return out;
+        };
+        const auto whole_of = [&](infer::HostHistory& from) { return bytes_of(from, {infer::HostRange{0, 0, from.device_bytes[0]}}); };
+        infer::Sequence b = model.make_sequence();
+        run(model, b, history.data(), 2 * bt, false);
+        infer::HostHistory all, low, high;
+        model.save_host(b, 2 * bt, all, any);
+        rejects([&] { model.save_host_blocks(b, bt, bt + 1, high, any); }, "a range inside a block copied to host memory");
+        rejects([&] { model.save_host_blocks(b, bt, bt, high, any); }, "an empty range copied to host memory");
+        rejects([&] { model.save_host_blocks(b, bt, 3 * bt, high, any); }, "a range past the history copied to host memory");
+        model.save_host_blocks(b, 0, bt, low, any);
+        model.save_host_blocks(b, bt, 2 * bt, high, any);
+        require(high.first == bt && high.length == 2 * bt && !high.state && high.held == model.host_bytes(2 * bt, true, bt, false) && low.bytes + high.bytes == all.bytes,
+                "a range copied to host memory holds other bytes");
+        require(whole_of(low) == bytes_of(all, model.host_ranges(all, 0, bt)) && whole_of(high) == bytes_of(all, model.host_ranges(all, bt, 2 * bt)),
+                "a range copied to host memory differs from the whole copy's bytes at that range");
+        require(whole_of(high) == bytes_of(high, model.host_ranges(high, bt, 2 * bt)), "a range copy's own ranges are not its bytes end to end");
+        rejects([&] { model.host_ranges(all, bt, 3 * bt); }, "a range past the host history given");
+        rejects([&] { model.host_ranges(high, 0, bt); }, "a range below a range copy given");
+        rejects([&] { model.host_state_ranges(high); }, "the state of blocks alone given");
+        rejects([&] { model.restore_host(high); }, "blocks of a range alone restored as a history");
+        infer::HostHistory joined;
+        model.alloc_host(2 * bt, joined, any);
+        const auto put = [&](infer::HostHistory& from, size_t first, size_t length) {
+            const std::vector<uint8_t> src = whole_of(from);
+            size_t k = 0;
+            for (const infer::HostRange& r : model.host_ranges(joined, first, length))
+                for (size_t at = r.offset; at < r.offset + r.bytes; ++at) ((uint8_t*)joined.slabs[r.device][at / slab]->host_ptr())[at % slab] = src[k++];
+            require(k == src.size(), "a range's place in a whole host history is not its size");
+        };
+        put(low, 0, bt);
+        put(high, bt, 2 * bt);
+        model.reset(b);
+        infer::Sequence j = model.restore_host(joined);
+        run(model, j, history.data() + 2 * bt, 5, false);
+        require(run(model, j, &six, 1, true) == want, "a history put together from two ranges differs from one never copied");
+        for (infer::HostHistory* each : {&all, &low, &high, &joined}) model.release_host(*each);
+        model.reset(j);
+    }
     fresh.reset(ref);
 }
 

@@ -26,8 +26,8 @@ struct Run {
     size_t from = 0, bytes = 0, to = 0;
 };
 
-// The length of a role's axis: its rows, or its columns, a vector's elements.
-inline uint64_t extent(const Role& role) { return role.shard.axis == Axis::columns ? role.in : role.out; }
+// The length of a role's axis: its rows, an expert stack's over every expert, or its columns, a vector's elements.
+inline uint64_t extent(const Role& role) { return role.shard.axis == Axis::columns ? role.in : role.out * (role.experts ? role.experts : 1); }
 
 // The units of `section` member `member` of `width` takes, the first and the count, or nothing where the width neither divides the units nor, where the section allows it, is a multiple of them.
 inline std::optional<Span> take(const ShardSection& section, size_t width, size_t member) {
@@ -41,7 +41,7 @@ inline std::optional<Span> take(const ShardSection& section, size_t width, size_
 
 // The refusal of a width that does not split a section of `role`.
 inline std::runtime_error indivisible(const Role& role, const ShardSection& section, size_t width) {
-    return std::runtime_error("inference: a tensor width of " + std::to_string(width) + " does not divide the " + std::to_string(section.units * section.tiles) + " " +
+    return std::runtime_error("inference: a tensor width of " + std::to_string(width) + " does not divide the " + std::to_string(section.units) + " " +
                               section.what + " of " + role.name + (section.replicate ? ", nor is a multiple of them" : ""));
 }
 
@@ -66,7 +66,7 @@ inline std::vector<Span> spans(const Role& role, size_t width, size_t member) {
     return out;
 }
 
-// Whether a model of `plan` over `views` splits at `width`: each role's tensor by its declaration, every section by its units and on the column axis every span of every member on whole blocks of its storage type, refused by name otherwise, as is a state layer's saved row the width does not divide, an embedded drafter's block as a layer's; a routed layer is refused, as a group does not split one yet (docs/TENSOR-SPLIT.md, sections 4.10 and 6).
+// Whether a model of `plan` over `views` splits at `width`: each role's tensor by its declaration, every section by its units and on the column axis every span of every member on whole blocks of its storage type, refused by name otherwise, as is a state layer's saved row the width does not divide, an embedded drafter's block as a layer's.
 inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& views, size_t width) {
     if (!width) throw std::logic_error("shard: a group of no members");
     if (width == 1) return;
@@ -83,8 +83,6 @@ inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& vie
     };
     each(plan.pass);
     for (size_t l = 0; l < plan.layers.size(); ++l) {
-        if (plan.layers[l].routed)
-            throw std::runtime_error("inference: a tensor width of " + std::to_string(width) + " does not split layer " + std::to_string(l) + "'s routed experts yet");
         each(plan.layers[l].roles);
         // A state layer's saved rows are rows its split roles write, so a member holds its share of each (saved).
         for (const Saved& v : plan.layers[l].saved)
@@ -128,13 +126,18 @@ inline void pack(const std::vector<Run>& runs, const uint8_t* src, uint8_t* dst)
     for (const Run& r : runs) std::memcpy(dst + r.to, src + r.from, r.bytes);
 }
 
+// The rows or columns of `role` member `member` of `width` holds along its axis, an expert stack's rows those of one expert.
+inline uint64_t share(const Role& role, size_t width, size_t member) {
+    uint64_t n = 0;
+    for (const Span& s : spans(role, width, member)) n += s.count;
+    return role.shard.axis == Axis::rows && role.experts ? n / role.experts : n;
+}
+
 // The shape of a member's copy of `role`'s tensor `t`, the fastest dimension first.
 inline std::vector<uint64_t> shape(const Role& role, const TensorView& t, size_t width, size_t member) {
     std::vector<uint64_t> out = t.shape;
     if (role.shard.axis == Axis::none || width == 1) return out;
-    uint64_t n = 0;
-    for (const Span& s : spans(role, width, member)) n += s.count;
-    out.at(role.shard.axis == Axis::columns ? 0 : 1) = n;
+    out.at(role.shard.axis == Axis::columns ? 0 : 1) = share(role, width, member);
     return out;
 }
 

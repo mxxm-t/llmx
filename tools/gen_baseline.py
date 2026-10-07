@@ -889,25 +889,40 @@ def gen_mxfp4(output_dir=OUT_DIR):
         print("wrote %s (MXFP4 dense tied/untied and MoE, logits and windowed NLL)" % path)
 
 
-def tiny_moe(seed=67890):
-    """The tiny qwen3moe model of tests/moe.py as an HF Qwen3MoeForCausalLM holding the weights moe.tensors builds from `seed`; returns the model and those weights."""
+def tiny_moe(seed=67890, config=None, vocab=257):
+    """The tiny qwen3moe model of tests/moe.py, or one of `config`'s shapes over `vocab` tokens, as an HF Qwen3MoeForCausalLM holding the weights moe.tensors builds from `seed`; returns the model and those weights."""
     import torch
     from transformers import Qwen3MoeConfig, Qwen3MoeForCausalLM
     from moe import CONFIG, DENSE_LAYERS, tensors
 
-    config = Qwen3MoeConfig(vocab_size=257, hidden_size=CONFIG["embedding_length"],
-                            intermediate_size=CONFIG["feed_forward_length"],
-                            moe_intermediate_size=CONFIG["expert_feed_forward_length"],
-                            num_hidden_layers=CONFIG["block_count"], num_attention_heads=2, num_key_value_heads=1,
-                            head_dim=CONFIG["attention.key_length"], max_position_embeddings=16, rope_theta=10000.0,
-                            rms_norm_eps=1e-6, tie_word_embeddings=False, attention_dropout=0.0,
-                            num_experts=CONFIG["expert_count"], num_experts_per_tok=CONFIG["expert_used_count"],
-                            norm_topk_prob=True, decoder_sparse_step=1, mlp_only_layers=list(DENSE_LAYERS))
-    config._attn_implementation = "eager"
-    model = Qwen3MoeForCausalLM(config).float().eval()
-    weights = tensors(seed)
+    c = config or CONFIG
+    hf = Qwen3MoeConfig(vocab_size=vocab, hidden_size=c["embedding_length"],
+                        intermediate_size=c["feed_forward_length"],
+                        moe_intermediate_size=c["expert_feed_forward_length"],
+                        num_hidden_layers=c["block_count"], num_attention_heads=c["attention.head_count"],
+                        num_key_value_heads=c["attention.head_count_kv"],
+                        head_dim=c["attention.key_length"], max_position_embeddings=16, rope_theta=10000.0,
+                        rms_norm_eps=1e-6, tie_word_embeddings=False, attention_dropout=0.0,
+                        num_experts=c["expert_count"], num_experts_per_tok=c["expert_used_count"],
+                        norm_topk_prob=True, decoder_sparse_step=1, mlp_only_layers=list(DENSE_LAYERS))
+    hf._attn_implementation = "eager"
+    model = Qwen3MoeForCausalLM(hf).float().eval()
+    weights = tensors(seed, config, vocab)
     load_tiny_weights(model, weights, torch)
     return model, weights
+
+
+def moe_routing_gaps(model, torch, k):
+    """The routers of an HF Qwen3MoeForCausalLM hooked to record, over every forward that follows, the smallest gap between a token's k-th and next expert probability; a near tie could route differently under other rounding."""
+    gaps = []
+
+    def watch(_, __, out):
+        p = torch.softmax(out.double(), dim=-1).sort(dim=-1, descending=True).values
+        gaps.append((p[:, k - 1] - p[:, k]).min().item())
+    for layer in model.model.layers:
+        if hasattr(layer.mlp, "gate"):
+            layer.mlp.gate.register_forward_hook(watch)
+    return gaps
 
 
 def gen_moe(output_dir=OUT_DIR):
@@ -917,14 +932,7 @@ def gen_moe(output_dir=OUT_DIR):
 
     torch.set_num_threads(1)
     model, weights = tiny_moe()
-    # The smallest gap between a token's k-th and next expert probability over every forward reference_outputs runs; a near tie could route differently under other rounding.
-    k, gaps = CONFIG["expert_used_count"], []
-    def watch(_, __, out):
-        p = torch.softmax(out.double(), dim=-1).sort(dim=-1, descending=True).values
-        gaps.append((p[:, k - 1] - p[:, k]).min().item())
-    for layer in model.model.layers:
-        if hasattr(layer.mlp, "gate"):
-            layer.mlp.gate.register_forward_hook(watch)
+    gaps = moe_routing_gaps(model, torch, CONFIG["expert_used_count"])
     cases, perplexity = reference_outputs(model, torch)
     if min(gaps) < 1e-4:
         raise SystemExit("moe: a token's routing is within %.2e of a tie; change the weights" % min(gaps))
@@ -1078,8 +1086,9 @@ QWEN35_GREEDY_GAP = 1e-4
 
 def qwen35_hf_config(fixture):
     """The HF text config of a tiny qwen35 or qwen35moe fixture, from the metadata tests/qwen35.py writes to its GGUF."""
-    from qwen35 import LAYERS, MOE, fixture_config, full_attention
+    from qwen35 import LAYERS, fixture_config, full_attention, moe_config
     CONFIG, V_HEAD, VOCAB = fixture_config(fixture)
+    MOE = moe_config(fixture)
     head = CONFIG["attention.key_length"]
     moe = {"architectures": ["Qwen3_5MoeForCausalLM"], "model_type": "qwen3_5_moe_text", "num_experts": MOE["expert_count"],
            "num_experts_per_tok": MOE["expert_used_count"], "moe_intermediate_size": MOE["expert_feed_forward_length"],
@@ -1310,7 +1319,8 @@ def gen_qwen35_tiny(output_dir=OUT_DIR):
 
 
 def gen_tensor_split(output_dir=OUT_DIR):
-    """The goldens of tests/tensor_split.py's fixtures, whose every split falls whole at widths 2 and 4, in the qwen35 environment, which runs both architectures: the qwen3 one, tied and untied, through HF Qwen3ForCausalLM's full forward, and the qwen35 one through HF's token-by-token cached forward, as the tiny references take them."""
+    """The goldens of tests/tensor_split.py's fixtures, whose every split falls whole at widths 2 and 4, in the qwen35 environment: the qwen3 one, tied and untied, through HF's full forward, and the qwen35 and qwen35moe ones through HF's token-by-token cached forward, as the tiny references take them.
+    The qwen35moe fixture's routers must stand clear of a tie for every token, as the tiny routed reference requires; the qwen3moe fixture's goldens are gen_tensor_split_moe's, in the tiny MoE reference's environment."""
     torch, transformers, modeling = qwen35_environment()
     from safetensors.torch import save_file
     import qwen35
@@ -1323,28 +1333,58 @@ def gen_tensor_split(output_dir=OUT_DIR):
         model, weights = tiny_qwen3(tied, config=tensor_split.CONFIG, vocab=tensor_split.VOCAB)
         cases, perplexity = reference_outputs(model, torch)
         dense.append({"tied": tied, "weights_sha256": weight_hash(weights), "cases": cases, "perplexity": perplexity})
-    spec = tensor_split.QWEN35
-    raw = qwen35.raw_weights(spec)
-    record = {"spec": spec, "weights_sha256": weight_hash(qwen35.hashed(raw))}
-    with counted_delta_rules(modeling) as calls, torch.no_grad(), tempfile.TemporaryDirectory(prefix="llmx_tensor_split_hf_") as directory:
-        with open(os.path.join(directory, "config.json"), "w", encoding="utf-8") as f:
-            json.dump(qwen35_hf_config(spec), f)
-        tensors = {name: torch.tensor(values, dtype=torch.float32).reshape(shape) for name, shape, values in raw}
-        save_file(tensors, os.path.join(directory, "model.safetensors"), metadata={"format": "pt"})
-        model, record["unused_keys"] = load_qwen35_tiny(directory, list(tensors), torch, transformers)
-        state = model.state_dict()
-        if any(not torch.equal(state[name], tensor) for name, tensor in tensors.items() if name in state):
-            raise SystemExit("tensor-split: the qwen35 fixture holds other values than its checkpoint")
-        calls.update(recurrent=0, chunk=0, log_decay=0.0)
-        goldens, _, _ = qwen35_goldens(model, torch, transformers, calls)
-        record.update(goldens)
-        record["recurrent_steps"] = calls["recurrent"]
+    moe_modeling = importlib.import_module("transformers.models.qwen3_5_moe.modeling_qwen3_5_moe")
+    records = {}
+    for key, spec in (("qwen35", tensor_split.QWEN35), ("qwen35moe", tensor_split.QWEN35MOE)):
+        raw = qwen35.raw_weights(spec)
+        record = {"spec": spec, "weights_sha256": weight_hash(qwen35.hashed(raw))}
+        with counted_delta_rules(modeling, moe_modeling) as calls, torch.no_grad(), tempfile.TemporaryDirectory(prefix="llmx_tensor_split_hf_") as directory:
+            with open(os.path.join(directory, "config.json"), "w", encoding="utf-8") as f:
+                json.dump(qwen35_hf_config(spec), f)
+            tensors = {name: torch.tensor(values, dtype=torch.float32).reshape(shape) for name, shape, values in raw}
+            save_file(tensors, os.path.join(directory, "model.safetensors"), metadata={"format": "pt"})
+            model, record["unused_keys"] = load_qwen35_tiny(directory, list(tensors), torch, transformers, bool(spec.get("moe")))
+            state = model.state_dict()
+            if any(not torch.equal(state[name], tensor) for name, tensor in tensors.items() if name in state):
+                raise SystemExit("tensor-split: the %s fixture holds other values than its checkpoint" % key)
+            calls.update(recurrent=0, chunk=0, log_decay=0.0)
+            with router_gaps(model, torch) as router:
+                goldens, _, _ = qwen35_goldens(model, torch, transformers, calls)
+            if spec.get("moe"):
+                record["min_router_gap"] = min(router)
+                if record["min_router_gap"] < QWEN35_ROUTER_GAP:
+                    raise SystemExit("tensor-split: the qwen35moe fixture routes a token whose k-th and next expert are within %.2e; change the weights" % min(router))
+            record.update(goldens)
+            record["recurrent_steps"] = calls["recurrent"]
+        records[key] = record
     path = os.path.join(output_dir, "baseline_tensor_split.json")
     _write(path, {
-        "_comment": "Generated by tools/gen_baseline.py tensor-split using HF Qwen3ForCausalLM and Qwen3_5ForCausalLM with deterministic synthetic weights whose every split falls whole at widths 2 and 4.",
+        "_comment": "Generated by tools/gen_baseline.py tensor-split using HF Qwen3ForCausalLM, Qwen3_5ForCausalLM and Qwen3_5MoeForCausalLM with deterministic synthetic weights whose every split falls whole at widths 2 and 4.",
         "torch_version": torch.__version__, "transformers_version": transformers.__version__, "dtype": "float32", "attention": "eager",
-        "config": tensor_split.CONFIG, "vocab": tensor_split.VOCAB, "qwen3": dense, "qwen35": record})
-    print("wrote %s (qwen3 tied and untied, qwen35)" % path)
+        "config": tensor_split.CONFIG, "vocab": tensor_split.VOCAB, "qwen3": dense, "qwen35": records["qwen35"], "qwen35moe": records["qwen35moe"]})
+    print("wrote %s (qwen3 tied and untied, qwen35, qwen35moe)" % path)
+
+
+def gen_tensor_split_moe(output_dir=OUT_DIR):
+    """The goldens of tests/tensor_split.py's qwen3moe fixture, whose every split falls whole at widths 2 and 4, through HF Qwen3MoeForCausalLM's full forward in the tiny MoE reference's environment, with its check that no token's routing sits near a tie."""
+    torch, transformers = qwen3moe_environment()
+    import moe
+    import tensor_split
+    from f32 import weight_hash
+
+    torch.set_num_threads(1)
+    model, weights = tiny_moe(tensor_split.MOE_SEED, tensor_split.MOE_CONFIG, tensor_split.VOCAB)
+    gaps = moe_routing_gaps(model, torch, tensor_split.MOE_CONFIG["expert_used_count"])
+    cases, perplexity = reference_outputs(model, torch)
+    if min(gaps) < 1e-4:
+        raise SystemExit("tensor-split-moe: a token's routing is within %.2e of a tie; change the weights" % min(gaps))
+    path = os.path.join(output_dir, "baseline_tensor_split_moe.json")
+    _write(path, {
+        "_comment": "Generated by tools/gen_baseline.py tensor-split-moe using HF Qwen3MoeForCausalLM with deterministic synthetic weights whose every split falls whole at widths 2 and 4.",
+        "torch_version": torch.__version__, "transformers_version": transformers.__version__, "dtype": "float32", "attention": "eager",
+        "config": tensor_split.MOE_CONFIG, "vocab": tensor_split.VOCAB, "seed": tensor_split.MOE_SEED, "dense_layers": list(moe.DENSE_LAYERS),
+        "weights_sha256": weight_hash(weights), "min_routing_gap": min(gaps), "cases": cases, "perplexity": perplexity})
+    print("wrote %s (full logits and windowed NLL; smallest routing gap %.2e)" % (path, min(gaps)))
 
 
 # The prompts of the assembled MTP reference: one and two tokens, so row 0's zero row and the first carried row are both reached, and longer ones; each leaves the context room for the draft steps.
@@ -1456,7 +1496,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "tensor-split", "qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "tensor-split", "tensor-split-moe", "qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1569,6 +1609,8 @@ def main(argv=None):
         gen_qwen35_tiny(args.output_dir)
     if args.kind == "qwen35-mtp":
         gen_qwen35_mtp(args.output_dir)
+    if args.kind == "tensor-split-moe":
+        gen_tensor_split_moe(args.output_dir)
     if args.kind == "tensor-split":
         gen_tensor_split(args.output_dir)
     if args.kind == "qwen35":

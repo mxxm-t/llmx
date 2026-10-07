@@ -55,12 +55,17 @@ def fixture_config(fixture):
     return dict(CONFIG, **fixture.get("config", {})), fixture.get("v_head", V_HEAD), fixture.get("vocab", VOCAB)
 
 
+def moe_config(fixture):
+    """A qwen35moe fixture's experts: MOE, or the keys its "moe" gives in its place."""
+    return fixture["moe"] if isinstance(fixture.get("moe"), dict) else MOE
+
+
 def gguf_config(fixture):
     """The qwen35 or qwen35moe metadata the converter writes for `fixture`, whose MTP block, when it has one, is one more block."""
     config, v_head, _ = fixture_config(fixture)
     if fixture.get("moe"):
         del config["feed_forward_length"]
-        config.update(MOE)
+        config.update(moe_config(fixture))
     config["block_count"] = LAYERS + fixture["mtp"]
     config["ssm.time_step_rank"] = fixture["v_heads"]
     config["ssm.inner_size"] = fixture["v_heads"] * v_head
@@ -114,7 +119,8 @@ def raw_weights(fixture):
         add(prefix + "post_attention_layernorm.weight", [width])
         if fixture.get("moe"):
             # The router is scaled up so every token's top two experts stand clear of the third, which tools/gen_baseline.py checks.
-            experts, fe, fs = MOE["expert_count"], MOE["expert_feed_forward_length"], MOE["expert_shared_feed_forward_length"]
+            moe = moe_config(fixture)
+            experts, fe, fs = moe["expert_count"], moe["expert_feed_forward_length"], moe["expert_shared_feed_forward_length"]
             add(prefix + "mlp.gate.weight", [experts, width], scale=32.0)
             add(prefix + "mlp.experts.gate_up_proj", [experts, 2 * fe, width])
             add(prefix + "mlp.experts.down_proj", [experts, width, fe])

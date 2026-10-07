@@ -346,6 +346,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
             Step step = part(ctx, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all);
             step.width = W;
             step.partial = sum.partial(m);
+            if (has_experts(plan_.layers[(size_t)l])) clear_partial(ctx, g + m, step.partial, p.rows);
             arch_->ffn(step);
         }
         sum.sum_into(x, p.rows, plan_.residual);
@@ -369,6 +370,11 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
         }
     }
     stage_submit(ctx, p, s, g);
+}
+
+// A member's partial rows cleared, `rows` of them, before a part whose routed experts add their weighted sum to them (blocks::routed_experts): a copy of zero rows the context keeps on the member.
+inline void Model::clear_partial(ExecContext& ctx, size_t dev, backend::Slice partial, size_t rows) {
+    devices_[dev]->b->copy(*partial.buffer, partial.offset * sizeof(float), *ctx.zeros[dev], 0, rows * plan_.residual * sizeof(float));
 }
 
 // The end of stage s, the residual or the head last on device `cur`: every device the stage recorded on submits, each member of a tensor group, the pass's ticket that of `cur`, and each entry's history commits the stage.
@@ -532,6 +538,8 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
     // A tensor group's collective for the rows the arenas now hold, and each member of the head's group its slice of the logits rows.
     ctx.collectives.resize(devices_.size());
     ctx.member_logits.resize(devices_.size());
+    ctx.zeros.resize(devices_.size());
+    const bool clears = std::any_of(plan_.layers.begin(), plan_.layers.end(), has_experts) || (plan_.drafter && has_experts(*plan_.drafter));
     for (size_t g = 0; g < devices_.size(); g += width_) {
         if (!devices_[g]->used || (ctx.collectives[g] && ctx.collective_rows >= rows)) continue;
         std::vector<backend::Backend*> members;
@@ -541,6 +549,8 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
         }
         ctx.collectives[g] = devices_[g]->b->join(members, rows, plan_.residual);
         if (!ctx.collectives[g]) throw std::runtime_error("inference: the backends of a tensor group have no cross-device sum");
+        // An allocation is zero-filled, and nothing writes these rows.
+        for (size_t m = g; clears && m < g + width_; ++m) ctx.zeros[m] = devices_[m]->b->alloc(mul(mul(rows, plan_.residual), sizeof(float)));
     }
     ctx.collective_rows = std::max(ctx.collective_rows, rows);
     const size_t o = (size_t)place_.output_device;

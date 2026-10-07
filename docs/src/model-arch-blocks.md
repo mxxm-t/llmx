@@ -14,7 +14,9 @@ run them.
 - `routed_ops(layer, tensors, gate, up)`: finds the two declared roles by id and adds the `mixed_experts` requirement of the part the gate role runs in (the feed-forward part, or an embedded drafter's) when both tensors exist with differing storage types. The down projection is separate. Missing tensors stay with the runtime's existing resolution errors; this helper performs no schema validation.
 - `shard(roles, id, axis, sections)`: declares role `id`'s split over a tensor group (`Role::shard`, [shard](model-shard.md)); a role the list lacks is the plan's error.
   `shard_swiglu(roles, gate, up, down, ff)`: the SwiGLU block's split, the gate and up projections by their `ff` rows and the down projection by as many columns.
+  `shard_experts(roles, gate, up, down, ff, experts)`: a routed layer's split, the gate and up stacks by the `ff` rows of each expert and the down stack by as many columns, the router whole.
 - `join(step, weight, in)`: a part's last projection, whose output joins the residual: `matmul_add` into the residual on one device, and on a tensor group the member's partial rows into `Step::partial`, which the runtime sums into every member's residual; `swiglu`'s down projection and the modules' attention and `ssm_out` projections go through it.
+  With `add`, a part's second such projection after its routed experts, a shared expert's, it adds to the partial rows they wrote.
 - `projection(weight, out)`: a weight's product into `out` for
   `matmul_group` and `matmul_experts`, the buffer passed by raw pointer so
   building one copies no shared pointer on the per-token path.
@@ -32,7 +34,7 @@ run them.
   router's matmul into `scores`, `route_experts` choosing each row's k
   experts into `ids` and `weights` (renormalized when `norm`),
   `matmul_experts` for gate and up, `silu_mul`, and `matmul_experts_add`
-  into the residual. The routed SiLU reads the expert products as k
+  into the residual, or on a tensor group into the member's partial rows, which the runtime hands this part cleared. The routed SiLU reads the expert products as k
   entries a token row, so it rebuilds the runs for them (`end * k`) in
   the step's run list (`Step::scratch`), which the runtime has reserved;
   the down projection takes the step's runs unchanged. qwen3moe and

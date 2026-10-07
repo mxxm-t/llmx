@@ -222,6 +222,8 @@ struct ExecContext {
     // On a tensor split (Placement::width): per device, a group's collective on its first member, for the rows the arenas hold, and each member of the head's group its slice of the logits rows, which the first member gathers into logits_buf.
     std::vector<std::unique_ptr<backend::Collective>> collectives;
     size_t collective_rows = 0;
+    // Per device of a group that runs routed experts, zero rows as many as its collective sums, which a member's partial rows are cleared from before a part that adds to them (clear_partial).
+    std::vector<backend::BufferPtr> zeros;
     std::vector<backend::BufferPtr> member_logits;
     // The logits rows in host memory every member of the head's group imports (logits_buf the first member's view of them, member_rows each member's), into which each copies its vocabulary slice of each row.
     core::HostPages logits_host;
@@ -935,8 +937,7 @@ private:
                     shard::pack(runs, t.data, packed_.back().data());
                     buffer = b.adopt(packed_.back().data(), packed_.back().size());
                 }
-                size_t n = 0;
-                for (const shard::Span& span : shard::spans(role, width_, member)) n += (size_t)span.count;
+                const size_t n = (size_t)shard::share(role, width_, member);
                 const bool rows = role.shard.axis == Axis::rows;
                 return Weight{t.type, buffer, rows ? (size_t)role.in : n, rows ? n : (size_t)role.out};
             }
@@ -1029,6 +1030,7 @@ private:
     void group_stage(ExecContext& ctx, Pass& p, size_t s);
     void group_prepare(Pass& p, size_t s);
     void group_record(ExecContext& ctx, Pass& p, size_t s);
+    void clear_partial(ExecContext& ctx, size_t dev, backend::Slice partial, size_t rows);
     void end_stage(ExecContext& ctx, Pass& p, size_t s, size_t cur);
     void stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur);
     void stage_commit(ExecContext& ctx, Pass& p, size_t s);

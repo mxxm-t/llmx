@@ -58,7 +58,7 @@ Pick a device with `--device cpu` (the default) or `--device vulkan:N`; see [USA
 |---|---|---|---|
 | Layer split | Consecutive layers on different devices, GPUs and the CPU mixed, fitted to free memory, for every supported model in every command and `llmx serve` | `--device A,B,...`, `--layer-shares` | Supported |
 | Expert offload | A mixture-of-experts model's experts run on the CPU beside one GPU | `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N` | Supported |
-| Tensor split | Every layer on a group of 2 to 4 devices at once; dense `qwen3` and hybrid `qwen35` models, with their embedded drafter, on Vulkan devices on Linux, not yet mixture-of-experts models | `--tensor-width N` | Supported; ahead of or below the layer split by width, precision and user count ([USAGE](docs/USAGE.md#tensor-split---tensor-width-n)) |
+| Tensor split | Every layer on a group of 2 to 4 devices at once; dense `qwen3`, hybrid `qwen35` and mixture-of-experts `qwen3moe` and `qwen35moe` models, with their embedded drafter, on Vulkan devices on Linux; a mixture-of-experts file whose expert width does not split on whole quant blocks is refused | `--tensor-width N` | Supported; ahead of or below the layer split by width, precision and user count ([USAGE](docs/USAGE.md#tensor-split---tensor-width-n)) |
 | Staged tensor split | A layer split whose stages are tensor groups | `--tensor-width N` with several groups listed in `--device`; `--layer-shares` gives each group its share | Supported, as above |
 | Replicas | Several copies of a model behind one scheduler | | Planned |
 | Multi-node | One model over several machines | | Planned |

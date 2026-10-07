@@ -952,9 +952,9 @@ void hook_checks() {
     }
 }
 
-// A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads neither divided nor a multiple, K heads, vocabulary rows, columns off whole quant blocks, a state layer's saved row, and routed layers, which a group does not split yet.
+// A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads neither divided nor a multiple, K heads, vocabulary rows, columns off whole quant blocks, a dense layer's or an expert stack's, and a state layer's saved row.
 void shard_checks() {
-    // A two-layer dense qwen3 plan over views without bytes, F32 but for ffn_down's `down` type, with or without routed experts in its first layer.
+    // A two-layer dense qwen3 plan over views without bytes, F32 but for the `down` type of ffn_down and of a down stack, with or without routed experts in its first layer.
     auto dense = [](int heads, int kv, int dim, int ff, uint64_t vocab, uint32_t down, bool routed) {
         infer::qwen3::Config c;
         c.n_layer = 2, c.n_embd = 256, c.n_ff = ff, c.n_head = heads, c.n_head_kv = kv, c.head_dim = dim, c.context_length = 64;
@@ -977,7 +977,7 @@ void shard_checks() {
                 add(pre + "ffn_gate_inp.weight", {E, 4});
                 add(pre + "ffn_gate_exps.weight", {E, 64, 4});
                 add(pre + "ffn_up_exps.weight", {E, 64, 4});
-                add(pre + "ffn_down_exps.weight", {64, E, 4});
+                add(pre + "ffn_down_exps.weight", {64, E, 4}, down);
                 continue;
             }
             add(pre + "ffn_gate.weight", {E, F});
@@ -1015,10 +1015,13 @@ void shard_checks() {
         rejects("tensor width vocabulary", [&] { infer::shard::check_plan(plan, views, 2); });
     }
     {
+        // A routed layer splits each expert's 64 hidden rows: whole at widths 2 and 4 in F32, and off whole Q8_0 blocks at width 4, 16 columns a member.
         const auto pv = dense(8, 2, 128, 1024, 48, f32, true);
-        const infer::ModelPlan& plan = pv.first;
-        const std::vector<infer::TensorView>& views = pv.second;
-        rejects("tensor width routed layer", [&] { infer::shard::check_plan(plan, views, 2); });
+        for (size_t width : {size_t(2), size_t(4)}) infer::shard::check_plan(pv.first, pv.second, width);
+        ++checks;
+        const auto q8 = dense(8, 2, 128, 1024, 48, quant::GGML_TYPE_Q8_0, true);
+        infer::shard::check_plan(q8.first, q8.second, 2);
+        rejects("tensor width expert blocks", [&] { infer::shard::check_plan(q8.first, q8.second, 4); });
     }
     {
         // A qwen35 linear-attention layer of 2 K heads, then a full-attention layer, which 4 members cannot split by K head.

@@ -113,6 +113,8 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     for (size_t n : plan.tables) fp.tables += n * sizeof(float);
     fp.handoff_per_row = plan.residual * sizeof(float);
     for (size_t w : plan.slots) fp.activations_per_row += w * sizeof(float);
+    // A member of a group that runs routed experts keeps a zero row to clear its partial rows from.
+    if (width > 1 && (std::any_of(plan.layers.begin(), plan.layers.end(), has_experts) || (plan.drafter && has_experts(*plan.drafter)))) fp.activations_per_row += plan.residual * sizeof(float);
     return fp;
 }
 
@@ -464,6 +466,8 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
     if (request.stream_from && !request.cpu_moe)
         throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
     const ModelPlan plan = plan_model(weights, request.drafter);
+    // A width the model's shards cannot take is refused by its name here, before the fit reads a member's shards.
+    shard::check_plan(plan, weights.tensors, request.width);
     // A model without routed layers has no experts to put on the CPU, so every placement refuses the flags, on the CPU as beside a device.
     const std::string experts_flag = request.cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe";
     if (request.cpu_moe && std::none_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.routed; }))

@@ -2,6 +2,7 @@
 
 Groups of CPU backends are formed by llmx-model-logits, since the command line lists a device once: every row of the batched and per-token captures at the goldens' positions within the bound of the precision its path computes in, the windowed NLL, and the device-reference criterion of tests/common.py against the same model on one device, ranking, NLL, calibration and greedy agreement.
 The qwen35 fixture, whose linear-attention layers keep a recurrent state, is held the same way: each member runs its K heads and the V heads that read them over its own state.
+So are the routed fixtures, qwen3moe and qwen35moe: each member holds its share of every expert's hidden rows, and of the shared expert's.
 """
 import json
 import math
@@ -15,6 +16,7 @@ from pathlib import Path
 import common
 import decode_probe
 import f32
+import moe
 import qwen35
 from tokenizer import build_byte_vocab
 
@@ -31,6 +33,14 @@ QWEN35 = {"name": "split", "v_heads": 12, "tied": False, "mtp": False, "v_head":
           "config": {"embedding_length": 40, "feed_forward_length": 32, "attention.head_count": 4, "attention.head_count_kv": 2,
                      "attention.key_length": 16, "attention.value_length": 16, "rope.dimension_count": 8,
                      "ssm.state_size": 12, "ssm.group_count": 4}}
+# The routed fixtures: a qwen3moe model of the dense one's widths, its first and last layers routed over 8 experts of 16, 3 a token, and the qwen35 one as qwen35moe, 4 experts of 8, 2 a token, and a shared expert of 8.
+MOE_CONFIG = {"block_count": 3, "embedding_length": 40, "feed_forward_length": 32,
+              "attention.head_count": 4, "attention.head_count_kv": 2,
+              "attention.key_length": 16, "context_length": 16,
+              "expert_count": 8, "expert_used_count": 3, "expert_feed_forward_length": 16}
+# The seed of the qwen3moe fixture's weights, one whose routing stands clear of a tie for every token of the goldens.
+MOE_SEED = 24680
+QWEN35MOE = dict(QWEN35, name="split-moe", moe={"expert_count": 4, "expert_used_count": 2, "expert_feed_forward_length": 8, "expert_shared_feed_forward_length": 8})
 WIDTHS = ((2, "cpu,cpu"), (4, "cpu,cpu,cpu,cpu"))
 
 
@@ -41,17 +51,40 @@ def groups():
         return device.split(",")[0], ((int(width), device),)
     return "cpu", WIDTHS
 GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "baseline_tensor_split.json")
+# The qwen3moe fixture's goldens, a file of their own, since HF's qwen3moe reference runs in another environment (tools/gen_baseline.py tensor-split-moe).
+GOLDEN_MOE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "baseline_tensor_split_moe.json")
 
 
 def golden():
     """The committed goldens, checked against the shapes and the weights this module builds."""
     with open(GOLDEN, encoding="utf-8") as f:
         doc = json.load(f)
-    assert doc["config"] == CONFIG and doc["vocab"] == VOCAB and doc["qwen35"]["spec"] == QWEN35, "tensor-split: fixture shapes changed"
+    with open(GOLDEN_MOE, encoding="utf-8") as f:
+        doc["qwen3moe"] = json.load(f)
+    assert doc["qwen3moe"]["vocab"] == VOCAB and doc["qwen3moe"]["seed"] == MOE_SEED, "tensor-split: fixture shapes changed"
+    assert doc["config"] == CONFIG and doc["vocab"] == VOCAB and doc["qwen35"]["spec"] == QWEN35 and doc["qwen35moe"]["spec"] == QWEN35MOE and \
+        doc["qwen3moe"]["config"] == MOE_CONFIG and doc["qwen3moe"]["dense_layers"] == list(moe.DENSE_LAYERS), "tensor-split: fixture shapes changed"
     for fixture in doc["qwen3"]:
         assert f32.weight_hash(f32.tensors(fixture["tied"], config=CONFIG, vocab=VOCAB)) == fixture["weights_sha256"], "tensor-split: qwen3 weights changed"
-    assert f32.weight_hash(qwen35.hashed(qwen35.raw_weights(QWEN35))) == doc["qwen35"]["weights_sha256"], "tensor-split: qwen35 weights changed"
+    assert f32.weight_hash(moe.tensors(MOE_SEED, MOE_CONFIG, VOCAB)) == doc["qwen3moe"]["weights_sha256"], "tensor-split: qwen3moe weights changed"
+    for key, spec in (("qwen35", QWEN35), ("qwen35moe", QWEN35MOE)):
+        assert f32.weight_hash(qwen35.hashed(qwen35.raw_weights(spec))) == doc[key]["weights_sha256"], "tensor-split: %s weights changed" % key
     return doc
+
+
+def fixtures(doc, directory):
+    """Each fixture's name, its GGUF written in `directory` and its goldens.
+    A context past the 13 tokens and 64 greedy steps the captures take; the logits at the goldens' positions do not depend on it."""
+    out = []
+    for fixture in doc["qwen3"]:
+        name = "qwen3 tied" if fixture["tied"] else "qwen3 untied"
+        out.append((name, f32.write_model(os.path.join(directory, name.replace(" ", "-") + ".gguf"), f32.tensors(fixture["tied"], config=CONFIG, vocab=VOCAB),
+                                          config=dict(CONFIG, context_length=128), tokens=TOKENS), fixture))
+    out.append(("qwen3moe", f32.write_model(os.path.join(directory, "qwen3moe.gguf"), moe.tensors(MOE_SEED, MOE_CONFIG, VOCAB),
+                                            config=dict(MOE_CONFIG, context_length=128), arch="qwen3moe", tokens=TOKENS), doc["qwen3moe"]))
+    for key, spec in (("qwen35", QWEN35), ("qwen35moe", QWEN35MOE)):
+        out.append((key, qwen35.write_fixture(directory, dict(spec, config=dict(spec["config"], context_length=128)), tokens=TOKENS), doc[key]))
+    return out
 
 
 def tool_path():
@@ -104,22 +137,22 @@ def drafts(tool, model, directory, devices, width):
 
 
 def check_drafter(directory, single, widths, require):
-    """The qwen35 fixture with an MTP block as an embedded drafter over a group (docs/TENSOR-SPLIT.md, step 6): from four prompts, the pick and the two drafts must be one device's, whose drafts the qwen35 component holds to HF on its own fixture, and every draft row's logits within the F32 bound of one device's.
+    """The qwen35 and qwen35moe fixtures with an MTP block as an embedded drafter over a group (docs/TENSOR-SPLIT.md, step 6): from four prompts, the pick and the two drafts must be one device's, whose drafts the qwen35 component holds to HF on its own fixture, and every draft row's logits within the F32 bound of one device's.
     Returns the largest difference, or None with a skip line where the tool is not beside the executable."""
     tool = decode_probe.tool_path()
     if not os.path.exists(tool):
         assert not require, "tensor-split: llmx-decode-probe is not beside the executable, and --require-tools asks for it"
         print("tensor-split: SKIP the drafter over a group - llmx-decode-probe is not beside the executable")
         return None
-    spec = dict(QWEN35, name="split-mtp", mtp=True)
-    model = qwen35.write_fixture(directory, dict(spec, config=dict(spec["config"], context_length=128)), tokens=TOKENS)
-    one = drafts(tool, model, directory, single if single == "cpu" else single.split(":", 1)[1], 1)
     worst = 0.0
-    for width, devices in widths:
-        listed = ",".join(d if d == "cpu" else d.split(":", 1)[1] for d in devices.split(","))
-        for (pick, ids, rows), (want_pick, want_ids, want_rows) in zip(drafts(tool, model, directory, listed, width), one):
-            assert pick == want_pick and ids == want_ids, "tensor-split: a group of %d drafts %s after %d, one device %s after %d" % (width, ids, pick, want_ids, want_pick)
-            worst = max(worst, max(abs(a - b) for row, want in zip(rows, want_rows) for a, b in zip(row, want)))
+    for spec in (dict(QWEN35, name="split-mtp", mtp=True), dict(QWEN35MOE, name="split-moe-mtp", mtp=True)):
+        model = qwen35.write_fixture(directory, dict(spec, config=dict(spec["config"], context_length=128)), tokens=TOKENS)
+        one = drafts(tool, model, directory, single if single == "cpu" else single.split(":", 1)[1], 1)
+        for width, devices in widths:
+            listed = ",".join(d if d == "cpu" else d.split(":", 1)[1] for d in devices.split(","))
+            for (pick, ids, rows), (want_pick, want_ids, want_rows) in zip(drafts(tool, model, directory, listed, width), one):
+                assert pick == want_pick and ids == want_ids,                     "tensor-split: a group of %d drafts %s after %d on %s, one device %s after %d" % (width, ids, pick, spec["name"], want_ids, want_pick)
+                worst = max(worst, max(abs(a - b) for row, want in zip(rows, want_rows) for a, b in zip(row, want)))
     assert worst < common.F32_HF_LOGIT_BOUND, "tensor-split: a group's draft logits %.8f from one device's" % worst
     return worst
 
@@ -138,33 +171,19 @@ def run(require=False):
     with tempfile.TemporaryDirectory(prefix="llmx_tensor_split_") as directory:
         ids = os.path.join(directory, "ids.txt")
         Path(ids).write_text(" ".join(str(b) for b in f32.TEXTS[-1].encode("ascii")), encoding="ascii")
-        # A context past the 13 tokens and 64 greedy steps the captures take; the logits at the goldens' positions do not depend on it.
-        for fixture in doc["qwen3"]:
-            name = "tied" if fixture["tied"] else "untied"
-            model = f32.write_model(os.path.join(directory, "split-%s.gguf" % name), f32.tensors(fixture["tied"], config=CONFIG, vocab=VOCAB),
-                                    config=dict(CONFIG, context_length=128), tokens=TOKENS)
-            one_meta, one = capture(tool, model, ids, os.path.join(directory, name + "-1"), single, 1)
-            held_to_hf("qwen3 %s, one device" % name, one_meta, one, fixture)
+        for name, model, fixture in fixtures(doc, directory):
+            prefix = os.path.join(directory, name.replace(" ", "-"))
+            one_meta, one = capture(tool, model, ids, prefix + "-1", single, 1)
+            held_to_hf("%s, one device" % name, one_meta, one, fixture)
             for width, devices in widths:
-                meta, rows = capture(tool, model, ids, os.path.join(directory, "%s-%d" % (name, width)), devices, width)
-                logit, nll = held_to_hf("qwen3 %s, width %d" % (name, width), meta, rows, fixture)
+                meta, rows = capture(tool, model, ids, "%s-%d" % (prefix, width), devices, width)
+                logit, nll = held_to_hf("%s, width %d" % (name, width), meta, rows, fixture)
                 worst_logit, worst_nll = max(worst_logit, logit), max(worst_nll, nll)
                 for phase in ("batched", "decode"):
                     common.check_device_rows(one[phase], rows[phase], list(f32.TEXTS[-1].encode("ascii")))
                 common.check_device_greedy(one["greedy"], rows["greedy"], one_meta["greedy"], meta["greedy"])
-        spec = QWEN35
-        model = qwen35.write_fixture(directory, dict(spec, config=dict(spec["config"], context_length=128)), tokens=TOKENS)
-        one_meta, one = capture(tool, model, ids, os.path.join(directory, "qwen35-1"), single, 1)
-        held_to_hf("qwen35, one device", one_meta, one, doc["qwen35"])
-        for width, devices in widths:
-            meta, rows = capture(tool, model, ids, os.path.join(directory, "qwen35-%d" % width), devices, width)
-            logit, nll = held_to_hf("qwen35, width %d" % width, meta, rows, doc["qwen35"])
-            worst_logit, worst_nll = max(worst_logit, logit), max(worst_nll, nll)
-            for phase in ("batched", "decode"):
-                common.check_device_rows(one[phase], rows[phase], list(f32.TEXTS[-1].encode("ascii")))
-            common.check_device_greedy(one["greedy"], rows["greedy"], one_meta["greedy"], meta["greedy"])
         drafted = check_drafter(directory, single, widths, require)
-    print("tensor-split: the qwen3 fixtures, tied and untied, and the qwen35 fixture on %s against HF, max logit error %.8f and NLL error %.8f, and against %s by the device-reference criterion%s  [ok]"
+    print("tensor-split: the qwen3 fixtures, tied and untied, and the qwen3moe, qwen35 and qwen35moe fixtures on %s against HF, max logit error %.8f and NLL error %.8f, and against %s by the device-reference criterion%s  [ok]"
           % (" and ".join("%s as width %d" % (devices, width) for width, devices in widths), worst_logit, worst_nll, single,
              "" if drafted is None else "; the embedded drafter's picks and drafts those of %s, draft logits within %.8f" % (single, drafted)))
     return True

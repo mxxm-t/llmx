@@ -33,7 +33,7 @@ enum class Stream : uint8_t { none, copy, window };
 enum class Axis : uint8_t { none, rows, columns };
 
 // A run of the axis: `tiles` tiles of `units` units of `unit` rows or columns each, a member taking the same share of the units in every tile, so one tile is a contiguous split.
-// `what` names the units in a refusal, and `replicate` lets a width that is a multiple of the units give each unit to width / units members, as KV heads are.
+// `what` names a tile's units in a refusal, and `replicate` lets a width that is a multiple of the units give each unit to width / units members, as KV heads are.
 struct ShardSection {
     uint64_t units = 0, unit = 1, tiles = 1;
     const char* what = "rows";
@@ -109,6 +109,13 @@ struct ModelPlan {
     size_t draft_h = 0, draft_x = 0;
 };
 
+// Whether a layer's roles hold an expert stack, whose routed sum a tensor group's member adds to partial rows it is handed cleared (Step::partial).
+inline bool has_experts(const LayerPlan& layer) {
+    for (const Role& role : layer.roles)
+        if (role.kind == RoleKind::experts) return true;
+    return false;
+}
+
 // The floats a row of the slots a state layer's update writes take (LayerPlan::recur_writes), a layer's room in a rerun.
 inline size_t recur_floats(const ModelPlan& plan, const LayerPlan& layer) {
     size_t n = 0;
@@ -137,7 +144,7 @@ struct Step {
     backend::Dtype dtype = backend::Dtype::f16;
     // Which of the layer's update phases a call of recur runs (LayerPlan::recur_phases), every one when -1, as the mixer runs it.
     int phase = -1;
-    // The tensor group the part runs on (docs/TENSOR-SPLIT.md, section 4.3): its width, each member's weights its shard (Role::shard) and its heads that share of the plan's, and where a part's last projection writes its partial rows, which the group then sums into every member's residual, in place of adding them to the residual itself (blocks::join).
+    // The tensor group the part runs on (docs/TENSOR-SPLIT.md, section 4.3): its width, each member's weights its shard (Role::shard) and its heads that share of the plan's, and where a part's last projection writes its partial rows, which the group then sums into every member's residual, in place of adding them to the residual itself (blocks::join); a part with routed experts is handed them cleared and adds to them.
     size_t width = 1;
     backend::Slice partial{};
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }

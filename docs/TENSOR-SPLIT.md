@@ -214,7 +214,9 @@ A tiled member's share is several spans; on the column axis each span starts and
 | feed-forward norm | replicated | replicated | replicated |
 | gate, up | rows | rows | rows |
 | down | columns | columns | columns |
-| router, routed experts, shared expert | later (section 4.10) | | |
+| router | replicated | replicated | replicated |
+| routed experts' gate and up, the shared expert's | rows of each expert | rows of each expert; the shared expert's rows | as full attention |
+| routed experts' down, the shared expert's | columns | columns | as full attention |
 | embedding | replicated | replicated | replicated |
 | head | rows (vocabulary) | rows | rows |
 | output norm | replicated | replicated | replicated |
@@ -403,8 +405,7 @@ Nothing specific to a backend sits above the backend layer: a group refused on o
 
 ### 4.10 Out of scope
 
-- MoE layers in a group (qwen3moe, qwen35moe): the fork measured little gain (Qwen3.6-35B-A3B on 8 cards at 4 stages of 2: 64.7 tok/s against its layer split's 75.2) and MoE decode is bound by dispatches, which a group does not divide; refused by name until step 8 measures expert rows against experts by member.
-  When built, the routed and the shared expert's partials accumulate into one cleared partial slot before the part's single sum, and width 1 keeps today's order of the two residual adds.
+- Experts owned whole by a member, and data-parallel attention with expert parallelism: a group splits each expert's hidden rows instead (section 8, Step 8 as built), which keeps every member's work even; a file whose expert width does not split on whole quant blocks is refused.
 - Data-parallel attention with expert parallelism (MULTI-DEVICE phase 6b), replicas (phase 5), multi-node.
 - Uneven member shares, groups mixing device kinds or profiles, a group of the CPU and a card.
 - A wire format other than F32, and any algorithm chosen by message size that changes the order of a sum.
@@ -601,6 +602,16 @@ What it costs is memory, the head once more on each member (1.35 GiB of Q8_0 on 
 The join stays the design to return to if that product shows in a profile; it would be one call more in `Collective` (section 4.9) and would change neither the drafts nor the output.
 A sequence's drafts end before the first id its members disagree on, which the rule that every member computes the same bits says does not happen, so a disagreement costs drafts and never output.
 The context rows of a pass need no exchange at all: every member writes the K and V of its own KV heads from the same rows and carries the last row itself.
+
+### Step 8 as built (2026-10-07)
+
+A group runs routed layers by splitting each expert's hidden rows, the first of the plan's two forms: the gate and up stacks by the rows of each of their experts, a member taking the same rows of every expert, and the down stack by as many columns; qwen35moe's shared expert splits as a dense block does, and the router and the shared expert's gate vector are whole on every member, so every member routes a token to the same experts with the same weights from the same rows.
+The ops are one device's over narrower experts, so nothing changed in a backend: a member's routed sum goes into its partial rows, which the runtime hands that part cleared from zero rows it keeps (`Model::clear_partial`), the shared expert's down projection adds to them, and the part's one sum follows, as decision 5 has it; width 1 keeps the order of its two residual adds.
+Experts owned whole by a member were not built: a token's eight experts would fall on the members unevenly, each sum waiting for the member with most of them, where the rows of each expert keep every member's work equal, which section 4.5 asks of a group; and it needs a routed product over a member's own choices only, which no backend has.
+What the rows cost is legality: an expert's width over the group's width must be whole quant blocks of the down stack.
+Qwen3.6-35B-A3B (512 hidden rows an expert, 256 experts, 16 heads over 2 KV heads, 16 K and 32 V heads) splits at width 2 in a K-quant and at 2 and 4 in Q8_0; Qwen3-30B-A3B (768, 128 experts, 32 heads over 4 KV heads) splits at 2 and 4 in Q8_0 and at no width in a K-quant, 384 columns not being whole 256-value blocks, and is refused there naming `ffn_down_exps`.
+Uneven shares of an expert's columns, two blocks to one member and one to the other, would open that file and are not built: they are the uneven work section 4.5 rules out, for one file in one quantization.
+`docs/STATUS.md` has the measurements.
 
 ## 9. Sources (2026-10-03)
 

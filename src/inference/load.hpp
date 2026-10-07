@@ -292,6 +292,7 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
                 }
             });
         }
+        std::vector<uint8_t> packed;
         for (size_t k = 0; k < pieces.size(); ++k) {
             size_t n = 0;
             {
@@ -305,6 +306,7 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
             const Piece& p = pieces[k];
             const size_t slot = k % slots;
             const uint8_t* data = p.into ? p.into : ring[slot].data();
+            static constexpr size_t kPackedRun = 4096;
             const auto t0 = std::chrono::steady_clock::now();
             size_t bytes = 0;
             for (const Piece::Part& part : p.parts) {
@@ -330,6 +332,17 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
                     // A member's runs are in the tensor's order, so the ones the part reaches follow the first that ends past its start.
                     const size_t lo = part.tensor_offset, hi = lo + part.bytes;
                     auto r = std::upper_bound(u->runs.begin(), u->runs.end(), lo, [](size_t at, const shard::Run& x) { return at < x.from + x.bytes; });
+                    // Runs shorter than a page, a column shard's of an expert stack, are packed here and written once: they follow one another in the storage, and a device copy a run costs far more than its bytes.
+                    if (r != u->runs.end() && r->from < hi && r->bytes < kPackedRun) {
+                        const size_t to = r->to + (std::max(lo, r->from) - r->from);
+                        packed.clear();
+                        for (; r != u->runs.end() && r->from < hi; ++r) {
+                            const size_t from = std::max(lo, r->from), end = std::min(hi, r->from + r->bytes);
+                            packed.insert(packed.end(), data + part.piece_offset + (from - lo), data + part.piece_offset + (end - lo));
+                        }
+                        u->backend->write(*u->buffer, to, packed.data(), packed.size());
+                        continue;
+                    }
                     for (; r != u->runs.end() && r->from < hi; ++r) {
                         const size_t from = std::max(lo, r->from), end = std::min(hi, r->from + r->bytes);
                         send(from, r->to + (from - r->from), end - from);

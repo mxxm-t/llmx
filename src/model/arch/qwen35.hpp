@@ -381,7 +381,7 @@ private:
     // A tensor group splits a linear-attention layer by K heads, each member taking its K heads' q and k rows and, from every tile of K-head-many V heads, the V heads that read them (V head j reads K head j mod Hk): attn_qkv's sections and the conv's channels with them, z, alpha, beta, the decay and the time step by V head, and ssm_out's columns the same way.
     void shard_linear(LayerPlan& layer) const {
         const uint64_t Hk = (uint64_t)cfg_.k_heads, tiles = (uint64_t)(cfg_.v_heads / cfg_.k_heads), Kd = (uint64_t)cfg_.k_dim, Vd = (uint64_t)cfg_.v_dim;
-        const ShardSection k{Hk, Kd, 1, "K heads"}, v{Hk, Vd, tiles, "V heads"}, one{Hk, 1, tiles, "V heads"};
+        const ShardSection k{Hk, Kd, 1, "K heads"}, v{Hk, Vd, tiles, "V heads of each tile"}, one{Hk, 1, tiles, "V heads of each tile"};
         blocks::shard(layer.roles, attn_qkv, Axis::rows, {k, k, v});
         blocks::shard(layer.roles, ssm_conv1d, Axis::rows, {k, k, v});
         blocks::shard(layer.roles, attn_gate, Axis::rows, {v});
@@ -418,6 +418,9 @@ private:
                                                {ffn_down_shexp, part, RoleKind::matrix, pre + "ffn_down_shexp.weight", "", Fs, E, 0, Stream::copy}});
         layer.ops.push_back({part, backend::Op::sigmoid_mul});
         blocks::routed_ops(layer, tensors, ffn_gate_exps, ffn_up_exps);
+        // A tensor group splits each routed expert's hidden rows and the shared expert's; the router and the shared expert's gate vector are whole on every member.
+        blocks::shard_experts(layer.roles, ffn_gate_exps, ffn_up_exps, ffn_down_exps, Fe, X);
+        blocks::shard_swiglu(layer.roles, ffn_gate_shexp, ffn_up_shexp, ffn_down_shexp, Fs);
     }
 
     // The first of the drafter's four arena slots (plan_drafter), after those of slot_widths.

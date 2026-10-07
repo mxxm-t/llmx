@@ -763,6 +763,7 @@ inline void Model::draft(DraftAsk* asks, size_t n) {
                     if (W > 1) {
                         step.width = W;
                         step.partial = ctx_.collectives[o]->partial(g);
+                        if (phase == 1 && has_experts(*plan_.drafter)) clear_partial(ctx_, o + g, step.partial, rows);
                     }
                     arch_->draft(step);
                 }

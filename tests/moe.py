@@ -21,11 +21,14 @@ DENSE_LAYERS = (1,)
 ROUTER_SCALE = 16.0
 
 
-def tensors(seed=67890):
+def tensors(seed=67890, config=None, vocab=257):
+    """The model's tensors as (GGUF name, HF name or names, shape, values), of CONFIG's shapes or `config`'s over `vocab` tokens."""
+    c = config or CONFIG
     state = seed
     result = []
-    hd = CONFIG["attention.key_length"]
-    n_expert, ff = CONFIG["expert_count"], CONFIG["expert_feed_forward_length"]
+    width, dense_ff, hd = c["embedding_length"], c["feed_forward_length"], c["attention.key_length"]
+    q, kv = c["attention.head_count"] * hd, c["attention.head_count_kv"] * hd
+    n_expert, ff = c["expert_count"], c["expert_feed_forward_length"]
 
     # A tensor takes its HF name from tests/f32.py's map, except the router and the experts, whose names only a MoE model has.
     def add(name, shape, norm=False, scale=1.0, hf=None):
@@ -37,25 +40,25 @@ def tensors(seed=67890):
             values.append(1.0 + value if norm else value * scale)
         result.append((name, hf or hf_name(name), shape, values))
 
-    add("token_embd.weight", [37, 257])
-    add("output_norm.weight", [37], True)
-    for layer in range(CONFIG["block_count"]):
+    add("token_embd.weight", [width, vocab])
+    add("output_norm.weight", [width], True)
+    for layer in range(c["block_count"]):
         name, hf = "blk.%d." % layer, "model.layers.%d." % layer
-        for norm, width in (("attn_norm", 37), ("ffn_norm", 37), ("attn_q_norm", hd), ("attn_k_norm", hd)):
-            add(name + norm + ".weight", [width], True)
-        for tensor, shape in (("attn_q", [37, 2 * hd]), ("attn_k", [37, hd]), ("attn_v", [37, hd]), ("attn_output", [2 * hd, 37])):
+        for norm, size in (("attn_norm", width), ("ffn_norm", width), ("attn_q_norm", hd), ("attn_k_norm", hd)):
+            add(name + norm + ".weight", [size], True)
+        for tensor, shape in (("attn_q", [width, q]), ("attn_k", [width, kv]), ("attn_v", [width, kv]), ("attn_output", [q, width])):
             add(name + tensor + ".weight", shape)
         if layer in DENSE_LAYERS:
-            for tensor, shape in (("ffn_gate", [37, 19]), ("ffn_up", [37, 19]), ("ffn_down", [19, 37])):
+            for tensor, shape in (("ffn_gate", [width, dense_ff]), ("ffn_up", [width, dense_ff]), ("ffn_down", [dense_ff, width])):
                 add(name + tensor + ".weight", shape)
             continue
-        add(name + "ffn_gate_inp.weight", [37, n_expert], scale=ROUTER_SCALE, hf=hf + "mlp.gate.weight")
+        add(name + "ffn_gate_inp.weight", [width, n_expert], scale=ROUTER_SCALE, hf=hf + "mlp.gate.weight")
         # A stacked tensor is expert-major, so expert e's matrix is the e-th of n_expert equal parts.
-        for tensor, mapped, shape in (("ffn_gate_exps", "gate_proj", [37, ff, n_expert]),
-                                      ("ffn_up_exps", "up_proj", [37, ff, n_expert]),
-                                      ("ffn_down_exps", "down_proj", [ff, 37, n_expert])):
+        for tensor, mapped, shape in (("ffn_gate_exps", "gate_proj", [width, ff, n_expert]),
+                                      ("ffn_up_exps", "up_proj", [width, ff, n_expert]),
+                                      ("ffn_down_exps", "down_proj", [ff, width, n_expert])):
             add(name + tensor + ".weight", shape, hf=[hf + "mlp.experts.%d.%s.weight" % (e, mapped) for e in range(n_expert)])
-    add("output.weight", [37, 257])
+    add("output.weight", [width, vocab])
     return result
 
 

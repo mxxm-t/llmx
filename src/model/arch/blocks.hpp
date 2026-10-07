@@ -37,6 +37,13 @@ inline void shard(std::vector<Role>& roles, uint16_t id, Axis axis, std::vector<
     throw std::logic_error("inference: no role to split with id " + std::to_string(id));
 }
 
+// A routed layer's split: each expert's hidden rows, the gate and up stacks by the `ff` rows of each of their `experts` matrices and the down stack by as many columns; the router stays whole on every member, so every member routes alike.
+inline void shard_experts(std::vector<Role>& roles, uint16_t gate, uint16_t up, uint16_t down, uint64_t ff, uint64_t experts) {
+    shard(roles, gate, Axis::rows, {{ff, 1, experts, "rows of each expert"}});
+    shard(roles, up, Axis::rows, {{ff, 1, experts, "rows of each expert"}});
+    shard(roles, down, Axis::columns, {{ff, 1, 1, "expert columns"}});
+}
+
 // The SwiGLU block's split: the gate and up projections by their `ff` rows, the down projection by as many columns.
 inline void shard_swiglu(std::vector<Role>& roles, uint16_t gate, uint16_t up, uint16_t down, uint64_t ff) {
     shard(roles, gate, Axis::rows, {{ff, 1, 1, "feed-forward rows"}});
@@ -50,9 +57,10 @@ inline backend::Projection projection(const Weight& w, backend::Slice out) {
 }
 
 // A part's last projection, whose output joins the residual: added to it on one device, and on a tensor group written as the member's partial rows, which the runtime sums into every member's residual (Step::partial).
-inline void join(const Step& s, const Weight& w, backend::CSlice in) {
-    if (s.width > 1) s.b.matmul(w.type, w.slice(), in, s.partial, w.nin, w.nout, s.rows, s.runs, s.dtype);
-    else s.b.matmul_add(w.type, w.slice(), in, s.x, w.nin, w.nout, s.rows, s.runs, s.dtype);
+// With `add`, a part's second such projection, after its routed experts, it adds to the partial rows they wrote.
+inline void join(const Step& s, const Weight& w, backend::CSlice in, bool add = false) {
+    if (s.width > 1 && !add) s.b.matmul(w.type, w.slice(), in, s.partial, w.nin, w.nout, s.rows, s.runs, s.dtype);
+    else s.b.matmul_add(w.type, w.slice(), in, s.width > 1 ? s.partial : s.x, w.nin, w.nout, s.rows, s.runs, s.dtype);
 }
 
 // The rows of `table` the ids name, into the residual.
@@ -61,17 +69,18 @@ inline void embed(const Step& s, const Weight& table, const uint32_t* ids) {
 }
 
 // The SwiGLU feed-forward block over the normed rows `h`: the residual gains down(silu(gate h) * up h), through the slots `g`, `u` and `act`, each as wide as the block.
-// With `row_gate`, one value a row, the down projection reads its row scaled by sigmoid of that value.
+// With `row_gate`, one value a row, the down projection reads its row scaled by sigmoid of that value; that block is a shared expert's, which follows its layer's routed experts (join's `add`).
 inline void swiglu(const Step& s, const Weight& gate, const Weight& up, const Weight& down,
                    backend::Slice h, backend::Slice g, backend::Slice u, backend::Slice act, const backend::Slice* row_gate = nullptr) {
     s.b.matmul_group({projection(gate, g), projection(up, u)}, h, gate.nin, s.rows, s.runs, s.dtype);
     s.b.silu_mul(act, g, u, s.rows * gate.nout, s.runs);
     if (row_gate) s.b.sigmoid_mul(act, act, *row_gate, s.rows, gate.nout, 1, 1, 0, s.runs);
-    join(s, down, act);
+    join(s, down, act, row_gate != nullptr);
 }
 
 // Routed experts over the normed rows `h`: the router's scores, a softmax's top k renormalized when `norm`, each token's k experts' SwiGLU through the slots `g`, `u` and `act`, each k expert rows a token wide, and the weighted sum of their down projections added to the residual.
 // `scores` holds a row's n_expert scores, and `ids` and `weights` its k choices.
+// On a tensor group each member holds its share of every expert's hidden rows and adds its weighted sum to its partial rows, which the runtime hands this part cleared (Step::partial).
 inline void routed_experts(const Step& s, const Weight& router, const Weight& gate, const Weight& up, const Weight& down, size_t k, bool norm,
                            backend::Slice h, backend::Slice g, backend::Slice u, backend::Slice act,
                            backend::Slice scores, backend::Slice ids, backend::Slice weights) {
@@ -86,7 +95,7 @@ inline void routed_experts(const Step& s, const Weight& router, const Weight& ga
     entry_runs.clear();
     for (size_t i = 0; i < s.runs.n; ++i) entry_runs.push_back(backend::RowRun{s.runs.runs[i].end * k, s.runs.runs[i].extent});
     b.silu_mul(act, g, u, s.rows * k * ff, {entry_runs.data(), entry_runs.size()});
-    b.matmul_experts_add(down.type, down.slice(), act, s.x, ff, E, s.rows, routing, s.runs, s.dtype);
+    b.matmul_experts_add(down.type, down.slice(), act, s.width > 1 ? s.partial : s.x, ff, E, s.rows, routing, s.runs, s.dtype);
 }
 
 // An MTP block's input (docs/SPECULATIVE.md, section 7): `pair` holds 2 * rows rows of E, the tokens' rows then the target's rows before them, which are normed in place by `enorm` and `hnorm`, put side by side a row each, token first, through `side` (a single row is already so), and projected by `eh_proj` into `out`.

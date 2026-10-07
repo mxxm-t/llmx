@@ -220,7 +220,122 @@ Until the digest and the store's probe finish, the server serves without the dis
 
 Later, each on its own measurement: the unlinked-file privacy mode, a write budget, and the remote store.
 
-Planned, not built: an entry written as what changed. A turn adds a tenth of what its conversation holds, and the rule above only spaces the whole rewrites out. Writing the blocks past the last file's length in every layer, and the new state, would write what the turn added. It is a redesign of the entry and not a change in the store: an entry is one file, written once, laid out device by device and layer by layer, and the index matches a history to one entry, room and the cap take entries, the age limit renews one file, superseding and adoption each handle one file with one header. An entry of several files needs the store to read one history out of them, the index to keep a chain while any link is wanted and to lose it whole when one fails, room and age to count chains, and a long chain folded back into one file. A step of the disk tier's own size, to be planned with its own measurements.
+Planned, not built: entries written as what changed (Planned: entries written as what changed, below).
+
+## Planned: entries written as what changed
+
+The user, 2026-10-07: disk writes should write what has changed. This section is the design, read by the reviewer and the coordinator before anything is built; the quarter rule (Keeping entries across a restart, above) stays until this replaces it.
+
+### What changes in a turn, measured
+
+Qwen3.8-27B Q8_0 over two MI50s, a conversation of 76k tokens, turns of about 60 tokens (the ten-turn run of the idle rewrite's record in STATUS):
+
+| | bytes | written and flushed on the test machine's pool |
+|---|---|---|
+| one KV block, 64 tokens, every layer, K and V, both cards | 4.25 MiB (68.0 KiB a token) | 0.01 s |
+| the recurrent state at one position | 149.6 MiB, whatever the length | |
+| what a turn of up to 64 new tokens changes: one block and the state | 154 MiB | 0.13 s |
+| the whole copy at 76160 tokens | 5207 MiB | 4.8 to 5.2 s |
+| 200 files of 6 MiB, written and flushed one by one | 1.2 GB | 2.1 s, 10 ms a file |
+
+Two facts decide the shape. The KV rows of a history are append-only: a later turn's history is the earlier one's whole blocks and more, block for block the same bytes, since a turn forks the turn before. The state is not: it is dense, the same size at every length, and every byte of it differs a turn later. So what changed in a turn is its new blocks, a few MiB, and one state, 150 MiB on this model; no layout makes the state smaller, and today's rule already writes it each turn as the message boundary. The gain is the 5.2 GB: never written twice, neither every third of growth nor at the stop.
+
+### The shape on disk
+
+Two kinds of file, both immutable, both written as an entry is today (a temporary name, flushed, renamed, the directory flushed):
+
+- **A segment**: the blocks of a token range `[a, b)` of one history, every device, layer by layer, K then V, as an entry's payload is laid out today but for those blocks only. A segment never crosses a multiple of 1024 tokens, a constant of the code: it bounds what a fork copies at 68 MiB on this model and leaves 75 files for 76k tokens.
+- **A state**: the recurrent state at one position, today's boundary entry unchanged. A model that keeps no state writes none.
+
+A history of `n` tokens is on disk when segments cover `[0, n)` and, on a model that keeps a state, a state at `n` is there. Today's copy, blocks and state in one file, goes; a message boundary is simply an earlier state of the same history.
+
+Not chosen: fixed files of one block or one group each, with the last partial one rewritten as it fills. It needs no chain, but rewrites each block up to sixteen times within its group at short turns, where a segment a turn writes each block once. Also not chosen: one file a conversation, appended in place, since an append that tears leaves a file whose end is not known to be whole, and every rule here rests on files that are whole or absent. No index file is kept, as today: the headers are the index.
+
+### Naming a segment: the prefix digest
+
+A segment's header carries, beside today's fields, its range, the tokens and row classes of that range alone, the digest of everything below it (SHA-256 over the tokens and classes of `[0, a)`, the parent) and its own at `b`. Two histories that share a prefix share its digests, so a segment belongs to every history whose tokens and classes begin with its prefix, with no reference counts: the segments on disk form a tree by parent digest, and a history is a path from the root. A state names the digest at its position.
+
+- **A conversation that goes on** adds segments at the end of its path and one state.
+- **An edit or a regenerate** forks at a whole block `p`. Segments wholly below `p` are shared as they are. The one segment that crosses `p` is not cut: the new history writes its own from that segment's start, so it copies at most the blocks of one segment below `p`, under 68 MiB, which is why segments are capped. The other branch stays a path of its own until room or age takes it.
+- **Superseding goes** for blocks, a longer history being its shorter self and more. A regenerated reply's old tail is a branch nothing extends, which room takes first.
+
+### Reading a history back
+
+A request that wants `[0, n)` reads the segments on its path in order into the host slabs, each run landing at its blocks' offset in the layer's region, then the state. The bytes are today's, so is the rate (production read a 5.4 GB entry and a state in 6.4 s, 852 MB/s); what is added is a header and an open a file, 75 files for 76k tokens with whole groups and up to a few hundred for a conversation of many short turns, at about 10 ms a file written and less read. A request that forks an earlier position reads only the segments below it, where today it reads the whole copy.
+
+The store keeps moving bytes only: it is given, for each file, the spans of host memory its runs go to or come from. Which files make a history, and in which order, is the scheduler's.
+
+Which path a request takes is a walk down the tree (`best_disk`): from the root, the child whose tokens and row classes continue the request's, as far as they do, and then the highest state at or below that point on a model that keeps one. Two conversations that begin with one system prompt share its segments. Classes decide that sharing as much as tokens: the same tokens computed as rows of another class are another path, since a fork gives the same bits only over rows of one class.
+
+### What "on disk" means to the host tier
+
+Three rules of the host tier ask whether a history is on disk, and each means the whole of it: its path covers its length and, on a model that keeps a state, its state is there. `release_written` drops a host copy as one that loses nothing only then; `copied` skips a donor at an idle write only then; and the write-ahead above three quarters counts a host copy as unwritten until then. A history whose last segment or whose state is still to be written is not on disk for any of them, so no host copy is dropped as written while part of it is not.
+
+### Identity, checksums, version
+
+Every file carries the identity, its own header CRC and a CRC32C for each 4 MiB of payload, as today, and `DiskStore::kVersion` 2. A file of version 1 is not read: the first server of this layout adopts nothing from one before it, once, and says so in its adoption line.
+
+### Crash safety, case by case
+
+Every file is whole or absent, so the cases are about which files exist together:
+
+- **A crash during a write**: a temporary file, removed by the next sweep.
+- **Blocks without their state** (the segments of a turn landed, the state did not): the path is usable up to its newest state at or below the blocks, and the extra blocks are kept, the conversation's next state making them useful.
+- **A state without its blocks** cannot happen in order, a turn's segments being written before its state; a state whose path is incomplete, by a lost file or a failed checksum, is deleted at adoption, as a boundary without its copy is today.
+- **A gap in a path** (a segment deleted, unreadable or failing its checksum): everything above the gap is unreachable and is deleted; the path below stays.
+- **Adoption** reads every header, builds the tree, and drops, counted by rule in its line: files of another identity or version, segments whose parent is not there, states whose path is not whole, then what is over the cap.
+  A header a file is read where today it is a header a conversation: a conversation of 200 short turns is about 475 files (its segments and a state a turn), and their 475 headers of 1 MiB read in 0.3 s on the test machine's pool with the files in the file cache. A start with thousands of files reads thousands of headers; the two-card check measures a start from a cold cache and the note takes its figure. If that time matters the header's first page can carry what the tree needs, so a start reads a page a file.
+- **A path whose newest state is missing** serves from the state below it: the restart forks that one and reads the turns above it again.
+
+### Room, the cap and the age limit
+
+The unit that is deleted is a file, but only ever a leaf: a segment that no segment and no state on disk stands on, or a state. So a path loses its end first and never its base, and a shared prefix goes only after every branch on it.
+
+- **Order**: states no path reaches and branches nothing extends first; then earlier states of a conversation, the oldest first, its first and its newest last; then whole conversations, those that did not come back before those that did, the least recently used first, each from its leaf down to where another path joins.
+- **Age**: a use renews the path's leaf; a node is as old as its newest descendant, so a base outlives its branches' uses without being touched. An expired conversation goes leaf first.
+- **Every state is kept** (the user, 2026-10-07: fast edits remain): each message boundary's state stays on disk, bounded only by the cap and the age limit, as today, so an edit or a regenerate of any earlier message forks the state where that message starts and reads only the message again. The cost is the state a turn, about 150 MiB on Qwen3.8-27B, 7.5 GB for 50 turns and 30 GB for 200 beside 5 GB of blocks at 76k tokens; thinning them to the newest and four was considered and not built.
+- **When the cap bites**, within one conversation, the states go oldest first but for two that go last: the newest, which the next turn forks, and the first, where an edit of the opening message forks. Blocks go only as leaves, after the states that stand on them, so each path's base goes last of all.
+
+### The idle write and the stop
+
+Five idle seconds after a turn the server writes, for each history not wholly on disk, the segments past what its path covers and then its state. The copy off the devices is of those blocks alone (`Model`'s range copy, step 1; today's copies the whole history), so an idle write of a turn costs its bytes: 154 MiB and about 0.15 s where the whole copy costs 5.2 GB and 2 s off the cards plus 5 s to disk. The stop's flush is the same walk, and what it finds after an idle moment is nothing, and without one the last turn. Its bound counts what it will write, the segments not yet on disk and one state a history, so its first line stays true and its last still says what was not written.
+
+`near_on_disk`, the quarter rule and `DiskEntry::superseded` go: there is no whole copy to space out, and a crash loses what was not yet written, a turn at most.
+
+The host tier keeps whole copies in memory as now; when one is written, only the ranges not on disk are.
+
+### Counters and lines
+
+`/v1/health`: `disk_segments` and `disk_states` beside `disk_entries` (their sum), the bytes as now. The write line names what a turn wrote (`server: 64 tokens of a conversation of 76224 written to disk, 4.2 MiB, and its state, 149.6 MiB`); the adoption line counts paths and what each rule dropped.
+
+### What it takes
+
+- `Model`: a copy of a block range to host memory and back (`save_host` and `restore_host` over `[a, b)`), and the spans of a range in a host history.
+- `DiskStore`: a file read into, or written from, given spans; the header's new fields; version 2. No policy.
+- `Scheduler`: the index as a tree by digest in place of a list of entries; coverage in place of `copied` and `near_on_disk`; room, age and adoption over leaves; the read as a sequence of files.
+- No new flag. `--disk-cache-bytes`, the floor, keep and the age limit mean what they mean now.
+
+### Tests
+
+- The store: a segment and a state written and read back bit for bit into spans; a file of version 1 refused; each header field changed refuses it.
+- The tier on the synthetic and the hybrid model: a conversation of several turns writes each block once (the bytes written equal the blocks and states, held to the byte); a restart reads the path and forks it with the replies of a fresh model; an edit shares the segments below its fork and copies at most one; a regenerate leaves a branch room takes first.
+- Faults, one a case: a segment deleted in the middle of a path, a state without its path, a path without its state, a path whose newest state is missing and which serves from the one below, a checksum failed in the second of three segments, a crash file left; each must leave the usable prefix and nothing else, and a restart must serve.
+- Room and age: the cap reached takes leaves in the order above and never a base under a kept leaf; an expired conversation goes whole while a branch that shares its base stays.
+- The two-card check: the 76k-token conversation over ten turns, bytes written a turn, the stop, a restart, and the reads' time against today's single read.
+
+### Steps
+
+1. `Model`'s range copies and spans, with their tests. No file changes.
+2. The store's version 2 and span reads and writes, with `disk-store`.
+3. The scheduler's tree, writes and reads, the quarter rule removed in the same change; `server-resume`.
+4. Room, age and adoption over leaves; the fault cases.
+5. The two-card measurements, the docs, STATUS.
+
+### Decided in review (2026-10-07)
+
+1. The cap of 1024 tokens a segment stays, a constant with its two numbers beside it; the ten-turn run reports the file count of a conversation of many short turns before anyone tunes it.
+2. Segments are not folded: it would write each block a second time to save a header and 2 MiB a segment, and read time does not need it.
+3. Every state stays on disk within the cap and the age limit (the user, 2026-10-07), at about 150 MiB a turn on Qwen3.8-27B.
 
 ## Decisions (agreed with the user 2026-10-04)
 

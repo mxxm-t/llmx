@@ -420,3 +420,113 @@ None: forks across row classes, the last, closed with `Model::row_class` ([SPECU
 | 13 | A retiring pass's rows read in place from its mapped logits, a row copied only for log-probabilities (layer split phase 3, step 4) | `server-passes-cpu`: the steady load without log-probabilities, drawn in place, gives every id it gives alone; every reply byte-identical to the step before, greedy and seeded, alone, together and against the CLI (`server`, `server-resume`, `logprobs`, `tools/server_mix_check.py --ids`, with `--sampled` for the seeded replies; `docs/STATUS.md`, layer split phase 3) |
 | 15 | A first admission forks only rows of the classes it computes them in (`Model::row_class`; [SPECULATIVE](SPECULATIVE.md), step 1) | `server-resume`: a follow-up turn, on the CPU and on a device, and a prompt sharing a block of a prompt of another tile split, each equal to the same prompt on a fresh model; `backend-group` and `backend-vulkan`: rows of every pair of extents of one class give the same bits |
 | 14 | A retiring pass's rows drawn on the scheduler's sampling threads beside the scheduler thread (layer split phase 3, step 4) | `sampling-pool`: each index once, the threads side by side, an exception rethrown once every call has returned; TSan over the pool; every reply byte-identical to the step before, as for step 13 (`docs/STATUS.md`, layer split phase 3) |
+
+## Planned: a regrouped `/v1/health` and grouped help pages (2026-10-07)
+
+`/v1/health` is one flat object of about 45 fields in the order they were added, and the `serve` help page is two long groups.
+This plan regroups both for a person reading them, keeps every value, renames no flag and changes no default.
+It is a plan: the names here are not yet the code's.
+
+### The shape
+
+Every group that holds numbers splits them the same way: `now` for what describes the server at this moment, `since_start` for counters that only rise.
+A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
+
+```json
+{
+  "status": "ok",
+  "server": {"version": "0.9.0+abc1234", "numerics": "0123456789abcdef", "uptime_s": 8123,
+             "model": "Qwen3-8B-Q8_0.gguf", "context_tokens": 40960, "devices": ["vulkan:0", "vulkan:1"]},
+  "precision": {"requested": "auto", "declared": "f16", "effective": "f16", "devices": [{"device": "vulkan:0", "how": "...", "paths": "...", "effective": "f16"}]},
+  "requests": {
+    "now": {"active": 3, "queued": 0, "paused": 0},
+    "limits": {"active": 16, "queued": 64},
+    "since_start": {"finished": 912, "prompt_tokens": 481203, "generated_tokens": 90112}
+  },
+  "reuse": {
+    "since_start": {"forks": 311, "tokens": 205112},
+    "device": {"now": {"entries": 4, "state_checkpoints": 0}},
+    "host": {"now": {"entries": 12, "bytes": 913047552, "limit_bytes": 17179869184},
+             "since_start": {"promotions": 40, "bytes_moved": 4093640704}},
+    "disk": {"now": {"entries": 90, "bytes": 8011472896, "limit_bytes": 214748364800, "ready": true, "writing": true},
+             "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412,
+                             "errors": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
+    "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}
+  },
+  "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0}},
+  "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3}},
+  "drafting": {"since_start": {"drafted": 4096, "kept": 2780,
+               "by_position": [{"position": 1, "drafted": 1024, "kept": 901}]}},
+  "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3}
+}
+```
+
+`timing` appears beside `passes` only under `--timing`, with the keys it has now and `stage_idle` renamed `stage_idle_share` (a fraction per stage).
+`drafting.by_position` is empty with no drafter, and a server has one drafter, so the counts are by draft position and not by drafter.
+
+### Where each old field goes
+
+| Old | New | Source |
+|---|---|---|
+| `status` | `status` | constant |
+| `model` | `server.model` | `Config::model_name` |
+| `dtype` | `precision` | unchanged object, `Config::dtype` |
+| `active`, `queued`, `paused` | `requests.now.active`, `.queued`, `.paused` | `Stats` |
+| `donors` | `reuse.device.now.entries` | `Stats::donors` |
+| `checkpoints` | `reuse.device.now.state_checkpoints` | `Stats::checkpoints` |
+| `prefix_hits`, `prefix_tokens` | `reuse.since_start.forks`, `.tokens` | `Stats`; every admission that forked a shared history, whatever tier it came from, so they sit above the tiers |
+| `host_donors`, `host_bytes` | `reuse.host.now.entries`, `.bytes` | `Stats` |
+| `host_hits`, `host_bytes_moved` | `reuse.host.since_start.promotions`, `.bytes_moved` | `Stats` |
+| `boundaries`, `boundary_hits` | `reuse.boundaries.now.entries`, `.since_start.hits` | `Stats` |
+| `disk_entries`, `disk_bytes` | `reuse.disk.now.entries`, `.bytes` | `Stats` |
+| `disk_ready`, `disk_writing` | `reuse.disk.now.ready`, `.writing` | `Stats` |
+| `disk_hits`, `disk_bytes_read`, `disk_bytes_written` | `reuse.disk.since_start.hits`, `.bytes_read`, `.bytes_written` | `Stats` |
+| `disk_waits`, `disk_wait_ms`, `disk_errors` | `reuse.disk.since_start.waits`, `.wait_ms`, `.errors` | `Stats` |
+| `disk_capped` | `reuse.disk.since_start.dropped_for_cap` | `Stats` |
+| `host_unwritten` | `reuse.disk.since_start.lost_before_written` | `Stats` |
+| `pauses`, `stalls`, `waits`, `recomputed`, `taken_back` | `pressure.since_start.pauses`, `.stalls`, `.waits`, `.recomputed_tokens`, `.resumes_taking_history_back` | `Stats` |
+| `reprefills`, `reprefill_rows`, `reprefill_cancels` | `reread.since_start.jobs`, `.rows`, `.cancelled` | `Stats` |
+| `drafted`, `kept` | `drafting.since_start.by_position[]` and their sums | `Stats` |
+| `passes`, `in_flight` | `passes.limit`, `passes.in_flight` | `Stats` |
+| `timing` | `timing` | `Stats::timing` |
+
+New, with where each comes from:
+
+| New | Source |
+|---|---|
+| `server.version`, `server.numerics` | `LLMX_VERSION_STRING` and the first 16 characters of `LLMX_NUMERICS`, as `--version` prints them |
+| `server.uptime_s` | seconds since the `Api` was made (`started_` is already kept) |
+| `server.context_tokens` | `Model::context_length()`, as `/v1/models` gives it |
+| `server.devices` | the names in `Config::dtype.devices` |
+| `requests.limits.*` | `Config::max_seqs`, `Config::max_queue` |
+| `requests.since_start.*` | three plain counters in the scheduler, added where a client's request ends: requests finished, prompt tokens, generated tokens; a re-read job (`reread`) is not counted |
+| `reuse.host.now.limit_bytes` | the scheduler's `host_cap_` |
+| `reuse.disk.now.limit_bytes` | the disk tier's `cap()` |
+| `passes.sampling_threads` | `Stats::samplers`, already kept and not printed |
+
+`reuse.disk.now.in_flight` (`Stats::disk_in_flight`, kept and printed nowhere) is one line more if a monitor wants it.
+The new counters are plain reads and increments under the lock the scheduler already takes; nothing in the scheduler's logic changes.
+
+### Liveness
+
+Recommended: a second route, `GET /v1/live`, answered from the HTTP layer without touching the scheduler, for a load balancer that polls often.
+It returns `{"status": "ok"}`, and may carry `active`, `paused` and `in_flight`, which the scheduler keeps in atomics (`active_count_`, `paused_count_`, `in_flight_`) that need no lock.
+The ground for a route of its own is that a probe that must not wait on the scheduler should not share a path with one that does.
+`/v1/health` takes the scheduler's lock, which the scheduler holds in admission and eviction, where it waits for the recorders to be quiet, and in the disk flush, so a health answer can wait up to a stage's time and a poll with a short timeout can fail on a healthy loaded server (`docs/src/server.md`).
+`/v1/live` says the process and its listener are up and cannot tell a wedged scheduler; a monitor that must tell that polls `/v1/health` with a timeout longer than a stage.
+The alternative is `GET /v1/health?brief`, one route and no new name, which returns only `status` before taking the lock; the HTTP layer already splits the query off the target, so it costs a comparison, but it shares a path with the call that waits.
+
+### The help pages
+
+The `serve` page is regrouped into Server, Limits, Prefix cache (the host and disk flags together), Speculative decoding and Execution, each flag one or two short lines with its default last, and three examples: one GPU, two GPUs with the disk cache kept, and drafting.
+Internal words get a plain rendering that is still true: "passes in flight" becomes "batches the devices work on at once", "states a recurrent model keeps" becomes "saved conversation states for models with recurrent layers, so a follow-up turn skips re-reading its prompt", "routed layers" becomes "mixture-of-experts layers".
+The `generate`, `chat` and `bench` pages keep their groups and gain the same shape where a group runs past about ten lines (Generation, Sampling, Drafting, Execution).
+No flag is renamed, added or removed and no default changes; `tests/cli.py` reads every flag of every page, so a flag lost from a page fails it.
+
+### What breaks
+
+The flat names go in one change with their readers: `tools/server_load.py`, `tools/server_mix_check.py`, `tests/server.py`, `tests/qwen35.py`, `tests/drafters.py`, `tests/server_mix_tool.py`, `tests/common.py` (it reads only `status`) and the fields named in `docs/USAGE.md`, `docs/DISK-TIER.md`, `docs/SPECULATIVE.md` and this file.
+There is no copy of the old flat fields beside the new ones: two shapes would be two things to keep true, and the readers are all in this tree.
+Recorded benchmark scripts under `docs/benchmarks/` read the old shape and are history.
+A person or script outside the tree reading the old names must move, among them the operator's own readiness polls (`disk_ready` and `disk_writing` tell a restart that the disk tier is ready), which move in the same change; the release notes say so.
+`tests/server_resume.cpp` reads the `Stats` struct and not the JSON, so it is unaffected while the struct keeps its fields.

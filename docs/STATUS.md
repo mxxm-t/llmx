@@ -46,6 +46,7 @@
 | The attention tile addresses its staged words directly | Done (record below): bit-identical, 10.5 percent of the tile on an MI50; lands by fast-forward |
 | The 8-bit twin block-major where the tile reads it | Done (record below): bit-identical, int8 prompts 1 percent faster on Q8_0 and 3 on Q4_K_M on an MI50; lands by fast-forward |
 | Qwen3-8B Q8_0 int8 prompts against the reference fork | Open (record below): level at pp512, 7 and 13 percent behind at pp2048 and pp4096, which is attention; the 8-bit tile shape not built |
+| Tensor split against the reference, same topology (record below) | Open speed cells at `--dtype int8`, the matched arm, Qwen3-32B Q8_0 on MI50s under one root, each shape against the reference's own (two stages of two against `-sm tensor -tps 2`, a group of four or two against `-sm tensor -tps 0`): one user behind in every tensor shape (27.6 against 28.7 tok/s on two stages of two, 20.2 against 43.2 on a group of four, 28.2 against 30.6 on a group of two), recovery: the member threads branch and then the transport, as for the group of four; the group of four at 1 and 4 users (20.2 against 43.2 and 70.1 against 104.9 on 128-token prompts), the same recovery; a group of two at 64 users (153.7 against 192.1 on 128-token prompts), recovery not yet named, to be measured after the member threads; inter-token p99 at 32 users on 128-token prompts (948 against 246 ms on two stages of two, 965 against 157 on a group of four, 1116 against 162 on a group of two), recovery: assembly by predicted stage time (phase 3, step 9). Ahead of the reference from 4 users on two stages of two and at every user count on 128-token prompts on a layer split of four. At default precision llmx is behind in more cells than at int8 in every tensor shape |
 | Grouped `/v1/health`, `/v1/live`, grouped help pages and `docs/OPERATING.md` | Done (record below): one shape, no copy of the flat fields; lands by fast-forward |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
@@ -158,6 +159,85 @@ The records of 2026-09 and the historical blocks before them are in [STATUS-2026
   > The Linux ordinary suite passed its 11 components with `--no-perf-floor` at that commit.
   > These local results do not establish hosted 8B coverage; the optional consumer is not run by the workflow.
 
+## Llmx against the reference in the same topology (2026-10-07, measured, docs only, lands by fast-forward)
+
+- **Why:** the user's rule is the same topology on both sides, each arm at its best fair settings. Earlier serving tables here put llmx's two stages of two or its layer split beside the reference's one tensor group of four; the notes under those records say which of their cells were the same shape.
+- **Setup, as the measurer posted it (2026-10-07 14:15 UTC):**
+  The user's rule: the same topology on both sides, each arm at its best fair settings. Qwen3-32B Q8_0, MI50s under one root (GPU[2] to GPU[5]; the group of two on GPU[2]+GPU[3]), default clocks, one session, every server on logical CPUs 4-7 and 12-15 (cores 4 to 7 whole), the three arms of a topology and load in turn from fresh servers, the order rotated a load. llmx is main 6ccb6352 (`llmx 0.1.0+g6ccb6352f88d`, with the hold once a stage) at `--dtype int8`, the matched precision, and at default precision; the reference is `llama-server` of the pinned image (eefc4e732) with its image environment and GPU_MAX_HW_QUEUES=8 from its recommended settings, `-ngl 99 -fa 1 -lm dio -cram 0`, and for the shape: two stages of two `-sm tensor -tps 2`, a group of four or of two `-sm tensor -tps 0`, a layer split `-sm layer`. Its logs at a verbose level, taken before the run, show the shape formed: "creating a Meta device for tensor parallelism from 4 devices (tps=2, n_stages=2)", its custom all-reduce initialized for each group of 2, devices 0 and 1 loading from layer 0 and devices 2 and 3 from layer 32, and "pipeline parallelism enabled" for the staged and the layer split alike; n_batch 2048, n_ubatch 512. Pools: 81920 tokens over 64 sequences for the closed loads, 131072 over 20 for the skewed one, on every arm. 128 generated tokens, greedy. No request failed in any arm that started.
+  One arm did not start: the reference's group of two with the skewed load's pool (`-c 131072 -np 20` on two cards) ended at load with "failed to allocate buffer for kv cache"; its row is missing and nothing stands in for it.
+  Other sessions' containers ran on other cards and other logical CPUs through the session (the monitor has them every ten seconds); the machine's load average was 5 to 25.
+
+- **Tables, copied from the post** (output tok/s, time to first token p50, inter-token p50 and p99, failed; `llmx --dtype int8` is the matched arm by the user's rule, `llmx default` is what a user who does not pass `--dtype` gets, and both stay in the table):
+
+```
+== two stages of two; users 1 / 4 / 16 / 32 / 64: output tok/s | ttft p50 s | itl p50 ms | itl p99 ms | failed
+128  llmx --dtype int8  | 27.6 / 93.8 / 233.9 / 290.2 / 260.9 | 0.26 / 0.87 / 1.66 / 2.70 / 4.82 | 34 / 36 / 49 / 74 / 129 | 37 / 37 / 57 / 948 / 1117 | 0
+128  llmx default       | 26.9 / 80.3 / 173.1 / 180.8 / 200.6 | 0.40 / 1.28 / 2.38 / 3.88 / 7.00 | 34 / 40 / 64 / 126 / 202 | 36 / 41 / 71 / 1371 / 1671 | 0
+128  reference          | 28.7 / 76.1 / 106.2 / 163.0 / 193.1 | 0.35 / 1.16 / 3.74 / 4.11 / 9.65 | 32 / 42 / 120 / 136 / 213 | 61 / 97 / 161 / 246 / 3582 | 0
+1024 llmx --dtype int8  | 19.3 / 51.5 / 82.6 / 89.3 / 88.5 | 2.02 / 3.56 / 9.83 / 18.17 / 38.73 | 36 / 39 / 58 / 93 / 168 | 38 / 522 / 1108 / 1147 / 1220 | 0
+1024 llmx default       | 16.4 / 40.9 / 59.7 / 60.3 / 61.5 | 3.14 / 5.16 / 13.96 / 26.78 / 54.63 | 37 / 43 / 74 / 144 / 241 | 39 / 738 / 1566 / 1668 / 1773 | 0
+1024 reference          | 22.1 / 43.9 / 50.8 / 57.7 / 57.8 | 1.57 / 5.10 / 14.34 / 26.99 / 55.13 | 32 / 44 / 125 / 145 / 228 | 65 / 87 / 3134 / 3657 / 4282 | 0
+mix  llmx --dtype int8  | 19.8 / 56.3 / 121.7 / 124.7 / 125.5 | 1.77 / 3.40 / 7.64 / 10.26 / 22.77 | 37 / 38 / 55 / 90 / 163 | 39 / 108 / 1068 / 1169 / 1281 | 0
+mix  llmx default       | 17.4 / 44.3 / 85.6 / 81.9 / 84.4 | 2.75 / 5.01 / 10.18 / 15.34 / 33.53 | 36 / 43 / 71 / 141 / 235 | 38 / 153 / 1755 / 1845 / 2033 | 0
+mix  reference          | 22.9 / 43.9 / 58.8 / 72.2 / 78.3 | 1.35 / 4.58 / 12.85 / 24.20 / 38.60 | 33 / 44 / 124 / 143 / 220 | 65 / 103 / 1119 / 4405 / 4405 | 0
+   skew: users tok/s | users itl p50, p99 ms | longest gap s | gaps over 0.5 s | long prompts ttft s | long tok/s | failed
+   llmx --dtype int8  |  128.9 |   49,  1388 |  2.81 |  328 of 8128 | 9.9 to 20.8 |  15.7 | 0
+   llmx default       |   96.6 |   65,  1864 |  2.52 |  350 of 8128 | 13.7 to 28.9 |  11.0 | 0
+   reference          |   61.1 |  211,  3101 |  4.69 |  164 of 8127 | 11.6 to 29.0 |  10.2 | 0
+== one group of four; users 1 / 4 / 16 / 32 / 64: output tok/s | ttft p50 s | itl p50 ms | itl p99 ms | failed
+128  llmx --dtype int8  | 20.2 / 70.1 / 160.5 / 177.9 / 203.0 | 0.24 / 1.09 / 2.15 / 3.99 / 7.77 | 47 / 48 / 70 / 124 / 185 | 58 / 61 / 717 / 965 / 1056 | 0
+128  llmx default       | 20.5 / 69.7 / 122.3 / 138.3 / 148.2 | 0.32 / 1.26 / 2.66 / 4.99 / 9.84 | 46 / 47 / 95 / 160 / 258 | 53 / 54 / 910 / 1225 / 1357 | 0
+128  reference          | 43.2 / 104.9 / 141.0 / 195.2 / 177.0 | 0.34 / 1.14 / 4.24 / 6.22 / 12.31 | 20 / 28 / 80 / 100 / 216 | 44 / 68 / 121 / 157 / 4335 | 0
+1024 llmx --dtype int8  | 16.2 / 37.8 / 52.0 / 53.3 / 52.2 | 1.77 / 4.69 / 15.64 / 30.78 / 69.49 | 48 / 48 / 80 / 144 / 280 | 51 / 930 / 972 / 1023 / 1136 | 0
+1024 llmx default       | 15.2 / 33.2 / 40.7 / 42.2 / 42.3 | 2.25 / 5.75 / 19.85 / 39.09 / 81.45 | 49 / 48 / 106 / 180 / 353 | 53 / 1170 / 1234 / 1299 / 1447 | 0
+1024 reference          | 27.7 / 42.1 / 44.4 / 49.3 / 49.7 | 1.99 / 7.07 / 21.23 / 37.98 / 72.24 | 20 / 29 / 82 / 102 / 218 | 47 / 213 / 4297 / 4423 / 4390 | 0
+mix  llmx --dtype int8  | 16.6 / 42.3 / 80.7 / 78.4 / 81.3 | 1.50 / 4.14 / 11.12 / 16.56 / 38.42 | 48 / 48 / 77 / 142 / 224 | 56 / 908 / 1007 / 1071 / 1188 | 0
+mix  llmx default       | 16.0 / 37.3 / 61.4 / 61.2 / 62.8 | 1.91 / 5.13 / 14.19 / 21.71 / 46.40 | 48 / 48 / 104 / 178 / 296 | 59 / 1147 / 1352 / 1464 / 1552 | 0
+mix  reference          | 29.4 / 47.3 / 67.7 / 75.5 / 75.8 | 1.72 / 5.95 / 10.38 / 25.96 / 40.92 | 20 / 29 / 81 / 100 / 212 | 47 / 79 / 3835 / 4507 / 4583 | 0
+   skew: users tok/s | users itl p50, p99 ms | longest gap s | gaps over 0.5 s | long prompts ttft s | long tok/s | failed
+   llmx --dtype int8  |   92.5 |   70,  1155 |  1.21 |  613 of 8128 | 8.9 to 34.7 |  10.0 | 0
+   llmx default       |   71.0 |   97,  1412 |  1.44 |  632 of 8128 | 12.2 to 44.3 |   7.7 | 0
+   reference          |   70.3 |  164,  4240 |  4.69 |  147 of 8127 | 16.8 to 35.2 |  10.0 | 0
+== one group of two; users 1 / 4 / 16 / 32 / 64: output tok/s | ttft p50 s | itl p50 ms | itl p99 ms | failed
+128  llmx --dtype int8  | 28.2 / 85.7 / 152.4 / 167.7 / 153.7 | 0.26 / 1.15 / 2.38 / 4.48 / 8.96 | 33 / 38 / 73 / 126 / 249 | 36 / 40 / 826 / 1116 / 1248 | 0
+128  llmx default       | 27.2 / 72.8 / 96.5 / 110.5 / 107.9 | 0.40 / 1.55 / 3.36 / 6.47 / 12.98 | 34 / 43 / 120 / 196 / 389 | 36 / 44 / 1198 / 1626 / 1825 | 0
+128  reference          | 30.6 / 80.0 / 106.7 / 167.7 / 192.1 | 0.33 / 1.09 / 3.94 / 5.89 / 8.52 | 30 / 41 / 119 / 131 / 206 | 47 / 69 / 155 / 162 / 3638 | 0
+1024 llmx --dtype int8  | 19.3 / 36.6 / 45.5 / 45.8 / 43.9 | 1.99 / 5.27 / 17.83 / 35.42 / 80.34 | 36 / 44 / 93 / 171 / 346 | 39 / 1075 / 1129 / 1229 / 1407 | 0
+1024 llmx default       | 17.1 / 28.1 / 30.9 / 31.5 / 30.8 | 2.92 / 7.47 / 26.13 / 51.71 / 113.69 | 36 / 49 / 140 / 241 / 471 | 38 / 1531 / 1648 / 1772 / 1999 | 0
+1024 reference          | 22.2 / 39.1 / 42.7 / 48.5 / 50.1 | 1.85 / 6.64 / 19.66 / 36.34 / 70.49 | 30 / 42 / 123 / 139 / 222 | 48 / 71 / 4102 / 4301 / 4338 | 0
+mix  llmx --dtype int8  | 20.3 / 40.4 / 70.8 / 68.0 / 67.1 | 1.69 / 4.66 / 11.57 / 19.60 / 42.86 | 36 / 43 / 87 / 162 / 321 | 38 / 1026 / 1218 / 1232 / 1459 | 0
+mix  llmx default       | 18.0 / 32.0 / 47.4 / 46.3 / 45.3 | 2.50 / 6.64 / 16.92 / 28.79 / 64.19 | 36 / 48 / 134 / 232 / 459 | 38 / 1493 / 1846 / 1990 / 2191 | 0
+mix  reference          | 23.2 / 42.5 / 60.0 / 67.9 / 76.1 | 1.61 / 4.90 / 10.60 / 25.66 / 39.06 | 30 / 42 / 122 / 139 / 220 | 47 / 75 / 3570 / 4567 / 4423 | 0
+   skew: users tok/s | users itl p50, p99 ms | longest gap s | gaps over 0.5 s | long prompts ttft s | long tok/s | failed
+   llmx --dtype int8  |   76.5 |   76,  1480 |  1.68 |  648 of 8128 | 10.1 to 41.8 |   8.3 | 0
+   llmx default       |   52.4 |  124,  2011 |  2.08 |  648 of 8128 | 15.3 to 60.2 |   5.6 | 0
+   reference          missing
+== layer split of four; users 1 / 4 / 16 / 32 / 64: output tok/s | ttft p50 s | itl p50 ms | itl p99 ms | failed
+128  llmx --dtype int8  | 16.6 / 63.0 / 195.6 / 288.2 / 262.6 | 0.41 / 1.25 / 2.04 / 2.96 / 4.68 | 57 / 54 / 61 / 76 / 124 | 59 / 54 / 62 / 100 / 2085 | 0
+128  llmx default       | 15.8 / 57.0 / 155.4 / 193.2 / 169.4 | 0.70 / 2.01 / 3.25 / 4.78 / 7.29 | 58 / 55 / 69 / 111 / 225 | 60 / 58 / 70 / 141 / 2571 | 0
+128  reference          | 15.3 / 50.4 / 73.4 / 119.4 / 133.2 | 0.48 / 1.64 / 6.22 / 8.19 / 13.98 | 54 / 67 / 170 / 185 / 313 | 193 / 71 / 174 / 195 / 5015 | 0
+1024 llmx --dtype int8  | 11.9 / 42.4 / 83.4 / 98.5 / 102.1 | 2.89 / 4.15 / 9.59 / 16.57 / 32.94 | 62 / 57 / 71 / 95 / 161 | 64 / 58 / 1784 / 1823 / 1890 | 0
+1024 llmx default       | 10.2 / 34.5 / 60.5 / 66.4 / 62.9 | 4.73 / 6.50 / 14.65 / 25.51 / 56.41 | 62 / 58 / 79 / 129 / 259 | 63 / 59 / 2724 / 2786 / 2927 | 0
+1024 reference          | 14.3 / 31.9 / 41.4 / 46.1 / 42.3 | 2.03 / 6.10 / 15.67 / 30.67 / 68.78 | 55 / 70 / 179 / 202 / 348 | 58 / 74 / 3706 / 4938 / 6715 | 0
+mix  llmx --dtype int8  | 12.5 / 45.2 / 112.5 / 130.8 / 140.9 | 2.48 / 3.67 / 7.67 / 10.54 / 21.36 | 61 / 57 / 68 / 91 / 154 | 62 / 58 / 1248 / 1877 / 2095 | 0
+mix  llmx default       | 10.6 / 36.9 / 79.4 / 86.3 / 90.5 | 4.15 / 5.84 / 12.17 / 17.40 / 33.25 | 62 / 57 / 76 / 125 / 253 | 64 / 71 / 1905 / 3314 / 3269 | 0
+mix  reference          | 14.6 / 30.2 / 45.6 / 53.8 / 54.5 | 1.83 / 6.38 / 14.75 / 32.64 / 55.14 | 55 / 70 / 175 / 195 / 336 | 58 / 75 / 3650 / 6222 / 6633 | 0
+   skew: users tok/s | users itl p50, p99 ms | longest gap s | gaps over 0.5 s | long prompts ttft s | long tok/s | failed
+   llmx --dtype int8  |  119.7 |   61,  2100 |  3.59 |  204 of 8128 | 16.9 to 18.7 |  16.2 | 0
+   llmx default       |   91.7 |   70,  3082 |  4.16 |  213 of 8128 | 25.3 to 27.7 |  11.5 | 0
+   reference          |   52.2 |  229,  3587 |  5.83 |  147 of 8127 | 13.0 to 32.4 |   8.3 | 0
+```
+
+- **Read, llmx at int8 against the reference in the same shape** (output tok/s at 1 / 4 / 16 / 32 / 64 users), as posted:
+- **Two stages of two:** ahead from 4 users on under every load (128-token prompts 93.8 / 233.9 / 290.2 / 260.9 against 76.1 / 106.2 / 163.0 / 193.1; 1024-token 51.5 to 89.3 against 43.9 to 57.8; mixed 56.3 to 125.5 against 43.9 to 78.3) and behind at one user under every load (27.6 against 28.7, 19.3 against 22.1, 19.8 against 22.9). Under skew the users get 128.9 tok/s against 61.1. Inter-token p99 is behind at 32 users on short prompts (948 against 246 ms) and at 4 users on 1024-token prompts (522 against 87), ahead at 64 users and from 16 users on the longer loads.
+- **One group of four:** behind at 1 and 4 users under every load (20.2 against 43.2 and 70.1 against 104.9 on short prompts) and at 32 users on short prompts (177.9 against 195.2); ahead at 16 and 64 users on short prompts and from 16 users on the longer loads; under skew 92.5 against 70.3.
+- **One group of two:** behind at one user under every load and at 64 users under every load (153.7 against 192.1, 43.9 against 50.1, 67.1 against 76.1), behind at 4 users on the longer loads and at 32 users on 1024-token prompts; ahead at 4 and 16 users on short prompts and at 16 on the longer ones; level at 32 users on short and mixed prompts. No reference row under skew.
+- **Layer split of four:** ahead at every user count on short prompts (16.6 / 63.0 / 195.6 / 288.2 / 262.6 against 15.3 / 50.4 / 73.4 / 119.4 / 133.2) and from 4 users on the longer loads; behind at one user on 1024-token and mixed prompts (11.9 against 14.3, 12.5 against 14.6); under skew 119.7 against 52.2.
+- At default precision llmx is behind the reference in more cells than at int8 in every tensor shape; the tables carry both.
+- **Contention:** the measurer's account above stands: other sessions' containers on other cards and logical CPUs, the monitor's samples every ten seconds, a load average of 5 to 25. No arm was discarded or rerun for it, so the figures are read with that flag and not as idle-machine figures.
+- **Open speed cells, recorded in the status table:** one user behind the reference in every tensor shape at int8; the group of four at 1 and 4 users; a group of two at 64 users; inter-token p99 at 32 users on short prompts. A path main already has is behind in them, so they are open and not waived.
+- **Not measured:** the reference's group of two under the skewed load (its pool did not fit two cards), and a reference arm at any other precision.
+
 ## `/v1/health` in groups, `/v1/live`, grouped help pages and the operating guide (2026-10-07, branch feat/health-help, lands by fast-forward)
 
 - **Goal:** a health reply and help pages a person can read, and a page for people who run a server (`docs/OPERATING.md`).
@@ -269,6 +349,8 @@ The records of 2026-09 and the historical blocks before them are in [STATUS-2026
 
 
 ## Prompt rows beside decoders: what `--ubatch` trades when serving (2026-10-06, measured, docs only, lands by fast-forward)
+
+- **Same shape or not (2026-10-07):** no cell of this record compares like with like: its reference row is the reference's one tensor group of four, beside llmx's two stages of two and its layer split of four. The same-shape table is the record "Llmx against the reference in the same topology", above.
 
 - **Goal:** the inter-token p99 cells open on stages of tensor groups, measured before any rule: what a decoder's gap is made of when prompts land, on two stages of two and on a layer split of the same four cards, across `--ubatch` 512, 256, 128 and 64.
 - **Decision** (the coordinator, 2026-10-07): no scheduler rule. The figures show a trade on tensor groups and a loss on a layer split under skew, and a feature merges only with a measured gain on its workload. `docs/USAGE.md` and `docs/SERVER.md` say what the knob trades.
@@ -426,6 +508,8 @@ The records of 2026-09 and the historical blocks before them are in [STATUS-2026
 
 ## A decode sum at width 4: the reference's row and where the time goes (2026-10-06, measured, docs only, lands by fast-forward)
 
+- **Same shape or not (2026-10-07):** the width 4 cells (llmx's one group of four against the reference's tensor split of four) are same-shape; the two-stage and layer-split columns, where they stand beside the reference, are not. The same-shape table is the record "Llmx against the reference in the same topology", above.
+
 - **Goal:** the tensor split's open decode cells at width 4, measured before anything is built: the reference's tensor split of four beside llmx on the same cards, and what a decode sum's time is made of at width 4 against width 2.
 - **Measured** (main a01216fb, `llmx 0.1.0+ga01216fb202f`; Qwen3-32B Q8_0 on four MI50s under one root, default clocks, the process on logical CPUs 8 to 11, one session, arms interleaved, two rounds; `bench --model --p 512 --n 128 --r 3`, and the reference `llama-bench -ngl 99 -fa on -sm tensor -lm dio -p 512 -n 128 -r 3` of the pinned image with its environment; tok/s):
 
@@ -504,6 +588,8 @@ The records of 2026-09 and the historical blocks before them are in [STATUS-2026
 
 ## A group's stage recorded off the scheduler's thread (2026-10-06, branch feat/tp-stage-threads, a step of TENSOR-SPLIT after step 4, lands by fast-forward)
 
+- **Same shape or not (2026-10-07):** the reference columns are its tensor split of four (one group), beside llmx's two stages of two and its layer split of four, so "leads the reference from 16 users" and the cells open against the reference compare different shapes; none of the record's reference cells is same-shape. The same-shape table is the record "Llmx against the reference in the same topology", above.
+
 - **Goal:** stages of tensor groups overlap. Recording a group's stage runs in step with its devices, so the scheduler's one thread was held for the whole stage and two stages of two served no faster than one group (tensor groups serving, below).
 - **Result:** with several passes in flight each group's stage has a recorder thread that records one stage of one pass at a time and decides nothing (`docs/SERVER.md`, The round); the round and its policy stay the scheduler's, `round_steps` taking the fact that a pass is being recorded. `backends/backend.hpp` states the one call another thread may make on a recording backend, `wait` of a returned ticket. A layer split's stages are recorded inline as before.
 - **Measured** (0f02aa41, `llmx 0.1.0+g0f02aa41fe37`, binary sha256 00827e876db102c7; Qwen3-32B Q8_0 on MI50s at default clocks, `serve --max-seqs 64` with a pool of 81920 tokens on every arm, `tools/server_load.py` with 128 generated tokens at 1 / 4 / 16 / 32 / 64 users, greedy, the arms in turn from fresh servers in one session a table, the reference `llama-server -sm tensor` of the pinned image on the same cards; no request failed; the machine's load average 5 to 29 with other work on other cards and cores). Output tok/s, then the inter-token p99 in ms:
@@ -539,6 +625,8 @@ The records of 2026-09 and the historical blocks before them are in [STATUS-2026
 - **Reviewed by:** D2CDEV at 1dd3cfff (the design as built, one finding and one question, both fixed); F2DEV at 8985e38a and b438b74e (the wait for idle recorders before an abandon, the exact wait, and the deadlock's fix; no finding, its notes taken or answered in the collaboration log).
 
 ## Tensor groups serving (2026-10-04, branch feat/tp-staged-serve, step 4 of TENSOR-SPLIT, lands by fast-forward)
+
+- **Same shape or not (2026-10-07):** the width 2 cells (a group of two against the reference's tensor split of two) are same-shape; the cells of four and eight cards (llmx's two stages of two or four, or its layer split, against the reference's one tensor split of four or eight) are not. The same-shape table is the record "Llmx against the reference in the same topology", above.
 
 - **Done:** the cause of the server cells, measured on Qwen3-32B Q8_0 over GPU[2] and GPU[3] (main's code, 9e687440 and 235375a9, RADV, default clocks); it is not in how passes are formed, so it goes to step 7 with these numbers:
   - at 32 users of 512/128 both arms read prompts at about the same rate, the group 215 and the layer split 225 tokens a second; served with `--timing`, the group's one stage carried 299 rows a second of device time against the layer split's busiest stage's 280, idle 13.7 percent against 8.8 and 4.2, so the group's device work is no slower and its loss is the time its stage stands idle;

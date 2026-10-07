@@ -17,6 +17,7 @@
 #include "backends/cpu/cpu_backend.hpp"
 #include "core/crc32c.hpp"
 #include "server/disk_store.hpp"
+#include "server/disk_tier.hpp"
 
 namespace {
 
@@ -178,6 +179,12 @@ int main(int argc, char** argv) {
             kept_dir = store.directory();
         }
         require(fs::exists(kept_dir / "kept") && fs::exists(kept_dir / ("entry-" + std::to_string(key) + ".kv")), "a store with keep did not leave its entries");
+
+        // An entry's identity follows what can change a history's bits, not the revision built: two builds of one numerics fingerprint are one identity, two fingerprints are two.
+        require(server::disk_identity("digest", "layout", {"g111111111111", "aaaa"}) == server::disk_identity("digest", "layout", {"g222222222222", "aaaa"}),
+                "an entry's identity changes with the revision built, the numerics fingerprint being the same");
+        require(server::disk_identity("digest", "layout", {"g111111111111", "aaaa"}) != server::disk_identity("digest", "layout", {"g111111111111", "bbbb"}),
+                "an entry's identity is the same for two numerics fingerprints");
 
         // Another identity under keep adopts nothing and removes what it cannot read; the same identity adopts the entry, which reads back, and a store without keep removes its directory at exit.
         const fs::path copy = base / "copy";

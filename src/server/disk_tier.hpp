@@ -23,6 +23,18 @@
 
 namespace server {
 
+// What the build gives an entry's identity.
+struct BuildFacts {
+    std::string revision;   // the Git revision built from
+    std::string numerics;   // the fingerprint of the sources that decide a history's bits
+};
+inline BuildFacts build_facts() { return {LLMX_BUILD_REVISION, ""}; }
+
+// The text an entry's identity is the digest of: the model file's digest, the build and the model's host layout (Model::host_identity).
+inline std::string disk_identity(const std::string& digest, const std::string& layout, const BuildFacts& build) {
+    return digest + "\n" + LLMX_RELEASE_VERSION "+" + build.revision + "\n" + layout;
+}
+
 // The server's disk tier, from --disk-cache-bytes, --disk-cache-dir, --disk-cache-floor, --disk-cache-keep and --disk-cache-max-age; `bytes` 0 keeps none.
 struct DiskOptions {
     uint64_t bytes = 0;
@@ -71,7 +83,7 @@ public:
             std::unique_ptr<DiskStore> store;
             try {
                 const std::string digest = format::cached_file_sha256((std::filesystem::u8path(options_.dir) / "digests").u8string(), options_.model_path);
-                const std::string text = digest + "\n" + LLMX_VERSION_STRING + "\n" + layout;
+                const std::string text = disk_identity(digest, layout, build_facts());
                 core::Sha id(true);
                 id.update(text.data(), text.size());
                 const std::string hex = id.hex();

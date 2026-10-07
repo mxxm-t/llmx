@@ -485,8 +485,9 @@ public:
                 slots_.configure(options_.state_slots, options_.checkpoint_slots, options_.mark_slots);
             }
             // The drafter's carried row, one a state slot on the head's device, a zero row a history of length 0 reads, and each mark's room for the normed rows of the pass after it.
-            if (plan_.drafter) {
-                Device& o = *devices_[(size_t)place_.output_device];
+            // Each member of the head's tensor group holds them, the rows being the same on every member.
+            for (size_t m = 0; plan_.drafter && m < width_; ++m) {
+                Device& o = *devices_[(size_t)place_.output_device + m];
                 const size_t slots = backend::size_add(backend::size_add(options_.state_slots, options_.checkpoint_slots), options_.mark_slots);
                 const size_t row = backend::size_mul(plan_.residual, sizeof(float));
                 o.carry = o.b->alloc(backend::size_mul(slots, row));
@@ -654,8 +655,8 @@ public:
     }
     // The logits of draft row i of the last draft's sequence `r`, in the order it was asked for, valid until the next.
     const float* draft_logits(size_t i, size_t r = 0) const {
-        if (!draft_logits_ || r >= draft_order_.size() || i >= draft_k_[r]) throw std::out_of_range("inference: no such draft row");
-        return (const float*)draft_logits_->host_ptr() + (i * draft_width_ + draft_order_[r]) * plan_.vocab;
+        if (draft_logits_.empty() || r >= draft_order_.size() || i >= draft_k_[r]) throw std::out_of_range("inference: no such draft row");
+        return (const float*)draft_logits_[0]->host_ptr() + (i * draft_width_ + draft_order_[r]) * plan_.vocab;
     }
     // Checkpoint slots in all, and those a keep can still take.
     size_t checkpoint_slots() const { return state_layers_ ? options_.checkpoint_slots : 0; }
@@ -862,7 +863,7 @@ private:
     std::vector<std::vector<Weight>> home_;     // per layer, its roles by role id, each on the device of its part
     // A tensor group's other members' rows (Placement::width): per member past the first, the pass's and per layer the layer's, each weight that member's shard, and the packed copies of the shards the model adopted without a hook, which it keeps.
     size_t width_ = 1;
-    std::vector<std::vector<Weight>> member_pass_;
+    std::vector<std::vector<Weight>> member_pass_, member_drafter_;
     std::vector<std::vector<std::vector<Weight>>> member_home_;
     std::vector<std::vector<uint8_t>> packed_;
     // A routed layer run beside its mixer for a long prompt (Placement::stream_from): the device it runs on, or -1, and home_'s row with its copy roles adopted on that device and its window roles in that device's windows.
@@ -871,8 +872,9 @@ private:
     std::vector<std::vector<backend::BufferPtr>> windows_;   // per device, a buffer per window role in role order, sized to the largest streamed layer's
     std::vector<Weight> drafter_;                // an embedded drafter's roles by role id, on the head's device
     size_t drafter_kv_ = 0;                      // its KV layer in the head's device's storage
-    backend::BufferPtr draft_ids_, draft_logits_;   // the last draft's ids, the last picks first, and its rows' logits, a step's rows together, host visible on the head's device
-    size_t draft_id_rows_ = 0, draft_rows_ = 0;     // the ids and the logits rows the two hold
+    // The last draft's ids, the last picks first, host visible, and its rows' logits, a step's rows together, per member of the head's group: the first member's logits host visible, every row of every step, and each other member's one step's rows, which only its argmax reads.
+    std::vector<backend::BufferPtr> draft_ids_, draft_logits_;
+    size_t draft_id_rows_ = 0, draft_rows_ = 0, draft_seqs_ = 0;   // the ids, the logits rows and a step's rows they hold
     std::vector<size_t> draft_order_, draft_k_;     // the last draft's sequences' places in its steps' rows and their chains' lengths, in the order they were asked for
     size_t draft_width_ = 0;                        // the last draft's sequences with a chain, the rows of its first step
     std::vector<std::vector<float>> tables_;
@@ -882,6 +884,7 @@ private:
     // The weights member m of the group a part runs on reads: the pass's, and layer l's.
     const Weight* pass_row(size_t m) const { return m ? member_pass_[m - 1].data() : pass_.data(); }
     const Weight* home_row(size_t m, size_t l) const { return m ? member_home_[m - 1][l].data() : home_[l].data(); }
+    const Weight* drafter_row(size_t m) const { return m ? member_drafter_[m - 1].data() : drafter_.data(); }
     // The vocabulary rows member m of the head's group computes, its share of the head's matrix.
     size_t head_rows(size_t m) const {
         for (const Role& role : plan_.pass)
@@ -964,8 +967,11 @@ private:
         // Each other member of a tensor group gets its own rows, in the same order.
         member_pass_.assign(width_ - 1, std::vector<Weight>(plan_.role_ids));
         member_home_.assign(width_ - 1, std::vector<std::vector<Weight>>(n_layer, std::vector<Weight>(plan_.role_ids)));
+        member_drafter_.assign(plan_.drafter ? width_ - 1 : 0, std::vector<Weight>(plan_.role_ids));
         for (size_t m = 1; m < width_; ++m) {
             for (const Role& role : plan_.pass) member_pass_[m - 1][role.id] = resolve(role, device_of(role.part, 0), m);
+            for (size_t k = 0; plan_.drafter && k < plan_.drafter->roles.size(); ++k)
+                member_drafter_[m - 1][plan_.drafter->roles[k].id] = resolve(plan_.drafter->roles[k], device_of(Part::draft, 0), m);
             for (size_t l = 0; l < n_layer; ++l)
                 for (const Role& role : plan_.layers[l].roles) member_home_[m - 1][l][role.id] = resolve(role, device_of(role.part, l), m);
         }

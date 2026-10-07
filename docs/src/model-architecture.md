@@ -32,6 +32,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   whose cache is a state, and the position
   tables' sizes, and an embedded drafter's `LayerPlan` when a caller asked
   for one, its roles all `Part::draft`, which run on the head's device, and
+  `draft_x`, the arena slot of a draft step's residual rows, which a tensor group sums into, and
   `draft_h`, the arena slot its context rows leave the target's
   final-normed rows in).
   - A `RoleKind` says how a role's tensor is checked and whether the fit

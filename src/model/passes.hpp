@@ -350,6 +350,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
         }
         sum.sum_into(x, p.rows, plan_.residual);
     }
+    if (s + 1 == stages_.size() && plan_.drafter) draft_context(ctx, p, s);
     if (s + 1 < stages_.size()) {
         send(ctx, g, p.handoff, 0, p.rows);
         p.at = g;
@@ -403,28 +404,32 @@ inline void Model::stage_commit(ExecContext& ctx, Pass& p, size_t s) {
 
 // An embedded drafter's context rows of the pass, on the head's device after the last stage (Architecture::draft_rows): each entry's first row reads the row its sequence carries, from where its history left it on the last stage, or a zero row for an empty history.
 // Then each entry's last normed row is carried into the slot its state is written to, and a marked entry's rows are saved for its retract (save_h).
+// On a tensor group every member of the head's group does so over the K and V of its own KV heads, carrying the row itself, the rows being the same on every member.
 inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
-    const size_t o = (size_t)place_.output_device;
-    Device& d = *devices_[o];
     const size_t E = plan_.residual, n = p.entries.size();
-    ctx.carry.resize(n);
-    for (size_t e = 0; e < n; ++e) {
-        const Sequence& q = *p.entries[e].seq;
-        const size_t src = q.from_[s] == Sequence::kLive ? q.state_.slot() : q.from_[s];
-        ctx.carry[e] = q.stage_length(s) ? backend::CSlice{d.carry.get(), src * E} : backend::CSlice{d.zero.get(), 0};
-    }
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
-    DraftRowsStep step{part(ctx, o, drafter_.data(), plan_.drafter->kind, 0, p.rows, all), p.ids.data(), ctx.carry.data()};
-    step.views = p.views[(size_t)d.storage_index].data();
-    step.n_views = n;
-    step.kv_layer = drafter_kv_;
-    step.pos = p.pos.data();
-    arch_->draft_rows(step);
-    const backend::Slice hn = slot(ctx, o, plan_.draft_h);
-    for (size_t e = 0; e < n; ++e) {
-        const Sequence& q = *p.entries[e].seq;
-        const size_t dst = p.kept[e].held() ? p.kept[e].slot() : q.state_.slot();
-        d.b->copy(*d.carry, dst * E * sizeof(float), *hn.buffer, (hn.offset + (p.runs[e].end - 1) * E) * sizeof(float), E * sizeof(float));
+    ctx.carry.resize(n);
+    for (size_t m = 0; m < width_; ++m) {
+        const size_t o = (size_t)place_.output_device + m;
+        Device& d = *devices_[o];
+        for (size_t e = 0; e < n; ++e) {
+            const Sequence& q = *p.entries[e].seq;
+            const size_t src = q.from_[s] == Sequence::kLive ? q.state_.slot() : q.from_[s];
+            ctx.carry[e] = q.stage_length(s) ? backend::CSlice{d.carry.get(), src * E} : backend::CSlice{d.zero.get(), 0};
+        }
+        DraftRowsStep step{part(ctx, o, drafter_row(m), plan_.drafter->kind, 0, p.rows, all), p.ids.data(), ctx.carry.data()};
+        step.width = width_;
+        step.views = p.views[(size_t)d.storage_index * width_ + m].data();
+        step.n_views = n;
+        step.kv_layer = drafter_kv_;
+        step.pos = p.pos.data();
+        arch_->draft_rows(step);
+        const backend::Slice hn = slot(ctx, o, plan_.draft_h);
+        for (size_t e = 0; e < n; ++e) {
+            const Sequence& q = *p.entries[e].seq;
+            const size_t dst = p.kept[e].held() ? p.kept[e].slot() : q.state_.slot();
+            d.b->copy(*d.carry, dst * E * sizeof(float), *hn.buffer, (hn.offset + (p.runs[e].end - 1) * E) * sizeof(float), E * sizeof(float));
+        }
     }
     save_h(ctx, p);
 }

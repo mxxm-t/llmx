@@ -354,6 +354,7 @@ The flag means the same on every backend or is refused and reads nothing from th
 ### 4.8 Speculative decoding over a group
 
 One system, as SPECULATIVE section 3 requires: proposers over one verify, accept and retract path, with no path specific to groups.
+As built, the drafter's chain has no argmax exchange: each member reads the head whole and finds a draft row's token itself, and the exchange described below is the path to return to (section 8, Step 6 as built).
 
 - **The embedded MTP drafter** (SPECULATIVE section 7) is a layer of the target's last stage: its roles shard as a layer's do (its attention by heads with its KV in the group's pool, its feed-forward rows and columns, `eh_proj` replicated, a 2E by E product the draft chain reads whole), and the head is the target's vocabulary-split head.
   The draft chain's argmax over the vocabulary becomes each member's argmax over its slice and one small exchange of (value, id) pairs, the largest value winning and the lower id on a tie, which gives one device's id exactly; every member then embeds the same id from its replicated table.
@@ -589,6 +590,17 @@ Each member keeps the recurrent state of its own heads in a state storage of its
 The real files split at widths 2 and 4: Qwen3.5-0.8B (8 heads, 2 KV heads, 16 K and 16 V heads), Qwen3.5-9B (16, 4, 16 and 32) and Qwen3.6-27B and Qwen3.8-27B (24, 4, 16 and 48), the 0.8B's KV heads replicated at width 4; width 3 is refused on each by its KV heads and its K heads.
 Drafting by lookup runs over a group with this step, since it needs only the mark and the retract; the embedded drafter is step 6.
 `docs/STATUS.md` has the measurements.
+
+### Step 6 as built (2026-10-07)
+
+The embedded drafter runs over a group with the block's roles split as section 4.8 has them, a full-attention layer's and a dense block's shards on each member, `eh_proj` and the norms whole, its KV the member's KV heads in the group's pool, and two sums a draft row through the collective as it is, into the draft step's residual rows (`ModelPlan::draft_x`).
+One point differs from section 4.8, by choice: the chain's argmax is not joined over the members.
+Each member reads the head whole for a draft row, a copy beside its own shard of the head (or, on a tied file, the embedding table it holds whole anyway), so each finds the row's id from the same rows by the rule one device uses, and no member waits for another before it embeds the next token.
+The reason is ownership, not arithmetic: the join is a call of `Collective`, whose Vulkan implementation another branch was rebuilding with a thread a member, and a group's first support of drafting should not wait on it or add a third exchange a draft row to a path whose every exchange is a submission boundary.
+What it costs is memory, the head once more on each member (1.35 GiB of Q8_0 on Qwen3.6-27B, counted by the fit), and the head's product for a draft row at one device's time instead of a member's share; `docs/STATUS.md` has the measured draft row.
+The join stays the design to return to if that product shows in a profile; it would be one call more in `Collective` (section 4.9) and would change neither the drafts nor the output.
+A sequence's drafts end before the first id its members disagree on, which the rule that every member computes the same bits says does not happen, so a disagreement costs drafts and never output.
+The context rows of a pass need no exchange at all: every member writes the K and V of its own KV heads from the same rows and carries the last row itself.
 
 ## 9. Sources (2026-10-03)
 

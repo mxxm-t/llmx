@@ -64,32 +64,12 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         counted.push_back(field);
         if (!role.tensor) continue;
         *field = matrix(*role.tensor, field == &fp.output, &role);
-        if (field == &fp.output) fp.tied = role.aliased;
+        // A member's head is its shard, a buffer of its own beside the whole table the embedding reads, so a group counts both.
+        if (field == &fp.output) fp.tied = role.aliased && width == 1;
     }
     // The host's logits rows hold the whole vocabulary; on a tensor group each member of the head's group keeps its slice of them too.
     fp.logits_per_row = plan.vocab * sizeof(float);
     if (width > 1) fp.head_slice_per_row = fp.output.rows * sizeof(float);
-    // An embedded drafter's weights but those the head holds already, its embedding apart, and its KV layer, carried rows and the rows a mark saves.
-    if (plan.drafter) {
-        std::vector<size_t> held;
-        for (const Role& role : plan.pass)
-            if (role.part == Part::head && role.tensor) held.push_back(*role.tensor);
-        std::vector<std::pair<size_t, bool>> taken;
-        for (const Role& role : plan.drafter->roles) {
-            if (!role.tensor || std::find(held.begin(), held.end(), *role.tensor) != held.end()) continue;
-            if (role.kind == RoleKind::gather) {
-                fp.drafter_embedding = matrix(*role.tensor, false);
-                continue;
-            }
-            taken.push_back({*role.tensor, role.kind == RoleKind::matrix});
-        }
-        std::sort(taken.begin(), taken.end());
-        taken.erase(std::unique(taken.begin(), taken.end()), taken.end());
-        for (const auto& t : taken) fp.drafter.push_back(matrix(t.first, t.second));
-        const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
-        fp.drafter_cache = backend::size_add(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(plan, options)),
-                                             backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), plan.residual * sizeof(float)));
-    }
     // A member's caches hold its heads, one device's plan with the member's KV heads and state.
     ModelPlan heads;
     if (width > 1) {
@@ -98,6 +78,32 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         heads.state = shard::state(plan, width);
     }
     const ModelPlan& kept = width > 1 ? heads : plan;
+    // An embedded drafter's weights but those the head holds already, its embedding apart, and its KV layer, carried rows and the rows a mark saves.
+    // A member holds its shards of the drafter's block and reads the head whole (DraftStep), which its own head, a shard, does not hold, so the head's matrix counts here once more, or where it is tied with the embedding table.
+    if (plan.drafter) {
+        std::vector<size_t> held;
+        for (const Role& role : plan.pass)
+            if (role.part == Part::head && role.tensor && (width == 1 || role.shard.axis == Axis::none)) held.push_back(*role.tensor);
+        std::optional<size_t> table;
+        for (const Role& role : plan.drafter->roles)
+            if (role.kind == RoleKind::gather) table = role.tensor;
+        std::vector<std::pair<std::pair<size_t, bool>, const Role*>> taken;
+        for (const Role& role : plan.drafter->roles) {
+            if (!role.tensor || std::find(held.begin(), held.end(), *role.tensor) != held.end()) continue;
+            if (role.kind == RoleKind::gather) {
+                fp.drafter_embedding = matrix(*role.tensor, false);
+                continue;
+            }
+            if (role.tensor == table) continue;
+            taken.push_back({{*role.tensor, role.kind == RoleKind::matrix}, &role});
+        }
+        std::sort(taken.begin(), taken.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+        taken.erase(std::unique(taken.begin(), taken.end(), [](const auto& a, const auto& b) { return a.first == b.first; }), taken.end());
+        for (const auto& t : taken) fp.drafter.push_back(matrix(t.first.first, t.first.second, t.second));
+        const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
+        fp.drafter_cache = backend::size_add(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options)),
+                                             backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), plan.residual * sizeof(float)));
+    }
     for (const LayerPlan& layer : plan.layers)
         fp.cache.push_back(layer.cache == Cache::kv      ? kv_tokens(plan, options) * kv_bytes_per_position(kept, options)
                            : layer.cache == Cache::state ? backend::size_add(kept.state.layer_bytes(backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots)),

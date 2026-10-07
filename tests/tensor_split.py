@@ -6,12 +6,14 @@ The qwen35 fixture, whose linear-attention layers keep a recurrent state, is hel
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 import common
+import decode_probe
 import f32
 import qwen35
 from tokenizer import build_byte_vocab
@@ -88,6 +90,40 @@ def held_to_hf(label, meta, rows, fixture):
     return worst, abs(nll - want)
 
 
+def drafts(tool, model, directory, devices, width):
+    """The embedded drafter's pick and two drafts after each of four prompts of `model` on `devices`, as llmx-decode-probe prints them with f32 caches: per prompt the pick, the drafted ids and each draft row's logits."""
+    out = []
+    for prompt in ("a", "ab", "hello", "The quick br"):
+        p = decode_probe.probe(tool, model, directory, {"prompt": prompt, "ids": [], "tokens": [0, 1], "draft": 2, "cache": "f32"}, devices, width)
+        assert p.returncode == 0, "tensor-split: llmx-decode-probe failed on %s at width %d: %s%s" % (devices, width, p.stdout, p.stderr)
+        pick = re.search(r"^draft pick (\d+), (\d+) drafts$", p.stdout, re.M)
+        rows = re.findall(r"^draft (\d+) (\d+):((?: \S+)+)$", p.stdout, re.M)
+        assert pick and len(rows) == 2, "tensor-split: no drafts on %s at width %d: %s" % (devices, width, p.stdout)
+        out.append((int(pick.group(1)), [int(r[1]) for r in rows], [[float(v) for v in r[2].split()] for r in rows]))
+    return out
+
+
+def check_drafter(directory, single, widths, require):
+    """The qwen35 fixture with an MTP block as an embedded drafter over a group (docs/TENSOR-SPLIT.md, step 6): from four prompts, the pick and the two drafts must be one device's, whose drafts the qwen35 component holds to HF on its own fixture, and every draft row's logits within the F32 bound of one device's.
+    Returns the largest difference, or None with a skip line where the tool is not beside the executable."""
+    tool = decode_probe.tool_path()
+    if not os.path.exists(tool):
+        assert not require, "tensor-split: llmx-decode-probe is not beside the executable, and --require-tools asks for it"
+        print("tensor-split: SKIP the drafter over a group - llmx-decode-probe is not beside the executable")
+        return None
+    spec = dict(QWEN35, name="split-mtp", mtp=True)
+    model = qwen35.write_fixture(directory, dict(spec, config=dict(spec["config"], context_length=128)), tokens=TOKENS)
+    one = drafts(tool, model, directory, single if single == "cpu" else single.split(":", 1)[1], 1)
+    worst = 0.0
+    for width, devices in widths:
+        listed = ",".join(d if d == "cpu" else d.split(":", 1)[1] for d in devices.split(","))
+        for (pick, ids, rows), (want_pick, want_ids, want_rows) in zip(drafts(tool, model, directory, listed, width), one):
+            assert pick == want_pick and ids == want_ids, "tensor-split: a group of %d drafts %s after %d, one device %s after %d" % (width, ids, pick, want_ids, want_pick)
+            worst = max(worst, max(abs(a - b) for row, want in zip(rows, want_rows) for a, b in zip(row, want)))
+    assert worst < common.F32_HF_LOGIT_BOUND, "tensor-split: a group's draft logits %.8f from one device's" % worst
+    return worst
+
+
 def run(require=False):
     tool = tool_path()
     if not os.path.exists(tool):
@@ -127,8 +163,10 @@ def run(require=False):
             for phase in ("batched", "decode"):
                 common.check_device_rows(one[phase], rows[phase], list(f32.TEXTS[-1].encode("ascii")))
             common.check_device_greedy(one["greedy"], rows["greedy"], one_meta["greedy"], meta["greedy"])
-    print("tensor-split: the qwen3 fixtures, tied and untied, and the qwen35 fixture on %s against HF, max logit error %.8f and NLL error %.8f, and against %s by the device-reference criterion  [ok]"
-          % (" and ".join("%s as width %d" % (devices, width) for width, devices in widths), worst_logit, worst_nll, single))
+        drafted = check_drafter(directory, single, widths, require)
+    print("tensor-split: the qwen3 fixtures, tied and untied, and the qwen35 fixture on %s against HF, max logit error %.8f and NLL error %.8f, and against %s by the device-reference criterion%s  [ok]"
+          % (" and ".join("%s as width %d" % (devices, width) for width, devices in widths), worst_logit, worst_nll, single,
+             "" if drafted is None else "; the embedded drafter's picks and drafts those of %s, draft logits within %.8f" % (single, drafted)))
     return True
 
 

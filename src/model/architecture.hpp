@@ -104,9 +104,9 @@ struct ModelPlan {
     backend::StateShape state;          // the recurrent state of every layer whose cache is a state
     std::vector<size_t> tables;         // floats in each position table
     // An embedded drafter, planned only when a caller asks for one (Architecture::plan_drafter): its roles, all Part::draft, its ops and its cache, KV in the head's device's storage beside the layers' (docs/SPECULATIVE.md, section 7).
-    // Its context rows leave the target's final-normed rows in arena slot `draft_h`, which the model carries and saves.
+    // Its context rows leave the target's final-normed rows in arena slot `draft_h`, which the model carries and saves, and a draft step's residual rows are in arena slot `draft_x`, which a tensor group sums its members' partial rows into.
     std::optional<LayerPlan> drafter;
-    size_t draft_h = 0;
+    size_t draft_h = 0, draft_x = 0;
 };
 
 // The floats a row of the slots a state layer's update writes take (LayerPlan::recur_writes), a layer's room in a rerun.
@@ -161,6 +161,8 @@ struct DraftRowsStep : Step {
 };
 
 // One step of an embedded drafter's chains (Architecture::draft), a draft row for each of `rows` sequences, one cache view each: each token's row read from `id` on the device, the target's row before it at `prev`, row i of it or, with `prev_rows`, the row prev_rows[i] names, the drafted ids written to `next`, the drafter's output rows after its final norm left at `out`, the next step's `prev`, and the head's logits at `logits`.
+// On a tensor group a step is three calls (Step::phase): 0 through the block's mixer, 1 its feed-forward block, 2 the final norm, the head and the argmax, the group summing the members' partial rows into the residual after each of the first two; -1 runs all of it, as one device does.
+// Each member reads the head whole there, so every member finds the same id from the same rows with no exchange.
 struct DraftStep : Step {
     backend::CSlice id, prev;
     const uint32_t* prev_rows = nullptr;

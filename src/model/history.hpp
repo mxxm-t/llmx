@@ -566,16 +566,18 @@ inline void Model::save(ExecContext& ctx, const Pass& p, size_t dev, int l) {
     }
 }
 
-// After an embedded drafter's context rows on the head's device: each marked entry's normed rows, the row each kept row would carry, copied into its mark's room.
+// After an embedded drafter's context rows on the head's device, or each member of its group: each marked entry's normed rows, the row each kept row would carry, copied into its mark's room.
 inline void Model::save_h(ExecContext& ctx, const Pass& p) {
-    const Device& d = *devices_[(size_t)place_.output_device];
-    const backend::Slice hn = slot(ctx, (size_t)place_.output_device, plan_.draft_h);
     const size_t E = plan_.residual;
-    for (size_t e = 0; e < p.entries.size(); ++e) {
-        const Sequence::Mark& m = p.entries[e].seq->mark_;
-        if (!m.held()) continue;
-        const size_t r0 = e ? p.runs[e - 1].end : 0, n = p.entries[e].n;
-        d.b->copy(*d.saved_h, m.hold.buffer() * options_.mark_rows * E * sizeof(float), *hn.buffer, (hn.offset + r0 * E) * sizeof(float), n * E * sizeof(float));
+    for (size_t o = (size_t)place_.output_device, end = o + width_; o < end; ++o) {
+        const Device& d = *devices_[o];
+        const backend::Slice hn = slot(ctx, o, plan_.draft_h);
+        for (size_t e = 0; e < p.entries.size(); ++e) {
+            const Sequence::Mark& m = p.entries[e].seq->mark_;
+            if (!m.held()) continue;
+            const size_t r0 = e ? p.runs[e - 1].end : 0, n = p.entries[e].n;
+            d.b->copy(*d.saved_h, m.hold.buffer() * options_.mark_rows * E * sizeof(float), *hn.buffer, (hn.offset + r0 * E) * sizeof(float), n * E * sizeof(float));
+        }
     }
 }
 
@@ -594,7 +596,7 @@ inline void Model::rerun(Sequence& s, size_t rows) {
             if (lp.cache == Cache::state) phases = std::max(phases, lp.recur_phases);
         for (size_t dev = 0; dev < devices_.size(); ++dev) {
             Device& d = *devices_[dev];
-            const bool carry = plan_.drafter && dev == (size_t)place_.output_device;
+            const bool carry = plan_.drafter && dev - d.member == (size_t)place_.output_device;
             if (!d.states && !carry) continue;
             // Nothing a phase runs reads what another layer's writes: each layer reads its own saved inputs and slot, and writes its own room and slot.
             for (int phase = 0; d.states && phase < phases; ++phase) {
@@ -669,6 +671,7 @@ inline void Model::drop_mark(Sequence& s) noexcept {
 // The sequences take their rows in order of their chains' lengths, longest first, so the rows of every step are those of the step before it less the last ones; a row computes what it computes alone.
 // Each row writes the drafter's KV at its position into blocks taken for the chain and returned after it, so a history's committed length is unchanged and a verify overwrites those rows before anything reads them.
 // A sequence's drafts end before its first that is not an id of the vocabulary, which the device marks where a row's logits are not finite.
+// On a tensor group every member of the head's group runs each step on its shards of the block, the group summing the members' partial rows into the step's residual after the block's mixer and after its feed-forward block, and reads the head whole, so each member finds the row's id itself; a sequence's drafts also end before the first id its members do not agree on.
 inline void Model::draft(DraftAsk* asks, size_t n) {
     if (!plan_.drafter) throw std::logic_error("inference: a draft without an embedded drafter");
     const size_t S = stages_.size(), V = plan_.vocab;
@@ -688,17 +691,23 @@ inline void Model::draft(DraftAsk* asks, size_t n) {
     }
     if (order.empty()) return;
     std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) { return asks[a].k > asks[b].k; });
-    const size_t R = order.size(), o = (size_t)place_.output_device;
+    const size_t R = order.size(), o = (size_t)place_.output_device, W = width_;
     Device& d = *devices_[o];
     ensure(ctx_, R, 0, handoffs(1));
-    if (draft_id_rows_ < R * (steps + 1) || draft_rows_ < R * steps) {
-        const size_t id_rows = std::max(draft_id_rows_, R * (steps + 1)), rows = std::max(draft_rows_, R * steps);
-        backend::BufferPtr ids = d.b->alloc(backend::size_mul(id_rows, sizeof(float)), backend::Memory::host_visible);
-        backend::BufferPtr logits = d.b->alloc(backend::size_mul(rows, backend::size_mul(V, sizeof(float))), backend::Memory::host_visible);
+    if (draft_id_rows_ < R * (steps + 1) || draft_rows_ < R * steps || draft_seqs_ < R) {
+        const size_t id_rows = std::max(draft_id_rows_, R * (steps + 1)), rows = std::max(draft_rows_, R * steps), seqs = std::max(draft_seqs_, R);
+        std::vector<backend::BufferPtr> ids(W), logits(W);
+        for (size_t m = 0; m < W; ++m) {
+            backend::Backend& b = *devices_[o + m]->b;
+            ids[m] = b.alloc(backend::size_mul(id_rows, sizeof(float)), backend::Memory::host_visible);
+            logits[m] = m ? b.alloc(backend::size_mul(seqs, backend::size_mul(V, sizeof(float))))
+                          : b.alloc(backend::size_mul(rows, backend::size_mul(V, sizeof(float))), backend::Memory::host_visible);
+        }
         draft_ids_ = std::move(ids);
         draft_logits_ = std::move(logits);
         draft_id_rows_ = id_rows;
         draft_rows_ = rows;
+        draft_seqs_ = seqs;
     }
     draft_order_.assign(n, R);
     draft_k_.assign(n, 0);
@@ -717,35 +726,55 @@ inline void Model::draft(DraftAsk* asks, size_t n) {
     size_t prepared = 0;
     try {
         for (; prepared < R; ++prepared) kv[prepared]->prepare(asks[order[prepared]].k);
-        d.b->write(*draft_ids_, 0, last.data(), R * sizeof(uint32_t));
-        const backend::Slice hn = slot(ctx_, o, plan_.draft_h);
-        std::vector<backend::KVView> views(R);
+        std::vector<backend::Slice> x(W);
+        for (size_t g = 0; g < W; ++g) {
+            devices_[o + g]->b->write(*draft_ids_[g], 0, last.data(), R * sizeof(uint32_t));
+            x[g] = slot(ctx_, o + g, plan_.draft_x);
+        }
+        std::vector<std::vector<backend::KVView>> views(W, std::vector<backend::KVView>(R));
         for (size_t m = 0, rows = R; m < steps; ++m) {
             while (asks[order[rows - 1]].k <= m) --rows;
             for (size_t p = 0; p < rows; ++p) {
-                views[p] = kv[p]->view(d.storage.get());
-                views[p].length = length[p] + m;
-                views[p].nq = 1;
-                views[p].extent = 1;
+                for (size_t g = 0; g < W; ++g) {
+                    views[g][p] = kv[p]->view(devices_[o + g]->storage.get());
+                    views[g][p].length = length[p] + m;
+                    views[g][p].nq = 1;
+                    views[g][p].extent = 1;
+                }
                 pos[p] = (uint32_t)(length[p] + m);
             }
             const backend::RowRun run{rows, 1};
-            DraftStep step{part(ctx_, o, drafter_.data(), plan_.drafter->kind, 0, rows, {&run, 1}),
-                           {draft_ids_.get(), m * R},
-                           m ? backend::CSlice{hn} : backend::CSlice{d.carry.get(), 0},
-                           m ? nullptr : carried.data(),
-                           {draft_ids_.get(), (m + 1) * R},
-                           hn,
-                           {draft_logits_.get(), m * R * V}};
-            step.views = views.data();
-            step.n_views = rows;
-            step.kv_layer = drafter_kv_;
-            step.pos = pos.data();
-            arch_->draft(step);
+            // One device runs a step whole; a group runs it in three calls a member with a sum after each of the first two (DraftStep).
+            for (int phase = W > 1 ? 0 : -1; phase < (W > 1 ? 3 : 0); ++phase) {
+                for (size_t g = 0; g < W; ++g) {
+                    const backend::Slice hn = slot(ctx_, o + g, plan_.draft_h);
+                    DraftStep step{part(ctx_, o + g, drafter_row(g), plan_.drafter->kind, 0, rows, {&run, 1}),
+                                   {draft_ids_[g].get(), m * R},
+                                   m ? backend::CSlice{hn} : backend::CSlice{devices_[o + g]->carry.get(), 0},
+                                   m ? nullptr : carried.data(),
+                                   {draft_ids_[g].get(), (m + 1) * R},
+                                   hn,
+                                   {draft_logits_[g].get(), g ? 0 : m * R * V}};
+                    step.views = views[g].data();
+                    step.n_views = rows;
+                    step.kv_layer = drafter_kv_;
+                    step.pos = pos.data();
+                    step.phase = phase;
+                    if (W > 1) {
+                        step.width = W;
+                        step.partial = ctx_.collectives[o]->partial(g);
+                    }
+                    arch_->draft(step);
+                }
+                if (phase == 0 || phase == 1) ctx_.collectives[o]->sum_into(x, rows, plan_.residual);
+            }
         }
-        const backend::Ticket t = d.b->submit();
-        for (size_t p = 0; p < R; ++p) asks[order[p]].seq->last_[o] = t;
-        d.b->wait(t);
+        std::vector<backend::Ticket> sent(W);
+        for (size_t g = 0; g < W; ++g) {
+            sent[g] = devices_[o + g]->b->submit();
+            for (size_t p = 0; p < R; ++p) asks[order[p]].seq->last_[o + g] = sent[g];
+        }
+        for (size_t g = 0; g < W; ++g) devices_[o + g]->b->wait(sent[g]);
     } catch (...) {
         retire();
         for (size_t p = 0; p < prepared; ++p) kv[p]->abort();
@@ -755,10 +784,15 @@ inline void Model::draft(DraftAsk* asks, size_t n) {
         kv[p]->abort();
         draft_k_[order[p]] = asks[order[p]].k;
     }
-    const uint32_t* ids = (const uint32_t*)draft_ids_->host_ptr();
+    const uint32_t* ids = (const uint32_t*)draft_ids_[0]->host_ptr();
+    const auto agreed = [&](size_t i) {
+        for (size_t g = 1; g < W; ++g)
+            if (((const uint32_t*)draft_ids_[g]->host_ptr())[i] != ids[i]) return false;
+        return true;
+    };
     for (size_t p = 0; p < R; ++p) {
         const DraftAsk& a = asks[order[p]];
-        for (size_t m = 1; m <= a.k && ids[m * R + p] < V; ++m) a.out->push_back(ids[m * R + p]);
+        for (size_t m = 1; m <= a.k && ids[m * R + p] < V && agreed(m * R + p); ++m) a.out->push_back(ids[m * R + p]);
     }
 }
 

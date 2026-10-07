@@ -286,16 +286,18 @@ public:
         d.ops.push_back({Part::draft, backend::Op::embed_ids});
         p.role_ids = nextn_shared_head_norm + 1;
         p.draft_h = p.slots.size();
+        p.draft_x = p.draft_h + 3;
         p.slots.insert(p.slots.end(), {(size_t)E, 2 * (size_t)E, 2 * (size_t)E, (size_t)E});
         p.drafter = std::move(d);
     }
 
     // Every row of the pass in the MTP layer's cache: the final norm over every row into draft_h, the row before each (an entry's carried row for its first row, the normed row before it for the others), the block's input (blocks::nextn_input), then attn_norm, K and V, the k norm and the partial rope, written to the cache.
     // q, attention, the feed-forward block and the head are not run for these rows, since only their K and V are ever read.
+    // On a tensor group each member writes the K and V of its own KV heads from the same rows, with no sum.
     void draft_rows(const DraftRowsStep& s) const override {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
-        const size_t E = (size_t)cfg_.n_embd, D = (size_t)cfg_.head_dim, Hkv = (size_t)cfg_.n_head_kv;
+        const size_t E = (size_t)cfg_.n_embd, D = (size_t)cfg_.head_dim, Hkv = kv_share((size_t)cfg_.n_head_kv, s.width);
         const size_t base = draft_slot();
         const backend::Slice hn = s.slot(base), pair = s.slot(base + 1), u = s.slot(base + 3), h = s.slot(1), k = s.slot(3), v = s.slot(4);
         b.rms_norm_rows(hn, s.x, w[output_norm].slice(), s.rows, E, E, cfg_.rms_eps);
@@ -322,19 +324,23 @@ public:
         const size_t E = (size_t)cfg_.n_embd, V = w[output].nout, n = s.rows;
         const size_t base = draft_slot();
         const backend::Slice pair = s.slot(base + 1), x = s.slot(base + 3);
-        b.embed_ids(pair, w[token_embd].type, w[token_embd].slice(), w[token_embd].nin, w[token_embd].nout, s.id, n);
-        const backend::Slice prev{pair.buffer, pair.offset + n * E};
-        if (s.prev_rows) b.gather_rows(prev, s.prev, E, s.prev_rows, n);
-        else b.copy(*pair.buffer, prev.offset * sizeof(float), *s.prev.buffer, s.prev.offset * sizeof(float), n * E * sizeof(float));
-        blocks::nextn_input(s, w[nextn_enorm], w[nextn_hnorm], w[nextn_eh_proj], pair, s.slot(base + 2), x, cfg_.rms_eps);
         Step layer = s;
         layer.x = x;
         layer.kind = full;
-        mixer(layer);
-        ffn(layer);
-        b.rms_norm_rows(s.out, x, w[nextn_shared_head_norm].slice(), n, E, E, cfg_.rms_eps);
-        b.matmul_logits(w[output].type, w[output].slice(), s.out, s.logits, E, V, n, s.runs, s.dtype);
-        b.argmax_rows(s.next, s.logits, n, V, s.id);
+        if (s.phase <= 0) {
+            b.embed_ids(pair, w[token_embd].type, w[token_embd].slice(), w[token_embd].nin, w[token_embd].nout, s.id, n);
+            const backend::Slice prev{pair.buffer, pair.offset + n * E};
+            if (s.prev_rows) b.gather_rows(prev, s.prev, E, s.prev_rows, n);
+            else b.copy(*pair.buffer, prev.offset * sizeof(float), *s.prev.buffer, s.prev.offset * sizeof(float), n * E * sizeof(float));
+            blocks::nextn_input(s, w[nextn_enorm], w[nextn_hnorm], w[nextn_eh_proj], pair, s.slot(base + 2), x, cfg_.rms_eps);
+            mixer(layer);
+        }
+        if (s.phase < 0 || s.phase == 1) ffn(layer);
+        if (s.phase < 0 || s.phase == 2) {
+            b.rms_norm_rows(s.out, x, w[nextn_shared_head_norm].slice(), n, E, E, cfg_.rms_eps);
+            b.matmul_logits(w[output].type, w[output].slice(), s.out, s.logits, E, V, n, s.runs, s.dtype);
+            b.argmax_rows(s.next, s.logits, n, V, s.id);
+        }
     }
 
     // A linear-attention layer's state update: the causal conv over the raw rows (slot 2) into the conv's output (slot 3), and the recurrence over it with alpha and beta (slot 5) into the recurrence's output (slot 6), each reading the views' src slots and writing their dst slots; phase 0 is the conv and phase 1 the recurrence.

@@ -202,8 +202,8 @@ void rounds(const std::string& name, const gguf::GGUFModel& plain, size_t vocab,
     }
 }
 
-// The embedded drafter of a hybrid model with an MTP block (docs/SPECULATIVE.md, section 7) against the run without drafts of the file without the block, on one, two and four CPU stages, greedy and seeded, prompts of 10, 127 and 129 tokens, at 1, 3 and 8 drafts a verify, each run feeding drafts.
-void embedded(const gguf::GGUFModel& plain, const gguf::GGUFModel& mtp, size_t vocab) {
+// The embedded drafter of a hybrid model with an MTP block (docs/SPECULATIVE.md, section 7) against the run without drafts of the file without the block, on one, two and four CPU stages, or those given, greedy and seeded, prompts of 10, 127 and 129 tokens, at 1, 3 and 8 drafts a verify, each run feeding drafts.
+void embedded(const gguf::GGUFModel& plain, const gguf::GGUFModel& mtp, size_t vocab, const std::vector<size_t>& stages = {1, 2, 4}) {
     std::vector<infer::GenParams> samplers(2);
     samplers[0].temp = 0;
     samplers[1].temp = 0.8f, samplers[1].top_k = 40, samplers[1].top_p = 0.95f, samplers[1].seed = 5;
@@ -213,7 +213,7 @@ void embedded(const gguf::GGUFModel& plain, const gguf::GGUFModel& mtp, size_t v
             const std::vector<uint32_t> prompt = prompt_of(3, prompt_len, (uint32_t)vocab);
             const Run want = generate(plain, 1, prompt, gp, nullptr, 0);
             require(want.ids == generate(mtp, 1, prompt, gp, nullptr, 0).ids, "the file with an MTP block generates otherwise without its drafter");
-            for (size_t st : {1, 2, 4})
+            for (size_t st : stages)
                 for (size_t k : {1, 3, 8}) {
                     const Run got = generate(mtp, st, prompt, gp, nullptr, k, true);
                     const std::string at = "the embedded drafter, " + std::to_string(st) + " stages, " + std::to_string(k) + " drafts, prompt " +
@@ -222,6 +222,29 @@ void embedded(const gguf::GGUFModel& plain, const gguf::GGUFModel& mtp, size_t v
                     require(got.drafted > 0, at + ": no draft was fed");
                 }
         }
+}
+
+// A member's footprint with the embedded drafter (infer::footprint with a width) against counts made here, on the hybrid model whose shape a group of two splits whole: its shards of the block, the block's input projection and norms whole, the head whole once more, since a member's own head is a shard and a draft row reads every vocabulary row, the embedding table whole, and the KV of its own KV heads.
+void drafter_footprint(const gguf::GGUFModel& mtp) {
+    const infer::ModelWeights w = infer::gguf_weights(mtp);
+    const infer::ModelPlan plan = infer::plan_model(w, true);
+    const infer::ModelOptions o;
+    const infer::Footprint one = infer::footprint(w, plan, o), half = infer::footprint(w, plan, o, 2, 0);
+    const auto bytes = [](const std::vector<infer::Matrix>& v) {
+        size_t n = 0;
+        for (const infer::Matrix& m : v) n += m.bytes;
+        return n;
+    };
+    const auto q8 = [](size_t rows, size_t cols) { return rows * quant::row_bytes(quant::GGML_TYPE_Q8_0, cols); };
+    const size_t E = (size_t)kHybridEven.embd, F = (size_t)kHybridEven.ff, D = (size_t)kHybridEven.head_dim, H = (size_t)kHybridEven.heads, HKV = (size_t)kHybridEven.kv_heads;
+    const size_t V = (size_t)kHybridEven.vocab;
+    // Five norms of E and two of a head, eh_proj E rows of 2 E.
+    const size_t whole = (5 * E + 2 * D) * sizeof(float) + q8(E, 2 * E);
+    require(bytes(one.drafter) == whole + q8(2 * H * D, E) + 2 * q8(HKV * D, E) + q8(E, H * D) + 2 * q8(F, E) + q8(E, F), "the drafter's weights on one device");
+    require(bytes(half.drafter) == whole + q8(H * D, E) + 2 * q8(HKV * D / 2, E) + q8(E, H * D / 2) + 2 * q8(F / 2, E) + q8(E, F / 2) + q8(V, E),
+            "a member's shards of the drafter's block, with the head whole");
+    require(half.drafter_embedding.bytes == q8(V, E) && one.drafter_embedding.bytes == q8(V, E), "the drafter's embedding table is not whole on a member");
+    require(one.drafter_cache - half.drafter_cache == infer::kv_tokens(plan, o) * infer::kv_bytes_per_position(plan, o) / 2, "a member's drafter KV is not its KV heads'");
 }
 
 // A CPU backend whose conv throws once where a test arms it, for a rerun that fails, and that remembers whether it was left recording unordered.
@@ -321,12 +344,14 @@ int main() {
         embedded(hybrid, served_hybrid(kHybrid, true), (size_t)kHybrid.vocab);
         history(dense, (size_t)kCpu.vocab, 2);
         failures(hybrid, (size_t)kHybrid.vocab);
-        // The hybrid model over tensor groups of two CPUs, one stage and two: each member keeps the state of its own heads and reruns it from the mark on its own.
+        // The hybrid model over tensor groups of two CPUs, one stage and two: each member keeps the state of its own heads and reruns it from the mark on its own, and with the file's embedded drafter each member runs its shards of the block and reads the head whole.
         const gguf::GGUFModel even = served_hybrid(kHybridEven);
         group_width = 2;
         rounds("the hybrid model on groups of two", even, (size_t)kHybridEven.vocab, {1, 2});
         for (size_t st : {1, 2}) history(even, (size_t)kHybridEven.vocab, st);
+        embedded(even, served_hybrid(kHybridEven, true), (size_t)kHybridEven.vocab, {1, 2});
         group_width = 1;
+        drafter_footprint(served_hybrid(kHybridEven, true));
         std::cout << "spec: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& e) {

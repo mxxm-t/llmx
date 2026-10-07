@@ -1,7 +1,7 @@
 // A reply's decode path on a real model: the prompt read as one prefill, then each forced id of a fixture fed as a decode step, as a request alone runs through the server.
 // Each step prints its greedy token and the forced one with their logits; after the last forced id it prints the step's five best, or every id of a smaller vocabulary, and the logits of the fixture's two tokens, where two builds' greedy replies parted.
 // A fixture's `draft`, a count, loads the file's embedded drafter, or the MTP blocks its `drafter_file` holds beside it, and prints its drafts after the last step's greedy token, each draft row's id and every logit of its row (docs/SPECULATIVE.md, section 7); its `cache`, f16 or f32, stores both cache sides so, f16 when left out.
-// Usage: llmx-decode-probe <model.gguf> <fixture.json> [device]; the device is `cpu` or a Vulkan index, 0 when left out. It exits 1 where a forced id is not its step's greedy token, and 2 on a fixture entry that is not a whole number inside the vocabulary.
+// Usage: llmx-decode-probe <model.gguf> <fixture.json> [device [tensor width]]; the device is `cpu` or a Vulkan index, 0 when left out, and with a tensor width above 1 a comma-separated list of that many, one tensor group (docs/TENSOR-SPLIT.md), each a backend of its own, so `cpu,cpu` is a group of two CPU backends. It exits 1 where a forced id is not its step's greedy token, and 2 on a fixture entry that is not a whole number inside the vocabulary.
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -27,7 +27,7 @@ static uint32_t fixture_id(const jmini::Value& v, const char* name, size_t i, si
 
 int main(int argc, char** argv) {
     if (argc < 3) {
-        std::fprintf(stderr, "usage: llmx-decode-probe <model.gguf> <fixture.json> [device]\n");
+        std::fprintf(stderr, "usage: llmx-decode-probe <model.gguf> <fixture.json> [device [tensor width]]\n");
         return 2;
     }
     try {
@@ -42,7 +42,9 @@ int main(int argc, char** argv) {
         if (draft && (!draft->isNumber() || draft->asNumber() != std::floor(draft->asNumber()) || draft->asNumber() < 1 || draft->asNumber() > 63))
             throw std::runtime_error("draft is not a whole number from 1 to 63");
         infer::PlacementRequest request;
-        request.names = {device == "cpu" ? device : "vulkan:" + device};
+        for (const std::string& d : core::comma_list(device)) request.names.push_back(d == "cpu" ? d : "vulkan:" + d);
+        request.width = argc > 4 ? (size_t)std::atoi(argv[4]) : 1;
+        if (request.names.size() != request.width) throw std::runtime_error("the devices listed are one device, or one tensor group of the width given");
         // A fixture's `drafter_file` holds the MTP blocks the draft takes, beside the model, rather than its own (infer::load_model).
         const jmini::Value* drafter_file = fixture.get("drafter_file");
         if (drafter_file && (!drafter_file->isString() || !draft)) throw std::runtime_error("drafter_file is not a path beside a draft count");

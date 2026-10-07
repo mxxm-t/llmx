@@ -948,7 +948,7 @@ void hook_checks() {
     }
 }
 
-// A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads neither divided nor a multiple, K heads, vocabulary rows, columns off whole quant blocks, a state layer's saved row, and routed layers and an embedded drafter, which a group does not split yet.
+// A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads neither divided nor a multiple, K heads, vocabulary rows, columns off whole quant blocks, a state layer's saved row, and routed layers, which a group does not split yet.
 void shard_checks() {
     // A two-layer dense qwen3 plan over views without bytes, F32 but for ffn_down's `down` type, with or without routed experts in its first layer.
     auto dense = [](int heads, int kv, int dim, int ff, uint64_t vocab, uint32_t down, bool routed) {
@@ -1015,13 +1015,6 @@ void shard_checks() {
         const infer::ModelPlan& plan = pv.first;
         const std::vector<infer::TensorView>& views = pv.second;
         rejects("tensor width routed layer", [&] { infer::shard::check_plan(plan, views, 2); });
-    }
-    {
-        auto pv = dense(8, 2, 128, 1024, 48, f32, false);
-        infer::ModelPlan& plan = pv.first;
-        const std::vector<infer::TensorView>& views = pv.second;
-        plan.drafter = infer::LayerPlan{};
-        rejects("tensor width drafter", [&] { infer::shard::check_plan(plan, views, 2); });
     }
     {
         // A qwen35 linear-attention layer of 2 K heads, then a full-attention layer, which 4 members cannot split by K head.

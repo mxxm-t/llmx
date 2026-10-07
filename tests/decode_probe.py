@@ -33,11 +33,12 @@ def device():
     return configured.split(":", 1)[1] if configured.startswith("vulkan:") and "," not in configured else "cpu"
 
 
-def probe(tool, model, directory, fixture):
+def probe(tool, model, directory, fixture, devices=None, width=1):
+    """The tool's run of `fixture` on the configured device, or on `devices`, which with a `width` above 1 form one tensor group."""
     path = os.path.join(directory, "fixture.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(fixture, f)
-    return subprocess.run([tool, model, path, device()], capture_output=True, encoding="utf-8", errors="replace", timeout=120)
+    return subprocess.run([tool, model, path, devices or device(), str(width)], capture_output=True, encoding="utf-8", errors="replace", timeout=120)
 
 
 def best(out, forced, vocab):

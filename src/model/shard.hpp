@@ -66,11 +66,10 @@ inline std::vector<Span> spans(const Role& role, size_t width, size_t member) {
     return out;
 }
 
-// Whether a model of `plan` over `views` splits at `width`: each role's tensor by its declaration, every section by its units and on the column axis every span of every member on whole blocks of its storage type, refused by name otherwise, as is a state layer's saved row the width does not divide; a routed layer and an embedded drafter are refused, as a group does not split them yet (docs/TENSOR-SPLIT.md, sections 4.10 and 6).
+// Whether a model of `plan` over `views` splits at `width`: each role's tensor by its declaration, every section by its units and on the column axis every span of every member on whole blocks of its storage type, refused by name otherwise, as is a state layer's saved row the width does not divide, an embedded drafter's block as a layer's; a routed layer is refused, as a group does not split one yet (docs/TENSOR-SPLIT.md, sections 4.10 and 6).
 inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& views, size_t width) {
     if (!width) throw std::logic_error("shard: a group of no members");
     if (width == 1) return;
-    if (plan.drafter) throw std::runtime_error("inference: a tensor width of " + std::to_string(width) + " does not split an embedded drafter yet");
     auto each = [&](const std::vector<Role>& roles) {
         for (const Role& role : roles) {
             if (!role.tensor || role.shard.axis == Axis::none) continue;
@@ -93,6 +92,7 @@ inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& vie
                 throw std::runtime_error("inference: a tensor width of " + std::to_string(width) + " does not divide the " + std::to_string(v.width) +
                                          " floats layer " + std::to_string(l) + " saves a row for a mark");
     }
+    if (plan.drafter) each(plan.drafter->roles);
 }
 
 // The bytes of `role`'s tensor `t` member `member` of `width` holds, as runs of the tensor's bytes in the order they are packed: whole rows of each span on the row axis, and each row's spans on the column axis.
